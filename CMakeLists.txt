@@ -42,7 +42,13 @@ if(ITO_ENABLE_CLANG_FORMAT)
     )
 endif()
 
-set(ITO_SOURCES src/ito.cpp)
+set(ITO_SOURCES
+    src/core/types.cpp
+    src/pricing/engines/analytic.cpp
+    src/pricing/engines/binomial.cpp
+    src/pricing/engines/finite_difference.cpp
+    src/pricing/engines/digital_barrier.cpp
+)
 
 add_library(ito STATIC ${ITO_SOURCES})
 add_library(ito::ito ALIAS ito)
@@ -81,7 +87,7 @@ if(BUILD_TESTING)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(ito_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp)
+    add_executable(ito_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp tests/header_smoke.cpp)
     target_link_libraries(ito_tests PRIVATE ito Catch2::Catch2WithMain)
     target_compile_features(ito_tests PRIVATE cxx_std_23)
     target_compile_definitions(ito_tests PRIVATE ITO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
