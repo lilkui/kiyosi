@@ -18,7 +18,25 @@ inline constexpr int version_minor = 1;
 inline constexpr int version_patch = 0;
 
 using date = std::chrono::sys_days;
+// Intraday moments use UTC-like sys_time; date-based contracts remain midnight anchored.
+using timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
+using time_point = timestamp;
 [[nodiscard]] inline bool is_valid_date(date value) noexcept;
+
+enum class day_count_convention : unsigned char {
+    actual_365_fixed,
+};
+
+[[nodiscard]] inline timestamp start_of_day(date value) noexcept
+{
+    return timestamp{value.time_since_epoch()};
+}
+
+[[nodiscard]] inline date date_of(timestamp value) noexcept
+{
+    return date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
+}
+
 
 enum class error_category : unsigned char {
     invalid_option = 1,
@@ -50,6 +68,30 @@ struct Error {
 
 template <typename T>
 using result = std::expected<T, Error>;
+
+[[nodiscard]] inline result<double> year_fraction(
+    date start, date end, day_count_convention convention = day_count_convention::actual_365_fixed)
+{
+    if (!is_valid_date(start) || !is_valid_date(end))
+        return std::unexpected(Error{error_category::invalid_date, "day-count dates must be valid calendar dates"});
+    if (end < start)
+        return std::unexpected(Error{error_category::invalid_expiry, "day-count end must not precede start"});
+    if (convention != day_count_convention::actual_365_fixed)
+        return std::unexpected(Error{error_category::invalid_parameter, "unsupported day-count convention"});
+    return static_cast<double>((end - start).count()) / 365.0;
+}
+
+[[nodiscard]] inline result<double> year_fraction(
+    timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed)
+{
+    if (!is_valid_date(date_of(start)) || !is_valid_date(date_of(end)))
+        return std::unexpected(Error{error_category::invalid_date, "day-count timestamps must contain valid dates"});
+    if (end < start)
+        return std::unexpected(Error{error_category::invalid_expiry, "day-count end must not precede start"});
+    if (convention != day_count_convention::actual_365_fixed)
+        return std::unexpected(Error{error_category::invalid_parameter, "unsupported day-count convention"});
+    return std::chrono::duration<double, std::ratio<86400 * 365>>{end - start}.count();
+}
 
 enum class option_type {
     call,
@@ -120,6 +162,7 @@ private:
 }
 
 [[nodiscard]] inline result<void> validate_expiry(date valuation_date, date expiry);
+[[nodiscard]] inline result<void> validate_expiry(timestamp valuation_time, date expiry);
 
 [[nodiscard]] inline bool is_valid_date(date value) noexcept
 {
@@ -137,10 +180,19 @@ public:
 
     int annual_trading_days() const noexcept { return annual_trading_days_; }
 
-    friend bool operator==(const TradingCalendar& left, const TradingCalendar& right) noexcept
+    [[nodiscard]] int trading_days_between(date start, date end) const
     {
-        return left.annual_trading_days_ == right.annual_trading_days_ &&
-               left.predicate_.target_type() == right.predicate_.target_type();
+        if (!is_valid_date(start) || !is_valid_date(end) || end < start) return 0;
+        int count = 0;
+        for (auto value = start; value < end; value += std::chrono::days{1})
+            count += is_trading_day(value) ? 1 : 0;
+        return count;
+    }
+
+    [[nodiscard]] double trading_year_fraction(date start, date end) const
+    {
+        return static_cast<double>(trading_days_between(start, end)) /
+               static_cast<double>(annual_trading_days_);
     }
 
 private:
@@ -271,6 +323,13 @@ private:
         std::vector<date>, date, date, const TradingCalendar&);
 };
 
+[[nodiscard]] inline result<void> validate_schedule(
+    const ObservationSchedule& schedule, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(schedule.dates(), instrument_start, instrument_end, calendar);
+}
+
 [[nodiscard]] inline result<ObservationSchedule> make_observation_schedule(
     std::vector<date> observations, date instrument_start, date instrument_end,
     const TradingCalendar& calendar)
@@ -387,32 +446,59 @@ class PricingContext {
 public:
     const BsmParameters& parameters() const noexcept { return parameters_; }
     AssetPrice asset_price() const noexcept { return asset_price_; }
-    date valuation_date() const noexcept { return valuation_date_; }
+    date valuation_date() const noexcept { return date_of(valuation_time_); }
+    timestamp valuation_time() const noexcept { return valuation_time_; }
+    timestamp valuation_moment() const noexcept { return valuation_time_; }
     const TradingCalendar& calendar() const noexcept { return calendar_; }
 
-    friend bool operator==(const PricingContext&, const PricingContext&) = default;
-
 private:
-    PricingContext(BsmParameters parameters, AssetPrice asset_price, date valuation_date,
+    PricingContext(BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time,
                    TradingCalendar calendar)
-        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_date_(valuation_date),
+        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_time_(valuation_time),
           calendar_(std::move(calendar)) {}
 
     BsmParameters parameters_;
     AssetPrice asset_price_;
-    date valuation_date_;
+    timestamp valuation_time_;
     TradingCalendar calendar_;
 
     friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, date, TradingCalendar);
+    friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, timestamp, TradingCalendar);
 };
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
     BsmParameters, AssetPrice, date, TradingCalendar);
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time, TradingCalendar calendar)
+{
+    if (!is_valid_date(date_of(valuation_time)))
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "valuation time must contain a valid calendar date"});
+    return PricingContext{std::move(parameters), asset_price, valuation_time, std::move(calendar)};
+}
+
+[[nodiscard]] inline result<void> validate_expiry(timestamp valuation_time, date expiry)
+{
+    if (!is_valid_date(date_of(valuation_time)) || !is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "valuation time and expiry must contain valid calendar dates"});
+    if (date_of(valuation_time) > expiry)
+        return std::unexpected(Error{error_category::invalid_expiry,
+                                     "expiry must not precede the valuation time"});
+    return {};
+}
+
+[[nodiscard]] inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time)
+{
+    return make_pricing_context(std::move(parameters), asset_price, valuation_time, all_days_calendar());
+}
+
+[[nodiscard]] inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, AssetPrice asset_price, date valuation_date)
 {
-    return make_pricing_context(std::move(parameters), asset_price, valuation_date, all_days_calendar());
+    return make_pricing_context(std::move(parameters), asset_price, start_of_day(valuation_date), all_days_calendar());
 }
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
@@ -422,7 +508,7 @@ private:
         return std::unexpected(Error{error_category::invalid_date,
                                      "valuation date must be a valid calendar date"});
     }
-    return PricingContext{std::move(parameters), asset_price, valuation_date, std::move(calendar)};
+    return PricingContext{std::move(parameters), asset_price, start_of_day(valuation_date), std::move(calendar)};
 }
 
 enum class risk_measure : std::uint16_t {
@@ -776,14 +862,15 @@ public:
     double rebate() const noexcept { return rebate_; }
     ito::rebate_timing rebate_payment() const noexcept { return timing_; }
     observation_mode observation() const noexcept { return observation_; }
-    const std::vector<date>& observation_dates() const noexcept { return observations_; }
+    const std::vector<date>& observation_dates() const noexcept { return observations_.dates(); }
+    const ObservationSchedule& schedule() const noexcept { return observations_; }
     date expiry() const noexcept { return expiry_; }
     friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
 
 private:
     BarrierOption(option_type type, double strike, date expiry, double barrier, barrier_type kind,
                   double rebate, ito::rebate_timing timing, observation_mode observation,
-                  std::vector<date> observations)
+                  ObservationSchedule observations)
         : type_(type), strike_(strike), barrier_(barrier), kind_(kind), rebate_(rebate), timing_(timing),
           observation_(observation), observations_(std::move(observations)), expiry_(expiry) {}
     option_type type_;
@@ -793,10 +880,13 @@ private:
     double rebate_;
     ito::rebate_timing timing_;
     observation_mode observation_;
-    std::vector<date> observations_;
+    ObservationSchedule observations_;
     date expiry_;
     friend result<BarrierOption> make_barrier_option(option_type, double, date, double, barrier_type,
                                                      double, ito::rebate_timing, observation_mode, std::vector<date>);
+    friend result<BarrierOption> make_barrier_option(
+        option_type, double, date, double, barrier_type, double, rebate_timing,
+        observation_mode, ObservationSchedule);
 };
 [[nodiscard]] inline result<BarrierOption> make_barrier_option(
     option_type type, double strike, date expiry, double barrier, barrier_type kind,
@@ -827,12 +917,30 @@ private:
     if (observation == observation_mode::scheduled) {
         if (observations.empty())
             return std::unexpected(Error{error_category::invalid_schedule, "scheduled barriers require observations"});
-        for (std::size_t i = 0; i < observations.size(); ++i) {
-            if (!is_valid_date(observations[i]) || (i && observations[i] <= observations[i - 1]) || observations[i] > expiry)
-                return std::unexpected(Error{error_category::invalid_schedule, "observation dates must be ordered and precede expiry"});
-        }
     }
-    return BarrierOption{type, strike, expiry, barrier, kind, rebate, timing, observation, std::move(observations)};
+    if (observation == observation_mode::continuous)
+        return BarrierOption{type, strike, expiry, barrier, kind, rebate, timing, observation,
+                             *make_observation_schedule({}, expiry, expiry, all_days_calendar())};
+    auto schedule = make_observation_schedule(observations, observations.front(), expiry, all_days_calendar());
+    if (!schedule)
+        return std::unexpected(Error{error_category::invalid_schedule,
+                                     "observation dates must be ordered and precede expiry"});
+    return BarrierOption{type, strike, expiry, barrier, kind, rebate, timing, observation, std::move(*schedule)};
+}
+
+[[nodiscard]] inline result<BarrierOption> make_barrier_option(
+    option_type type, double strike, date expiry, double barrier, barrier_type kind,
+    double rebate, rebate_timing timing, observation_mode observation, ObservationSchedule schedule)
+{
+    if (observation == observation_mode::continuous && !schedule.empty())
+        return std::unexpected(Error{error_category::invalid_schedule, "continuous barriers cannot have observations"});
+    if (observation == observation_mode::scheduled && schedule.empty())
+        return std::unexpected(Error{error_category::invalid_schedule, "scheduled barriers require observations"});
+    auto base = make_barrier_option(type, strike, expiry, barrier, kind, rebate, timing,
+                                    observation, schedule.dates());
+    if (!base) return std::unexpected(base.error());
+    base->observations_ = std::move(schedule);
+    return base;
 }
 
 class AnalyticDigitalEngine {

@@ -14,6 +14,11 @@ percentage-point volatility move; `rho` is per percentage-point rate move.
 Other Greeks use one-unit changes in their named underlying quantity. Prices
 and rates follow the continuously compounded Black-Scholes-Merton convention.
 
+The public `date` boundary is midnight-anchored; `timestamp` and
+`PricingContext::valuation_time()` preserve intraday valuation moments. Shared
+`year_fraction` uses Actual/365 Fixed, while `TradingCalendar::trading_year_fraction`
+uses its validated annual trading-day count for calendar-aware calculations.
+
 Lines beginning with `#` and blank lines are ignored. The test-only parser
 rejects missing columns, invalid dates/numbers, unknown option types, and
 negative tolerances with a row number and field name. Fixture comparison is

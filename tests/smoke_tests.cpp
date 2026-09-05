@@ -303,6 +303,35 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     CHECK(non_finite_solver.error().category == ito::error_category::solver_non_finite);
 }
 
+TEST_CASE("Time and schedules share explicit day-count and calendar rules")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2025, 1, 6);
+    const auto fraction = ito::year_fraction(start, end);
+    REQUIRE(fraction.has_value());
+    CHECK_THAT(*fraction, Catch::Matchers::WithinAbs(5.0 / 365.0, 1e-15));
+
+    const auto noon = ito::start_of_day(start) + std::chrono::hours{12};
+    const auto context = ito::make_pricing_context(
+        *ito::make_bsm_parameters(0.01, 0.0, 0.2), *ito::make_asset_price(100.0), noon);
+    REQUIRE(context.has_value());
+    CHECK(context->valuation_date() == start);
+    CHECK(context->valuation_time().time_since_epoch() == noon.time_since_epoch());
+    CHECK(ito::exchange_calendar().trading_days_between(start, end) == 3);
+    CHECK_THAT(ito::exchange_calendar().trading_year_fraction(start, end),
+               Catch::Matchers::WithinAbs(3.0 / 252.0, 1e-15));
+
+    const auto schedule = ito::make_observation_schedule(
+        std::vector<ito::date>{day(2025, 1, 2), day(2025, 1, 3)}, start, end,
+        ito::exchange_calendar());
+    REQUIRE(schedule.has_value());
+    const auto barrier = ito::make_barrier_option(
+        ito::option_type::call, 100.0, end, 90.0, ito::barrier_type::down_and_out,
+        0.0, ito::rebate_timing::at_expiry, ito::observation_mode::scheduled, *schedule);
+    REQUIRE(barrier.has_value());
+    CHECK(barrier->schedule() == *schedule);
+}
+
 TEST_CASE("Analytic European engine remains finite at near-zero volatility")
 {
     const auto valuation = day(2025, 1, 6);

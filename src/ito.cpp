@@ -12,13 +12,17 @@
 namespace ito {
 namespace {
 
-constexpr double days_per_year = 365.0;
 constexpr double percentage_point = 100.0;
 constexpr double inverse_sqrt_two = 0.70710678118654752440;
 constexpr double inverse_sqrt_two_pi = 0.39894228040143267794;
 constexpr double solver_derivative_step_fraction = 1e-3;
 constexpr double solver_bracket_step_fraction = 1e-2;
 constexpr double solver_minimum_derivative_step = 1e-6;
+
+double actual_365(date start, date end) noexcept
+{
+    return *year_fraction(start, end);
+}
 
 double normal_cdf(double value) noexcept
 {
@@ -50,9 +54,7 @@ result<PricingResult> price_at_volatility(
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double year_fraction = static_cast<double>(
-                                     (option.expiry() - context.valuation_date()).count()) /
-                                 days_per_year;
+    const double year_fraction = actual_365(context.valuation_date(), option.expiry());
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
@@ -116,23 +118,23 @@ result<PricingResult> price_at_volatility(
         speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
         theta = (-spot * dividend_discount_factor * density_d1 * volatility /
                      (2.0 * sqrt_time) + carry) /
-                days_per_year;
+                365.0;
         charm = -dividend_discount_factor *
                 (density_d1 * ((rate - dividend) / (volatility * sqrt_time) -
                                0.5 * d2 / year_fraction) -
                  sign * dividend * cumulative_d1) /
-                days_per_year;
+                365.0;
         color = gamma *
                 (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
                  (1.0 - d1 * d2) / (2.0 * year_fraction)) /
-                days_per_year;
+                365.0;
         vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_point;
         vanna = -dividend_discount_factor * d2 * density_d1 /
                 (volatility * percentage_point);
         zomma = gamma * (d1 * d2 - 1.0) /
                 (volatility * percentage_point);
     } else {
-        theta = carry / days_per_year;
+        theta = carry / 365.0;
     }
     const double rho = sign * year_fraction * strike * rate_discount_factor * cumulative_d2 /
                        percentage_point;
@@ -188,9 +190,7 @@ result<PricingResult> price_binomial_american(
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double time = static_cast<double>(
-                            (option.expiry() - context.valuation_date()).count()) /
-                        days_per_year;
+    const double time = actual_365(context.valuation_date(), option.expiry());
     if (time == 0.0) {
         auto output = PricingResult{std::max(sign * (spot - strike), 0.0),
                                     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -316,9 +316,7 @@ result<PricingResult> price_finite_difference(
                                      "finite-difference scheme is invalid"});
     }
 
-    const double time = static_cast<double>(
-                            (option.expiry() - context.valuation_date()).count()) /
-                        days_per_year;
+    const double time = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
@@ -623,8 +621,7 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
                                      "implied volatility is undefined at expiry"});
     }
 
-    const double time = static_cast<double>((option.expiry() - context.valuation_date()).count()) /
-                        days_per_year;
+    const double time = actual_365(context.valuation_date(), option.expiry());
     const double spot_discount = std::exp(-context.parameters().dividend_yield() * time);
     const double strike_discount = std::exp(-context.parameters().risk_free_rate() * time);
     const double discounted_spot = context.asset_price().value() * spot_discount;
@@ -780,7 +777,7 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     const auto valid = validate_expiry(context.valuation_date(), expiry);
     if (!valid) return std::unexpected(valid.error());
     const double spot = context.asset_price().value();
-    const double t = static_cast<double>((expiry - context.valuation_date()).count()) / days_per_year;
+    const double t = actual_365(context.valuation_date(), expiry);
     const double sign = type == option_type::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
@@ -901,18 +898,17 @@ result<PricingResult> AnalyticBarrierEngine::price(
     const auto valid = validate_expiry(context.valuation_date(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        for (const auto observation : option.observation_dates()) {
-            if (observation < context.valuation_date() || observation > option.expiry() ||
-                !context.calendar().is_trading_day(observation))
-                return std::unexpected(Error{error_category::invalid_schedule, "observation date is not a trading day"});
-        }
+        auto schedule_valid = validate_schedule(option.schedule(), context.valuation_date(),
+                                                option.expiry(), context.calendar());
+        if (!schedule_valid)
+            return std::unexpected(Error{error_category::invalid_schedule, schedule_valid.error().message});
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
     const auto vanilla = price_at_volatility(
         *make_european_option(option.type(), option.strike(), option.expiry()), context,
         context.parameters().volatility(), PricingRequest::price_only());
     if (!vanilla) return std::unexpected(vanilla.error());
-    const double t = static_cast<double>((option.expiry() - context.valuation_date()).count()) / days_per_year;
+    const double t = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
