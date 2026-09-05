@@ -35,6 +35,10 @@ enum class error_category : unsigned char {
     invalid_parameter = 12,
     incompatible_exercise = 13,
     unsupported_risk_measure = 14,
+    invalid_quote = 15,
+    unbracketed_volatility = 16,
+    solver_non_convergence = 17,
+    solver_non_finite = 18,
 };
 
 struct Error {
