@@ -533,4 +533,23 @@ struct PricingResult {
 
 using pricing_result = PricingResult;
 
+struct ImpliedVolatilitySettings {
+    double lower_bound = 0.0001;
+    double upper_bound = 4.0;
+    double tolerance = 1e-8;
+    int max_iterations = 100;
+};
+
+class AnalyticEuropeanEngine {
+public:
+    /// Returns intrinsic value and zero Greeks when valued at expiry.
+    result<PricingResult> price(const EuropeanOption& option, const PricingContext& context) const;
+
+    result<double> implied_volatility(
+        const EuropeanOption& option, const PricingContext& context, double observed_price,
+        ImpliedVolatilitySettings settings = {}) const;
+};
+
+using analytic_european_engine = AnalyticEuropeanEngine;
+
 }
