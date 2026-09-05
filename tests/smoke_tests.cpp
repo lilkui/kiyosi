@@ -29,29 +29,29 @@ ito::date day(int year, unsigned month, unsigned day_number)
 TEST_CASE("European options are validated immutable values")
 {
     const auto expiry = day(2030, 1, 1);
-    auto call = ito::make_european_option(ito::OptionType::Call, 100.0, expiry);
+    auto call = ito::make_european_option(ito::option_type::call, 100.0, expiry);
     REQUIRE(call.has_value());
-    REQUIRE(call->type() == ito::OptionType::Call);
+    REQUIRE(call->type() == ito::option_type::call);
     REQUIRE(call->strike() == 100.0);
     REQUIRE(call->expiry() == expiry);
 
     const auto copy = *call;
     REQUIRE(copy == *call);
-    REQUIRE(ito::make_european_option(ito::OptionType::Put, 100.0, expiry)->type() == ito::OptionType::Put);
+    REQUIRE(ito::make_european_option(ito::option_type::put, 100.0, expiry)->type() == ito::option_type::put);
 }
 
 TEST_CASE("European option factories reject invalid terms")
 {
     const auto expiry = day(2030, 1, 1);
-    REQUIRE(ito::make_european_option(ito::OptionType::Call, 0.0, expiry).error().category ==
-            ito::error_category::invalid_option);
-    REQUIRE(ito::make_european_option(ito::OptionType::Call, -1.0, expiry).error().message.find("strike") !=
+    REQUIRE(ito::make_european_option(ito::option_type::call, 0.0, expiry).error().category ==
+            ito::error_category::invalid_strike);
+    REQUIRE(ito::make_european_option(ito::option_type::call, -1.0, expiry).error().message.find("strike") !=
             std::string::npos);
-    REQUIRE_FALSE(ito::make_european_option(ito::OptionType::Call,
+    REQUIRE_FALSE(ito::make_european_option(ito::option_type::call,
                                             std::numeric_limits<double>::infinity(), expiry).has_value());
-    REQUIRE_FALSE(ito::make_european_option(static_cast<ito::OptionType>(99), 100.0, expiry).has_value());
-    REQUIRE(ito::make_european_option(ito::OptionType::Call, 100.0, expiry, expiry).has_value());
-    REQUIRE_FALSE(ito::make_european_option(ito::OptionType::Call, 100.0, day(2031, 1, 1), expiry).has_value());
+    REQUIRE_FALSE(ito::make_european_option(static_cast<ito::option_type>(99), 100.0, expiry).has_value());
+    REQUIRE(ito::make_european_option(ito::option_type::call, 100.0, expiry, expiry).has_value());
+    REQUIRE_FALSE(ito::make_european_option(ito::option_type::call, 100.0, day(2031, 1, 1), expiry).has_value());
 }
 
 TEST_CASE("BSM parameters and asset prices reject non-finite or non-positive values")
@@ -63,7 +63,7 @@ TEST_CASE("BSM parameters and asset prices reject non-finite or non-positive val
     REQUIRE(valid->volatility() == 0.2);
 
     REQUIRE(ito::make_bsm_parameters(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.2).error().category ==
-            ito::error_category::invalid_parameter);
+            ito::error_category::invalid_rate);
     REQUIRE_FALSE(ito::make_bsm_parameters(0.0, std::numeric_limits<double>::infinity(), 0.2).has_value());
     REQUIRE_FALSE(ito::make_bsm_parameters(0.0, 0.0, 0.0).has_value());
     REQUIRE_FALSE(ito::make_bsm_parameters(0.0, 0.0, std::numeric_limits<double>::infinity()).has_value());
@@ -77,19 +77,19 @@ TEST_CASE("BSM parameters and asset prices reject non-finite or non-positive val
 TEST_CASE("Pricing context and result preserve their values")
 {
     auto parameters = ito::make_bsm_parameters(0.05, 0.02, 0.2);
-    auto context = ito::make_pricing_context(*parameters, 100.0, day(2025, 1, 1));
+    auto context = ito::make_pricing_context(*parameters, *ito::make_asset_price(100.0), day(2025, 1, 1));
     REQUIRE(context.has_value());
     REQUIRE(context->asset_price().value() == 100.0);
     REQUIRE(context->valuation_date() == day(2025, 1, 1));
-    const auto option = *ito::make_european_call(100.0, day(2030, 1, 1));
-    REQUIRE(ito::make_pricing_context(*parameters, 100.0, day(2025, 1, 1), option).has_value());
-    REQUIRE_FALSE(ito::make_pricing_context(*parameters, 100.0, day(2031, 1, 1), option).has_value());
+    REQUIRE(ito::make_pricing_context(*parameters, *ito::make_asset_price(100.0), day(2025, 1, 1)).has_value());
 
     const ito::PricingResult result{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0};
-    REQUIRE(result.price() == result.value);
     const auto copy = result;
     REQUIRE(copy.rho == 11.0);
     STATIC_REQUIRE(std::is_copy_constructible_v<ito::PricingResult>);
+    STATIC_REQUIRE(std::is_copy_assignable_v<ito::PricingResult>);
+    STATIC_REQUIRE(std::is_trivially_copyable_v<ito::Error>);
+    STATIC_REQUIRE_FALSE(std::is_convertible_v<double, ito::AssetPrice>);
 }
 
 TEST_CASE("Dates, calendars, and observation schedules are value-safe")
@@ -113,7 +113,7 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
         std::vector<ito::date>{day(2025, 1, 4)}, valuation, expiry, copied_calendar).has_value());
 
     auto parameters = ito::make_bsm_parameters(0.05, 0.02, 0.2);
-    auto context = ito::make_pricing_context(*parameters, 100.0, valuation, copied_calendar);
+    auto context = ito::make_pricing_context(*parameters, *ito::make_asset_price(100.0), valuation, copied_calendar);
     REQUIRE(context.has_value());
     const auto context_copy = *context;
     REQUIRE(context_copy.calendar().is_trading_day(day(2025, 1, 2)));
@@ -126,7 +126,7 @@ TEST_CASE("Analytic European engine returns reviewed call value and Greeks")
     const auto valuation = day(2025, 1, 6);
     const auto option = *ito::make_european_call(100.0, valuation + std::chrono::days{365});
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
 
     const auto result = ito::AnalyticEuropeanEngine{}.price(option, context);
     REQUIRE(result.has_value());
@@ -152,7 +152,7 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
     const auto call = *ito::make_european_call(100.0, expiry);
     const auto put = *ito::make_european_put(100.0, expiry);
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
     const ito::AnalyticEuropeanEngine engine;
 
     const auto call_result = *engine.price(call, context);
@@ -177,7 +177,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry")
     const auto valuation = day(2025, 1, 6);
     const auto option = *ito::make_european_call(100.0, valuation + std::chrono::days{1});
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
 
     const auto result = ito::AnalyticEuropeanEngine{}.price(option, context);
     REQUIRE(result.has_value());
@@ -195,8 +195,8 @@ TEST_CASE("Analytic European engine returns intrinsic value and zero Greeks at e
     const auto call = *ito::make_european_call(100.0, expiry);
     const auto put = *ito::make_european_put(100.0, expiry);
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto call_context = *ito::make_pricing_context(parameters, 110.0, expiry);
-    const auto put_context = *ito::make_pricing_context(parameters, 90.0, expiry);
+    const auto call_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(110.0), expiry);
+    const auto put_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(90.0), expiry);
     const ito::AnalyticEuropeanEngine engine;
 
     const auto call_result = *engine.price(call, call_context);
@@ -223,7 +223,7 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     const auto expiry = valuation + std::chrono::days{365};
     const auto option = *ito::make_european_call(100.0, expiry);
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
     const ito::AnalyticEuropeanEngine engine;
 
     const auto implied = engine.implied_volatility(option, context, 13.151137);
@@ -250,16 +250,16 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     REQUIRE_FALSE(unconverged.has_value());
     CHECK(unconverged.error().category == ito::error_category::invalid_result);
 
-    const auto expired_context = *ito::make_pricing_context(parameters, 100.0, expiry);
+    const auto expired_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), expiry);
     REQUIRE_FALSE(engine.implied_volatility(option, expired_context, 0.0).has_value());
 
-    const auto stale_context = *ito::make_pricing_context(parameters, 100.0, expiry + std::chrono::days{1});
+    const auto stale_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), expiry + std::chrono::days{1});
     const auto invalid_expiry = engine.price(option, stale_context);
     REQUIRE_FALSE(invalid_expiry.has_value());
     CHECK(invalid_expiry.error().category == ito::error_category::invalid_expiry);
 
     const auto extreme_parameters = *ito::make_bsm_parameters(-1000.0, 0.0, 0.3);
-    const auto extreme_context = *ito::make_pricing_context(extreme_parameters, 100.0, valuation);
+    const auto extreme_context = *ito::make_pricing_context(extreme_parameters, *ito::make_asset_price(100.0), valuation);
     const auto long_option = *ito::make_european_put(
         100.0, valuation + std::chrono::days{36500});
     const auto non_finite_result = engine.price(long_option, extreme_context);
@@ -273,21 +273,21 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
-    const auto cash_call = *ito::make_cash_or_nothing_option(ito::OptionType::Call, 100.0, 10.0, expiry);
-    const auto cash_put = *ito::make_cash_or_nothing_option(ito::OptionType::Put, 100.0, 10.0, expiry);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+    const auto cash_call = *ito::make_cash_or_nothing_option(ito::option_type::call, 100.0, 10.0, expiry);
+    const auto cash_put = *ito::make_cash_or_nothing_option(ito::option_type::put, 100.0, 10.0, expiry);
     const ito::AnalyticDigitalEngine digital;
     const auto call_value = digital.price(cash_call, context);
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());
     CHECK_THAT(call_value->value + put_value->value, WithinAbs(10.0 * std::exp(-0.04), 1e-10));
-    CHECK_FALSE(ito::make_cash_or_nothing_option(ito::OptionType::Call, 100.0, 0.0, expiry).has_value());
+    CHECK_FALSE(ito::make_cash_or_nothing_option(ito::option_type::call, 100.0, 0.0, expiry).has_value());
 
     const auto down_out = *ito::make_barrier_option(
-        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndOut);
+        ito::option_type::call, 100.0, expiry, 90.0, ito::barrier_type::down_and_out);
     const auto down_in = *ito::make_barrier_option(
-        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndIn);
+        ito::option_type::call, 100.0, expiry, 90.0, ito::barrier_type::down_and_in);
     const auto barrier_out = ito::AnalyticBarrierEngine{}.price(down_out, context);
     const auto barrier_in = ito::AnalyticBarrierEngine{}.price(down_in, context);
     const auto vanilla = ito::AnalyticEuropeanEngine{}.price(*ito::make_european_call(100.0, expiry), context);
@@ -297,8 +297,8 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     CHECK_THAT(barrier_out->value + barrier_in->value, WithinAbs(vanilla->value, 1e-5));
 
     const auto scheduled = ito::make_barrier_option(
-        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndOut,
-        0.0, ito::RebateTiming::AtExpiry, ito::ObservationMode::Scheduled,
+        ito::option_type::call, 100.0, expiry, 90.0, ito::barrier_type::down_and_out,
+        0.0, ito::rebate_timing::at_expiry, ito::observation_mode::scheduled,
         std::vector<ito::date>{valuation + std::chrono::days{30}});
     REQUIRE(scheduled.has_value());
     CHECK(ito::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
@@ -309,7 +309,7 @@ TEST_CASE("Binomial American engine prices expiry and validates steps")
     const auto expiry = day(2025, 1, 1);
     const auto option = *ito::make_european_put(100.0, expiry);
     const auto parameters = *ito::make_bsm_parameters(0.04, 0.0, 0.2);
-    const auto context = *ito::make_pricing_context(parameters, 90.0, expiry);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(90.0), expiry);
     const ito::BinomialAmericanEngine engine;
 
     const auto priced = engine.price(option, context);
@@ -330,7 +330,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *ito::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *ito::make_pricing_context(parameters, 90.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(90.0), valuation);
     const auto put = *ito::make_european_put(100.0, expiry);
     const auto call = *ito::make_european_call(100.0, expiry);
     const ito::BinomialAmericanEngine engine{ito::BinomialAmericanSettings{400}};
@@ -341,7 +341,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     REQUIRE(european_put.has_value());
     CHECK(american_put->value > european_put->value);
 
-    const auto at_the_money_context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto at_the_money_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
     const auto american_call = engine.price(call, at_the_money_context);
     const auto european_call = ito::AnalyticEuropeanEngine{}.price(call, at_the_money_context);
     REQUIRE(american_call.has_value());
@@ -356,7 +356,7 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *ito::make_bsm_parameters(0.0, 0.0, 0.2);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
     const auto call = *ito::make_european_call(100.0, expiry);
     const auto put = *ito::make_european_put(100.0, expiry);
     const ito::BinomialAmericanEngine engine{ito::BinomialAmericanSettings{200}};
@@ -374,15 +374,15 @@ TEST_CASE("Finite-difference engines validate grids and track reference engines"
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *ito::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
     const auto call = *ito::make_european_call(100.0, expiry);
     const auto analytic = *ito::AnalyticEuropeanEngine{}.price(call, context);
-    const ito::FiniteDifferenceSettings settings{200, 400, ito::FiniteDifferenceScheme::CrankNicolson};
+    const ito::FiniteDifferenceSettings settings{200, 400, ito::finite_difference_scheme::crank_nicolson};
     const auto european = ito::FiniteDifferenceEuropeanEngine{settings}.price(call, context);
     REQUIRE(european.has_value());
     CHECK_THAT(european->value, WithinAbs(analytic.value, 0.05));
-    for (const auto scheme : {ito::FiniteDifferenceScheme::ExplicitEuler,
-                              ito::FiniteDifferenceScheme::ImplicitEuler}) {
+    for (const auto scheme : {ito::finite_difference_scheme::explicit_euler,
+                              ito::finite_difference_scheme::implicit_euler}) {
         const auto result = ito::FiniteDifferenceEuropeanEngine{{200, 400, scheme}}.price(call, context);
         REQUIRE(result.has_value());
         CHECK_THAT(result->value, WithinAbs(analytic.value, 0.15));
@@ -396,9 +396,9 @@ TEST_CASE("Finite-difference engines validate grids and track reference engines"
     REQUIRE(finite_put.has_value());
     REQUIRE(tree_put.has_value());
     CHECK_THAT(finite_put->value, WithinAbs(tree_put->value, 0.1));
-    CHECK_FALSE(ito::FiniteDifferenceEuropeanEngine{{2, 10, ito::FiniteDifferenceScheme::ImplicitEuler}}
+    CHECK_FALSE(ito::FiniteDifferenceEuropeanEngine{{2, 10, ito::finite_difference_scheme::implicit_euler}}
                     .price(call, context).has_value());
-    const auto expiry_context = *ito::make_pricing_context(parameters, 90.0, expiry);
+    const auto expiry_context = *ito::make_pricing_context(parameters, *ito::make_asset_price(90.0), expiry);
     const auto expiry_put = *ito::make_european_put(100.0, expiry);
     const auto at_expiry = ito::FiniteDifferenceAmericanEngine{}.price(expiry_put, expiry_context);
     REQUIRE(at_expiry.has_value());

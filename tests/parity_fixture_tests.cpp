@@ -36,7 +36,7 @@ TEST_CASE("European parity fixtures compare value, Greeks, and implied volatilit
             fixture.risk_free_rate, fixture.dividend_yield, fixture.volatility);
         REQUIRE(parameters.has_value());
         const auto context = ito::make_pricing_context(
-            *parameters, fixture.spot, fixture.valuation_date, *option);
+            *parameters, *ito::make_asset_price(fixture.spot), fixture.valuation_date);
         REQUIRE(context.has_value());
         const auto priced = engine.price(*option, *context);
         REQUIRE(priced.has_value());
