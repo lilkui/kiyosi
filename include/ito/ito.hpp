@@ -3,8 +3,11 @@
 #include <chrono>
 #include <cmath>
 #include <expected>
+#include <functional>
+#include <span>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace ito {
 
@@ -15,6 +18,8 @@ inline constexpr int version_patch = 0;
 using date = std::chrono::sys_days;
 using Date = date;
 
+inline bool is_valid_date(date value) noexcept;
+
 enum class error_category : unsigned char {
     invalid_option = 1,
     invalid_parameter = 2,
@@ -22,6 +27,8 @@ enum class error_category : unsigned char {
     invalid_date = 4,
     invalid_expiry = 5,
     invalid_result = 6,
+    invalid_schedule = 7,
+    invalid_calendar = 8,
     invalid_strike = invalid_option,
     invalid_volatility = invalid_parameter,
     invalid_rate = invalid_parameter,
@@ -32,6 +39,8 @@ enum class error_category : unsigned char {
     InvalidDate = invalid_date,
     InvalidExpiry = invalid_expiry,
     InvalidResult = invalid_result,
+    InvalidSchedule = invalid_schedule,
+    InvalidCalendar = invalid_calendar,
 };
 
 using ErrorCategory = error_category;
@@ -88,6 +97,9 @@ inline result<EuropeanOption> make_european_option(option_type type, double stri
     if (!std::isfinite(strike) || strike <= 0.0) {
         return std::unexpected(Error{error_category::invalid_option, "strike must be finite and positive"});
     }
+    if (!is_valid_date(expiry)) {
+        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    }
     return EuropeanOption{type, strike, expiry};
 }
 
@@ -97,6 +109,190 @@ inline result<EuropeanOption> make_european_option(double strike, date expiry, o
 }
 
 inline result<void> validate_expiry(date valuation_date, date expiry);
+
+inline bool is_valid_date(date value) noexcept
+{
+    return std::chrono::year_month_day{value}.ok();
+}
+
+class TradingCalendar {
+public:
+    using trading_day_predicate = std::function<bool(date)>;
+
+    TradingCalendar(trading_day_predicate predicate, int annual_trading_days)
+        : predicate_(std::move(predicate)), annual_trading_days_(annual_trading_days) {}
+
+    bool is_trading_day(date value) const
+    {
+        return is_valid_date(value) && predicate_ && predicate_(value);
+    }
+
+    bool is_trading_date(date value) const { return is_trading_day(value); }
+    bool valid(date value) const { return is_trading_day(value); }
+    bool contains(date value) const { return is_trading_day(value); }
+    bool operator()(date value) const { return is_trading_day(value); }
+    int annual_trading_days() const noexcept { return annual_trading_days_; }
+    int annual_trading_day_count() const noexcept { return annual_trading_days_; }
+    int annual_count() const noexcept { return annual_trading_days_; }
+    int trading_days() const noexcept { return annual_trading_days_; }
+    int trading_days_per_year() const noexcept { return annual_trading_days_; }
+
+    friend bool operator==(const TradingCalendar& left, const TradingCalendar& right) noexcept
+    {
+        return left.annual_trading_days_ == right.annual_trading_days_ &&
+               left.predicate_.target_type() == right.predicate_.target_type();
+    }
+
+private:
+    trading_day_predicate predicate_;
+    int annual_trading_days_;
+};
+
+using trading_calendar = TradingCalendar;
+using Calendar = TradingCalendar;
+
+inline result<TradingCalendar> make_trading_calendar(
+    TradingCalendar::trading_day_predicate predicate, int annual_trading_days)
+{
+    if (!predicate) {
+        return std::unexpected(Error{error_category::invalid_calendar,
+                                     "trading calendar requires a day predicate"});
+    }
+    if (annual_trading_days <= 0) {
+        return std::unexpected(Error{error_category::invalid_calendar,
+                                     "annual trading-day count must be positive"});
+    }
+    return TradingCalendar{std::move(predicate), annual_trading_days};
+}
+
+inline result<TradingCalendar> make_custom_trading_calendar(
+    TradingCalendar::trading_day_predicate predicate, int annual_trading_days)
+{
+    return make_trading_calendar(std::move(predicate), annual_trading_days);
+}
+
+inline TradingCalendar all_days_calendar()
+{
+    return TradingCalendar{[](date) { return true; }, 365};
+}
+
+inline TradingCalendar all_days() { return all_days_calendar(); }
+inline TradingCalendar make_all_days_calendar() { return all_days_calendar(); }
+
+inline TradingCalendar exchange_calendar()
+{
+    return TradingCalendar{[](date value) {
+        const auto weekday = std::chrono::weekday{value};
+        return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday;
+    }, 252};
+}
+
+inline TradingCalendar exchange_style_calendar() { return exchange_calendar(); }
+inline TradingCalendar exchange_style() { return exchange_calendar(); }
+inline TradingCalendar make_exchange_calendar() { return exchange_calendar(); }
+inline TradingCalendar make_all_days_trading_calendar() { return all_days_calendar(); }
+inline TradingCalendar make_exchange_style_calendar() { return exchange_calendar(); }
+
+inline result<void> validate_observation_date(
+    date observation, date instrument_start, date instrument_end, const TradingCalendar& calendar)
+{
+    if (!is_valid_date(observation) || !is_valid_date(instrument_start) || !is_valid_date(instrument_end) ||
+        instrument_end < instrument_start || observation < instrument_start || instrument_end < observation) {
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "observation date must be within the instrument life"});
+    }
+    if (!calendar.is_trading_day(observation)) {
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "observation date is not a trading day"});
+    }
+    return {};
+}
+
+inline result<void> validate_observation_dates(
+    std::span<const date> observations, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    if (!is_valid_date(instrument_start) || !is_valid_date(instrument_end) || instrument_end < instrument_start) {
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "instrument life must be a valid ordered date range"});
+    }
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+        if (index > 0 && observations[index] < observations[index - 1]) {
+            return std::unexpected(Error{error_category::invalid_date,
+                                         "observation dates must be ordered"});
+        }
+        auto valid = validate_observation_date(observations[index], instrument_start, instrument_end, calendar);
+        if (!valid) return std::unexpected(valid.error());
+    }
+    return {};
+}
+
+inline result<void> validate_schedule(
+    std::span<const date> observations, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, instrument_start, instrument_end, calendar);
+}
+
+inline result<void> validate_schedule(
+    const std::vector<date>& observations, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, instrument_start, instrument_end, calendar);
+}
+
+inline result<void> validate_observation_dates(
+    std::span<const date> observations, date valuation_date, const EuropeanOption& option,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, valuation_date, option.expiry(), calendar);
+}
+
+inline result<void> validate_schedule(
+    std::span<const date> observations, date valuation_date, const EuropeanOption& option,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, valuation_date, option, calendar);
+}
+
+class ObservationSchedule {
+public:
+    const std::vector<date>& dates() const noexcept { return dates_; }
+    const std::vector<date>& observation_dates() const noexcept { return dates_; }
+    std::size_t size() const noexcept { return dates_.size(); }
+    bool empty() const noexcept { return dates_.empty(); }
+    const date& operator[](std::size_t index) const noexcept { return dates_[index]; }
+    auto begin() const noexcept { return dates_.begin(); }
+    auto end() const noexcept { return dates_.end(); }
+
+    friend bool operator==(const ObservationSchedule&, const ObservationSchedule&) = default;
+
+private:
+    explicit ObservationSchedule(std::vector<date> dates) : dates_(std::move(dates)) {}
+    std::vector<date> dates_;
+
+    friend result<ObservationSchedule> make_observation_schedule(
+        std::vector<date>, date, date, const TradingCalendar&);
+};
+
+using observation_schedule = ObservationSchedule;
+using Schedule = ObservationSchedule;
+
+inline result<ObservationSchedule> make_observation_schedule(
+    std::vector<date> observations, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    auto valid = validate_observation_dates(observations, instrument_start, instrument_end, calendar);
+    if (!valid) return std::unexpected(valid.error());
+    return ObservationSchedule{std::move(observations)};
+}
+
+inline result<ObservationSchedule> make_schedule(
+    std::vector<date> observations, date instrument_start, date instrument_end,
+    const TradingCalendar& calendar)
+{
+    return make_observation_schedule(std::move(observations), instrument_start, instrument_end, calendar);
+}
 
 inline result<EuropeanOption> make_european_option(
     option_type type, double strike, date valuation_date, date expiry)
@@ -108,6 +304,10 @@ inline result<EuropeanOption> make_european_option(
 
 inline result<void> validate_expiry(date valuation_date, date expiry)
 {
+    if (!is_valid_date(valuation_date) || !is_valid_date(expiry)) {
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "valuation date and expiry must be valid calendar dates"});
+    }
     if (expiry < valuation_date) {
         return std::unexpected(Error{error_category::invalid_expiry,
                                      "expiry must not precede the valuation date"});
@@ -191,26 +391,44 @@ public:
     const BsmParameters& bsm_parameters() const noexcept { return parameters_; }
     AssetPrice asset_price() const noexcept { return asset_price_; }
     date valuation_date() const noexcept { return valuation_date_; }
+    const TradingCalendar& calendar() const noexcept { return calendar_; }
+    const TradingCalendar& trading_calendar() const noexcept { return calendar_; }
 
     friend bool operator==(const PricingContext&, const PricingContext&) = default;
 
 private:
-    PricingContext(BsmParameters parameters, AssetPrice asset_price, date valuation_date)
-        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_date_(valuation_date) {}
+    PricingContext(BsmParameters parameters, AssetPrice asset_price, date valuation_date,
+                   TradingCalendar calendar)
+        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_date_(valuation_date),
+          calendar_(std::move(calendar)) {}
 
     BsmParameters parameters_;
     AssetPrice asset_price_;
     date valuation_date_;
+    TradingCalendar calendar_;
 
-    friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, date);
+    friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, date, TradingCalendar);
 };
 
 using pricing_context = PricingContext;
 
 inline result<PricingContext> make_pricing_context(
+    BsmParameters, AssetPrice, date, TradingCalendar);
+
+inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, AssetPrice asset_price, date valuation_date)
 {
-    return PricingContext{std::move(parameters), asset_price, valuation_date};
+    return make_pricing_context(std::move(parameters), asset_price, valuation_date, all_days_calendar());
+}
+
+inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, AssetPrice asset_price, date valuation_date, TradingCalendar calendar)
+{
+    if (!is_valid_date(valuation_date)) {
+        return std::unexpected(Error{error_category::invalid_date,
+                                     "valuation date must be a valid calendar date"});
+    }
+    return PricingContext{std::move(parameters), asset_price, valuation_date, std::move(calendar)};
 }
 
 inline result<PricingContext> make_pricing_context(
@@ -224,6 +442,16 @@ inline result<PricingContext> make_pricing_context(
 }
 
 inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, double asset, date valuation_date, TradingCalendar calendar)
+{
+    auto validated_asset = make_asset_price(asset);
+    if (!validated_asset) {
+        return std::unexpected(validated_asset.error());
+    }
+    return make_pricing_context(std::move(parameters), *validated_asset, valuation_date, std::move(calendar));
+}
+
+inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, AssetPrice asset, date valuation_date, const EuropeanOption& option)
 {
     auto expiry = validate_expiry(valuation_date, option.expiry());
@@ -234,6 +462,22 @@ inline result<PricingContext> make_pricing_context(
 }
 
 inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, AssetPrice asset, date valuation_date,
+    const EuropeanOption& option, TradingCalendar calendar)
+{
+    auto expiry = validate_expiry(valuation_date, option.expiry());
+    if (!expiry) return std::unexpected(expiry.error());
+    return make_pricing_context(std::move(parameters), asset, valuation_date, std::move(calendar));
+}
+
+inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, AssetPrice asset, date valuation_date,
+    TradingCalendar calendar, const EuropeanOption& option)
+{
+    return make_pricing_context(std::move(parameters), asset, valuation_date, option, std::move(calendar));
+}
+
+inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, double asset, date valuation_date, const EuropeanOption& option)
 {
     auto validated_asset = make_asset_price(asset);
@@ -241,6 +485,23 @@ inline result<PricingContext> make_pricing_context(
         return std::unexpected(validated_asset.error());
     }
     return make_pricing_context(std::move(parameters), *validated_asset, valuation_date, option);
+}
+
+inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, double asset, date valuation_date,
+    const EuropeanOption& option, TradingCalendar calendar)
+{
+    auto validated_asset = make_asset_price(asset);
+    if (!validated_asset) return std::unexpected(validated_asset.error());
+    return make_pricing_context(std::move(parameters), *validated_asset, valuation_date,
+                                option, std::move(calendar));
+}
+
+inline result<PricingContext> make_pricing_context(
+    BsmParameters parameters, double asset, date valuation_date,
+    TradingCalendar calendar, const EuropeanOption& option)
+{
+    return make_pricing_context(std::move(parameters), asset, valuation_date, option, std::move(calendar));
 }
 
 struct PricingResult {
