@@ -1,0 +1,10 @@
+Checks: >-
+  -*,
+  bugprone-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*
+WarningsAsErrors: ''
+HeaderFilterRegex: '(^|[/\\\\])(include|src|tests)([/\\\\])'
+FormatStyle: file

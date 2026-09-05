@@ -7,6 +7,40 @@ include(CTest)
 include(GNUInstallDirs)
 
 option(ITO_BUILD_SHARED "Build the optional shared library" OFF)
+option(ITO_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
+option(ITO_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
+
+if(ITO_ENABLE_CLANG_TIDY)
+    find_program(ITO_CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
+    if(NOT ITO_CLANG_TIDY_EXECUTABLE OR NOT EXISTS "${ITO_CLANG_TIDY_EXECUTABLE}")
+        message(FATAL_ERROR "ITO_ENABLE_CLANG_TIDY requires clang-tidy")
+    endif()
+endif()
+
+if(ITO_ENABLE_CLANG_FORMAT)
+    find_program(ITO_CLANG_FORMAT_EXECUTABLE NAMES clang-format)
+    if(NOT ITO_CLANG_FORMAT_EXECUTABLE OR NOT EXISTS "${ITO_CLANG_FORMAT_EXECUTABLE}")
+        message(FATAL_ERROR "ITO_ENABLE_CLANG_FORMAT requires clang-format")
+    endif()
+    file(GLOB_RECURSE ITO_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp
+    )
+    add_custom_target(format
+        COMMAND ${ITO_CLANG_FORMAT_EXECUTABLE} -i ${ITO_CLANG_FORMAT_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        VERBATIM
+        USES_TERMINAL
+    )
+    add_custom_target(format-check
+        COMMAND ${ITO_CLANG_FORMAT_EXECUTABLE} --dry-run --Werror ${ITO_CLANG_FORMAT_SOURCES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        VERBATIM
+        USES_TERMINAL
+    )
+endif()
 
 set(ITO_SOURCES src/ito.cpp)
 
@@ -19,6 +53,9 @@ target_include_directories(ito
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 set_target_properties(ito PROPERTIES EXPORT_NAME ito)
+if(ITO_ENABLE_CLANG_TIDY)
+    set_target_properties(ito PROPERTIES CXX_CLANG_TIDY "${ITO_CLANG_TIDY_EXECUTABLE}")
+endif()
 
 if(ITO_BUILD_SHARED)
     add_library(ito_shared SHARED ${ITO_SOURCES})
@@ -30,6 +67,9 @@ if(ITO_BUILD_SHARED)
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
     )
     set_target_properties(ito_shared PROPERTIES EXPORT_NAME ito_shared)
+    if(ITO_ENABLE_CLANG_TIDY)
+        set_target_properties(ito_shared PROPERTIES CXX_CLANG_TIDY "${ITO_CLANG_TIDY_EXECUTABLE}")
+    endif()
 endif()
 
 if(BUILD_TESTING)
@@ -45,6 +85,9 @@ if(BUILD_TESTING)
     target_link_libraries(ito_tests PRIVATE ito Catch2::Catch2WithMain)
     target_compile_features(ito_tests PRIVATE cxx_std_23)
     target_compile_definitions(ito_tests PRIVATE ITO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    if(ITO_ENABLE_CLANG_TIDY)
+        set_target_properties(ito_tests PROPERTIES CXX_CLANG_TIDY "${ITO_CLANG_TIDY_EXECUTABLE}")
+    endif()
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(Catch)
