@@ -168,9 +168,9 @@ private:
                                      "instrument life must be a valid ordered date range"});
     }
     for (std::size_t index = 0; index < observations.size(); ++index) {
-        if (index > 0 && observations[index] < observations[index - 1]) {
+        if (index > 0 && observations[index] <= observations[index - 1]) {
             return std::unexpected(Error{error_category::invalid_date,
-                                         "observation dates must be ordered"});
+                                         "observation dates must be strictly ordered"});
         }
         auto valid = validate_observation_date(observations[index], instrument_start, instrument_end, calendar);
         if (!valid) return std::unexpected(valid.error());

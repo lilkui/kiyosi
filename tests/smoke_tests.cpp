@@ -111,6 +111,8 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     REQUIRE(ito::validate_schedule(observations, valuation, expiry, copied_calendar).has_value());
     REQUIRE_FALSE(ito::validate_schedule(
         std::vector<ito::date>{day(2025, 1, 4)}, valuation, expiry, copied_calendar).has_value());
+    REQUIRE_FALSE(ito::validate_schedule(
+        std::vector<ito::date>{day(2025, 1, 2), day(2025, 1, 2)}, valuation, expiry, copied_calendar).has_value());
 
     auto parameters = ito::make_bsm_parameters(0.05, 0.02, 0.2);
     auto context = ito::make_pricing_context(*parameters, *ito::make_asset_price(100.0), valuation, copied_calendar);
@@ -267,6 +269,20 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     CHECK(non_finite_result.error().category == ito::error_category::invalid_result);
 }
 
+TEST_CASE("Analytic European engine remains finite at near-zero volatility")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto option = *ito::make_european_call(100.0, valuation + std::chrono::days{1});
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 1e-12);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+
+    const auto result = ito::AnalyticEuropeanEngine{}.price(option, context);
+    REQUIRE(result.has_value());
+    CHECK(std::isfinite(result->value));
+    CHECK(std::isfinite(result->delta));
+    CHECK(std::isfinite(result->gamma));
+}
+
 TEST_CASE("Digital and barrier contracts validate and share pricing results")
 {
     using Catch::Matchers::WithinAbs;
@@ -302,6 +318,21 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
         std::vector<ito::date>{valuation + std::chrono::days{30}});
     REQUIRE(scheduled.has_value());
     CHECK(ito::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
+}
+
+TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.05, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+    const auto barrier = *ito::make_barrier_option(
+        ito::option_type::call, 100.0, expiry, 90.0, ito::barrier_type::up_and_out,
+        10.0, ito::rebate_timing::at_expiry);
+
+    const auto result = ito::AnalyticBarrierEngine{}.price(barrier, context);
+    REQUIRE(result.has_value());
+    CHECK_THAT(result->value, Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05), 1e-12));
 }
 
 TEST_CASE("Binomial American engine prices expiry and validates steps")

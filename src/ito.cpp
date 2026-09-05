@@ -4,6 +4,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <numeric>
 #include <numbers>
 #include <ranges>
@@ -48,6 +49,15 @@ result<PricingResult> price_at_volatility(
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sqrt_time = std::sqrt(year_fraction);
+    const double volatility_time = volatility * sqrt_time;
+    if (!std::isfinite(volatility_time) || volatility_time < 1e-10) {
+        const double forward = spot * std::exp((rate - dividend) * year_fraction);
+        const double discount = std::exp(-rate * year_fraction);
+        const double intrinsic = sign * (forward - strike);
+        const double value = discount * std::max(intrinsic, 0.0);
+        const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
+        return PricingResult{value, delta, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    }
     const double d1 = (std::log(spot / strike) +
                        (rate - dividend + 0.5 * volatility * volatility) * year_fraction) /
                       (volatility * sqrt_time);
@@ -133,31 +143,39 @@ result<PricingResult> price_binomial_american(
     }
 
     std::vector<double> values(static_cast<std::size_t>(settings.steps) + 1);
+    const double up_squared = up * up;
+    double node_spot = spot * std::pow(down, settings.steps);
+    if (!std::isfinite(up_squared) || !std::isfinite(node_spot)) {
+        return std::unexpected(Error{error_category::invalid_result,
+                                     "binomial tree produced a non-finite asset price"});
+    }
     for (int node = 0; node <= settings.steps; ++node) {
-        const double node_spot = spot * std::pow(up, node) *
-                                 std::pow(down, settings.steps - node);
         if (!std::isfinite(node_spot)) {
             return std::unexpected(Error{error_category::invalid_result,
                                          "binomial tree produced a non-finite asset price"});
         }
         values[static_cast<std::size_t>(node)] = std::max(sign * (node_spot - strike), 0.0);
+        node_spot *= up_squared;
     }
 
     std::array<double, 3> level_two{};
     std::array<double, 2> level_one{};
     if (settings.steps == 1) level_one = {values[0], values[1]};
     if (settings.steps == 2) level_two = {values[0], values[1], values[2]};
+    node_spot = spot * std::pow(down, settings.steps - 1);
     for (int level = settings.steps - 1; level >= 0; --level) {
+        if (level < settings.steps - 1) node_spot *= up;
+        double level_node_spot = node_spot;
         for (int node = 0; node <= level; ++node) {
             const std::size_t index = static_cast<std::size_t>(node);
             const double continuation = discount *
                 (probability * values[index + 1] + (1.0 - probability) * values[index]);
-            const double node_spot = spot * std::pow(up, node) * std::pow(down, level - node);
-            values[index] = std::max(continuation, sign * (node_spot - strike));
+            values[index] = std::max(continuation, sign * (level_node_spot - strike));
             if (!std::isfinite(values[index])) {
                 return std::unexpected(Error{error_category::invalid_result,
                                              "binomial pricing produced a non-finite result"});
             }
+            level_node_spot *= up_squared;
         }
         if (level == 2) {
             level_two = {values[0], values[1], values[2]};
@@ -541,7 +559,7 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
     if (t == 0.0) return 1.0;
     const double signed_drift = upper ? -drift : drift;
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
-    if (discriminant <= 0.0) return 0.0;
+    if (discriminant <= 0.0) return std::numeric_limits<double>::quiet_NaN();
     return std::exp((-signed_drift - std::sqrt(discriminant)) * distance / variance);
 }
 
@@ -620,8 +638,12 @@ result<PricingResult> AnalyticBarrierEngine::price(
             const double distance = std::abs(boundary);
             rebate_factor = barrier_hit_discount(distance, upper, drift, variance, t, rate) -
                             std::exp(-rate * t) * survival_probability;
+            if (!std::isfinite(rebate_factor))
+                return std::unexpected(Error{error_category::invalid_result,
+                                             "barrier rebate discounting is numerically unstable"});
         }
-        value += option.rebate() * (touched ? 1.0 : rebate_factor);
+        value += option.rebate() * (touched ?
+            (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)) : rebate_factor);
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
