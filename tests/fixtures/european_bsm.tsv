@@ -1,0 +1,5 @@
+# Generated once from the DerivaSharp C# oracle and reviewed before check-in.
+# Rates are decimal continuously compounded rates; Greeks use the units in docs/parity-fixtures.md.
+case_id	option_type	valuation_date	expiry	spot	strike	risk_free_rate	dividend_yield	volatility	observed_price	value	value_tolerance	delta	delta_tolerance	gamma	gamma_tolerance	speed	speed_tolerance	theta	theta_tolerance	charm	charm_tolerance	color	color_tolerance	vega	vega_tolerance	vanna	vanna_tolerance	zomma	zomma_tolerance	rho	rho_tolerance	implied_volatility	implied_volatility_tolerance
+reviewed-call-1	call	2025-01-06	2026-01-06	100	100	0.04	0.01	0.3	13.151137	13.151137	0.00001	0.592749	0.00001	0.012761	0.00001	-0.000234	0.00001	-0.019163	0.00001	-0.000115	0.00001	0.000019	0.00001	0.382821	0.00001	0.000638	0.00001	-0.000431	0.00001	0.461238	0.00001	0.3	0.00001
+reviewed-put-1	put	2025-01-06	2026-01-06	100	100	0.04	0.01	0.3	10.225098	10.225098	0.00001	-0.397301	0.00001	0.012761	0.00001	-0.000234	0.00001	-0.011346	0.00001	-0.000142	0.00001	0.000019	0.00001	0.382821	0.00001	0.000638	0.00001	-0.000431	0.00001	-0.499552	0.00001	0.3	0.00001

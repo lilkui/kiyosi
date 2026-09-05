@@ -41,9 +41,10 @@ if(BUILD_TESTING)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(ito_tests tests/smoke_tests.cpp)
+    add_executable(ito_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp)
     target_link_libraries(ito_tests PRIVATE ito Catch2::Catch2WithMain)
     target_compile_features(ito_tests PRIVATE cxx_std_23)
+    target_compile_definitions(ito_tests PRIVATE ITO_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
     list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(Catch)
