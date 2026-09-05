@@ -62,11 +62,18 @@ result<PricingResult> price_at_volatility(
     const double dividend = context.parameters().dividend_yield();
     const double sqrt_time = std::sqrt(year_fraction);
     const double volatility_time = volatility * sqrt_time;
-    if (!std::isfinite(volatility_time) || volatility_time < 1e-10) {
+    if (!std::isfinite(volatility_time)) {
+        return std::unexpected(Error{error_category::invalid_result,
+                                     "analytic pricing produced an unstable volatility limit"});
+    }
+    if (volatility_time < 1e-10) {
         const double forward = spot * std::exp((rate - dividend) * year_fraction);
         const double discount = std::exp(-rate * year_fraction);
         const double intrinsic = sign * (forward - strike);
         const double value = discount * std::max(intrinsic, 0.0);
+        if (!std::isfinite(value))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "analytic pricing produced a non-finite result"});
         if (price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
         auto output = PricingResult{value, delta, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
@@ -88,29 +95,41 @@ result<PricingResult> price_at_volatility(
         return std::unexpected(Error{error_category::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     if (price_only) return price_only_result(value);
-    const double density_d1 = normal_pdf(d1);
     const double delta = sign * dividend_discount_factor * cumulative_d1;
-    const double gamma = dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time);
-    const double speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
-    const double theta = (-spot * dividend_discount_factor * density_d1 * volatility /
-                              (2.0 * sqrt_time) +
-                          sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
-                          sign * rate * strike * rate_discount_factor * cumulative_d2) /
-                         days_per_year;
-    const double charm = -dividend_discount_factor *
-                         (density_d1 * ((rate - dividend) / (volatility * sqrt_time) -
-                                        0.5 * d2 / year_fraction) -
-                          sign * dividend * cumulative_d1) /
-                         days_per_year;
-    const double color = gamma *
-                         (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
-                          (1.0 - d1 * d2) / (2.0 * year_fraction)) /
-                         days_per_year;
-    const double vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_point;
-    const double vanna = -dividend_discount_factor * d2 * density_d1 /
-                         (volatility * percentage_point);
-    const double zomma = gamma * (d1 * d2 - 1.0) /
-                         (volatility * percentage_point);
+    const double density_d1 = normal_pdf(d1);
+    const double carry = sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
+                         sign * rate * strike * rate_discount_factor * cumulative_d2;
+    double gamma = 0.0;
+    double speed = 0.0;
+    double theta = 0.0;
+    double charm = 0.0;
+    double color = 0.0;
+    double vega = 0.0;
+    double vanna = 0.0;
+    double zomma = 0.0;
+    if (density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)) {
+        gamma = dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time);
+        speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
+        theta = (-spot * dividend_discount_factor * density_d1 * volatility /
+                     (2.0 * sqrt_time) + carry) /
+                days_per_year;
+        charm = -dividend_discount_factor *
+                (density_d1 * ((rate - dividend) / (volatility * sqrt_time) -
+                               0.5 * d2 / year_fraction) -
+                 sign * dividend * cumulative_d1) /
+                days_per_year;
+        color = gamma *
+                (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
+                 (1.0 - d1 * d2) / (2.0 * year_fraction)) /
+                days_per_year;
+        vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_point;
+        vanna = -dividend_discount_factor * d2 * density_d1 /
+                (volatility * percentage_point);
+        zomma = gamma * (d1 * d2 - 1.0) /
+                (volatility * percentage_point);
+    } else {
+        theta = carry / days_per_year;
+    }
     const double rho = sign * year_fraction * strike * rate_discount_factor * cumulative_d2 /
                        percentage_point;
     const PricingResult output{value, delta, gamma, speed, theta, charm,
@@ -724,8 +743,18 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
     if (t == 0.0) return 1.0;
     const double signed_drift = upper ? -drift : drift;
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
-    if (discriminant <= 0.0) return std::numeric_limits<double>::quiet_NaN();
-    return std::exp((-signed_drift - std::sqrt(discriminant)) * distance / variance);
+    const double scale = std::max({1.0, std::abs(signed_drift * signed_drift), std::abs(2.0 * rate * variance)});
+    if (discriminant < 0.0 ||
+        (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale))
+        return std::numeric_limits<double>::quiet_NaN();
+    const double root = std::sqrt(discriminant);
+    const double root_time = std::sqrt(variance * t);
+    const double first = std::exp((-signed_drift - root) * distance / variance) *
+                         normal_cdf((root * t - distance) / root_time);
+    const double second = std::exp((-signed_drift + root) * distance / variance) *
+                          normal_cdf((-root * t - distance) / root_time);
+    const double result = first + second;
+    return std::isfinite(result) ? result : std::numeric_limits<double>::quiet_NaN();
 }
 
 } // namespace
@@ -822,8 +851,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
         double rebate_factor = std::exp(-rate * t) * (1.0 - survival_probability);
         if (option.rebate_payment() == rebate_timing::at_hit && !touched) {
             const double distance = std::abs(boundary);
-            rebate_factor = barrier_hit_discount(distance, upper, drift, variance, t, rate) -
-                            std::exp(-rate * t) * survival_probability;
+            rebate_factor = barrier_hit_discount(distance, upper, drift, variance, t, rate);
             if (!std::isfinite(rebate_factor))
                 return std::unexpected(Error{error_category::invalid_result,
                                              "barrier rebate discounting is numerically unstable"});

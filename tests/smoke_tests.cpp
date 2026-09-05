@@ -313,6 +313,36 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
     CHECK_FALSE(result->has(ito::risk_measure::gamma));
 }
 
+TEST_CASE("Analytic European engine remains finite in deep tails")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto option = *ito::make_european_call(1'000'000.0, valuation + std::chrono::days{1});
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+
+    const auto result = ito::AnalyticEuropeanEngine{}.price(option, context);
+    REQUIRE(result.has_value());
+    for (const double value : std::array{result->value, result->delta, result->gamma,
+                                         result->speed, result->theta, result->charm,
+                                         result->color, result->vega, result->vanna,
+                                         result->zomma, result->rho}) {
+        CHECK(std::isfinite(value));
+    }
+}
+
+TEST_CASE("Analytic European engine remains finite for a short-dated low-volatility option")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto option = *ito::make_european_put(200.0, valuation + std::chrono::days{1});
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.05);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+
+    const auto result = ito::AnalyticEuropeanEngine{}.price(option, context);
+    REQUIRE(result.has_value());
+    CHECK(std::isfinite(result->value));
+    CHECK(std::isfinite(result->delta));
+}
+
 TEST_CASE("Digital and barrier contracts validate and share pricing results")
 {
     using Catch::Matchers::WithinAbs;
@@ -365,6 +395,43 @@ TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
     CHECK_THAT(result->value, Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05), 1e-12));
 }
 
+TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.05, 0.03, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+    const auto barrier = *ito::make_barrier_option(
+        ito::option_type::call, 1'000'000'000.0, expiry, 110.0, ito::barrier_type::up_and_out,
+        10.0, ito::rebate_timing::at_hit);
+
+    const auto result = ito::AnalyticBarrierEngine{}.price(barrier, context);
+    REQUIRE(result.has_value());
+    const double distance = std::log(1.1);
+    const double root = std::sqrt(2.0 * 0.05 * 0.2 * 0.2);
+    const auto normal_cdf = [](double value) { return 0.5 * std::erfc(-value / std::sqrt(2.0)); };
+    const double discounted_hit = std::exp(-root * distance / (0.2 * 0.2)) *
+                                      normal_cdf((root - distance) / 0.2) +
+                                  std::exp(root * distance / (0.2 * 0.2)) *
+                                      normal_cdf((-root - distance) / 0.2);
+    CHECK_THAT(result->value, Catch::Matchers::WithinAbs(10.0 * discounted_hit, 1e-6));
+}
+
+TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(-0.02, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+    const auto barrier = *ito::make_barrier_option(
+        ito::option_type::call, 1'000'000'000.0, expiry, 110.0, ito::barrier_type::up_and_out,
+        10.0, ito::rebate_timing::at_hit);
+
+    const auto result = ito::AnalyticBarrierEngine{}.price(barrier, context);
+    REQUIRE_FALSE(result.has_value());
+    CHECK(result.error().category == ito::error_category::invalid_result);
+}
+
 TEST_CASE("Binomial American engine prices expiry and validates steps")
 {
     const auto expiry = day(2025, 1, 1);
@@ -412,6 +479,11 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     CHECK_THAT(american_call->value, WithinAbs(european_call->value, 0.02));
     CHECK(std::isfinite(american_call->delta));
     CHECK(std::isfinite(american_call->gamma));
+
+    const auto high_resolution = ito::BinomialAmericanEngine{ito::BinomialAmericanSettings{1200}}
+                                     .price(american_call_option, at_the_money_context);
+    REQUIRE(high_resolution.has_value());
+    CHECK_THAT(high_resolution->value, WithinAbs(european_call->value, 0.01));
 }
 
 TEST_CASE("Binomial American call and put values are symmetric at zero carry")
