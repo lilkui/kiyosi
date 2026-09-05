@@ -2,8 +2,10 @@
 
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <expected>
 #include <functional>
+#include <optional>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -31,6 +33,8 @@ enum class error_category : unsigned char {
     invalid_schedule = 10,
     invalid_calendar = 11,
     invalid_parameter = 12,
+    incompatible_exercise = 13,
+    unsupported_risk_measure = 14,
 };
 
 struct Error {
@@ -67,6 +71,25 @@ private:
     friend result<EuropeanOption> make_european_option(option_type, double, date);
 };
 
+class AmericanOption {
+public:
+    option_type type() const noexcept { return type_; }
+    double strike() const noexcept { return strike_; }
+    date expiry() const noexcept { return expiry_; }
+
+    friend bool operator==(const AmericanOption&, const AmericanOption&) = default;
+
+private:
+    AmericanOption(option_type type, double strike, date expiry)
+        : type_(type), strike_(strike), expiry_(expiry) {}
+
+    option_type type_;
+    double strike_;
+    date expiry_;
+
+    friend result<AmericanOption> make_american_option(option_type, double, date);
+};
+
 [[nodiscard]] inline result<EuropeanOption> make_european_option(option_type type, double strike, date expiry)
 {
     if (type != option_type::call && type != option_type::put) {
@@ -79,6 +102,17 @@ private:
         return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
     }
     return EuropeanOption{type, strike, expiry};
+}
+
+[[nodiscard]] inline result<AmericanOption> make_american_option(option_type type, double strike, date expiry)
+{
+    if (type != option_type::call && type != option_type::put)
+        return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
+    if (!std::isfinite(strike) || strike <= 0.0)
+        return std::unexpected(Error{error_category::invalid_strike, "strike must be finite and positive"});
+    if (!is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    return AmericanOption{type, strike, expiry};
 }
 
 [[nodiscard]] inline result<void> validate_expiry(date valuation_date, date expiry);
@@ -139,9 +173,10 @@ private:
 [[nodiscard]] inline TradingCalendar exchange_calendar()
 {
     return TradingCalendar{[](date value) {
-        const auto weekday = std::chrono::weekday{value};
-        return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday;
-    }, 252};
+                               const auto weekday = std::chrono::weekday{value};
+                               return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday;
+                           },
+                           252};
 }
 
 [[nodiscard]] inline result<void> validate_observation_date(
@@ -199,6 +234,20 @@ private:
     return validate_observation_dates(observations, valuation_date, option, calendar);
 }
 
+[[nodiscard]] inline result<void> validate_observation_dates(
+    std::span<const date> observations, date valuation_date, const AmericanOption& option,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, valuation_date, option.expiry(), calendar);
+}
+
+[[nodiscard]] inline result<void> validate_schedule(
+    std::span<const date> observations, date valuation_date, const AmericanOption& option,
+    const TradingCalendar& calendar)
+{
+    return validate_observation_dates(observations, valuation_date, option, calendar);
+}
+
 class ObservationSchedule {
 public:
     const std::vector<date>& dates() const noexcept { return dates_; }
@@ -235,6 +284,14 @@ private:
     return make_european_option(type, strike, expiry);
 }
 
+[[nodiscard]] inline result<AmericanOption> make_american_option(
+    option_type type, double strike, date valuation_date, date expiry)
+{
+    auto valid_expiry = validate_expiry(valuation_date, expiry);
+    if (!valid_expiry) return std::unexpected(valid_expiry.error());
+    return make_american_option(type, strike, expiry);
+}
+
 [[nodiscard]] inline result<void> validate_expiry(date valuation_date, date expiry)
 {
     if (!is_valid_date(valuation_date) || !is_valid_date(expiry)) {
@@ -256,6 +313,16 @@ private:
 [[nodiscard]] inline result<EuropeanOption> make_european_put(double strike, date expiry)
 {
     return make_european_option(option_type::put, strike, expiry);
+}
+
+[[nodiscard]] inline result<AmericanOption> make_american_call(double strike, date expiry)
+{
+    return make_american_option(option_type::call, strike, expiry);
+}
+
+[[nodiscard]] inline result<AmericanOption> make_american_put(double strike, date expiry)
+{
+    return make_american_option(option_type::put, strike, expiry);
 }
 
 class BsmParameters {
@@ -354,6 +421,48 @@ private:
     return PricingContext{std::move(parameters), asset_price, valuation_date, std::move(calendar)};
 }
 
+enum class risk_measure : std::uint16_t {
+    price = 1u << 0,
+    delta = 1u << 1,
+    gamma = 1u << 2,
+    speed = 1u << 3,
+    theta = 1u << 4,
+    charm = 1u << 5,
+    color = 1u << 6,
+    vega = 1u << 7,
+    vanna = 1u << 8,
+    zomma = 1u << 9,
+    rho = 1u << 10,
+};
+
+using risk_measure_set = std::uint16_t;
+
+[[nodiscard]] constexpr risk_measure_set risk_bit(risk_measure measure) noexcept
+{
+    return static_cast<risk_measure_set>(measure);
+}
+
+[[nodiscard]] constexpr risk_measure_set operator|(risk_measure left, risk_measure right) noexcept
+{
+    return risk_bit(left) | risk_bit(right);
+}
+
+[[nodiscard]] constexpr risk_measure_set operator|(risk_measure_set left, risk_measure right) noexcept
+{
+    return left | risk_bit(right);
+}
+
+[[nodiscard]] constexpr risk_measure_set operator|(risk_measure left, risk_measure_set right) noexcept
+{
+    return risk_bit(left) | right;
+}
+
+inline constexpr risk_measure_set all_risk_measures =
+    risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma) |
+    risk_bit(risk_measure::speed) | risk_bit(risk_measure::theta) | risk_bit(risk_measure::charm) |
+    risk_bit(risk_measure::color) | risk_bit(risk_measure::vega) | risk_bit(risk_measure::vanna) |
+    risk_bit(risk_measure::zomma) | risk_bit(risk_measure::rho);
+
 struct PricingResult {
     /// Present value in the input asset-price currency units.
     double value;
@@ -378,7 +487,60 @@ struct PricingResult {
     /// Per one percentage-point rate move.
     double rho;
 
+    risk_measure_set available = all_risk_measures;
+
+    [[nodiscard]] bool has(risk_measure measure) const noexcept;
+    [[nodiscard]] std::optional<double> get(risk_measure measure) const noexcept;
 };
+
+struct PricingRequest {
+    risk_measure_set measures = all_risk_measures;
+
+    [[nodiscard]] static constexpr PricingRequest price_only() noexcept
+    {
+        return PricingRequest{risk_bit(risk_measure::price)};
+    }
+    [[nodiscard]] static constexpr PricingRequest all() noexcept { return PricingRequest{}; }
+    [[nodiscard]] constexpr bool requests(risk_measure measure) const noexcept
+    {
+        return (measures & risk_bit(measure)) != 0;
+    }
+};
+
+[[nodiscard]] inline bool PricingResult::has(risk_measure measure) const noexcept
+{
+    return (available & risk_bit(measure)) != 0;
+}
+
+[[nodiscard]] inline std::optional<double> PricingResult::get(risk_measure measure) const noexcept
+{
+    if (!has(measure)) return std::nullopt;
+    switch (measure) {
+    case risk_measure::price:
+        return value;
+    case risk_measure::delta:
+        return delta;
+    case risk_measure::gamma:
+        return gamma;
+    case risk_measure::speed:
+        return speed;
+    case risk_measure::theta:
+        return theta;
+    case risk_measure::charm:
+        return charm;
+    case risk_measure::color:
+        return color;
+    case risk_measure::vega:
+        return vega;
+    case risk_measure::vanna:
+        return vanna;
+    case risk_measure::zomma:
+        return zomma;
+    case risk_measure::rho:
+        return rho;
+    }
+    return std::nullopt;
+}
 
 struct ImpliedVolatilitySettings {
     double lower_bound = 0.0001;
@@ -389,8 +551,12 @@ struct ImpliedVolatilitySettings {
 
 class AnalyticEuropeanEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures = all_risk_measures;
+
     /// Returns intrinsic value and zero Greeks when valued at expiry.
     [[nodiscard]] result<PricingResult> price(const EuropeanOption& option, const PricingContext& context) const;
+    [[nodiscard]] result<PricingResult> price(
+        const EuropeanOption& option, const PricingContext& context, PricingRequest request) const;
 
     [[nodiscard]] result<double> implied_volatility(
         const EuropeanOption& option, const PricingContext& context, double observed_price,
@@ -405,11 +571,21 @@ struct BinomialAmericanSettings {
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unsupported and zero.
 class BinomialAmericanEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures =
+        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
+
     explicit BinomialAmericanEngine(BinomialAmericanSettings settings = {}) : settings_(settings) {}
     explicit BinomialAmericanEngine(int steps) : settings_{steps} {}
 
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, BinomialAmericanSettings) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, BinomialAmericanSettings) const;
+    [[nodiscard]] result<PricingResult> price(
+        const AmericanOption&, const PricingContext&, BinomialAmericanSettings, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(
+        const EuropeanOption&, const PricingContext&, PricingRequest) const;
 
     BinomialAmericanSettings settings() const noexcept { return settings_; }
 
@@ -430,10 +606,12 @@ struct FiniteDifferenceSettings {
     double upper_boundary = 0.0;
 };
 
-
 /// Uniform-grid finite-difference European engine for vanilla options.
 class FiniteDifferenceEuropeanEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures =
+        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
+
     explicit FiniteDifferenceEuropeanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
     FiniteDifferenceEuropeanEngine(int asset_steps, int time_steps,
@@ -442,6 +620,10 @@ public:
 
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    [[nodiscard]] result<PricingResult> price(
+        const EuropeanOption&, const PricingContext&, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(
+        const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings, PricingRequest) const;
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
@@ -451,6 +633,9 @@ private:
 /// Uniform-grid finite-difference American engine with early exercise at every time layer.
 class FiniteDifferenceAmericanEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures =
+        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
+
     explicit FiniteDifferenceAmericanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
     FiniteDifferenceAmericanEngine(int asset_steps, int time_steps,
@@ -459,6 +644,13 @@ public:
 
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
     [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    [[nodiscard]] result<PricingResult> price(
+        const AmericanOption&, const PricingContext&, FiniteDifferenceSettings, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(
+        const EuropeanOption&, const PricingContext&, PricingRequest) const;
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
@@ -472,6 +664,7 @@ public:
     double payout() const noexcept { return payout_; }
     date expiry() const noexcept { return expiry_; }
     friend bool operator==(const CashOrNothingOption&, const CashOrNothingOption&) = default;
+
 private:
     CashOrNothingOption(option_type type, double strike, double payout, date expiry)
         : type_(type), strike_(strike), payout_(payout), expiry_(expiry) {}
@@ -484,9 +677,13 @@ private:
 [[nodiscard]] inline result<CashOrNothingOption> make_cash_or_nothing_option(option_type, double, double, date);
 
 [[nodiscard]] inline result<CashOrNothingOption> make_cash_or_nothing_call(double strike, double payout, date expiry)
-{ return make_cash_or_nothing_option(option_type::call, strike, payout, expiry); }
+{
+    return make_cash_or_nothing_option(option_type::call, strike, payout, expiry);
+}
 [[nodiscard]] inline result<CashOrNothingOption> make_cash_or_nothing_put(double strike, double payout, date expiry)
-{ return make_cash_or_nothing_option(option_type::put, strike, payout, expiry); }
+{
+    return make_cash_or_nothing_option(option_type::put, strike, payout, expiry);
+}
 
 [[nodiscard]] inline result<CashOrNothingOption> make_cash_or_nothing_option(
     option_type type, double strike, double payout, date expiry)
@@ -516,6 +713,7 @@ public:
     double strike() const noexcept { return strike_; }
     date expiry() const noexcept { return expiry_; }
     friend bool operator==(const AssetOrNothingOption&, const AssetOrNothingOption&) = default;
+
 private:
     AssetOrNothingOption(option_type type, double strike, date expiry)
         : type_(type), strike_(strike), expiry_(expiry) {}
@@ -527,9 +725,13 @@ private:
 [[nodiscard]] inline result<AssetOrNothingOption> make_asset_or_nothing_option(option_type, double, date);
 
 [[nodiscard]] inline result<AssetOrNothingOption> make_asset_or_nothing_call(double strike, date expiry)
-{ return make_asset_or_nothing_option(option_type::call, strike, expiry); }
+{
+    return make_asset_or_nothing_option(option_type::call, strike, expiry);
+}
 [[nodiscard]] inline result<AssetOrNothingOption> make_asset_or_nothing_put(double strike, date expiry)
-{ return make_asset_or_nothing_option(option_type::put, strike, expiry); }
+{
+    return make_asset_or_nothing_option(option_type::put, strike, expiry);
+}
 
 [[nodiscard]] inline result<AssetOrNothingOption> make_asset_or_nothing_option(option_type type, double strike, date expiry)
 {
@@ -551,10 +753,15 @@ private:
 }
 
 enum class barrier_type {
-    up_and_in, up_and_out, down_and_in, down_and_out,
+    up_and_in,
+    up_and_out,
+    down_and_in,
+    down_and_out,
 };
-enum class observation_mode { continuous, scheduled };
-enum class rebate_timing { at_hit, at_expiry };
+enum class observation_mode { continuous,
+                              scheduled };
+enum class rebate_timing { at_hit,
+                           at_expiry };
 
 class BarrierOption {
 public:
@@ -568,6 +775,7 @@ public:
     const std::vector<date>& observation_dates() const noexcept { return observations_; }
     date expiry() const noexcept { return expiry_; }
     friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
+
 private:
     BarrierOption(option_type type, double strike, date expiry, double barrier, barrier_type kind,
                   double rebate, ito::rebate_timing timing, observation_mode observation,
@@ -625,13 +833,23 @@ private:
 
 class AnalyticDigitalEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures =
+        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
+
     [[nodiscard]] result<PricingResult> price(const CashOrNothingOption&, const PricingContext&) const;
     [[nodiscard]] result<PricingResult> price(const AssetOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price(
+        const CashOrNothingOption&, const PricingContext&, PricingRequest) const;
+    [[nodiscard]] result<PricingResult> price(
+        const AssetOrNothingOption&, const PricingContext&, PricingRequest) const;
 };
 
 class AnalyticBarrierEngine {
 public:
+    static constexpr risk_measure_set supported_risk_measures = risk_bit(risk_measure::price);
+
     [[nodiscard]] result<PricingResult> price(const BarrierOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price(const BarrierOption&, const PricingContext&, PricingRequest) const;
 };
 
-}
+} // namespace ito

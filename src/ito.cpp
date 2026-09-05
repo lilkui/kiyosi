@@ -27,8 +27,16 @@ double normal_pdf(double value) noexcept
     return inverse_sqrt_two_pi * std::exp(-0.5 * value * value);
 }
 
+PricingResult price_only_result(double value)
+{
+    const double unavailable = std::numeric_limits<double>::quiet_NaN();
+    return PricingResult{value, unavailable, unavailable, unavailable, unavailable, unavailable,
+                         unavailable, unavailable, unavailable, unavailable, unavailable,
+                         risk_bit(risk_measure::price)};
+}
+
 result<PricingResult> price_at_volatility(
-    const EuropeanOption& option, const PricingContext& context, double volatility)
+    const EuropeanOption& option, const PricingContext& context, double volatility, bool price_only = false)
 {
     const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
     if (!valid_expiry) {
@@ -39,11 +47,15 @@ result<PricingResult> price_at_volatility(
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double year_fraction = static_cast<double>(
-        (option.expiry() - context.valuation_date()).count()) / days_per_year;
+                                     (option.expiry() - context.valuation_date()).count()) /
+                                 days_per_year;
 
     if (year_fraction == 0.0) {
-        return PricingResult{std::max(sign * (spot - strike), 0.0),
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        const double value = std::max(sign * (spot - strike), 0.0);
+        if (price_only) return price_only_result(value);
+        auto output = PricingResult{value, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        output.available = risk_bit(risk_measure::price);
+        return output;
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -55,8 +67,11 @@ result<PricingResult> price_at_volatility(
         const double discount = std::exp(-rate * year_fraction);
         const double intrinsic = sign * (forward - strike);
         const double value = discount * std::max(intrinsic, 0.0);
+        if (price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
-        return PricingResult{value, delta, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        auto output = PricingResult{value, delta, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta);
+        return output;
     }
     const double d1 = (std::log(spot / strike) +
                        (rate - dividend + 0.5 * volatility * volatility) * year_fraction) /
@@ -64,12 +79,16 @@ result<PricingResult> price_at_volatility(
     const double d2 = d1 - volatility * sqrt_time;
     const double dividend_discount_factor = std::exp(-dividend * year_fraction);
     const double rate_discount_factor = std::exp(-rate * year_fraction);
-    const double density_d1 = normal_pdf(d1);
     const double cumulative_d1 = normal_cdf(sign * d1);
     const double cumulative_d2 = normal_cdf(sign * d2);
 
     const double value = sign * (spot * dividend_discount_factor * cumulative_d1 -
                                  strike * rate_discount_factor * cumulative_d2);
+    if (!std::isfinite(value))
+        return std::unexpected(Error{error_category::invalid_result,
+                                     "analytic pricing produced a non-finite result"});
+    if (price_only) return price_only_result(value);
+    const double density_d1 = normal_pdf(d1);
     const double delta = sign * dividend_discount_factor * cumulative_d1;
     const double gamma = dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time);
     const double speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
@@ -105,8 +124,35 @@ result<PricingResult> price_at_volatility(
     return output;
 }
 
+result<PricingResult> select_outputs(
+    result<PricingResult> priced, PricingRequest request, risk_measure_set supported)
+{
+    if (!priced) return priced;
+    if ((request.measures & ~supported) != 0)
+        return std::unexpected(Error{error_category::unsupported_risk_measure,
+                                     "requested risk measure is unsupported by this engine"});
+    priced->available &= request.measures & supported;
+    const double unavailable = std::numeric_limits<double>::quiet_NaN();
+    const auto clear = [&](risk_measure measure, double& field) {
+        if (!request.requests(measure) || !priced->has(measure)) field = unavailable;
+    };
+    clear(risk_measure::price, priced->value);
+    clear(risk_measure::delta, priced->delta);
+    clear(risk_measure::gamma, priced->gamma);
+    clear(risk_measure::speed, priced->speed);
+    clear(risk_measure::theta, priced->theta);
+    clear(risk_measure::charm, priced->charm);
+    clear(risk_measure::color, priced->color);
+    clear(risk_measure::vega, priced->vega);
+    clear(risk_measure::vanna, priced->vanna);
+    clear(risk_measure::zomma, priced->zomma);
+    clear(risk_measure::rho, priced->rho);
+    return priced;
+}
+
+template <typename Option>
 result<PricingResult> price_binomial_american(
-    const EuropeanOption& option, const PricingContext& context, BinomialAmericanSettings settings)
+    const Option& option, const PricingContext& context, BinomialAmericanSettings settings)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
     const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
@@ -120,10 +166,13 @@ result<PricingResult> price_binomial_american(
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double time = static_cast<double>(
-        (option.expiry() - context.valuation_date()).count()) / days_per_year;
+                            (option.expiry() - context.valuation_date()).count()) /
+                        days_per_year;
     if (time == 0.0) {
-        return PricingResult{std::max(sign * (spot - strike), 0.0),
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        auto output = PricingResult{std::max(sign * (spot - strike), 0.0),
+                                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        output.available = risk_bit(risk_measure::price);
+        return output;
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -169,7 +218,7 @@ result<PricingResult> price_binomial_american(
         for (int node = 0; node <= level; ++node) {
             const std::size_t index = static_cast<std::size_t>(node);
             const double continuation = discount *
-                (probability * values[index + 1] + (1.0 - probability) * values[index]);
+                                        (probability * values[index + 1] + (1.0 - probability) * values[index]);
             values[index] = std::max(continuation, sign * (level_node_spot - strike));
             if (!std::isfinite(values[index])) {
                 return std::unexpected(Error{error_category::invalid_result,
@@ -202,7 +251,9 @@ result<PricingResult> price_binomial_american(
         }
     }
 
-    const PricingResult output{values[0], delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    auto output = PricingResult{values[0], delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
+                       risk_bit(risk_measure::gamma);
     const std::array result_values{output.value, output.delta, output.gamma};
     if (!std::ranges::all_of(result_values, [](double value) { return std::isfinite(value); })) {
         return std::unexpected(Error{error_category::invalid_result,
@@ -211,12 +262,13 @@ result<PricingResult> price_binomial_american(
     return output;
 }
 
-}
+} // namespace
 
 namespace {
 
+template <typename Option>
 result<PricingResult> price_finite_difference(
-    const EuropeanOption& option, const PricingContext& context,
+    const Option& option, const PricingContext& context,
     FiniteDifferenceSettings settings, bool american)
 {
     const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
@@ -242,13 +294,16 @@ result<PricingResult> price_finite_difference(
     }
 
     const double time = static_cast<double>(
-        (option.expiry() - context.valuation_date()).count()) / days_per_year;
+                            (option.expiry() - context.valuation_date()).count()) /
+                        days_per_year;
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     if (time == 0.0) {
-        return PricingResult{std::max(sign * (spot - strike), 0.0),
-                             0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        auto output = PricingResult{std::max(sign * (spot - strike), 0.0),
+                                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+        output.available = risk_bit(risk_measure::price);
+        return output;
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -256,8 +311,8 @@ result<PricingResult> price_finite_difference(
     const double volatility = context.parameters().volatility();
     const int asset_steps = settings.asset_steps;
     const double upper = settings.upper_boundary > 0.0
-                              ? settings.upper_boundary
-                              : std::max(4.0 * strike, 4.0 * spot);
+                             ? settings.upper_boundary
+                             : std::max(4.0 * strike, 4.0 * spot);
     if (!std::isfinite(upper) || upper <= std::max(spot, strike)) {
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "finite-difference upper boundary must exceed spot and strike"});
@@ -273,14 +328,14 @@ result<PricingResult> price_finite_difference(
             time_steps = static_cast<int>(std::ceil(required));
     }
     const double dt = time / static_cast<double>(time_steps);
-    const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0
-                         : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5;
+    const double theta = settings.scheme == finite_difference_scheme::explicit_euler   ? 0.0
+                         : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0
+                                                                                       : 0.5;
 
     auto boundary = [&](double tau, bool high) {
         if (high) {
             if (option.type() == option_type::call)
-                return american ? upper - strike : upper * std::exp(-dividend * tau) -
-                                             strike * std::exp(-rate * tau);
+                return american ? upper - strike : upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau);
             return 0.0;
         }
         if (option.type() == option_type::put)
@@ -326,9 +381,9 @@ result<PricingResult> price_finite_difference(
             const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
             const auto position = static_cast<std::size_t>(index - 1);
             rhs[position] = old[static_cast<std::size_t>(index)] + (1.0 - theta) * dt *
-                            (a * old[static_cast<std::size_t>(index - 1)] +
-                             b * old[static_cast<std::size_t>(index)] +
-                             c * old[static_cast<std::size_t>(index + 1)]);
+                                                                       (a * old[static_cast<std::size_t>(index - 1)] +
+                                                                        b * old[static_cast<std::size_t>(index)] +
+                                                                        c * old[static_cast<std::size_t>(index + 1)]);
             if (index == 1) rhs[position] += theta * dt * a * next.front();
             if (index == asset_steps - 1)
                 rhs[position] += theta * dt * c * next.back();
@@ -364,7 +419,9 @@ result<PricingResult> price_finite_difference(
     const double delta = (old[center + 1] - old[center - 1]) / (2.0 * spacing);
     const double gamma = (old[center + 1] - 2.0 * old[center] + old[center - 1]) /
                          (spacing * spacing);
-    const PricingResult output{value, delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    auto output = PricingResult{value, delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
+                       risk_bit(risk_measure::gamma);
     const std::array values{output.value, output.delta, output.gamma};
     if (!std::ranges::all_of(values, [](double item) { return std::isfinite(item); }))
         return std::unexpected(Error{error_category::invalid_result,
@@ -372,51 +429,152 @@ result<PricingResult> price_finite_difference(
     return output;
 }
 
-}
+} // namespace
 
 result<PricingResult> AnalyticEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
-    return price_at_volatility(option, context, context.parameters().volatility());
+    return select_outputs(price_at_volatility(option, context, context.parameters().volatility()),
+                          PricingRequest::all(), supported_risk_measures);
+}
+
+result<PricingResult> AnalyticEuropeanEngine::price(
+    const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price_at_volatility(option, context, context.parameters().volatility(),
+                                              request.measures == risk_bit(risk_measure::price)),
+                          request, supported_risk_measures);
 }
 
 result<PricingResult> BinomialAmericanEngine::price(
-    const EuropeanOption& option, const PricingContext& context) const
+    const EuropeanOption&, const PricingContext&) const
 {
-    return price_binomial_american(option, context, settings_);
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
 }
 
 result<PricingResult> BinomialAmericanEngine::price(
-    const EuropeanOption& option, const PricingContext& context,
-    BinomialAmericanSettings settings) const
+    const EuropeanOption&, const PricingContext&, BinomialAmericanSettings) const
 {
-    return price_binomial_american(option, context, settings);
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
+}
+
+result<PricingResult> BinomialAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context) const
+{
+    return select_outputs(price_binomial_american(option, context, settings_),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> BinomialAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price_binomial_american(option, context, settings_),
+                          request, supported_risk_measures);
+}
+
+result<PricingResult> BinomialAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context, BinomialAmericanSettings settings) const
+{
+    return select_outputs(price_binomial_american(option, context, settings),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> BinomialAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context,
+    BinomialAmericanSettings settings, PricingRequest request) const
+{
+    return select_outputs(price_binomial_american(option, context, settings),
+                          request, supported_risk_measures);
+}
+
+result<PricingResult> BinomialAmericanEngine::price(
+    const EuropeanOption&, const PricingContext&, PricingRequest) const
+{
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
 }
 
 result<PricingResult> FiniteDifferenceEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
-    return price_finite_difference(option, context, settings_, false);
+    return select_outputs(price_finite_difference(option, context, settings_, false),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
 }
 
 result<PricingResult> FiniteDifferenceEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context,
     FiniteDifferenceSettings settings) const
 {
-    return price_finite_difference(option, context, settings, false);
+    return select_outputs(price_finite_difference(option, context, settings, false),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
 }
 
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const EuropeanOption& option, const PricingContext& context) const
+result<PricingResult> FiniteDifferenceEuropeanEngine::price(
+    const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
 {
-    return price_finite_difference(option, context, settings_, true);
+    return select_outputs(price_finite_difference(option, context, settings_, false),
+                          request, supported_risk_measures);
+}
+
+result<PricingResult> FiniteDifferenceEuropeanEngine::price(
+    const EuropeanOption& option, const PricingContext& context,
+    FiniteDifferenceSettings settings, PricingRequest request) const
+{
+    return select_outputs(price_finite_difference(option, context, settings, false),
+                          request, supported_risk_measures);
 }
 
 result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const EuropeanOption& option, const PricingContext& context,
+    const EuropeanOption&, const PricingContext&) const
+{
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const
+{
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context) const
+{
+    return select_outputs(price_finite_difference(option, context, settings_, true),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price_finite_difference(option, context, settings_, true),
+                          request, supported_risk_measures);
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context,
     FiniteDifferenceSettings settings) const
 {
-    return price_finite_difference(option, context, settings, true);
+    return select_outputs(price_finite_difference(option, context, settings, true),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const AmericanOption& option, const PricingContext& context,
+    FiniteDifferenceSettings settings, PricingRequest request) const
+{
+    return select_outputs(price_finite_difference(option, context, settings, true),
+                          request, supported_risk_measures);
+}
+
+result<PricingResult> FiniteDifferenceAmericanEngine::price(
+    const EuropeanOption&, const PricingContext&, PricingRequest) const
+{
+    return std::unexpected(Error{error_category::incompatible_exercise,
+                                 "American engine requires an American exercise instrument"});
 }
 
 result<double> AnalyticEuropeanEngine::implied_volatility(
@@ -445,9 +603,9 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
 
     double lower_bound = settings.lower_bound;
     double upper_bound = settings.upper_bound;
-    const auto lower_result = price_at_volatility(option, context, lower_bound);
+    const auto lower_result = price_at_volatility(option, context, lower_bound, true);
     if (!lower_result) return std::unexpected(lower_result.error());
-    const auto upper_result = price_at_volatility(option, context, upper_bound);
+    const auto upper_result = price_at_volatility(option, context, upper_bound, true);
     if (!upper_result) return std::unexpected(upper_result.error());
 
     double lower_error = lower_result->value - observed_price;
@@ -461,7 +619,7 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
 
     for (int iteration = 0; iteration < settings.max_iterations; ++iteration) {
         const double midpoint = std::midpoint(lower_bound, upper_bound);
-        const auto midpoint_result = price_at_volatility(option, context, midpoint);
+        const auto midpoint_result = price_at_volatility(option, context, midpoint, true);
         if (!midpoint_result) return std::unexpected(midpoint_result.error());
         const double midpoint_error = midpoint_result->value - observed_price;
         if (std::abs(midpoint_error) <= settings.tolerance ||
@@ -497,7 +655,9 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     const double sign = type == option_type::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
-        return zero_tail(exercised ? (asset ? spot : payout) : 0.0);
+        auto output = zero_tail(exercised ? (asset ? spot : payout) : 0.0);
+        output.available = risk_bit(risk_measure::price);
+        return output;
     }
     const double sigma = context.parameters().volatility();
     const double root_t = std::sqrt(t);
@@ -505,7 +665,9 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     const double div_df = std::exp(-context.parameters().dividend_yield() * t);
     const double d1 = (std::log(spot / strike) +
                        (context.parameters().risk_free_rate() - context.parameters().dividend_yield() +
-                        0.5 * sigma * sigma) * t) / (sigma * root_t);
+                        0.5 * sigma * sigma) *
+                           t) /
+                      (sigma * root_t);
     const double d2 = d1 - sigma * root_t;
     const double nd = normal_cdf(sign * (asset ? d1 : d2));
     const double density = normal_pdf(asset ? d1 : d2);
@@ -522,7 +684,9 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
         gamma = -payout * rate_df * sign * density *
                 (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
-    const auto output = zero_tail(value, delta, gamma);
+    auto output = zero_tail(value, delta, gamma);
+    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
+                       risk_bit(risk_measure::gamma);
     const std::array values{output.value, output.delta, output.gamma};
     if (!std::ranges::all_of(values, [](double item) { return std::isfinite(item); }))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
@@ -536,7 +700,8 @@ double simpson(const std::function<double(double)>& f, double a, double b, int n
     if (n % 2) ++n;
     const double h = (b - a) / n;
     double sum = f(a) + f(b);
-    for (int i = 1; i < n; ++i) sum += (i % 2 ? 4.0 : 2.0) * f(a + i * h);
+    for (int i = 1; i < n; ++i)
+        sum += (i % 2 ? 4.0 : 2.0) * f(a + i * h);
     return sum * h / 3.0;
 }
 
@@ -563,15 +728,33 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
     return std::exp((-signed_drift - std::sqrt(discriminant)) * distance / variance);
 }
 
-}
+} // namespace
 
 result<PricingResult> AnalyticDigitalEngine::price(
     const CashOrNothingOption& option, const PricingContext& context) const
-{ return digital_price(option.strike(), option.type(), option.payout(), false, option.expiry(), context); }
+{
+    return select_outputs(digital_price(option.strike(), option.type(), option.payout(), false, option.expiry(), context),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> AnalyticDigitalEngine::price(
+    const CashOrNothingOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price(option, context), request, supported_risk_measures);
+}
 
 result<PricingResult> AnalyticDigitalEngine::price(
     const AssetOrNothingOption& option, const PricingContext& context) const
-{ return digital_price(option.strike(), option.type(), 1.0, true, option.expiry(), context); }
+{
+    return select_outputs(digital_price(option.strike(), option.type(), 1.0, true, option.expiry(), context),
+                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+}
+
+result<PricingResult> AnalyticDigitalEngine::price(
+    const AssetOrNothingOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price(option, context), request, supported_risk_measures);
+}
 
 result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
@@ -606,8 +789,10 @@ result<PricingResult> AnalyticBarrierEngine::price(
     }
     const bool touched = upper ? spot >= barrier : spot <= barrier;
     if (t == 0.0) {
-        if (knock_in) return zero_tail(touched ? vanilla->value : option.rebate());
-        return zero_tail(touched ? option.rebate() : vanilla->value);
+        auto output = knock_in ? zero_tail(touched ? vanilla->value : option.rebate())
+                               : zero_tail(touched ? option.rebate() : vanilla->value);
+        output.available = supported_risk_measures;
+        return output;
     }
     const double drift = rate - dividend - 0.5 * sigma * sigma;
     const double variance = sigma * sigma;
@@ -626,7 +811,8 @@ result<PricingResult> AnalyticBarrierEngine::price(
         survival_probability = simpson(density, lower, higher);
         survival_value = simpson([&](double y) {
             return std::max(sign * (spot * std::exp(y) - option.strike()), 0.0) * density(y) * std::exp(-rate * t);
-        }, lower, higher);
+        },
+                                 lower, higher);
     }
     double value = knock_in ? vanilla->value - survival_value : survival_value;
     if (knock_in && option.rebate() > 0.0 && !touched) {
@@ -642,12 +828,19 @@ result<PricingResult> AnalyticBarrierEngine::price(
                 return std::unexpected(Error{error_category::invalid_result,
                                              "barrier rebate discounting is numerically unstable"});
         }
-        value += option.rebate() * (touched ?
-            (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)) : rebate_factor);
+        value += option.rebate() * (touched ? (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)) : rebate_factor);
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
-    return zero_tail(value);
+    auto output = zero_tail(value);
+    output.available = supported_risk_measures;
+    return output;
 }
 
+result<PricingResult> AnalyticBarrierEngine::price(
+    const BarrierOption& option, const PricingContext& context, PricingRequest request) const
+{
+    return select_outputs(price(option, context), request, supported_risk_measures);
 }
+
+} // namespace ito
