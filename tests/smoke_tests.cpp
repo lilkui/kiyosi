@@ -266,3 +266,40 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     REQUIRE_FALSE(non_finite_result.has_value());
     CHECK(non_finite_result.error().category == ito::error_category::invalid_result);
 }
+
+TEST_CASE("Digital and barrier contracts validate and share pricing results")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto cash_call = *ito::make_cash_or_nothing_option(ito::OptionType::Call, 100.0, 10.0, expiry);
+    const auto cash_put = *ito::make_cash_or_nothing_option(ito::OptionType::Put, 100.0, 10.0, expiry);
+    const ito::AnalyticDigitalEngine digital;
+    const auto call_value = digital.price(cash_call, context);
+    const auto put_value = digital.price(cash_put, context);
+    REQUIRE(call_value.has_value());
+    REQUIRE(put_value.has_value());
+    CHECK_THAT(call_value->value + put_value->value, WithinAbs(10.0 * std::exp(-0.04), 1e-10));
+    CHECK_FALSE(ito::make_cash_or_nothing_option(ito::OptionType::Call, 100.0, 0.0, expiry).has_value());
+
+    const auto down_out = *ito::make_barrier_option(
+        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndOut);
+    const auto down_in = *ito::make_barrier_option(
+        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndIn);
+    const auto barrier_out = ito::AnalyticBarrierEngine{}.price(down_out, context);
+    const auto barrier_in = ito::AnalyticBarrierEngine{}.price(down_in, context);
+    const auto vanilla = ito::AnalyticEuropeanEngine{}.price(*ito::make_european_call(100.0, expiry), context);
+    REQUIRE(barrier_out.has_value());
+    REQUIRE(barrier_in.has_value());
+    REQUIRE(vanilla.has_value());
+    CHECK_THAT(barrier_out->value + barrier_in->value, WithinAbs(vanilla->value, 1e-5));
+
+    const auto scheduled = ito::make_barrier_option(
+        ito::OptionType::Call, 100.0, expiry, 90.0, ito::BarrierType::DownAndOut,
+        0.0, ito::RebateTiming::AtExpiry, ito::ObservationMode::Scheduled,
+        std::vector<ito::date>{valuation + std::chrono::days{30}});
+    REQUIRE(scheduled.has_value());
+    CHECK(ito::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
+}

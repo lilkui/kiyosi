@@ -552,4 +552,203 @@ public:
 
 using analytic_european_engine = AnalyticEuropeanEngine;
 
+class CashOrNothingOption {
+public:
+    option_type type() const noexcept { return type_; }
+    double strike() const noexcept { return strike_; }
+    double payout() const noexcept { return payout_; }
+    date expiry() const noexcept { return expiry_; }
+    date expiration() const noexcept { return expiry_; }
+    friend bool operator==(const CashOrNothingOption&, const CashOrNothingOption&) = default;
+private:
+    CashOrNothingOption(option_type type, double strike, double payout, date expiry)
+        : type_(type), strike_(strike), payout_(payout), expiry_(expiry) {}
+    option_type type_;
+    double strike_;
+    double payout_;
+    date expiry_;
+    friend result<CashOrNothingOption> make_cash_or_nothing_option(option_type, double, double, date);
+};
+using cash_or_nothing_option = CashOrNothingOption;
+using CashDigitalOption = CashOrNothingOption;
+using DigitalCashOption = CashOrNothingOption;
+
+inline result<CashOrNothingOption> make_cash_or_nothing_option(option_type, double, double, date);
+
+inline result<CashOrNothingOption> make_cash_or_nothing_call(double strike, double payout, date expiry)
+{ return make_cash_or_nothing_option(option_type::call, strike, payout, expiry); }
+inline result<CashOrNothingOption> make_cash_or_nothing_put(double strike, double payout, date expiry)
+{ return make_cash_or_nothing_option(option_type::put, strike, payout, expiry); }
+
+inline result<CashOrNothingOption> make_cash_or_nothing_option(
+    option_type type, double strike, double payout, date expiry)
+{
+    if (type != option_type::call && type != option_type::put)
+        return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
+    if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(payout) || payout <= 0.0)
+        return std::unexpected(Error{error_category::invalid_option, "strike and payout must be finite and positive"});
+    if (!is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    return CashOrNothingOption{type, strike, payout, expiry};
+}
+
+inline result<CashOrNothingOption> make_cash_or_nothing_option(
+    option_type type, double strike, date expiry, double payout)
+{ return make_cash_or_nothing_option(type, strike, payout, expiry); }
+
+inline result<CashOrNothingOption> make_cash_or_nothing_option(
+    option_type type, double strike, double payout, date valuation, date expiry)
+{
+    auto valid = validate_expiry(valuation, expiry);
+    if (!valid) return std::unexpected(valid.error());
+    return make_cash_or_nothing_option(type, strike, payout, expiry);
+}
+
+class AssetOrNothingOption {
+public:
+    option_type type() const noexcept { return type_; }
+    double strike() const noexcept { return strike_; }
+    date expiry() const noexcept { return expiry_; }
+    date expiration() const noexcept { return expiry_; }
+    friend bool operator==(const AssetOrNothingOption&, const AssetOrNothingOption&) = default;
+private:
+    AssetOrNothingOption(option_type type, double strike, date expiry)
+        : type_(type), strike_(strike), expiry_(expiry) {}
+    option_type type_;
+    double strike_;
+    date expiry_;
+    friend result<AssetOrNothingOption> make_asset_or_nothing_option(option_type, double, date);
+};
+using asset_or_nothing_option = AssetOrNothingOption;
+using AssetDigitalOption = AssetOrNothingOption;
+using DigitalAssetOption = AssetOrNothingOption;
+
+inline result<AssetOrNothingOption> make_asset_or_nothing_option(option_type, double, date);
+
+inline result<AssetOrNothingOption> make_asset_or_nothing_call(double strike, date expiry)
+{ return make_asset_or_nothing_option(option_type::call, strike, expiry); }
+inline result<AssetOrNothingOption> make_asset_or_nothing_put(double strike, date expiry)
+{ return make_asset_or_nothing_option(option_type::put, strike, expiry); }
+
+inline result<AssetOrNothingOption> make_asset_or_nothing_option(option_type type, double strike, date expiry)
+{
+    if (type != option_type::call && type != option_type::put)
+        return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
+    if (!std::isfinite(strike) || strike <= 0.0)
+        return std::unexpected(Error{error_category::invalid_option, "strike must be finite and positive"});
+    if (!is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    return AssetOrNothingOption{type, strike, expiry};
+}
+
+inline result<AssetOrNothingOption> make_asset_or_nothing_option(
+    option_type type, double strike, date valuation, date expiry)
+{
+    auto valid = validate_expiry(valuation, expiry);
+    if (!valid) return std::unexpected(valid.error());
+    return make_asset_or_nothing_option(type, strike, expiry);
+}
+
+enum class barrier_type {
+    up_and_in, up_and_out, down_and_in, down_and_out,
+    UpAndIn = up_and_in, UpAndOut = up_and_out, DownAndIn = down_and_in, DownAndOut = down_and_out
+};
+using BarrierType = barrier_type;
+enum class observation_mode { continuous, scheduled, Continuous = continuous, Scheduled = scheduled };
+using ObservationMode = observation_mode;
+enum class rebate_timing { at_hit, at_expiry, AtHit = at_hit, AtExpiry = at_expiry };
+using RebateTiming = rebate_timing;
+
+class BarrierOption {
+public:
+    option_type type() const noexcept { return type_; }
+    double strike() const noexcept { return strike_; }
+    double barrier() const noexcept { return barrier_; }
+    barrier_type barrier_kind() const noexcept { return kind_; }
+    barrier_type kind() const noexcept { return kind_; }
+    double rebate() const noexcept { return rebate_; }
+    ito::rebate_timing rebate_payment() const noexcept { return timing_; }
+    ito::rebate_timing rebate_timing() const noexcept { return timing_; }
+    observation_mode observation() const noexcept { return observation_; }
+    observation_mode observation_mode_value() const noexcept { return observation_; }
+    const std::vector<date>& observation_dates() const noexcept { return observations_; }
+    date expiry() const noexcept { return expiry_; }
+    date expiration() const noexcept { return expiry_; }
+    friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
+private:
+    BarrierOption(option_type type, double strike, date expiry, double barrier, barrier_type kind,
+                  double rebate, ito::rebate_timing timing, observation_mode observation,
+                  std::vector<date> observations)
+        : type_(type), strike_(strike), barrier_(barrier), kind_(kind), rebate_(rebate), timing_(timing),
+          observation_(observation), observations_(std::move(observations)), expiry_(expiry) {}
+    option_type type_;
+    double strike_;
+    double barrier_;
+    barrier_type kind_;
+    double rebate_;
+    ito::rebate_timing timing_;
+    observation_mode observation_;
+    std::vector<date> observations_;
+    date expiry_;
+    friend result<BarrierOption> make_barrier_option(option_type, double, date, double, barrier_type,
+                                                     double, ito::rebate_timing, observation_mode, std::vector<date>);
+};
+using barrier_option = BarrierOption;
+
+inline result<BarrierOption> make_barrier_option(
+    option_type type, double strike, date expiry, double barrier, barrier_type kind,
+    double rebate = 0.0, rebate_timing timing = rebate_timing::at_expiry,
+    observation_mode observation = observation_mode::continuous,
+    std::vector<date> observations = {})
+{
+    if (type != option_type::call && type != option_type::put)
+        return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
+    if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(barrier) || barrier <= 0.0 ||
+        !std::isfinite(rebate) || rebate < 0.0)
+        return std::unexpected(Error{error_category::invalid_option, "barrier terms must be finite and non-negative"});
+    if (!is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    if (kind != barrier_type::up_and_in && kind != barrier_type::up_and_out &&
+        kind != barrier_type::down_and_in && kind != barrier_type::down_and_out)
+        return std::unexpected(Error{error_category::invalid_option, "invalid barrier type"});
+    if (timing != rebate_timing::at_hit && timing != rebate_timing::at_expiry)
+        return std::unexpected(Error{error_category::invalid_option, "invalid rebate timing"});
+    if (observation != observation_mode::continuous && observation != observation_mode::scheduled)
+        return std::unexpected(Error{error_category::invalid_schedule, "invalid observation mode"});
+    const bool knock_in = kind == barrier_type::up_and_in || kind == barrier_type::down_and_in;
+    if (knock_in && timing == rebate_timing::at_hit)
+        return std::unexpected(Error{error_category::invalid_option, "at-hit rebates are invalid for knock-in barriers"});
+    if (observation == observation_mode::continuous && !observations.empty())
+        return std::unexpected(Error{error_category::invalid_schedule, "continuous barriers cannot have observations"});
+    if (observation == observation_mode::scheduled) {
+        if (observations.empty())
+            return std::unexpected(Error{error_category::invalid_schedule, "scheduled barriers require observations"});
+        for (std::size_t i = 0; i < observations.size(); ++i) {
+            if (!is_valid_date(observations[i]) || (i && observations[i] <= observations[i - 1]) || observations[i] > expiry)
+                return std::unexpected(Error{error_category::invalid_schedule, "observation dates must be ordered and precede expiry"});
+        }
+    }
+    return BarrierOption{type, strike, expiry, barrier, kind, rebate, timing, observation, std::move(observations)};
+}
+
+inline result<BarrierOption> make_barrier_option(
+    option_type type, double strike, double barrier, date expiry, barrier_type kind,
+    double rebate = 0.0, rebate_timing timing = rebate_timing::at_expiry,
+    observation_mode observation = observation_mode::continuous,
+    std::vector<date> observations = {})
+{ return make_barrier_option(type, strike, expiry, barrier, kind, rebate, timing, observation, std::move(observations)); }
+
+class AnalyticDigitalEngine {
+public:
+    result<PricingResult> price(const CashOrNothingOption&, const PricingContext&) const;
+    result<PricingResult> price(const AssetOrNothingOption&, const PricingContext&) const;
+};
+using analytic_digital_engine = AnalyticDigitalEngine;
+
+class AnalyticBarrierEngine {
+public:
+    result<PricingResult> price(const BarrierOption&, const PricingContext&) const;
+};
+using analytic_barrier_engine = AnalyticBarrierEngine;
+
 }
