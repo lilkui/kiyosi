@@ -303,3 +303,67 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     REQUIRE(scheduled.has_value());
     CHECK(ito::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
 }
+
+TEST_CASE("Binomial American engine prices expiry and validates steps")
+{
+    const auto expiry = day(2025, 1, 1);
+    const auto option = *ito::make_european_put(100.0, expiry);
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, 90.0, expiry);
+    const ito::BinomialAmericanEngine engine;
+
+    const auto priced = engine.price(option, context);
+    REQUIRE(priced.has_value());
+    CHECK(priced->value == 10.0);
+
+    const auto invalid = engine.price(option, context, ito::BinomialAmericanSettings{0});
+    REQUIRE_FALSE(invalid.has_value());
+    CHECK(invalid.error().category == ito::error_category::invalid_parameter);
+    const auto too_many = engine.price(option, context, ito::BinomialAmericanSettings{1'000'001});
+    REQUIRE_FALSE(too_many.has_value());
+    CHECK(too_many.error().category == ito::error_category::invalid_parameter);
+}
+
+TEST_CASE("Binomial American engine exercises puts and converges to European calls")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.05, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, 90.0, valuation);
+    const auto put = *ito::make_european_put(100.0, expiry);
+    const auto call = *ito::make_european_call(100.0, expiry);
+    const ito::BinomialAmericanEngine engine{ito::BinomialAmericanSettings{400}};
+
+    const auto american_put = engine.price(put, context);
+    const auto european_put = ito::AnalyticEuropeanEngine{}.price(put, context);
+    REQUIRE(american_put.has_value());
+    REQUIRE(european_put.has_value());
+    CHECK(american_put->value > european_put->value);
+
+    const auto at_the_money_context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto american_call = engine.price(call, at_the_money_context);
+    const auto european_call = ito::AnalyticEuropeanEngine{}.price(call, at_the_money_context);
+    REQUIRE(american_call.has_value());
+    REQUIRE(european_call.has_value());
+    CHECK_THAT(american_call->value, WithinAbs(european_call->value, 0.02));
+    CHECK(std::isfinite(american_call->delta));
+    CHECK(std::isfinite(american_call->gamma));
+}
+
+TEST_CASE("Binomial American call and put values are symmetric at zero carry")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.0, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *ito::make_european_call(100.0, expiry);
+    const auto put = *ito::make_european_put(100.0, expiry);
+    const ito::BinomialAmericanEngine engine{ito::BinomialAmericanSettings{200}};
+
+    const auto call_result = engine.price(call, context);
+    const auto put_result = engine.price(put, context);
+    REQUIRE(call_result.has_value());
+    REQUIRE(put_result.has_value());
+    CHECK(std::abs(call_result->value - put_result->value) <= 1e-12);
+}

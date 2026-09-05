@@ -552,6 +552,32 @@ public:
 
 using analytic_european_engine = AnalyticEuropeanEngine;
 
+struct BinomialAmericanSettings {
+    int steps = 256;
+};
+
+using binomial_american_settings = BinomialAmericanSettings;
+
+/// Cox-Ross-Rubinstein American engine.
+/// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unsupported and zero.
+class BinomialAmericanEngine {
+public:
+    explicit BinomialAmericanEngine(BinomialAmericanSettings settings = {}) : settings_(settings) {}
+    explicit BinomialAmericanEngine(int steps) : settings_{steps} {}
+
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&, BinomialAmericanSettings) const;
+    result<PricingResult> price(const EuropeanOption& option, const PricingContext& context, int steps) const
+    { return price(option, context, BinomialAmericanSettings{steps}); }
+
+    BinomialAmericanSettings settings() const noexcept { return settings_; }
+
+private:
+    BinomialAmericanSettings settings_;
+};
+
+using binomial_american_engine = BinomialAmericanEngine;
+
 class CashOrNothingOption {
 public:
     option_type type() const noexcept { return type_; }
