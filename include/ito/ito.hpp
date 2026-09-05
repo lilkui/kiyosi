@@ -578,6 +578,70 @@ private:
 
 using binomial_american_engine = BinomialAmericanEngine;
 
+enum class finite_difference_scheme : unsigned char {
+    explicit_euler,
+    implicit_euler,
+    crank_nicolson,
+    ExplicitEuler = explicit_euler,
+    ImplicitEuler = implicit_euler,
+    CrankNicolson = crank_nicolson,
+    Explicit = explicit_euler,
+    Implicit = implicit_euler,
+};
+
+using FiniteDifferenceScheme = finite_difference_scheme;
+
+struct FiniteDifferenceSettings {
+    int asset_steps = 200;
+    int time_steps = 200;
+    finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson;
+    double upper_boundary = 0.0;
+};
+
+using finite_difference_settings = FiniteDifferenceSettings;
+using FiniteDifferenceEuropeanSettings = FiniteDifferenceSettings;
+using finite_difference_european_settings = FiniteDifferenceSettings;
+using FiniteDifferenceAmericanSettings = FiniteDifferenceSettings;
+using finite_difference_american_settings = FiniteDifferenceSettings;
+
+/// Uniform-grid finite-difference European engine for vanilla options.
+class FiniteDifferenceEuropeanEngine {
+public:
+    explicit FiniteDifferenceEuropeanEngine(FiniteDifferenceSettings settings = {})
+        : settings_(settings) {}
+    FiniteDifferenceEuropeanEngine(int asset_steps, int time_steps,
+                                   FiniteDifferenceScheme scheme = FiniteDifferenceScheme::CrankNicolson)
+        : settings_{asset_steps, time_steps, scheme} {}
+
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    FiniteDifferenceSettings settings() const noexcept { return settings_; }
+
+private:
+    FiniteDifferenceSettings settings_;
+};
+
+using finite_difference_european_engine = FiniteDifferenceEuropeanEngine;
+
+/// Uniform-grid finite-difference American engine with early exercise at every time layer.
+class FiniteDifferenceAmericanEngine {
+public:
+    explicit FiniteDifferenceAmericanEngine(FiniteDifferenceSettings settings = {})
+        : settings_(settings) {}
+    FiniteDifferenceAmericanEngine(int asset_steps, int time_steps,
+                                   FiniteDifferenceScheme scheme = FiniteDifferenceScheme::CrankNicolson)
+        : settings_{asset_steps, time_steps, scheme} {}
+
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
+    result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    FiniteDifferenceSettings settings() const noexcept { return settings_; }
+
+private:
+    FiniteDifferenceSettings settings_;
+};
+
+using finite_difference_american_engine = FiniteDifferenceAmericanEngine;
+
 class CashOrNothingOption {
 public:
     option_type type() const noexcept { return type_; }

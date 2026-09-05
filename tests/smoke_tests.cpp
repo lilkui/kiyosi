@@ -367,3 +367,40 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     REQUIRE(put_result.has_value());
     CHECK(std::abs(call_result->value - put_result->value) <= 1e-12);
 }
+
+TEST_CASE("Finite-difference engines validate grids and track reference engines")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.05, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *ito::make_european_call(100.0, expiry);
+    const auto analytic = *ito::AnalyticEuropeanEngine{}.price(call, context);
+    const ito::FiniteDifferenceSettings settings{200, 400, ito::FiniteDifferenceScheme::CrankNicolson};
+    const auto european = ito::FiniteDifferenceEuropeanEngine{settings}.price(call, context);
+    REQUIRE(european.has_value());
+    CHECK_THAT(european->value, WithinAbs(analytic.value, 0.05));
+    for (const auto scheme : {ito::FiniteDifferenceScheme::ExplicitEuler,
+                              ito::FiniteDifferenceScheme::ImplicitEuler}) {
+        const auto result = ito::FiniteDifferenceEuropeanEngine{{200, 400, scheme}}.price(call, context);
+        REQUIRE(result.has_value());
+        CHECK_THAT(result->value, WithinAbs(analytic.value, 0.15));
+    }
+    const auto american = ito::FiniteDifferenceAmericanEngine{settings}.price(call, context);
+    REQUIRE(american.has_value());
+    CHECK_THAT(american->value, WithinAbs(analytic.value, 0.05));
+    const auto put = *ito::make_european_put(100.0, expiry);
+    const auto finite_put = ito::FiniteDifferenceAmericanEngine{settings}.price(put, context);
+    const auto tree_put = ito::BinomialAmericanEngine{ito::BinomialAmericanSettings{400}}.price(put, context);
+    REQUIRE(finite_put.has_value());
+    REQUIRE(tree_put.has_value());
+    CHECK_THAT(finite_put->value, WithinAbs(tree_put->value, 0.1));
+    CHECK_FALSE(ito::FiniteDifferenceEuropeanEngine{{2, 10, ito::FiniteDifferenceScheme::ImplicitEuler}}
+                    .price(call, context).has_value());
+    const auto expiry_context = *ito::make_pricing_context(parameters, 90.0, expiry);
+    const auto expiry_put = *ito::make_european_put(100.0, expiry);
+    const auto at_expiry = ito::FiniteDifferenceAmericanEngine{}.price(expiry_put, expiry_context);
+    REQUIRE(at_expiry.has_value());
+    CHECK(at_expiry->value == 10.0);
+}
