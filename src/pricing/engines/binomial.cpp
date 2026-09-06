@@ -27,9 +27,7 @@ result<PricingResult> price_binomial_american(
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double time = actual_365(context.valuation_date(), option.expiry());
     if (time == 0.0) {
-        auto output = PricingResult{std::max(sign * (spot - strike), 0.0),
-                                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        output.available = risk_bit(risk_measure::price);
+        auto output = PricingResult{{risk_measure::price, std::max(sign * (spot - strike), 0.0)}};
         return output;
     }
 
@@ -111,11 +109,11 @@ result<PricingResult> price_binomial_american(
         }
     }
 
-    auto output = PricingResult{values[0], delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta);
-    if (gamma_available) output.available |= risk_bit(risk_measure::gamma);
-    const std::array result_values{output.value, output.delta, output.gamma};
-    if (!std::ranges::all_of(result_values, [](double value) { return std::isfinite(value); })) {
+    auto output = PricingResult{{risk_measure::price, values[0]}, {risk_measure::delta, delta}};
+    if (gamma_available) output.set(risk_measure::gamma, gamma);
+    if (!std::ranges::all_of(output.values, [](const auto& value) {
+            return !value || std::isfinite(*value);
+        })) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "binomial pricing produced a non-finite result"});
     }
@@ -171,6 +169,5 @@ result<PricingResult> BinomialAmericanEngine::price(
     return std::unexpected(Error{error_category::incompatible_exercise,
                                  "American engine requires an American exercise instrument"});
 }
-
 
 } // namespace kiyosi

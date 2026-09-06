@@ -73,11 +73,12 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
                                              "implied-volatility pricing became non-finite"});
             return std::unexpected(priced.error());
         }
-        if (!std::isfinite(priced->value)) {
+        const auto value = priced->get(risk_measure::price);
+        if (!value || !std::isfinite(*value)) {
             return std::unexpected(Error{error_category::solver_non_finite,
                                          "implied-volatility pricing became non-finite"});
         }
-        return priced->value;
+        return *value;
     };
 
     double lower_bound = settings.lower_bound;

@@ -142,7 +142,7 @@ inline void check_tolerance(double tolerance, std::size_t row, std::string_view 
     }
 }
 
-}
+} // namespace detail
 
 inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, char delimiter = '\0')
 {
@@ -201,10 +201,10 @@ inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, cha
         fixture.dividend_yield = detail::number(fields, index, row, "dividend_yield");
         fixture.volatility = detail::number(fields, index, row, "volatility");
         fixture.observed_price = detail::number(fields, index, row, "observed_price");
-#define KIYOSI_FIXTURE_OUTPUT(name) \
-        fixture.name = detail::number(fields, index, row, #name); \
-        fixture.name##_tolerance = detail::number(fields, index, row, #name "_tolerance"); \
-        detail::check_tolerance(fixture.name##_tolerance, row, #name "_tolerance");
+#define KIYOSI_FIXTURE_OUTPUT(name)                                                    \
+    fixture.name = detail::number(fields, index, row, #name);                          \
+    fixture.name##_tolerance = detail::number(fields, index, row, #name "_tolerance"); \
+    detail::check_tolerance(fixture.name##_tolerance, row, #name "_tolerance");
         KIYOSI_FIXTURE_OUTPUT(value)
         KIYOSI_FIXTURE_OUTPUT(delta)
         KIYOSI_FIXTURE_OUTPUT(gamma)
@@ -266,22 +266,24 @@ inline std::vector<FixtureFailure> compare_fixture(
         double expected;
         double tolerance;
     };
-    const std::array<ExpectedOutput, 12> expected{{
-        {"value", fixture.value, fixture.value_tolerance},
-        {"delta", fixture.delta, fixture.delta_tolerance},
-        {"gamma", fixture.gamma, fixture.gamma_tolerance},
-        {"speed", fixture.speed, fixture.speed_tolerance},
-        {"theta", fixture.theta, fixture.theta_tolerance},
-        {"charm", fixture.charm, fixture.charm_tolerance},
-        {"color", fixture.color, fixture.color_tolerance},
-        {"vega", fixture.vega, fixture.vega_tolerance},
-        {"vanna", fixture.vanna, fixture.vanna_tolerance},
-        {"zomma", fixture.zomma, fixture.zomma_tolerance},
-        {"rho", fixture.rho, fixture.rho_tolerance},
-        {"implied_volatility", fixture.implied_volatility, fixture.implied_volatility_tolerance}}};
-    const std::array<double, 12> values{{actual.value, actual.delta, actual.gamma, actual.speed, actual.theta,
-                                         actual.charm, actual.color, actual.vega, actual.vanna, actual.zomma,
-                                         actual.rho, implied_volatility}};
+    const std::array<ExpectedOutput, 12> expected{{{"value", fixture.value, fixture.value_tolerance},
+                                                   {"delta", fixture.delta, fixture.delta_tolerance},
+                                                   {"gamma", fixture.gamma, fixture.gamma_tolerance},
+                                                   {"speed", fixture.speed, fixture.speed_tolerance},
+                                                   {"theta", fixture.theta, fixture.theta_tolerance},
+                                                   {"charm", fixture.charm, fixture.charm_tolerance},
+                                                   {"color", fixture.color, fixture.color_tolerance},
+                                                   {"vega", fixture.vega, fixture.vega_tolerance},
+                                                   {"vanna", fixture.vanna, fixture.vanna_tolerance},
+                                                   {"zomma", fixture.zomma, fixture.zomma_tolerance},
+                                                   {"rho", fixture.rho, fixture.rho_tolerance},
+                                                   {"implied_volatility", fixture.implied_volatility, fixture.implied_volatility_tolerance}}};
+    const std::array<double, 12> values{{*actual.get(risk_measure::price), *actual.get(risk_measure::delta),
+                                         *actual.get(risk_measure::gamma), *actual.get(risk_measure::speed),
+                                         *actual.get(risk_measure::theta), *actual.get(risk_measure::charm),
+                                         *actual.get(risk_measure::color), *actual.get(risk_measure::vega),
+                                         *actual.get(risk_measure::vanna), *actual.get(risk_measure::zomma),
+                                         *actual.get(risk_measure::rho), implied_volatility}};
     std::vector<FixtureFailure> failures;
     for (std::size_t index = 0; index < values.size(); ++index) {
         if (!within_tolerance(values[index], expected[index].expected, expected[index].tolerance)) {
@@ -301,4 +303,4 @@ inline void check_fixture(const ParityFixture& fixture, const PricingResult& act
     }
 }
 
-}
+} // namespace kiyosi::test

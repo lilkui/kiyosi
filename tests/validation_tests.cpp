@@ -18,17 +18,17 @@ const auto valuation = day(2025, 1, 6);
 const auto expiry = valuation + std::chrono::days{365};
 
 kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
-                            double dividend = 0.01, double volatility = 0.3,
-                            kiyosi::date value_date = valuation)
+                               double dividend = 0.01, double volatility = 0.3,
+                               kiyosi::date value_date = valuation)
 {
     const auto parameters = *kiyosi::make_bsm_parameters(rate, dividend, volatility);
     return *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(spot), value_date);
 }
 
 kiyosi::PricingResult analytic(kiyosi::option_type type, double spot = 100.0, double rate = 0.04,
-                            double dividend = 0.01, double volatility = 0.3,
-                            kiyosi::date value_date = valuation, kiyosi::date option_expiry = expiry,
-                            double strike = 100.0)
+                               double dividend = 0.01, double volatility = 0.3,
+                               kiyosi::date value_date = valuation, kiyosi::date option_expiry = expiry,
+                               double strike = 100.0)
 {
     const auto option = *kiyosi::make_european_option(type, strike, option_expiry);
     return *kiyosi::AnalyticEuropeanEngine{}.price(
@@ -40,6 +40,11 @@ double difference(double left, double right)
     return std::abs(left - right);
 }
 
+double risk_value(const kiyosi::PricingResult& result, kiyosi::risk_measure measure)
+{
+    return *result.get(measure);
+}
+
 void check_close(double actual, double expected, double absolute = 1e-7, double relative = 1e-5)
 {
     CHECK(difference(actual, expected) <= absolute + relative * std::abs(expected));
@@ -48,19 +53,22 @@ void check_close(double actual, double expected, double absolute = 1e-7, double 
 double value(kiyosi::option_type type, double spot, double rate, double dividend,
              double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
-    return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).value;
+    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
+                      kiyosi::risk_measure::price);
 }
 
 double delta(kiyosi::option_type type, double spot, double rate, double dividend,
              double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
-    return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).delta;
+    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
+                      kiyosi::risk_measure::delta);
 }
 
 double gamma(kiyosi::option_type type, double spot, double rate, double dividend,
              double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
-    return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).gamma;
+    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
+                      kiyosi::risk_measure::gamma);
 }
 
 TEST_CASE("Analytic Greeks agree with central finite differences")
@@ -72,51 +80,51 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
 
     for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
 
-    const double center = value(type, 100.0, 0.04, 0.01, 0.3, valuation, expiry);
-    const double up = value(type, 100.0 + spot_step, 0.04, 0.01, 0.3, valuation, expiry);
-    const double down = value(type, 100.0 - spot_step, 0.04, 0.01, 0.3, valuation, expiry);
-    const double up_two = value(type, 100.0 + 2.0 * spot_step, 0.04, 0.01, 0.3, valuation, expiry);
-    const double down_two = value(type, 100.0 - 2.0 * spot_step, 0.04, 0.01, 0.3, valuation, expiry);
-    const double delta_fd = (up - down) / (2.0 * spot_step);
-    const double gamma_fd = (up - 2.0 * center + down) / (spot_step * spot_step);
-    const double speed_fd = (up_two - 2.0 * up + 2.0 * down - down_two) /
-                            (2.0 * spot_step * spot_step * spot_step);
+        const double center = value(type, 100.0, 0.04, 0.01, 0.3, valuation, expiry);
+        const double up = value(type, 100.0 + spot_step, 0.04, 0.01, 0.3, valuation, expiry);
+        const double down = value(type, 100.0 - spot_step, 0.04, 0.01, 0.3, valuation, expiry);
+        const double up_two = value(type, 100.0 + 2.0 * spot_step, 0.04, 0.01, 0.3, valuation, expiry);
+        const double down_two = value(type, 100.0 - 2.0 * spot_step, 0.04, 0.01, 0.3, valuation, expiry);
+        const double delta_fd = (up - down) / (2.0 * spot_step);
+        const double gamma_fd = (up - 2.0 * center + down) / (spot_step * spot_step);
+        const double speed_fd = (up_two - 2.0 * up + 2.0 * down - down_two) /
+                                (2.0 * spot_step * spot_step * spot_step);
 
-    const auto result = analytic(type);
-    check_close(result.delta, delta_fd, 2e-7, 2e-4);
-    check_close(result.gamma, gamma_fd, 2e-7, 2e-4);
-    check_close(result.speed, speed_fd, 2e-6, 2e-3);
+        const auto result = analytic(type);
+        check_close(risk_value(result, kiyosi::risk_measure::delta), delta_fd, 2e-7, 2e-4);
+        check_close(risk_value(result, kiyosi::risk_measure::gamma), gamma_fd, 2e-7, 2e-4);
+        check_close(risk_value(result, kiyosi::risk_measure::speed), speed_fd, 2e-6, 2e-3);
 
-    const double theta_fd = (value(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
-                             value(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
-                            2.0;
-    const double charm_fd = (delta(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
-                             delta(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
-                            2.0;
-    const double color_fd = (gamma(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
-                             gamma(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
-                            2.0;
-    check_close(result.theta, theta_fd, 2e-6, 2e-3);
-    check_close(result.charm, charm_fd, 2e-6, 2e-3);
-    check_close(result.color, color_fd, 2e-6, 2e-3);
+        const double theta_fd = (value(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
+                                 value(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
+                                2.0;
+        const double charm_fd = (delta(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
+                                 delta(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
+                                2.0;
+        const double color_fd = (gamma(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry) -
+                                 gamma(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry)) /
+                                2.0;
+        check_close(risk_value(result, kiyosi::risk_measure::theta), theta_fd, 2e-6, 2e-3);
+        check_close(risk_value(result, kiyosi::risk_measure::charm), charm_fd, 2e-6, 2e-3);
+        check_close(risk_value(result, kiyosi::risk_measure::color), color_fd, 2e-6, 2e-3);
 
-    const double vega_fd = (value(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
-                            value(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
-                           (2.0 * volatility_step * 100.0);
-    const double vanna_fd = (delta(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
-                             delta(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
-                            (2.0 * volatility_step * 100.0);
-    const double zomma_fd = (gamma(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
-                             gamma(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
-                            (2.0 * volatility_step * 100.0);
-    const double rho_step = 1e-4;
-    const double rho_fd = (value(type, 100.0, 0.04 + rho_step, 0.01, 0.3, valuation, expiry) -
-                           value(type, 100.0, 0.04 - rho_step, 0.01, 0.3, valuation, expiry)) /
-                          (2.0 * rho_step * 100.0);
-    check_close(result.vega, vega_fd, 2e-6, 2e-4);
-    check_close(result.vanna, vanna_fd, 2e-6, 2e-3);
-    check_close(result.zomma, zomma_fd, 2e-6, 2e-3);
-    check_close(result.rho, rho_fd, 2e-6, 2e-4);
+        const double vega_fd = (value(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
+                                value(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
+                               (2.0 * volatility_step * 100.0);
+        const double vanna_fd = (delta(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
+                                 delta(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
+                                (2.0 * volatility_step * 100.0);
+        const double zomma_fd = (gamma(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry) -
+                                 gamma(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry)) /
+                                (2.0 * volatility_step * 100.0);
+        const double rho_step = 1e-4;
+        const double rho_fd = (value(type, 100.0, 0.04 + rho_step, 0.01, 0.3, valuation, expiry) -
+                               value(type, 100.0, 0.04 - rho_step, 0.01, 0.3, valuation, expiry)) /
+                              (2.0 * rho_step * 100.0);
+        check_close(risk_value(result, kiyosi::risk_measure::vega), vega_fd, 2e-6, 2e-4);
+        check_close(risk_value(result, kiyosi::risk_measure::vanna), vanna_fd, 2e-6, 2e-3);
+        check_close(risk_value(result, kiyosi::risk_measure::zomma), zomma_fd, 2e-6, 2e-3);
+        check_close(risk_value(result, kiyosi::risk_measure::rho), rho_fd, 2e-6, 2e-4);
     }
 }
 
@@ -125,20 +133,20 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
     const auto call = analytic(kiyosi::option_type::call);
     const auto put = analytic(kiyosi::option_type::put);
     const double time = 1.0;
-    check_close(call.value - put.value, 100.0 * std::exp(-0.01 * time) - 100.0 * std::exp(-0.04 * time), 1e-10, 1e-10);
-    check_close(call.delta - put.delta, std::exp(-0.01 * time), 1e-10, 1e-10);
-    check_close(call.gamma, put.gamma, 1e-10, 1e-10);
-    check_close(call.vega, put.vega, 1e-10, 1e-10);
+    check_close(risk_value(call, kiyosi::risk_measure::price) - risk_value(put, kiyosi::risk_measure::price), 100.0 * std::exp(-0.01 * time) - 100.0 * std::exp(-0.04 * time), 1e-10, 1e-10);
+    check_close(risk_value(call, kiyosi::risk_measure::delta) - risk_value(put, kiyosi::risk_measure::delta), std::exp(-0.01 * time), 1e-10, 1e-10);
+    check_close(risk_value(call, kiyosi::risk_measure::gamma), risk_value(put, kiyosi::risk_measure::gamma), 1e-10, 1e-10);
+    check_close(risk_value(call, kiyosi::risk_measure::vega), risk_value(put, kiyosi::risk_measure::vega), 1e-10, 1e-10);
 
     const kiyosi::AnalyticDigitalEngine digital;
     for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
         const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 100.0, expiry);
         const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, expiry);
         const auto vanilla = analytic(type);
-        const auto cash_value = digital.price(cash, context())->value;
-        const auto asset_value = digital.price(asset, context())->value;
+        const auto cash_value = risk_value(*digital.price(cash, context()), kiyosi::risk_measure::price);
+        const auto asset_value = risk_value(*digital.price(asset, context()), kiyosi::risk_measure::price);
         check_close(type == kiyosi::option_type::call ? asset_value - cash_value : cash_value - asset_value,
-                    vanilla.value, 2e-10, 2e-10);
+                    risk_value(vanilla, kiyosi::risk_measure::price), 2e-10, 2e-10);
     }
 
     const kiyosi::AnalyticBarrierEngine barriers;
@@ -150,15 +158,16 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
             kind);
         const auto paired_kind = kind == kiyosi::barrier_type::up_and_in
                                      ? kiyosi::barrier_type::up_and_out
-                                 : kind == kiyosi::barrier_type::up_and_out ? kiyosi::barrier_type::up_and_in
+                                 : kind == kiyosi::barrier_type::up_and_out  ? kiyosi::barrier_type::up_and_in
                                  : kind == kiyosi::barrier_type::down_and_in ? kiyosi::barrier_type::down_and_out
-                                                                          : kiyosi::barrier_type::down_and_in;
+                                                                             : kiyosi::barrier_type::down_and_in;
         const auto paired = *kiyosi::make_barrier_option(
             kiyosi::option_type::call, 100.0, expiry,
             kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
             paired_kind);
-        check_close(barriers.price(option, context())->value + barriers.price(paired, context())->value,
-                    analytic(kiyosi::option_type::call).value, 2e-5, 2e-5);
+        check_close(risk_value(*barriers.price(option, context()), kiyosi::risk_measure::price) +
+                        risk_value(*barriers.price(paired, context()), kiyosi::risk_measure::price),
+                    risk_value(analytic(kiyosi::option_type::call), kiyosi::risk_measure::price), 2e-5, 2e-5);
     }
 }
 
@@ -204,9 +213,11 @@ TEST_CASE("Haug and Hull Black-Scholes reference values remain fixed")
         const auto value_date = valuation;
         const auto option_expiry = value_date + std::chrono::days{item.days};
         check_close(value(kiyosi::option_type::call, item.spot, item.rate, item.dividend,
-                          item.volatility, value_date, option_expiry, item.strike), item.call, 2e-8, 2e-8);
+                          item.volatility, value_date, option_expiry, item.strike),
+                    item.call, 2e-8, 2e-8);
         check_close(value(kiyosi::option_type::put, item.spot, item.rate, item.dividend,
-                          item.volatility, value_date, option_expiry, item.strike), item.put, 2e-8, 2e-8);
+                          item.volatility, value_date, option_expiry, item.strike),
+                    item.put, 2e-8, 2e-8);
     }
 }
 
@@ -215,14 +226,14 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     const auto option = *kiyosi::make_european_call(100.0, expiry);
     const auto american_call = *kiyosi::make_american_call(100.0, expiry);
     const auto market = context(100.0, 0.04, 0.0, 0.3);
-    const double reference = kiyosi::AnalyticEuropeanEngine{}.price(option, market)->value;
+    const double reference = risk_value(*kiyosi::AnalyticEuropeanEngine{}.price(option, market), kiyosi::risk_measure::price);
 
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {
         const int steps = 64 << static_cast<int>(index);
         const auto result = kiyosi::BinomialAmericanEngine{steps}.price(american_call, market);
         REQUIRE(result.has_value());
-        tree_errors[index] = difference(result->value, reference);
+        tree_errors[index] = difference(risk_value(*result, kiyosi::risk_measure::price), reference);
     }
     CHECK(tree_errors.back() < tree_errors.front());
     CHECK(tree_errors[2] < tree_errors[0]);
@@ -233,7 +244,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
         const int steps = 50 << static_cast<int>(index);
         const auto result = kiyosi::FiniteDifferenceEuropeanEngine{steps, steps}.price(option, market);
         REQUIRE(result.has_value());
-        finite_difference_errors[index] = difference(result->value, reference);
+        finite_difference_errors[index] = difference(risk_value(*result, kiyosi::risk_measure::price), reference);
     }
     CHECK(finite_difference_errors.back() < finite_difference_errors.front());
     CHECK(finite_difference_errors[2] < finite_difference_errors[1]);
@@ -257,7 +268,7 @@ TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
     CHECK(bermudan->exercise_dates() == dates);
     CHECK_FALSE(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{},
                                              std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
-                  .has_value());
+                    .has_value());
 
     const auto invalid_type = static_cast<kiyosi::option_type>(99);
     for (const auto invalid : {
@@ -267,28 +278,34 @@ TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
         CHECK(invalid == kiyosi::error_category::invalid_option);
     }
     CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 0.0, 10.0, expiry)
-              .error().category == kiyosi::error_category::invalid_strike);
+              .error()
+              .category == kiyosi::error_category::invalid_strike);
     CHECK(kiyosi::make_asset_or_nothing_option(kiyosi::option_type::call, 0.0, expiry)
-              .error().category == kiyosi::error_category::invalid_strike);
+              .error()
+              .category == kiyosi::error_category::invalid_strike);
     CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry)
-              .error().category == kiyosi::error_category::invalid_parameter);
+              .error()
+              .category == kiyosi::error_category::invalid_parameter);
 
     CHECK(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, {}).error().category ==
           kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(
               terms, kiyosi::VanillaPayoff{},
               std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{30}})
-              .error().category == kiyosi::error_category::invalid_schedule);
+              .error()
+              .category == kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(
               terms, kiyosi::VanillaPayoff{}, std::vector{day(2025, 1, 11)}, kiyosi::exchange_calendar())
-              .error().category == kiyosi::error_category::invalid_schedule);
+              .error()
+              .category == kiyosi::error_category::invalid_schedule);
 
     const auto later_terms = *kiyosi::make_option_terms(
         kiyosi::option_type::call, 100.0, expiry + std::chrono::days{30});
     const auto later_exercise = *kiyosi::make_bermudan_exercise(
         std::vector{expiry + std::chrono::days{1}}, later_terms.expiry());
     CHECK(kiyosi::make_exercise_based_option(terms, kiyosi::VanillaPayoff{}, later_exercise)
-              .error().category == kiyosi::error_category::invalid_schedule);
+              .error()
+              .category == kiyosi::error_category::invalid_schedule);
 }
 
 } // namespace

@@ -13,9 +13,13 @@ namespace kiyosi {
 using namespace detail;
 namespace {
 
-PricingResult zero_tail(double value, double delta = 0.0, double gamma = 0.0)
+PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt,
+                        std::optional<double> gamma = std::nullopt)
 {
-    return PricingResult{value, delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    PricingResult output{{risk_measure::price, value}};
+    output.set(risk_measure::delta, delta);
+    output.set(risk_measure::gamma, gamma);
+    return output;
 }
 
 result<PricingResult> digital_price(double strike, option_type type, double payout,
@@ -29,7 +33,6 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
         auto output = zero_tail(exercised ? (asset ? spot : payout) : 0.0);
-        output.available = risk_bit(risk_measure::price);
         return output;
     }
     const double sigma = context.parameters().volatility();
@@ -58,10 +61,9 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
                 (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
     auto output = zero_tail(value, delta, gamma);
-    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
-                       risk_bit(risk_measure::gamma);
-    const std::array values{output.value, output.delta, output.gamma};
-    if (!std::ranges::all_of(values, [](double item) { return std::isfinite(item); }))
+    if (!std::ranges::all_of(output.values, [](const auto& item) {
+            return !item || std::isfinite(*item);
+        }))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
     return output;
 }
@@ -171,10 +173,8 @@ result<PricingResult> AnalyticBarrierEngine::price(
     }
     const bool touched = upper ? spot >= barrier : spot <= barrier;
     if (t == 0.0) {
-        auto output = knock_in ? zero_tail(touched ? vanilla->value : option.rebate())
-                               : zero_tail(touched ? option.rebate() : vanilla->value);
-        output.available = supported_risk_measures;
-        return output;
+        return knock_in ? zero_tail(touched ? *vanilla->get(risk_measure::price) : option.rebate())
+                        : zero_tail(touched ? option.rebate() : *vanilla->get(risk_measure::price));
     }
     const double drift = rate - dividend - 0.5 * sigma * sigma;
     const double variance = sigma * sigma;
@@ -196,7 +196,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
         },
                                  lower, higher);
     }
-    double value = knock_in ? vanilla->value - survival_value : survival_value;
+    double value = knock_in ? *vanilla->get(risk_measure::price) - survival_value : survival_value;
     if (knock_in && option.rebate() > 0.0 && !touched) {
         value += option.rebate() * std::exp(-rate * t) * survival_probability;
     }
@@ -214,7 +214,6 @@ result<PricingResult> AnalyticBarrierEngine::price(
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
     auto output = zero_tail(value);
-    output.available = supported_risk_measures;
     return output;
 }
 

@@ -22,7 +22,7 @@ std::string fixture_text()
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
-}
+} // namespace
 
 TEST_CASE("European parity fixtures compare value, Greeks, and implied volatility")
 {
@@ -86,9 +86,17 @@ TEST_CASE("Parity fixture tolerances are inclusive and mismatch reports are usef
 
     auto fixture = kiyosi::test::load_parity_fixtures(fixture_path()).front();
     fixture.value += 1.0;
-    const kiyosi::PricingResult actual{fixture.value - 1.0, fixture.delta, fixture.gamma, fixture.speed,
-                                    fixture.theta, fixture.charm, fixture.color, fixture.vega,
-                                    fixture.vanna, fixture.zomma, fixture.rho};
+    const kiyosi::PricingResult actual{{kiyosi::risk_measure::price, fixture.value - 1.0},
+                                       {kiyosi::risk_measure::delta, fixture.delta},
+                                       {kiyosi::risk_measure::gamma, fixture.gamma},
+                                       {kiyosi::risk_measure::speed, fixture.speed},
+                                       {kiyosi::risk_measure::theta, fixture.theta},
+                                       {kiyosi::risk_measure::charm, fixture.charm},
+                                       {kiyosi::risk_measure::color, fixture.color},
+                                       {kiyosi::risk_measure::vega, fixture.vega},
+                                       {kiyosi::risk_measure::vanna, fixture.vanna},
+                                       {kiyosi::risk_measure::zomma, fixture.zomma},
+                                       {kiyosi::risk_measure::rho, fixture.rho}};
     const auto failures = kiyosi::test::compare_fixture(fixture, actual, fixture.implied_volatility);
     REQUIRE_FALSE(failures.empty());
     const auto message = failures.front().message();

@@ -37,10 +37,7 @@ inline double normal_pdf(double value) noexcept
 
 inline PricingResult price_only_result(double value)
 {
-    const double unavailable = std::numeric_limits<double>::quiet_NaN();
-    return PricingResult{value, unavailable, unavailable, unavailable, unavailable, unavailable,
-                         unavailable, unavailable, unavailable, unavailable, unavailable,
-                         risk_bit(risk_measure::price)};
+    return PricingResult{{risk_measure::price, value}};
 }
 
 inline result<PricingResult> price_at_volatility(
@@ -60,8 +57,7 @@ inline result<PricingResult> price_at_volatility(
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
         if (request.measures == risk_bit(risk_measure::price)) return price_only_result(value);
-        auto output = PricingResult{value, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        output.available = risk_bit(risk_measure::price);
+        auto output = PricingResult{{risk_measure::price, value}};
         return output;
     }
 
@@ -83,8 +79,7 @@ inline result<PricingResult> price_at_volatility(
                                          "analytic pricing produced a non-finite result"});
         if (request.measures == risk_bit(risk_measure::price)) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
-        auto output = PricingResult{value, delta, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta);
+        auto output = PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta}};
         return output;
     }
     const double d1 = (std::log(spot / strike) +
@@ -118,7 +113,8 @@ inline result<PricingResult> price_at_volatility(
         gamma = dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time);
         speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
         theta = (-spot * dividend_discount_factor * density_d1 * volatility /
-                     (2.0 * sqrt_time) + carry) /
+                     (2.0 * sqrt_time) +
+                 carry) /
                 365.0;
         charm = -dividend_discount_factor *
                 (density_d1 * ((rate - dividend) / (volatility * sqrt_time) -
@@ -139,11 +135,15 @@ inline result<PricingResult> price_at_volatility(
     }
     const double rho = sign * year_fraction * strike * rate_discount_factor * cumulative_d2 /
                        percentage_point;
-    const PricingResult output{value, delta, gamma, speed, theta, charm,
-                               color, vega, vanna, zomma, rho};
-    const std::array values{value, delta, gamma, speed, theta, charm,
-                            color, vega, vanna, zomma, rho};
-    if (!std::ranges::all_of(values, [](double item) { return std::isfinite(item); })) {
+    const PricingResult output{{risk_measure::price, value}, {risk_measure::delta, delta},
+                               {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
+                               {risk_measure::theta, theta}, {risk_measure::charm, charm},
+                               {risk_measure::color, color}, {risk_measure::vega, vega},
+                               {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
+                               {risk_measure::rho, rho}};
+    if (!std::ranges::all_of(output.values, [](const auto& item) {
+            return !item || std::isfinite(*item);
+        })) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     }
@@ -154,26 +154,24 @@ inline result<PricingResult> select_outputs(
     result<PricingResult> priced, PricingRequest request, risk_measure_set supported)
 {
     if (!priced) return priced;
-    if (request.measures == all_risk_measures) request.measures = supported;
+    if (request.measures == 0) request.measures = supported;
     if ((request.measures & ~supported) != 0)
         return std::unexpected(Error{error_category::unsupported_risk_measure,
                                      "requested risk measure is unsupported by this engine"});
-    priced->available &= request.measures & supported;
-    const double unavailable = std::numeric_limits<double>::quiet_NaN();
-    const auto clear = [&](risk_measure measure, double& field) {
-        if (!request.requests(measure) || !priced->has(measure)) field = unavailable;
+    const auto clear = [&](risk_measure measure) {
+        if (!request.requests(measure)) priced->set(measure, std::nullopt);
     };
-    clear(risk_measure::price, priced->value);
-    clear(risk_measure::delta, priced->delta);
-    clear(risk_measure::gamma, priced->gamma);
-    clear(risk_measure::speed, priced->speed);
-    clear(risk_measure::theta, priced->theta);
-    clear(risk_measure::charm, priced->charm);
-    clear(risk_measure::color, priced->color);
-    clear(risk_measure::vega, priced->vega);
-    clear(risk_measure::vanna, priced->vanna);
-    clear(risk_measure::zomma, priced->zomma);
-    clear(risk_measure::rho, priced->rho);
+    clear(risk_measure::price);
+    clear(risk_measure::delta);
+    clear(risk_measure::gamma);
+    clear(risk_measure::speed);
+    clear(risk_measure::theta);
+    clear(risk_measure::charm);
+    clear(risk_measure::color);
+    clear(risk_measure::vega);
+    clear(risk_measure::vanna);
+    clear(risk_measure::zomma);
+    clear(risk_measure::rho);
     return priced;
 }
 

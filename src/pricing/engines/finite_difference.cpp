@@ -42,9 +42,7 @@ result<PricingResult> price_finite_difference(
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     if (time == 0.0) {
-        auto output = PricingResult{std::max(sign * (spot - strike), 0.0),
-                                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-        output.available = risk_bit(risk_measure::price);
+        auto output = PricingResult{{risk_measure::price, std::max(sign * (spot - strike), 0.0)}};
         return output;
     }
 
@@ -161,11 +159,11 @@ result<PricingResult> price_finite_difference(
     const double delta = (old[center + 1] - old[center - 1]) / (2.0 * spacing);
     const double gamma = (old[center + 1] - 2.0 * old[center] + old[center - 1]) /
                          (spacing * spacing);
-    auto output = PricingResult{value, delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
-                       risk_bit(risk_measure::gamma);
-    const std::array values{output.value, output.delta, output.gamma};
-    if (!std::ranges::all_of(values, [](double item) { return std::isfinite(item); }))
+    const auto output = PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
+                                      {risk_measure::gamma, gamma}};
+    if (!std::ranges::all_of(output.values, [](const auto& item) {
+            return !item || std::isfinite(*item);
+        }))
         return std::unexpected(Error{error_category::invalid_result,
                                      "finite-difference pricing produced a non-finite result"});
     return output;
