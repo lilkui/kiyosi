@@ -66,5 +66,7 @@ private:
         const AmericanOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };
+using FdEuropeanEngine = FiniteDifferenceEuropeanEngine;
+using FdAmericanEngine = FiniteDifferenceAmericanEngine;
 
 } // namespace kiyosi

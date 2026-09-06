@@ -20,6 +20,18 @@ _Avoid_: underlying instrument
 A derivative whose payoff depends on multiple contractual observations, state transitions, or path-dependent conditions.
 _Avoid_: exotic
 
+**Asian option**:
+An exercise-based option whose payoff depends on an average of underlying observations over an averaging schedule.
+_Avoid_: average product
+
+**Accumulator**:
+A scheduled structured product that accumulates conditional underlying exposure or cash settlement across observation dates.
+_Avoid_: averaging option
+
+**Autocallable**:
+A structured product with scheduled observations, conditional coupons or redemption, and automatic state transitions or termination.
+_Avoid_: callable option
+
 **Payoff**:
 The contractual function that maps an underlying observation at a payment or exercise time to an outcome.
 _Avoid_: payout rule when referring to the complete instrument
@@ -31,10 +43,6 @@ Automatic redemption or termination caused by an observation is not exercise.
 **Exercise-based option**:
 An instrument whose value is determined by a payoff at one contractual time or at a holder-selected admissible time.
 Vanilla, digital, and Bermudan options belong to this family.
-
-**Autocallable**:
-A structured product with scheduled observations, conditional coupons or redemption, and automatic state transitions or termination.
-It is not an exercise-based option.
 
 **Trading calendar**:
 Rules that identify valid trading and observation dates for an underlying market.

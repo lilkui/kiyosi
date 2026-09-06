@@ -32,5 +32,6 @@ private:
         const AmericanOption&, const PricingContext&) const;
     BinomialAmericanSettings settings_;
 };
+using BinomialTreeVanillaEngine = BinomialAmericanEngine;
 
 } // namespace kiyosi

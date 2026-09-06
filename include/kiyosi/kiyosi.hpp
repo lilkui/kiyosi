@@ -6,6 +6,9 @@
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/instruments/barrier.hpp>
+#include <kiyosi/instruments/asian.hpp>
+#include <kiyosi/instruments/binary_barrier.hpp>
+#include <kiyosi/instruments/structured.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/engines/analytic.hpp>
 #include <kiyosi/pricing/engines/binomial.hpp>
@@ -13,3 +16,8 @@
 #include <kiyosi/pricing/engines/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/digital.hpp>
 #include <kiyosi/pricing/engines/barrier.hpp>
+#include <kiyosi/pricing/engines/asian.hpp>
+#include <kiyosi/pricing/engines/integral.hpp>
+#include <kiyosi/pricing/engines/digital_fd.hpp>
+#include <kiyosi/pricing/engines/binary_barrier.hpp>
+#include <kiyosi/pricing/engines/structured.hpp>

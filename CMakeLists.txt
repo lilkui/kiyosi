@@ -49,6 +49,11 @@ set(KIYOSI_SOURCES
     src/pricing/engines/finite_difference.cpp
     src/pricing/engines/monte_carlo.cpp
     src/pricing/engines/digital_barrier.cpp
+    src/pricing/engines/asian.cpp
+    src/pricing/engines/integral.cpp
+    src/pricing/engines/digital_fd.cpp
+    src/pricing/engines/binary_barrier.cpp
+    src/pricing/engines/structured.cpp
 )
 
 add_library(kiyosi STATIC ${KIYOSI_SOURCES})
@@ -89,7 +94,7 @@ if(BUILD_TESTING)
     FetchContent_MakeAvailable(Catch2)
 
     add_executable(kiyosi_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp tests/header_smoke.cpp
-                              tests/validation_tests.cpp)
+                              tests/validation_tests.cpp tests/remaining_tests.cpp)
     target_link_libraries(kiyosi_tests PRIVATE kiyosi Catch2::Catch2WithMain)
     target_compile_features(kiyosi_tests PRIVATE cxx_std_23)
     target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
