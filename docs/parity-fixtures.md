@@ -36,5 +36,5 @@ without a live DerivaSharp build.
 
 The closure tests require one fixture for each concrete CPU engine and include
 public payoff, in/out, convergence, and seeded Monte Carlo properties. Schedule
-and settlement convention differences are recorded in ADR 0011; CUDA parity
-remains deferred under ADR 0010.
+and settlement convention differences are recorded in ADR 0010; CUDA parity
+remains out of scope there.
