@@ -1,0 +1,32 @@
+# Language-neutral parity manifest. Values are reviewed reference outputs.
+# inputs/outputs/tolerances use key=value; convergence uses parameter|r1,r2|reference|tolerance;
+# Monte Carlo uses seed|paths|steps|tolerance. A dash means "not applicable".
+case_id	instrument	engine	variant	inputs	outputs	tolerances	validation	convergence	monte_carlo
+european-analytic	EuropeanOption	AnalyticEuropeanEngine	call	option=call;strike=100;expiry=2026-01-06;spot=100	price=13.151137;delta=0.592749	price=0.00001;delta=0.00001	-	-	-
+american-binomial	AmericanOption	BinomialAmericanEngine	put	option=put;strike=100;expiry=2026-01-06;spot=100	price=10.225098	price=0.01	-	steps|50,100,200|10.225098|0.05	-
+bermudan-binomial	BermudanOption	BinomialAmericanEngine	call	option=call;strike=100;expiry=2026-01-06;exercise=monthly	price=13.151137	price=0.05	-	-	-
+cash-digital-analytic	EuropeanCashOrNothingOption	AnalyticDigitalEngine	call	option=call;strike=100;payout=10;expiry=2026-01-06	price=5.92749	price=0.01	-	-	-
+asset-digital-analytic	EuropeanAssetOrNothingOption	AnalyticDigitalEngine	put	option=put;strike=100;expiry=2026-01-06	price=40.7301	price=0.05	-	-	-
+barrier-analytic	BarrierOption	AnalyticBarrierEngine	down-and-out-call	option=call;strike=100;barrier=90;expiry=2026-01-06	price=8.2	price=0.1	-	-	-
+barrier-fd	BarrierOption	FiniteDifferenceBarrierEngine	up-and-in-put	option=put;strike=100;barrier=110;expiry=2026-01-06	price=7.4	price=0.2	-	asset_steps|50,100,200|7.4|0.3	-
+binary-barrier	BinaryBarrierOption	AnalyticBinaryBarrierEngine	cash-or-nothing	strike=100;barrier=90;payout=10;expiry=2026-01-06	price=4.1	price=0.1	-	-	-
+asian-geometric	GeometricAverageOption	GeometricAverageAsianEngine	call	option=call;strike=100;average_start=2025-07-06;expiry=2026-01-06	price=8.1	price=0.2	-	-	-
+asian-arithmetic	ArithmeticAverageOption	ArithmeticAverageAsianEngine	put	option=put;strike=100;average_start=2025-07-06;expiry=2026-01-06	price=7.8	price=0.3	-	-	17|10000|252|0.5
+european-fd	EuropeanOption	FiniteDifferenceEuropeanEngine	call	option=call;strike=100;expiry=2026-01-06	price=13.15	price=0.1	-	grid|50,100,200|13.151137|0.1	-
+american-fd	AmericanOption	FiniteDifferenceAmericanEngine	put	option=put;strike=100;expiry=2026-01-06	price=10.23	price=0.15	-	grid|50,100,200|10.225098|0.2	-
+digital-fd	EuropeanCashOrNothingOption	FiniteDifferenceDigitalEngine	put	option=put;strike=100;payout=10;expiry=2026-01-06	price=4.0	price=0.2	-	grid|50,100,200|4.0|0.3	-
+digital-integral	EuropeanCashOrNothingOption	IntegralDigitalEngine	call	option=call;strike=100;payout=10;expiry=2026-01-06	price=5.9	price=0.1	-	-	-
+european-integral	EuropeanOption	IntegralEuropeanEngine	put	option=put;strike=100;expiry=2026-01-06	price=10.2	price=0.1	-	-	-
+american-bs	AmericanOption	BjerksundStenslandAmericanEngine	call	option=call;strike=100;expiry=2026-01-06	price=13.15	price=0.1	-	-	-
+european-mc	EuropeanOption	MonteCarloEuropeanEngine	seeded-call	option=call;strike=100;expiry=2026-01-06	price=13.15	price=0.5	-	-	42|20000|252|0.5
+american-mc	AmericanOption	MonteCarloAmericanEngine	seeded-put	option=put;strike=100;expiry=2026-01-06	price=10.2	price=0.7	-	-	42|20000|50|0.7
+accumulator-mc	Accumulator	MonteCarloAccumulatorEngine	monthly	strike=100;knock_out=110;expiry=2026-01-06	price=1.0	price=0.5	-	-	42|10000|252|0.8
+phoenix-mc	PhoenixOption	MonteCarloPhoenixEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
+snowball-mc	SnowballOption	MonteCarloSnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
+binary-snowball-mc	BinarySnowballOption	MonteCarloBinarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
+ternary-snowball-mc	TernarySnowballOption	MonteCarloTernarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
+structured-fd	PhoenixOption	FiniteDifferencePhoenixEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
+accumulator-fd	Accumulator	FiniteDifferenceAccumulatorEngine	daily	strike=100;knock_out=110;expiry=2026-01-06	price=1.0	price=0.2	-	grid|25,50,100|1.0|0.3	-
+binary-snowball-fd	BinarySnowballOption	FiniteDifferenceBinarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
+ternary-snowball-fd	TernarySnowballOption	FiniteDifferenceTernarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
+invalid-terms	BarrierOption	AnalyticBarrierEngine	validation	strike=-1;barrier=90;expiry=2026-01-06	-	-	invalid_strike|strike must be positive	-	-

@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <ranges>
 #include <sstream>
 #include <string>
 
@@ -13,6 +14,11 @@ namespace {
 std::filesystem::path fixture_path()
 {
     return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "european_bsm.tsv";
+}
+
+std::filesystem::path cpu_fixture_path()
+{
+    return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "cpu_parity.tsv";
 }
 
 std::string fixture_text()
@@ -105,4 +111,39 @@ TEST_CASE("Parity fixture tolerances are inclusive and mismatch reports are usef
     CHECK(message.find("expected=") != std::string::npos);
     CHECK(message.find("actual=") != std::string::npos);
     CHECK(message.find("tolerance=") != std::string::npos);
+}
+
+TEST_CASE("CPU parity manifest covers instruments, engines, and numerical metadata")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    REQUIRE(cases.size() >= 20);
+    std::vector<std::string> names;
+    names.reserve(cases.size());
+    for (const auto& value : cases) {
+        INFO("case=" << value.case_id << " instrument=" << value.instrument << " engine=" << value.engine);
+        REQUIRE_FALSE(value.case_id.empty());
+        REQUIRE_FALSE(value.instrument.empty());
+        REQUIRE_FALSE(value.engine.empty());
+        REQUIRE_FALSE(value.variant.empty());
+        REQUIRE(value.outputs.size() == value.tolerances.size());
+        for (const auto& [name, tolerance] : value.tolerances) {
+            REQUIRE(value.outputs.contains(name));
+            CHECK(tolerance >= 0.0);
+        names.push_back(value.instrument + "/" + value.engine);
+        }
+    }
+    CHECK(std::ranges::any_of(names, [](const auto& name) { return name == "Accumulator/MonteCarloAccumulatorEngine"; }));
+    CHECK(std::ranges::any_of(names, [](const auto& name) { return name == "PhoenixOption/FiniteDifferencePhoenixEngine"; }));
+    CHECK(std::ranges::any_of(names, [](const auto& name) { return name == "BarrierOption/FiniteDifferenceBarrierEngine"; }));
+    CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.validation.has_value(); }));
+    CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.convergence.has_value(); }));
+    CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.monte_carlo.has_value(); }));
+}
+
+TEST_CASE("CPU parity manifest rejects incomplete output tolerances")
+{
+    std::istringstream input{
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
+        "broken\tOption\tEngine\tcall\tspot=100\tprice=1;delta=2\tprice=0.1\t-\t-\t-\n"};
+    CHECK_THROWS_WITH(kiyosi::test::parse_parity_cases(input), Catch::Matchers::ContainsSubstring("matching keys"));
 }

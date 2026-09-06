@@ -23,3 +23,13 @@ Lines beginning with `#` and blank lines are ignored. The test-only parser
 rejects missing columns, invalid dates/numbers, unknown option types, and
 negative tolerances with a row number and field name. Fixture comparison is
 absolute and inclusive at the stated tolerance.
+
+`tests/fixtures/cpu_parity.tsv` is the broader CPU parity manifest. Its
+language-neutral rows name the instrument, engine, and variant, then carry
+semicolon-separated `key=value` inputs, outputs, and per-output tolerances.
+Validation expectations use `category|message`; convergence metadata uses
+`parameter|resolution1,resolution2|reference|tolerance`; seeded Monte Carlo
+metadata uses `seed|paths|steps|tolerance`. A dash means that metadata does
+not apply. The Catch2 manifest test validates every row and includes the case,
+instrument, and engine in assertion context, so failures remain actionable
+without a live DerivaSharp build.
