@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.28)
 project(kiyosi VERSION 0.1.0 LANGUAGES CXX)
 
 include(CMakePackageConfigHelpers)
-include(GNUInstallDirs)
 include(GenerateExportHeader)
 
 if(PROJECT_IS_TOP_LEVEL)
@@ -17,11 +16,12 @@ option(KIYOSI_INSTALL "Enable install rules" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 
-if(MSVC)
-    set(KIYOSI_WARNING_FLAGS /W4 /permissive-)
-else()
-    set(KIYOSI_WARNING_FLAGS -Wall -Wextra -Wpedantic)
-endif()
+add_library(kiyosi_warnings INTERFACE)
+add_library(kiyosi::warnings ALIAS kiyosi_warnings)
+target_compile_options(kiyosi_warnings INTERFACE
+    "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4;/permissive->"
+    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang,Intel,IntelLLVM>:-Wall;-Wextra;-Wpedantic>"
+)
 
 if(KIYOSI_ENABLE_CLANG_TIDY)
     find_program(KIYOSI_CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
@@ -98,10 +98,9 @@ generate_export_header(kiyosi
 target_include_directories(kiyosi PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
-    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
 target_compile_features(kiyosi PUBLIC cxx_std_23)
-target_compile_options(kiyosi PRIVATE ${KIYOSI_WARNING_FLAGS})
+target_link_libraries(kiyosi PRIVATE kiyosi::warnings)
 target_sources(kiyosi
     PRIVATE
         ${KIYOSI_SOURCES}
@@ -115,12 +114,13 @@ target_sources(kiyosi
 )
 set_target_properties(kiyosi PROPERTIES
     CXX_EXTENSIONS OFF
-    EXPORT_NAME kiyosi
+    DEBUG_POSTFIX d
     POSITION_INDEPENDENT_CODE ON
 )
 if(BUILD_SHARED_LIBS)
     set_target_properties(kiyosi PROPERTIES
-        SOVERSION ${PROJECT_VERSION_MAJOR}
+        # During 0.x, minor versions define ABI compatibility; switch to major-only at 1.0.
+        SOVERSION ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
         VERSION ${PROJECT_VERSION}
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN YES
@@ -140,9 +140,7 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
 
     add_executable(kiyosi_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp tests/header_smoke.cpp
                               tests/validation_tests.cpp tests/remaining_tests.cpp)
-    target_link_libraries(kiyosi_tests PRIVATE kiyosi Catch2::Catch2WithMain)
-    target_compile_features(kiyosi_tests PRIVATE cxx_std_23)
-    target_compile_options(kiyosi_tests PRIVATE ${KIYOSI_WARNING_FLAGS})
+    target_link_libraries(kiyosi_tests PRIVATE kiyosi Catch2::Catch2WithMain kiyosi::warnings)
     set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF)
     target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     if(catch2_SOURCE_DIR)
@@ -163,13 +161,22 @@ if(KIYOSI_ENABLE_CLANG_TIDY)
 endif()
 
 if(KIYOSI_INSTALL)
+    include(GNUInstallDirs)
+    target_include_directories(kiyosi PUBLIC
+        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    )
     install(TARGETS kiyosi
         EXPORT kiyosiTargets
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILE_SET generated_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Runtime
+            NAMELINK_COMPONENT Development
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Runtime
+        FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT Development
+        FILE_SET generated_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT Development
+    )
+    install(FILES LICENSE.txt
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/licenses/kiyosi
+        COMPONENT Runtime
     )
     write_basic_package_version_file(
         ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
@@ -185,10 +192,12 @@ if(KIYOSI_INSTALL)
         FILE kiyosiTargets.cmake
         NAMESPACE kiyosi::
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
+        COMPONENT Development
     )
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
+        COMPONENT Development
     )
 endif()
