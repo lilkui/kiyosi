@@ -18,7 +18,7 @@ struct MonteCarloSettings {
 using MonteCarloEuropeanSettings = MonteCarloSettings;
 using MonteCarloAmericanSettings = MonteCarloSettings;
 
-class MonteCarloEuropeanEngine {
+class KIYOSI_EXPORT MonteCarloEuropeanEngine {
 public:
     explicit MonteCarloEuropeanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
     MonteCarloEuropeanEngine(int path_count, int step_count,
@@ -41,7 +41,7 @@ private:
     MonteCarloSettings settings_;
 };
 
-class MonteCarloAmericanEngine {
+class KIYOSI_EXPORT MonteCarloAmericanEngine {
 public:
     explicit MonteCarloAmericanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
     MonteCarloAmericanEngine(int path_count, int step_count,

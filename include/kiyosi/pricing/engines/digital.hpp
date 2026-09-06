@@ -6,7 +6,7 @@
 
 namespace kiyosi {
 
-class AnalyticDigitalEngine {
+class KIYOSI_EXPORT AnalyticDigitalEngine {
 public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires (std::same_as<Payoff, CashOrNothingPayoff> ||

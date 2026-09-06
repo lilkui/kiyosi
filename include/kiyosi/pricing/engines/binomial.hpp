@@ -15,7 +15,7 @@ using CrrSettings = BinomialSettings;
 
 /// Cox-Ross-Rubinstein American engine.
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unsupported and zero.
-class BinomialAmericanEngine {
+class KIYOSI_EXPORT BinomialAmericanEngine {
 public:
     explicit BinomialAmericanEngine(BinomialAmericanSettings settings = {}) : settings_(settings) {}
     explicit BinomialAmericanEngine(int steps) : settings_{steps} {}
@@ -35,7 +35,7 @@ private:
         const AmericanOption&, const PricingContext&) const;
     BinomialAmericanSettings settings_;
 };
-class BinomialEuropeanEngine {
+class KIYOSI_EXPORT BinomialEuropeanEngine {
 public:
     explicit BinomialEuropeanEngine(BinomialEuropeanSettings settings = {}) : settings_(settings) {}
     explicit BinomialEuropeanEngine(int steps) : settings_{steps} {}
@@ -57,7 +57,7 @@ private:
 };
 using CrrAmericanEngine = BinomialAmericanEngine;
 using CrrEuropeanEngine = BinomialEuropeanEngine;
-class CrrEngine {
+class KIYOSI_EXPORT CrrEngine {
 public:
     explicit CrrEngine(BinomialSettings settings = {}) : settings_(settings) {}
     explicit CrrEngine(int steps) : settings_{steps} {}

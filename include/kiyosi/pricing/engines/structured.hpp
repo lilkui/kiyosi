@@ -10,7 +10,7 @@
 
 namespace kiyosi {
 template <typename Option>
-[[nodiscard]] result<PricingResult> price_finite_difference_structured(
+[[nodiscard]] KIYOSI_EXPORT result<PricingResult> price_finite_difference_structured(
     const Option&, const PricingContext&, FiniteDifferenceSettings);
 
 struct StructuredMonteCarloSettings {
@@ -19,7 +19,7 @@ struct StructuredMonteCarloSettings {
 };
 
 template <typename Option>
-class MonteCarloStructuredEngine {
+class KIYOSI_EXPORT MonteCarloStructuredEngine {
 public:
     explicit MonteCarloStructuredEngine(StructuredMonteCarloSettings settings = {}) : settings_(settings) {}
     explicit MonteCarloStructuredEngine(int path_count, bool = false, std::optional<std::uint64_t> seed = 1)
@@ -43,7 +43,7 @@ using McBinarySnowballEngine = MonteCarloBinarySnowballEngine;
 using McTernarySnowballEngine = MonteCarloTernarySnowballEngine;
 
 template <typename Option>
-class FiniteDifferenceStructuredEngine {
+class KIYOSI_EXPORT FiniteDifferenceStructuredEngine {
 public:
     explicit FiniteDifferenceStructuredEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceStructuredEngine(int asset_steps, int time_steps,

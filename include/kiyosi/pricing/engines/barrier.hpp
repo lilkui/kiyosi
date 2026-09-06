@@ -7,12 +7,12 @@
 
 namespace kiyosi {
 
-class AnalyticBarrierEngine {
+class KIYOSI_EXPORT AnalyticBarrierEngine {
 public:
     [[nodiscard]] result<PricingResult> price(
         const BarrierOption&, const PricingContext&) const;
 };
-class FiniteDifferenceBarrierEngine {
+class KIYOSI_EXPORT FiniteDifferenceBarrierEngine {
 public:
     explicit FiniteDifferenceBarrierEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceBarrierEngine(int asset_steps, int time_steps,

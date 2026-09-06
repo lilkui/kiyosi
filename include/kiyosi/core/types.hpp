@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <expected>
 #include <string_view>
+#include <kiyosi/kiyosi_export.h>
 
 namespace kiyosi {
 
@@ -15,7 +16,7 @@ using date = std::chrono::sys_days;
 // Intraday moments use UTC-like sys_time; date-based contracts remain midnight anchored.
 using timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 using time_point = timestamp;
-[[nodiscard]] inline bool is_valid_date(date value) noexcept;
+[[nodiscard]] KIYOSI_EXPORT bool is_valid_date(date value) noexcept;
 
 enum class day_count_convention : unsigned char {
     actual_365_fixed,
@@ -62,10 +63,10 @@ struct Error {
 template <typename T>
 using result = std::expected<T, Error>;
 
-[[nodiscard]] result<double> year_fraction(
+[[nodiscard]] KIYOSI_EXPORT result<double> year_fraction(
     date start, date end, day_count_convention convention = day_count_convention::actual_365_fixed);
-[[nodiscard]] result<double> year_fraction(
+[[nodiscard]] KIYOSI_EXPORT result<double> year_fraction(
     timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed);
-[[nodiscard]] result<void> validate_expiry(date valuation_date, date expiry);
-[[nodiscard]] result<void> validate_expiry(timestamp valuation_time, date expiry);
+[[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(date valuation_date, date expiry);
+[[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(timestamp valuation_time, date expiry);
 } // namespace kiyosi

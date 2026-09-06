@@ -4,6 +4,7 @@ project(kiyosi VERSION 0.1.0 LANGUAGES CXX)
 
 include(CMakePackageConfigHelpers)
 include(GNUInstallDirs)
+include(GenerateExportHeader)
 
 if(PROJECT_IS_TOP_LEVEL)
     include(CTest)
@@ -91,6 +92,14 @@ set(KIYOSI_HEADERS
 
 add_library(kiyosi)
 add_library(kiyosi::kiyosi ALIAS kiyosi)
+generate_export_header(kiyosi
+    EXPORT_FILE_NAME ${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h
+)
+target_include_directories(kiyosi PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
+    $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 target_compile_features(kiyosi PUBLIC cxx_std_23)
 target_compile_options(kiyosi PRIVATE ${KIYOSI_WARNING_FLAGS})
 target_sources(kiyosi
@@ -100,6 +109,9 @@ target_sources(kiyosi
         FILE_SET HEADERS
         BASE_DIRS include
         FILES ${KIYOSI_HEADERS}
+        FILE_SET generated_headers TYPE HEADERS
+        BASE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/generated
+        FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h
 )
 set_target_properties(kiyosi PROPERTIES
     CXX_EXTENSIONS OFF
@@ -110,7 +122,8 @@ if(BUILD_SHARED_LIBS)
     set_target_properties(kiyosi PROPERTIES
         SOVERSION ${PROJECT_VERSION_MAJOR}
         VERSION ${PROJECT_VERSION}
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
+        CXX_VISIBILITY_PRESET hidden
+        VISIBILITY_INLINES_HIDDEN YES
     )
 endif()
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
@@ -156,6 +169,7 @@ if(KIYOSI_INSTALL)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILE_SET generated_headers DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
     write_basic_package_version_file(
         ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake

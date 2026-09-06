@@ -13,7 +13,7 @@ struct ImpliedVolatilitySettings {
     int max_iterations = 100;
 };
 
-class AnalyticEuropeanEngine {
+class KIYOSI_EXPORT AnalyticEuropeanEngine {
 public:
     /// Returns intrinsic value and zero Greeks when valued at expiry.
     template <OptionPayoff Payoff, OptionExercise Exercise>

@@ -6,7 +6,7 @@
 #include <kiyosi/pricing/engines/finite_difference.hpp>
 
 namespace kiyosi {
-class FiniteDifferenceDigitalEngine {
+class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
     explicit FiniteDifferenceDigitalEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceDigitalEngine(int asset_steps, int time_steps,
@@ -19,7 +19,7 @@ public:
 private:
     FiniteDifferenceSettings settings_;
 };
-class IntegralDigitalEngine {
+class KIYOSI_EXPORT IntegralDigitalEngine {
 public:
     [[nodiscard]] result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;
     [[nodiscard]] result<PricingResult> price(const EuropeanAssetOrNothingOption&, const PricingContext&) const;

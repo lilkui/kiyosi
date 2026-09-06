@@ -5,7 +5,7 @@
 #include <kiyosi/pricing/result.hpp>
 
 namespace kiyosi {
-class AnalyticBinaryBarrierEngine {
+class KIYOSI_EXPORT AnalyticBinaryBarrierEngine {
 public:
     [[nodiscard]] result<PricingResult> price(const BinaryBarrierOption&, const PricingContext&) const;
 };

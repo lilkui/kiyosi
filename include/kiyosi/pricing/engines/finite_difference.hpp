@@ -20,7 +20,7 @@ struct FiniteDifferenceSettings {
 };
 
 /// Uniform-grid finite-difference European engine for vanilla options.
-class FiniteDifferenceEuropeanEngine {
+class KIYOSI_EXPORT FiniteDifferenceEuropeanEngine {
 public:
     explicit FiniteDifferenceEuropeanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
@@ -44,7 +44,7 @@ private:
 };
 
 /// Uniform-grid finite-difference American engine with early exercise at every time layer.
-class FiniteDifferenceAmericanEngine {
+class KIYOSI_EXPORT FiniteDifferenceAmericanEngine {
 public:
     explicit FiniteDifferenceAmericanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
