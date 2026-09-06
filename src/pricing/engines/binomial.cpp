@@ -93,6 +93,7 @@ result<PricingResult> price_binomial_american(
 
     double delta = 0.0;
     double gamma = 0.0;
+    bool gamma_available = false;
     if (settings.steps >= 1) {
         const double denominator = spot * (up - down);
         if (std::isfinite(denominator) && denominator != 0.0)
@@ -106,12 +107,13 @@ result<PricingResult> price_binomial_american(
             const double delta_up = (level_two[2] - level_two[1]) / delta_up_denominator;
             const double delta_down = (level_two[1] - level_two[0]) / delta_down_denominator;
             gamma = (delta_up - delta_down) / gamma_denominator;
+            gamma_available = std::isfinite(gamma);
         }
     }
 
     auto output = PricingResult{values[0], delta, gamma, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) |
-                       risk_bit(risk_measure::gamma);
+    output.available = risk_bit(risk_measure::price) | risk_bit(risk_measure::delta);
+    if (gamma_available) output.available |= risk_bit(risk_measure::gamma);
     const std::array result_values{output.value, output.delta, output.gamma};
     if (!std::ranges::all_of(result_values, [](double value) { return std::isfinite(value); })) {
         return std::unexpected(Error{error_category::invalid_result,

@@ -541,6 +541,23 @@ TEST_CASE("Binomial American engine prices expiry and validates steps")
     CHECK(too_many.error().category == ito::error_category::invalid_parameter);
 }
 
+TEST_CASE("Binomial American engine does not expose gamma below two steps")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *ito::make_bsm_parameters(0.04, 0.0, 0.2);
+    const auto context = *ito::make_pricing_context(parameters, *ito::make_asset_price(100.0), valuation);
+    const auto option = *ito::make_american_call(100.0, expiry);
+
+    const auto result = ito::BinomialAmericanEngine{ito::BinomialAmericanSettings{1}}.price(option, context);
+    REQUIRE(result.has_value());
+    CHECK(result->has(ito::risk_measure::price));
+    CHECK(result->has(ito::risk_measure::delta));
+    CHECK_FALSE(result->has(ito::risk_measure::gamma));
+    CHECK_FALSE(result->get(ito::risk_measure::gamma).has_value());
+    CHECK(std::isnan(result->gamma));
+}
+
 TEST_CASE("Binomial American engine exercises puts and converges to European calls")
 {
     using Catch::Matchers::WithinAbs;
