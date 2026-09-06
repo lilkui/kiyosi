@@ -9,6 +9,7 @@
 #include <kiyosi/pricing/engines/binomial.hpp>
 #include <kiyosi/pricing/engines/digital.hpp>
 #include <kiyosi/pricing/engines/finite_difference.hpp>
+#include <kiyosi/pricing/engines/monte_carlo.hpp>
 #include <kiyosi/pricing/result.hpp>
 
 #include <concepts>
@@ -51,6 +52,12 @@ static_assert(!can_price<kiyosi::BinomialAmericanEngine, kiyosi::BermudanOption>
 
 static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
+
+static_assert(can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::EuropeanOption>);
+static_assert(!can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::AmericanOption>);
+static_assert(can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::AmericanOption>);
+static_assert(!can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::McEuropeanEngine, kiyosi::EuropeanOption>);
 
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceEuropeanEngine,
                                        kiyosi::EuropeanOption,

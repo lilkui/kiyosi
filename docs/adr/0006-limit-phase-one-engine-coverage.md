@@ -10,9 +10,10 @@ Phase 1 targets a single-underlying Black–Scholes–Merton domain on Windows a
 
 - analytic European, digital, and barrier pricing;
 - binomial American pricing; and
-- finite-difference European and American pricing.
+- finite-difference European and American pricing;
+- standard-library Monte Carlo European and American pricing.
 
-Integral, Asian, additional structured-product, Monte Carlo, and CUDA engines remain later work. The library starts at version `0.1.0` with semantic versioning, no stable ABI promise before `1.0`, and no performance acceptance requirement.
+Integral, Asian, additional structured-product, and CUDA engines remain later work. Monte Carlo uses CPU-only standard-library random generation; no libtorch or TorchSharp dependency is part of Kiyosi. The library starts at version `0.1.0` with semantic versioning, no stable ABI promise before `1.0`, and no performance acceptance requirement.
 
 ## Consequences
 

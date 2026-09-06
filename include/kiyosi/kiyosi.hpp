@@ -10,5 +10,6 @@
 #include <kiyosi/pricing/engines/analytic.hpp>
 #include <kiyosi/pricing/engines/binomial.hpp>
 #include <kiyosi/pricing/engines/finite_difference.hpp>
+#include <kiyosi/pricing/engines/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/digital.hpp>
 #include <kiyosi/pricing/engines/barrier.hpp>

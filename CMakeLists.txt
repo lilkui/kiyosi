@@ -47,6 +47,7 @@ set(KIYOSI_SOURCES
     src/pricing/engines/analytic.cpp
     src/pricing/engines/binomial.cpp
     src/pricing/engines/finite_difference.cpp
+    src/pricing/engines/monte_carlo.cpp
     src/pricing/engines/digital_barrier.cpp
 )
 
