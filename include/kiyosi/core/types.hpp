@@ -49,6 +49,7 @@ enum class error_category : unsigned char {
     unbracketed_volatility = 16,
     solver_non_convergence = 17,
     solver_non_finite = 18,
+    unbracketed_coupon = 19,
 };
 
 struct Error {

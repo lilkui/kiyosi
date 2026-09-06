@@ -99,6 +99,8 @@ public:
           coupon_rate_(coupon_rate), coupon_barriers_(std::move(coupon_barriers)) {}
     double coupon_rate() const noexcept { return coupon_rate_; }
     const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
+    PhoenixOption with_coupon_rate(double coupon) const
+    { return PhoenixOption{coupon, initial_price(), knock_in_price(), knock_out_prices(), coupon_barriers(), upper_strike(), lower_strike(), observation_dates(), knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()}; }
 
 private:
     double coupon_rate_;
@@ -117,6 +119,8 @@ public:
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate) {}
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
+    SnowballOption with_coupon_rate(double coupon) const
+    { return SnowballOption{knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(), knock_out_prices(), upper_strike(), lower_strike(), observation_dates(), knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()}; }
 
 private:
     std::vector<double> knock_out_coupon_rates_;

@@ -10,6 +10,7 @@
 #include <kiyosi/instruments/binary_barrier.hpp>
 #include <kiyosi/instruments/structured.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/analytics.hpp>
 #include <kiyosi/pricing/engines/analytic.hpp>
 #include <kiyosi/pricing/engines/binomial.hpp>
 #include <kiyosi/pricing/engines/finite_difference.hpp>
