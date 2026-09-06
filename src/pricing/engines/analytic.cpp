@@ -9,10 +9,9 @@ namespace kiyosi {
 using namespace detail;
 
 result<PricingResult> AnalyticEuropeanEngine::price_impl(
-    const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
+    const EuropeanOption& option, const PricingContext& context) const
 {
-    return select_outputs(price_at_volatility(option, context, context.parameters().volatility(), request),
-                          request, supported_risk_measures);
+    return price_at_volatility(option, context, context.parameters().volatility());
 }
 
 result<double> AnalyticEuropeanEngine::implied_volatility(
@@ -59,7 +58,8 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
     }
 
     const auto evaluate = [&](double volatility) -> result<double> {
-        const auto priced = price_at_volatility(option, context, volatility, PricingRequest::price_only());
+        const auto priced = price_at_volatility(
+            option, context, volatility, risk_measure_output::price_only);
         if (!priced) {
             if (priced.error().category == error_category::invalid_result)
                 return std::unexpected(Error{error_category::solver_non_finite,

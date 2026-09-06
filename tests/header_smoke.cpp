@@ -30,7 +30,6 @@ concept can_price_with_settings = requires(
 }
 
 static_assert(kiyosi::version_major == 0);
-static_assert(kiyosi::PricingRequest::price_only().requests(kiyosi::risk_measure::price));
 
 static_assert(can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::AmericanOption>);

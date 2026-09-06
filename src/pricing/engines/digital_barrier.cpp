@@ -117,13 +117,12 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 
 result<PricingResult> AnalyticDigitalEngine::price_impl(
     option_type type, double strike, double payout, bool asset, date expiry,
-    const PricingContext& context, PricingRequest request) const
+    const PricingContext& context) const
 {
-    return select_outputs(digital_price(strike, type, payout, asset, expiry, context),
-                          request, supported_risk_measures);
+    return digital_price(strike, type, payout, asset, expiry, context);
 }
 
-result<PricingResult> AnalyticBarrierEngine::price_impl(
+result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
 {
     const auto valid = validate_expiry(context.valuation_date(), option.expiry());
@@ -137,7 +136,7 @@ result<PricingResult> AnalyticBarrierEngine::price_impl(
     }
     const auto vanilla = price_at_volatility(
         *make_european_option(option.type(), option.strike(), option.expiry()), context,
-        context.parameters().volatility(), PricingRequest::price_only());
+        context.parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();
@@ -197,12 +196,6 @@ result<PricingResult> AnalyticBarrierEngine::price_impl(
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
     auto output = zero_tail(value);
     return output;
-}
-
-result<PricingResult> AnalyticBarrierEngine::price(
-    const BarrierOption& option, const PricingContext& context, PricingRequest request) const
-{
-    return select_outputs(price_impl(option, context), request, supported_risk_measures);
 }
 
 } // namespace kiyosi

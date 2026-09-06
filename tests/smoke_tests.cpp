@@ -60,7 +60,7 @@ TEST_CASE("European option factories reject invalid terms")
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::option_type::call, 100.0, day(2031, 1, 1), expiry).has_value());
 }
 
-TEST_CASE("Exercise style and requested risk measures are explicit")
+TEST_CASE("Exercise style and engine risk measures are explicit")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
@@ -68,30 +68,20 @@ TEST_CASE("Exercise style and requested risk measures are explicit")
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto european = *kiyosi::make_european_call(100.0, expiry);
     const auto american = *kiyosi::make_american_call(100.0, expiry);
-    REQUIRE(kiyosi::BinomialAmericanEngine{}.price(american, context).has_value());
+    const auto european_result = kiyosi::AnalyticEuropeanEngine{}.price(european, context);
+    REQUIRE(european_result.has_value());
+    CHECK(european_result->has(kiyosi::risk_measure::price));
+    CHECK(european_result->has(kiyosi::risk_measure::vega));
 
-    STATIC_REQUIRE((kiyosi::AnalyticEuropeanEngine::supported_risk_measures &
-                    kiyosi::risk_bit(kiyosi::risk_measure::vega)) != 0);
-    STATIC_REQUIRE((kiyosi::BinomialAmericanEngine::supported_risk_measures &
-                    kiyosi::risk_bit(kiyosi::risk_measure::gamma)) != 0);
+    const auto american_result = kiyosi::BinomialAmericanEngine{}.price(american, context);
+    REQUIRE(american_result.has_value());
+    CHECK(american_result->has(kiyosi::risk_measure::price));
+    CHECK(american_result->has(kiyosi::risk_measure::gamma));
+    CHECK_FALSE(american_result->has(kiyosi::risk_measure::vega));
 
-    const auto price_only = kiyosi::AnalyticEuropeanEngine{}.price(
-        european, context, kiyosi::PricingRequest::price_only());
-    REQUIRE(price_only.has_value());
-    REQUIRE(price_only->has(kiyosi::risk_measure::price));
-    REQUIRE_FALSE(price_only->has(kiyosi::risk_measure::delta));
-    REQUIRE_FALSE(price_only->get(kiyosi::risk_measure::delta).has_value());
     const auto invalid_measure = static_cast<kiyosi::risk_measure>(255);
-    CHECK_FALSE(price_only->has(invalid_measure));
-    CHECK_FALSE(price_only->get(invalid_measure).has_value());
-    CHECK(kiyosi::risk_bit(invalid_measure) == 0);
-    CHECK(kiyosi::PricingRequest::all().requests(kiyosi::risk_measure::price));
-
-    const auto unsupported = kiyosi::BinomialAmericanEngine{}.price(
-        american, context, kiyosi::PricingRequest{kiyosi::risk_bit(kiyosi::risk_measure::vega)});
-    REQUIRE_FALSE(unsupported.has_value());
-    CHECK(unsupported.error().category == kiyosi::error_category::unsupported_risk_measure);
-
+    CHECK_FALSE(european_result->has(invalid_measure));
+    CHECK_FALSE(european_result->get(invalid_measure).has_value());
 }
 
 TEST_CASE("BSM parameters and asset prices reject non-finite or non-positive values")
@@ -372,23 +362,21 @@ TEST_CASE("Analytic European implied volatility enforces arbitrage bounds and ha
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto call_context = *kiyosi::make_pricing_context(
         parameters, *kiyosi::make_asset_price(100.0), valuation);
-    const auto call_price = *engine.price(call, call_context, kiyosi::PricingRequest::price_only());
+    const auto call_price = *engine.price(call, call_context);
     const auto call_implied = engine.implied_volatility(call, call_context,
                                                         risk_value(call_price, kiyosi::risk_measure::price));
     REQUIRE(call_implied.has_value());
     CHECK_THAT(*call_implied, WithinAbs(0.35, 1e-7));
 
     const auto deep_in_the_money = *kiyosi::make_european_call(20.0, expiry);
-    const auto deep_itm_price = *engine.price(deep_in_the_money, call_context,
-                                              kiyosi::PricingRequest::price_only());
+    const auto deep_itm_price = *engine.price(deep_in_the_money, call_context);
     const auto deep_itm_implied = engine.implied_volatility(deep_in_the_money, call_context,
                                                             risk_value(deep_itm_price, kiyosi::risk_measure::price));
     REQUIRE(deep_itm_implied.has_value());
     CHECK_THAT(*deep_itm_implied, WithinAbs(0.35, 1e-6));
 
     const auto deep_out_of_the_money = *kiyosi::make_european_call(180.0, expiry);
-    const auto deep_otm_price = *engine.price(deep_out_of_the_money, call_context,
-                                              kiyosi::PricingRequest::price_only());
+    const auto deep_otm_price = *engine.price(deep_out_of_the_money, call_context);
     const auto deep_otm_implied = engine.implied_volatility(deep_out_of_the_money, call_context,
                                                             risk_value(deep_otm_price, kiyosi::risk_measure::price));
     REQUIRE(deep_otm_implied.has_value());
@@ -454,12 +442,10 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());
-    const auto all_requested = digital.price(cash_call, context, {});
-    REQUIRE(all_requested.has_value());
-    CHECK(all_requested->has(kiyosi::risk_measure::price));
-    CHECK(all_requested->has(kiyosi::risk_measure::delta));
-    CHECK(all_requested->has(kiyosi::risk_measure::gamma));
-    CHECK_FALSE(all_requested->has(kiyosi::risk_measure::vega));
+    CHECK(call_value->has(kiyosi::risk_measure::price));
+    CHECK(call_value->has(kiyosi::risk_measure::delta));
+    CHECK(call_value->has(kiyosi::risk_measure::gamma));
+    CHECK_FALSE(call_value->has(kiyosi::risk_measure::vega));
     CHECK_THAT(risk_value(*call_value, kiyosi::risk_measure::price) +
                    risk_value(*put_value, kiyosi::risk_measure::price),
                WithinAbs(10.0 * std::exp(-0.04), 1e-10));

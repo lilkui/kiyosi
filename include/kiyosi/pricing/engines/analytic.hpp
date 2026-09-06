@@ -15,16 +15,13 @@ struct ImpliedVolatilitySettings {
 
 class AnalyticEuropeanEngine {
 public:
-    static constexpr risk_measure_set supported_risk_measures = all_risk_measures;
-
     /// Returns intrinsic value and zero Greeks when valued at expiry.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        PricingRequest request = {}) const
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return price_impl(option, context, request);
+        return price_impl(option, context);
     }
 
     [[nodiscard]] result<double> implied_volatility(
@@ -33,7 +30,7 @@ public:
 
 private:
     [[nodiscard]] result<PricingResult> price_impl(
-        const EuropeanOption&, const PricingContext&, PricingRequest) const;
+        const EuropeanOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

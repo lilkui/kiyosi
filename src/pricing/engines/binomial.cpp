@@ -121,10 +121,9 @@ result<PricingResult> price_binomial_american(
 }
 
 result<PricingResult> BinomialAmericanEngine::price_impl(
-    const AmericanOption& option, const PricingContext& context, PricingRequest request) const
+    const AmericanOption& option, const PricingContext& context) const
 {
-    return select_outputs(price_binomial_american(option, context, settings_),
-                          request, supported_risk_measures);
+    return price_binomial_american(option, context, settings_);
 }
 
 } // namespace kiyosi

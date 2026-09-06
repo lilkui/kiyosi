@@ -22,9 +22,6 @@ struct FiniteDifferenceSettings {
 /// Uniform-grid finite-difference European engine for vanilla options.
 class FiniteDifferenceEuropeanEngine {
 public:
-    static constexpr risk_measure_set supported_risk_measures =
-        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
-
     explicit FiniteDifferenceEuropeanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
     FiniteDifferenceEuropeanEngine(int asset_steps, int time_steps,
@@ -34,25 +31,21 @@ public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        PricingRequest request = {}) const
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return price_impl(option, context, request);
+        return price_impl(option, context);
     }
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
     [[nodiscard]] result<PricingResult> price_impl(
-        const EuropeanOption&, const PricingContext&, PricingRequest) const;
+        const EuropeanOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };
 
 /// Uniform-grid finite-difference American engine with early exercise at every time layer.
 class FiniteDifferenceAmericanEngine {
 public:
-    static constexpr risk_measure_set supported_risk_measures =
-        risk_bit(risk_measure::price) | risk_bit(risk_measure::delta) | risk_bit(risk_measure::gamma);
-
     explicit FiniteDifferenceAmericanEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
     FiniteDifferenceAmericanEngine(int asset_steps, int time_steps,
@@ -62,16 +55,15 @@ public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        PricingRequest request = {}) const
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return price_impl(option, context, request);
+        return price_impl(option, context);
     }
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
     [[nodiscard]] result<PricingResult> price_impl(
-        const AmericanOption&, const PricingContext&, PricingRequest) const;
+        const AmericanOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };
 

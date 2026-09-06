@@ -170,17 +170,15 @@ result<PricingResult> price_finite_difference(
 }
 
 result<PricingResult> FiniteDifferenceEuropeanEngine::price_impl(
-    const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
+    const EuropeanOption& option, const PricingContext& context) const
 {
-    return select_outputs(price_finite_difference(option, context, settings_, false),
-                          request, supported_risk_measures);
+    return price_finite_difference(option, context, settings_, false);
 }
 
 result<PricingResult> FiniteDifferenceAmericanEngine::price_impl(
-    const AmericanOption& option, const PricingContext& context, PricingRequest request) const
+    const AmericanOption& option, const PricingContext& context) const
 {
-    return select_outputs(price_finite_difference(option, context, settings_, true),
-                          request, supported_risk_measures);
+    return price_finite_difference(option, context, settings_, true);
 }
 
 } // namespace kiyosi

@@ -40,9 +40,14 @@ inline PricingResult price_only_result(double value)
     return PricingResult{{risk_measure::price, value}};
 }
 
+enum class risk_measure_output {
+    all,
+    price_only,
+};
+
 inline result<PricingResult> price_at_volatility(
     const EuropeanOption& option, const PricingContext& context, double volatility,
-    PricingRequest request = PricingRequest::all())
+    risk_measure_output requested_output = risk_measure_output::all)
 {
     const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
     if (!valid_expiry) {
@@ -56,7 +61,7 @@ inline result<PricingResult> price_at_volatility(
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
-        if (request.measures == risk_bit(risk_measure::price)) return price_only_result(value);
+        if (requested_output == risk_measure_output::price_only) return price_only_result(value);
         auto output = PricingResult{{risk_measure::price, value}};
         return output;
     }
@@ -77,7 +82,7 @@ inline result<PricingResult> price_at_volatility(
         if (!std::isfinite(value))
             return std::unexpected(Error{error_category::invalid_result,
                                          "analytic pricing produced a non-finite result"});
-        if (request.measures == risk_bit(risk_measure::price)) return price_only_result(value);
+        if (requested_output == risk_measure_output::price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
         auto output = PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta}};
         return output;
@@ -96,7 +101,7 @@ inline result<PricingResult> price_at_volatility(
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result,
                                      "analytic pricing produced a non-finite result"});
-    if (request.measures == risk_bit(risk_measure::price)) return price_only_result(value);
+    if (requested_output == risk_measure_output::price_only) return price_only_result(value);
     const double delta = sign * dividend_discount_factor * cumulative_d1;
     const double density_d1 = normal_pdf(d1);
     const double carry = sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
@@ -148,31 +153,6 @@ inline result<PricingResult> price_at_volatility(
                                      "analytic pricing produced a non-finite result"});
     }
     return output;
-}
-
-inline result<PricingResult> select_outputs(
-    result<PricingResult> priced, PricingRequest request, risk_measure_set supported)
-{
-    if (!priced) return priced;
-    if (request.measures == 0) request.measures = supported;
-    if ((request.measures & ~supported) != 0)
-        return std::unexpected(Error{error_category::unsupported_risk_measure,
-                                     "requested risk measure is unsupported by this engine"});
-    const auto clear = [&](risk_measure measure) {
-        if (!request.requests(measure)) priced->set(measure, std::nullopt);
-    };
-    clear(risk_measure::price);
-    clear(risk_measure::delta);
-    clear(risk_measure::gamma);
-    clear(risk_measure::speed);
-    clear(risk_measure::theta);
-    clear(risk_measure::charm);
-    clear(risk_measure::color);
-    clear(risk_measure::vega);
-    clear(risk_measure::vanna);
-    clear(risk_measure::zomma);
-    clear(risk_measure::rho);
-    return priced;
 }
 
 } // namespace kiyosi::detail
