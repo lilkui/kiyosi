@@ -82,7 +82,7 @@ if(BUILD_TESTING)
     include(FetchContent)
     FetchContent_Declare(
         Catch2
-        GIT_REPOSKIYOSIRY https://github.com/catchorg/Catch2.git
+        GIT_REPOSITORY https://github.com/catchorg/Catch2.git
         GIT_TAG 56809e5282f104c5c8b570e7c2996cdc352d94f1
     )
     FetchContent_MakeAvailable(Catch2)
