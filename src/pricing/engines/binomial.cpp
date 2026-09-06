@@ -11,8 +11,8 @@ namespace kiyosi {
 using namespace detail;
 
 template <typename Option>
-result<PricingResult> price_binomial_american(
-    const Option& option, const PricingContext& context, BinomialAmericanSettings settings)
+result<PricingResult> price_binomial(
+    const Option& option, const PricingContext& context, BinomialSettings settings, bool american)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
     const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
@@ -75,7 +75,7 @@ result<PricingResult> price_binomial_american(
             const std::size_t index = static_cast<std::size_t>(node);
             const double continuation = discount *
                                         (probability * values[index + 1] + (1.0 - probability) * values[index]);
-            values[index] = std::max(continuation, sign * (level_node_spot - strike));
+            values[index] = american ? std::max(continuation, sign * (level_node_spot - strike)) : continuation;
             if (!std::isfinite(values[index])) {
                 return std::unexpected(Error{error_category::invalid_result,
                                              "binomial pricing produced a non-finite result"});
@@ -123,7 +123,25 @@ result<PricingResult> price_binomial_american(
 result<PricingResult> BinomialAmericanEngine::price_impl(
     const AmericanOption& option, const PricingContext& context) const
 {
-    return price_binomial_american(option, context, settings_);
+    return price_binomial(option, context, settings_, true);
+}
+
+result<PricingResult> BinomialEuropeanEngine::price_impl(
+    const EuropeanOption& option, const PricingContext& context) const
+{
+    return price_binomial(option, context, settings_, false);
+}
+
+result<PricingResult> CrrEngine::price_european(
+    const EuropeanOption& option, const PricingContext& context) const
+{
+    return price_binomial(option, context, settings_, false);
+}
+
+result<PricingResult> CrrEngine::price_american(
+    const AmericanOption& option, const PricingContext& context) const
+{
+    return price_binomial(option, context, settings_, true);
 }
 
 } // namespace kiyosi
