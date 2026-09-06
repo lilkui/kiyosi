@@ -1,10 +1,10 @@
 #pragma once
 
 #include <utility>
-#include <ito/core/types.hpp>
-#include <ito/market/calendar.hpp>
+#include <kiyosi/core/types.hpp>
+#include <kiyosi/market/calendar.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 class BsmParameters {
 public:
@@ -118,4 +118,4 @@ private:
     return PricingContext{std::move(parameters), asset_price, start_of_day(valuation_date), std::move(calendar)};
 }
 
-} // namespace ito
+} // namespace kiyosi

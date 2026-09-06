@@ -4,33 +4,33 @@
 #include <chrono>
 #include <cmath>
 
-#include <ito/ito.hpp>
+#include <kiyosi/kiyosi.hpp>
 
 namespace {
 
-ito::date day(int year, unsigned month, unsigned day_number)
+kiyosi::date day(int year, unsigned month, unsigned day_number)
 {
-    return ito::date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
+    return kiyosi::date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
 }
 
 const auto valuation = day(2025, 1, 6);
 const auto expiry = valuation + std::chrono::days{365};
 
-ito::PricingContext context(double spot = 100.0, double rate = 0.04,
+kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
                             double dividend = 0.01, double volatility = 0.3,
-                            ito::date value_date = valuation)
+                            kiyosi::date value_date = valuation)
 {
-    const auto parameters = *ito::make_bsm_parameters(rate, dividend, volatility);
-    return *ito::make_pricing_context(parameters, *ito::make_asset_price(spot), value_date);
+    const auto parameters = *kiyosi::make_bsm_parameters(rate, dividend, volatility);
+    return *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(spot), value_date);
 }
 
-ito::PricingResult analytic(ito::option_type type, double spot = 100.0, double rate = 0.04,
+kiyosi::PricingResult analytic(kiyosi::option_type type, double spot = 100.0, double rate = 0.04,
                             double dividend = 0.01, double volatility = 0.3,
-                            ito::date value_date = valuation, ito::date option_expiry = expiry,
+                            kiyosi::date value_date = valuation, kiyosi::date option_expiry = expiry,
                             double strike = 100.0)
 {
-    const auto option = *ito::make_european_option(type, strike, option_expiry);
-    return *ito::AnalyticEuropeanEngine{}.price(
+    const auto option = *kiyosi::make_european_option(type, strike, option_expiry);
+    return *kiyosi::AnalyticEuropeanEngine{}.price(
         option, context(spot, rate, dividend, volatility, value_date));
 }
 
@@ -44,20 +44,20 @@ void check_close(double actual, double expected, double absolute = 1e-7, double 
     CHECK(difference(actual, expected) <= absolute + relative * std::abs(expected));
 }
 
-double value(ito::option_type type, double spot, double rate, double dividend,
-             double volatility, ito::date value_date, ito::date option_expiry, double strike = 100.0)
+double value(kiyosi::option_type type, double spot, double rate, double dividend,
+             double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
     return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).value;
 }
 
-double delta(ito::option_type type, double spot, double rate, double dividend,
-             double volatility, ito::date value_date, ito::date option_expiry, double strike = 100.0)
+double delta(kiyosi::option_type type, double spot, double rate, double dividend,
+             double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
     return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).delta;
 }
 
-double gamma(ito::option_type type, double spot, double rate, double dividend,
-             double volatility, ito::date value_date, ito::date option_expiry, double strike = 100.0)
+double gamma(kiyosi::option_type type, double spot, double rate, double dividend,
+             double volatility, kiyosi::date value_date, kiyosi::date option_expiry, double strike = 100.0)
 {
     return analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike).gamma;
 }
@@ -69,7 +69,7 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
     const auto previous_day = valuation - std::chrono::days{1};
     const auto next_day = valuation + std::chrono::days{1};
 
-    for (const auto type : {ito::option_type::call, ito::option_type::put}) {
+    for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
 
     const double center = value(type, 100.0, 0.04, 0.01, 0.3, valuation, expiry);
     const double up = value(type, 100.0 + spot_step, 0.04, 0.01, 0.3, valuation, expiry);
@@ -121,49 +121,49 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
 
 TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
 {
-    const auto call = analytic(ito::option_type::call);
-    const auto put = analytic(ito::option_type::put);
+    const auto call = analytic(kiyosi::option_type::call);
+    const auto put = analytic(kiyosi::option_type::put);
     const double time = 1.0;
     check_close(call.value - put.value, 100.0 * std::exp(-0.01 * time) - 100.0 * std::exp(-0.04 * time), 1e-10, 1e-10);
     check_close(call.delta - put.delta, std::exp(-0.01 * time), 1e-10, 1e-10);
     check_close(call.gamma, put.gamma, 1e-10, 1e-10);
     check_close(call.vega, put.vega, 1e-10, 1e-10);
 
-    const ito::AnalyticDigitalEngine digital;
-    for (const auto type : {ito::option_type::call, ito::option_type::put}) {
-        const auto cash = *ito::make_cash_or_nothing_option(type, 100.0, 100.0, expiry);
-        const auto asset = *ito::make_asset_or_nothing_option(type, 100.0, expiry);
+    const kiyosi::AnalyticDigitalEngine digital;
+    for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
+        const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 100.0, expiry);
+        const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, expiry);
         const auto vanilla = analytic(type);
         const auto cash_value = digital.price(cash, context())->value;
         const auto asset_value = digital.price(asset, context())->value;
-        check_close(type == ito::option_type::call ? asset_value - cash_value : cash_value - asset_value,
+        check_close(type == kiyosi::option_type::call ? asset_value - cash_value : cash_value - asset_value,
                     vanilla.value, 2e-10, 2e-10);
     }
 
-    const ito::AnalyticBarrierEngine barriers;
-    for (const auto kind : {ito::barrier_type::up_and_in, ito::barrier_type::up_and_out,
-                            ito::barrier_type::down_and_in, ito::barrier_type::down_and_out}) {
-        const auto option = *ito::make_barrier_option(
-            ito::option_type::call, 100.0, expiry,
-            kind == ito::barrier_type::up_and_in || kind == ito::barrier_type::up_and_out ? 130.0 : 75.0,
+    const kiyosi::AnalyticBarrierEngine barriers;
+    for (const auto kind : {kiyosi::barrier_type::up_and_in, kiyosi::barrier_type::up_and_out,
+                            kiyosi::barrier_type::down_and_in, kiyosi::barrier_type::down_and_out}) {
+        const auto option = *kiyosi::make_barrier_option(
+            kiyosi::option_type::call, 100.0, expiry,
+            kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
             kind);
-        const auto paired_kind = kind == ito::barrier_type::up_and_in
-                                     ? ito::barrier_type::up_and_out
-                                 : kind == ito::barrier_type::up_and_out ? ito::barrier_type::up_and_in
-                                 : kind == ito::barrier_type::down_and_in ? ito::barrier_type::down_and_out
-                                                                          : ito::barrier_type::down_and_in;
-        const auto paired = *ito::make_barrier_option(
-            ito::option_type::call, 100.0, expiry,
-            kind == ito::barrier_type::up_and_in || kind == ito::barrier_type::up_and_out ? 130.0 : 75.0,
+        const auto paired_kind = kind == kiyosi::barrier_type::up_and_in
+                                     ? kiyosi::barrier_type::up_and_out
+                                 : kind == kiyosi::barrier_type::up_and_out ? kiyosi::barrier_type::up_and_in
+                                 : kind == kiyosi::barrier_type::down_and_in ? kiyosi::barrier_type::down_and_out
+                                                                          : kiyosi::barrier_type::down_and_in;
+        const auto paired = *kiyosi::make_barrier_option(
+            kiyosi::option_type::call, 100.0, expiry,
+            kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
             paired_kind);
         check_close(barriers.price(option, context())->value + barriers.price(paired, context())->value,
-                    analytic(ito::option_type::call).value, 2e-5, 2e-5);
+                    analytic(kiyosi::option_type::call).value, 2e-5, 2e-5);
     }
 }
 
 TEST_CASE("Analytic prices are monotone and bounded")
 {
-    for (const auto type : {ito::option_type::call, ito::option_type::put}) {
+    for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
         const double short_value = value(type, 100.0, 0.0, 0.0, 0.2, valuation,
                                          valuation + std::chrono::days{182});
         const double long_value = value(type, 100.0, 0.0, 0.0, 0.2, valuation,
@@ -174,8 +174,8 @@ TEST_CASE("Analytic prices are monotone and bounded")
         CHECK(high_volatility >= low_volatility);
 
         const double price = value(type, 110.0, 0.0, 0.0, 0.2, valuation, expiry);
-        const double intrinsic = type == ito::option_type::call ? 10.0 : 0.0;
-        const double upper_bound = type == ito::option_type::call ? 110.0 : 100.0;
+        const double intrinsic = type == kiyosi::option_type::call ? 10.0 : 0.0;
+        const double upper_bound = type == kiyosi::option_type::call ? 110.0 : 100.0;
         CHECK(intrinsic <= price);
         CHECK(price <= upper_bound);
     }
@@ -202,24 +202,24 @@ TEST_CASE("Haug and Hull Black-Scholes reference values remain fixed")
     for (const auto& item : cases) {
         const auto value_date = valuation;
         const auto option_expiry = value_date + std::chrono::days{item.days};
-        check_close(value(ito::option_type::call, item.spot, item.rate, item.dividend,
+        check_close(value(kiyosi::option_type::call, item.spot, item.rate, item.dividend,
                           item.volatility, value_date, option_expiry, item.strike), item.call, 2e-8, 2e-8);
-        check_close(value(ito::option_type::put, item.spot, item.rate, item.dividend,
+        check_close(value(kiyosi::option_type::put, item.spot, item.rate, item.dividend,
                           item.volatility, value_date, option_expiry, item.strike), item.put, 2e-8, 2e-8);
     }
 }
 
 TEST_CASE("Binomial and finite-difference prices converge toward analytic values")
 {
-    const auto option = *ito::make_european_call(100.0, expiry);
-    const auto american_call = *ito::make_american_call(100.0, expiry);
+    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto american_call = *kiyosi::make_american_call(100.0, expiry);
     const auto market = context(100.0, 0.04, 0.0, 0.3);
-    const double reference = ito::AnalyticEuropeanEngine{}.price(option, market)->value;
+    const double reference = kiyosi::AnalyticEuropeanEngine{}.price(option, market)->value;
 
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {
         const int steps = 64 << static_cast<int>(index);
-        const auto result = ito::BinomialAmericanEngine{steps}.price(american_call, market);
+        const auto result = kiyosi::BinomialAmericanEngine{steps}.price(american_call, market);
         REQUIRE(result.has_value());
         tree_errors[index] = difference(result->value, reference);
     }
@@ -230,7 +230,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     std::array<double, 3> finite_difference_errors{};
     for (std::size_t index = 0; index < finite_difference_errors.size(); ++index) {
         const int steps = 50 << static_cast<int>(index);
-        const auto result = ito::FiniteDifferenceEuropeanEngine{steps, steps}.price(option, market);
+        const auto result = kiyosi::FiniteDifferenceEuropeanEngine{steps, steps}.price(option, market);
         REQUIRE(result.has_value());
         finite_difference_errors[index] = difference(result->value, reference);
     }

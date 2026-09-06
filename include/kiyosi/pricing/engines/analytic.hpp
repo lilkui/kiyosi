@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 struct ImpliedVolatilitySettings {
     double lower_bound = 0.0001;
@@ -27,5 +27,5 @@ public:
         ImpliedVolatilitySettings settings = {}) const;
 };
 
-} // namespace ito
+} // namespace kiyosi
 

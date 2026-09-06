@@ -1,4 +1,4 @@
-#include <ito/pricing/engines/finite_difference.hpp>
+#include <kiyosi/pricing/engines/finite_difference.hpp>
 #include "../detail/common.hpp"
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <ranges>
 #include <vector>
 
-namespace ito {
+namespace kiyosi {
 using namespace detail;
 
 template <typename Option>
@@ -252,4 +252,4 @@ result<PricingResult> FiniteDifferenceAmericanEngine::price(
                                  "American engine requires an American exercise instrument"});
 }
 
-} // namespace ito
+} // namespace kiyosi

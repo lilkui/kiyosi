@@ -1,4 +1,4 @@
-#include <ito/pricing/engines/binomial.hpp>
+#include <kiyosi/pricing/engines/binomial.hpp>
 #include "../detail/common.hpp"
 #include <algorithm>
 #include <array>
@@ -7,7 +7,7 @@
 #include <ranges>
 #include <vector>
 
-namespace ito {
+namespace kiyosi {
 using namespace detail;
 
 template <typename Option>
@@ -173,4 +173,4 @@ result<PricingResult> BinomialAmericanEngine::price(
 }
 
 
-} // namespace ito
+} // namespace kiyosi

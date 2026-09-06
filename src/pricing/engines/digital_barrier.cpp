@@ -1,5 +1,5 @@
-#include <ito/pricing/engines/digital.hpp>
-#include <ito/pricing/engines/barrier.hpp>
+#include <kiyosi/pricing/engines/digital.hpp>
+#include <kiyosi/pricing/engines/barrier.hpp>
 #include "../detail/common.hpp"
 #include <algorithm>
 #include <array>
@@ -9,7 +9,7 @@
 #include <numbers>
 #include <ranges>
 
-namespace ito {
+namespace kiyosi {
 using namespace detail;
 namespace {
 
@@ -224,4 +224,4 @@ result<PricingResult> AnalyticBarrierEngine::price(
     return select_outputs(price(option, context), request, supported_risk_measures);
 }
 
-} // namespace ito
+} // namespace kiyosi

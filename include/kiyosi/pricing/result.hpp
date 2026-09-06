@@ -1,9 +1,9 @@
 #pragma once
 
 #include <optional>
-#include <ito/core/types.hpp>
+#include <kiyosi/core/types.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 enum class risk_measure : std::uint16_t {
     price = 1u << 0,
@@ -126,4 +126,4 @@ struct PricingRequest {
     return std::nullopt;
 }
 
-} // namespace ito
+} // namespace kiyosi

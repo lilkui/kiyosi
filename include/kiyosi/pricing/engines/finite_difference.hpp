@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 enum class finite_difference_scheme : unsigned char {
     explicit_euler,
@@ -70,5 +70,5 @@ private:
     FiniteDifferenceSettings settings_;
 };
 
-} // namespace ito
+} // namespace kiyosi
 

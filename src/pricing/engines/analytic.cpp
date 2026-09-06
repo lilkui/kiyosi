@@ -1,11 +1,11 @@
-#include <ito/pricing/engines/analytic.hpp>
+#include <kiyosi/pricing/engines/analytic.hpp>
 #include "../detail/common.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
 
-namespace ito {
+namespace kiyosi {
 using namespace detail;
 
 result<PricingResult> AnalyticEuropeanEngine::price(
@@ -189,4 +189,4 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
                                  "implied-volatility solver did not converge"});
 }
 
-} // namespace ito
+} // namespace kiyosi

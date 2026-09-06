@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 struct BinomialAmericanSettings {
     int steps = 256;
@@ -36,5 +36,5 @@ private:
     BinomialAmericanSettings settings_;
 };
 
-} // namespace ito
+} // namespace kiyosi
 

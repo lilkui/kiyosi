@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/barrier.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/barrier.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 class AnalyticBarrierEngine {
 public:
@@ -14,5 +14,5 @@ public:
     [[nodiscard]] result<PricingResult> price(const BarrierOption&, const PricingContext&, PricingRequest) const;
 };
 
-} // namespace ito
+} // namespace kiyosi
 

@@ -16,9 +16,9 @@
 #include <utility>
 #include <vector>
 
-#include <ito/ito.hpp>
+#include <kiyosi/kiyosi.hpp>
 
-namespace ito::test {
+namespace kiyosi::test {
 
 struct ParityFixture {
     std::string case_id;
@@ -201,22 +201,22 @@ inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, cha
         fixture.dividend_yield = detail::number(fields, index, row, "dividend_yield");
         fixture.volatility = detail::number(fields, index, row, "volatility");
         fixture.observed_price = detail::number(fields, index, row, "observed_price");
-#define ITO_FIXTURE_OUTPUT(name) \
+#define KIYOSI_FIXTURE_OUTPUT(name) \
         fixture.name = detail::number(fields, index, row, #name); \
         fixture.name##_tolerance = detail::number(fields, index, row, #name "_tolerance"); \
         detail::check_tolerance(fixture.name##_tolerance, row, #name "_tolerance");
-        ITO_FIXTURE_OUTPUT(value)
-        ITO_FIXTURE_OUTPUT(delta)
-        ITO_FIXTURE_OUTPUT(gamma)
-        ITO_FIXTURE_OUTPUT(speed)
-        ITO_FIXTURE_OUTPUT(theta)
-        ITO_FIXTURE_OUTPUT(charm)
-        ITO_FIXTURE_OUTPUT(color)
-        ITO_FIXTURE_OUTPUT(vega)
-        ITO_FIXTURE_OUTPUT(vanna)
-        ITO_FIXTURE_OUTPUT(zomma)
-        ITO_FIXTURE_OUTPUT(rho)
-#undef ITO_FIXTURE_OUTPUT
+        KIYOSI_FIXTURE_OUTPUT(value)
+        KIYOSI_FIXTURE_OUTPUT(delta)
+        KIYOSI_FIXTURE_OUTPUT(gamma)
+        KIYOSI_FIXTURE_OUTPUT(speed)
+        KIYOSI_FIXTURE_OUTPUT(theta)
+        KIYOSI_FIXTURE_OUTPUT(charm)
+        KIYOSI_FIXTURE_OUTPUT(color)
+        KIYOSI_FIXTURE_OUTPUT(vega)
+        KIYOSI_FIXTURE_OUTPUT(vanna)
+        KIYOSI_FIXTURE_OUTPUT(zomma)
+        KIYOSI_FIXTURE_OUTPUT(rho)
+#undef KIYOSI_FIXTURE_OUTPUT
         fixture.implied_volatility = detail::number(fields, index, row, "implied_volatility");
         fixture.implied_volatility_tolerance =
             detail::number(fields, index, row, "implied_volatility_tolerance");

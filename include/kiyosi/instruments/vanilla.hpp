@@ -1,8 +1,8 @@
 #pragma once
 
-#include <ito/core/types.hpp>
+#include <kiyosi/core/types.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 enum class option_type {
     call,
@@ -108,4 +108,4 @@ private:
     return make_american_option(option_type::put, strike, expiry);
 }
 
-} // namespace ito
+} // namespace kiyosi

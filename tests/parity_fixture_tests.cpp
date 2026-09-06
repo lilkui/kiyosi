@@ -12,7 +12,7 @@ namespace {
 
 std::filesystem::path fixture_path()
 {
-    return std::filesystem::path{ITO_SOURCE_DIR} / "tests" / "fixtures" / "european_bsm.tsv";
+    return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "european_bsm.tsv";
 }
 
 std::string fixture_text()
@@ -26,23 +26,23 @@ std::string fixture_text()
 
 TEST_CASE("European parity fixtures compare value, Greeks, and implied volatility")
 {
-    const auto fixtures = ito::test::load_parity_fixtures(fixture_path());
+    const auto fixtures = kiyosi::test::load_parity_fixtures(fixture_path());
     REQUIRE(fixtures.size() == 2);
-    const ito::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticEuropeanEngine engine;
     for (const auto& fixture : fixtures) {
-        const auto option = ito::make_european_option(fixture.option, fixture.strike, fixture.expiry);
+        const auto option = kiyosi::make_european_option(fixture.option, fixture.strike, fixture.expiry);
         REQUIRE(option.has_value());
-        const auto parameters = ito::make_bsm_parameters(
+        const auto parameters = kiyosi::make_bsm_parameters(
             fixture.risk_free_rate, fixture.dividend_yield, fixture.volatility);
         REQUIRE(parameters.has_value());
-        const auto context = ito::make_pricing_context(
-            *parameters, *ito::make_asset_price(fixture.spot), fixture.valuation_date);
+        const auto context = kiyosi::make_pricing_context(
+            *parameters, *kiyosi::make_asset_price(fixture.spot), fixture.valuation_date);
         REQUIRE(context.has_value());
         const auto priced = engine.price(*option, *context);
         REQUIRE(priced.has_value());
         const auto implied = engine.implied_volatility(*option, *context, fixture.observed_price);
         REQUIRE(implied.has_value());
-        ito::test::check_fixture(fixture, *priced, *implied);
+        kiyosi::test::check_fixture(fixture, *priced, *implied);
     }
 }
 
@@ -54,7 +54,7 @@ TEST_CASE("Parity fixture parser reports malformed rows")
     text.replace(option + 1, 4, "future");
     auto parse = [&] {
         std::istringstream input{text};
-        return ito::test::parse_parity_fixtures(input);
+        return kiyosi::test::parse_parity_fixtures(input);
     };
     CHECK_THROWS_WITH(parse(),
                       Catch::Matchers::ContainsSubstring("fixture row 4"));
@@ -81,15 +81,15 @@ TEST_CASE("Parity fixture parser reports malformed rows")
 
 TEST_CASE("Parity fixture tolerances are inclusive and mismatch reports are useful")
 {
-    CHECK(ito::test::within_tolerance(2.0, 1.0, 1.0));
-    CHECK_FALSE(ito::test::within_tolerance(2.000001, 1.0, 1.0));
+    CHECK(kiyosi::test::within_tolerance(2.0, 1.0, 1.0));
+    CHECK_FALSE(kiyosi::test::within_tolerance(2.000001, 1.0, 1.0));
 
-    auto fixture = ito::test::load_parity_fixtures(fixture_path()).front();
+    auto fixture = kiyosi::test::load_parity_fixtures(fixture_path()).front();
     fixture.value += 1.0;
-    const ito::PricingResult actual{fixture.value - 1.0, fixture.delta, fixture.gamma, fixture.speed,
+    const kiyosi::PricingResult actual{fixture.value - 1.0, fixture.delta, fixture.gamma, fixture.speed,
                                     fixture.theta, fixture.charm, fixture.color, fixture.vega,
                                     fixture.vanna, fixture.zomma, fixture.rho};
-    const auto failures = ito::test::compare_fixture(fixture, actual, fixture.implied_volatility);
+    const auto failures = kiyosi::test::compare_fixture(fixture, actual, fixture.implied_volatility);
     REQUIRE_FALSE(failures.empty());
     const auto message = failures.front().message();
     CHECK(message.find("case='reviewed-call-1'") != std::string::npos);

@@ -1,6 +1,6 @@
-#include <ito/core/types.hpp>
+#include <kiyosi/core/types.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 bool is_valid_date(date value) noexcept
 {
@@ -47,4 +47,4 @@ result<void> validate_expiry(timestamp valuation_time, date expiry)
     return {};
 }
 
-} // namespace ito
+} // namespace kiyosi

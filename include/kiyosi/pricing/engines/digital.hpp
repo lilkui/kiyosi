@@ -1,10 +1,10 @@
 #pragma once
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/digital.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/digital.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 class AnalyticDigitalEngine {
 public:
@@ -19,5 +19,5 @@ public:
         const AssetOrNothingOption&, const PricingContext&, PricingRequest) const;
 };
 
-} // namespace ito
+} // namespace kiyosi
 

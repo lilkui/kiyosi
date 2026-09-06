@@ -1,11 +1,11 @@
 #pragma once
 
 #include <vector>
-#include <ito/core/types.hpp>
-#include <ito/instruments/vanilla.hpp>
-#include <ito/market/calendar.hpp>
+#include <kiyosi/core/types.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/market/calendar.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 enum class barrier_type {
     up_and_in,
@@ -25,7 +25,7 @@ public:
     double barrier() const noexcept { return barrier_; }
     barrier_type barrier_kind() const noexcept { return kind_; }
     double rebate() const noexcept { return rebate_; }
-    ito::rebate_timing rebate_payment() const noexcept { return timing_; }
+    kiyosi::rebate_timing rebate_payment() const noexcept { return timing_; }
     observation_mode observation() const noexcept { return observation_; }
     const std::vector<date>& observation_dates() const noexcept { return observations_.dates(); }
     const ObservationSchedule& schedule() const noexcept { return observations_; }
@@ -34,7 +34,7 @@ public:
 
 private:
     BarrierOption(option_type type, double strike, date expiry, double barrier, barrier_type kind,
-                  double rebate, ito::rebate_timing timing, observation_mode observation,
+                  double rebate, kiyosi::rebate_timing timing, observation_mode observation,
                   ObservationSchedule observations)
         : type_(type), strike_(strike), barrier_(barrier), kind_(kind), rebate_(rebate), timing_(timing),
           observation_(observation), observations_(std::move(observations)), expiry_(expiry) {}
@@ -43,12 +43,12 @@ private:
     double barrier_;
     barrier_type kind_;
     double rebate_;
-    ito::rebate_timing timing_;
+    kiyosi::rebate_timing timing_;
     observation_mode observation_;
     ObservationSchedule observations_;
     date expiry_;
     friend result<BarrierOption> make_barrier_option(option_type, double, date, double, barrier_type,
-                                                     double, ito::rebate_timing, observation_mode, std::vector<date>);
+                                                     double, kiyosi::rebate_timing, observation_mode, std::vector<date>);
     friend result<BarrierOption> make_barrier_option(
         option_type, double, date, double, barrier_type, double, rebate_timing,
         observation_mode, ObservationSchedule);
@@ -108,4 +108,4 @@ private:
     return base;
 }
 
-} // namespace ito
+} // namespace kiyosi

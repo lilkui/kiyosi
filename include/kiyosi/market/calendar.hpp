@@ -4,10 +4,10 @@
 #include <functional>
 #include <utility>
 #include <vector>
-#include <ito/core/types.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/core/types.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 class TradingCalendar {
 public:
@@ -179,4 +179,4 @@ private:
     return ObservationSchedule{std::move(observations)};
 }
 
-} // namespace ito
+} // namespace kiyosi

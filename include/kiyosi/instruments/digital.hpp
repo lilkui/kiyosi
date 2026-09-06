@@ -1,9 +1,9 @@
 #pragma once
 
-#include <ito/core/types.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/core/types.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito {
+namespace kiyosi {
 
 class CashOrNothingOption {
 public:
@@ -101,4 +101,4 @@ private:
 }
 
 
-} // namespace ito
+} // namespace kiyosi

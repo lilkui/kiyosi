@@ -5,7 +5,7 @@
 #include <expected>
 #include <string_view>
 
-namespace ito {
+namespace kiyosi {
 
 inline constexpr int version_major = 0;
 inline constexpr int version_minor = 1;
@@ -67,5 +67,5 @@ using result = std::expected<T, Error>;
     date start, date end, day_count_convention convention = day_count_convention::actual_365_fixed);
 [[nodiscard]] result<double> year_fraction(
     timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed);
-} // namespace ito
+} // namespace kiyosi
 

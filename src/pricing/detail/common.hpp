@@ -7,11 +7,11 @@
 #include <numeric>
 #include <ranges>
 
-#include <ito/pricing/result.hpp>
-#include <ito/market/context.hpp>
-#include <ito/instruments/vanilla.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
-namespace ito::detail {
+namespace kiyosi::detail {
 
 constexpr double percentage_point = 100.0;
 constexpr double inverse_sqrt_two = 0.70710678118654752440;
@@ -177,4 +177,4 @@ inline result<PricingResult> select_outputs(
     return priced;
 }
 
-} // namespace ito::detail
+} // namespace kiyosi::detail
