@@ -169,85 +169,18 @@ result<PricingResult> price_finite_difference(
     return output;
 }
 
-result<PricingResult> FiniteDifferenceEuropeanEngine::price(
-    const EuropeanOption& option, const PricingContext& context) const
-{
-    return select_outputs(price_finite_difference(option, context, settings_, false),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceEuropeanEngine::price(
-    const EuropeanOption& option, const PricingContext& context,
-    FiniteDifferenceSettings settings) const
-{
-    return select_outputs(price_finite_difference(option, context, settings, false),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceEuropeanEngine::price(
+result<PricingResult> FiniteDifferenceEuropeanEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
 {
     return select_outputs(price_finite_difference(option, context, settings_, false),
                           request, supported_risk_measures);
 }
 
-result<PricingResult> FiniteDifferenceEuropeanEngine::price(
-    const EuropeanOption& option, const PricingContext& context,
-    FiniteDifferenceSettings settings, PricingRequest request) const
-{
-    return select_outputs(price_finite_difference(option, context, settings, false),
-                          request, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context) const
-{
-    return select_outputs(price_finite_difference(option, context, settings_, true),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
+result<PricingResult> FiniteDifferenceAmericanEngine::price_impl(
     const AmericanOption& option, const PricingContext& context, PricingRequest request) const
 {
     return select_outputs(price_finite_difference(option, context, settings_, true),
                           request, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context,
-    FiniteDifferenceSettings settings) const
-{
-    return select_outputs(price_finite_difference(option, context, settings, true),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context,
-    FiniteDifferenceSettings settings, PricingRequest request) const
-{
-    return select_outputs(price_finite_difference(option, context, settings, true),
-                          request, supported_risk_measures);
-}
-
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&, PricingRequest) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
 }
 
 } // namespace kiyosi

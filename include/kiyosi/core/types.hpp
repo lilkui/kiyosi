@@ -45,7 +45,6 @@ enum class error_category : unsigned char {
     invalid_schedule = 10,
     invalid_calendar = 11,
     invalid_parameter = 12,
-    incompatible_exercise = 13,
     unsupported_risk_measure = 14,
     invalid_quote = 15,
     unbracketed_volatility = 16,

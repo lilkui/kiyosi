@@ -92,10 +92,6 @@ TEST_CASE("Exercise style and requested risk measures are explicit")
     REQUIRE_FALSE(unsupported.has_value());
     CHECK(unsupported.error().category == kiyosi::error_category::unsupported_risk_measure);
 
-    const auto incompatible = kiyosi::BinomialAmericanEngine{}.price(
-        european, context, kiyosi::PricingRequest::price_only());
-    REQUIRE_FALSE(incompatible.has_value());
-    CHECK(incompatible.error().category == kiyosi::error_category::incompatible_exercise);
 }
 
 TEST_CASE("BSM parameters and asset prices reject non-finite or non-positive values")
@@ -555,10 +551,11 @@ TEST_CASE("Binomial American engine prices expiry and validates steps")
     REQUIRE(priced.has_value());
     CHECK(risk_value(*priced, kiyosi::risk_measure::price) == 10.0);
 
-    const auto invalid = engine.price(option, context, kiyosi::BinomialAmericanSettings{0});
+    const auto invalid = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{0}}.price(option, context);
     REQUIRE_FALSE(invalid.has_value());
     CHECK(invalid.error().category == kiyosi::error_category::invalid_parameter);
-    const auto too_many = engine.price(option, context, kiyosi::BinomialAmericanSettings{1'000'001});
+    const auto too_many = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{1'000'001}}
+                              .price(option, context);
     REQUIRE_FALSE(too_many.has_value());
     CHECK(too_many.error().category == kiyosi::error_category::invalid_parameter);
 }

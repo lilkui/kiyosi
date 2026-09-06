@@ -31,15 +31,19 @@ public:
                                    finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
         : settings_{asset_steps, time_steps, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption&, const PricingContext&, PricingRequest) const;
-    [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings, PricingRequest) const;
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
+        PricingRequest request = {}) const
+    {
+        return price_impl(option, context, request);
+    }
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] result<PricingResult> price_impl(
+        const EuropeanOption&, const PricingContext&, PricingRequest) const;
     FiniteDifferenceSettings settings_;
 };
 
@@ -55,20 +59,20 @@ public:
                                    finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
         : settings_{asset_steps, time_steps, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, FiniteDifferenceSettings) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, PricingRequest) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, FiniteDifferenceSettings) const;
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const AmericanOption&, const PricingContext&, FiniteDifferenceSettings, PricingRequest) const;
-    [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption&, const PricingContext&, PricingRequest) const;
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
+        PricingRequest request = {}) const
+    {
+        return price_impl(option, context, request);
+    }
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] result<PricingResult> price_impl(
+        const AmericanOption&, const PricingContext&, PricingRequest) const;
     FiniteDifferenceSettings settings_;
 };
 
 } // namespace kiyosi
-

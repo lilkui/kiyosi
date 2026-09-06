@@ -120,54 +120,11 @@ result<PricingResult> price_binomial_american(
     return output;
 }
 
-result<PricingResult> BinomialAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&, BinomialAmericanSettings) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context) const
-{
-    return select_outputs(price_binomial_american(option, context, settings_),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
+result<PricingResult> BinomialAmericanEngine::price_impl(
     const AmericanOption& option, const PricingContext& context, PricingRequest request) const
 {
     return select_outputs(price_binomial_american(option, context, settings_),
                           request, supported_risk_measures);
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context, BinomialAmericanSettings settings) const
-{
-    return select_outputs(price_binomial_american(option, context, settings),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context,
-    BinomialAmericanSettings settings, PricingRequest request) const
-{
-    return select_outputs(price_binomial_american(option, context, settings),
-                          request, supported_risk_measures);
-}
-
-result<PricingResult> BinomialAmericanEngine::price(
-    const EuropeanOption&, const PricingContext&, PricingRequest) const
-{
-    return std::unexpected(Error{error_category::incompatible_exercise,
-                                 "American engine requires an American exercise instrument"});
 }
 
 } // namespace kiyosi

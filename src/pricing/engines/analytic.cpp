@@ -8,14 +8,7 @@
 namespace kiyosi {
 using namespace detail;
 
-result<PricingResult> AnalyticEuropeanEngine::price(
-    const EuropeanOption& option, const PricingContext& context) const
-{
-    return select_outputs(price_at_volatility(option, context, context.parameters().volatility()),
-                          PricingRequest::all(), supported_risk_measures);
-}
-
-result<PricingResult> AnalyticEuropeanEngine::price(
+result<PricingResult> AnalyticEuropeanEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context, PricingRequest request) const
 {
     return select_outputs(price_at_volatility(option, context, context.parameters().volatility(), request),

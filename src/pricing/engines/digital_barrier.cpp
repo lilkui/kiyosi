@@ -115,33 +115,15 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 
 } // namespace
 
-result<PricingResult> AnalyticDigitalEngine::price(
-    const CashOrNothingOption& option, const PricingContext& context) const
+result<PricingResult> AnalyticDigitalEngine::price_impl(
+    option_type type, double strike, double payout, bool asset, date expiry,
+    const PricingContext& context, PricingRequest request) const
 {
-    return select_outputs(digital_price(option.strike(), option.type(), option.payout(), false, option.expiry(), context),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
+    return select_outputs(digital_price(strike, type, payout, asset, expiry, context),
+                          request, supported_risk_measures);
 }
 
-result<PricingResult> AnalyticDigitalEngine::price(
-    const CashOrNothingOption& option, const PricingContext& context, PricingRequest request) const
-{
-    return select_outputs(price(option, context), request, supported_risk_measures);
-}
-
-result<PricingResult> AnalyticDigitalEngine::price(
-    const AssetOrNothingOption& option, const PricingContext& context) const
-{
-    return select_outputs(digital_price(option.strike(), option.type(), 1.0, true, option.expiry(), context),
-                          PricingRequest{supported_risk_measures}, supported_risk_measures);
-}
-
-result<PricingResult> AnalyticDigitalEngine::price(
-    const AssetOrNothingOption& option, const PricingContext& context, PricingRequest request) const
-{
-    return select_outputs(price(option, context), request, supported_risk_measures);
-}
-
-result<PricingResult> AnalyticBarrierEngine::price(
+result<PricingResult> AnalyticBarrierEngine::price_impl(
     const BarrierOption& option, const PricingContext& context) const
 {
     const auto valid = validate_expiry(context.valuation_date(), option.expiry());
@@ -220,7 +202,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
 result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context, PricingRequest request) const
 {
-    return select_outputs(price(option, context), request, supported_risk_measures);
+    return select_outputs(price_impl(option, context), request, supported_risk_measures);
 }
 
 } // namespace kiyosi

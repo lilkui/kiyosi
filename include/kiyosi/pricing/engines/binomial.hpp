@@ -20,21 +20,21 @@ public:
     explicit BinomialAmericanEngine(BinomialAmericanSettings settings = {}) : settings_(settings) {}
     explicit BinomialAmericanEngine(int steps) : settings_{steps} {}
 
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption&, const PricingContext&, BinomialAmericanSettings) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, PricingRequest) const;
-    [[nodiscard]] result<PricingResult> price(const AmericanOption&, const PricingContext&, BinomialAmericanSettings) const;
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const AmericanOption&, const PricingContext&, BinomialAmericanSettings, PricingRequest) const;
-    [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption&, const PricingContext&, PricingRequest) const;
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
+        PricingRequest request = {}) const
+    {
+        return price_impl(option, context, request);
+    }
 
     BinomialAmericanSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] result<PricingResult> price_impl(
+        const AmericanOption&, const PricingContext&, PricingRequest) const;
     BinomialAmericanSettings settings_;
 };
 
 } // namespace kiyosi
-

@@ -18,14 +18,22 @@ public:
     static constexpr risk_measure_set supported_risk_measures = all_risk_measures;
 
     /// Returns intrinsic value and zero Greeks when valued at expiry.
-    [[nodiscard]] result<PricingResult> price(const EuropeanOption& option, const PricingContext& context) const;
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption& option, const PricingContext& context, PricingRequest request) const;
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
+        PricingRequest request = {}) const
+    {
+        return price_impl(option, context, request);
+    }
 
     [[nodiscard]] result<double> implied_volatility(
         const EuropeanOption& option, const PricingContext& context, double observed_price,
         ImpliedVolatilitySettings settings = {}) const;
+
+private:
+    [[nodiscard]] result<PricingResult> price_impl(
+        const EuropeanOption&, const PricingContext&, PricingRequest) const;
 };
 
 } // namespace kiyosi
-
