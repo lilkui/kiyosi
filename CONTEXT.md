@@ -44,6 +44,18 @@ _Avoid_: expected answer
 Agreement with an established reference result within an explicitly chosen tolerance for the same instrument and assumptions.
 _Avoid_: exact match
 
+**Risk measure**:
+A valuation result or sensitivity reported for an instrument, including price and the named Greeks.
+_Avoid_: metric
+
+**Validation property**:
+A caller-visible numerical relationship, bound, or monotonic behavior that a pricing result must satisfy.
+_Avoid_: implementation invariant
+
+**Convergence**:
+The approach of a discretized pricing result toward a reference result as its numerical resolution increases.
+_Avoid_: precision
+
 **Rewrite**:
 A redesign of the library's domain model and public contract rather than a source-level port. The redesigned library remains accountable for established financial behavior through numerical parity.
 _Avoid_: port, translation
