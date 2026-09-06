@@ -8,6 +8,21 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
+double trading_step(const TradingCalendar& calendar, date previous, date current)
+{
+    auto days = calendar.trading_days_between(previous, current);
+    if (calendar.is_trading_day(current) && !calendar.is_trading_day(previous)) ++days;
+    return static_cast<double>(days) / static_cast<double>(calendar.annual_trading_days());
+}
+
+std::vector<date> trading_dates(const TradingCalendar& calendar, date start, date end)
+{
+    std::vector<date> dates;
+    for (auto value = start + std::chrono::days{1}; value <= end; value += std::chrono::days{1})
+        if (calendar.is_trading_day(value)) dates.push_back(value);
+    return dates;
+}
+
 template <typename Option>
 double path_payoff(const Option& option, const PricingContext& context, std::mt19937_64& generator)
 {
@@ -16,53 +31,60 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
     const double sigma = context.parameters().volatility();
     const double spot = context.asset_price().value();
     const date valuation = context.valuation_date();
-    const double maturity = actual_365(valuation, option.expiry());
+    const auto& calendar = context.calendar();
     if constexpr (std::is_same_v<Option, Accumulator>) {
-        const int steps = std::max(1, static_cast<int>((option.expiry() - valuation).count()));
-        const double dt = maturity / steps;
         double value = spot;
         double quantity = option.accumulated_quantity();
         double terminal = spot;
-        int terminal_step = steps;
+        double elapsed = 0.0;
         std::normal_distribution<double> normal;
-        for (int step = 1; step <= steps; ++step) {
+        auto previous = valuation;
+        for (const auto current : trading_dates(calendar, valuation, option.expiry())) {
+            const double dt = trading_step(calendar, previous, current);
+            elapsed += dt;
             value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt + sigma * std::sqrt(dt) * normal(generator));
             if (value >= option.knock_out()) {
                 terminal = value;
-                terminal_step = step;
                 break;
             }
             quantity += value < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
             terminal = value;
+            previous = current;
         }
-        return quantity * (terminal - option.strike()) * std::exp(-rate * dt * terminal_step);
+        return quantity * (terminal - option.strike()) * std::exp(-rate * elapsed);
     } else {
         const auto& dates = option.observation_dates();
-        if (dates.empty()) return option.principal_ratio() * std::exp(-rate * maturity);
         double value = spot;
-        double previous_time = 0.0;
+        double elapsed = 0.0;
         double coupons = 0.0;
         bool knocked_in = option.touch_status() == barrier_touch_status::down;
         std::normal_distribution<double> normal;
-        for (std::size_t index = 0; index < dates.size(); ++index) {
-            if (dates[index] < valuation) continue;
-            const double time = actual_365(valuation, dates[index]);
-            const double dt = std::max(0.0, time - previous_time);
+        std::size_t index = 0;
+        auto previous = valuation;
+        for (const auto current : trading_dates(calendar, valuation, option.expiry())) {
+            const double dt = trading_step(calendar, previous, current);
             value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt + sigma * std::sqrt(dt) * normal(generator));
-            previous_time = time;
+            elapsed += dt;
+            previous = current;
             if constexpr (std::is_base_of_v<KiAutocallableNote, Option>) {
-                if (option.knock_in_frequency() != observation_frequency::at_expiry && value <= option.knock_in_price()) knocked_in = true;
+                if (option.knock_in_frequency() == observation_frequency::daily && value <= option.knock_in_price())
+                    knocked_in = true;
             }
+            while (index < dates.size() && dates[index] < current) ++index;
+            if (index >= dates.size() || dates[index] != current) continue;
+            const double time = elapsed;
             if constexpr (std::is_same_v<Option, PhoenixOption>) {
                 if (value >= option.coupon_barriers()[index]) coupons += option.initial_price() * option.coupon_rate() * std::exp(-rate * time);
             }
             if (value >= option.knock_out_prices()[index]) {
                 double coupon = 0.0;
-                if constexpr (requires { option.knock_out_coupon_rates(); }) coupon = option.knock_out_coupon_rates()[index] * actual_365(option.effective(), dates[index]);
+                if constexpr (requires { option.knock_out_coupon_rates(); })
+                    coupon = option.knock_out_coupon_rates()[index] * calendar.trading_year_fraction(option.effective(), dates[index]);
                 return (option.principal_ratio() + coupon) * std::exp(-rate * time) + coupons;
             }
+            ++index;
         }
-        const double final_time = maturity;
+        const double final_time = elapsed;
         if constexpr (std::is_same_v<Option, PhoenixOption>) {
             if (option.knock_in_frequency() == observation_frequency::at_expiry && value <= option.knock_in_price()) knocked_in = true;
             const double loss = std::clamp(value - option.upper_strike(), option.lower_strike() - option.upper_strike(), 0.0) / option.initial_price();
@@ -70,14 +92,14 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
         } else if constexpr (std::is_same_v<Option, TernarySnowballOption>) {
             if (option.knock_in_frequency() == observation_frequency::at_expiry && value <= option.knock_in_price()) knocked_in = true;
             const double coupon = knocked_in ? option.minimal_coupon_rate() : option.maturity_coupon_rate();
-            return std::exp(-rate * final_time) * (option.principal_ratio() + coupon * actual_365(option.effective(), option.expiry()));
+            return std::exp(-rate * final_time) * (option.principal_ratio() + coupon * calendar.trading_year_fraction(option.effective(), option.expiry()));
         } else if constexpr (std::is_same_v<Option, SnowballOption>) {
             if (option.knock_in_frequency() == observation_frequency::at_expiry && value <= option.knock_in_price()) knocked_in = true;
             const double loss = std::clamp(value - option.upper_strike(), option.lower_strike() - option.upper_strike(), 0.0) / option.initial_price();
-            const double coupon = knocked_in ? loss : option.maturity_coupon_rate() * actual_365(option.effective(), option.expiry());
+            const double coupon = knocked_in ? loss : option.maturity_coupon_rate() * calendar.trading_year_fraction(option.effective(), option.expiry());
             return std::exp(-rate * final_time) * (option.principal_ratio() + coupon);
         } else {
-            return std::exp(-rate * final_time) * (option.principal_ratio() + option.maturity_coupon_rate() * actual_365(option.effective(), option.expiry()));
+            return std::exp(-rate * final_time) * (option.principal_ratio() + option.maturity_coupon_rate() * calendar.trading_year_fraction(option.effective(), option.expiry()));
         }
     }
 }
@@ -93,6 +115,10 @@ result<PricingResult> price_structured(const Option& option, const PricingContex
     if (!valid) return std::unexpected(valid.error());
     if (context.valuation_date() < option.effective())
         return std::unexpected(Error{error_category::invalid_schedule, "valuation precedes contract effective date"});
+    if constexpr (requires { option.observation_dates(); }) {
+        auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
+        if (!schedule) return std::unexpected(schedule.error());
+    }
     if (settings.path_count <= 0 || settings.path_count > 10'000'000)
         return std::unexpected(Error{error_category::invalid_parameter, "structured Monte Carlo path count is out of range"});
     std::mt19937_64 generator(settings.seed.value_or(std::random_device{}()));
