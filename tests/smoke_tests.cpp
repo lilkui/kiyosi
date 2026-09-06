@@ -440,6 +440,12 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());
+    const auto all_requested = digital.price(cash_call, context, {});
+    REQUIRE(all_requested.has_value());
+    CHECK(all_requested->has(ito::risk_measure::price));
+    CHECK(all_requested->has(ito::risk_measure::delta));
+    CHECK(all_requested->has(ito::risk_measure::gamma));
+    CHECK_FALSE(all_requested->has(ito::risk_measure::vega));
     CHECK_THAT(call_value->value + put_value->value, WithinAbs(10.0 * std::exp(-0.04), 1e-10));
     CHECK_FALSE(ito::make_cash_or_nothing_option(ito::option_type::call, 100.0, 0.0, expiry).has_value());
 

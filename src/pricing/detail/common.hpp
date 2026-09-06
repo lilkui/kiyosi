@@ -154,6 +154,7 @@ inline result<PricingResult> select_outputs(
     result<PricingResult> priced, PricingRequest request, risk_measure_set supported)
 {
     if (!priced) return priced;
+    if (request.measures == all_risk_measures) request.measures = supported;
     if ((request.measures & ~supported) != 0)
         return std::unexpected(Error{error_category::unsupported_risk_measure,
                                      "requested risk measure is unsupported by this engine"});
