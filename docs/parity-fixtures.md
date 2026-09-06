@@ -33,3 +33,8 @@ metadata uses `seed|paths|steps|tolerance`. A dash means that metadata does
 not apply. The Catch2 manifest test validates every row and includes the case,
 instrument, and engine in assertion context, so failures remain actionable
 without a live DerivaSharp build.
+
+The closure tests require one fixture for each concrete CPU engine and include
+public payoff, in/out, convergence, and seeded Monte Carlo properties. Schedule
+and settlement convention differences are recorded in ADR 0011; CUDA parity
+remains deferred under ADR 0010.

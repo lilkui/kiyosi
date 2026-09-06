@@ -3,7 +3,10 @@
 
 #include <filesystem>
 #include <fstream>
+#include <cmath>
+#include <chrono>
 #include <ranges>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -138,6 +141,167 @@ TEST_CASE("CPU parity manifest covers instruments, engines, and numerical metada
     CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.validation.has_value(); }));
     CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.convergence.has_value(); }));
     CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.monte_carlo.has_value(); }));
+}
+
+TEST_CASE("CPU parity manifest closes every concrete engine and contract variant")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const std::set<std::string> required_engines{
+        "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
+        "AnalyticEuropeanEngine", "ArithmeticAverageAsianEngine", "BinomialAmericanEngine",
+        "BinomialEuropeanEngine", "BjerksundStenslandAmericanEngine", "CrrEngine",
+        "FiniteDifferenceAccumulatorEngine", "FiniteDifferenceAmericanEngine",
+        "FiniteDifferenceBarrierEngine", "FiniteDifferenceBinarySnowballEngine",
+        "FiniteDifferenceDigitalEngine", "FiniteDifferenceEuropeanEngine",
+        "FiniteDifferencePhoenixEngine", "FiniteDifferenceSnowballEngine",
+        "FiniteDifferenceTernarySnowballEngine", "GeometricAverageAsianEngine",
+        "IntegralDigitalEngine", "IntegralEuropeanEngine", "MonteCarloAccumulatorEngine",
+        "MonteCarloAmericanEngine", "MonteCarloBinarySnowballEngine",
+        "MonteCarloEuropeanEngine", "MonteCarloPhoenixEngine", "MonteCarloSnowballEngine",
+        "MonteCarloTernarySnowballEngine"};
+    const std::set<std::string> required_instruments{
+        "Accumulator", "AmericanOption", "ArithmeticAverageOption", "BarrierOption",
+        "BermudanOption", "BinaryBarrierOption", "BinarySnowballOption", "EuropeanAssetOrNothingOption",
+        "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAverageOption",
+        "PhoenixOption", "SnowballOption", "TernarySnowballOption"};
+    const std::set<std::string> required_pairs{
+        "Accumulator/FiniteDifferenceAccumulatorEngine", "Accumulator/MonteCarloAccumulatorEngine",
+        "AmericanOption/BinomialAmericanEngine", "AmericanOption/FiniteDifferenceAmericanEngine",
+        "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
+        "ArithmeticAverageOption/ArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
+        "BarrierOption/FiniteDifferenceBarrierEngine", "BermudanOption/BinomialAmericanEngine",
+        "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "BinarySnowballOption/FiniteDifferenceBinarySnowballEngine",
+        "BinarySnowballOption/MonteCarloBinarySnowballEngine", "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
+        "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
+        "EuropeanCashOrNothingOption/IntegralDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
+        "EuropeanOption/BinomialEuropeanEngine", "EuropeanOption/CrrEngine",
+        "EuropeanOption/FiniteDifferenceEuropeanEngine", "EuropeanOption/IntegralEuropeanEngine",
+        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAverageOption/GeometricAverageAsianEngine",
+        "PhoenixOption/FiniteDifferencePhoenixEngine", "PhoenixOption/MonteCarloPhoenixEngine",
+        "SnowballOption/FiniteDifferenceSnowballEngine", "SnowballOption/MonteCarloSnowballEngine",
+        "TernarySnowballOption/FiniteDifferenceTernarySnowballEngine",
+        "TernarySnowballOption/MonteCarloTernarySnowballEngine"};
+    std::set<std::string> actual_engines;
+    std::set<std::string> actual_instruments;
+    std::set<std::string> actual_pairs;
+    bool has_settlement = false;
+    bool has_monitoring = false;
+    bool has_calendar = false;
+    for (const auto& value : cases) {
+        actual_engines.insert(value.engine);
+        actual_instruments.insert(value.instrument);
+        actual_pairs.insert(value.instrument + "/" + value.engine);
+        has_settlement |= value.inputs.contains("settlement");
+        has_monitoring |= value.inputs.contains("monitoring");
+        has_calendar |= value.inputs.contains("calendar");
+        if (value.engine.find("MonteCarlo") != std::string::npos && !value.validation.has_value())
+            REQUIRE(value.monte_carlo.has_value());
+        if (value.engine.find("Binomial") != std::string::npos ||
+            value.engine.find("FiniteDifference") != std::string::npos)
+            if (!value.validation.has_value() && value.instrument != "BermudanOption")
+            REQUIRE(value.convergence.has_value());
+        if (value.validation.has_value())
+            CHECK(value.outputs.empty());
+        else
+            REQUIRE(value.outputs.contains("price"));
+    }
+    CHECK(actual_engines == required_engines);
+    CHECK(actual_instruments == required_instruments);
+    CHECK(actual_pairs == required_pairs);
+    CHECK(has_settlement);
+    CHECK(has_monitoring);
+    CHECK(has_calendar);
+}
+
+TEST_CASE("Reviewed analytic CPU fixture matches every exposed risk measure")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto fixture = std::ranges::find_if(cases, [](const auto& value) {
+        return value.case_id == "european-analytic";
+    });
+    REQUIRE(fixture != cases.end());
+    const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
+    const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 6};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(100.0), valuation);
+    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto result = *kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const std::map<std::string, kiyosi::risk_measure> measures{
+        {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta},
+        {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed},
+        {"theta", kiyosi::risk_measure::theta}, {"charm", kiyosi::risk_measure::charm},
+        {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega},
+        {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma},
+        {"rho", kiyosi::risk_measure::rho}};
+    for (const auto& [name, measure] : measures) {
+        INFO("case=" << fixture->case_id << " output=" << name);
+        REQUIRE(fixture->outputs.contains(name));
+        REQUIRE(fixture->tolerances.contains(name));
+        REQUIRE(result.get(measure).has_value());
+        CHECK(std::abs(*result.get(measure) - fixture->outputs.at(name)) <= fixture->tolerances.at(name));
+    }
+}
+
+TEST_CASE("CPU parity public properties cover payoff, in-out, convergence, and seeded paths")
+{
+    const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
+    const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 6};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+
+    const auto call = *kiyosi::make_european_call(100.0, expiry);
+    const auto put = *kiyosi::make_european_put(100.0, expiry);
+    const auto analytic_call = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
+    const auto analytic_put = *kiyosi::AnalyticEuropeanEngine{}.price(put, context);
+    const auto call_price = *analytic_call.get(kiyosi::risk_measure::price);
+    const auto put_price = *analytic_put.get(kiyosi::risk_measure::price);
+    CHECK(std::abs(call_price - put_price -
+                   (100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04))) < 1e-10);
+
+    const auto in = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 130.0,
+                                                  kiyosi::barrier_type::up_and_in);
+    const auto out = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 130.0,
+                                                   kiyosi::barrier_type::up_and_out);
+    const auto barrier_in = *kiyosi::AnalyticBarrierEngine{}.price(in, context);
+    const auto barrier_out = *kiyosi::AnalyticBarrierEngine{}.price(out, context);
+    CHECK(std::abs(*barrier_in.get(kiyosi::risk_measure::price) +
+                       *barrier_out.get(kiyosi::risk_measure::price) - call_price) < 2e-5);
+
+    const auto coarse = *kiyosi::BinomialEuropeanEngine{32}.price(call, context);
+    const auto fine = *kiyosi::BinomialEuropeanEngine{128}.price(call, context);
+    CHECK(std::abs(*fine.get(kiyosi::risk_measure::price) - call_price) <
+          std::abs(*coarse.get(kiyosi::risk_measure::price) - call_price));
+
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto binomial_fixture = std::ranges::find_if(cases, [](const auto& value) {
+        return value.case_id == "european-binomial";
+    });
+    REQUIRE(binomial_fixture != cases.end());
+    REQUIRE(binomial_fixture->convergence.has_value());
+    for (const auto resolution : binomial_fixture->convergence->resolutions) {
+        const auto result = kiyosi::BinomialEuropeanEngine{static_cast<int>(resolution)}.price(call, context);
+        REQUIRE(result.has_value());
+        CHECK(std::isfinite(*result->get(kiyosi::risk_measure::price)));
+    }
+    const auto final_binomial = *kiyosi::BinomialEuropeanEngine{
+        static_cast<int>(binomial_fixture->convergence->resolutions.back())}.price(call, context);
+    CHECK(std::abs(*final_binomial.get(kiyosi::risk_measure::price) -
+                   binomial_fixture->convergence->reference) <= binomial_fixture->convergence->tolerance);
+
+    const auto monte_carlo_fixture = std::ranges::find_if(cases, [](const auto& value) {
+        return value.case_id == "european-mc";
+    });
+    REQUIRE(monte_carlo_fixture != cases.end());
+    REQUIRE(monte_carlo_fixture->monte_carlo.has_value());
+    const auto& monte_carlo_metadata = *monte_carlo_fixture->monte_carlo;
+    const kiyosi::MonteCarloEuropeanEngine monte_carlo{
+        static_cast<int>(monte_carlo_metadata.paths), static_cast<int>(monte_carlo_metadata.steps),
+        monte_carlo_metadata.seed};
+    const auto first = *monte_carlo.price(call, context);
+    const auto second = *monte_carlo.price(call, context);
+    CHECK(*first.get(kiyosi::risk_measure::price) == *second.get(kiyosi::risk_measure::price));
+    CHECK(std::abs(*first.get(kiyosi::risk_measure::price) - monte_carlo_fixture->outputs.at("price")) <=
+          monte_carlo_metadata.tolerance);
 }
 
 TEST_CASE("CPU parity manifest rejects incomplete output tolerances")
