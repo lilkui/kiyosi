@@ -67,6 +67,16 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "linux-sanitizers",
+            "displayName": "Linux x64 ASan + UBSan",
+            "inherits": "linux-base",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_FLAGS": "-fsanitize=address,undefined -fno-omit-frame-pointer",
+                "CMAKE_EXE_LINKER_FLAGS": "-fsanitize=address,undefined"
+            }
         }
     ],
     "buildPresets": [
@@ -85,6 +95,10 @@
         {
             "name": "linux-release",
             "configurePreset": "linux-release"
+        },
+        {
+            "name": "linux-sanitizers",
+            "configurePreset": "linux-sanitizers"
         }
     ],
     "testPresets": [
@@ -112,6 +126,13 @@
         {
             "name": "linux-release",
             "configurePreset": "linux-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-sanitizers",
+            "configurePreset": "linux-sanitizers",
             "output": {
                 "outputOnFailure": true
             }
