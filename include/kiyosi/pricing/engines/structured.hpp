@@ -9,6 +9,10 @@
 #include <kiyosi/pricing/engines/finite_difference.hpp>
 
 namespace kiyosi {
+template <typename Option>
+[[nodiscard]] result<PricingResult> price_finite_difference_structured(
+    const Option&, const PricingContext&, FiniteDifferenceSettings);
+
 struct StructuredMonteCarloSettings {
     int path_count = 20'000;
     std::optional<std::uint64_t> seed = 1;
@@ -47,7 +51,7 @@ public:
         : settings_{asset_steps, time_steps, scheme} {}
     [[nodiscard]] result<PricingResult> price(const Option& option, const PricingContext& context) const
     {
-        return MonteCarloStructuredEngine<Option>{{std::max(2'000, settings_.asset_steps * settings_.time_steps / 2), 1}}.price(option, context);
+        return price_finite_difference_structured(option, context, settings_);
     }
 
 private:

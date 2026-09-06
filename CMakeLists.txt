@@ -54,6 +54,7 @@ set(KIYOSI_SOURCES
     src/pricing/engines/digital_fd.cpp
     src/pricing/engines/binary_barrier.cpp
     src/pricing/engines/structured.cpp
+    src/pricing/engines/barrier_fd.cpp
 )
 
 add_library(kiyosi STATIC ${KIYOSI_SOURCES})

@@ -3,7 +3,10 @@
 #include <algorithm>
 #include <cmath>
 #include <random>
+#include <map>
+#include <tuple>
 #include <type_traits>
+#include <functional>
 
 namespace kiyosi {
 using namespace detail;
@@ -142,4 +145,113 @@ template class MonteCarloStructuredEngine<PhoenixOption>;
 template class MonteCarloStructuredEngine<SnowballOption>;
 template class MonteCarloStructuredEngine<BinarySnowballOption>;
 template class MonteCarloStructuredEngine<TernarySnowballOption>;
+
+template <typename Option>
+result<PricingResult> price_finite_difference_structured(
+    const Option& option, const PricingContext& context, FiniteDifferenceSettings settings)
+{
+    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    if (!valid) return std::unexpected(valid.error());
+    if (settings.asset_steps < 3 || settings.time_steps <= 0 || settings.asset_steps > 2000 || settings.time_steps > 2000)
+        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
+    if constexpr (requires { option.initial_price(); }) {
+        auto contract = validate_note(option);
+        if (!contract) return std::unexpected(contract.error());
+        if (context.valuation_date() < option.effective())
+            return std::unexpected(Error{error_category::invalid_schedule, "valuation precedes contract effective date"});
+        auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
+        if (!schedule) return std::unexpected(schedule.error());
+    }
+    const double maturity = actual_365(context.valuation_date(), option.expiry());
+    if (maturity == 0.0) return PricingResult{{risk_measure::price, 0.0}};
+    const double rate = context.parameters().risk_free_rate();
+    const double dividend = context.parameters().dividend_yield();
+    const double sigma = context.parameters().volatility();
+    const int steps = settings.time_steps;
+    const double dt = maturity / static_cast<double>(steps);
+    const double up = std::exp(sigma * std::sqrt(dt));
+    const double down = 1.0 / up;
+    const double growth = std::exp((rate - dividend) * dt);
+    const double probability = std::clamp((growth - down) / (up - down), 0.0, 1.0);
+    const double discount = std::exp(-rate * dt);
+    const double spot = context.asset_price().value();
+    auto underlying = [&](int step, int index) { return spot * std::pow(up, index) * std::pow(down, step - index); };
+
+    if constexpr (std::is_same_v<Option, Accumulator>) {
+        using key = std::tuple<int, int, int, int>;
+        std::map<key, double> memo;
+        std::function<double(int, int, int, int)> value = [&](int step, int index, int normal, int accelerated) -> double {
+            const key state{step, index, normal, accelerated};
+            if (auto found = memo.find(state); found != memo.end()) return found->second;
+            const double asset = underlying(step, index);
+            const double quantity = option.accumulated_quantity() + option.daily_quantity() * normal + option.daily_quantity() * option.acceleration() * accelerated;
+            if (asset >= option.knock_out()) return memo[state] = quantity * (asset - option.strike());
+            if (step == steps) return memo[state] = quantity * (asset - option.strike());
+            const bool below = asset < option.strike();
+            const double continuation = probability * value(step + 1, index + 1, normal + (below ? 0 : 1), accelerated + (below ? 1 : 0)) +
+                                        (1.0 - probability) * value(step + 1, index, normal + (below ? 0 : 1), accelerated + (below ? 1 : 0));
+            return memo[state] = discount * continuation;
+        };
+        return PricingResult{{risk_measure::price, value(0, 0, 0, 0)}};
+    } else {
+        std::vector<int> observation_steps;
+        for (const auto date_value : option.observation_dates()) {
+            const double fraction = actual_365(context.valuation_date(), date_value) / maturity;
+            observation_steps.push_back(std::clamp(static_cast<int>(std::lround(fraction * steps)), 1, steps));
+        }
+        using key = std::tuple<int, int, bool>;
+        std::map<key, double> memo;
+        std::function<double(int, int, bool)> value = [&](int step, int index, bool knocked_in) -> double {
+            const key state{step, index, knocked_in};
+            if (auto found = memo.find(state); found != memo.end()) return found->second;
+            const double asset = underlying(step, index);
+            bool ki = knocked_in;
+            if constexpr (requires { option.knock_in_price(); })
+                if (option.knock_in_frequency() == observation_frequency::daily && asset <= option.knock_in_price()) ki = true;
+            if (step == steps) {
+                if constexpr (requires { option.knock_in_price(); })
+                    if (option.knock_in_frequency() == observation_frequency::at_expiry && asset <= option.knock_in_price()) ki = true;
+                if constexpr (std::is_same_v<Option, PhoenixOption>) {
+                    const double loss = std::clamp(asset - option.upper_strike(), option.lower_strike() - option.upper_strike(), 0.0) / option.initial_price();
+                    return memo[state] = discount * 0.0 + option.principal_ratio() + (ki ? loss : 0.0);
+                } else if constexpr (std::is_same_v<Option, SnowballOption>) {
+                    const double loss = std::clamp(asset - option.upper_strike(), option.lower_strike() - option.upper_strike(), 0.0) / option.initial_price();
+                    const double coupon = ki ? loss : option.maturity_coupon_rate() * context.calendar().trading_year_fraction(option.effective(), option.expiry());
+                    return memo[state] = option.principal_ratio() + coupon;
+                } else if constexpr (std::is_same_v<Option, TernarySnowballOption>) {
+                    const double coupon = (ki ? option.minimal_coupon_rate() : option.maturity_coupon_rate()) * context.calendar().trading_year_fraction(option.effective(), option.expiry());
+                    return memo[state] = option.principal_ratio() + coupon;
+                } else {
+                    return memo[state] = option.principal_ratio() + option.maturity_coupon_rate() * context.calendar().trading_year_fraction(option.effective(), option.expiry());
+                }
+            }
+            const auto obs = std::find(observation_steps.begin(), observation_steps.end(), step + 1);
+            const std::size_t obs_index = obs == observation_steps.end() ? 0 : static_cast<std::size_t>(obs - observation_steps.begin());
+            const bool is_observation = obs != observation_steps.end();
+            if (is_observation && asset >= option.knock_out_prices()[obs_index]) {
+                double coupon = 0.0;
+                if constexpr (requires { option.knock_out_coupon_rates(); })
+                    coupon = option.knock_out_coupon_rates()[obs_index] * context.calendar().trading_year_fraction(option.effective(), option.observation_dates()[obs_index]);
+                if constexpr (std::is_same_v<Option, PhoenixOption>)
+                    if (asset >= option.coupon_barriers()[obs_index]) coupon = option.coupon_rate() * context.calendar().trading_year_fraction(option.effective(), option.observation_dates()[obs_index]);
+                return memo[state] = discount * (option.principal_ratio() + coupon);
+            }
+            double cash = 0.0;
+            if (is_observation) {
+                if constexpr (std::is_same_v<Option, PhoenixOption>)
+                    if (asset >= option.coupon_barriers()[obs_index]) cash = option.initial_price() * option.coupon_rate() * context.calendar().trading_year_fraction(option.effective(), option.observation_dates()[obs_index]);
+            }
+            const double continuation = probability * value(step + 1, index + 1, ki) + (1.0 - probability) * value(step + 1, index, ki);
+            return memo[state] = cash * discount + discount * continuation;
+        };
+        bool knocked = option.touch_status() == barrier_touch_status::down;
+        return PricingResult{{risk_measure::price, value(0, 0, knocked)}};
+    }
+}
+
+template result<PricingResult> price_finite_difference_structured(const Accumulator&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_finite_difference_structured(const PhoenixOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_finite_difference_structured(const SnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_finite_difference_structured(const BinarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_finite_difference_structured(const TernarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
 } // namespace kiyosi
