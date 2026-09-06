@@ -95,7 +95,7 @@ public:
                   std::vector<date> observations, observation_frequency frequency, barrier_touch_status touch_status,
                   double principal_ratio, date effective, date expiry)
         : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                             observations, frequency, touch_status, principal_ratio, effective, expiry),
+                             std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           coupon_rate_(coupon_rate), coupon_barriers_(std::move(coupon_barriers)) {}
     double coupon_rate() const noexcept { return coupon_rate_; }
     const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
@@ -180,8 +180,81 @@ template <typename Note>
         !std::isfinite(note.upper_strike()) || note.upper_strike() <= 0.0 ||
         !std::isfinite(note.lower_strike()) || note.lower_strike() < 0.0 || note.lower_strike() > note.upper_strike() ||
         !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0 ||
-        note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size())
+        note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size() ||
+        !is_valid_date(note.effective()) || !is_valid_date(note.expiry()) || note.effective() > note.expiry())
         return std::unexpected(Error{error_category::invalid_parameter, "autocallable terms are invalid"});
+    for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
+        if (!is_valid_date(note.observation_dates()[index]) || note.observation_dates()[index] < note.effective() ||
+            note.observation_dates()[index] > note.expiry() ||
+            (index > 0 && note.observation_dates()[index] <= note.observation_dates()[index - 1]) ||
+            !std::isfinite(note.knock_out_prices()[index]) || note.knock_out_prices()[index] <= 0.0)
+            return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
+    }
+    if (note.touch_status() != barrier_touch_status::none && note.touch_status() != barrier_touch_status::up &&
+        note.touch_status() != barrier_touch_status::down)
+        return std::unexpected(Error{error_category::invalid_parameter, "autocallable touch status is invalid"});
+    if constexpr (requires { note.knock_in_price(); }) {
+        if (!std::isfinite(note.knock_in_price()) || note.knock_in_price() <= 0.0 ||
+            (note.knock_in_frequency() != observation_frequency::daily &&
+             note.knock_in_frequency() != observation_frequency::at_expiry))
+            return std::unexpected(Error{error_category::invalid_parameter, "knock-in terms are invalid"});
+    }
+    if constexpr (requires { note.coupon_rate(); }) {
+        if (!std::isfinite(note.coupon_rate()) || note.coupon_rate() < 0.0 ||
+            note.coupon_barriers().size() != note.observation_dates().size())
+            return std::unexpected(Error{error_category::invalid_parameter, "Phoenix terms are invalid"});
+        for (double barrier : note.coupon_barriers())
+            if (!std::isfinite(barrier) || barrier < 0.0)
+                return std::unexpected(Error{error_category::invalid_parameter, "coupon barriers are invalid"});
+    }
+    if constexpr (requires { note.knock_out_coupon_rates(); }) {
+        if (note.knock_out_coupon_rates().size() != note.observation_dates().size())
+            return std::unexpected(Error{error_category::invalid_parameter, "coupon schedule count is invalid"});
+        for (double coupon : note.knock_out_coupon_rates())
+            if (!std::isfinite(coupon) || coupon < 0.0)
+                return std::unexpected(Error{error_category::invalid_parameter, "coupon rates are invalid"});
+        if (!std::isfinite(note.maturity_coupon_rate()) || note.maturity_coupon_rate() < 0.0)
+            return std::unexpected(Error{error_category::invalid_parameter, "maturity coupon is invalid"});
+    }
+    if constexpr (requires { note.minimal_coupon_rate(); }) {
+        if (!std::isfinite(note.minimal_coupon_rate()) || note.minimal_coupon_rate() < 0.0)
+            return std::unexpected(Error{error_category::invalid_parameter, "minimal coupon is invalid"});
+    }
     return note;
 }
+
+[[nodiscard]] inline result<PhoenixOption> make_phoenix_option(
+    double coupon_rate, double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
+    std::vector<double> coupon_barriers, double upper_strike, double lower_strike, std::vector<date> observations,
+    observation_frequency frequency, barrier_touch_status touch_status, double principal_ratio, date effective, date expiry)
+{ return validate_note(PhoenixOption{coupon_rate, initial_price, knock_in_price, std::move(knock_out_prices),
+                                     std::move(coupon_barriers), upper_strike, lower_strike, std::move(observations),
+                                     frequency, touch_status, principal_ratio, effective, expiry}); }
+
+[[nodiscard]] inline result<SnowballOption> make_snowball_option(
+    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double initial_price,
+    double knock_in_price, std::vector<double> knock_out_prices, double upper_strike, double lower_strike,
+    std::vector<date> observations, observation_frequency frequency, barrier_touch_status touch_status,
+    double principal_ratio, date effective, date expiry)
+{ return validate_note(SnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate, initial_price,
+                                      knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                                      std::move(observations), frequency, touch_status, principal_ratio, effective, expiry}); }
+
+[[nodiscard]] inline result<BinarySnowballOption> make_binary_snowball_option(
+    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double initial_price,
+    std::vector<double> knock_out_prices, double upper_strike, double lower_strike, std::vector<date> observations,
+    barrier_touch_status touch_status, double principal_ratio, date effective, date expiry)
+{ return validate_note(BinarySnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate, initial_price,
+                                             std::move(knock_out_prices), upper_strike, lower_strike,
+                                             std::move(observations), touch_status, principal_ratio, effective, expiry}); }
+
+[[nodiscard]] inline result<TernarySnowballOption> make_ternary_snowball_option(
+    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double minimal_coupon_rate,
+    double initial_price, double knock_in_price, std::vector<double> knock_out_prices, double upper_strike,
+    double lower_strike, std::vector<date> observations, observation_frequency frequency,
+    barrier_touch_status touch_status, double principal_ratio, date effective, date expiry)
+{ return validate_note(TernarySnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate, minimal_coupon_rate,
+                                              initial_price, knock_in_price, std::move(knock_out_prices), upper_strike,
+                                              lower_strike, std::move(observations), frequency, touch_status,
+                                              principal_ratio, effective, expiry}); }
 } // namespace kiyosi

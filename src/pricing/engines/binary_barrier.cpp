@@ -8,6 +8,24 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
+double discounted_hit_probability(double distance, double drift, double variance, double rate, double maturity)
+{
+    if (distance <= 0.0) return 1.0;
+    constexpr int panels = 1024;
+    const double step = maturity / panels;
+    const double scale = distance / std::sqrt(2.0 * std::numbers::pi * variance);
+    auto density = [&](double time) {
+        if (time <= 0.0) return 0.0;
+        return scale * std::exp(-((distance - drift * time) * (distance - drift * time)) /
+                                (2.0 * variance * time)) /
+               std::pow(time, 1.5) * std::exp(-rate * time);
+    };
+    double sum = density(maturity);
+    for (int index = 1; index < panels; ++index)
+        sum += (index % 2 ? 4.0 : 2.0) * density(index * step);
+    return std::clamp(sum * step / 3.0, 0.0, 1.0);
+}
+
 double survival_density(double y, double boundary, bool upper, double drift, double variance, double t)
 {
     if ((upper && y >= boundary) || (!upper && y <= boundary)) return 0.0;
@@ -61,6 +79,16 @@ result<PricingResult> AnalyticBinaryBarrierEngine::price(
     }
     const double drift = rate - dividend - 0.5 * sigma * sigma;
     const double variance = sigma * sigma;
+    if (option.settlement_timing() == rebate_timing::at_hit && knock_in) {
+        const double distance = upper ? std::log(option.barrier() / spot) : std::log(spot / option.barrier());
+        const double hit = touched ? 1.0 : discounted_hit_probability(distance, upper ? drift : -drift,
+                                                                        variance, rate, t);
+        const double settlement = option.asset_settlement() ? option.barrier() : option.payout();
+        const double value = settlement * hit;
+        if (!std::isfinite(value))
+            return std::unexpected(Error{error_category::invalid_result, "binary barrier pricing produced a non-finite result"});
+        return PricingResult{{risk_measure::price, value}};
+    }
     const double boundary = std::log(option.barrier() / spot);
     const double sd = sigma * std::sqrt(t);
     const double mean = drift * t;

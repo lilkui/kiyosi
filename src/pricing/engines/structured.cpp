@@ -85,8 +85,14 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
 template <typename Option>
 result<PricingResult> price_structured(const Option& option, const PricingContext& context, StructuredMonteCarloSettings settings)
 {
+    if constexpr (requires { option.initial_price(); }) {
+        auto contract = validate_note(option);
+        if (!contract) return std::unexpected(contract.error());
+    }
     auto valid = validate_expiry(context.valuation_date(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
+    if (context.valuation_date() < option.effective())
+        return std::unexpected(Error{error_category::invalid_schedule, "valuation precedes contract effective date"});
     if (settings.path_count <= 0 || settings.path_count > 10'000'000)
         return std::unexpected(Error{error_category::invalid_parameter, "structured Monte Carlo path count is out of range"});
     std::mt19937_64 generator(settings.seed.value_or(std::random_device{}()));
