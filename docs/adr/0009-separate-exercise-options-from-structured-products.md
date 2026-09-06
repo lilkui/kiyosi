@@ -4,7 +4,7 @@
 
 Vanilla, digital, American, and Bermudan instruments share a useful mathematical boundary: a payoff is evaluated from the underlying at one contractual time or at a holder-selected admissible time. Their payoff and exercise rules are independent dimensions. Treating every instrument as a payoff/exercise product would force path-dependent instruments such as Barrier and Autocallable into artificial strategies carrying schedules, barriers, and state transitions.
 
-The current API duplicates common instrument storage, exposes engine combinations as overload matrices, and represents risk-result availability in multiple places.
+The former API duplicated common instrument storage, exposed engine combinations as overload matrices, and represented risk-result availability in multiple places.
 
 ## Decision
 
@@ -17,4 +17,4 @@ This decision supersedes the public-name preservation clause in ADR 0007; compat
 
 ## Consequences
 
-This removes the instrument and overload Cartesian products while preserving compile-time capability boundaries. Adding Bermudan support extends the exercise-based option family without changing structured-product semantics. Adding Autocallable adds a dedicated instrument and engine rather than enlarging a generic payoff or exercise strategy. Callers must use indexed risk-measure access instead of positional public fields.
+This removes the instrument and overload Cartesian products while preserving compile-time capability boundaries. Bermudan options extend the exercise-based option family without changing structured-product semantics. Autocallable products use dedicated instruments and engines rather than enlarging a generic payoff or exercise strategy. Callers use indexed risk-measure access instead of positional public fields.
