@@ -5,7 +5,6 @@
 #include <utility>
 #include <vector>
 #include <kiyosi/core/types.hpp>
-#include <kiyosi/instruments/vanilla.hpp>
 
 namespace kiyosi {
 
@@ -114,34 +113,6 @@ private:
     const TradingCalendar& calendar)
 {
     return validate_observation_dates(observations, instrument_start, instrument_end, calendar);
-}
-
-[[nodiscard]] inline result<void> validate_observation_dates(
-    std::span<const date> observations, date valuation_date, const EuropeanOption& option,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observations, valuation_date, option.expiry(), calendar);
-}
-
-[[nodiscard]] inline result<void> validate_schedule(
-    std::span<const date> observations, date valuation_date, const EuropeanOption& option,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observations, valuation_date, option, calendar);
-}
-
-[[nodiscard]] inline result<void> validate_observation_dates(
-    std::span<const date> observations, date valuation_date, const AmericanOption& option,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observations, valuation_date, option.expiry(), calendar);
-}
-
-[[nodiscard]] inline result<void> validate_schedule(
-    std::span<const date> observations, date valuation_date, const AmericanOption& option,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observations, valuation_date, option, calendar);
 }
 
 class ObservationSchedule {

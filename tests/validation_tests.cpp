@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <vector>
 
 #include <kiyosi/kiyosi.hpp>
 
@@ -237,6 +238,57 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     CHECK(finite_difference_errors.back() < finite_difference_errors.front());
     CHECK(finite_difference_errors[2] < finite_difference_errors[1]);
     CHECK(finite_difference_errors.front() / finite_difference_errors.back() > 1.5);
+}
+
+TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
+{
+    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
+    const auto payoff = *kiyosi::make_cash_or_nothing_payoff(10.0);
+    const auto european = kiyosi::make_european_option(terms, payoff);
+    REQUIRE(european.has_value());
+    CHECK(european->type() == kiyosi::option_type::call);
+    CHECK(european->strike() == 100.0);
+    CHECK(european->payout() == 10.0);
+    CHECK(european->exercise() == kiyosi::EuropeanExercise{});
+
+    const auto dates = std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{180}};
+    const auto bermudan = kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, dates);
+    REQUIRE(bermudan.has_value());
+    CHECK(bermudan->exercise_dates() == dates);
+    CHECK_FALSE(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{},
+                                             std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
+                  .has_value());
+
+    const auto invalid_type = static_cast<kiyosi::option_type>(99);
+    for (const auto invalid : {
+             kiyosi::make_european_option(invalid_type, 100.0, expiry).error().category,
+             kiyosi::make_cash_or_nothing_option(invalid_type, 100.0, 10.0, expiry).error().category,
+             kiyosi::make_asset_or_nothing_option(invalid_type, 100.0, expiry).error().category}) {
+        CHECK(invalid == kiyosi::error_category::invalid_option);
+    }
+    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 0.0, 10.0, expiry)
+              .error().category == kiyosi::error_category::invalid_strike);
+    CHECK(kiyosi::make_asset_or_nothing_option(kiyosi::option_type::call, 0.0, expiry)
+              .error().category == kiyosi::error_category::invalid_strike);
+    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry)
+              .error().category == kiyosi::error_category::invalid_parameter);
+
+    CHECK(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, {}).error().category ==
+          kiyosi::error_category::invalid_schedule);
+    CHECK(kiyosi::make_bermudan_option(
+              terms, kiyosi::VanillaPayoff{},
+              std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{30}})
+              .error().category == kiyosi::error_category::invalid_schedule);
+    CHECK(kiyosi::make_bermudan_option(
+              terms, kiyosi::VanillaPayoff{}, std::vector{day(2025, 1, 11)}, kiyosi::exchange_calendar())
+              .error().category == kiyosi::error_category::invalid_schedule);
+
+    const auto later_terms = *kiyosi::make_option_terms(
+        kiyosi::option_type::call, 100.0, expiry + std::chrono::days{30});
+    const auto later_exercise = *kiyosi::make_bermudan_exercise(
+        std::vector{expiry + std::chrono::days{1}}, later_terms.expiry());
+    CHECK(kiyosi::make_exercise_based_option(terms, kiyosi::VanillaPayoff{}, later_exercise)
+              .error().category == kiyosi::error_category::invalid_schedule);
 }
 
 } // namespace

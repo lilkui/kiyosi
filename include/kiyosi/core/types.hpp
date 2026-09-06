@@ -67,5 +67,6 @@ using result = std::expected<T, Error>;
     date start, date end, day_count_convention convention = day_count_convention::actual_365_fixed);
 [[nodiscard]] result<double> year_fraction(
     timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed);
+[[nodiscard]] result<void> validate_expiry(date valuation_date, date expiry);
+[[nodiscard]] result<void> validate_expiry(timestamp valuation_time, date expiry);
 } // namespace kiyosi
-
