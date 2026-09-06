@@ -10,6 +10,10 @@
             "cacheVariables": {
                 "CMAKE_CXX_COMPILER": "cl.exe"
             },
+            "architecture": {
+                "value": "x64",
+                "strategy": "external"
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -17,21 +21,17 @@
             }
         },
         {
-            "name": "x64-debug",
+            "name": "windows-debug",
             "displayName": "Windows x64 Debug",
             "inherits": "windows-base",
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
             }
         },
         {
-            "name": "x64-release",
+            "name": "windows-release",
             "displayName": "Windows x64 Release",
-            "inherits": "x64-debug",
+            "inherits": "windows-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
@@ -71,12 +71,12 @@
     ],
     "buildPresets": [
         {
-            "name": "x64-debug",
-            "configurePreset": "x64-debug"
+            "name": "windows-debug",
+            "configurePreset": "windows-debug"
         },
         {
-            "name": "x64-release",
-            "configurePreset": "x64-release"
+            "name": "windows-release",
+            "configurePreset": "windows-release"
         },
         {
             "name": "linux-debug",
@@ -89,15 +89,15 @@
     ],
     "testPresets": [
         {
-            "name": "x64-debug",
-            "configurePreset": "x64-debug",
+            "name": "windows-debug",
+            "configurePreset": "windows-debug",
             "output": {
                 "outputOnFailure": true
             }
         },
         {
-            "name": "x64-release",
-            "configurePreset": "x64-release",
+            "name": "windows-release",
+            "configurePreset": "windows-release",
             "output": {
                 "outputOnFailure": true
             }

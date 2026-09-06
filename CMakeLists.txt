@@ -1,40 +1,46 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.28)
 
 project(kiyosi VERSION 0.1.0 LANGUAGES CXX)
 
 include(CMakePackageConfigHelpers)
-include(CTest)
 include(GNUInstallDirs)
 
-option(KIYOSI_BUILD_SHARED "Build the optional shared library" OFF)
+if(PROJECT_IS_TOP_LEVEL)
+    include(CTest)
+endif()
+
+if(PROJECT_IS_TOP_LEVEL)
+    option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
+endif()
+option(KIYOSI_INSTALL "Enable install rules" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 
+if(MSVC)
+    set(KIYOSI_WARNING_FLAGS /W4 /permissive-)
+else()
+    set(KIYOSI_WARNING_FLAGS -Wall -Wextra -Wpedantic)
+endif()
+
 if(KIYOSI_ENABLE_CLANG_TIDY)
-    find_program(KIYOSI_CLANG_TIDY_EXECUTABLE NAMES clang-tidy)
-    if(NOT KIYOSI_CLANG_TIDY_EXECUTABLE OR NOT EXISTS "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
-        message(FATAL_ERROR "KIYOSI_ENABLE_CLANG_TIDY requires clang-tidy")
-    endif()
+    find_program(KIYOSI_CLANG_TIDY_EXECUTABLE NAMES clang-tidy REQUIRED)
 endif()
 
 if(KIYOSI_ENABLE_CLANG_FORMAT)
-    find_program(KIYOSI_CLANG_FORMAT_EXECUTABLE NAMES clang-format)
-    if(NOT KIYOSI_CLANG_FORMAT_EXECUTABLE OR NOT EXISTS "${KIYOSI_CLANG_FORMAT_EXECUTABLE}")
-        message(FATAL_ERROR "KIYOSI_ENABLE_CLANG_FORMAT requires clang-format")
-    endif()
+    find_program(KIYOSI_CLANG_FORMAT_EXECUTABLE NAMES clang-format REQUIRED)
     file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
         ${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp
     )
-    add_custom_target(format
+    add_custom_target(kiyosi-format
         COMMAND ${KIYOSI_CLANG_FORMAT_EXECUTABLE} -i ${KIYOSI_CLANG_FORMAT_SOURCES}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         VERBATIM
         USES_TERMINAL
     )
-    add_custom_target(format-check
+    add_custom_target(kiyosi-format-check
         COMMAND ${KIYOSI_CLANG_FORMAT_EXECUTABLE} --dry-run --Werror ${KIYOSI_CLANG_FORMAT_SOURCES}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         VERBATIM
@@ -57,40 +63,65 @@ set(KIYOSI_SOURCES
     src/pricing/engines/barrier_fd.cpp
 )
 
-add_library(kiyosi STATIC ${KIYOSI_SOURCES})
+set(KIYOSI_HEADERS
+    include/kiyosi/core/types.hpp
+    include/kiyosi/instruments/asian.hpp
+    include/kiyosi/instruments/barrier.hpp
+    include/kiyosi/instruments/binary_barrier.hpp
+    include/kiyosi/instruments/digital.hpp
+    include/kiyosi/instruments/structured.hpp
+    include/kiyosi/instruments/vanilla.hpp
+    include/kiyosi/kiyosi.hpp
+    include/kiyosi/market/calendar.hpp
+    include/kiyosi/market/context.hpp
+    include/kiyosi/pricing/analytics.hpp
+    include/kiyosi/pricing/engines/analytic.hpp
+    include/kiyosi/pricing/engines/asian.hpp
+    include/kiyosi/pricing/engines/barrier.hpp
+    include/kiyosi/pricing/engines/binary_barrier.hpp
+    include/kiyosi/pricing/engines/binomial.hpp
+    include/kiyosi/pricing/engines/digital.hpp
+    include/kiyosi/pricing/engines/digital_fd.hpp
+    include/kiyosi/pricing/engines/finite_difference.hpp
+    include/kiyosi/pricing/engines/integral.hpp
+    include/kiyosi/pricing/engines/monte_carlo.hpp
+    include/kiyosi/pricing/engines/structured.hpp
+    include/kiyosi/pricing/result.hpp
+)
+
+add_library(kiyosi)
 add_library(kiyosi::kiyosi ALIAS kiyosi)
 target_compile_features(kiyosi PUBLIC cxx_std_23)
-target_include_directories(kiyosi
+target_compile_options(kiyosi PRIVATE ${KIYOSI_WARNING_FLAGS})
+target_sources(kiyosi
+    PRIVATE
+        ${KIYOSI_SOURCES}
     PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        FILE_SET HEADERS
+        BASE_DIRS include
+        FILES ${KIYOSI_HEADERS}
 )
-set_target_properties(kiyosi PROPERTIES EXPORT_NAME kiyosi)
-if(KIYOSI_ENABLE_CLANG_TIDY)
-    set_target_properties(kiyosi PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
-endif()
-
-if(KIYOSI_BUILD_SHARED)
-    add_library(kiyosi_shared SHARED ${KIYOSI_SOURCES})
-    add_library(kiyosi::kiyosi_shared ALIAS kiyosi_shared)
-    target_compile_features(kiyosi_shared PUBLIC cxx_std_23)
-    target_include_directories(kiyosi_shared
-        PUBLIC
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+set_target_properties(kiyosi PROPERTIES
+    CXX_EXTENSIONS OFF
+    EXPORT_NAME kiyosi
+    POSITION_INDEPENDENT_CODE ON
+)
+if(BUILD_SHARED_LIBS)
+    set_target_properties(kiyosi PROPERTIES
+        SOVERSION ${PROJECT_VERSION_MAJOR}
+        VERSION ${PROJECT_VERSION}
+        WINDOWS_EXPORT_ALL_SYMBOLS ON
     )
-    set_target_properties(kiyosi_shared PROPERTIES EXPORT_NAME kiyosi_shared)
-    if(KIYOSI_ENABLE_CLANG_TIDY)
-        set_target_properties(kiyosi_shared PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
-    endif()
 endif()
-
-if(BUILD_TESTING)
+if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     include(FetchContent)
     FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
         GIT_TAG 56809e5282f104c5c8b570e7c2996cdc352d94f1
+        SYSTEM
+        EXCLUDE_FROM_ALL
+        FIND_PACKAGE_ARGS 3 CONFIG
     )
     FetchContent_MakeAvailable(Catch2)
 
@@ -98,50 +129,52 @@ if(BUILD_TESTING)
                               tests/validation_tests.cpp tests/remaining_tests.cpp)
     target_link_libraries(kiyosi_tests PRIVATE kiyosi Catch2::Catch2WithMain)
     target_compile_features(kiyosi_tests PRIVATE cxx_std_23)
+    target_compile_options(kiyosi_tests PRIVATE ${KIYOSI_WARNING_FLAGS})
+    set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF)
     target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-    if(KIYOSI_ENABLE_CLANG_TIDY)
-        set_target_properties(kiyosi_tests PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
+    if(catch2_SOURCE_DIR)
+        list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
     endif()
-
-    list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
     include(Catch)
-    catch_discover_tests(kiyosi_tests)
+    catch_discover_tests(kiyosi_tests DISCOVERY_MODE PRE_TEST)
 endif()
 
-install(TARGETS kiyosi
-    EXPORT kiyosiTargets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-)
-if(KIYOSI_BUILD_SHARED)
-    install(TARGETS kiyosi_shared
+if(KIYOSI_ENABLE_CLANG_TIDY)
+    set(KIYOSI_TIDY_TARGETS kiyosi)
+    if(TARGET kiyosi_tests)
+        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_tests)
+    endif()
+    foreach(target_name IN LISTS KIYOSI_TIDY_TARGETS)
+        set_target_properties(${target_name} PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
+    endforeach()
+endif()
+
+if(KIYOSI_INSTALL)
+    install(TARGETS kiyosi
         EXPORT kiyosiTargets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+        FILE_SET HEADERS DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
+        # Before 1.0, minor versions define compatibility rather than major versions.
+        COMPATIBILITY SameMinorVersion
+    )
+    configure_package_config_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/kiyosiConfig.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfig.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
+    )
+    install(EXPORT kiyosiTargets
+        FILE kiyosiTargets.cmake
+        NAMESPACE kiyosi::
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
+    )
+    install(FILES
+        ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfig.cmake
+        ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
     )
 endif()
-install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
-
-write_basic_package_version_file(
-    ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
-    COMPATIBILITY SameMajorVersion
-)
-configure_package_config_file(
-    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/kiyosiConfig.cmake.in
-    ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfig.cmake
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
-)
-install(EXPORT kiyosiTargets
-    FILE kiyosiTargets.cmake
-    NAMESPACE kiyosi::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
-)
-install(FILES
-    ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfig.cmake
-    ${CMAKE_CURRENT_BINARY_DIR}/kiyosiConfigVersion.cmake
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/kiyosi
-)
