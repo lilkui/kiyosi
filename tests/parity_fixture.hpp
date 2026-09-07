@@ -23,6 +23,9 @@
 
 namespace kiyosi::test {
 
+inline constexpr std::string_view pinned_reference_revision =
+    "08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2";
+
 struct ParityFixture {
     std::string case_id;
     option_type option;
@@ -82,12 +85,21 @@ struct MonteCarloMetadata {
     double tolerance = 0.0;
 };
 
+struct ReferenceProvenance {
+    std::string source_revision;
+    std::string source_symbol;
+    std::string convention;
+    std::string reference_kind;
+    double explicit_tolerance = 0.0;
+};
+
 struct ParityCase {
     std::string case_id;
     std::string instrument;
     std::string engine;
     std::string variant;
     FixtureAttributes inputs;
+    ReferenceProvenance provenance;
     std::map<std::string, double> outputs;
     std::map<std::string, double> tolerances;
     std::optional<ValidationExpectation> validation;
@@ -279,6 +291,34 @@ inline std::vector<ParityCase> parse_parity_cases(std::istream& input, char deli
         value.engine = field(fields, 2, row, "engine");
         value.variant = field(fields, 3, row, "variant");
         value.inputs = attributes(fields[4], row, "inputs");
+        const auto required_input = [&](std::string_view name) {
+            const auto found = value.inputs.find(std::string{name});
+            if (found == value.inputs.end() || found->second.empty())
+                throw FixtureParseError("fixture row " + std::to_string(row) + ": missing provenance " + std::string{name});
+            return found->second;
+        };
+        value.provenance = ReferenceProvenance{
+            required_input("source_revision"), required_input("source_symbol"),
+            required_input("convention"), required_input("reference_kind"), 0.0};
+        if (value.provenance.source_revision != pinned_reference_revision)
+            throw FixtureParseError("fixture row " + std::to_string(row) +
+                                    ": source_revision must match pinned DerivaSharp revision");
+        if (value.provenance.reference_kind != "analytic" &&
+            value.provenance.reference_kind != "discretized" &&
+            value.provenance.reference_kind != "statistical")
+            throw FixtureParseError("fixture row " + std::to_string(row) +
+                                    ": reference_kind must be analytic, discretized, or statistical");
+        const auto tolerance_text = required_input("tolerance");
+        try {
+            std::size_t parsed = 0;
+            value.provenance.explicit_tolerance = std::stod(tolerance_text, &parsed);
+            if (parsed != tolerance_text.size() || !std::isfinite(value.provenance.explicit_tolerance) ||
+                value.provenance.explicit_tolerance < 0.0)
+                throw std::invalid_argument("tolerance");
+        } catch (const std::exception&) {
+            throw FixtureParseError("fixture row " + std::to_string(row) +
+                                    ": provenance tolerance must be finite and non-negative");
+        }
         value.outputs = numeric_attributes(fields[5], row, "outputs");
         value.tolerances = numeric_attributes(fields[6], row, "tolerances");
         if (value.outputs.size() != value.tolerances.size())

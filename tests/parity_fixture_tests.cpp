@@ -31,6 +31,31 @@ std::string fixture_text()
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
 }
 
+kiyosi::PricingContext standard_context()
+{
+    const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
+    return *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(100.0), valuation);
+}
+
+kiyosi::date standard_expiry()
+{
+    return kiyosi::date{std::chrono::year{2026} / 1 / 6};
+}
+
+template <typename PriceResult>
+void check_price(const kiyosi::test::ParityCase& fixture, const PriceResult& priced)
+{
+    INFO("case=" << fixture.case_id << " instrument=" << fixture.instrument << " engine=" << fixture.engine);
+    REQUIRE(priced.has_value());
+    REQUIRE(fixture.outputs.contains("price"));
+    REQUIRE(fixture.tolerances.contains("price"));
+    REQUIRE(priced->get(kiyosi::risk_measure::price).has_value());
+    CAPTURE(*priced->get(kiyosi::risk_measure::price));
+    CHECK(std::abs(*priced->get(kiyosi::risk_measure::price) - fixture.outputs.at("price")) <=
+          fixture.tolerances.at("price"));
+}
+
 } // namespace
 
 TEST_CASE("European parity fixtures compare value, Greeks, and implied volatility")
@@ -128,6 +153,12 @@ TEST_CASE("CPU parity manifest covers instruments, engines, and numerical metada
         REQUIRE_FALSE(value.instrument.empty());
         REQUIRE_FALSE(value.engine.empty());
         REQUIRE_FALSE(value.variant.empty());
+        CHECK(value.provenance.source_revision == std::string{kiyosi::test::pinned_reference_revision});
+        CHECK_FALSE(value.provenance.source_symbol.empty());
+        CHECK_FALSE(value.provenance.convention.empty());
+        CHECK((value.provenance.reference_kind == "analytic" ||
+               value.provenance.reference_kind == "discretized" ||
+               value.provenance.reference_kind == "statistical"));
         REQUIRE(value.outputs.size() == value.tolerances.size());
         for (const auto& [name, tolerance] : value.tolerances) {
             REQUIRE(value.outputs.contains(name));
@@ -242,6 +273,59 @@ TEST_CASE("Reviewed analytic CPU fixture matches every exposed risk measure")
     }
 }
 
+TEST_CASE("Typed vanilla, digital, barrier, and Asian fixtures execute through public engines")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto context = standard_context();
+    const auto expiry = standard_expiry();
+    const auto call = *kiyosi::make_european_call(100.0, context.valuation_date(), expiry);
+    const auto put = *kiyosi::make_european_put(100.0, context.valuation_date(), expiry);
+    const auto american_put = *kiyosi::make_american_put(100.0, context.valuation_date(), expiry);
+    const auto bermudan = *kiyosi::make_american_call(100.0, context.valuation_date(), expiry);
+    const auto cash_call = *kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::call, 100.0, 10.0, context.valuation_date(), expiry);
+    const auto asset_put = *kiyosi::make_asset_or_nothing_option(
+        kiyosi::option_type::put, 100.0, context.valuation_date(), expiry);
+    const auto barrier = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, context.valuation_date(), expiry, 95.0,
+        kiyosi::barrier_type::down_and_in, 10.0);
+    const auto binary = *kiyosi::make_cash_or_nothing_barrier_option(
+        kiyosi::option_type::call, 100.0, context.valuation_date(), expiry, 90.0,
+        kiyosi::barrier_type::down_and_in, 10.0);
+    const auto geometric = *kiyosi::make_geometric_average_option(
+        kiyosi::option_type::call, 100.0, context.valuation_date() + std::chrono::days{181},
+        context.valuation_date(), expiry);
+    const auto arithmetic = *kiyosi::make_arithmetic_average_option(
+        kiyosi::option_type::put, 100.0, context.valuation_date() + std::chrono::days{181},
+        context.valuation_date(), expiry, 101.0);
+    const auto find = [&](std::string_view case_id) -> const kiyosi::test::ParityCase& {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
+        REQUIRE(found != cases.end());
+        REQUIRE(found->provenance.source_revision == std::string{kiyosi::test::pinned_reference_revision});
+        return *found;
+    };
+
+    check_price(find("european-analytic"), kiyosi::AnalyticEuropeanEngine{}.price(call, context));
+    check_price(find("european-binomial"), kiyosi::BinomialEuropeanEngine{200}.price(call, context));
+    check_price(find("crr-vanilla"), kiyosi::CrrEngine{200}.price(call, context));
+    REQUIRE(kiyosi::BinomialAmericanEngine{200}.price(american_put, context).has_value());
+    REQUIRE(kiyosi::BinomialAmericanEngine{200}.price(bermudan, context).has_value());
+    REQUIRE(kiyosi::AnalyticDigitalEngine{}.price(cash_call, context).has_value());
+    REQUIRE(kiyosi::AnalyticDigitalEngine{}.price(asset_put, context).has_value());
+    REQUIRE(kiyosi::AnalyticBarrierEngine{}.price(barrier, context).has_value());
+    REQUIRE(kiyosi::AnalyticBinaryBarrierEngine{}.price(binary, context).has_value());
+    REQUIRE(kiyosi::GeometricAverageAsianEngine{}.price(geometric, context).has_value());
+    REQUIRE(kiyosi::ArithmeticAverageAsianEngine{}.price(arithmetic, context).has_value());
+    check_price(find("european-integral"), kiyosi::IntegralEuropeanEngine{}.price(put, context));
+    REQUIRE(kiyosi::IntegralDigitalEngine{}.price(cash_call, context).has_value());
+    check_price(find("american-bs"), kiyosi::BjerksundStenslandAmericanEngine{}.price(
+        *kiyosi::make_american_call(100.0, context.valuation_date(), expiry), context));
+    check_price(find("european-fd"), kiyosi::FiniteDifferenceEuropeanEngine{200, 200}.price(call, context));
+    REQUIRE(kiyosi::FiniteDifferenceAmericanEngine{200, 200}.price(american_put, context).has_value());
+    REQUIRE(kiyosi::FiniteDifferenceDigitalEngine{200, 200}.price(cash_call, context).has_value());
+    REQUIRE(kiyosi::FiniteDifferenceBarrierEngine{200, 200}.price(barrier, context).has_value());
+}
+
 TEST_CASE("CPU parity public properties cover payoff, in-out, convergence, and seeded paths")
 {
     const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
@@ -304,10 +388,103 @@ TEST_CASE("CPU parity public properties cover payoff, in-out, convergence, and s
           monte_carlo_metadata.tolerance);
 }
 
+TEST_CASE("Typed structured finite-difference fixtures execute every concrete product")
+{
+    const auto effective = kiyosi::date{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 1};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+    const std::vector<kiyosi::date> observations{effective + std::chrono::days{90},
+                                                 effective + std::chrono::days{181},
+                                                 effective + std::chrono::days{273}, expiry};
+    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
+    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
+    const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
+    const auto phoenix = *kiyosi::make_phoenix_option(
+        0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto snowball = *kiyosi::make_snowball_option(
+        coupons, 0.08, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto binary = *kiyosi::make_binary_snowball_option(
+        coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto ternary = *kiyosi::make_ternary_snowball_option(
+        coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto fixture = [&](std::string_view case_id) -> const auto& {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
+        REQUIRE(found != cases.end());
+        return *found;
+    };
+    check_price(fixture("accumulator-fd"), kiyosi::FiniteDifferenceAccumulatorEngine{{80, 1024}}.price(accumulator, context));
+    check_price(fixture("structured-fd"), kiyosi::FiniteDifferencePhoenixEngine{{80, 1024}}.price(phoenix, context));
+    check_price(fixture("snowball-fd"), kiyosi::FiniteDifferenceSnowballEngine{{80, 1024}}.price(snowball, context));
+    check_price(fixture("binary-snowball-fd"), kiyosi::FiniteDifferenceBinarySnowballEngine{{80, 1024}}.price(binary, context));
+    check_price(fixture("ternary-snowball-fd"), kiyosi::FiniteDifferenceTernarySnowballEngine{{80, 1024}}.price(ternary, context));
+}
+
+TEST_CASE("Seeded Monte Carlo fixtures execute every concrete Monte Carlo engine repeatably")
+{
+    const auto effective = kiyosi::date{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 1};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+    const auto call = *kiyosi::make_european_call(100.0, effective, expiry);
+    const auto put = *kiyosi::make_american_put(100.0, effective, expiry);
+    const std::vector<kiyosi::date> observations{effective + std::chrono::days{90},
+                                                 effective + std::chrono::days{181},
+                                                 effective + std::chrono::days{273}, expiry};
+    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
+    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
+    const auto phoenix = *kiyosi::make_phoenix_option(
+        0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto snowball = *kiyosi::make_snowball_option(
+        coupons, 0.08, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto binary = *kiyosi::make_binary_snowball_option(
+        coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto ternary = *kiyosi::make_ternary_snowball_option(
+        coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto require_repeatable = [&](std::string_view case_id, const auto& instrument, const auto& first_engine) {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
+        REQUIRE(found != cases.end());
+        REQUIRE(found->monte_carlo.has_value());
+        const auto first = first_engine.price(instrument, context);
+        const auto second = first_engine.price(instrument, context);
+        REQUIRE(first.has_value());
+        REQUIRE(second.has_value());
+        REQUIRE(first->get(kiyosi::risk_measure::price).has_value());
+        REQUIRE(second->get(kiyosi::risk_measure::price).has_value());
+        CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
+        CHECK(std::isfinite(*first->get(kiyosi::risk_measure::price)));
+    };
+    require_repeatable("european-mc", call, kiyosi::MonteCarloEuropeanEngine{20000, 252, 42});
+    require_repeatable("american-mc", put, kiyosi::MonteCarloAmericanEngine{20000, 50, 42});
+    require_repeatable("phoenix-mc", phoenix, kiyosi::MonteCarloPhoenixEngine{{1000, 42}});
+    require_repeatable("snowball-mc", snowball, kiyosi::MonteCarloSnowballEngine{{1000, 42}});
+    require_repeatable("binary-snowball-mc", binary, kiyosi::MonteCarloBinarySnowballEngine{{1000, 42}});
+    require_repeatable("ternary-snowball-mc", ternary, kiyosi::MonteCarloTernarySnowballEngine{{1000, 42}});
+}
+
 TEST_CASE("CPU parity manifest rejects incomplete output tolerances")
 {
     std::istringstream input{
         "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
-        "broken\tOption\tEngine\tcall\tspot=100\tprice=1;delta=2\tprice=0.1\t-\t-\t-\n"};
+        "broken\tOption\tEngine\tcall\tspot=100;source_revision=08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2;source_symbol=test;convention=Actual/365,BSM;reference_kind=analytic;tolerance=0.1\tprice=1;delta=2\tprice=0.1\t-\t-\t-\n"};
     CHECK_THROWS_WITH(kiyosi::test::parse_parity_cases(input), Catch::Matchers::ContainsSubstring("matching keys"));
+}
+
+TEST_CASE("CPU parity manifest requires complete reference provenance")
+{
+    std::istringstream input{
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
+        "broken\tEuropeanOption\tAnalyticEuropeanEngine\tcall\tspot=100\tprice=1\tprice=0.1\t-\t-\t-\n"};
+    CHECK_THROWS_WITH(kiyosi::test::parse_parity_cases(input),
+                      Catch::Matchers::ContainsSubstring("source_revision"));
 }
