@@ -63,7 +63,7 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
 
 result<PricingResult> IntegralEuropeanEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
-    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     const double tau = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();
@@ -96,7 +96,7 @@ result<PricingResult> IntegralEuropeanEngine::price(const EuropeanOption& option
 
 result<PricingResult> BjerksundStenslandAmericanEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
-    const auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     const double time = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();

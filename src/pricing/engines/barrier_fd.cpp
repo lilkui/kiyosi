@@ -10,10 +10,10 @@ using namespace detail;
 namespace {
 result<double> knockout_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
-    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        auto schedule = validate_schedule(option.schedule(), context.valuation_date(), option.expiry(), context.calendar());
+        auto schedule = validate_schedule(option.schedule(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
     const double maturity = actual_365(context.valuation_date(), option.expiry());
@@ -81,18 +81,18 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     if (option.observation() == observation_mode::continuous && touched) {
         const double t = actual_365(context.valuation_date(), option.expiry());
         if (!knock_in) return PricingResult{{risk_measure::price, option.rebate_payment() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
-        auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
+        auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
         if (!vanilla) return std::unexpected(vanilla.error());
         return PricingResult{{risk_measure::price, vanilla->get(risk_measure::price).value()}};
     }
     auto out = knockout_fd(option, context, settings_); if (!out) return std::unexpected(out.error());
     if (knock_in && touched) {
-        auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
+        auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
         if (!vanilla) return std::unexpected(vanilla.error());
         return PricingResult{{risk_measure::price, vanilla->get(risk_measure::price).value()}};
     }
     if (!knock_in) return PricingResult{{risk_measure::price, *out}};
-    auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
+    auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365(context.valuation_date(), option.expiry());
     return PricingResult{{risk_measure::price, vanilla->get(risk_measure::price).value() - *out + option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};

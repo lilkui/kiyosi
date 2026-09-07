@@ -8,6 +8,7 @@
 #include <utility>
 #include <vector>
 #include <kiyosi/core/types.hpp>
+#include <kiyosi/market/detail/sse_holidays.hpp>
 
 namespace kiyosi {
 
@@ -81,39 +82,15 @@ private:
 [[nodiscard]] inline TradingCalendar sse_calendar()
 {
     return TradingCalendar{[](date value) {
-                               static constexpr std::array holidays{
-        date{std::chrono::year{2024} / 1 / 1}, date{std::chrono::year{2024} / 2 / 9},
-        date{std::chrono::year{2024} / 2 / 12}, date{std::chrono::year{2024} / 2 / 13},
-        date{std::chrono::year{2024} / 2 / 14}, date{std::chrono::year{2024} / 2 / 15},
-        date{std::chrono::year{2024} / 2 / 16}, date{std::chrono::year{2024} / 4 / 4},
-        date{std::chrono::year{2024} / 4 / 5}, date{std::chrono::year{2024} / 5 / 1},
-        date{std::chrono::year{2024} / 5 / 2}, date{std::chrono::year{2024} / 5 / 3},
-        date{std::chrono::year{2024} / 6 / 10}, date{std::chrono::year{2024} / 9 / 16},
-        date{std::chrono::year{2024} / 9 / 17}, date{std::chrono::year{2024} / 10 / 1},
-        date{std::chrono::year{2024} / 10 / 2}, date{std::chrono::year{2024} / 10 / 3},
-        date{std::chrono::year{2024} / 10 / 4}, date{std::chrono::year{2024} / 10 / 7},
-        date{std::chrono::year{2025} / 1 / 1}, date{std::chrono::year{2025} / 1 / 28},
-        date{std::chrono::year{2025} / 1 / 29}, date{std::chrono::year{2025} / 1 / 30},
-        date{std::chrono::year{2025} / 1 / 31}, date{std::chrono::year{2025} / 2 / 3},
-        date{std::chrono::year{2025} / 2 / 4}, date{std::chrono::year{2025} / 4 / 4},
-        date{std::chrono::year{2025} / 5 / 1}, date{std::chrono::year{2025} / 5 / 2},
-        date{std::chrono::year{2025} / 5 / 5}, date{std::chrono::year{2025} / 5 / 31},
-        date{std::chrono::year{2025} / 6 / 2}, date{std::chrono::year{2025} / 10 / 1},
-        date{std::chrono::year{2025} / 10 / 2}, date{std::chrono::year{2025} / 10 / 3},
-        date{std::chrono::year{2025} / 10 / 6}, date{std::chrono::year{2025} / 10 / 7},
-        date{std::chrono::year{2025} / 10 / 8}, date{std::chrono::year{2026} / 1 / 1},
-        date{std::chrono::year{2026} / 2 / 16}, date{std::chrono::year{2026} / 2 / 17},
-        date{std::chrono::year{2026} / 2 / 18}, date{std::chrono::year{2026} / 2 / 19},
-        date{std::chrono::year{2026} / 2 / 20}, date{std::chrono::year{2026} / 4 / 6},
-        date{std::chrono::year{2026} / 5 / 1}, date{std::chrono::year{2026} / 6 / 19},
-        date{std::chrono::year{2026} / 9 / 25}, date{std::chrono::year{2026} / 10 / 1},
-        date{std::chrono::year{2026} / 10 / 2}, date{std::chrono::year{2026} / 10 / 5},
-        date{std::chrono::year{2026} / 10 / 6}, date{std::chrono::year{2026} / 10 / 7}};
                                const auto weekday = std::chrono::weekday{value};
+                               const auto parts = std::chrono::year_month_day{value};
+                               const auto year = parts.year();
+                               const int encoded = int(year) * 10000 + int(unsigned(parts.month())) * 100 + int(unsigned(parts.day()));
                                return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday &&
-                                      std::ranges::find(holidays, value) == holidays.end();
+                                      (year < std::chrono::year{1991} || year > std::chrono::year{2030} ||
+                                       !std::ranges::binary_search(detail::sse_holidays, encoded));
                            },
-                           252};
+                           243};
 }
 
 [[nodiscard]] inline TradingCalendar shanghai_stock_exchange_calendar() { return sse_calendar(); }
@@ -199,18 +176,12 @@ private:
 enum class schedule_adjustment : unsigned char { following };
 
 namespace detail {
-[[nodiscard]] inline result<date> following_date(date target, date end, const TradingCalendar& calendar,
-                                                   int bound)
+[[nodiscard]] inline result<date> following_date(date target, date end, const TradingCalendar& calendar)
 {
-    if (bound < 0)
-        return std::unexpected(Error{error_category::invalid_schedule, "following adjustment bound is negative"});
     auto adjusted = target;
-    for (int offset = 0; offset <= bound; ++offset, adjusted += std::chrono::days{1}) {
-        if (adjusted > end) break;
-        if (calendar.is_trading_day(adjusted)) return adjusted;
-    }
-    return std::unexpected(Error{error_category::invalid_schedule,
-                                 "schedule date cannot be adjusted within following bound"});
+    while (adjusted <= end && !calendar.is_trading_day(adjusted)) adjusted += std::chrono::days{1};
+    if (adjusted <= end) return adjusted;
+    return std::unexpected(Error{error_category::invalid_schedule, "schedule date adjusts past expiry"});
 }
 
 [[nodiscard]] inline date add_months(date value, int months)
@@ -224,54 +195,51 @@ namespace detail {
 }
 
 [[nodiscard]] inline result<ObservationSchedule> make_fixed_interval_schedule(
-    date start, date end, std::chrono::days interval, const TradingCalendar& calendar = exchange_calendar(),
-    int following_bound = 5)
+    date start, date end, std::chrono::days interval, const TradingCalendar& calendar = exchange_calendar())
 {
     if (!is_valid_date(start) || !is_valid_date(end) || end < start || interval <= std::chrono::days{0})
         return std::unexpected(Error{error_category::invalid_schedule, "fixed schedule terms are invalid"});
     std::vector<date> dates;
-    for (auto target = start; target <= end; target += interval) {
-        auto adjusted = detail::following_date(target, end, calendar, following_bound);
-        if (!adjusted) return std::unexpected(adjusted.error());
-        dates.push_back(*adjusted);
+    for (auto target = start + interval; target <= end; target += interval) {
+        auto adjusted = detail::following_date(target, end, calendar);
+        if (!adjusted) break;
+        if (dates.empty() || dates.back() != *adjusted) dates.push_back(*adjusted);
     }
     return make_observation_schedule(std::move(dates), start, end, calendar);
 }
 
 [[nodiscard]] inline result<ObservationSchedule> make_fixed_interval_schedule(
-    date start, date end, int interval_days, const TradingCalendar& calendar = exchange_calendar(),
-    int following_bound = 5)
+    date start, date end, int interval_days, const TradingCalendar& calendar = exchange_calendar())
 {
-    return make_fixed_interval_schedule(start, end, std::chrono::days{interval_days}, calendar, following_bound);
+    return make_fixed_interval_schedule(start, end, std::chrono::days{interval_days}, calendar);
 }
 
 [[nodiscard]] inline result<ObservationSchedule> make_fixed_schedule(
-    date start, date end, std::chrono::days interval, const TradingCalendar& calendar = exchange_calendar(),
-    int following_bound = 5)
+    date start, date end, std::chrono::days interval, const TradingCalendar& calendar = exchange_calendar())
 {
-    return make_fixed_interval_schedule(start, end, interval, calendar, following_bound);
+    return make_fixed_interval_schedule(start, end, interval, calendar);
 }
 
 [[nodiscard]] inline result<ObservationSchedule> make_monthly_schedule(
-    date start, date end, const TradingCalendar& calendar = exchange_calendar(), int following_bound = 5)
+    date start, date end, int lock_up_months, const TradingCalendar& calendar = exchange_calendar())
 {
-    if (!is_valid_date(start) || !is_valid_date(end) || end < start)
+    if (!is_valid_date(start) || !is_valid_date(end) || end < start || lock_up_months <= 0)
         return std::unexpected(Error{error_category::invalid_schedule, "monthly schedule terms are invalid"});
     std::vector<date> dates;
-    for (int month = 0;; ++month) {
+    for (int month = lock_up_months;; ++month) {
         const auto target = detail::add_months(start, month);
         if (target > end) break;
-        auto adjusted = detail::following_date(target, end, calendar, following_bound);
-        if (!adjusted) return std::unexpected(adjusted.error());
+        auto adjusted = detail::following_date(target, end, calendar);
+        if (!adjusted) break;
         dates.push_back(*adjusted);
     }
     return make_observation_schedule(std::move(dates), start, end, calendar);
 }
 
 [[nodiscard]] inline result<ObservationSchedule> make_monthly_observation_schedule(
-    date start, date end, const TradingCalendar& calendar = exchange_calendar(), int following_bound = 5)
+    date start, date end, int lock_up_months, const TradingCalendar& calendar = exchange_calendar())
 {
-    return make_monthly_schedule(start, end, calendar, following_bound);
+    return make_monthly_schedule(start, end, lock_up_months, calendar);
 }
 
 } // namespace kiyosi

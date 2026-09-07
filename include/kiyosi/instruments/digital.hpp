@@ -9,6 +9,15 @@ using AssetOrNothingOption = EuropeanAssetOrNothingOption;
 
 template <OptionExercise Exercise>
 [[nodiscard]] inline result<ExerciseBasedOption<CashOrNothingPayoff, Exercise>> make_cash_or_nothing_option(
+    option_type type, double strike, double payout, date effective, date expiry, Exercise exercise)
+{
+    auto payoff = make_cash_or_nothing_payoff(payout);
+    if (!payoff) return std::unexpected(payoff.error());
+    return make_option(type, strike, effective, expiry, std::move(*payoff), std::move(exercise));
+}
+
+template <OptionExercise Exercise>
+[[nodiscard]] inline result<ExerciseBasedOption<CashOrNothingPayoff, Exercise>> make_cash_or_nothing_option(
     option_type type, double strike, double payout, date expiry, Exercise exercise)
 {
     auto payoff = make_cash_or_nothing_payoff(payout);
@@ -25,9 +34,7 @@ template <OptionExercise Exercise>
 [[nodiscard]] inline result<CashOrNothingOption> make_cash_or_nothing_option(
     option_type type, double strike, double payout, date valuation, date expiry)
 {
-    auto valid = validate_expiry(valuation, expiry);
-    if (!valid) return std::unexpected(valid.error());
-    return make_cash_or_nothing_option(type, strike, payout, expiry);
+    return make_cash_or_nothing_option(type, strike, payout, valuation, expiry, EuropeanExercise{});
 }
 
 [[nodiscard]] inline result<AmericanCashOrNothingOption> make_american_cash_or_nothing_option(
@@ -79,6 +86,11 @@ template <OptionExercise Exercise>
 
 template <OptionExercise Exercise>
 [[nodiscard]] inline result<ExerciseBasedOption<AssetOrNothingPayoff, Exercise>> make_asset_or_nothing_option(
+    option_type type, double strike, date effective, date expiry, Exercise exercise)
+{ return make_option(type, strike, effective, expiry, AssetOrNothingPayoff{}, std::move(exercise)); }
+
+template <OptionExercise Exercise>
+[[nodiscard]] inline result<ExerciseBasedOption<AssetOrNothingPayoff, Exercise>> make_asset_or_nothing_option(
     option_type type, double strike, date expiry, Exercise exercise)
 {
     return make_option(type, strike, expiry, AssetOrNothingPayoff{}, std::move(exercise));
@@ -93,9 +105,7 @@ template <OptionExercise Exercise>
 [[nodiscard]] inline result<AssetOrNothingOption> make_asset_or_nothing_option(
     option_type type, double strike, date valuation, date expiry)
 {
-    auto valid = validate_expiry(valuation, expiry);
-    if (!valid) return std::unexpected(valid.error());
-    return make_asset_or_nothing_option(type, strike, expiry);
+    return make_asset_or_nothing_option(type, strike, valuation, expiry, EuropeanExercise{});
 }
 
 [[nodiscard]] inline result<AmericanAssetOrNothingOption> make_american_asset_or_nothing_option(

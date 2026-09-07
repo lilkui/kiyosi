@@ -1,7 +1,7 @@
 # Add effective dates and contractual calendar semantics
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 
 ## Problem
 
@@ -55,3 +55,7 @@ adjustment. SSE data covers only 2024--2026 and uses 252 trading days per year.
   environment.
 
 ## Comments
+
+## Answer
+
+Implemented effective-date retention and inclusive life validation across the affected instruments and pricing engines, updated fixed/monthly schedule semantics, and ported the pinned 1991--2030 SSE holiday table with the 243-day convention. Focused regressions and the full 45-test CTest suite pass in the Visual Studio Developer environment.

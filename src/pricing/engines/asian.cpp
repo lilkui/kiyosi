@@ -10,9 +10,9 @@ double payoff(option_type type, double value, double strike)
 {
     return std::max((type == option_type::call ? 1.0 : -1.0) * (value - strike), 0.0);
 }
-result<double> time_to_expiry(const PricingContext& context, date expiry)
+result<double> time_to_expiry(const PricingContext& context, date effective, date expiry)
 {
-    auto valid = validate_expiry(context.valuation_date(), expiry);
+    auto valid = validate_life(context.valuation_date(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
     return actual_365(context.valuation_date(), expiry);
 }
@@ -21,7 +21,7 @@ result<double> time_to_expiry(const PricingContext& context, date expiry)
 result<PricingResult> GeometricAverageAsianEngine::price(
     const GeometricAverageOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.expiry());
+    auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
     const double spot = context.asset_price().value();
@@ -48,7 +48,7 @@ result<PricingResult> GeometricAverageAsianEngine::price(
 result<PricingResult> ArithmeticAverageAsianEngine::price(
     const ArithmeticAverageOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.expiry());
+    auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
     const double spot = context.asset_price().value();

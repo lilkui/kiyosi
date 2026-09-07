@@ -15,7 +15,7 @@ result<PricingResult> price_finite_difference(
     const Option& option, const PricingContext& context,
     FiniteDifferenceSettings settings, bool american)
 {
-    const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
     if (settings.asset_steps < 3 || settings.asset_steps > 10'000 ||
         settings.time_steps <= 0 || settings.time_steps > 100'000) {

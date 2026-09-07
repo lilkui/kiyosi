@@ -14,7 +14,7 @@ template <typename Option>
 result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
                                        FiniteDifferenceSettings settings, bool asset)
 {
-    const auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (settings.asset_steps < 3 || settings.asset_steps > 10'000 ||
         settings.time_steps <= 0 || settings.time_steps > 100'000)
@@ -129,9 +129,9 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 }
 
 result<PricingResult> price_digital_integral(option_type type, double strike, double payout, bool asset,
-                                             date expiry, const PricingContext& context)
+                                             date effective, date expiry, const PricingContext& context)
 {
-    const auto valid = validate_expiry(context.valuation_date(), expiry);
+    const auto valid = validate_life(context.valuation_date(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
     const double time = actual_365(context.valuation_date(), expiry);
     const double spot = context.asset_price().value();
@@ -171,10 +171,10 @@ result<PricingResult> FiniteDifferenceDigitalEngine::price(const EuropeanAssetOr
 }
 result<PricingResult> IntegralDigitalEngine::price(const EuropeanCashOrNothingOption& option, const PricingContext& context) const
 {
-    return price_digital_integral(option.type(), option.strike(), option.payout(), false, option.expiry(), context);
+    return price_digital_integral(option.type(), option.strike(), option.payout(), false, option.effective(), option.expiry(), context);
 }
 result<PricingResult> IntegralDigitalEngine::price(const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
 {
-    return price_digital_integral(option.type(), option.strike(), 1.0, true, option.expiry(), context);
+    return price_digital_integral(option.type(), option.strike(), 1.0, true, option.effective(), option.expiry(), context);
 }
 } // namespace kiyosi

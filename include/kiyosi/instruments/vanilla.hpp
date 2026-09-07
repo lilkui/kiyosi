@@ -18,28 +18,32 @@ class OptionTerms {
 public:
     option_type type() const noexcept { return type_; }
     double strike() const noexcept { return strike_; }
+    date effective() const noexcept { return effective_; }
     date expiry() const noexcept { return expiry_; }
     friend bool operator==(const OptionTerms&, const OptionTerms&) = default;
 
 private:
-    OptionTerms(option_type type, double strike, date expiry)
-        : type_(type), strike_(strike), expiry_(expiry) {}
+    OptionTerms(option_type type, double strike, date effective, date expiry)
+        : type_(type), strike_(strike), effective_(effective), expiry_(expiry) {}
     option_type type_;
     double strike_;
+    date effective_;
     date expiry_;
-    friend result<OptionTerms> make_option_terms(option_type, double, date);
+    friend result<OptionTerms> make_option_terms(option_type, double, date, date);
 };
 
-[[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date expiry)
+[[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date effective, date expiry)
 {
     if (type != option_type::call && type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0)
         return std::unexpected(Error{error_category::invalid_strike, "strike must be finite and positive"});
-    if (!is_valid_date(expiry))
-        return std::unexpected(Error{error_category::invalid_date, "expiry must be a valid calendar date"});
-    return OptionTerms{type, strike, expiry};
+    if (!is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry)
+        return std::unexpected(Error{error_category::invalid_schedule, "option life dates are invalid"});
+    return OptionTerms{type, strike, effective, expiry};
 }
+[[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date expiry)
+{ return make_option_terms(type, strike, date{std::chrono::year{1970}/1/1}, expiry); }
 
 struct VanillaPayoff {
     friend bool operator==(const VanillaPayoff&, const VanillaPayoff&) = default;
@@ -126,6 +130,7 @@ class ExerciseBasedOption {
 public:
     option_type type() const noexcept { return terms_.type(); }
     double strike() const noexcept { return terms_.strike(); }
+    date effective() const noexcept { return terms_.effective(); }
     date expiry() const noexcept { return terms_.expiry(); }
     const OptionTerms& terms() const noexcept { return terms_; }
     const Payoff& payoff() const noexcept { return payoff_; }
@@ -163,7 +168,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 {
     if constexpr (std::same_as<Exercise, BermudanExercise>) {
         auto valid = validate_observation_dates(
-            exercise.dates(), exercise.dates().front(), terms.expiry(), all_days_calendar());
+            exercise.dates(), terms.effective(), terms.expiry(), all_days_calendar());
         if (!valid)
             return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     }
@@ -191,17 +196,23 @@ template <OptionPayoff Payoff>
 {
     auto exercise = make_bermudan_exercise(std::move(dates), terms.expiry(), calendar);
     if (!exercise) return std::unexpected(exercise.error());
+    auto valid = validate_observation_dates(exercise->dates(), terms.effective(), terms.expiry(), calendar);
+    if (!valid) return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     return make_exercise_based_option(std::move(terms), std::move(payoff), std::move(*exercise));
 }
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_option(
-    option_type type, double strike, date expiry, Payoff payoff, Exercise exercise)
+    option_type type, double strike, date effective, date expiry, Payoff payoff, Exercise exercise)
 {
-    auto terms = make_option_terms(type, strike, expiry);
+    auto terms = make_option_terms(type, strike, effective, expiry);
     if (!terms) return std::unexpected(terms.error());
     return make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
 }
+template <OptionPayoff Payoff, OptionExercise Exercise>
+[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_option(
+    option_type type, double strike, date expiry, Payoff payoff, Exercise exercise)
+{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, std::move(payoff), std::move(exercise)); }
 
 using EuropeanOption = ExerciseBasedOption<VanillaPayoff, EuropeanExercise>;
 using AmericanOption = ExerciseBasedOption<VanillaPayoff, AmericanExercise>;
@@ -214,65 +225,45 @@ using AmericanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, A
 using BermudanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, BermudanExercise>;
 
 [[nodiscard]] inline result<EuropeanOption> make_european_option(option_type type, double strike, date expiry)
-{
-    return make_option(type, strike, expiry, VanillaPayoff{}, EuropeanExercise{});
-}
-
+{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, VanillaPayoff{}, EuropeanExercise{}); }
 [[nodiscard]] inline result<AmericanOption> make_american_option(option_type type, double strike, date expiry)
-{
-    return make_option(type, strike, expiry, VanillaPayoff{}, AmericanExercise{});
-}
+{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, VanillaPayoff{}, AmericanExercise{}); }
+[[nodiscard]] inline result<BermudanOption> make_bermudan_option(option_type type, double strike, date expiry, std::vector<date> dates, const TradingCalendar& calendar = all_days_calendar())
+{ auto terms = make_option_terms(type, strike, expiry); if (!terms) return std::unexpected(terms.error()); return make_bermudan_option(*terms, VanillaPayoff{}, std::move(dates), calendar); }
 
-[[nodiscard]] inline result<BermudanOption> make_bermudan_option(
-    option_type type, double strike, date expiry, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
-{
-    auto terms = make_option_terms(type, strike, expiry);
-    if (!terms) return std::unexpected(terms.error());
-    return make_bermudan_option(*terms, VanillaPayoff{}, std::move(dates), calendar);
-}
+[[nodiscard]] inline result<EuropeanOption> make_european_option(
+    option_type type, double strike, date effective, date expiry)
+{ return make_option(type, strike, effective, expiry, VanillaPayoff{}, EuropeanExercise{}); }
+
+[[nodiscard]] inline result<AmericanOption> make_american_option(
+    option_type type, double strike, date effective, date expiry)
+{ return make_option(type, strike, effective, expiry, VanillaPayoff{}, AmericanExercise{}); }
 
 [[nodiscard]] inline result<BermudanOption> make_bermudan_option(
     option_type type, double strike, date valuation_date, date expiry, std::vector<date> dates,
     const TradingCalendar& calendar = all_days_calendar())
 {
-    auto valid = validate_expiry(valuation_date, expiry);
-    if (!valid) return std::unexpected(valid.error());
-    return make_bermudan_option(type, strike, expiry, std::move(dates), calendar);
-}
-
-[[nodiscard]] inline result<EuropeanOption> make_european_option(
-    option_type type, double strike, date valuation_date, date expiry)
-{
-    auto valid = validate_expiry(valuation_date, expiry);
-    if (!valid) return std::unexpected(valid.error());
-    return make_european_option(type, strike, expiry);
-}
-
-[[nodiscard]] inline result<AmericanOption> make_american_option(
-    option_type type, double strike, date valuation_date, date expiry)
-{
-    auto valid = validate_expiry(valuation_date, expiry);
-    if (!valid) return std::unexpected(valid.error());
-    return make_american_option(type, strike, expiry);
+    auto terms = make_option_terms(type, strike, valuation_date, expiry);
+    if (!terms) return std::unexpected(terms.error());
+    return make_bermudan_option(*terms, VanillaPayoff{}, std::move(dates), calendar);
 }
 
 [[nodiscard]] inline result<EuropeanOption> make_european_call(double strike, date expiry)
-{
-    return make_european_option(option_type::call, strike, expiry);
-}
+{ return make_european_option(option_type::call, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+[[nodiscard]] inline result<EuropeanOption> make_european_call(double strike, date effective, date expiry)
+{ return make_european_option(option_type::call, strike, effective, expiry); }
 [[nodiscard]] inline result<EuropeanOption> make_european_put(double strike, date expiry)
-{
-    return make_european_option(option_type::put, strike, expiry);
-}
+{ return make_european_option(option_type::put, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+[[nodiscard]] inline result<EuropeanOption> make_european_put(double strike, date effective, date expiry)
+{ return make_european_option(option_type::put, strike, effective, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_call(double strike, date expiry)
-{
-    return make_american_option(option_type::call, strike, expiry);
-}
+{ return make_american_option(option_type::call, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+[[nodiscard]] inline result<AmericanOption> make_american_call(double strike, date effective, date expiry)
+{ return make_american_option(option_type::call, strike, effective, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_put(double strike, date expiry)
-{
-    return make_american_option(option_type::put, strike, expiry);
-}
+{ return make_american_option(option_type::put, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+[[nodiscard]] inline result<AmericanOption> make_american_put(double strike, date effective, date expiry)
+{ return make_american_option(option_type::put, strike, effective, expiry); }
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline result<void> validate_observation_dates(

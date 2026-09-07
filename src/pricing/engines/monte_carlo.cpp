@@ -14,9 +14,9 @@ namespace {
 constexpr int maximum_path_count = 10'000'000;
 constexpr int maximum_step_count = 10'000;
 
-result<double> simulation_time(const PricingContext& context, date expiry)
+result<double> simulation_time(const PricingContext& context, date effective, date expiry)
 {
-    const auto valid = validate_expiry(context.valuation_time(), expiry);
+    const auto valid = validate_life(context.valuation_date(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
     if (context.valuation_date() == expiry) return 0.0;
     const auto time = year_fraction(context.valuation_time(), start_of_day(expiry));
@@ -127,7 +127,7 @@ bool fit_quadratic(std::span<const double> regression_spots,
 result<PricingResult> MonteCarloEuropeanEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context) const
 {
-    const auto time = simulation_time(context, option.expiry());
+    const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
         return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price().value(), option.strike())}};
@@ -146,7 +146,7 @@ result<PricingResult> MonteCarloEuropeanEngine::price_impl(
 result<PricingResult> MonteCarloAmericanEngine::price_impl(
     const AmericanOption& option, const PricingContext& context) const
 {
-    const auto time = simulation_time(context, option.expiry());
+    const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
         return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price().value(), option.strike())}};

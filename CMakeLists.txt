@@ -74,6 +74,7 @@ set(KIYOSI_HEADERS
     include/kiyosi/instruments/vanilla.hpp
     include/kiyosi/kiyosi.hpp
     include/kiyosi/market/calendar.hpp
+    include/kiyosi/market/detail/sse_holidays.hpp
     include/kiyosi/market/context.hpp
     include/kiyosi/pricing/analytics.hpp
     include/kiyosi/pricing/engines/analytic.hpp

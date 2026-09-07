@@ -15,7 +15,7 @@ result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, bool american)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
-    const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
     if (settings.steps <= 0 || settings.steps > 1'000'000) {
         return std::unexpected(Error{error_category::invalid_parameter,

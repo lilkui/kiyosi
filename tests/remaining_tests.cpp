@@ -58,3 +58,30 @@ TEST_CASE("Shared numerical analytics and immutable coupon replacement")
     CHECK(note.maturity_coupon_rate() == 0.05);
     CHECK(replaced.maturity_coupon_rate() == 0.08);
 }
+
+TEST_CASE("Effective dates schedules and SSE calendar semantics")
+{
+    const auto effective = day(2025, 1, 3);
+    const auto expiry = day(2025, 2, 3);
+    const auto option = kiyosi::make_european_call(100.0, effective, expiry);
+    REQUIRE(option);
+    CHECK(option->effective() == effective);
+    CHECK_FALSE(kiyosi::make_european_call(100.0, expiry, effective));
+
+    const auto fixed = kiyosi::make_fixed_interval_schedule(effective, day(2025, 1, 7), 1);
+    REQUIRE(fixed);
+    CHECK(fixed->dates() == std::vector<kiyosi::date>{day(2025, 1, 6), day(2025, 1, 7)});
+    CHECK(kiyosi::make_fixed_interval_schedule(effective, day(2025, 1, 5), 10)->empty());
+
+    const auto monthly = kiyosi::make_monthly_schedule(day(2025, 1, 2), day(2025, 4, 2), 2);
+    REQUIRE(monthly);
+    CHECK(monthly->dates() == std::vector<kiyosi::date>{day(2025, 3, 3), day(2025, 4, 2)});
+    CHECK_FALSE(kiyosi::make_monthly_schedule(effective, expiry, 0));
+
+    const auto sse = kiyosi::sse_calendar();
+    CHECK(sse.annual_trading_days() == 243);
+    CHECK_FALSE(sse.is_trading_day(day(1991, 2, 15)));
+    CHECK_FALSE(sse.is_trading_day(day(2030, 9, 12)));
+    CHECK_FALSE(sse.is_trading_day(day(2031, 1, 4)));
+    CHECK(sse.is_trading_day(day(2031, 1, 2)));
+}

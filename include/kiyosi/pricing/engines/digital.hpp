@@ -27,11 +27,11 @@ private:
         const ExerciseBasedOption<Payoff, Exercise>& option, double payout, bool asset,
         const PricingContext& context) const
     {
-        return price_impl(option.type(), option.strike(), payout, asset, option.expiry(), context);
+        return price_impl(option.type(), option.strike(), payout, asset, option.effective(), option.expiry(), context);
     }
 
     [[nodiscard]] result<PricingResult> price_impl(
-        option_type, double, double, bool, date, const PricingContext&) const;
+        option_type, double, double, bool, date, date, const PricingContext&) const;
 };
 
 } // namespace kiyosi

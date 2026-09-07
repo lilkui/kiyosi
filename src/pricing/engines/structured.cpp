@@ -114,10 +114,8 @@ result<PricingResult> price_structured(const Option& option, const PricingContex
         auto contract = validate_note(option);
         if (!contract) return std::unexpected(contract.error());
     }
-    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (context.valuation_date() < option.effective())
-        return std::unexpected(Error{error_category::invalid_schedule, "valuation precedes contract effective date"});
     if constexpr (requires { option.observation_dates(); }) {
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
@@ -150,15 +148,13 @@ template <typename Option>
 result<PricingResult> price_finite_difference_structured(
     const Option& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
-    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (settings.asset_steps < 3 || settings.time_steps <= 0 || settings.asset_steps > 2000 || settings.time_steps > 2000)
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
     if constexpr (requires { option.initial_price(); }) {
         auto contract = validate_note(option);
         if (!contract) return std::unexpected(contract.error());
-        if (context.valuation_date() < option.effective())
-            return std::unexpected(Error{error_category::invalid_schedule, "valuation precedes contract effective date"});
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }

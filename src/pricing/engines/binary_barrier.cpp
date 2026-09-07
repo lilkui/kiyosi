@@ -51,7 +51,7 @@ double integrate(const std::function<double(double)>& f, double a, double b)
 result<PricingResult> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
-    auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     const double t = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();

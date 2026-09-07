@@ -69,4 +69,14 @@ using result = std::expected<T, Error>;
     timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed);
 [[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(date valuation_date, date expiry);
 [[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(timestamp valuation_time, date expiry);
+[[nodiscard]] inline result<void> validate_life(date valuation_date, date effective, date expiry)
+{
+    if (!is_valid_date(valuation_date) || !is_valid_date(effective) || !is_valid_date(expiry))
+        return std::unexpected(Error{error_category::invalid_date, "life dates must be valid calendar dates"});
+    if (effective > expiry)
+        return std::unexpected(Error{error_category::invalid_expiry, "effective date must not follow expiry"});
+    if (valuation_date < effective || valuation_date > expiry)
+        return std::unexpected(Error{error_category::invalid_expiry, "valuation date must be within the instrument life"});
+    return {};
+}
 } // namespace kiyosi

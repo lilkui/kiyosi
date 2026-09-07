@@ -49,7 +49,7 @@ inline result<PricingResult> price_at_volatility(
     const EuropeanOption& option, const PricingContext& context, double volatility,
     risk_measure_output requested_output = risk_measure_output::all)
 {
-    const auto valid_expiry = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid_expiry) {
         return std::unexpected(valid_expiry.error());
     }

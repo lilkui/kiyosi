@@ -370,7 +370,7 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
         kiyosi::exchange_calendar());
     REQUIRE(schedule.has_value());
     const auto barrier = kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, end, 90.0, kiyosi::barrier_type::down_and_out,
+        kiyosi::option_type::call, 100.0, start, end, 90.0, kiyosi::barrier_type::down_and_out,
         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, *schedule);
     REQUIRE(barrier.has_value());
     CHECK(barrier->schedule() == *schedule);
@@ -492,9 +492,9 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     CHECK_FALSE(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry).has_value());
 
     const auto down_out = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, expiry, 90.0, kiyosi::barrier_type::down_and_out);
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out);
     const auto down_in = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, expiry, 90.0, kiyosi::barrier_type::down_and_in);
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in);
     const auto barrier_out = kiyosi::AnalyticBarrierEngine{}.price(down_out, context);
     const auto barrier_in = kiyosi::AnalyticBarrierEngine{}.price(down_in, context);
     const auto vanilla = kiyosi::AnalyticEuropeanEngine{}.price(*kiyosi::make_european_call(100.0, expiry), context);
@@ -506,7 +506,7 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
                WithinAbs(risk_value(*vanilla, kiyosi::risk_measure::price), 1e-5));
 
     const auto scheduled = kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, expiry, 90.0, kiyosi::barrier_type::down_and_out,
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
         std::vector<kiyosi::date>{valuation + std::chrono::days{30}});
     REQUIRE(scheduled.has_value());
@@ -520,7 +520,7 @@ TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, expiry, 90.0, kiyosi::barrier_type::up_and_out,
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_expiry);
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
@@ -535,7 +535,7 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.03, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 1'000'000'000.0, expiry, 110.0, kiyosi::barrier_type::up_and_out,
+        kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_hit);
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
@@ -557,7 +557,7 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     const auto parameters = *kiyosi::make_bsm_parameters(-0.02, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 1'000'000'000.0, expiry, 110.0, kiyosi::barrier_type::up_and_out,
+        kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_hit);
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);

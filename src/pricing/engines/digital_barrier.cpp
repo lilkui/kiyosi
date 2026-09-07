@@ -23,9 +23,9 @@ PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt
 }
 
 result<PricingResult> digital_price(double strike, option_type type, double payout,
-                                    bool asset, date expiry, const PricingContext& context)
+                                    bool asset, date effective, date expiry, const PricingContext& context)
 {
-    const auto valid = validate_expiry(context.valuation_date(), expiry);
+    const auto valid = validate_life(context.valuation_date(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
     const double spot = context.asset_price().value();
     const double t = actual_365(context.valuation_date(), expiry);
@@ -116,26 +116,26 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 } // namespace
 
 result<PricingResult> AnalyticDigitalEngine::price_impl(
-    option_type type, double strike, double payout, bool asset, date expiry,
+    option_type type, double strike, double payout, bool asset, date effective, date expiry,
     const PricingContext& context) const
 {
-    return digital_price(strike, type, payout, asset, expiry, context);
+    return digital_price(strike, type, payout, asset, effective, expiry, context);
 }
 
 result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
 {
-    const auto valid = validate_expiry(context.valuation_date(), option.expiry());
+    const auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        auto schedule_valid = validate_schedule(option.schedule(), context.valuation_date(),
+        auto schedule_valid = validate_schedule(option.schedule(), option.effective(),
                                                 option.expiry(), context.calendar());
         if (!schedule_valid)
             return std::unexpected(Error{error_category::invalid_schedule, schedule_valid.error().message});
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
     const auto vanilla = price_at_volatility(
-        *make_european_option(option.type(), option.strike(), option.expiry()), context,
+        *make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context,
         context.parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365(context.valuation_date(), option.expiry());
