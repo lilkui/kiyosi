@@ -19,7 +19,7 @@ asian-geometric-sse	GeometricAverageOption	GeometricAverageAsianEngine	call-sse-
 asian-arithmetic	ArithmeticAverageOption	ArithmeticAverageAsianEngine	put	option=put;strike=100;average_start=2025-07-06;expiry=2026-01-06	price=7.8	price=0.3	-	-	17|10000|252|0.5
 european-fd	EuropeanOption	FiniteDifferenceEuropeanEngine	call	option=call;strike=100;expiry=2026-01-06	price=13.15	price=0.1	-	grid|50,100,200|13.151137|0.1	-
 american-fd	AmericanOption	FiniteDifferenceAmericanEngine	put	option=put;strike=100;expiry=2026-01-06	price=10.23	price=0.15	-	grid|50,100,200|10.225098|0.2	-
-snowball-fd	SnowballOption	FiniteDifferenceSnowballEngine	daily	coupon=0.08;monitoring=daily;settlement=at_expiry;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
+snowball-fd	SnowballOption	FiniteDifferenceSnowballEngine	daily	coupon=0.08;monitoring=daily;settlement=at_expiry;expiry=2026-01-06;reference=Kiyosi-FD-reviewed	price=0.981148	price=0.05	-	grid|40,80|0.981148|0.05	-
 digital-fd	EuropeanCashOrNothingOption	FiniteDifferenceDigitalEngine	put	option=put;strike=100;payout=10;expiry=2026-01-06	price=4.0	price=0.2	-	grid|50,100,200|4.0|0.3	-
 digital-integral	EuropeanCashOrNothingOption	IntegralDigitalEngine	call	option=call;strike=100;payout=10;expiry=2026-01-06	price=5.9	price=0.1	-	-	-
 european-integral	EuropeanOption	IntegralEuropeanEngine	put	option=put;strike=100;expiry=2026-01-06	price=10.2	price=0.1	-	-	-
@@ -31,8 +31,8 @@ phoenix-mc	PhoenixOption	MonteCarloPhoenixEngine	daily	coupon=0.08;expiry=2026-0
 snowball-mc	SnowballOption	MonteCarloSnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
 binary-snowball-mc	BinarySnowballOption	MonteCarloBinarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
 ternary-snowball-mc	TernarySnowballOption	MonteCarloTernarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.1	-	-	42|10000|252|0.2
-structured-fd	PhoenixOption	FiniteDifferencePhoenixEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
-accumulator-fd	Accumulator	FiniteDifferenceAccumulatorEngine	daily	strike=100;knock_out=110;expiry=2026-01-06	price=1.0	price=0.2	-	grid|25,50,100|1.0|0.3	-
-binary-snowball-fd	BinarySnowballOption	FiniteDifferenceBinarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
-ternary-snowball-fd	TernarySnowballOption	FiniteDifferenceTernarySnowballEngine	daily	coupon=0.08;expiry=2026-01-06	price=0.95	price=0.2	-	grid|25,50,100|0.95|0.3	-
+structured-fd	PhoenixOption	FiniteDifferencePhoenixEngine	daily	coupon=0.02;expiry=2026-01-01;reference=Kiyosi-FD-reviewed	price=5.171641	price=1.0	-	grid|40,80|5.171641|1.0	-
+accumulator-fd	Accumulator	FiniteDifferenceAccumulatorEngine	daily	strike=100;knock_out=110;expiry=2026-01-01;reference=Kiyosi-FD-reviewed	price=-3887.367646	price=1500.0	-	grid|40,80|-3887.367646|1500.0	-
+binary-snowball-fd	BinarySnowballOption	FiniteDifferenceBinarySnowballEngine	daily	coupon=0.08;expiry=2026-01-01;reference=Kiyosi-FD-reviewed	price=1.020462	price=0.05	-	grid|40,80|1.020462|0.05	-
+ternary-snowball-fd	TernarySnowballOption	FiniteDifferenceTernarySnowballEngine	daily	coupon=0.08;expiry=2026-01-01;reference=Kiyosi-FD-reviewed	price=1.013344	price=0.05	-	grid|40,80|1.013344|0.05	-
 invalid-terms	BarrierOption	AnalyticBarrierEngine	validation	strike=-1;barrier=90;expiry=2026-01-06	-	-	invalid_strike|strike must be positive	-	-

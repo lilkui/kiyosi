@@ -10,7 +10,7 @@ to DerivaSharp revision `08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2`.
 | 1 | [01 Effective dates, schedules, and calendar](issues/01-effective-dates-schedules-calendar.md) | resolved | — |
 | 2 | [02 Binary and scheduled barrier parity](issues/02-binary-and-scheduled-barriers.md) | ready-for-agent | 01 |
 | 3 | [03 Structured state, settlement, and validation](issues/03-structured-state-settlement-validation.md) | ready-for-agent | 01 |
-| 4 | [04 Structured finite-difference engines](issues/04-structured-finite-difference-engines.md) | ready-for-agent | 03 |
+| 4 | [04 Structured finite-difference engines](issues/04-structured-finite-difference-engines.md) | resolved | 03 |
 | 5 | [05 Executable reference-fixture closure](issues/05-executable-reference-fixtures.md) | ready-for-agent | 01, 02, 03, 04 |
 
 ## Decisions So Far

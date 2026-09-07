@@ -199,3 +199,59 @@ TEST_CASE("Structured Monte Carlo resolves only future observation events")
     CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
     CHECK(*first->get(kiyosi::risk_measure::price) == Catch::Approx(1.10).margin(1e-10));
 }
+
+TEST_CASE("Structured finite-difference engines use event-aware BSM grids")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+                                                 day(2025, 10, 1), expiry};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
+    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
+
+    const auto check_refinement = [&](const auto& instrument, double reference, double tolerance) {
+        using Instrument = std::remove_cvref_t<decltype(instrument)>;
+        for (const auto scheme : {kiyosi::finite_difference_scheme::explicit_euler,
+                                  kiyosi::finite_difference_scheme::implicit_euler,
+                                  kiyosi::finite_difference_scheme::crank_nicolson}) {
+            const auto coarse = kiyosi::FiniteDifferenceStructuredEngine<Instrument>{{40, 512, scheme}}.price(instrument, context);
+            const auto fine = kiyosi::FiniteDifferenceStructuredEngine<Instrument>{{80, 1024, scheme}}.price(instrument, context);
+            REQUIRE(coarse);
+            REQUIRE(fine);
+            const double coarse_value = *coarse->get(kiyosi::risk_measure::price);
+            const double fine_value = *fine->get(kiyosi::risk_measure::price);
+            CHECK(std::isfinite(coarse_value));
+            CHECK(std::isfinite(fine_value));
+            CHECK(fine_value != coarse_value);
+            CHECK(std::abs(fine_value - reference) <= tolerance);
+        }
+    };
+
+    const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
+    const auto phoenix = *kiyosi::make_phoenix_option(
+        0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0,
+        observations, kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
+        1.0, effective, expiry);
+    const auto snowball = *kiyosi::make_snowball_option(
+        coupons, 0.08, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto binary = *kiyosi::make_binary_snowball_option(
+        coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    const auto ternary = *kiyosi::make_ternary_snowball_option(
+        coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+
+    check_refinement(accumulator, -3887.3676462355, 1500.0);
+    check_refinement(phoenix, 5.1716408754, 1.0);
+    check_refinement(snowball, 0.9811475410, 0.05);
+    check_refinement(binary, 1.0204621148, 0.05);
+    check_refinement(ternary, 1.0133440062, 0.05);
+
+    CHECK_FALSE(kiyosi::FiniteDifferenceBinarySnowballEngine{{40, 1, kiyosi::finite_difference_scheme::explicit_euler}}
+                    .price(binary, context));
+    CHECK_FALSE(kiyosi::FiniteDifferencePhoenixEngine{{40, 512, kiyosi::finite_difference_scheme::crank_nicolson, 110.0}}
+                    .price(phoenix, context));
+}

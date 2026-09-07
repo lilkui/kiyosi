@@ -1,7 +1,7 @@
 # Implement structured finite-difference engines
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 03
 
 ## Problem
@@ -55,3 +55,11 @@ do not describe the computation performed.
   environment.
 
 ## Comments
+
+## Answer
+
+Structured finite-difference pricing now uses event-aware BSM PDE grids with
+explicit, implicit, and Crank–Nicolson schemes, exact future trading and
+observation nodes, Actual/365 timing, product-specific terminal/state
+transitions, upper-bound validation, and explicit-Euler stability rejection.
+All five engines have public refinement coverage and reviewed fixture values.

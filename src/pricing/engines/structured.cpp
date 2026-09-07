@@ -3,10 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <random>
-#include <map>
-#include <tuple>
 #include <type_traits>
-#include <functional>
 
 namespace kiyosi {
 using namespace detail;
@@ -179,6 +176,13 @@ result<PricingResult> price_finite_difference_structured(
     if (!valid) return std::unexpected(valid.error());
     if (settings.asset_steps < 3 || settings.time_steps <= 0 || settings.asset_steps > 2000 || settings.time_steps > 2000)
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
+    if (settings.upper_boundary != 0.0 && (!std::isfinite(settings.upper_boundary) || settings.upper_boundary <= 0.0))
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "finite-difference upper boundary must be finite and positive"});
+    if (settings.scheme != finite_difference_scheme::explicit_euler &&
+        settings.scheme != finite_difference_scheme::implicit_euler &&
+        settings.scheme != finite_difference_scheme::crank_nicolson)
+        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference scheme is invalid"});
     if constexpr (std::is_same_v<Option, Accumulator>) {
         auto contract = make_accumulator(option.strike(), option.knock_out(), option.daily_quantity(), option.acceleration(),
                                          option.accumulated_quantity(), option.effective(), option.expiry());
@@ -189,6 +193,23 @@ result<PricingResult> price_finite_difference_structured(
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
+    if constexpr (requires { option.touch_status(); })
+        if (option.touch_status() == barrier_touch_status::up && settings.upper_boundary == 0.0)
+            return PricingResult{{risk_measure::price, 0.0}};
+    const double spot = context.asset_price().value();
+    double relevant = spot;
+    if constexpr (std::is_same_v<Option, Accumulator>) {
+        relevant = std::max({relevant, option.strike(), option.knock_out()});
+    } else {
+        relevant = std::max({relevant, option.initial_price(), option.upper_strike(), option.lower_strike()});
+        for (const double level : option.knock_out_prices()) relevant = std::max(relevant, level);
+        if constexpr (requires { option.knock_in_price(); }) relevant = std::max(relevant, option.knock_in_price());
+        if constexpr (requires { option.coupon_barriers(); })
+            for (const double level : option.coupon_barriers()) relevant = std::max(relevant, level);
+    }
+    if (settings.upper_boundary != 0.0 && settings.upper_boundary <= relevant)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "finite-difference upper boundary must exceed every product level"});
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up)
             return PricingResult{{risk_measure::price, 0.0}};
@@ -207,88 +228,208 @@ result<PricingResult> price_finite_difference_structured(
                 context.asset_price().value() >= option.knock_out_prices()[expiry_index])
                 return PricingResult{{risk_measure::price, option.principal_ratio() + observation_coupon(option, expiry_index,
                                                                                                           context.asset_price().value())}};
-            return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price().value(), knocked_in)}};
+            const double coupon = expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
+                                  std::is_same_v<Option, PhoenixOption>
+                                      ? observation_coupon(option, expiry_index, context.asset_price().value()) : 0.0;
+            return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price().value(), knocked_in) + coupon}};
         }
     }
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
-    const int steps = settings.time_steps;
-    const double dt = maturity / static_cast<double>(steps);
-    const double up = std::exp(sigma * std::sqrt(dt));
-    const double down = 1.0 / up;
-    const double growth = std::exp((rate - dividend) * dt);
-    const double probability = std::clamp((growth - down) / (up - down), 0.0, 1.0);
-    const double discount = std::exp(-rate * dt);
-    const double spot = context.asset_price().value();
-    auto underlying = [&](int step, int index) { return spot * std::pow(up, index) * std::pow(down, step - index); };
-
+    const int asset_steps = settings.asset_steps;
+    const double upper = settings.upper_boundary > 0.0 ? settings.upper_boundary : std::max(4.0 * relevant, relevant + 1.0);
+    const double spacing = upper / static_cast<double>(asset_steps);
+    const double max_dt = maturity / static_cast<double>(settings.time_steps);
+    std::vector<double> anchors{0.0, maturity};
+    auto add_anchor = [&](date value) {
+        const double time = actual_365(context.valuation_date(), value);
+        if (time > 0.0 && time < maturity) anchors.push_back(time);
+    };
+    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_date(), option.expiry());
+    std::vector<double> trading_times;
+    trading_times.reserve(future_trading_dates.size());
+    for (const date value : future_trading_dates)
+        trading_times.push_back(actual_365(context.valuation_date(), value));
     if constexpr (std::is_same_v<Option, Accumulator>) {
-        using key = std::tuple<int, int, int, int>;
-        std::map<key, double> memo;
-        std::function<double(int, int, int, int)> value = [&](int step, int index, int normal, int accelerated) -> double {
-            const key state{step, index, normal, accelerated};
-            if (auto found = memo.find(state); found != memo.end()) return found->second;
-            const double asset = underlying(step, index);
-            const double quantity = option.accumulated_quantity() + option.daily_quantity() * normal + option.daily_quantity() * option.acceleration() * accelerated;
-            if (asset >= option.knock_out()) return memo[state] = quantity * (asset - option.strike());
-            if (step == steps) return memo[state] = quantity * (asset - option.strike());
-            const bool below = asset < option.strike();
-            const double continuation = probability * value(step + 1, index + 1, normal + (below ? 0 : 1), accelerated + (below ? 1 : 0)) +
-                                        (1.0 - probability) * value(step + 1, index, normal + (below ? 0 : 1), accelerated + (below ? 1 : 0));
-            return memo[state] = discount * continuation;
-        };
-        return PricingResult{{risk_measure::price, value(0, 0, 0, 0)}};
+        for (const date value : future_trading_dates) add_anchor(value);
     } else {
-        std::vector<int> observation_steps;
-        for (const auto date_value : option.observation_dates()) {
-            const double fraction = actual_365(context.valuation_date(), date_value) / maturity;
-            observation_steps.push_back(std::clamp(static_cast<int>(std::lround(fraction * steps)), 1, steps));
+        for (const date value : option.observation_dates()) add_anchor(value);
+        if constexpr (requires { option.knock_in_frequency(); })
+            if (option.knock_in_frequency() == observation_frequency::daily)
+                for (const date value : future_trading_dates) add_anchor(value);
+    }
+    std::sort(anchors.begin(), anchors.end());
+    anchors.erase(std::unique(anchors.begin(), anchors.end()), anchors.end());
+    std::vector<double> grid{0.0};
+    for (std::size_t index = 1; index < anchors.size(); ++index) {
+        const double width = anchors[index] - anchors[index - 1];
+        const int pieces = std::max(1, static_cast<int>(std::ceil(width / max_dt)));
+        for (int piece = 1; piece <= pieces; ++piece)
+            grid.push_back(piece == pieces ? anchors[index] : anchors[index - 1] +
+                           width * static_cast<double>(piece) / static_cast<double>(pieces));
+    }
+    if (settings.scheme == finite_difference_scheme::explicit_euler) {
+        double largest_dt = 0.0;
+        for (std::size_t index = 1; index < grid.size(); ++index)
+            largest_dt = std::max(largest_dt, grid[index] - grid[index - 1]);
+        if (largest_dt * (sigma * sigma * asset_steps * asset_steps + std::abs(rate)) > 1.0)
+            return std::unexpected(Error{error_category::invalid_parameter,
+                                         "explicit finite-difference grid is unstable"});
+    }
+    const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 :
+                         settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5;
+    const std::size_t size = static_cast<std::size_t>(asset_steps) + 1;
+    const auto asset = [&](std::size_t index) { return spacing * static_cast<double>(index); };
+    const auto interpolate = [&](const std::vector<double>& values) {
+        const double position = spot / spacing;
+        const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_steps - 1);
+        const double weight = position - static_cast<double>(index);
+        return values[static_cast<std::size_t>(index)] + weight *
+               (values[static_cast<std::size_t>(index + 1)] - values[static_cast<std::size_t>(index)]);
+    };
+    auto advance = [&](const std::vector<double>& old, std::vector<double>& next, double dt) -> bool {
+        next.front() = old.front() * std::exp(-rate * dt);
+        const double high_slope = (old.back() - old[old.size() - 2]) / spacing;
+        const double high_intercept = old.back() - high_slope * upper;
+        next.back() = high_slope * upper * std::exp(-dividend * dt) +
+                      high_intercept * std::exp(-rate * dt);
+        std::vector<double> lower(asset_steps - 1), diagonal(asset_steps - 1), upper_diagonal(asset_steps - 1), rhs(asset_steps - 1);
+        for (int index = 1; index < asset_steps; ++index) {
+            const double i = static_cast<double>(index);
+            const double a = 0.5 * sigma * sigma * i * i - 0.5 * (rate - dividend) * i;
+            const double b = -sigma * sigma * i * i - rate;
+            const double c = 0.5 * sigma * sigma * i * i + 0.5 * (rate - dividend) * i;
+            const auto position = static_cast<std::size_t>(index - 1);
+            rhs[position] = old[static_cast<std::size_t>(index)] + (1.0 - theta) * dt *
+                (a * old[position] + b * old[static_cast<std::size_t>(index)] + c * old[static_cast<std::size_t>(index + 1)]);
+            if (index == 1) rhs[position] += theta * dt * a * next.front();
+            if (index == asset_steps - 1) rhs[position] += theta * dt * c * next.back();
+            lower[position] = -theta * dt * a;
+            diagonal[position] = 1.0 - theta * dt * b;
+            upper_diagonal[position] = -theta * dt * c;
         }
-        const auto first_future = static_cast<std::size_t>(std::upper_bound(option.observation_dates().begin(), option.observation_dates().end(),
-                                                                            context.valuation_date()) -
-                                                           option.observation_dates().begin());
-        using key = std::tuple<int, int, bool>;
-        std::map<key, double> memo;
-        std::function<double(int, int, bool)> value = [&](int step, int index, bool knocked_in) -> double {
-            const key state{step, index, knocked_in};
-            if (auto found = memo.find(state); found != memo.end()) return found->second;
-            const double asset = underlying(step, index);
-            bool ki = knocked_in;
-            if constexpr (requires { option.knock_in_price(); })
-                if (option.knock_in_frequency() == observation_frequency::daily && asset < option.knock_in_price()) ki = true;
-            if (step == steps) {
-                if constexpr (requires { option.knock_in_price(); })
-                    if (option.knock_in_frequency() == observation_frequency::at_expiry && asset < option.knock_in_price()) ki = true;
-                const auto expiry = std::find(option.observation_dates().begin(), option.observation_dates().end(), option.expiry());
-                double expiry_coupon = 0.0;
-                if (expiry != option.observation_dates().end()) {
-                    const auto expiry_index = static_cast<std::size_t>(expiry - option.observation_dates().begin());
-                    if (asset >= option.knock_out_prices()[expiry_index])
-                        return memo[state] = option.principal_ratio() + observation_coupon(option, expiry_index, asset);
-                    if constexpr (std::is_same_v<Option, PhoenixOption>)
-                        expiry_coupon = observation_coupon(option, expiry_index, asset);
+        if (theta == 0.0) {
+            std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
+            return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
+        }
+        for (std::size_t index = 1; index < diagonal.size(); ++index) {
+            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
+            const double factor = lower[index] / diagonal[index - 1];
+            diagonal[index] -= factor * upper_diagonal[index - 1];
+            rhs[index] -= factor * rhs[index - 1];
+        }
+        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0) return false;
+        rhs.back() /= diagonal.back();
+        for (std::size_t index = diagonal.size() - 1; index-- > 0;)
+            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
+        if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); })) return false;
+        std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
+        return true;
+    };
+    auto event_index = [&](double time) -> std::optional<std::size_t> {
+        if constexpr (std::is_same_v<Option, Accumulator>) {
+            (void)time;
+            return std::nullopt;
+        } else {
+            const auto found = std::find_if(option.observation_dates().begin(), option.observation_dates().end(), [&](date value) {
+                const double event_time = actual_365(context.valuation_date(), value);
+                return event_time > 0.0 && event_time == time;
+            });
+            if (found == option.observation_dates().end()) return std::nullopt;
+            return static_cast<std::size_t>(found - option.observation_dates().begin());
+        }
+    };
+    auto daily_event = [&](double time) {
+        if constexpr (std::is_same_v<Option, Accumulator>) {
+            (void)time;
+            return false;
+        } else if constexpr (requires { option.knock_in_frequency(); }) {
+            return option.knock_in_frequency() == observation_frequency::daily &&
+                   std::any_of(future_trading_dates.begin(), future_trading_dates.end(), [&](date value) {
+                                   return actual_365(context.valuation_date(), value) == time;
+                               });
+        } else {
+            (void)time;
+            return false;
+        }
+    };
+    if constexpr (std::is_same_v<Option, Accumulator>) {
+        std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
+        const bool expiry_trading = context.calendar().is_trading_day(option.expiry());
+        for (std::size_t index = 0; index < size; ++index) {
+            slope[index] = asset(index) - option.strike();
+            intercept[index] = expiry_trading ? slope[index] * (asset(index) < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity()) : 0.0;
+            if (!expiry_trading) continue;
+            if (asset(index) >= option.knock_out()) intercept[index] = 0.0;
+        }
+        for (std::size_t step = grid.size() - 1; step-- > 0;) {
+            const double dt = grid[step + 1] - grid[step];
+            if (!advance(slope, next_slope, dt) || !advance(intercept, next_intercept, dt))
+                return std::unexpected(Error{error_category::invalid_result, "finite-difference system is numerically unstable"});
+            const bool trading = std::binary_search(trading_times.begin(), trading_times.end(), grid[step]);
+            if (trading) for (std::size_t index = 0; index < size; ++index) {
+                if (asset(index) >= option.knock_out()) {
+                    next_intercept[index] += next_slope[index] * option.accumulated_quantity();
+                    next_slope[index] = 0.0;
+                } else {
+                    next_intercept[index] += next_slope[index] * (asset(index) < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity());
                 }
-                return memo[state] = terminal_settlement(option, asset, ki) + expiry_coupon;
             }
-            const auto obs = std::find(observation_steps.begin() + static_cast<std::ptrdiff_t>(first_future),
-                                       observation_steps.end(), step);
-            const std::size_t obs_index = obs == observation_steps.end() ? 0 : static_cast<std::size_t>(obs - observation_steps.begin());
-            const bool is_observation = obs != observation_steps.end();
-            if (is_observation && asset >= option.knock_out_prices()[obs_index]) {
-                const double coupon = observation_coupon(option, obs_index, asset);
-                return memo[state] = option.principal_ratio() + coupon;
+            slope.swap(next_slope);
+            intercept.swap(next_intercept);
+        }
+        return PricingResult{{risk_measure::price, interpolate(slope) * option.accumulated_quantity() + interpolate(intercept)}};
+    } else {
+        std::vector<double> knocked_in_values(size), not_knocked_in_values(size);
+        std::vector<double> next_knocked_in_values(size), next_not_knocked_in_values(size);
+        const auto expiry_observation = event_index(maturity);
+        for (std::size_t index = 0; index < size; ++index) {
+            const double value = asset(index);
+            bool ki = option.touch_status() == barrier_touch_status::down;
+            if constexpr (requires { option.knock_in_frequency(); })
+                ki = ki || value < option.knock_in_price();
+            if (expiry_observation && value >= option.knock_out_prices()[*expiry_observation]) {
+                knocked_in_values[index] = not_knocked_in_values[index] =
+                    option.principal_ratio() + observation_coupon(option, *expiry_observation, value);
+            } else {
+                const double coupon = expiry_observation && std::is_same_v<Option, PhoenixOption>
+                                          ? observation_coupon(option, *expiry_observation, value) : 0.0;
+                knocked_in_values[index] = terminal_settlement(option, value, true) + coupon;
+                not_knocked_in_values[index] = terminal_settlement(option, value, ki) + coupon;
             }
-            double cash = 0.0;
-            if (is_observation) {
-                if constexpr (std::is_same_v<Option, PhoenixOption>)
-                    if (asset >= option.coupon_barriers()[obs_index]) cash = option.initial_price() * option.coupon_rate();
+        }
+        for (std::size_t step = grid.size() - 1; step-- > 0;) {
+            const double dt = grid[step + 1] - grid[step];
+            if (!advance(knocked_in_values, next_knocked_in_values, dt) ||
+                !advance(not_knocked_in_values, next_not_knocked_in_values, dt))
+                return std::unexpected(Error{error_category::invalid_result, "finite-difference system is numerically unstable"});
+            const auto observation = event_index(grid[step]);
+            const bool daily = daily_event(grid[step]);
+            for (std::size_t index = 0; index < size; ++index) {
+                const double value = asset(index);
+                bool transitioned = false;
+                if constexpr (requires { option.knock_in_price(); })
+                    transitioned = daily && value < option.knock_in_price();
+                if (observation && value >= option.knock_out_prices()[*observation]) {
+                    next_knocked_in_values[index] = next_not_knocked_in_values[index] =
+                        option.principal_ratio() + observation_coupon(option, *observation, value);
+                } else if (observation) {
+                    const double coupon = std::is_same_v<Option, PhoenixOption> ? observation_coupon(option, *observation, value) : 0.0;
+                    const double continuation_in = next_knocked_in_values[index];
+                    const double continuation_out = transitioned ? continuation_in : next_not_knocked_in_values[index];
+                    next_knocked_in_values[index] = continuation_in + coupon;
+                    next_not_knocked_in_values[index] = continuation_out + coupon;
+                } else if (transitioned) {
+                    next_not_knocked_in_values[index] = next_knocked_in_values[index];
+                }
             }
-            const double continuation = probability * value(step + 1, index + 1, ki) + (1.0 - probability) * value(step + 1, index, ki);
-            return memo[state] = cash + discount * continuation;
-        };
-        bool knocked = option.touch_status() == barrier_touch_status::down;
-        return PricingResult{{risk_measure::price, value(0, 0, knocked)}};
+            knocked_in_values.swap(next_knocked_in_values);
+            not_knocked_in_values.swap(next_not_knocked_in_values);
+        }
+        const double value = interpolate(option.touch_status() == barrier_touch_status::down
+                                             ? knocked_in_values : not_knocked_in_values);
+        return PricingResult{{risk_measure::price, value}};
     }
 }
 
