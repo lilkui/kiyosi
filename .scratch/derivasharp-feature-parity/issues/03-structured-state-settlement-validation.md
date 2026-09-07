@@ -1,7 +1,7 @@
 # Align structured state, settlement, and validation
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## Problem
@@ -59,3 +59,7 @@ instances can reach pricing without revalidation.
   environment.
 
 ## Comments
+
+## Answer
+
+Structured instruments now construct only through validated factories, signed finite coupon rates are accepted, immutable coupon replacement returns `result<T>`, and structured Monte Carlo/finite-difference settlement shares validated state, strict barrier comparisons, Actual/365 accrual, principal-inclusive terminal settlement, pre-touch handling, and future-only observation processing. Added executable regression coverage for construction, validation, expiry settlement, state transitions, and deterministic seeded paths. Clean Visual Studio Developer build passes all 52 CTest cases.

@@ -323,7 +323,9 @@ requires requires(const Option& value, double coupon) { value.with_coupon_rate(c
         settings.tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{error_category::invalid_parameter, "implied-coupon settings are invalid"});
     const auto evaluate = [&](double coupon) -> result<double> {
-        auto priced = engine.price(option.with_coupon_rate(coupon), context);
+        auto replaced = option.with_coupon_rate(coupon);
+        if (!replaced) return std::unexpected(replaced.error());
+        auto priced = engine.price(*replaced, context);
         if (!priced) return std::unexpected(priced.error());
         const auto value = priced->get(risk_measure::price);
         if (!value || !std::isfinite(*value))

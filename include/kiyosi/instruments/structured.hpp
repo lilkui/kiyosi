@@ -78,18 +78,25 @@ public:
     double accumulated_quantity() const noexcept { return accumulated_quantity_; }
     date effective() const noexcept { return effective_; }
     date expiry() const noexcept { return expiry_; }
+private:
     Accumulator(double strike, double knock_out, double daily_quantity, double acceleration,
                 double accumulated_quantity, date effective, date expiry)
         : strike_(strike), knock_out_(knock_out), daily_quantity_(daily_quantity), acceleration_(acceleration),
           accumulated_quantity_(accumulated_quantity), effective_(effective), expiry_(expiry) {}
 
-private:
+    friend result<Accumulator> make_accumulator(double, double, double, double, double, date, date);
+
     double strike_, knock_out_, daily_quantity_, acceleration_, accumulated_quantity_;
     date effective_, expiry_;
 };
 
 class PhoenixOption : public KiAutocallableNote {
 public:
+    result<PhoenixOption> with_coupon_rate(double coupon) const;
+    double coupon_rate() const noexcept { return coupon_rate_; }
+    const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
+
+private:
     PhoenixOption(double coupon_rate, double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
                   std::vector<double> coupon_barriers, double upper_strike, double lower_strike,
                   std::vector<date> observations, observation_frequency frequency, barrier_touch_status touch_status,
@@ -97,18 +104,19 @@ public:
         : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
                              std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           coupon_rate_(coupon_rate), coupon_barriers_(std::move(coupon_barriers)) {}
-    double coupon_rate() const noexcept { return coupon_rate_; }
-    const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
-    PhoenixOption with_coupon_rate(double coupon) const
-    { return PhoenixOption{coupon, initial_price(), knock_in_price(), knock_out_prices(), coupon_barriers(), upper_strike(), lower_strike(), observation_dates(), knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()}; }
-
-private:
+    friend result<PhoenixOption> make_phoenix_option(double, double, double, std::vector<double>, std::vector<double>, double, double,
+                                                     std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
     double coupon_rate_;
     std::vector<double> coupon_barriers_;
 };
 
 class SnowballOption : public KiAutocallableNote {
 public:
+    result<SnowballOption> with_coupon_rate(double coupon) const;
+    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
+
+private:
     SnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                    double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
                    double upper_strike, double lower_strike, std::vector<date> observations,
@@ -117,18 +125,18 @@ public:
         : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
                              std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate) {}
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
-    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
-    SnowballOption with_coupon_rate(double coupon) const
-    { return SnowballOption{knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(), knock_out_prices(), upper_strike(), lower_strike(), observation_dates(), knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()}; }
-
-private:
+    friend result<SnowballOption> make_snowball_option(std::vector<double>, double, double, double, std::vector<double>, double, double,
+                                                       std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 };
 
 class BinarySnowballOption : public AutocallableNote {
 public:
+    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
+
+private:
     BinarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                          double initial_price, std::vector<double> knock_out_prices, double upper_strike,
                          double lower_strike, std::vector<date> observations, barrier_touch_status touch_status,
@@ -136,16 +144,19 @@ public:
         : AutocallableNote(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
                            std::move(observations), principal_ratio, touch_status, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate) {}
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
-    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
-
-private:
+    friend result<BinarySnowballOption> make_binary_snowball_option(std::vector<double>, double, double, std::vector<double>, double, double,
+                                                                    std::vector<date>, barrier_touch_status, double, date, date);
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 };
 
 class TernarySnowballOption : public KiAutocallableNote {
 public:
+    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
+    double minimal_coupon_rate() const noexcept { return minimal_coupon_rate_; }
+
+private:
     TernarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                           double minimal_coupon_rate, double initial_price, double knock_in_price,
                           std::vector<double> knock_out_prices, double upper_strike, double lower_strike,
@@ -155,11 +166,9 @@ public:
                              std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate),
           minimal_coupon_rate_(minimal_coupon_rate) {}
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
-    double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
-    double minimal_coupon_rate() const noexcept { return minimal_coupon_rate_; }
-
-private:
+    friend result<TernarySnowballOption> make_ternary_snowball_option(std::vector<double>, double, double, double, double, std::vector<double>,
+                                                                      double, double, std::vector<date>, observation_frequency,
+                                                                      barrier_touch_status, double, date, date);
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_, minimal_coupon_rate_;
 };
@@ -183,16 +192,18 @@ template <typename Note>
     if (!std::isfinite(note.initial_price()) || note.initial_price() <= 0.0 ||
         !std::isfinite(note.upper_strike()) || note.upper_strike() <= 0.0 ||
         !std::isfinite(note.lower_strike()) || note.lower_strike() < 0.0 || note.lower_strike() > note.upper_strike() ||
-        !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0 ||
-        note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size() ||
-        !is_valid_date(note.effective()) || !is_valid_date(note.expiry()) || note.effective() > note.expiry())
+        !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0)
         return std::unexpected(Error{error_category::invalid_parameter, "autocallable terms are invalid"});
+    if (!is_valid_date(note.effective()) || !is_valid_date(note.expiry()) || note.effective() > note.expiry() ||
+        note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size())
+        return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
         if (!is_valid_date(note.observation_dates()[index]) || note.observation_dates()[index] < note.effective() ||
             note.observation_dates()[index] > note.expiry() ||
-            (index > 0 && note.observation_dates()[index] <= note.observation_dates()[index - 1]) ||
-            !std::isfinite(note.knock_out_prices()[index]) || note.knock_out_prices()[index] <= 0.0)
+            (index > 0 && note.observation_dates()[index] <= note.observation_dates()[index - 1]))
             return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
+        if (!std::isfinite(note.knock_out_prices()[index]) || note.knock_out_prices()[index] <= 0.0)
+            return std::unexpected(Error{error_category::invalid_parameter, "knock-out prices are invalid"});
     }
     if (note.touch_status() != barrier_touch_status::none && note.touch_status() != barrier_touch_status::up &&
         note.touch_status() != barrier_touch_status::down)
@@ -204,24 +215,25 @@ template <typename Note>
             return std::unexpected(Error{error_category::invalid_parameter, "knock-in terms are invalid"});
     }
     if constexpr (requires { note.coupon_rate(); }) {
-        if (!std::isfinite(note.coupon_rate()) || note.coupon_rate() < 0.0 ||
-            note.coupon_barriers().size() != note.observation_dates().size())
-            return std::unexpected(Error{error_category::invalid_parameter, "Phoenix terms are invalid"});
+        if (!std::isfinite(note.coupon_rate()))
+            return std::unexpected(Error{error_category::invalid_parameter, "Phoenix coupon is invalid"});
+        if (note.coupon_barriers().size() != note.observation_dates().size())
+            return std::unexpected(Error{error_category::invalid_schedule, "Phoenix coupon schedule is invalid"});
         for (double barrier : note.coupon_barriers())
             if (!std::isfinite(barrier) || barrier < 0.0)
                 return std::unexpected(Error{error_category::invalid_parameter, "coupon barriers are invalid"});
     }
     if constexpr (requires { note.knock_out_coupon_rates(); }) {
         if (note.knock_out_coupon_rates().size() != note.observation_dates().size())
-            return std::unexpected(Error{error_category::invalid_parameter, "coupon schedule count is invalid"});
+            return std::unexpected(Error{error_category::invalid_schedule, "coupon schedule count is invalid"});
         for (double coupon : note.knock_out_coupon_rates())
-            if (!std::isfinite(coupon) || coupon < 0.0)
+            if (!std::isfinite(coupon))
                 return std::unexpected(Error{error_category::invalid_parameter, "coupon rates are invalid"});
-        if (!std::isfinite(note.maturity_coupon_rate()) || note.maturity_coupon_rate() < 0.0)
+        if (!std::isfinite(note.maturity_coupon_rate()))
             return std::unexpected(Error{error_category::invalid_parameter, "maturity coupon is invalid"});
     }
     if constexpr (requires { note.minimal_coupon_rate(); }) {
-        if (!std::isfinite(note.minimal_coupon_rate()) || note.minimal_coupon_rate() < 0.0)
+        if (!std::isfinite(note.minimal_coupon_rate()))
             return std::unexpected(Error{error_category::invalid_parameter, "minimal coupon is invalid"});
     }
     return note;
@@ -261,4 +273,18 @@ template <typename Note>
                                               initial_price, knock_in_price, std::move(knock_out_prices), upper_strike,
                                               lower_strike, std::move(observations), frequency, touch_status,
                                               principal_ratio, effective, expiry}); }
+
+inline result<PhoenixOption> PhoenixOption::with_coupon_rate(double coupon) const
+{
+    return make_phoenix_option(coupon, initial_price(), knock_in_price(), knock_out_prices(), coupon_barriers(),
+                               upper_strike(), lower_strike(), observation_dates(), knock_in_frequency(),
+                               touch_status(), principal_ratio(), effective(), expiry());
+}
+
+inline result<SnowballOption> SnowballOption::with_coupon_rate(double coupon) const
+{
+    return make_snowball_option(knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(),
+                                knock_out_prices(), upper_strike(), lower_strike(), observation_dates(),
+                                knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry());
+}
 } // namespace kiyosi
