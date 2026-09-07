@@ -191,6 +191,132 @@ TEST_CASE("Analytic prices are monotone and bounded")
     }
 }
 
+TEST_CASE("Analytic binary barriers match the pinned DerivaSharp matrix")
+{
+    struct binary_case { bool asset; kiyosi::barrier_type barrier; kiyosi::rebate_timing timing; std::optional<kiyosi::option_type> type; double level; double payout; double expected; };
+    const std::array<binary_case, 28> cases{
+        binary_case{false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_hit, {}, 90, 10, 7.310536},
+        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_hit, {}, 110, 10, 7.322345},
+        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_hit, {}, 90, 90, 65.794826},
+        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_hit, {}, 110, 110, 80.545795},
+        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, {}, 90, 10, 7.091270},
+        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, {}, 110, 10, 7.097140},
+        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, {}, 90, 0, 65.295307},
+        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, {}, 110, 0, 79.918599},
+        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, {}, 90, 10, 2.516625},
+        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, {}, 110, 10, 2.510755},
+        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, {}, 90, 0, 33.709677},
+        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, {}, 110, 0, 19.086385},
+        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 10, 2.248046},
+        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 10, 4.499068},
+        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 0, 27.035296},
+        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 0, 58.104678},
+        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 10, 4.843224},
+        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 10, 2.598072},
+        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 0, 38.260011},
+        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 0, 21.813921},
+        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 10, 2.364332},
+        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 10, 0.113309},
+        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 0, 32.239613},
+        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 0, 1.170232},
+        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 10, 0.152293},
+        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 10, 2.397445},
+        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 0, 1.470063},
+        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 0, 17.916153},
+    };
+    for (const auto& item : cases) {
+        const auto option = kiyosi::make_binary_barrier_option(item.type, 100.0, valuation, expiry, item.level,
+                                                                item.barrier, item.payout, item.asset, item.timing);
+        REQUIRE(option.has_value());
+        const auto result = kiyosi::AnalyticBinaryBarrierEngine{}.price(*option, context());
+        REQUIRE(result.has_value());
+        check_close(risk_value(*result, kiyosi::risk_measure::price), item.expected, 5e-7, 0.0);
+    }
+}
+
+TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
+{
+    struct expiry_case { bool asset; kiyosi::barrier_type barrier; std::optional<kiyosi::option_type> type; double strike; double level; double expected; };
+    const std::array<expiry_case, 8> cases{
+        expiry_case{false, kiyosi::barrier_type::up_and_in, kiyosi::option_type::call, 100, 100, 0},
+        {false, kiyosi::barrier_type::down_and_in, kiyosi::option_type::put, 101, 100, 10},
+        {true, kiyosi::barrier_type::up_and_in, {}, 100, 100, 100},
+        {true, kiyosi::barrier_type::down_and_in, kiyosi::option_type::put, 101, 100, 100},
+        {false, kiyosi::barrier_type::up_and_out, {}, 100, 100, 0},
+        {true, kiyosi::barrier_type::down_and_out, {}, 100, 100, 0},
+        {false, kiyosi::barrier_type::up_and_out, {}, 100, 110, 10},
+        {true, kiyosi::barrier_type::down_and_out, kiyosi::option_type::call, 99, 90, 100},
+    };
+    for (const auto& item : cases) {
+        const auto option = *kiyosi::make_binary_barrier_option(
+            item.type, item.strike, expiry, expiry, item.level, item.barrier, item.asset ? 0.0 : 10.0, item.asset);
+        CHECK(risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(option, context(100.0, 0.04, 0.01, 0.3, expiry)),
+                         kiyosi::risk_measure::price) == item.expected);
+    }
+}
+
+TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK interval")
+{
+    const auto short_schedule = *kiyosi::make_binary_barrier_option(
+        std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
+        kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
+        std::vector<kiyosi::date>{valuation + std::chrono::days{30}, valuation + std::chrono::days{60}});
+    const auto long_schedule = *kiyosi::make_binary_barrier_option(
+        std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
+        kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
+        std::vector<kiyosi::date>{valuation + std::chrono::days{180}, expiry});
+    const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::risk_measure::price);
+    const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::risk_measure::price);
+    check_close(short_value, 3.651891897184211, 1e-12, 0.0);
+    CHECK(std::abs(short_value - long_value) > 1e-4);
+
+    const auto weekend = *kiyosi::make_binary_barrier_option(
+        std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
+        kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
+        std::vector<kiyosi::date>{day(2025, 1, 11)});
+    const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
+                                                       *kiyosi::make_asset_price(100.0), valuation,
+                                                       kiyosi::exchange_calendar());
+    CHECK(kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market).error().category ==
+          kiyosi::error_category::invalid_schedule);
+}
+
+TEST_CASE("Scheduled vanilla barriers validate events and refine")
+{
+    const std::vector<kiyosi::date> observations{
+        valuation + std::chrono::days{37}, valuation + std::chrono::days{173}, expiry};
+    const auto out = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
+        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations);
+    const auto in = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in,
+        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations);
+    const auto market = context();
+    const double coarse = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market), kiyosi::risk_measure::price);
+    const double fine = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(out, market), kiyosi::risk_measure::price);
+    const double analytic = risk_value(*kiyosi::AnalyticBarrierEngine{}.price(out, market), kiyosi::risk_measure::price);
+    CHECK(std::abs(fine - analytic) < std::abs(coarse - analytic));
+    CHECK(risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market), kiyosi::risk_measure::price) > 0.0);
+
+    const auto weekend = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
+        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
+        std::vector<kiyosi::date>{day(2025, 1, 11)});
+    const auto exchange_market = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(100.0), valuation,
+        kiyosi::exchange_calendar());
+    CHECK(kiyosi::AnalyticBarrierEngine{}.price(weekend, exchange_market).error().category ==
+          kiyosi::error_category::invalid_schedule);
+    CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(weekend, exchange_market).error().category ==
+          kiyosi::error_category::invalid_date);
+
+    const auto at_hit = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
+        2.0, kiyosi::rebate_timing::at_hit, kiyosi::observation_mode::scheduled,
+        std::vector<kiyosi::date>{valuation + std::chrono::days{37}, expiry});
+    CHECK(risk_value(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market), kiyosi::risk_measure::price) > 0.0);
+}
+
 TEST_CASE("Haug and Hull Black-Scholes reference values remain fixed")
 {
     struct case_data {

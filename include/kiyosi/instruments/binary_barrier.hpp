@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cmath>
 #include <optional>
 #include <kiyosi/instruments/barrier.hpp>
 
@@ -17,6 +19,13 @@ public:
     const std::vector<date>& observation_dates() const noexcept { return observations_; }
     date expiry() const noexcept { return expiry_; }
     date effective() const noexcept { return effective_; }
+    double observation_interval() const noexcept
+    {
+        return observation_ == observation_mode::continuous || observations_.empty()
+                   ? 0.0
+                   : static_cast<double>(*year_fraction(effective_, observations_.back())) /
+                         static_cast<double>(observations_.size());
+    }
     friend bool operator==(const BinaryBarrierOption&, const BinaryBarrierOption&) = default;
 
 private:
@@ -49,7 +58,7 @@ private:
     if (type && *type != option_type::call && *type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(barrier) || barrier <= 0.0 ||
-        !std::isfinite(payout) || payout <= 0.0)
+        !std::isfinite(payout) || payout < 0.0 || (!asset && payout == 0.0))
         return std::unexpected(Error{error_category::invalid_parameter, "binary barrier terms are invalid"});
     if (!is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry) return std::unexpected(Error{error_category::invalid_schedule, "binary barrier life dates are invalid"});
     if (kind != barrier_type::up_and_in && kind != barrier_type::up_and_out &&
@@ -57,6 +66,11 @@ private:
         return std::unexpected(Error{error_category::invalid_option, "invalid barrier type"});
     if (timing != rebate_timing::at_hit && timing != rebate_timing::at_expiry)
         return std::unexpected(Error{error_category::invalid_option, "invalid settlement timing"});
+    const bool knock_in = kind == barrier_type::up_and_in || kind == barrier_type::down_and_in;
+    if (timing == rebate_timing::at_hit && (!knock_in || type.has_value()))
+        return std::unexpected(Error{error_category::invalid_option, "at-hit settlement requires a knock-in one-touch"});
+    if (asset && timing == rebate_timing::at_hit && std::abs(payout - barrier) > 1e-12 * std::max(1.0, std::abs(barrier)))
+        return std::unexpected(Error{error_category::invalid_parameter, "asset at-hit payout must equal barrier"});
     if (observation != observation_mode::continuous && observation != observation_mode::scheduled)
         return std::unexpected(Error{error_category::invalid_schedule, "invalid observation mode"});
     if (observation == observation_mode::continuous && !observations.empty())

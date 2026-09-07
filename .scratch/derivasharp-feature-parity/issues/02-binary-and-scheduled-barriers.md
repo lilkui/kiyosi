@@ -1,7 +1,7 @@
 # Complete binary and scheduled barrier parity
 
 Type: task
-Status: ready-for-agent
+Status: resolved
 Blocked by: 01
 
 ## Problem
@@ -52,3 +52,7 @@ barrier finite differences round observation dates to coarse time layers.
   environment.
 
 ## Comments
+
+## Answer
+
+Implemented the pinned 28-case Haug binary-barrier matrix, terminal and already-touched settlement, contractual at-hit validation, shared BGK scheduled intervals, calendar validation, and exact event-aware finite-difference observation nodes. Updated barrier fixtures to pinned DerivaSharp references; focused regressions and all 50 CTest cases pass in the Visual Studio Developer environment.

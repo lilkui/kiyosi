@@ -2,112 +2,110 @@
 #include "../detail/common.hpp"
 #include <algorithm>
 #include <cmath>
-#include <functional>
-#include <numbers>
 
 namespace kiyosi {
 using namespace detail;
 namespace {
-double discounted_hit_probability(double distance, double drift, double variance, double rate, double maturity)
+struct Factors { double a1, b1, a2, b2, a3, b3, a4, b4, a5; };
+
+double vanilla_digital(const BinaryBarrierOption& option, const PricingContext& context, double time)
 {
-    if (distance <= 0.0) return 1.0;
-    constexpr int panels = 1024;
-    const double step = maturity / panels;
-    const double scale = distance / std::sqrt(2.0 * std::numbers::pi * variance);
-    auto density = [&](double time) {
-        if (time <= 0.0) return 0.0;
-        return scale * std::exp(-((distance - drift * time) * (distance - drift * time)) /
-                                (2.0 * variance * time)) /
-               std::pow(time, 1.5) * std::exp(-rate * time);
-    };
-    double sum = density(maturity);
-    for (int index = 1; index < panels; ++index)
-        sum += (index % 2 ? 4.0 : 2.0) * density(index * step);
-    return std::clamp(sum * step / 3.0, 0.0, 1.0);
+    const double spot = context.asset_price().value(), rate = context.parameters().risk_free_rate();
+    const double dividend = context.parameters().dividend_yield(), volatility = context.parameters().volatility();
+    if (!option.type()) return option.asset_settlement() ? spot * std::exp(-dividend * time) : option.payout() * std::exp(-rate * time);
+    const double sign = *option.type() == option_type::call ? 1.0 : -1.0;
+    const double volatility_time = volatility * std::sqrt(time);
+    const double d1 = (std::log(spot / option.strike()) + (rate - dividend + .5 * volatility * volatility) * time) / volatility_time;
+    const double d2 = d1 - volatility_time;
+    return option.asset_settlement() ? spot * std::exp(-dividend * time) * normal_cdf(sign * d1)
+                                      : option.payout() * std::exp(-rate * time) * normal_cdf(sign * d2);
 }
 
-double survival_density(double y, double boundary, bool upper, double drift, double variance, double t)
+double terminal_payoff(const BinaryBarrierOption& option, double spot)
 {
-    if ((upper && y >= boundary) || (!upper && y <= boundary)) return 0.0;
-    const double sd = std::sqrt(variance * t);
-    const auto normal = [&](double x) { return std::exp(-0.5 * x * x) / (sd * std::sqrt(2.0 * std::numbers::pi)); };
-    const double mean = drift * t;
-    const double reflection = std::exp(-2.0 * (upper ? -drift : drift) * (upper ? boundary : -boundary) / variance);
-    return upper ? normal(y - mean) - reflection * normal(y - 2.0 * boundary - mean)
-                 : normal(y - mean) - reflection * normal(y - 2.0 * boundary - mean);
+    const bool upper = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
+    const bool in_money = !option.type() || (*option.type() == option_type::call ? spot > option.strike() : spot < option.strike());
+    const bool hit = upper ? spot >= option.barrier() : spot <= option.barrier();
+    const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
+    return knock_in == hit && in_money ? (option.asset_settlement() ? spot : option.payout()) : 0.0;
 }
-double integrate(const std::function<double(double)>& f, double a, double b)
-{
-    if (b <= a) return 0.0;
-    constexpr int panels = 1024;
-    const double h = (b - a) / panels;
-    double sum = f(a) + f(b);
-    for (int i = 1; i < panels; ++i)
-        sum += (i % 2 ? 4.0 : 2.0) * f(a + i * h);
-    return sum * h / 3.0;
 }
-} // namespace
 
-result<PricingResult> AnalyticBinaryBarrierEngine::price(
-    const BinaryBarrierOption& option, const PricingContext& context) const
+result<PricingResult> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOption& option, const PricingContext& context) const
 {
     auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    const double t = actual_365(context.valuation_date(), option.expiry());
+    if (option.observation() == observation_mode::scheduled) {
+        auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
+        if (!schedule) return std::unexpected(Error{error_category::invalid_schedule, schedule.error().message});
+    }
+    const double time = actual_365(context.valuation_date(), option.expiry());
     const double spot = context.asset_price().value();
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double sigma = context.parameters().volatility();
     const bool upper = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
     const bool touched = upper ? spot >= option.barrier() : spot <= option.barrier();
-    if (sigma < 1e-12) {
-        const double terminal = spot * std::exp((rate - dividend) * t);
-        const bool hit = upper ? terminal >= option.barrier() || touched : terminal <= option.barrier() || touched;
-        const bool in_money = !option.type() || (*option.type() == option_type::call ? terminal > option.strike() : terminal < option.strike());
-        const double total = in_money ? (option.asset_settlement() ? terminal * std::exp(-rate * t) : option.payout() * std::exp(-rate * t)) : 0.0;
-        const double value = (knock_in ? hit : !hit) ? total : 0.0;
-        return PricingResult{{risk_measure::price, value}};
+    if (time == 0.0) return PricingResult{{risk_measure::price, terminal_payoff(option, spot)}};
+    if (touched) {
+        if (!knock_in) return PricingResult{{risk_measure::price, 0.0}};
+        if (option.settlement_timing() == rebate_timing::at_hit)
+            return PricingResult{{risk_measure::price, option.asset_settlement() ? option.barrier() : option.payout()}};
+        return PricingResult{{risk_measure::price, vanilla_digital(option, context, time)}};
     }
-    auto terminal_payoff = [&](double terminal) {
-        const bool in_money = !option.type() || (*option.type() == option_type::call ? terminal > option.strike() : terminal < option.strike());
-        return in_money ? (option.asset_settlement() ? terminal : option.payout()) : 0.0;
+    const double rate = context.parameters().risk_free_rate(), dividend = context.parameters().dividend_yield();
+    const double volatility = context.parameters().volatility(), volatility_time = volatility * std::sqrt(time);
+    double barrier = option.barrier();
+    if (option.observation() == observation_mode::scheduled)
+        barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(option.observation_interval()));
+    const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
+    const double lambda = std::sqrt(mu * mu + 2.0 * rate / (volatility * volatility));
+    const double x1 = std::log(spot / option.strike()) / volatility_time + (1 + mu) * volatility_time;
+    const double x2 = std::log(spot / barrier) / volatility_time + (1 + mu) * volatility_time;
+    const double y1 = std::log(barrier * barrier / (spot * option.strike())) / volatility_time + (1 + mu) * volatility_time;
+    const double y2 = std::log(barrier / spot) / volatility_time + (1 + mu) * volatility_time;
+    const double z = std::log(barrier / spot) / volatility_time + lambda * volatility_time;
+    const auto common = [&](double eta, double phi) {
+        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time), ratio = barrier / spot;
+        return Factors{
+            spot * dividend_discount * normal_cdf(phi * x1), option.payout() * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
+            spot * dividend_discount * normal_cdf(phi * x2), option.payout() * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
+            spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y1), option.payout() * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y1 - eta * volatility_time),
+            spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y2), option.payout() * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y2 - eta * volatility_time),
+            option.payout() * (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) + std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2 * eta * lambda * volatility_time))};
     };
-    if (t == 0.0) {
-        const double value = (knock_in ? touched : !touched) ? terminal_payoff(spot) : 0.0;
-        return PricingResult{{risk_measure::price, value}};
+    if (option.settlement_timing() == rebate_timing::at_hit) {
+        const auto factors = common(upper ? -1.0 : 1.0, 0.0);
+        return PricingResult{{risk_measure::price, factors.a5}};
     }
-    const double drift = rate - dividend - 0.5 * sigma * sigma;
-    const double variance = sigma * sigma;
-    if (option.settlement_timing() == rebate_timing::at_hit && knock_in) {
-        const double distance = upper ? std::log(option.barrier() / spot) : std::log(spot / option.barrier());
-        const double hit = touched ? 1.0 : discounted_hit_probability(distance, upper ? drift : -drift,
-                                                                        variance, rate, t);
-        const double settlement = option.asset_settlement() ? option.barrier() : option.payout();
-        const double value = settlement * hit;
-        if (!std::isfinite(value))
-            return std::unexpected(Error{error_category::invalid_result, "binary barrier pricing produced a non-finite result"});
-        return PricingResult{{risk_measure::price, value}};
-    }
-    const double boundary = std::log(option.barrier() / spot);
-    const double sd = sigma * std::sqrt(t);
-    const double mean = drift * t;
-    const double lower = upper ? mean - 12.0 * sd : std::max(mean - 12.0 * sd, boundary);
-    const double higher = upper ? std::min(mean + 12.0 * sd, boundary) : mean + 12.0 * sd;
-    double survival = 0.0;
-    if (!touched) survival = std::exp(-rate * t) * integrate([&](double y) {
-                                 const double terminal = spot * std::exp(y);
-                                 return terminal_payoff(terminal) * survival_density(y, boundary, upper, drift, variance, t);
-                             },
-                                                             lower, higher);
-    double total;
+    const bool down = !upper, call = option.type() && *option.type() == option_type::call;
+    const double phi = option.type() ? (call ? 1.0 : -1.0)
+                                     : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
+    const auto factors = common(down ? 1.0 : -1.0, phi);
+    double value = 0.0;
     if (!option.type()) {
-        total = option.asset_settlement() ? spot * std::exp(-dividend * t) : option.payout() * std::exp(-rate * t);
+        value = option.asset_settlement()
+                    ? (knock_in ? factors.a2 + factors.a4 : factors.a2 - factors.a4)
+                    : (knock_in ? factors.b2 + factors.b4 : factors.b2 - factors.b4);
+    } else if (knock_in && !option.asset_settlement()) {
+        if (call) value = down ? (option.strike() > barrier ? factors.b3 : factors.b1 - factors.b2 + factors.b4)
+                               : (option.strike() > barrier ? factors.b1 : factors.b2 - factors.b3 + factors.b4);
+        else value = down ? (option.strike() > barrier ? factors.b2 - factors.b3 + factors.b4 : factors.b1)
+                          : (option.strike() > barrier ? factors.b1 - factors.b2 + factors.b4 : factors.b3);
+    } else if (knock_in) {
+        if (call) value = down ? (option.strike() > barrier ? factors.a3 : factors.a1 - factors.a2 + factors.a4)
+                               : (option.strike() > barrier ? factors.a1 : factors.a2 - factors.a3 + factors.a4);
+        else value = down ? (option.strike() > barrier ? factors.a2 - factors.a3 + factors.a4 : factors.a1)
+                          : (option.strike() > barrier ? factors.a1 - factors.a2 + factors.a3 : factors.a3);
+    } else if (!option.asset_settlement()) {
+        if (call) value = down ? (option.strike() > barrier ? factors.b1 - factors.b3 : factors.b2 - factors.b4)
+                               : (option.strike() > barrier ? 0.0 : factors.b1 - factors.b2 + factors.b3 - factors.b4);
+        else value = down ? (option.strike() > barrier ? factors.b1 - factors.b2 + factors.b3 - factors.b4 : 0.0)
+                          : (option.strike() > barrier ? factors.b2 - factors.b4 : factors.b1 - factors.b3);
     } else {
-        if (option.asset_settlement()) total = spot * std::exp(-dividend * t) * normal_cdf((*option.type() == option_type::call ? 1.0 : -1.0) * ((std::log(spot / option.strike()) + (rate - dividend + 0.5 * sigma * sigma) * t) / (sigma * std::sqrt(t))));
-        else total = option.payout() * std::exp(-rate * t) * normal_cdf((*option.type() == option_type::call ? 1.0 : -1.0) * ((std::log(spot / option.strike()) + (rate - dividend - 0.5 * sigma * sigma) * t) / (sigma * std::sqrt(t))));
+        if (call) value = down ? (option.strike() > barrier ? factors.a1 - factors.a3 : factors.a2 - factors.a4)
+                               : (option.strike() > barrier ? 0.0 : factors.a1 - factors.a2 + factors.a3 - factors.a4);
+        else value = down ? (option.strike() > barrier ? factors.a1 - factors.a2 + factors.a3 - factors.a4 : 0.0)
+                          : (option.strike() > barrier ? factors.a2 - factors.a4 : factors.a1 - factors.a3);
     }
-    const double value = knock_in ? total - survival : survival;
     if (!std::isfinite(value)) return std::unexpected(Error{error_category::invalid_result, "binary barrier pricing produced a non-finite result"});
     return PricingResult{{risk_measure::price, std::max(value, 0.0)}};
 }

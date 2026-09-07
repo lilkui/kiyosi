@@ -31,6 +31,13 @@ public:
     const ObservationSchedule& schedule() const noexcept { return observations_; }
     date expiry() const noexcept { return expiry_; }
     date effective() const noexcept { return effective_; }
+    double observation_interval() const noexcept
+    {
+        return observation_ == observation_mode::continuous || observations_.empty()
+                   ? 0.0
+                   : static_cast<double>(*year_fraction(effective_, observations_.dates().back())) /
+                         static_cast<double>(observations_.size());
+    }
     friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
 
 private:

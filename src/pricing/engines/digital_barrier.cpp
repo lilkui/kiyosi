@@ -148,11 +148,11 @@ result<PricingResult> AnalyticBarrierEngine::price(
                        option.barrier_kind() == barrier_type::up_and_out;
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in ||
                           option.barrier_kind() == barrier_type::down_and_in;
-    if (option.observation() == observation_mode::scheduled) {
-        const double interval = t / static_cast<double>(option.observation_dates().size());
-        barrier *= std::exp((upper ? 1.0 : -1.0) * 0.5825971579 * sigma * std::sqrt(interval));
-    }
     const bool touched = upper ? spot >= barrier : spot <= barrier;
+    if (option.observation() == observation_mode::scheduled) {
+        barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
+                            std::sqrt(option.observation_interval()));
+    }
     if (t == 0.0) {
         return knock_in ? zero_tail(touched ? *vanilla->get(risk_measure::price) : option.rebate())
                         : zero_tail(touched ? option.rebate() : *vanilla->get(risk_measure::price));

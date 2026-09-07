@@ -30,20 +30,32 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         if (required > 100'000.0) return std::unexpected(Error{error_category::invalid_parameter, "explicit finite-difference grid requires too many time steps"});
         time_steps = std::max(time_steps, static_cast<int>(std::ceil(required)));
     }
-    const double dt = maturity / time_steps, theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5, spacing = upper / asset_steps;
+    const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5, spacing = upper / asset_steps;
     const bool upper_barrier = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
-    std::vector<int> observation_steps;
-    if (option.observation() == observation_mode::scheduled) for (auto value : option.observation_dates()) observation_steps.push_back(std::clamp(static_cast<int>(std::lround(actual_365(context.valuation_date(), value) / maturity * time_steps)), 1, time_steps));
-    auto active = [&](int step) { return option.observation() == observation_mode::continuous || std::find(observation_steps.begin(), observation_steps.end(), step) != observation_steps.end(); };
+    std::vector<double> grid(time_steps + 1);
+    for (int index = 0; index <= time_steps; ++index) grid[index] = maturity * index / time_steps;
+    std::vector<double> observation_times;
+    if (option.observation() == observation_mode::scheduled) {
+        for (auto value : option.observation_dates()) {
+            const double event_time = actual_365(context.valuation_date(), value);
+            if (event_time > 0.0 && event_time <= maturity) observation_times.push_back(event_time);
+        }
+        grid.insert(grid.end(), observation_times.begin(), observation_times.end());
+        std::sort(grid.begin(), grid.end());
+        grid.erase(std::unique(grid.begin(), grid.end()), grid.end());
+    }
+    auto active = [&](double time) { return option.observation() == observation_mode::continuous || std::binary_search(observation_times.begin(), observation_times.end(), time); };
+    std::sort(observation_times.begin(), observation_times.end());
     auto payoff = [&](double asset) { return std::max((option.type() == option_type::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
     auto rebate_value = [&](double tau) { return option.rebate_payment() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
     std::vector<double> old(asset_steps + 1), next(old.size());
     for (int index = 0; index <= asset_steps; ++index) old[index] = payoff(spacing * index);
-    if (active(time_steps)) for (int index = 0; index <= asset_steps; ++index) if (knocked(spacing * index)) old[index] = option.rebate();
+    if (active(maturity)) for (int index = 0; index <= asset_steps; ++index) if (knocked(spacing * index)) old[index] = option.rebate();
     std::vector<double> lower(asset_steps - 1), diagonal(lower.size()), upper_diagonal(lower.size()), rhs(lower.size());
-    for (int step = time_steps - 1; step >= 0; --step) {
-        const double tau = (time_steps - step) * dt;
+    for (int step = static_cast<int>(grid.size()) - 2; step >= 0; --step) {
+        const double dt = grid[step + 1] - grid[step];
+        const double tau = maturity - grid[step];
         next.front() = option.type() == option_type::put ? strike * std::exp(-rate * tau) : 0.0;
         next.back() = option.type() == option_type::call ? upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau) : 0.0;
         for (int index = 1; index < asset_steps; ++index) {
@@ -62,7 +74,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
             for (std::size_t i = diagonal.size() - 1; i-- > 0;) rhs[i] = (rhs[i] - upper_diagonal[i] * rhs[i + 1]) / diagonal[i];
             std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
         }
-        if (active(step)) for (int index = 0; index <= asset_steps; ++index) if (knocked(spacing * index)) next[index] = rebate_value(tau);
+        if (active(grid[step])) for (int index = 0; index <= asset_steps; ++index) if (knocked(spacing * index)) next[index] = rebate_value(tau);
         old.swap(next);
     }
     const double position = spot / spacing; const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_steps - 1);
@@ -74,11 +86,17 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     if (settings_.asset_steps < 3 || settings_.asset_steps > 10'000 || settings_.time_steps <= 0 || settings_.time_steps > 100'000) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
     if (settings_.upper_boundary != 0.0 && (!std::isfinite(settings_.upper_boundary) || settings_.upper_boundary <= 0.0)) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference upper boundary must be finite and positive"});
     if (settings_.scheme != finite_difference_scheme::explicit_euler && settings_.scheme != finite_difference_scheme::implicit_euler && settings_.scheme != finite_difference_scheme::crank_nicolson) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference scheme is invalid"});
+    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    if (!valid) return std::unexpected(valid.error());
+    if (option.observation() == observation_mode::scheduled) {
+        auto schedule = validate_schedule(option.schedule(), option.effective(), option.expiry(), context.calendar());
+        if (!schedule) return std::unexpected(schedule.error());
+    }
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
     const bool touched = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out
                              ? context.asset_price().value() >= option.barrier()
                              : context.asset_price().value() <= option.barrier();
-    if (option.observation() == observation_mode::continuous && touched) {
+    if (touched) {
         const double t = actual_365(context.valuation_date(), option.expiry());
         if (!knock_in) return PricingResult{{risk_measure::price, option.rebate_payment() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
         auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context, context.parameters().volatility(), risk_measure_output::price_only);

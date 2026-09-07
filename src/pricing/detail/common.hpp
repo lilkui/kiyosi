@@ -19,6 +19,7 @@ constexpr double inverse_sqrt_two_pi = 0.39894228040143267794;
 constexpr double solver_derivative_step_fraction = 1e-3;
 constexpr double solver_bracket_step_fraction = 1e-2;
 constexpr double solver_minimum_derivative_step = 1e-6;
+constexpr double bgk_beta = 0.5825971579390107;
 
 inline double actual_365(date start, date end) noexcept
 {
