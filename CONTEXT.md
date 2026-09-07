@@ -52,6 +52,62 @@ _Avoid_: business calendar
 A contractual date on which an instrument checks the underlying or settles a scheduled condition.
 _Avoid_: sample date
 
+**Effective date**:
+The first date on which an instrument's contractual terms are in force and valuation is admissible.
+_Avoid_: start date, inception date
+
+**Scheduled monitoring**:
+Barrier monitoring performed only on an instrument's observation dates.
+_Avoid_: discrete monitoring when referring to the BGK approximation
+
+**Average observation interval**:
+The average elapsed time between an instrument's scheduled observation dates, used to parameterize an approximate scheduled-monitoring valuation.
+_Avoid_: observation frequency
+
+**Terminal settlement**:
+The contractual amount and timing due when an instrument reaches its expiry without an earlier termination.
+_Avoid_: final payoff when referring to the complete settlement outcome
+
+**Principal-inclusive valuation**:
+A structured product valuation that includes the instrument's returned principal together with coupons and loss or redemption amounts.
+_Avoid_: net premium valuation
+
+**Barrier case matrix**:
+The complete combination of barrier direction, cash or asset settlement, option-type condition, and settlement timing supported by a binary-barrier instrument.
+_Avoid_: barrier variants
+
+**Observation event**:
+A scheduled contractual check that is applied once at its observation date and is not replayed when valuation occurs later.
+_Avoid_: future observation for a date already reached
+
+**Reference fixture**:
+A checked-in input and result case derived from a pinned external implementation and used by executable parity tests.
+_Avoid_: placeholder row, expected answer
+
+**Finite-difference grid**:
+The caller-selected asset and time resolution used by a discretized pricing engine, including its time-stepping scheme.
+_Avoid_: recursion depth
+
+**One-touch**:
+A binary-barrier instrument with no strike condition that settles when an in-barrier is reached.
+_Avoid_: barrier call
+
+**No-touch**:
+A binary-barrier instrument with no strike condition that settles when an out-barrier remains unbreached through expiry.
+_Avoid_: barrier put
+
+**Coupon accrual**:
+The product-specific time convention that converts a structured product's annualized coupon rate into an event settlement amount.
+_Avoid_: generic coupon scaling
+
+**Pinned reference revision**:
+The fixed external implementation revision from which a reference fixture's behavior and numerical result are derived.
+_Avoid_: latest upstream result
+
+**Behavioral parity**:
+Agreement with the pinned reference implementation's caller-visible contractual and valuation behavior without source, API, or inheritance compatibility.
+_Avoid_: source parity, API parity
+
 **Valuation**:
 The determination of an instrument's value and risk measures under stated market assumptions and a valuation date.
 _Avoid_: calculation, quote

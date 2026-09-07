@@ -8,6 +8,9 @@ translated parity fixtures, validation checks, and explicit numerical
 tolerances. The production core is standard-library-only; Monte Carlo uses
 CPU standard-library random generation. The project targets Windows and Linux
 with C++23 and CMake, and uses `kiyosi` for the library and public namespace.
+Behavioral parity is pinned to DerivaSharp revision
+`08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2`; source, API, inheritance, and
+random-number-stream compatibility are not required.
 CTest runs the Catch2 test target and parity fixtures use the documented
 line-oriented TSV format.
 
@@ -16,9 +19,20 @@ Parity follows these conventions:
 - scheduled continuous-barrier cases use the engine's documented
   Broadie–Glasserman–Kou barrier shift; exact discrete-monitoring parity
   requires a dedicated discrete barrier solver;
-- structured products use their supplied `TradingCalendar` for observation
-  and accrual dates, so their tolerances follow the calendar's annual trading
-  day convention rather than forcing Actual/365;
+- exercise-based options, Asian options, and barrier options carry explicit
+  effective and expiry dates, and valuation is admissible on their inclusive
+  life interval;
+- trading calendars select contractual observation dates, while average
+  observation intervals, coupon accrual, and discounting use Actual/365 Fixed;
+- structured product valuations include the supplied principal ratio, apply
+  each observation event once, and process an expiry observation before
+  terminal settlement;
+- finite-difference engine settings identify the actual asset grid, time grid,
+  and scheme used; unstable explicit grids fail rather than being silently
+  refined;
+- deterministic and discretized reference fixtures record their DerivaSharp
+  source and revision; Monte Carlo parity uses reviewed statistical tolerances
+  without requiring identical cross-language random streams;
 - CUDA, accelerator-specific implementations, and source-level DerivaSharp
   compatibility are out of scope.
 
