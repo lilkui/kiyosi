@@ -1,5 +1,6 @@
 #include <kiyosi/pricing/engines/structured.hpp>
 #include "../detail/common.hpp"
+#include "../detail/finite_difference.hpp"
 #include <algorithm>
 #include <cmath>
 #include <random>
@@ -289,43 +290,12 @@ result<PricingResult> price_finite_difference_structured(
                (values[static_cast<std::size_t>(index + 1)] - values[static_cast<std::size_t>(index)]);
     };
     auto advance = [&](const std::vector<double>& old, std::vector<double>& next, double dt) -> bool {
-        next.front() = old.front() * std::exp(-rate * dt);
         const double high_slope = (old.back() - old[old.size() - 2]) / spacing;
         const double high_intercept = old.back() - high_slope * upper;
-        next.back() = high_slope * upper * std::exp(-dividend * dt) +
-                      high_intercept * std::exp(-rate * dt);
-        std::vector<double> lower(asset_steps - 1), diagonal(asset_steps - 1), upper_diagonal(asset_steps - 1), rhs(asset_steps - 1);
-        for (int index = 1; index < asset_steps; ++index) {
-            const double i = static_cast<double>(index);
-            const double a = 0.5 * sigma * sigma * i * i - 0.5 * (rate - dividend) * i;
-            const double b = -sigma * sigma * i * i - rate;
-            const double c = 0.5 * sigma * sigma * i * i + 0.5 * (rate - dividend) * i;
-            const auto position = static_cast<std::size_t>(index - 1);
-            rhs[position] = old[static_cast<std::size_t>(index)] + (1.0 - theta) * dt *
-                (a * old[position] + b * old[static_cast<std::size_t>(index)] + c * old[static_cast<std::size_t>(index + 1)]);
-            if (index == 1) rhs[position] += theta * dt * a * next.front();
-            if (index == asset_steps - 1) rhs[position] += theta * dt * c * next.back();
-            lower[position] = -theta * dt * a;
-            diagonal[position] = 1.0 - theta * dt * b;
-            upper_diagonal[position] = -theta * dt * c;
-        }
-        if (theta == 0.0) {
-            std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
-            return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
-        }
-        for (std::size_t index = 1; index < diagonal.size(); ++index) {
-            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
-            const double factor = lower[index] / diagonal[index - 1];
-            diagonal[index] -= factor * upper_diagonal[index - 1];
-            rhs[index] -= factor * rhs[index - 1];
-        }
-        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0) return false;
-        rhs.back() /= diagonal.back();
-        for (std::size_t index = diagonal.size() - 1; index-- > 0;)
-            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
-        if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); })) return false;
-        std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
-        return true;
+        const double high_boundary = high_slope * upper * std::exp(-dividend * dt) +
+                                     high_intercept * std::exp(-rate * dt);
+        return advance_finite_difference(old, next, dt, rate, dividend, sigma, theta,
+                                         old.front() * std::exp(-rate * dt), high_boundary);
     };
     auto event_index = [&](double time) -> std::optional<std::size_t> {
         if constexpr (std::is_same_v<Option, Accumulator>) {
