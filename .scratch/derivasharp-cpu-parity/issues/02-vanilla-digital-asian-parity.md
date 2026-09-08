@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Establish executable reference fixture pipeline
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] Every in-scope vanilla, digital, and Asian engine has at least one executable reference comparison.
 - [x] Digital cash and asset settlement branches are constructed through the public API and compared to reference outputs.

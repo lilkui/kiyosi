@@ -4,7 +4,7 @@
 
 **Blocked by:** 01: Establish executable reference fixture pipeline
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] Analytic and finite-difference vanilla barrier cases compare values through the public API.
 - [x] Binary barrier cases cover up/down and in/out combinations with cash and asset settlement.

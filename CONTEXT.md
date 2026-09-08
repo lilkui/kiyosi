@@ -124,6 +124,14 @@ _Avoid_: expected answer
 Agreement with an established reference result within an explicitly chosen tolerance for the same instrument and assumptions.
 _Avoid_: exact match
 
+**Parity exception**:
+A documented caller-visible behavior that intentionally differs from the pinned reference while preserving the project's contractual or numerical correctness.
+_Avoid_: parity bug
+
+**Valuation-date observation**:
+An observation event whose contractual date is the valuation date and which is applied once before any terminal settlement for that date.
+_Avoid_: historical observation
+
 **Risk measure**:
 A valuation result or sensitivity reported for an instrument, including price and the named Greeks.
 _Avoid_: metric
