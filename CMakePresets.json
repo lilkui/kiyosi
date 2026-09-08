@@ -42,10 +42,6 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
-            "architecture": {
-                "value": "x64",
-                "strategy": "external"
-            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -54,7 +50,7 @@
         },
         {
             "name": "linux-debug",
-            "displayName": "Linux x64 Debug",
+            "displayName": "Linux Debug",
             "inherits": "linux-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug"
@@ -62,7 +58,7 @@
         },
         {
             "name": "linux-release",
-            "displayName": "Linux x64 Release",
+            "displayName": "Linux Release",
             "inherits": "linux-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
@@ -70,7 +66,7 @@
         },
         {
             "name": "linux-sanitizers",
-            "displayName": "Linux x64 ASan + UBSan",
+            "displayName": "Linux ASan + UBSan",
             "inherits": "linux-base",
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
@@ -102,7 +98,13 @@
     ],
     "testPresets": [
         {
+            "name": "test-base",
+            "hidden": true,
+            "execution": { "noTestsAction": "error" }
+        },
+        {
             "name": "windows-debug",
+            "inherits": "test-base",
             "configurePreset": "windows-debug",
             "output": {
                 "outputOnFailure": true
@@ -110,6 +112,7 @@
         },
         {
             "name": "windows-release",
+            "inherits": "test-base",
             "configurePreset": "windows-release",
             "output": {
                 "outputOnFailure": true
@@ -117,6 +120,7 @@
         },
         {
             "name": "linux-debug",
+            "inherits": "test-base",
             "configurePreset": "linux-debug",
             "output": {
                 "outputOnFailure": true
@@ -124,6 +128,7 @@
         },
         {
             "name": "linux-release",
+            "inherits": "test-base",
             "configurePreset": "linux-release",
             "output": {
                 "outputOnFailure": true
@@ -131,6 +136,7 @@
         },
         {
             "name": "linux-sanitizers",
+            "inherits": "test-base",
             "configurePreset": "linux-sanitizers",
             "output": {
                 "outputOnFailure": true

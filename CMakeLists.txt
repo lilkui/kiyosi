@@ -13,19 +13,23 @@ option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets"
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 
-set(CMAKE_CXX_EXTENSIONS OFF)
-set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
-
 add_library(kiyosi_warnings INTERFACE)
 add_library(kiyosi::warnings ALIAS kiyosi_warnings)
-target_compile_options(kiyosi_warnings INTERFACE
-    "$<$<COMPILE_LANG_AND_ID:CXX,MSVC>:/W4;/permissive->"
-    "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang,Intel,IntelLLVM>:-Wall;-Wextra;-Wpedantic>"
-)
+if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+    target_compile_options(kiyosi_warnings INTERFACE /W4 /permissive-)
+else()
+    target_compile_options(kiyosi_warnings INTERFACE
+        "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang,Intel,IntelLLVM>:-Wall;-Wextra;-Wpedantic>"
+    )
+endif()
 
 add_library(kiyosi_sanitizers INTERFACE)
 add_library(kiyosi::sanitizers ALIAS kiyosi_sanitizers)
 if(KIYOSI_ENABLE_SANITIZERS)
+    if(NOT CMAKE_CXX_COMPILER_ID MATCHES "^(GNU|Clang|AppleClang)$"
+       OR CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
+        message(FATAL_ERROR "KIYOSI_ENABLE_SANITIZERS requires GCC or Clang with a GNU-style frontend")
+    endif()
     target_compile_options(kiyosi_sanitizers INTERFACE
         "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang>:-fsanitize=address,undefined;-fno-omit-frame-pointer>"
     )
@@ -65,10 +69,6 @@ add_library(kiyosi)
 add_library(kiyosi::kiyosi ALIAS kiyosi)
 generate_export_header(kiyosi
     EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
-)
-target_include_directories(kiyosi PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
 )
 target_compile_features(kiyosi PUBLIC cxx_std_23)
 if(NOT BUILD_SHARED_LIBS)
@@ -122,6 +122,8 @@ target_sources(kiyosi
         FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
 )
 set_target_properties(kiyosi PROPERTIES
+    CXX_EXTENSIONS OFF
+    CXX_SCAN_FOR_MODULES OFF
     DEBUG_POSTFIX d
     POSITION_INDEPENDENT_CODE ON
     # During 0.x, minor versions define ABI compatibility; switch to major-only at 1.0.
@@ -144,6 +146,7 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
 
     add_executable(kiyosi_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp tests/header_smoke.cpp
                               tests/validation_tests.cpp tests/remaining_tests.cpp)
+    set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
     target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
     target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
     if(EXISTS "${catch2_SOURCE_DIR}/extras/Catch.cmake")
