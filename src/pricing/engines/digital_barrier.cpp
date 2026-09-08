@@ -68,32 +68,6 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     return output;
 }
 
-double simpson(const std::function<double(double)>& f, double a, double b, int n = 2048)
-{
-    // ponytail: fixed 2048-panel Simpson integration over +/-12 sigma; adaptive quadrature if parity needs tighter tails.
-    if (b <= a) return 0.0;
-    if (n % 2) ++n;
-    const double h = (b - a) / n;
-    double sum = f(a) + f(b);
-    for (int i = 1; i < n; ++i)
-        sum += (i % 2 ? 4.0 : 2.0) * f(a + i * h);
-    return sum * h / 3.0;
-}
-
-double barrier_survival_density(double y, double boundary, bool upper, double drift, double variance, double t)
-{
-    const double x = upper ? boundary : -boundary;
-    if ((upper && y >= boundary) || (!upper && y <= boundary)) return 0.0;
-    const double mean = drift * t;
-    const double sd = std::sqrt(variance * t);
-    const auto normal = [sd](double z) {
-        return std::exp(-0.5 * z * z) / (sd * std::sqrt(2.0 * std::numbers::pi));
-    };
-    const double reflected = std::exp(-2.0 * (upper ? -drift : drift) * x / variance);
-    if (upper) return normal(y - mean) - reflected * normal(y - 2.0 * boundary - mean);
-    return normal(y - mean) - reflected * normal(y - 2.0 * boundary - mean);
-}
-
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
 {
     if (t == 0.0) return 1.0;
@@ -153,44 +127,61 @@ result<PricingResult> AnalyticBarrierEngine::price(
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(option.observation_interval()));
     }
+    if (touched) {
+        const double touched_value = *vanilla->get(risk_measure::price);
+        return zero_tail(knock_in
+            ? touched_value
+            : option.rebate() * (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)));
+    }
+    if (option.rebate_payment() == rebate_timing::at_hit) {
+        const double drift = rate - dividend - 0.5 * sigma * sigma;
+        const double variance = sigma * sigma;
+        const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
+                                                          drift, variance, t, rate);
+        if (!std::isfinite(hit_discount))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "barrier rebate discounting is numerically unstable"});
+    }
     if (t == 0.0) {
         return knock_in ? zero_tail(touched ? *vanilla->get(risk_measure::price) : option.rebate())
                         : zero_tail(touched ? option.rebate() : *vanilla->get(risk_measure::price));
     }
-    const double drift = rate - dividend - 0.5 * sigma * sigma;
-    const double variance = sigma * sigma;
-    const double boundary = std::log(barrier / spot);
-    double survival_value = 0.0;
-    double survival_probability = 0.0;
-    if (!touched) {
-        const double sd = sigma * std::sqrt(t);
-        const double mean = drift * t;
-        const double lo = mean - 12.0 * sd;
-        const double hi = mean + 12.0 * sd;
-        const double lower = upper ? lo : std::max(lo, boundary);
-        const double higher = upper ? std::min(hi, boundary) : hi;
-        const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-        const auto density = [&](double y) { return barrier_survival_density(y, boundary, upper, drift, variance, t); };
-        survival_probability = simpson(density, lower, higher);
-        survival_value = simpson([&](double y) {
-            return std::max(sign * (spot * std::exp(y) - option.strike()), 0.0) * density(y) * std::exp(-rate * t);
-        },
-                                 lower, higher);
-    }
-    double value = knock_in ? *vanilla->get(risk_measure::price) - survival_value : survival_value;
-    if (knock_in && option.rebate() > 0.0 && !touched) {
-        value += option.rebate() * std::exp(-rate * t) * survival_probability;
-    }
-    if (!knock_in && option.rebate() > 0.0) {
-        double rebate_factor = std::exp(-rate * t) * (1.0 - survival_probability);
-        if (option.rebate_payment() == rebate_timing::at_hit && !touched) {
-            const double distance = std::abs(boundary);
-            rebate_factor = barrier_hit_discount(distance, upper, drift, variance, t, rate);
-            if (!std::isfinite(rebate_factor))
-                return std::unexpected(Error{error_category::invalid_result,
-                                             "barrier rebate discounting is numerically unstable"});
-        }
-        value += option.rebate() * (touched ? (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)) : rebate_factor);
+    const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
+    const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
+    const double lambda = std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma));
+    const double x = option.strike();
+    const double x1 = std::log(spot / x) / root_time + (1.0 + mu) * root_time;
+    const double x2 = std::log(spot / barrier) / root_time + (1.0 + mu) * root_time;
+    const double y1 = std::log(barrier * barrier / (spot * x)) / root_time + (1.0 + mu) * root_time;
+    const double y2 = std::log(barrier / spot) / root_time + (1.0 + mu) * root_time;
+    const double z = std::log(barrier / spot) / root_time + lambda * root_time;
+    const auto factors = [&](double eta, double phi) {
+        const double ratio = barrier / spot;
+        return std::array<double, 6>{
+            phi * spot * carry * normal_cdf(phi * x1) - phi * x * discount * normal_cdf(phi * x1 - phi * root_time),
+            phi * spot * carry * normal_cdf(phi * x2) - phi * x * discount * normal_cdf(phi * x2 - phi * root_time),
+            phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y1) -
+                phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y1 - eta * root_time),
+            phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y2) -
+                phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
+            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) -
+                std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
+            option.rebate() * (option.rebate_payment() == rebate_timing::at_hit
+                ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
+                   std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
+                : discount) };
+    };
+    const bool call = option.type() == option_type::call;
+    const double eta = upper ? -1.0 : 1.0;
+    const auto f = factors(eta, call ? 1.0 : -1.0);
+    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_payment() == rebate_timing::at_hit ? values[5] : option.rebate() * discount - values[4]; };
+    double value = 0.0;
+    if (call) {
+        if (knock_in) value = upper ? (x > barrier ? f[0] + f[4] : f[1] - f[2] + f[3] + f[4]) : (x > barrier ? f[2] + f[4] : f[0] - f[1] + f[3] + f[4]);
+        else value = upper ? (x > barrier ? rebate(f) : f[0] - f[1] + f[2] - f[3] + rebate(f)) : (x > barrier ? f[0] - f[2] + rebate(f) : f[1] - f[3] + rebate(f));
+    } else {
+        if (knock_in) value = upper ? (x > barrier ? f[0] - f[1] + f[3] + f[4] : f[2] + f[4]) : (x > barrier ? f[1] - f[2] + f[3] + f[4] : f[0] + f[4]);
+        else value = upper ? (x > barrier ? f[1] - f[3] + rebate(f) : f[0] - f[2] + rebate(f)) : (x > barrier ? f[0] - f[1] + f[2] - f[3] + rebate(f) : rebate(f));
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});

@@ -301,6 +301,127 @@ TEST_CASE("Vanilla and digital engines match reviewed CPU fixtures")
     check_price(find("digital-fd"), kiyosi::FiniteDifferenceDigitalEngine{200, 200}.price(digital_put, context));
 }
 
+TEST_CASE("Barrier fixtures reconstruct every pinned public variant")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto valuation = standard_context().valuation_date();
+    const auto expiry = standard_expiry();
+    const auto context = standard_context();
+    const auto find = [&](std::string_view id) -> const auto& {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
+        REQUIRE(found != cases.end());
+        return *found;
+    };
+    const auto barrier_kind = [](std::string_view value) {
+        if (value == "up_and_in") return kiyosi::barrier_type::up_and_in;
+        if (value == "up_and_out") return kiyosi::barrier_type::up_and_out;
+        if (value == "down_and_in") return kiyosi::barrier_type::down_and_in;
+        return kiyosi::barrier_type::down_and_out;
+    };
+    const auto observations = [&](const auto& input) {
+        std::vector<kiyosi::date> dates;
+        if (input.contains("interval_days"))
+            for (auto date = valuation + std::chrono::days{std::stoi(input.at("interval_days"))};
+                 date <= expiry; date += std::chrono::days{std::stoi(input.at("interval_days"))})
+                dates.push_back(date);
+        return dates;
+    };
+    const auto vanilla = [&](std::string_view id) {
+        const auto& fixture = find(id);
+        const auto& input = fixture.inputs;
+        const auto option = *kiyosi::make_barrier_option(
+            input.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            std::stod(input.at("strike")), valuation, expiry, std::stod(input.at("barrier")),
+            barrier_kind(input.at("barrier_kind")), std::stod(input.at("rebate")),
+            input.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry,
+            input.contains("monitoring") && input.at("monitoring") == "scheduled"
+                ? kiyosi::observation_mode::scheduled : kiyosi::observation_mode::continuous,
+            observations(input));
+        check_price(fixture, kiyosi::AnalyticBarrierEngine{}.price(option, context));
+    };
+    for (const auto id : {"barrier-down-in-call", "barrier-down-in-put", "barrier-up-in-call",
+                          "barrier-up-in-put", "barrier-down-out-call", "barrier-down-out-put",
+                          "barrier-up-out-call", "barrier-up-out-put", "barrier-scheduled-monitoring"})
+        vanilla(id);
+    for (const auto id : {"barrier-fd-down-in-call", "barrier-fd-down-in-put", "barrier-fd-up-in-call",
+                          "barrier-fd-up-in-put", "barrier-fd-down-out-call", "barrier-fd-down-out-put",
+                          "barrier-fd-up-out-call", "barrier-fd-up-out-put"}) {
+        const auto& fixture = find(id);
+        const auto& input = fixture.inputs;
+        const auto option = *kiyosi::make_barrier_option(
+            input.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            std::stod(input.at("strike")), valuation, expiry, std::stod(input.at("barrier")),
+            barrier_kind(input.at("barrier_kind")), std::stod(input.at("rebate")));
+        check_price(fixture, kiyosi::FiniteDifferenceBarrierEngine{1000, 1000}.price(option, context));
+    }
+
+    const auto binary = [&](std::string_view id) {
+        const auto& fixture = find(id);
+        const auto& input = fixture.inputs;
+        std::optional<kiyosi::option_type> type;
+        if (input.contains("option"))
+            type = input.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
+        const bool asset = input.contains("asset_settlement") && input.at("asset_settlement") == "true";
+        const auto option = *kiyosi::make_binary_barrier_option(
+            type, std::stod(input.at("strike")), valuation, expiry, std::stod(input.at("barrier")),
+            barrier_kind(input.at("barrier_kind")), std::stod(input.at("payout")), asset,
+            input.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry,
+            input.contains("monitoring") && input.at("monitoring") == "scheduled"
+                ? kiyosi::observation_mode::scheduled : kiyosi::observation_mode::continuous,
+            observations(input));
+        check_price(fixture, kiyosi::AnalyticBinaryBarrierEngine{}.price(option, context));
+    };
+    for (const auto id : {"binary-barrier-down-in-cash-hit", "binary-barrier-up-in-cash-hit",
+                          "binary-barrier-down-in-asset-hit", "binary-barrier-up-in-asset-hit",
+                          "binary-barrier-down-in-cash-expiry", "binary-barrier-up-in-cash-expiry",
+                          "binary-barrier-down-in-asset-expiry", "binary-barrier-up-in-asset-expiry",
+                          "binary-barrier-down-out-cash-expiry", "binary-barrier-up-out-cash-expiry",
+                          "binary-barrier-down-out-asset-expiry", "binary-barrier-up-out-asset-expiry",
+                          "binary-barrier-down-in-call-cash", "binary-barrier-up-in-call-cash",
+                          "binary-barrier-down-in-call-asset", "binary-barrier-up-in-call-asset",
+                          "binary-barrier-down-in-put-cash", "binary-barrier-up-in-put-cash",
+                          "binary-barrier-down-in-put-asset", "binary-barrier-up-in-put-asset",
+                          "binary-barrier-down-out-call-cash", "binary-barrier-up-out-call-cash",
+                          "binary-barrier-down-out-call-asset", "binary-barrier-up-out-call-asset",
+                          "binary-barrier-down-out-put-cash", "binary-barrier-up-out-put-cash",
+                          "binary-barrier-down-out-put-asset", "binary-barrier-up-out-put-asset"})
+        binary(id);
+}
+
+TEST_CASE("Barrier validation fixtures exercise public constructors")
+{
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto expiry = standard_expiry();
+    const auto expected = [&](std::string_view id) {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
+        REQUIRE(found != cases.end());
+        REQUIRE(found->validation.has_value());
+        return found->validation->category;
+    };
+    const auto category = [](std::string_view value) {
+        if (value == "invalid_strike") return kiyosi::error_category::invalid_strike;
+        if (value == "invalid_schedule") return kiyosi::error_category::invalid_schedule;
+        if (value == "invalid_option") return kiyosi::error_category::invalid_option;
+        return kiyosi::error_category::invalid_parameter;
+    };
+    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, -1.0, expiry, 90.0,
+                                      kiyosi::barrier_type::down_and_in).error().category ==
+          category(expected("invalid-barrier-strike")));
+    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 90.0,
+                                      kiyosi::barrier_type::down_and_in, 10.0,
+                                      kiyosi::rebate_timing::at_hit).error().category ==
+          category(expected("invalid-barrier-hit-rebate")));
+    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, expiry, 90.0,
+                                             kiyosi::barrier_type::down_and_out, 10.0, false,
+                                             kiyosi::rebate_timing::at_hit).error().category ==
+          category(expected("invalid-binary-hit-settlement")));
+    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, expiry, 90.0,
+                                             kiyosi::barrier_type::down_and_in, 10.0, false,
+                                             kiyosi::rebate_timing::at_expiry,
+                                             kiyosi::observation_mode::scheduled).error().category ==
+          category(expected("invalid-binary-schedule")));
+}
+
 TEST_CASE("Asian engines match pinned terms and market assumptions")
 {
     const auto effective = kiyosi::date{std::chrono::year{2025} / 1 / 6};
