@@ -1,14 +1,35 @@
 [CmdletBinding()]
 param(
     [string]$DerivaSharpRoot = (Join-Path $PSScriptRoot '..\..\DerivaSharp'),
-    [string]$OutputPath = (Join-Path $PSScriptRoot '..\tests\fixtures\cpu_parity.tsv')
+    [string]$OutputPath = (Join-Path $PSScriptRoot '..\tests\fixtures\cpu_parity.tsv'),
+    [string[]]$ReferenceTestProjects = @(
+        'tests/DerivaSharp.Tests/DerivaSharp.Tests.csproj',
+        'tests/DerivaSharp.MonteCarlo.Tests/DerivaSharp.MonteCarlo.Tests.csproj'
+    )
 )
 
 $ErrorActionPreference = 'Stop'
 $pinnedRevision = '08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2'
-$actualRevision = (git -C $DerivaSharpRoot rev-parse HEAD).Trim()
+if (!(Test-Path -LiteralPath (Join-Path $DerivaSharpRoot '.git'))) {
+    throw "DerivaSharp checkout not found or is not a Git worktree: $DerivaSharpRoot"
+}
+$actualRevision = (git -C $DerivaSharpRoot rev-parse HEAD 2>$null).Trim()
+if (!$actualRevision) {
+    throw "unable to read DerivaSharp checkout revision: $DerivaSharpRoot"
+}
 if ($actualRevision -ne $pinnedRevision) {
     throw "DerivaSharp checkout must be at $pinnedRevision (found $actualRevision)"
+}
+
+foreach ($project in $ReferenceTestProjects) {
+    $projectPath = Join-Path $DerivaSharpRoot $project
+    if (!(Test-Path -LiteralPath $projectPath)) {
+        throw "missing DerivaSharp reference test project: $projectPath"
+    }
+    & dotnet test $projectPath --configuration Release
+    if ($LASTEXITCODE -ne 0) {
+        throw "DerivaSharp reference tests failed for $project (exit code $LASTEXITCODE)"
+    }
 }
 
 $sourceFiles = @{
@@ -96,5 +117,8 @@ foreach ($symbol in $sourceFiles.Keys) {
     if ($source -notmatch [regex]::Escape($member)) { throw "pinned source symbol $symbol was not found in $path" }
 }
 
-[IO.File]::WriteAllText((Resolve-Path $OutputPath), (($rows -join "`r`n").TrimEnd() + "`r`n"))
+$resolvedOutput = [System.IO.Path]::GetFullPath($OutputPath)
+$outputDirectory = Split-Path -Parent $resolvedOutput
+New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+[IO.File]::WriteAllText($resolvedOutput, (($rows -join "`r`n").TrimEnd() + "`r`n"))
 Write-Output "Updated $OutputPath from DerivaSharp $pinnedRevision"
