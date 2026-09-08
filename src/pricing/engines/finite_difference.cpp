@@ -58,16 +58,12 @@ result<PricingResult> price_finite_difference(
                                      "finite-difference upper boundary must exceed spot and strike"});
     }
     const double spacing = upper / static_cast<double>(asset_steps);
-    int time_steps = settings.time_steps;
-    if (settings.scheme == finite_difference_scheme::explicit_euler) {
-        const double required = time * volatility * volatility * asset_steps * asset_steps * 1.1;
-        if (!std::isfinite(required) || required > 100'000.0)
-            return std::unexpected(Error{error_category::invalid_parameter,
-                                         "explicit finite-difference grid requires too many time steps"});
-        if (required > static_cast<double>(time_steps))
-            time_steps = static_cast<int>(std::ceil(required));
-    }
+    const int time_steps = settings.time_steps;
     const double dt = time / static_cast<double>(time_steps);
+    if (settings.scheme == finite_difference_scheme::explicit_euler &&
+        dt * (volatility * volatility * asset_steps * asset_steps + rate) > 1.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "explicit finite-difference grid is unstable"});
     const double theta = settings.scheme == finite_difference_scheme::explicit_euler   ? 0.0
                          : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0
                                                                                        : 0.5;

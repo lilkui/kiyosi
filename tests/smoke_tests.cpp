@@ -697,7 +697,7 @@ TEST_CASE("Finite-difference engines validate grids and track reference engines"
                WithinAbs(risk_value(analytic, kiyosi::risk_measure::price), 0.05));
     for (const auto scheme : {kiyosi::finite_difference_scheme::explicit_euler,
                               kiyosi::finite_difference_scheme::implicit_euler}) {
-        const auto result = kiyosi::FiniteDifferenceEuropeanEngine{{200, 400, scheme}}.price(call, context);
+        const auto result = kiyosi::FiniteDifferenceEuropeanEngine{{200, 2000, scheme}}.price(call, context);
         REQUIRE(result.has_value());
         CHECK_THAT(risk_value(*result, kiyosi::risk_measure::price),
                    WithinAbs(risk_value(analytic, kiyosi::risk_measure::price), 0.15));

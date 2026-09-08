@@ -291,7 +291,8 @@ TEST_CASE("Vanilla and digital engines match reviewed CPU fixtures")
     check_price(find("european-binomial"), kiyosi::BinomialEuropeanEngine{200}.price(call, context));
     check_price(find("crr-vanilla"), kiyosi::CrrEngine{200}.price(call, context));
     check_price(find("european-integral"), kiyosi::IntegralEuropeanEngine{}.price(put, context));
-    check_price(find("european-fd"), kiyosi::FiniteDifferenceEuropeanEngine{200, 200}.price(call, context));
+    check_price(find("european-fd"), kiyosi::FiniteDifferenceEuropeanEngine{
+        {200, 4000, kiyosi::finite_difference_scheme::explicit_euler}}.price(call, context));
     const auto cash_call = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, expiry);
     const auto asset_put = *kiyosi::make_asset_or_nothing_option(kiyosi::option_type::put, 100.0, expiry);
     check_price(find("cash-digital-analytic"), kiyosi::AnalyticDigitalEngine{}.price(cash_call, context));

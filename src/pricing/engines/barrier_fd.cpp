@@ -24,12 +24,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     const int asset_steps = settings.asset_steps;
     const double upper = settings.upper_boundary > 0.0 ? settings.upper_boundary : std::max(4.0 * strike, 4.0 * spot);
     if (upper <= std::max({spot, strike, barrier})) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference upper boundary must exceed spot, strike, and barrier"});
-    int time_steps = settings.time_steps;
-    if (settings.scheme == finite_difference_scheme::explicit_euler) {
-        const double required = maturity * volatility * volatility * asset_steps * asset_steps * 1.1;
-        if (required > 100'000.0) return std::unexpected(Error{error_category::invalid_parameter, "explicit finite-difference grid requires too many time steps"});
-        time_steps = std::max(time_steps, static_cast<int>(std::ceil(required)));
-    }
+    const int time_steps = settings.time_steps;
     const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5, spacing = upper / asset_steps;
     const bool upper_barrier = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
     std::vector<double> grid(time_steps + 1);
@@ -43,6 +38,13 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         grid.insert(grid.end(), observation_times.begin(), observation_times.end());
         std::sort(grid.begin(), grid.end());
         grid.erase(std::unique(grid.begin(), grid.end()), grid.end());
+    }
+    if (settings.scheme == finite_difference_scheme::explicit_euler) {
+        double max_dt = 0.0;
+        for (std::size_t index = 1; index < grid.size(); ++index)
+            max_dt = std::max(max_dt, grid[index] - grid[index - 1]);
+        if (max_dt * (volatility * volatility * asset_steps * asset_steps + rate) > 1.0)
+            return std::unexpected(Error{error_category::invalid_parameter, "explicit finite-difference grid is unstable"});
     }
     auto active = [&](double time) { return option.observation() == observation_mode::continuous || std::binary_search(observation_times.begin(), observation_times.end(), time); };
     std::sort(observation_times.begin(), observation_times.end());

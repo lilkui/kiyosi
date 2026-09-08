@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <tuple>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -375,6 +376,39 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     CHECK(finite_difference_errors.back() < finite_difference_errors.front());
     CHECK(finite_difference_errors[2] < finite_difference_errors[1]);
     CHECK(finite_difference_errors.front() / finite_difference_errors.back() > 1.5);
+}
+
+TEST_CASE("Explicit finite-difference engines honor signed stability grids")
+{
+    const auto grid_expiry = valuation + std::chrono::days{730};
+    const auto call = *kiyosi::make_european_call(100.0, grid_expiry);
+    const auto digital = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, grid_expiry);
+    const auto barrier = *kiyosi::make_barrier_option(
+        kiyosi::option_type::call, 100.0, valuation, grid_expiry, 90.0, kiyosi::barrier_type::down_and_out);
+
+    for (const auto [rate, volatility] : {
+             std::tuple{0.75, 0.125}, std::tuple{0.0, 0.25}, std::tuple{-3.0, 0.5}}) {
+        const auto market = context(100.0, rate, 0.01, volatility);
+        const auto stable = kiyosi::FiniteDifferenceSettings{4, 100, kiyosi::finite_difference_scheme::explicit_euler};
+        const auto boundary = kiyosi::FiniteDifferenceSettings{4, 2, kiyosi::finite_difference_scheme::explicit_euler};
+        const auto unstable = kiyosi::FiniteDifferenceSettings{4, 1, kiyosi::finite_difference_scheme::explicit_euler};
+
+        const auto vanilla_stable = kiyosi::FiniteDifferenceEuropeanEngine{stable}.price(call, market);
+        CHECK(vanilla_stable.has_value());
+        const auto vanilla_boundary = kiyosi::FiniteDifferenceEuropeanEngine{boundary}.price(call, market);
+        CHECK((vanilla_boundary || vanilla_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK_FALSE(kiyosi::FiniteDifferenceEuropeanEngine{unstable}.price(call, market).has_value());
+        const auto digital_stable = kiyosi::FiniteDifferenceDigitalEngine{stable}.price(digital, market);
+        CHECK(digital_stable.has_value());
+        const auto digital_boundary = kiyosi::FiniteDifferenceDigitalEngine{boundary}.price(digital, market);
+        CHECK((digital_boundary || digital_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK_FALSE(kiyosi::FiniteDifferenceDigitalEngine{unstable}.price(digital, market).has_value());
+        const auto barrier_stable = kiyosi::FiniteDifferenceBarrierEngine{stable}.price(barrier, market);
+        CHECK(barrier_stable.has_value());
+        const auto barrier_boundary = kiyosi::FiniteDifferenceBarrierEngine{boundary}.price(barrier, market);
+        CHECK((barrier_boundary || barrier_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK_FALSE(kiyosi::FiniteDifferenceBarrierEngine{unstable}.price(barrier, market).has_value());
+    }
 }
 
 TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
