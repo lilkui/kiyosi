@@ -33,6 +33,11 @@ Parity follows these conventions:
 - deterministic and discretized reference fixtures record their DerivaSharp
   source and revision; Monte Carlo parity uses reviewed statistical tolerances
   without requiring identical cross-language random streams;
+- validation combines analytic Greek finite-difference checks, no-arbitrage
+  properties, textbook Black–Scholes references, and refinement checks for
+  discretized engines, all in the existing Catch2/CTest target. Reference
+  comparisons use explicit absolute and relative tolerances; refinement is
+  empirical rather than a claim of universal convergence order;
 - CUDA, accelerator-specific implementations, and source-level DerivaSharp
   compatibility are out of scope.
 
