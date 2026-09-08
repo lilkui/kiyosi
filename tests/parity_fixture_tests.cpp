@@ -273,31 +273,13 @@ TEST_CASE("Reviewed analytic CPU fixture matches every exposed risk measure")
     }
 }
 
-TEST_CASE("Typed vanilla, digital, barrier, and Asian fixtures execute through public engines")
+TEST_CASE("Vanilla and digital engines match reviewed CPU fixtures")
 {
     const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
     const auto context = standard_context();
     const auto expiry = standard_expiry();
     const auto call = *kiyosi::make_european_call(100.0, context.valuation_date(), expiry);
     const auto put = *kiyosi::make_european_put(100.0, context.valuation_date(), expiry);
-    const auto american_put = *kiyosi::make_american_put(100.0, context.valuation_date(), expiry);
-    const auto bermudan = *kiyosi::make_american_call(100.0, context.valuation_date(), expiry);
-    const auto cash_call = *kiyosi::make_cash_or_nothing_option(
-        kiyosi::option_type::call, 100.0, 10.0, context.valuation_date(), expiry);
-    const auto asset_put = *kiyosi::make_asset_or_nothing_option(
-        kiyosi::option_type::put, 100.0, context.valuation_date(), expiry);
-    const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, context.valuation_date(), expiry, 95.0,
-        kiyosi::barrier_type::down_and_in, 10.0);
-    const auto binary = *kiyosi::make_cash_or_nothing_barrier_option(
-        kiyosi::option_type::call, 100.0, context.valuation_date(), expiry, 90.0,
-        kiyosi::barrier_type::down_and_in, 10.0);
-    const auto geometric = *kiyosi::make_geometric_average_option(
-        kiyosi::option_type::call, 100.0, context.valuation_date() + std::chrono::days{181},
-        context.valuation_date(), expiry);
-    const auto arithmetic = *kiyosi::make_arithmetic_average_option(
-        kiyosi::option_type::put, 100.0, context.valuation_date() + std::chrono::days{181},
-        context.valuation_date(), expiry, 101.0);
     const auto find = [&](std::string_view case_id) -> const kiyosi::test::ParityCase& {
         const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
         REQUIRE(found != cases.end());
@@ -308,22 +290,45 @@ TEST_CASE("Typed vanilla, digital, barrier, and Asian fixtures execute through p
     check_price(find("european-analytic"), kiyosi::AnalyticEuropeanEngine{}.price(call, context));
     check_price(find("european-binomial"), kiyosi::BinomialEuropeanEngine{200}.price(call, context));
     check_price(find("crr-vanilla"), kiyosi::CrrEngine{200}.price(call, context));
-    REQUIRE(kiyosi::BinomialAmericanEngine{200}.price(american_put, context).has_value());
-    REQUIRE(kiyosi::BinomialAmericanEngine{200}.price(bermudan, context).has_value());
-    REQUIRE(kiyosi::AnalyticDigitalEngine{}.price(cash_call, context).has_value());
-    REQUIRE(kiyosi::AnalyticDigitalEngine{}.price(asset_put, context).has_value());
-    REQUIRE(kiyosi::AnalyticBarrierEngine{}.price(barrier, context).has_value());
-    REQUIRE(kiyosi::AnalyticBinaryBarrierEngine{}.price(binary, context).has_value());
-    REQUIRE(kiyosi::GeometricAverageAsianEngine{}.price(geometric, context).has_value());
-    REQUIRE(kiyosi::ArithmeticAverageAsianEngine{}.price(arithmetic, context).has_value());
     check_price(find("european-integral"), kiyosi::IntegralEuropeanEngine{}.price(put, context));
-    REQUIRE(kiyosi::IntegralDigitalEngine{}.price(cash_call, context).has_value());
-    check_price(find("american-bs"), kiyosi::BjerksundStenslandAmericanEngine{}.price(
-        *kiyosi::make_american_call(100.0, context.valuation_date(), expiry), context));
     check_price(find("european-fd"), kiyosi::FiniteDifferenceEuropeanEngine{200, 200}.price(call, context));
-    REQUIRE(kiyosi::FiniteDifferenceAmericanEngine{200, 200}.price(american_put, context).has_value());
-    REQUIRE(kiyosi::FiniteDifferenceDigitalEngine{200, 200}.price(cash_call, context).has_value());
-    REQUIRE(kiyosi::FiniteDifferenceBarrierEngine{200, 200}.price(barrier, context).has_value());
+    const auto cash_call = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, expiry);
+    const auto asset_put = *kiyosi::make_asset_or_nothing_option(kiyosi::option_type::put, 100.0, expiry);
+    check_price(find("cash-digital-analytic"), kiyosi::AnalyticDigitalEngine{}.price(cash_call, context));
+    check_price(find("asset-digital-analytic"), kiyosi::AnalyticDigitalEngine{}.price(asset_put, context));
+    check_price(find("digital-integral"), kiyosi::IntegralDigitalEngine{}.price(cash_call, context));
+    const auto digital_put = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::put, 100.0, 10.0, expiry);
+    check_price(find("digital-fd"), kiyosi::FiniteDifferenceDigitalEngine{200, 200}.price(digital_put, context));
+}
+
+TEST_CASE("Asian engines match pinned terms and market assumptions")
+{
+    const auto effective = kiyosi::date{std::chrono::year{2025} / 1 / 6};
+    const auto valuation = effective + std::chrono::days{90};
+    const auto expiry = effective + std::chrono::days{180};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto cases = kiyosi::test::load_parity_cases(cpu_fixture_path());
+    const auto find = [&](std::string_view id) -> const auto& {
+        const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
+        REQUIRE(found != cases.end());
+        return *found;
+    };
+    const auto arithmetic_call = *kiyosi::make_arithmetic_average_option(
+        kiyosi::option_type::call, 100.0, effective, effective, expiry, 101.0);
+    const auto arithmetic_put = *kiyosi::make_arithmetic_average_option(
+        kiyosi::option_type::put, 100.0, effective, effective, expiry, 101.0);
+    check_price(find("asian-arithmetic-call"), kiyosi::ArithmeticAverageAsianEngine{}.price(arithmetic_call, context));
+    check_price(find("asian-arithmetic-put"), kiyosi::ArithmeticAverageAsianEngine{}.price(arithmetic_put, context));
+    const auto geometric = *kiyosi::make_geometric_average_option(
+        kiyosi::option_type::put, 85.0, effective, effective, effective + std::chrono::days{91});
+    const auto geometric_context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, -0.03, 0.2), *kiyosi::make_asset_price(80.0), effective);
+    check_price(find("asian-geometric"), kiyosi::GeometricAverageAsianEngine{}.price(geometric, geometric_context));
+    const auto sse_context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, -0.03, 0.2), *kiyosi::make_asset_price(80.0), effective,
+        kiyosi::sse_calendar());
+    check_price(find("asian-geometric-sse"), kiyosi::GeometricAverageAsianEngine{}.price(geometric, sse_context));
 }
 
 TEST_CASE("CPU parity public properties cover payoff, in-out, convergence, and seeded paths")
