@@ -4,10 +4,10 @@
 
 **Blocked by:** 01: Establish executable reference fixture pipeline
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A valuation-date observation can apply coupon, knock-in, knock-out, or accumulator effects exactly once.
-- [ ] Dates before valuation are excluded from all structured event processing.
-- [ ] An expiry observation is processed before terminal settlement.
-- [ ] Repeated valuation does not replay a previously processed observation.
-- [ ] Pinned cases cover Snowball, BinarySnowball, TernarySnowball, Phoenix, and Accumulator behavior.
+- [x] A valuation-date observation can apply coupon, knock-in, knock-out, or accumulator effects exactly once.
+- [x] Dates before valuation are excluded from all structured event processing.
+- [x] An expiry observation is processed before terminal settlement.
+- [x] Repeated valuation does not replay a previously processed observation.
+- [x] Pinned cases cover Snowball, BinarySnowball, TernarySnowball, Phoenix, and Accumulator behavior.

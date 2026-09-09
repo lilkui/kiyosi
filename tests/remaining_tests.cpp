@@ -178,26 +178,53 @@ TEST_CASE("Structured expiry settlement applies state and final observations")
     CHECK(price(ternary, 79.0) == Catch::Approx(1.02));
 
     const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
-    CHECK(price(accumulator, 90.0) == Catch::Approx(-30.0));
+    CHECK(price(accumulator, 90.0) == Catch::Approx(-50.0));
+    const auto accumulator_fd = kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(90.0));
+    REQUIRE(accumulator_fd);
+    CHECK(*accumulator_fd->get(kiyosi::risk_measure::price) == Catch::Approx(-50.0));
 }
 
-TEST_CASE("Structured Monte Carlo resolves only future observation events")
+TEST_CASE("Structured Monte Carlo processes valuation-date observation events once")
 {
     const auto effective = day(2025, 1, 1);
     const auto valuation = day(2025, 7, 1);
     const auto expiry = day(2026, 1, 1);
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), *kiyosi::make_asset_price(100.0), valuation);
+    const auto monte_carlo_price = [&](const auto& instrument) {
+        using Instrument = std::remove_cvref_t<decltype(instrument)>;
+        const auto result = kiyosi::MonteCarloStructuredEngine<Instrument>{{32, 7}}.price(instrument, context);
+        REQUIRE(result);
+        return *result->get(kiyosi::risk_measure::price);
+    };
     const auto note = *kiyosi::make_binary_snowball_option(
-        {10.0, 0.10}, 0.05, 100.0, {90.0, 99.0}, 100.0, 60.0,
-        {valuation, expiry}, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        {99.0, 10.0, 0.10}, 0.05, 100.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
+        {effective, valuation, expiry}, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
     const kiyosi::MonteCarloBinarySnowballEngine engine{{32, 7}};
     const auto first = engine.price(note, context);
     const auto second = engine.price(note, context);
     REQUIRE(first);
     REQUIRE(second);
     CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
-    CHECK(*first->get(kiyosi::risk_measure::price) == Catch::Approx(1.10).margin(1e-10));
+    CHECK(*first->get(kiyosi::risk_measure::price) ==
+          Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()).margin(1e-10));
+    const auto snowball = *kiyosi::make_snowball_option(
+        {99.0, 10.0, 0.10}, 0.05, 100.0, 80.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
+        {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    CHECK(monte_carlo_price(snowball) == Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()));
+
+    const auto ternary = *kiyosi::make_ternary_snowball_option(
+        {99.0, 10.0, 0.10}, 0.05, 0.02, 100.0, 80.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
+        {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    CHECK(monte_carlo_price(ternary) == Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()));
+
+    const auto phoenix = *kiyosi::make_phoenix_option(
+        0.08, 100.0, 80.0, {90.0, 90.0, 99.0}, {90.0, 90.0, 90.0}, 100.0, 60.0,
+        {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+    CHECK(monte_carlo_price(phoenix) == Catch::Approx(9.0));
 }
 
 TEST_CASE("Structured finite-difference engines use event-aware BSM grids")

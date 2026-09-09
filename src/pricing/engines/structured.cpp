@@ -9,12 +9,24 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-std::vector<date> trading_dates(const TradingCalendar& calendar, date start, date end)
+std::vector<date> trading_dates(const TradingCalendar& calendar, date start, date end, bool include_start = false)
 {
     std::vector<date> dates;
-    for (auto value = start + std::chrono::days{1}; value <= end; value += std::chrono::days{1})
+    for (auto value = include_start ? start : start + std::chrono::days{1}; value <= end; value += std::chrono::days{1})
         if (calendar.is_trading_day(value)) dates.push_back(value);
     return dates;
+}
+
+template <typename Option>
+std::vector<std::size_t> observation_schedule(const Option& option, date valuation)
+{
+    std::vector<std::size_t> schedule;
+    if constexpr (requires { option.observation_dates(); }) {
+        const auto& dates = option.observation_dates();
+        for (std::size_t index = 0; index < dates.size(); ++index)
+            if (dates[index] >= valuation) schedule.push_back(index);
+    }
+    return schedule;
 }
 
 template <typename Option>
@@ -68,13 +80,18 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up) return 0.0;
     if constexpr (std::is_same_v<Option, Accumulator>) {
-        if (valuation == option.expiry())
-            return option.accumulated_quantity() * (spot - option.strike());
         double value = spot;
         double quantity = option.accumulated_quantity();
         double terminal = spot;
         std::normal_distribution<double> normal;
         auto previous = valuation;
+        if (calendar.is_trading_day(valuation)) {
+            if (spot >= option.knock_out())
+                return quantity * (spot - option.strike());
+            quantity += spot < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
+        }
+        if (valuation == option.expiry())
+            return quantity * (spot - option.strike());
         for (const auto current : trading_dates(calendar, valuation, option.expiry())) {
             const double dt = actual_365(previous, current);
             value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt + sigma * std::sqrt(dt) * normal(generator));
@@ -89,34 +106,36 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
         return quantity * (terminal - option.strike()) * std::exp(-rate * actual_365(valuation, previous));
     } else {
         const auto& dates = option.observation_dates();
+        const auto schedule = observation_schedule(option, valuation);
         double value = spot;
         double coupons = 0.0;
         bool knocked_in = option.touch_status() == barrier_touch_status::down;
+        knocked_in = is_knocked_in(option, value, knocked_in, valuation == option.expiry());
+        std::size_t index = 0;
+        if (!schedule.empty() && dates[schedule.front()] == valuation) {
+            const auto event = schedule.front();
+            const double coupon = observation_coupon(option, event, value);
+            if (value >= option.knock_out_prices()[event])
+                return option.principal_ratio() + coupon;
+            if constexpr (std::is_same_v<Option, PhoenixOption>) coupons = coupon;
+            index = 1;
+        }
         if (valuation == option.expiry()) {
             knocked_in = is_knocked_in(option, value, knocked_in, true);
-            const auto expiry = std::find(dates.begin(), dates.end(), option.expiry());
-            if (expiry != dates.end()) {
-                const auto expiry_index = static_cast<std::size_t>(expiry - dates.begin());
-                if (value >= option.knock_out_prices()[expiry_index])
-                    return option.principal_ratio() + observation_coupon(option, expiry_index, value);
-                if constexpr (std::is_same_v<Option, PhoenixOption>)
-                    coupons = observation_coupon(option, expiry_index, value);
-            }
             return coupons + terminal_settlement(option, value, knocked_in);
         }
         std::normal_distribution<double> normal;
-        std::size_t index = 0;
-        while (index < dates.size() && dates[index] <= valuation) ++index;
         auto previous = valuation;
         for (const auto current : trading_dates(calendar, valuation, option.expiry())) {
             const double dt = actual_365(previous, current);
             value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt + sigma * std::sqrt(dt) * normal(generator));
             previous = current;
             knocked_in = is_knocked_in(option, value, knocked_in, false);
-            if (index >= dates.size() || dates[index] != current) continue;
+            if (index >= schedule.size() || dates[schedule[index]] != current) continue;
+            const auto event = schedule[index];
             const double time = actual_365(valuation, current);
-            const double coupon = observation_coupon(option, index, value);
-            if (value >= option.knock_out_prices()[index]) {
+            const double coupon = observation_coupon(option, event, value);
+            if (value >= option.knock_out_prices()[event]) {
                 return (option.principal_ratio() + coupon) * std::exp(-rate * time) + coupons;
             }
             if constexpr (std::is_same_v<Option, PhoenixOption>)
@@ -216,9 +235,13 @@ result<PricingResult> price_finite_difference_structured(
             return PricingResult{{risk_measure::price, 0.0}};
     const double maturity = actual_365(context.valuation_date(), option.expiry());
     if (maturity == 0.0) {
-        if constexpr (std::is_same_v<Option, Accumulator>)
-            return PricingResult{{risk_measure::price, option.accumulated_quantity() *
-                                  (context.asset_price().value() - option.strike())}};
+        if constexpr (std::is_same_v<Option, Accumulator>) {
+            double quantity = option.accumulated_quantity();
+            const double value = context.asset_price().value();
+            if (context.calendar().is_trading_day(option.expiry()) && value < option.knock_out())
+                quantity += value < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
+            return PricingResult{{risk_measure::price, quantity * (value - option.strike())}};
+        }
         else {
             bool knocked_in = option.touch_status() == barrier_touch_status::down;
             knocked_in = is_knocked_in(option, context.asset_price().value(), knocked_in, true);
@@ -247,7 +270,7 @@ result<PricingResult> price_finite_difference_structured(
         const double time = actual_365(context.valuation_date(), value);
         if (time > 0.0 && time < maturity) anchors.push_back(time);
     };
-    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_date(), option.expiry());
+    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_date(), option.expiry(), true);
     std::vector<double> trading_times;
     trading_times.reserve(future_trading_dates.size());
     for (const date value : future_trading_dates)
@@ -297,17 +320,16 @@ result<PricingResult> price_finite_difference_structured(
         return advance_finite_difference(old, next, dt, rate, dividend, sigma, theta,
                                          old.front() * std::exp(-rate * dt), high_boundary);
     };
+    const auto observation_events = observation_schedule(option, context.valuation_date());
     auto event_index = [&](double time) -> std::optional<std::size_t> {
         if constexpr (std::is_same_v<Option, Accumulator>) {
             (void)time;
             return std::nullopt;
         } else {
-            const auto found = std::find_if(option.observation_dates().begin(), option.observation_dates().end(), [&](date value) {
-                const double event_time = actual_365(context.valuation_date(), value);
-                return event_time > 0.0 && event_time == time;
+            const auto found = std::find_if(observation_events.begin(), observation_events.end(), [&](std::size_t index) {
+                return actual_365(context.valuation_date(), option.observation_dates()[index]) == time;
             });
-            if (found == option.observation_dates().end()) return std::nullopt;
-            return static_cast<std::size_t>(found - option.observation_dates().begin());
+            return found == observation_events.end() ? std::nullopt : std::optional<std::size_t>{*found};
         }
     };
     auto daily_event = [&](double time) {
