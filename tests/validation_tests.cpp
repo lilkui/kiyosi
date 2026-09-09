@@ -192,7 +192,7 @@ TEST_CASE("Analytic prices are monotone and bounded")
     }
 }
 
-TEST_CASE("Analytic binary barriers match the pinned DerivaSharp matrix")
+TEST_CASE("Analytic binary barriers match generated reference data")
 {
     struct binary_case { bool asset; kiyosi::barrier_type barrier; kiyosi::rebate_timing timing; std::optional<kiyosi::option_type> type; double level; double payout; double expected; };
     const std::array<binary_case, 28> cases{

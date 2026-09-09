@@ -1,4 +1,4 @@
-# Language-neutral parity manifest. Values are reviewed reference outputs.
+# Language-neutral reference manifest. Values are reviewed reference outputs.
 # inputs/outputs/tolerances use key=value; convergence uses parameter|r1,r2|reference|tolerance;
 # Monte Carlo uses seed|paths|steps|tolerance. A dash means "not applicable".
 case_id	instrument	engine	variant	inputs	outputs	tolerances	validation	convergence	monte_carlo

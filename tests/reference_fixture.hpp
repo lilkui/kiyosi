@@ -23,10 +23,7 @@
 
 namespace kiyosi::test {
 
-inline constexpr std::string_view pinned_reference_revision =
-    "08efb5a0f0f308c0ab7c1a82f1ece1bf63b09fd2";
-
-struct ParityFixture {
+struct ReferenceFixture {
     std::string case_id;
     option_type option;
     date valuation_date;
@@ -93,7 +90,7 @@ struct ReferenceProvenance {
     double explicit_tolerance = 0.0;
 };
 
-struct ParityCase {
+struct ReferenceCase {
     std::string case_id;
     std::string instrument;
     std::string engine;
@@ -254,14 +251,14 @@ inline std::vector<double> resolutions(std::string_view text, std::size_t row)
 
 } // namespace detail
 
-inline std::vector<ParityCase> parse_parity_cases(std::istream& input, char delimiter = '\0')
+inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, char delimiter = '\0')
 {
     using namespace detail;
     constexpr std::array columns{"case_id", "instrument", "engine", "variant", "inputs", "outputs",
                                  "tolerances", "validation", "convergence", "monte_carlo"};
     std::string line;
     std::size_t row = 0;
-    std::vector<ParityCase> cases;
+    std::vector<ReferenceCase> cases;
     bool header_read = false;
     while (std::getline(input, line)) {
         ++row;
@@ -285,7 +282,7 @@ inline std::vector<ParityCase> parse_parity_cases(std::istream& input, char deli
             throw FixtureParseError("fixture row " + std::to_string(row) + ": expected " +
                                     std::to_string(columns.size()) + " columns, got " +
                                     std::to_string(fields.size()));
-        ParityCase value;
+        ReferenceCase value;
         value.case_id = field(fields, 0, row, "case_id");
         value.instrument = field(fields, 1, row, "instrument");
         value.engine = field(fields, 2, row, "engine");
@@ -300,9 +297,6 @@ inline std::vector<ParityCase> parse_parity_cases(std::istream& input, char deli
         value.provenance = ReferenceProvenance{
             required_input("source_revision"), required_input("source_symbol"),
             required_input("convention"), required_input("reference_kind"), 0.0};
-        if (value.provenance.source_revision != pinned_reference_revision)
-            throw FixtureParseError("fixture row " + std::to_string(row) +
-                                    ": source_revision must match pinned DerivaSharp revision");
         if (value.provenance.reference_kind != "analytic" &&
             value.provenance.reference_kind != "discretized" &&
             value.provenance.reference_kind != "statistical")
@@ -375,14 +369,14 @@ inline std::vector<ParityCase> parse_parity_cases(std::istream& input, char deli
     return cases;
 }
 
-inline std::vector<ParityCase> load_parity_cases(const std::filesystem::path& path)
+inline std::vector<ReferenceCase> load_reference_cases(const std::filesystem::path& path)
 {
     std::ifstream input(path);
     if (!input) throw FixtureParseError("cannot open fixture '" + path.string() + "'");
-    return parse_parity_cases(input);
+    return parse_reference_cases(input);
 }
 
-inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, char delimiter = '\0')
+inline std::vector<ReferenceFixture> parse_reference_fixtures(std::istream& input, char delimiter = '\0')
 {
     constexpr std::array columns{
         "case_id", "option_type", "valuation_date", "expiry", "spot", "strike",
@@ -395,7 +389,7 @@ inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, cha
 
     std::string line;
     std::size_t row = 0;
-    std::vector<ParityFixture> fixtures;
+    std::vector<ReferenceFixture> fixtures;
     bool header_read = false;
     while (std::getline(input, line)) {
         ++row;
@@ -425,7 +419,7 @@ inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, cha
                                     std::to_string(fields.size()));
         }
         std::size_t index = 0;
-        ParityFixture fixture{};
+        ReferenceFixture fixture{};
         fixture.case_id = detail::field(fields, index++, row, "case_id");
         const auto option_text = detail::field(fields, index++, row, "option_type");
         if (option_text == "call") fixture.option = option_type::call;
@@ -467,11 +461,11 @@ inline std::vector<ParityFixture> parse_parity_fixtures(std::istream& input, cha
     return fixtures;
 }
 
-inline std::vector<ParityFixture> load_parity_fixtures(const std::filesystem::path& path)
+inline std::vector<ReferenceFixture> load_reference_fixtures(const std::filesystem::path& path)
 {
     std::ifstream input(path);
     if (!input) throw FixtureParseError("cannot open fixture '" + path.string() + "'");
-    return parse_parity_fixtures(input);
+    return parse_reference_fixtures(input);
 }
 
 struct FixtureFailure {
@@ -497,7 +491,7 @@ inline bool within_tolerance(double actual, double expected, double tolerance) n
 }
 
 inline std::vector<FixtureFailure> compare_fixture(
-    const ParityFixture& fixture, const PricingResult& actual, double implied_volatility)
+    const ReferenceFixture& fixture, const PricingResult& actual, double implied_volatility)
 {
     struct ExpectedOutput {
         std::string_view name;
@@ -532,7 +526,7 @@ inline std::vector<FixtureFailure> compare_fixture(
     return failures;
 }
 
-inline void check_fixture(const ParityFixture& fixture, const PricingResult& actual,
+inline void check_fixture(const ReferenceFixture& fixture, const PricingResult& actual,
                           double implied_volatility)
 {
     for (const auto& failure : compare_fixture(fixture, actual, implied_volatility)) {

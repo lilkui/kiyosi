@@ -144,7 +144,7 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(kiyosi_tests tests/smoke_tests.cpp tests/parity_fixture_tests.cpp tests/header_smoke.cpp
+    add_executable(kiyosi_tests tests/smoke_tests.cpp tests/reference_fixture_tests.cpp tests/header_smoke.cpp
                               tests/validation_tests.cpp tests/remaining_tests.cpp)
     set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
     target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
