@@ -97,11 +97,11 @@ using AsianOption = AsianOptionTerms;
 
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
     option_type type, double strike, date average_start, date expiry, double realized_average = 0.0)
-{ return make_geometric_average_option(type, strike, average_start, date{std::chrono::year{1970}/1/1}, expiry, realized_average); }
+{ return make_geometric_average_option(type, strike, average_start, default_effective_date, expiry, realized_average); }
 
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
     option_type type, double strike, date average_start, date expiry, double realized_average = 0.0)
-{ return make_arithmetic_average_option(type, strike, average_start, date{std::chrono::year{1970}/1/1}, expiry, realized_average); }
+{ return make_arithmetic_average_option(type, strike, average_start, default_effective_date, expiry, realized_average); }
 
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
     option_type type, double strike, date average_start, double realized_average, date effective, date expiry)

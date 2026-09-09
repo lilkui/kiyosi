@@ -89,7 +89,7 @@ private:
     std::optional<option_type> type, double strike, date expiry, double barrier,
     barrier_type kind, double payout, bool asset = false, rebate_timing timing = rebate_timing::at_expiry,
     observation_mode observation = observation_mode::continuous, std::vector<date> observations = {})
-{ return make_binary_barrier_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, barrier, kind, payout, asset, timing, observation, std::move(observations)); }
+{ return make_binary_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, payout, asset, timing, observation, std::move(observations)); }
 using CashOrNothingBarrierOption = BinaryBarrierOption;
 using AssetOrNothingBarrierOption = BinaryBarrierOption;
 

@@ -21,14 +21,12 @@ struct NumericalShiftSettings {
     double rate_shift = 1e-4;
     int time_shift_days = 1;
 };
-using NumericalAnalyticsSettings = NumericalShiftSettings;
 
 struct ScenarioGridResult {
     std::vector<double> values;
     std::vector<double> deltas;
     std::vector<double> gammas;
 };
-using ScenarioResult = ScenarioGridResult;
 
 struct ImpliedCouponSettings {
     double lower_bound = 0.0;
@@ -85,9 +83,6 @@ private:
     Engine engine_;
     NumericalShiftSettings settings_;
 };
-
-template <typename Engine>
-using SharedAnalyticsEngine = NumericalAnalyticsEngine<Engine>;
 
 namespace detail {
 template <typename Engine, typename Option>

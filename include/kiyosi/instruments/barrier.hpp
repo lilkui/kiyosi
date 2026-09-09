@@ -106,7 +106,7 @@ private:
     option_type type, double strike, date expiry, double barrier, barrier_type kind,
     double rebate = 0.0, rebate_timing timing = rebate_timing::at_expiry,
     observation_mode observation = observation_mode::continuous, std::vector<date> observations = {})
-{ return make_barrier_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, barrier, kind, rebate, timing, observation, std::move(observations)); }
+{ return make_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, rebate, timing, observation, std::move(observations)); }
 
 [[nodiscard]] inline result<BarrierOption> make_barrier_option(
     option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind,
@@ -126,6 +126,6 @@ private:
 [[nodiscard]] inline result<BarrierOption> make_barrier_option(
     option_type type, double strike, date expiry, double barrier, barrier_type kind,
     double rebate, rebate_timing timing, observation_mode observation, ObservationSchedule schedule)
-{ return make_barrier_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, barrier, kind, rebate, timing, observation, std::move(schedule)); }
+{ return make_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, rebate, timing, observation, std::move(schedule)); }
 
 } // namespace kiyosi

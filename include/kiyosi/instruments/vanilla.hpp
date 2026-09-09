@@ -43,7 +43,7 @@ private:
     return OptionTerms{type, strike, effective, expiry};
 }
 [[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date expiry)
-{ return make_option_terms(type, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+{ return make_option_terms(type, strike, default_effective_date, expiry); }
 
 struct VanillaPayoff {
     friend bool operator==(const VanillaPayoff&, const VanillaPayoff&) = default;
@@ -212,7 +212,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_option(
     option_type type, double strike, date expiry, Payoff payoff, Exercise exercise)
-{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, std::move(payoff), std::move(exercise)); }
+{ return make_option(type, strike, default_effective_date, expiry, std::move(payoff), std::move(exercise)); }
 
 using EuropeanOption = ExerciseBasedOption<VanillaPayoff, EuropeanExercise>;
 using AmericanOption = ExerciseBasedOption<VanillaPayoff, AmericanExercise>;
@@ -225,9 +225,9 @@ using AmericanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, A
 using BermudanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, BermudanExercise>;
 
 [[nodiscard]] inline result<EuropeanOption> make_european_option(option_type type, double strike, date expiry)
-{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, VanillaPayoff{}, EuropeanExercise{}); }
+{ return make_option(type, strike, default_effective_date, expiry, VanillaPayoff{}, EuropeanExercise{}); }
 [[nodiscard]] inline result<AmericanOption> make_american_option(option_type type, double strike, date expiry)
-{ return make_option(type, strike, date{std::chrono::year{1970}/1/1}, expiry, VanillaPayoff{}, AmericanExercise{}); }
+{ return make_option(type, strike, default_effective_date, expiry, VanillaPayoff{}, AmericanExercise{}); }
 [[nodiscard]] inline result<BermudanOption> make_bermudan_option(option_type type, double strike, date expiry, std::vector<date> dates, const TradingCalendar& calendar = all_days_calendar())
 { auto terms = make_option_terms(type, strike, expiry); if (!terms) return std::unexpected(terms.error()); return make_bermudan_option(*terms, VanillaPayoff{}, std::move(dates), calendar); }
 
@@ -249,19 +249,19 @@ using BermudanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, B
 }
 
 [[nodiscard]] inline result<EuropeanOption> make_european_call(double strike, date expiry)
-{ return make_european_option(option_type::call, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+{ return make_european_option(option_type::call, strike, default_effective_date, expiry); }
 [[nodiscard]] inline result<EuropeanOption> make_european_call(double strike, date effective, date expiry)
 { return make_european_option(option_type::call, strike, effective, expiry); }
 [[nodiscard]] inline result<EuropeanOption> make_european_put(double strike, date expiry)
-{ return make_european_option(option_type::put, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+{ return make_european_option(option_type::put, strike, default_effective_date, expiry); }
 [[nodiscard]] inline result<EuropeanOption> make_european_put(double strike, date effective, date expiry)
 { return make_european_option(option_type::put, strike, effective, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_call(double strike, date expiry)
-{ return make_american_option(option_type::call, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+{ return make_american_option(option_type::call, strike, default_effective_date, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_call(double strike, date effective, date expiry)
 { return make_american_option(option_type::call, strike, effective, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_put(double strike, date expiry)
-{ return make_american_option(option_type::put, strike, date{std::chrono::year{1970}/1/1}, expiry); }
+{ return make_american_option(option_type::put, strike, default_effective_date, expiry); }
 [[nodiscard]] inline result<AmericanOption> make_american_put(double strike, date effective, date expiry)
 { return make_american_option(option_type::put, strike, effective, expiry); }
 

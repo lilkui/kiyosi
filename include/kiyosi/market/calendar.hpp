@@ -93,10 +93,6 @@ private:
                            243};
 }
 
-[[nodiscard]] inline TradingCalendar shanghai_stock_exchange_calendar() { return sse_calendar(); }
-[[nodiscard]] inline TradingCalendar shanghai_calendar() { return sse_calendar(); }
-[[nodiscard]] inline TradingCalendar sse_exchange_calendar() { return sse_calendar(); }
-
 [[nodiscard]] inline result<void> validate_observation_date(
     date observation, date instrument_start, date instrument_end, const TradingCalendar& calendar)
 {
