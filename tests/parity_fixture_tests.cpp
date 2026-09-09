@@ -599,6 +599,86 @@ TEST_CASE("Seeded Monte Carlo fixtures execute every concrete Monte Carlo engine
     require_repeatable("ternary-snowball-mc", ternary, kiyosi::MonteCarloTernarySnowballEngine{{1000, 42}});
 }
 
+/*
+    const auto cases = kiyosi::test::load_parity_cases(
+        std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests/fixtures/structured_parity.tsv");
+    REQUIRE_FALSE(cases.empty());
+    std::set<std::string> engines;
+    for (const auto& fixture : cases) {
+        INFO(fixture.case_id);
+        const auto& inputs = fixture.inputs;
+        const auto number = [&](const std::string& key) { return std::stod(inputs.at(key)); };
+        const auto parse_date = [](const std::string& value) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::calendar_date({value}, index, 0, "structured date");
+        };
+        const auto effective = parse_date(inputs.at("effective"));
+        const auto expiry = parse_date(inputs.at("expiry"));
+        const auto valuation = parse_date(inputs.at("valuation"));
+        const auto calendar = inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar();
+        const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
+        REQUIRE(parameters.has_value());
+        const auto context = kiyosi::make_pricing_context(*parameters, *kiyosi::make_asset_price(number("spot")), valuation, calendar);
+        REQUIRE(context.has_value());
+        const auto check = [&](const auto& instrument) {
+            REQUIRE(instrument.has_value());
+            using Instrument = typename std::remove_cvref_t<decltype(instrument)>::value_type;
+            if (fixture.monte_carlo) {
+                const auto& budget = *fixture.monte_carlo;
+                std::size_t steps = 0;
+                for (auto current = valuation + std::chrono::days{1}; current <= expiry; current += std::chrono::days{1})
+                    steps += calendar.is_trading_day(current) ? 1 : 0;
+                CHECK(budget.steps == steps);
+                const kiyosi::MonteCarloStructuredEngine<Instrument> engine{
+                    {static_cast<int>(budget.paths), budget.seed}};
+                check_price(fixture, engine.price(*instrument, *context));
+            } else {
+                REQUIRE(inputs.at("scheme") == "crank_nicolson");
+                const kiyosi::FiniteDifferenceStructuredEngine<Instrument> engine{{
+                    std::stoi(inputs.at("asset_steps")), std::stoi(inputs.at("time_steps")),
+                    kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}};
+                check_price(fixture, engine.price(*instrument, *context));
+            }
+        };
+        engines.insert(fixture.engine);
+        if (fixture.instrument == "Accumulator") {
+            check(kiyosi::make_accumulator(number("strike"), number("knock_out"), number("daily_quantity"),
+                number("acceleration"), number("accumulated_quantity"), effective, expiry));
+            continue;
+        }
+        const auto numbers = [&](const std::string& key) {
+            std::vector<double> values;
+            for (const auto& value : kiyosi::test::detail::split(inputs.at(key), ',')) values.push_back(std::stod(value));
+            return values;
+        };
+        std::vector<kiyosi::date> observations;
+        for (const auto& value : kiyosi::test::detail::split(inputs.at("observations"), ',')) observations.push_back(parse_date(value));
+        const auto touch = inputs.at("touch") == "down" ? kiyosi::barrier_touch_status::down :
+                           inputs.at("touch") == "up" ? kiyosi::barrier_touch_status::up : kiyosi::barrier_touch_status::none;
+        const auto frequency = inputs.contains("frequency") && inputs.at("frequency") == "at_expiry" ?
+            kiyosi::observation_frequency::at_expiry : kiyosi::observation_frequency::daily;
+        if (fixture.instrument == "PhoenixOption")
+            check(kiyosi::make_phoenix_option(number("coupon_rate"), number("initial_price"), number("knock_in_price"),
+                numbers("knock_out_prices"), numbers("coupon_barriers"), number("upper_strike"), number("lower_strike"),
+                observations, frequency, touch, number("principal_ratio"), effective, expiry));
+        else if (fixture.instrument == "SnowballOption")
+            check(kiyosi::make_snowball_option(numbers("knock_out_coupon_rates"), number("maturity_coupon_rate"),
+                number("initial_price"), number("knock_in_price"), numbers("knock_out_prices"), number("upper_strike"),
+                number("lower_strike"), observations, frequency, touch, number("principal_ratio"), effective, expiry));
+        else if (fixture.instrument == "BinarySnowballOption")
+            check(kiyosi::make_binary_snowball_option(numbers("knock_out_coupon_rates"), number("maturity_coupon_rate"),
+                number("initial_price"), numbers("knock_out_prices"), number("upper_strike"), number("lower_strike"),
+                observations, touch, number("principal_ratio"), effective, expiry));
+        else {
+            REQUIRE(fixture.instrument == "TernarySnowballOption");
+            check(kiyosi::make_ternary_snowball_option(numbers("knock_out_coupon_rates"), number("maturity_coupon_rate"),
+                number("minimal_coupon_rate"), number("initial_price"), number("knock_in_price"), numbers("knock_out_prices"),
+                number("upper_strike"), number("lower_strike"), observations, frequency, touch, number("principal_ratio"), effective, expiry));
+        }
+    }
+    CHECK(engines.size() == 10);
+*/
+
 TEST_CASE("CPU parity manifest rejects incomplete output tolerances")
 {
     std::istringstream input{
