@@ -23,8 +23,9 @@ exercises repeatability, retained rows, recomputation, missing inputs, duplicate
 IDs, invalid dates/markets/tolerances, and malformed outputs.
 
 The TSV retains its ten columns. Generated IDs start with `ql-` and carry
-`owner=QuantLib`; both markers must agree. Existing rows stay in their original
-order with their original values and provenance. Generated rows follow in case-ID
+`owner=QuantLib`; both markers must agree. Unmatched existing rows stay in their original
+order with their original values and provenance. Five matching numerical European
+rows retain their IDs and comparison settings but now use QuantLib prices and provenance. Generated rows follow in case-ID
 order, with sorted attributes, 17-significant-digit numbers, UTF-8 without BOM,
 LF newlines, fixed dates, and no timestamps or random numbers. A second run is
 byte-identical in the pinned environment; cross-platform floating-point identity
@@ -119,16 +120,93 @@ a proposed step cannot remove at least 10% of the bracket.
 | --- | --- |
 | European analytic vanilla price and all ten Greeks | 18 smooth independent QuantLib cases plus two one-day boundary cases |
 | Original `european-analytic` and `european-analytic-put` | Retained unchanged, including their original Greek and implied-volatility checks; retained alongside independent Greek comparisons |
-| European numerical engines and American vanilla | Original references retained; later slice will compare against independent analytic or converged references |
+| European numerical engines | 90 independent analytic targets across five engines; five original prices and three convergence targets migrated |
+| American vanilla | Original references retained; independent converged references pending |
 | European cash/asset digitals | Original references retained; analytic migration pending |
 | Continuous barriers and binary barriers | Original references retained; migration must match rebate/hit/expiry settlement exactly |
 | Scheduled barriers | Retained: repeating Kiyosi's BGK adjustment would not independently price discrete monitoring |
 | Continuous geometric/arithmetic Asians | Original references retained; migration pending; seasoned geometric and deferred arithmetic variants need separate capability verification; Levy is approximate |
 | Accumulator, Phoenix, binary/standard/ternary snowballs | Retained: no matching built-in QuantLib contract identified |
 | Bermudan | Retained construction/capability checks; Kiyosi has no pricing engine |
-| Constructor validation, convergence and simulation checks | Retained with original provenance; not claimed as QuantLib comparisons |
+| Constructor validation and other-family convergence/simulation checks | Retained with original provenance; not claimed as QuantLib comparisons |
 
-All rows without QuantLib ownership retain their original `source_revision` and
-`source_symbol`. Their `reference_kind=analytic` alone does **not** imply QuantLib
+All unmatched rows retain their original `source_revision` and
+`source_symbol`. The five migrated numerical rows use `reference_provider=QuantLib`
+and QuantLib source provenance while keeping their legacy IDs and price-only schema. Their `reference_kind=analytic` alone does **not** imply QuantLib
 ownership. No retained row in this slice is silently promoted to an independent
 reference. Other contract families remain assigned to subsequent tickets.
+
+
+## Numerical European engines (issue 03)
+
+`numerical_engines.json` declares five engine profiles, all settings, absolute
+budgets, and wrapper shifts. The 18 smooth scenarios are crossed with each profile
+(90 rows). The analytic engine remains the QuantLib oracle regardless of Kiyosi
+resolution; no QuantLib tree, PDE grid, or random sampling is used. Existing
+one-day analytic boundary checks remain unchanged; numerical profiles use only
+smooth maturities, with time stencils inside the effective/expiry dates.
+
+| Kiyosi engine | Settings | Native measures | Native absolute budgets |
+| --- | --- | --- | --- |
+| Binomial / CRR | 800 steps | price, delta, gamma | 0.04, 0.003, 0.0003 |
+| Integral | fixed implementation: Simpson, 1024 panels, normal bounds +/-10 | price | 1e-6 |
+| Finite difference | 400 asset / 800 time steps, Crank-Nicolson, fixed upper asset boundary 400 | price, delta, gamma | 0.03, 0.003, 0.0003 |
+| Monte Carlo | seed 42, 200000 paths, 2 grid points (one exact GBM increment), antithetic pairs | price | 0.5 |
+
+Tree price budgets allow the O(1/N) payoff-kink error, and delta/gamma budgets
+allow first/second-level tree estimates. The PDE grid has unit asset spacing;
+fixed upper boundary keeps it identical across spot shifts. Its budgets allow
+spatial interpolation and second-difference error, especially at 30-day maturity.
+Integral quadrature starts at the exercise threshold, so it integrates a smooth
+payoff branch; 1e-6 allows Simpson truncation and tail loss over this matrix.
+MC budgets allow sampling error, conservatively several standard errors even at
+the longest maturity; antithetic pairing reduces variance. They are regression
+budgets, not confidence guarantees. Seeds repeat within Kiyosi; they do not imply
+identical random samples across libraries or standard-library implementations.
+MC seed, paths, steps and price budget appear in the dedicated TSV column and
+are cross-checked against the profile attributes.
+
+All ten wrapper Greeks are compared for each engine on the ATM one-year call
+and put. Integral uses the established default shifts and analytic-wrapper
+budgets, with 1e-6 price tolerance for quadrature. Tree, PDE, and MC use spot
+shift 4, volatility shift 0.01, rate shift 0.001 and one calendar day. Spot 4
+spans multiple tree/grid cells and avoids differentiating a locally linear
+price with a tiny stencil; MC reuses the seed across bumps. Volatility 0.01
+reduces amplification of grid/sampling noise in mixed derivatives. These are
+Kiyosi shifts only: reference stability still uses the original independent
+small QuantLib stencils and unchanged ceilings.
+
+| Wrapper measure | Tree / CRR / PDE absolute budget | MC absolute budget |
+| --- | --- | --- |
+| price | engine native budget | 0.5 |
+| delta | 0.003 | 0.01 |
+| gamma | 0.002 | 0.002 |
+| speed | 0.0002 | 0.0002 |
+| theta | 0.0003 | 0.001 |
+| charm | 0.00003 | 0.00005 |
+| color | 0.00001 | 0.00002 |
+| vega | 0.005 | 0.015 |
+| vanna | 0.001 | 0.001 |
+| zomma | 0.0003 | 0.0003 |
+| rho | 0.005 | 0.01 |
+
+Second and third differences amplify lattice and sampling errors; the larger
+spot/volatility stencils also introduce truncation error. Higher-Greek budgets
+are therefore coarser than the integral checks, which retain the tight all-Greek
+scaling regression. All budgets are explicit in each generated row; reference
+uncertainty remains separate and never changes in response to Kiyosi errors.
+The full reference vector is retained for every row; all native promised
+measures are checked, and `wrapper=true` selects the representative all-Greek
+comparisons. Unsupported native Greeks must remain absent.
+
+Migrated IDs: `european-binomial`, `crr-vanilla`, `european-integral`,
+`european-fd`, `european-mc`. Their old targets included rounded values 13.15
+and 10.2; these were reference approximations, not production defects. Their
+existing comparison budgets are retained (0.05 tree/CRR, 0.1 integral/PDE,
+0.5 MC). The legacy PDE remains explicit Euler with 200/4000 steps; legacy MC
+retains seed 42, 20000 paths and 252 grid points. All five now reconstruct their
+contracts, markets and settings from the fixture in the generated-reference test.
+The tree, CRR and PDE convergence sequences retain resolutions 50/100/200,
+compare decreasing final versus initial error, and enforce their original 0.1
+final budget against the recomputed analytic target. No production defect was
+observed in this slice; no tolerance was widened to obtain a passing result.

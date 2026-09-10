@@ -1,0 +1,195 @@
+[
+  {
+    "engine": "BinomialEuropeanEngine",
+    "settings": {
+      "steps": 800
+    },
+    "shifts": {
+      "spot_shift": 4,
+      "volatility_shift": 0.01,
+      "rate_shift": 0.001,
+      "time_shift_days": 1
+    },
+    "tolerances": {
+      "price": 0.04,
+      "delta": 0.003,
+      "gamma": 0.0003,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    },
+    "numerical_tolerances": {
+      "price": 0.04,
+      "delta": 0.003,
+      "gamma": 0.002,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    }
+  },
+  {
+    "engine": "CrrEngine",
+    "settings": {
+      "steps": 800
+    },
+    "shifts": {
+      "spot_shift": 4,
+      "volatility_shift": 0.01,
+      "rate_shift": 0.001,
+      "time_shift_days": 1
+    },
+    "tolerances": {
+      "price": 0.04,
+      "delta": 0.003,
+      "gamma": 0.0003,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    },
+    "numerical_tolerances": {
+      "price": 0.04,
+      "delta": 0.003,
+      "gamma": 0.002,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    }
+  },
+  {
+    "engine": "IntegralEuropeanEngine",
+    "settings": {},
+    "shifts": {
+      "spot_shift": 0.01,
+      "volatility_shift": 0.0001,
+      "rate_shift": 0.0001,
+      "time_shift_days": 1
+    },
+    "tolerances": {
+      "price": 1e-06,
+      "delta": 0.003,
+      "gamma": 0.0003,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
+    },
+    "numerical_tolerances": {
+      "price": 1e-06,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
+    }
+  },
+  {
+    "engine": "FiniteDifferenceEuropeanEngine",
+    "settings": {
+      "asset_steps": 400,
+      "time_steps": 800,
+      "scheme": "crank_nicolson",
+      "upper_boundary": 400
+    },
+    "shifts": {
+      "spot_shift": 4,
+      "volatility_shift": 0.01,
+      "rate_shift": 0.001,
+      "time_shift_days": 1
+    },
+    "tolerances": {
+      "price": 0.03,
+      "delta": 0.003,
+      "gamma": 0.0003,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    },
+    "numerical_tolerances": {
+      "price": 0.03,
+      "delta": 0.003,
+      "gamma": 0.002,
+      "speed": 0.0002,
+      "theta": 0.0003,
+      "charm": 3e-05,
+      "color": 1e-05,
+      "vega": 0.005,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.005
+    }
+  },
+  {
+    "engine": "MonteCarloEuropeanEngine",
+    "settings": {
+      "seed": 42,
+      "paths": 200000,
+      "steps": 2
+    },
+    "shifts": {
+      "spot_shift": 4,
+      "volatility_shift": 0.01,
+      "rate_shift": 0.001,
+      "time_shift_days": 1
+    },
+    "tolerances": {
+      "price": 0.5,
+      "delta": 0.003,
+      "gamma": 0.0003,
+      "speed": 0.0002,
+      "theta": 0.001,
+      "charm": 5e-05,
+      "color": 2e-05,
+      "vega": 0.015,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.01
+    },
+    "numerical_tolerances": {
+      "price": 0.5,
+      "delta": 0.01,
+      "gamma": 0.002,
+      "speed": 0.0002,
+      "theta": 0.001,
+      "charm": 5e-05,
+      "color": 2e-05,
+      "vega": 0.015,
+      "vanna": 0.001,
+      "zomma": 0.0003,
+      "rho": 0.01
+    }
+  }
+]

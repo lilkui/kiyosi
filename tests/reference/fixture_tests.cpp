@@ -9,6 +9,7 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <type_traits>
 
 #include "support/reference_fixture.hpp"
 
@@ -66,21 +67,25 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     std::set<std::string> identifiers;
     std::size_t compared = 0;
+    std::set<std::string> compared_engines;
+    std::size_t migrated = 0;
+    std::size_t converged = 0;
+    std::map<std::string, int> wrappers;
     for (const auto& fixture : cases) {
         INFO("case=" << fixture.case_id);
         REQUIRE(identifiers.insert(fixture.case_id).second);
         const auto& inputs = fixture.inputs;
         const bool owned = inputs.contains("owner") && inputs.at("owner") == "QuantLib";
         REQUIRE(owned == fixture.case_id.starts_with("ql-"));
-        if (!owned) continue;
+        const bool legacy = inputs.contains("reference_provider") && inputs.at("reference_provider") == "QuantLib";
+        if (!owned && !legacy) continue;
         REQUIRE(fixture.instrument == "EuropeanOption");
-        REQUIRE(fixture.engine == "AnalyticEuropeanEngine");
-        REQUIRE(fixture.case_id.starts_with("ql-european-"));
+        if (owned) REQUIRE(fixture.case_id.starts_with("ql-european-"));
 
         REQUIRE(fixture.outputs.contains("price"));
         REQUIRE_FALSE(fixture.validation.has_value());
-        REQUIRE_FALSE(fixture.convergence.has_value());
-        REQUIRE_FALSE(fixture.monte_carlo.has_value());
+        if (owned) REQUIRE_FALSE(fixture.convergence.has_value());
+        REQUIRE(fixture.monte_carlo.has_value() == (fixture.engine == "MonteCarloEuropeanEngine"));
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
         REQUIRE(fixture.provenance.reference_kind == "analytic");
         REQUIRE(fixture.provenance.explicit_tolerance == fixture.tolerances.at("price"));
@@ -93,7 +98,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             return kiyosi::test::detail::calendar_date({inputs.at(key)}, index, 0, key);
         };
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
-        REQUIRE(fixture.variant == inputs.at("option"));
+        REQUIRE((fixture.variant == inputs.at("option") || (legacy && fixture.variant == "seeded-call")));
         REQUIRE(date("effective") <= date("valuation"));
         REQUIRE(date("valuation") < date("expiry"));
         const auto option = kiyosi::make_european_option(
@@ -106,39 +111,120 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(spot.has_value());
         const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
         REQUIRE(context.has_value());
-        const kiyosi::AnalyticEuropeanEngine engine;
-        const auto native = engine.price(*option, *context);
-        check_price(fixture, native);
-        const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
-        const auto numerical = kiyosi::NumericalAnalyticsEngine{engine}.price(*option, *context);
-        REQUIRE(numerical.has_value());
-        std::size_t available = 0;
-        for (const auto& [name, measure] : measures) {
-            INFO("measure=" << name);
-            const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
-            REQUIRE(inputs.contains("unit_" + name));
-            REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
-            REQUIRE(fixture.outputs.contains(name) != unavailable);
-            if (unavailable) {
-                REQUIRE(inputs.at("unavailable_" + name) == "whole-day stability stencil touches expiry");
-                continue;
+        const auto check_engine = [&](const auto& engine) {
+            const auto native = engine.price(*option, *context);
+            check_price(fixture, native);
+            if (legacy) {
+                REQUIRE(fixture.outputs.size() == 1);
+                if (fixture.convergence) {
+                    const auto& convergence = *fixture.convergence;
+                    REQUIRE(convergence.reference == fixture.outputs.at("price"));
+                    double first_error = 0;
+                    double last_error = 0;
+                    for (const auto resolution : convergence.resolutions) {
+                        auto refined = engine;
+                        if constexpr (requires { engine.settings().asset_steps; }) {
+                            REQUIRE(convergence.parameter == "grid");
+                            auto settings = engine.settings();
+                            settings.asset_steps = static_cast<int>(resolution);
+                            refined = std::remove_cvref_t<decltype(engine)>{settings};
+                        } else if constexpr (requires { engine.settings().steps; }) {
+                            REQUIRE(convergence.parameter == "steps");
+                            refined = std::remove_cvref_t<decltype(engine)>{static_cast<int>(resolution)};
+                        } else {
+                            FAIL("Unexpected convergence engine");
+                        }
+                        const auto result = refined.price(*option, *context);
+                        REQUIRE(result.has_value());
+                        REQUIRE(result->get(kiyosi::risk_measure::price).has_value());
+                        last_error = std::abs(*result->get(kiyosi::risk_measure::price) - convergence.reference);
+                        if (resolution == convergence.resolutions.front()) first_error = last_error;
+                    }
+                    CHECK(last_error < first_error);
+                    CHECK(last_error <= convergence.tolerance);
+                    ++converged;
+                }
+                ++migrated;
+                return;
             }
-            ++available;
-            REQUIRE(native->get(measure).has_value());
-            const double expected = fixture.outputs.at(name);
-            CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
-            REQUIRE(number("uncertainty_" + name) >= 0);
-            REQUIRE(numerical->get(measure).has_value());
-            CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+            const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
+            const bool analytic = fixture.engine == "AnalyticEuropeanEngine";
+            if (!analytic) REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
+            const bool wrapped = analytic || inputs.at("wrapper") == "true";
+            if (wrapped) ++wrappers[fixture.engine];
+            kiyosi::NumericalShiftSettings shifts;
+            if (!analytic) {
+                shifts = {number("spot_shift"), number("volatility_shift"), number("rate_shift"),
+                          static_cast<int>(number("time_shift_days"))};
+            }
+            const auto numerical = wrapped ? kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(*option, *context) : native;
+            REQUIRE(numerical.has_value());
+            std::size_t available = 0;
+            for (const auto& [name, measure] : measures) {
+                INFO("measure=" << name);
+                const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
+                REQUIRE(inputs.contains("unit_" + name));
+                REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
+                REQUIRE(fixture.outputs.contains(name) != unavailable);
+                if (unavailable) {
+                    REQUIRE(inputs.at("unavailable_" + name) == "whole-day stability stencil touches expiry");
+                    continue;
+                }
+                ++available;
+                const bool native_measure = analytic || name == "price" ||
+                    ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
+                      fixture.engine == "FiniteDifferenceEuropeanEngine") && (name == "delta" || name == "gamma"));
+                REQUIRE(native->get(measure).has_value() == native_measure);
+                const double expected = fixture.outputs.at(name);
+                if (native_measure)
+                    CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
+                REQUIRE(number("uncertainty_" + name) >= 0);
+                if (wrapped) {
+                    REQUIRE(numerical->get(measure).has_value());
+                    CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                }
+            }
+            REQUIRE(fixture.outputs.size() == available);
+        };
+        if (fixture.engine == "AnalyticEuropeanEngine") {
+            const kiyosi::AnalyticEuropeanEngine engine;
+            check_engine(engine);
+            const auto implied = engine.implied_volatility(*option, *context, fixture.outputs.at("price"));
+            INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
+            REQUIRE(implied.has_value());
+            CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
+        } else if (fixture.engine == "BinomialEuropeanEngine") {
+            check_engine(kiyosi::BinomialEuropeanEngine{static_cast<int>(number("steps"))});
+        } else if (fixture.engine == "CrrEngine") {
+            check_engine(kiyosi::CrrEngine{static_cast<int>(number("steps"))});
+        } else if (fixture.engine == "IntegralEuropeanEngine") {
+            check_engine(kiyosi::IntegralEuropeanEngine{});
+        } else if (fixture.engine == "FiniteDifferenceEuropeanEngine") {
+            const std::map<std::string, kiyosi::finite_difference_scheme> schemes{
+                {"explicit_euler", kiyosi::finite_difference_scheme::explicit_euler},
+                {"implicit_euler", kiyosi::finite_difference_scheme::implicit_euler},
+                {"crank_nicolson", kiyosi::finite_difference_scheme::crank_nicolson}};
+            REQUIRE(schemes.contains(inputs.at("scheme")));
+            check_engine(kiyosi::FiniteDifferenceEuropeanEngine{{static_cast<int>(number("asset_steps")),
+                static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
+        } else if (fixture.engine == "MonteCarloEuropeanEngine") {
+            const auto& mc = *fixture.monte_carlo;
+            REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
+            REQUIRE(number("seed") == mc.seed);
+            REQUIRE(number("paths") == mc.paths);
+            REQUIRE(number("steps") == mc.steps);
+            check_engine(kiyosi::MonteCarloEuropeanEngine{static_cast<int>(mc.paths), static_cast<int>(mc.steps), mc.seed});
+        } else {
+            FAIL("Unknown generated engine: " << fixture.engine);
         }
-        REQUIRE(fixture.outputs.size() == available);
-        const auto implied = engine.implied_volatility(*option, *context, fixture.outputs.at("price"));
-        INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
-        REQUIRE(implied.has_value());
-        CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
+        compared_engines.insert(fixture.engine);
         ++compared;
     }
     REQUIRE(compared > 0);
+    REQUIRE(compared_engines.size() == 6);
+    REQUIRE(migrated == 5);
+    REQUIRE(converged == 3);
+    for (const auto& engine : compared_engines) REQUIRE(wrappers[engine] >= 2);
 }
 
 TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations")
@@ -296,7 +382,7 @@ TEST_CASE("Pricing reference manifest closes every concrete engine and contract 
             REQUIRE(value.monte_carlo.has_value());
         if (value.engine.find("Binomial") != std::string::npos ||
             value.engine.find("FiniteDifference") != std::string::npos)
-            if (!value.validation.has_value() && value.instrument != "BermudanOption")
+            if (!value.validation.has_value() && value.instrument != "BermudanOption" && !value.case_id.starts_with("ql-"))
             REQUIRE(value.convergence.has_value());
         if (value.validation.has_value())
             CHECK(value.outputs.empty());

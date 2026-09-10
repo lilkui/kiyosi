@@ -12,9 +12,11 @@ import generate
 def check_generation():
     original = generate.FIXTURE.read_bytes()
     scenarios = json.loads((generate.PROJECT / "scenarios.json").read_text())
+    profiles = json.loads((generate.PROJECT / "numerical_engines.json").read_text())
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory) / "fixture.tsv"
         inputs = Path(directory) / "scenarios.json"
+        engines = Path(directory) / "engines.json"
         fixture.write_bytes(original)
         inputs.write_text(json.dumps(scenarios))
         generate.regenerate(fixture, inputs)
@@ -23,6 +25,23 @@ def check_generation():
         assert fixture.read_bytes() == first == original, "regeneration must match committed bytes"
         retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
         assert retained(first) == retained(original), "retained provenance and checks changed"
+        rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
+        for profile in profiles:
+            matching = [row for row in rows if row[2] == profile["engine"]]
+            assert len(matching) == 18, "numerical matrix incomplete"
+            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == 2
+        # Migration is independent of the old target values and preserves other rows.
+        for line in retained(first):
+            fields = line.decode().split("\t")
+            if fields[0] not in generate.LEGACY_NUMERICAL:
+                assert generate.migrate_numerical(line.decode()) == line.decode()
+                continue
+            fields[5] = "price=123456"
+            if fields[8] != "-":
+                parts = fields[8].split("|")
+                parts[2] = "123456"
+                fields[8] = "|".join(parts)
+            assert generate.migrate_numerical("\t".join(fields)) == line.decode()
         lines = first.decode().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith("ql-"))
         fields = lines[index].split("\t")
@@ -60,6 +79,24 @@ def check_generation():
             assert fixture.read_bytes() == first, "failure replaced fixture"
 
         inputs.write_text(json.dumps(scenarios))
+        invalid_profiles = []
+        for mutation in ("unknown engine", "unknown setting", "fractional steps", "bad shift", "missing budget"):
+            changed = deepcopy(profiles)
+            if mutation == "unknown engine": changed[0]["engine"] = "UnknownEngine"
+            elif mutation == "unknown setting": changed[0]["settings"]["typo"] = 1
+            elif mutation == "fractional steps": changed[0]["settings"]["steps"] = 1.5
+            elif mutation == "bad shift": changed[0]["shifts"]["spot_shift"] = float("nan")
+            else: del changed[0]["numerical_tolerances"]["zomma"]
+            invalid_profiles.append(changed)
+        for changed in invalid_profiles:
+            engines.write_text(json.dumps(changed))
+            try:
+                generate.regenerate(fixture, inputs, engines)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("invalid numerical profile accepted")
+            assert fixture.read_bytes() == first, "invalid profile replaced fixture"
         for invalid_output in ("price=nan", "delta=1"):
             fields[5] = invalid_output
             with patch.object(generate, "european_row", return_value="\t".join(fields)):

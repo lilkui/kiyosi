@@ -25,6 +25,18 @@ STABILITY = dict(price=1e-10, delta=1e-6, gamma=1e-7, speed=1e-7,
                  theta=1e-4, charm=1e-5, color=2e-6, vega=1e-6,
                  vanna=1e-7, zomma=1e-8, rho=1e-6)
 CONVENTION = "Actual/365 Fixed, continuously compounded BSM"
+NUMERICAL_ENGINES = {
+    "BinomialEuropeanEngine": {"steps"}, "CrrEngine": {"steps"},
+    "IntegralEuropeanEngine": set(),
+    "FiniteDifferenceEuropeanEngine": {"asset_steps", "time_steps", "scheme", "upper_boundary"},
+    "MonteCarloEuropeanEngine": {"seed", "paths", "steps"},
+}
+LEGACY_NUMERICAL = {
+    "european-binomial": dict(steps=200), "crr-vanilla": dict(steps=200),
+    "european-integral": {},
+    "european-fd": dict(asset_steps=200, time_steps=4000, scheme="explicit_euler", upper_boundary=0),
+    "european-mc": dict(seed=42, paths=20000, steps=252),
+}
 
 
 def require(condition, message):
@@ -170,6 +182,71 @@ def european_row(scenario):
                       "-", "-", "-"])
 
 
+def numerical_profiles(path):
+    profiles = json.loads(path.read_text(encoding="utf-8"))
+    require(isinstance(profiles, list) and len(profiles) == len(NUMERICAL_ENGINES), "incomplete engine profiles")
+    require({p["engine"] for p in profiles} == set(NUMERICAL_ENGINES), "unknown or duplicate engine")
+    for profile in profiles:
+        require(set(profile) == {"engine", "settings", "shifts", "tolerances", "numerical_tolerances"}, "invalid profile")
+        settings = profile["settings"]
+        require(set(settings) == NUMERICAL_ENGINES[profile["engine"]], "invalid engine settings")
+        for name, value in settings.items():
+            if name == "scheme":
+                require(value in {"explicit_euler", "implicit_euler", "crank_nicolson"}, "unknown scheme")
+            else:
+                require(type(value) is int and value > 0, "invalid numerical setting")
+        shifts = profile["shifts"]
+        require(set(shifts) == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"}, "invalid shifts")
+        require(all(type(v) in (int, float) and math.isfinite(v) and v > 0 for v in shifts.values()), "invalid shift")
+        require(type(shifts["time_shift_days"]) is int and shifts["time_shift_days"] <= 3, "invalid time shift")
+        for key in ("tolerances", "numerical_tolerances"):
+            require(set(profile[key]) == set(MEASURES), "incomplete numerical budgets")
+            require(all(type(v) in (int, float) and math.isfinite(v) and v >= 0 for v in profile[key].values()), "invalid budget")
+    return profiles
+
+
+def numerical_row(scenario, profile):
+    fields = european_row(dict(scenario, tolerances=profile["tolerances"],
+                               numerical_tolerances=profile["numerical_tolerances"])).split("\t")
+    fields[0] += "-" + profile["engine"].lower()
+    fields[2] = profile["engine"]
+    inputs = attributes(fields[4])
+    inputs.update(profile["settings"])
+    inputs.update(profile["shifts"])
+    inputs["wrapper"] = str(scenario["inputs"]["spot"] == 100 and
+                            scenario["inputs"]["expiry"] == "2026-01-06").lower()
+    inputs["tolerance_rationale"] = "engine-specific discretization or sampling budget, see GENERATION.md"
+    fields[4] = encode(inputs)
+    if fields[2] == "MonteCarloEuropeanEngine":
+        fields[9] = "|".join(str(inputs[key]) for key in ("seed", "paths", "steps", "tolerance"))
+    return "\t".join(fields)
+
+
+def migrate_numerical(line):
+    fields = line.split("\t")
+    if fields[0] not in LEGACY_NUMERICAL:
+        return line
+    inputs = attributes(fields[4])
+    require(fields[1] == "EuropeanOption" and fields[2] in NUMERICAL_ENGINES, "invalid migration target")
+    market = dict(option=inputs["option"], strike=100, spot=100, rate=0.04, dividend=0.01,
+                  volatility=0.3, effective="2024-12-30", valuation="2025-01-06", expiry="2026-01-06")
+    for key in INPUTS & inputs.keys():
+        market[key] = float(inputs[key]) if key in {"strike", "spot", "rate", "dividend", "volatility"} else inputs[key]
+    value = measure(market, "price")
+    inputs.update(market)
+    inputs.update(LEGACY_NUMERICAL[fields[0]])
+    inputs.update(source_revision=f"QuantLib-{ql.__version__}", source_symbol="QuantLib.AnalyticEuropeanEngine",
+                  reference_kind="analytic", reference_provider="QuantLib", reference_uncertainty=0,
+                  tolerance_rationale="retained numerical comparison budget, see GENERATION.md")
+    fields[4] = encode(inputs)
+    fields[5] = encode(dict(price=value))
+    if fields[8] != "-":
+        convergence = fields[8].split("|")
+        convergence[2] = format(value, ".17g")
+        fields[8] = "|".join(convergence)
+    return "\t".join(fields)
+
+
 def validate_manifest(text):
     seen = set()
     lines = [line for line in text.splitlines() if line and not line.startswith("#")]
@@ -210,7 +287,8 @@ def validate_manifest(text):
                 require(math.isfinite(budget) and budget >= 0, "invalid numerical tolerance")
 
 
-def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json"):
+def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
+               profiles_path=PROJECT / "numerical_engines.json"):
     require(version("QuantLib-Python") == "1.18" and version("QuantLib") == ql.__version__ == "1.41",
             "run with the frozen uv environment")
     scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))
@@ -220,8 +298,12 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json"):
     require(len({item["case_id"] for item in scenarios}) == len(scenarios), "duplicate scenario identifier")
     original = fixture.read_text(encoding="utf-8")
     validate_manifest(original)
-    retained = [line for line in original.splitlines() if not line.startswith("ql-")]
+    profiles = numerical_profiles(profiles_path)
+    retained = [migrate_numerical(line) for line in original.splitlines() if not line.startswith("ql-")]
     generated = [european_row(item) for item in sorted(scenarios, key=lambda item: item["case_id"])]
+    generated += [numerical_row(item, profile) for item in scenarios for profile in profiles
+                  if (date.fromisoformat(item["inputs"]["expiry"]) - date.fromisoformat(item["inputs"]["valuation"])).days > 2]
+    generated.sort(key=lambda row: row.split("\t")[0])
     content = "\n".join(retained + generated) + "\n"
     validate_manifest(content)
     temporary = None
