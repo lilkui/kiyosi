@@ -463,3 +463,129 @@ and other families' references/provenance remain unchanged. All requested
 European cash/asset combinations are supported. American/Bermudan digital
 payoffs have no applicable Kiyosi pricing engine and are not claimed as
 validated pricing variants; their constructor/capability checks are retained.
+
+## Continuous vanilla barriers (issue 06)
+
+`barrier.py` generates 120 rows (60 contracts through each of the analytic and
+finite-difference engines), and migrates all 18 continuous vanilla-barrier
+pricing rows. The compact matrix crosses call/put, up/down, in/out, and all
+valid rebate timings with three paired spot/maturity points (80/30 days,
+100/365 days, 120/730 days). Strike is 100; barriers are 60 and 140. It also
+includes already-hit spots 50/150 and a one-day, spot-110 boundary. Each row
+records the complete contract, market, monitoring, engine/grid, shifts,
+reference units, uncertainty and independent per-measure absolute budgets.
+The existing at-hit knock-in constructor rejection remains unchanged.
+
+### Pinned binding and exact settlement mapping
+
+`barrier.check_bindings()` executes against QuantLib-Python 1.18 / QuantLib
+1.41. `BarrierOption` accepts a barrier type, level, rebate, payoff and exercise;
+it exposes neither a rebate-payment flag nor an observation schedule.
+`AnalyticBarrierEngine` prices European plain-vanilla barriers. Actual probes
+reject cash-or-nothing payoffs (`non-plain payoff given`) and American exercise
+(`only european style option are supported`). Its delta, gamma, theta, vega
+and rho calls report `not provided`. All required live continuous contracts
+have an analytic mapping, so no discretized QuantLib substitute is needed.
+
+Let `KI(R)` and `KO(R)` denote QuantLib barriers with cash rebate R and the
+same strike, direction, barrier, expiry and market. QuantLib pays a knock-in
+rebate at expiry on paths that never touch, and a knock-out rebate at the
+first touch. Therefore:
+
+- Kiyosi knock-in, rebate at expiry: `KI(R)` directly.
+- Knock-out, rebate at hit: `KO(R)` directly.
+- Knock-out, rebate at expiry: `KO(0) + Bond(R,T) - (KI(R) - KI(0))`.
+
+All barrier legs use `AnalyticBarrierEngine`; `Bond(R,T)` is a zero-coupon
+bond with face R, zero settlement days, NullCalendar and unadjusted maturity,
+priced by `DiscountingBondEngine` on the same continuous flat risk-free curve.
+The bracketed portfolio pays R at expiry only on no-touch paths, so its
+subtraction leaves precisely the deferred hit payment, without changing its
+payment date. A second executable check compares both up/down rebate legs
+and both payment timings against cash one-touch `VanillaOption` contracts
+priced by `AnalyticDigitalAmericanEngine`, with American exercise beginning
+at valuation and `payoffAtExpiry` set to match settlement.
+
+QuantLib's live barrier engine rejects an already-crossed barrier. In that
+state the contract has already reduced to a European vanilla (knock-in,
+`AnalyticEuropeanEngine`), immediate `SimpleCashFlow` (knock-out at hit), or
+zero-coupon bond (knock-out at expiry). These state reductions supply the
+boundary prices, without asking QuantLib to price an invalid live barrier.
+
+### Greeks and approximation budgets
+
+Both Kiyosi native barrier engines promise only price, which the consumer
+asserts explicitly. References for all ten Greeks use central differences of
+QuantLib portfolio prices, including nested price-derived gamma for speed,
+color and zomma. Spot steps 0.03/0.06 balance third-derivative cancellation
+against truncation; volatility/rate steps are 0.0001/0.0002 and valuation
+steps are 1/2 whole calendar days. Contract dates stay fixed and all curves
+are rebuilt at the shifted valuation date. A full speed stencil stays at
+least three spot bumps away from a change in hit state. Already-hit points
+are strictly beyond the barrier; no stencil crosses it. One-day rows omit
+only theta/charm/color, explicitly declaring that the stability stencil
+would touch expiry. Their prices remain checked; the full wrapper is disabled
+because it always computes time Greeks. Its other reference Greeks are
+retained for completeness, not claimed as native comparisons.
+
+Reference stability ceilings are price 1e-10, delta 1e-5, gamma 1e-6, speed
+1e-6, theta 1e-4, charm 1e-5, color 3e-6, vega/rho/vanna 1e-6, zomma 1e-7.
+These limits concern reference bump consistency, not Kiyosi error. The largest
+observed two-bump discrepancies are 1.79e-6 delta, 3.02e-7 gamma, 3.76e-7
+speed, 2.02e-5 theta, 8.03e-7 charm, 2.39e-6 color, 1.20e-7 vega,
+3.44e-7 vanna, 4.07e-8 zomma and 1.11e-7 rho. The larger nested-derivative
+limits allow finite-stencil truncation; 0.001 spot bumps exhibited roundoff
+amplification and 0.1 bumps increased truncation, so neither was adopted.
+
+| Measure | Analytic wrapper budget | FD wrapper budget |
+| --- | --- | --- |
+| price | 1e-8 | 0.05 |
+| delta | 1e-6 | 0.005 |
+| gamma | 1e-7 | 0.002 |
+| speed | 2e-7 | 0.0005 |
+| theta | 0.0001 | 0.001 |
+| charm | 0.00001 | 0.0002 |
+| color | 0.000003 | 0.00005 |
+| vega | 0.000001 | 0.005 |
+| vanna | 0.0000001 | 0.001 |
+| zomma | 0.00000002 | 0.0002 |
+| rho | 0.000001 | 0.005 |
+
+Analytic wrapper shifts are spot 0.01, volatility/rate 0.0001, one day.
+It runs on all 48 smooth contracts. FD uses a fixed upper boundary of 400,
+1600 asset/time steps and Crank-Nicolson; barriers, strikes and base spots
+align with the 0.25 grid. Its spot bump of 2 spans eight cells to avoid
+locally linear interpolation; volatility/rate bumps are 0.002/0.001 and
+time is one day. All 12 one-year spot-100 combinations run through this
+wrapper. Budgets allow spatial/time discretization, interpolation and the
+larger finite-stencil truncation; they are fixed separately from the measured
+reference uncertainty, which is added only in Greek comparisons. There is
+no native delta/gamma promise to expand. The price budget is 0.05 currency
+units on a strike-100 contract; higher-derivative budgets permit differentiation
+of that approximate surface rather than asserting analytic precision.
+
+### Diagnosed FD defect and retained exceptions
+
+The initial independent comparison of `barrier-fd` missed its original 0.05
+price budget by 0.291. At an aligned 1600/1600 grid, the old solver still missed
+by 0.151: alignment alone did not explain it. It solved across knocked-out
+nodes before overwriting them, permitting diffusion through an absorbing
+boundary within each implicit step. Continuous knocked-out nodes now impose
+Dirichlet equations during the solve, including domain endpoints. Scheduled
+observation handling is unchanged. A dedicated regression asserts the original
+0.05 budget and decreasing errors at aligned 800/1600/3200 refinements.
+
+The legacy `barrier-fd` row now uses the aligned 1600/1600 grid and upper
+boundary 400; its recorded asset refinements are 400/800/1600. The old 1000
+asset grid placed barrier 95 between cells and retained a 0.120 barrier-location
+error even after the solver fix. Its 0.05 price and 0.1 final refinement budgets
+were not widened. Other legacy FD settings and budgets remain as before.
+The consumer executes every legacy convergence sequence and final bound.
+
+`barrier-scheduled-monitoring` remains byte-for-byte unchanged with its
+DerivaSharp provenance. QuantLib's continuous `BarrierOption` has no schedule
+argument. Applying Kiyosi's BGK shift and then pricing continuously is not an
+independent discrete-monitoring reference. Binary-barrier, Asian, constructor
+and unrelated pricing references are outside this migration and retained.
+Frozen regeneration and failure-atomicity checks run offline tooling only;
+CMake/CTest use committed TSV values and never invoke Python or QuantLib.

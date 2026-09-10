@@ -60,9 +60,20 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         const double tau = maturity - grid[step];
         next.front() = option.type() == option_type::put ? strike * std::exp(-rate * tau) : 0.0;
         next.back() = option.type() == option_type::call ? upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau) : 0.0;
+        if (option.observation() == observation_mode::continuous) {
+            if (knocked(0.0)) next.front() = rebate_value(tau);
+            if (knocked(upper)) next.back() = rebate_value(tau);
+        }
         for (int index = 1; index < asset_steps; ++index) {
             const double i = index, a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i, b = -volatility * volatility * i * i - rate, c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
             const auto position = static_cast<std::size_t>(index - 1);
+            // Continuous barriers are Dirichlet boundaries inside the implicit solve.
+            if (option.observation() == observation_mode::continuous && knocked(spacing * index)) {
+                lower[position] = upper_diagonal[position] = 0.0;
+                diagonal[position] = 1.0;
+                rhs[position] = rebate_value(tau);
+                continue;
+            }
             rhs[position] = old[index] + (1.0 - theta) * dt * (a * old[index - 1] + b * old[index] + c * old[index + 1]);
             if (index == 1) rhs[position] += theta * dt * a * next.front();
             if (index == asset_steps - 1) rhs[position] += theta * dt * c * next.back();

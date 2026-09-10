@@ -116,7 +116,12 @@ def shifted(inputs, field, bump):
 
 
 def measure(inputs, name, scale=1, price_only=False):
-    option = european_option(inputs)
+    if "barrier_kind" in inputs:
+        import barrier
+        option = barrier.option(inputs)
+        price_only = True
+    else:
+        option = european_option(inputs)
     if name == "price":
         value = option.NPV()
     else:
@@ -145,6 +150,8 @@ def measure(inputs, name, scale=1, price_only=False):
         if field == "spot" and (date.fromisoformat(inputs["expiry"]) -
                                 date.fromisoformat(inputs["valuation"])).days > 2:
             h = 0.01
+        if field == "spot" and "barrier_kind" in inputs:
+            h = 0.03
         h *= scale
         if field == "valuation":
             require(date.fromisoformat(inputs["valuation"]) + timedelta(days=h) <
@@ -283,10 +290,12 @@ def validate_manifest(text):
         if owned:
             import american
             import digital
+            import barrier
+            is_barrier = fields[1] == "BarrierOption"
             is_american = fields[1] == "AmericanOption"
             is_digital = fields[1] in digital.INSTRUMENTS.values()
-            require(is_american or is_digital or fields[1] == "EuropeanOption", "unknown generated instrument")
-            limits = american.STABILITY if is_american else digital.STABILITY if is_digital else STABILITY
+            require(is_barrier or is_american or is_digital or fields[1] == "EuropeanOption", "unknown generated instrument")
+            limits = barrier.STABILITY if is_barrier else american.STABILITY if is_american else digital.STABILITY if is_digital else STABILITY
             days = (date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])).days
             unavailable = american.exclusions(inputs) if is_american else dict.fromkeys(
                 TIME_MEASURES if days <= 2 else set(), "whole-day stability stencil touches expiry")
@@ -310,6 +319,7 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
                profiles_path=PROJECT / "numerical_engines.json"):
     import american
     import digital
+    import barrier
     require(version("QuantLib-Python") == "1.18" and version("QuantLib") == ql.__version__ == "1.41",
             "run with the frozen uv environment")
     scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))
@@ -320,12 +330,13 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
     original = fixture.read_text(encoding="utf-8")
     validate_manifest(original)
     profiles = numerical_profiles(profiles_path)
-    retained = [digital.migrate(american.migrate(migrate_numerical(line))) for line in original.splitlines() if not line.startswith("ql-")]
+    retained = [barrier.migrate(digital.migrate(american.migrate(migrate_numerical(line)))) for line in original.splitlines() if not line.startswith("ql-")]
     generated = [european_row(item) for item in sorted(scenarios, key=lambda item: item["case_id"])]
     generated += [numerical_row(item, profile) for item in scenarios for profile in profiles
                   if (date.fromisoformat(item["inputs"]["expiry"]) - date.fromisoformat(item["inputs"]["valuation"])).days > 2]
     generated += list(american.rows())
     generated += list(digital.rows())
+    generated += list(barrier.rows())
     generated.sort(key=lambda row: row.split("\t")[0])
     content = "\n".join(retained + generated) + "\n"
     validate_manifest(content)

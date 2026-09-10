@@ -9,9 +9,11 @@ from unittest.mock import patch
 import generate
 import american
 import digital
+import barrier
 
 
 def check_generation():
+    barrier.check_bindings()
     original = generate.FIXTURE.read_bytes()
     scenarios = json.loads((generate.PROJECT / "scenarios.json").read_text())
     profiles = json.loads((generate.PROJECT / "numerical_engines.json").read_text())
@@ -28,6 +30,12 @@ def check_generation():
         retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
         assert retained(first) == retained(original), "retained provenance and checks changed"
         rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
+        barrier_rows = [row for row in rows if row[1] == "BarrierOption"]
+        assert len(barrier_rows) == 120
+        for engine in barrier.ENGINES:
+            matching = [row for row in barrier_rows if row[2] == engine]
+            assert len(matching) == 60
+            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == (48 if engine == barrier.ENGINES[0] else 12)
         digital_rows = [row for row in rows if row[1] in digital.INSTRUMENTS.values()]
         assert len(digital_rows) == 120, "digital matrix incomplete"
         for engine in digital.ENGINES:
@@ -60,13 +68,13 @@ def check_generation():
         # Migration is independent of the old target values and preserves other rows.
         for line in retained(first):
             fields = line.decode().split("\t")
-            if fields[0] in set(american.LEGACY) | digital.LEGACY:
+            if fields[0] in set(american.LEGACY) | digital.LEGACY or len(fields) == 10 and fields[1] == "BarrierOption" and fields[5] != "-" and generate.attributes(fields[4]).get("monitoring") == "continuous":
                 fields[5] = "price=123456"
                 if fields[8] != "-":
                     parts = fields[8].split("|")
                     parts[2] = "123456"
                     fields[8] = "|".join(parts)
-                assert digital.migrate(american.migrate("\t".join(fields))) == line.decode()
+                assert barrier.migrate(digital.migrate(american.migrate("\t".join(fields)))) == line.decode()
                 continue
             if fields[0] not in generate.LEGACY_NUMERICAL:
                 assert generate.migrate_numerical(line.decode()) == line.decode()
