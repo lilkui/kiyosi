@@ -11,7 +11,7 @@ uv downloads managed CPython **3.13.12** and installs **QuantLib-Python 1.18**
 and its **QuantLib 1.41** binding distribution from the committed `uv.lock`.
 The project requires that uv version and managed Python; no system Python is
 needed. The runtime checks both distribution versions and executes the required
-European bindings for every scenario. Run from a fresh checkout to verify initial
+European and American bindings for every scenario. Run from a fresh checkout to verify initial
 environment creation. Subsequent runs use the same frozen environment.
 
 `scenarios.json` declares inputs and Kiyosi per-measure absolute tolerances, never
@@ -25,7 +25,8 @@ IDs, invalid dates/markets/tolerances, and malformed outputs.
 The TSV retains its ten columns. Generated IDs start with `ql-` and carry
 `owner=QuantLib`; both markers must agree. Unmatched existing rows stay in their original
 order with their original values and provenance. Five matching numerical European
-rows retain their IDs and comparison settings but now use QuantLib prices and provenance. Generated rows follow in case-ID
+and four American rows retain their IDs and comparison settings but now use
+QuantLib prices and provenance. Generated rows follow in case-ID
 order, with sorted attributes, 17-significant-digit numbers, UTF-8 without BOM,
 LF newlines, fixed dates, and no timestamps or random numbers. A second run is
 byte-identical in the pinned environment; cross-platform floating-point identity
@@ -210,3 +211,140 @@ The tree, CRR and PDE convergence sequences retain resolutions 50/100/200,
 compare decreasing final versus initial error, and enforce their original 0.1
 final budget against the recomputed analytic target. No production defect was
 observed in this slice; no tolerance was widened to obtain a passing result.
+
+## American vanilla references
+
+`american.json` declares ten contracts and five engine profiles: binomial,
+the American overload of CRR, finite difference, Bjerksund–Stensland 2002,
+and Longstaff–Schwartz Monte Carlo. The 50 generated rows reconstruct the
+contract, market, shifts, and engine settings in the C++ fixture test. The
+four older `american-binomial`, `american-fd`, `american-bs`, and `american-mc`
+rows also have independently recomputed targets and complete reconstruction
+inputs, including the two retained Kiyosi convergence sequences.
+
+Verified in the frozen QuantLib-Python 1.18 / QuantLib 1.41 wheel:
+`AmericanExercise(earliestDate, latestDate, payoffAtExpiry=False)` and
+`FdBlackScholesVanillaEngine(process, tGrid, xGrid, dampingSteps, schemeDesc)`
+are callable. The engine supplies NPV, delta, and gamma. Curves and volatility
+use the same Actual/365 Fixed, continuous rates/dividends and valuation date
+as European references. Effective date is the start of the exercise window;
+exercise is allowed through expiry and payment is at exercise. The supported
+Kiyosi valuation interval is effective through expiry; forward-start pricing
+before effective is not supported. These cases contain no discrete dividends.
+
+The matrix spans calls and puts at spot 80/100/120, maturities 30/365/730 days,
+a dividend-paying long-dated call, a long-dated ITM put, deep immediate-exercise
+call and put, an ITM one-day put, and a call valued at exercise-window start.
+Reference price/delta/gamma are native FD results. All other Greeks use central
+differences of FD price/delta/gamma; delta and gamma also have price-derived
+cross-checks. No Bjerksund engine is called in Python: QuantLib's 1993 formula
+is not an implementation reference for Kiyosi's 2002 approximation.
+
+Reference refinement uses 800x800, 1600x1600, 3200x3200 time-by-space grids,
+Douglas stepping, two damping steps, local volatility disabled. Each row
+records both adjacent-grid discrepancies per measure. `refinement_*` is the
+last discrepancy; `coarse_refinement_*` is the earlier one. The generation
+check requires decreasing price discrepancy (with a 1e-9 roundoff floor),
+or confirms the price on an additional 6400x6400 grid within its already
+recorded uncertainty. The 30-day OTM put has non-monotonic differences
+2.34e-7 then 3.17e-7; the additional grid differs by 2.50e-7, confirming
+the existing 3.17e-7 uncertainty without changing the reference or budgets.
+The final maximum price discrepancy over the matrix is 0.000725. An initial
+200x400/400x800 trial differed by 0.00599 on the long call, so the reference
+was refined before any Kiyosi comparisons. This is empirical precision, not
+a rigorous error bound.
+
+Reference bumps are spot 0.5/1, volatility 0.002/0.004, rate 0.001/0.002, and
+time 1/2 whole calendar days, with contractual dates and market levels fixed.
+`bump_error_*` records the difference between these estimates (or native
+delta/gamma versus their price stencils). `uncertainty_*` is the maximum of
+that discrepancy and final grid discrepancy, separate from all Kiyosi budgets.
+Units remain price/day for theta, delta/day for charm, gamma/day for color,
+and per percentage point for vega/vanna/zomma/rho.
+
+| Measure | Independent reference stability ceiling |
+| --- | --- |
+| price | 0.001 |
+| delta | 0.0002 |
+| gamma | 0.00005 |
+| speed | 0.00002 |
+| theta | 0.00003 |
+| charm | 0.00002 |
+| color | 0.000002 |
+| vega | 0.001 |
+| vanna | 0.00003 |
+| zomma | 0.00001 |
+| rho | 0.001 |
+
+At one-day expiry proximity, theta/charm/color are declared unavailable:
+`whole-day stability stencil touches expiry`. At effective date they use
+`whole-day stability stencil precedes exercise window`. The parser and actual
+C++ comparisons enforce these exact declarations and still validate price
+and all supplied native measures. Immediate exercise scenarios lie well inside
+the exercise region, where the payoff is locally linear; their spatial Greeks
+are stable and remain checked. No free-boundary kink is claimed to be smooth.
+
+| Kiyosi engine | Settings | Native budgets (price/delta/gamma) |
+| --- | --- | --- |
+| Binomial / CRR | 800 steps | 0.04 / 0.003 / 0.0003 |
+| FD | 400 asset, 800 time, Crank–Nicolson, upper=400 | 0.03 / 0.003 / 0.0003 |
+| Bjerksund–Stensland 2002 | fixed approximation | 0.15 / unavailable / unavailable |
+| MC | seed 42, 40000 paths, 50 points, antithetic, quadratic LSM | 0.7 / unavailable / unavailable |
+
+Tree and FD budgets allow payoff/grid interpolation and early-exercise time
+discretization. The BS2002 budget allows suboptimal exercise-boundary
+approximation, without interpreting its error as reference uncertainty.
+MC budgets allow sampling, regression policy and exercise-grid errors; they
+are absolute regression budgets, not statistical confidence guarantees.
+Seed/path/grid settings and the statistical price budget are repeated in the
+MC TSV column and cross-checked in C++. Seed equality does not promise identical
+samples across libraries or C++ standard-library implementations.
+
+All ten wrapper Greeks are checked on the ATM one-year call and put for every
+engine. Tree/CRR/FD use spot 4, volatility 0.01, rate 0.001, time 1 day. BS2002
+uses spot 0.5, volatility 0.002, rate 0.001, time 1 day. MC uses spot 8,
+volatility 0.02, rate 0.01, time 2 days, with common random numbers across bumps.
+
+| Wrapper measure | Tree / CRR / FD | BS2002 | MC |
+| --- | --- | --- | --- |
+| price | native budget | 0.15 | 0.7 |
+| delta | 0.003 | 0.015 | 0.03 |
+| gamma | 0.002 | 0.002 | 0.004 |
+| speed | 0.0002 | 0.0003 | 0.0008 |
+| theta | 0.001 | 0.001 | 0.005 |
+| charm | 0.0001 | 0.0001 | 0.001 |
+| color | 0.00003 | 0.00002 | 0.0003 |
+| vega | 0.01 | 0.02 | 0.05 |
+| vanna | 0.002 | 0.002 | 0.004 |
+| zomma | 0.0005 | 0.0005 | 0.002 |
+| rho | 0.02 | 0.04 | 0.08 |
+
+The wider mixed/time budgets account for exercise-decision changes under
+bumps. MC differentiates a sampled fitted exercise policy, so its third and
+mixed derivatives are intentionally coarse. A diagnostic at spot bumps 4/8
+and path counts 40000/80000 isolated this noise: call gamma at bump 4 was
+0.00772/0.00941, versus 0.01093/0.01104 at bump 8 and reference 0.01276;
+color fell from 0.000665/0.000491 to 0.000116/0.000145 (reference 0.0000189).
+The larger bump reduces policy noise while adding truncation error. The
+initial budgets were retained; no tolerance was enlarged to obtain a pass.
+
+Discrepancies were classified before changing targets or production code:
+the old American put price 10.225098 was a stale reference (the converged
+contract price is 10.53913614); BS2002 differences are approximation error;
+the MC Greek discrepancies above are regression/sampling noise. A verified
+production defect omitted exercise at valuation in MC: a deep put returned
+49.79607993 when immediate exercise pays 50. The public-engine regression
+failed before the fix and passed after comparing continuation with intrinsic
+value at time zero. The fix preserves the simulation and regression algorithm.
+
+Bermudan construction and API capability checks remain in the C++ suite.
+Kiyosi has **no Bermudan pricing engine**. The old `bermudan-binomial` row is
+retained byte-for-byte with its original provenance only as historical data;
+its European-labelled source and price do not constitute a Bermudan pricing
+comparison. The manifest inventory excludes it from instrument/engine pricing
+pairs. All other unmatched rows retain their original bytes and provenance.
+
+Run the same frozen regeneration and `check_generation.py` commands above.
+They validate byte identity, retained rows, corrupted-reference rejection and
+atomic replacement for both families. CMake and the ordinary C++ tests only
+read committed TSV data and never invoke Python or QuantLib.

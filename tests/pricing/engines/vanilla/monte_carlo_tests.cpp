@@ -53,4 +53,16 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry")
     CHECK(*result->get(kiyosi::risk_measure::price) == 10.0);
 }
 
+TEST_CASE("American Monte Carlo includes immediate exercise in the exercise window")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = day(2026, 1, 6);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.10, 0.0, 0.10);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(50.0), valuation);
+    const auto put = *kiyosi::make_american_put(100.0, expiry);
+    const auto result = kiyosi::MonteCarloAmericanEngine{20'000, 50, 42}.price(put, context);
+    REQUIRE(result.has_value());
+    CHECK_THAT(*result->get(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(50.0, 1e-10));
+}
+
 }

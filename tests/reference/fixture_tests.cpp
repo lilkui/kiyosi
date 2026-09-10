@@ -79,15 +79,17 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(owned == fixture.case_id.starts_with("ql-"));
         const bool legacy = inputs.contains("reference_provider") && inputs.at("reference_provider") == "QuantLib";
         if (!owned && !legacy) continue;
-        REQUIRE(fixture.instrument == "EuropeanOption");
-        if (owned) REQUIRE(fixture.case_id.starts_with("ql-european-"));
+        const bool american = fixture.instrument == "AmericanOption";
+        REQUIRE((american || fixture.instrument == "EuropeanOption"));
+        if (owned) REQUIRE(fixture.case_id.starts_with(american ? "ql-american-" : "ql-european-"));
 
         REQUIRE(fixture.outputs.contains("price"));
         REQUIRE_FALSE(fixture.validation.has_value());
         if (owned) REQUIRE_FALSE(fixture.convergence.has_value());
-        REQUIRE(fixture.monte_carlo.has_value() == (fixture.engine == "MonteCarloEuropeanEngine"));
+        REQUIRE(fixture.monte_carlo.has_value() == (fixture.engine == "MonteCarloEuropeanEngine" || fixture.engine == "MonteCarloAmericanEngine"));
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
-        REQUIRE(fixture.provenance.reference_kind == "analytic");
+        REQUIRE(fixture.provenance.reference_kind == (american ? "discretized" : "analytic"));
+        REQUIRE(fixture.provenance.source_symbol == (american ? "QuantLib.FdBlackScholesVanillaEngine" : "QuantLib.AnalyticEuropeanEngine"));
         REQUIRE(fixture.provenance.explicit_tolerance == fixture.tolerances.at("price"));
         const auto number = [&](const std::string& key) {
             std::size_t index = 0;
@@ -98,132 +100,156 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             return kiyosi::test::detail::calendar_date({inputs.at(key)}, index, 0, key);
         };
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
-        REQUIRE((fixture.variant == inputs.at("option") || (legacy && fixture.variant == "seeded-call")));
+        REQUIRE((fixture.variant == inputs.at("option") || (legacy && (fixture.variant == "seeded-call" || fixture.variant == "seeded-put"))));
         REQUIRE(date("effective") <= date("valuation"));
         REQUIRE(date("valuation") < date("expiry"));
-        const auto option = kiyosi::make_european_option(
-            inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
-            number("strike"), date("effective"), date("expiry"));
-        REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
         const auto spot = kiyosi::make_asset_price(number("spot"));
         REQUIRE(spot.has_value());
         const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
         REQUIRE(context.has_value());
-        const auto check_engine = [&](const auto& engine) {
-            const auto native = engine.price(*option, *context);
-            check_price(fixture, native);
-            if (legacy) {
-                REQUIRE(fixture.outputs.size() == 1);
-                if (fixture.convergence) {
-                    const auto& convergence = *fixture.convergence;
-                    REQUIRE(convergence.reference == fixture.outputs.at("price"));
-                    double first_error = 0;
-                    double last_error = 0;
-                    for (const auto resolution : convergence.resolutions) {
-                        auto refined = engine;
-                        if constexpr (requires { engine.settings().asset_steps; }) {
-                            REQUIRE(convergence.parameter == "grid");
-                            auto settings = engine.settings();
-                            settings.asset_steps = static_cast<int>(resolution);
-                            refined = std::remove_cvref_t<decltype(engine)>{settings};
-                        } else if constexpr (requires { engine.settings().steps; }) {
-                            REQUIRE(convergence.parameter == "steps");
-                            refined = std::remove_cvref_t<decltype(engine)>{static_cast<int>(resolution)};
-                        } else {
-                            FAIL("Unexpected convergence engine");
+        const auto check_contract = [&](const auto& option) {
+            const auto check_engine = [&](const auto& engine) {
+                const auto native = engine.price(option, *context);
+                check_price(fixture, native);
+                if (legacy) {
+                    REQUIRE(fixture.outputs.size() == 1);
+                    if (fixture.convergence) {
+                        const auto& convergence = *fixture.convergence;
+                        REQUIRE(convergence.reference == fixture.outputs.at("price"));
+                        double first_error = 0;
+                        double last_error = 0;
+                        for (const auto resolution : convergence.resolutions) {
+                            auto refined = engine;
+                            if constexpr (requires { engine.settings().asset_steps; }) {
+                                REQUIRE(convergence.parameter == "grid");
+                                auto settings = engine.settings();
+                                settings.asset_steps = static_cast<int>(resolution);
+                                refined = std::remove_cvref_t<decltype(engine)>{settings};
+                            } else if constexpr (requires { engine.settings().steps; }) {
+                                REQUIRE(convergence.parameter == "steps");
+                                refined = std::remove_cvref_t<decltype(engine)>{static_cast<int>(resolution)};
+                            } else {
+                                FAIL("Unexpected convergence engine");
+                            }
+                            const auto result = refined.price(option, *context);
+                            REQUIRE(result.has_value());
+                            REQUIRE(result->get(kiyosi::risk_measure::price).has_value());
+                            last_error = std::abs(*result->get(kiyosi::risk_measure::price) - convergence.reference);
+                            if (resolution == convergence.resolutions.front()) first_error = last_error;
                         }
-                        const auto result = refined.price(*option, *context);
-                        REQUIRE(result.has_value());
-                        REQUIRE(result->get(kiyosi::risk_measure::price).has_value());
-                        last_error = std::abs(*result->get(kiyosi::risk_measure::price) - convergence.reference);
-                        if (resolution == convergence.resolutions.front()) first_error = last_error;
+                        CHECK(last_error < first_error);
+                        CHECK(last_error <= convergence.tolerance);
+                        ++converged;
                     }
-                    CHECK(last_error < first_error);
-                    CHECK(last_error <= convergence.tolerance);
-                    ++converged;
+                    ++migrated;
+                    return;
                 }
-                ++migrated;
-                return;
-            }
-            const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
-            const bool analytic = fixture.engine == "AnalyticEuropeanEngine";
-            if (!analytic) REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
-            const bool wrapped = analytic || inputs.at("wrapper") == "true";
-            if (wrapped) ++wrappers[fixture.engine];
-            kiyosi::NumericalShiftSettings shifts;
-            if (!analytic) {
-                shifts = {number("spot_shift"), number("volatility_shift"), number("rate_shift"),
-                          static_cast<int>(number("time_shift_days"))};
-            }
-            const auto numerical = wrapped ? kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(*option, *context) : native;
-            REQUIRE(numerical.has_value());
-            std::size_t available = 0;
-            for (const auto& [name, measure] : measures) {
-                INFO("measure=" << name);
-                const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
-                REQUIRE(inputs.contains("unit_" + name));
-                REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
-                REQUIRE(fixture.outputs.contains(name) != unavailable);
-                if (unavailable) {
-                    REQUIRE(inputs.at("unavailable_" + name) == "whole-day stability stencil touches expiry");
-                    continue;
+                const bool expiry_boundary = (date("expiry") - date("valuation")).count() <= 2;
+                const bool exercise_boundary = american && (date("valuation") - date("effective")).count() < 2;
+                const bool boundary = expiry_boundary || exercise_boundary;
+                const bool analytic = fixture.engine == "AnalyticEuropeanEngine";
+                if (!analytic) REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
+                const bool wrapped = analytic || inputs.at("wrapper") == "true";
+                if (wrapped) ++wrappers[fixture.engine];
+                kiyosi::NumericalShiftSettings shifts;
+                if (!analytic) {
+                    shifts = {number("spot_shift"), number("volatility_shift"), number("rate_shift"),
+                              static_cast<int>(number("time_shift_days"))};
                 }
-                ++available;
-                const bool native_measure = analytic || name == "price" ||
-                    ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
-                      fixture.engine == "FiniteDifferenceEuropeanEngine") && (name == "delta" || name == "gamma"));
-                REQUIRE(native->get(measure).has_value() == native_measure);
-                const double expected = fixture.outputs.at(name);
-                if (native_measure)
-                    CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
-                REQUIRE(number("uncertainty_" + name) >= 0);
-                if (wrapped) {
-                    REQUIRE(numerical->get(measure).has_value());
-                    CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                const auto numerical = wrapped ? kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(option, *context) : native;
+                REQUIRE(numerical.has_value());
+                std::size_t available = 0;
+                for (const auto& [name, measure] : measures) {
+                    INFO("measure=" << name);
+                    const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
+                    REQUIRE(inputs.contains("unit_" + name));
+                    REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
+                    REQUIRE(fixture.outputs.contains(name) != unavailable);
+                    if (unavailable) {
+                        REQUIRE(inputs.at("unavailable_" + name) == (expiry_boundary ? "whole-day stability stencil touches expiry" :
+                            "whole-day stability stencil precedes exercise window"));
+                        continue;
+                    }
+                    ++available;
+                    const bool native_measure = analytic || name == "price" ||
+                        ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
+                          fixture.engine == "FiniteDifferenceEuropeanEngine" || fixture.engine == "BinomialAmericanEngine" ||
+                          fixture.engine == "FiniteDifferenceAmericanEngine") && (name == "delta" || name == "gamma"));
+                    REQUIRE(native->get(measure).has_value() == native_measure);
+                    const double expected = fixture.outputs.at(name);
+                    if (native_measure)
+                        CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
+                    REQUIRE(number("uncertainty_" + name) >= 0);
+                    if (wrapped) {
+                        REQUIRE(numerical->get(measure).has_value());
+                        CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                    }
                 }
+                REQUIRE(fixture.outputs.size() == available);
+            };
+            constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
+            using Binomial = std::conditional_t<american_contract, kiyosi::BinomialAmericanEngine, kiyosi::BinomialEuropeanEngine>;
+            using FiniteDifference = std::conditional_t<american_contract, kiyosi::FiniteDifferenceAmericanEngine, kiyosi::FiniteDifferenceEuropeanEngine>;
+            using MonteCarlo = std::conditional_t<american_contract, kiyosi::MonteCarloAmericanEngine, kiyosi::MonteCarloEuropeanEngine>;
+            if (fixture.engine == "AnalyticEuropeanEngine") {
+                if constexpr (!american_contract) {
+                    const kiyosi::AnalyticEuropeanEngine engine;
+                    check_engine(engine);
+                    const auto implied = engine.implied_volatility(option, *context, fixture.outputs.at("price"));
+                    INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
+                    REQUIRE(implied.has_value());
+                    CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
+                } else {
+                    FAIL("AnalyticEuropeanEngine cannot price an American contract");
+                }
+            } else if (fixture.engine == "BjerksundStenslandAmericanEngine") {
+                if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandAmericanEngine{});
+                else FAIL("BjerksundStenslandAmericanEngine requires an American contract");
+            } else if (fixture.engine == (american ? "BinomialAmericanEngine" : "BinomialEuropeanEngine")) {
+                check_engine(Binomial{static_cast<int>(number("steps"))});
+            } else if (fixture.engine == "CrrEngine") {
+                check_engine(kiyosi::CrrEngine{static_cast<int>(number("steps"))});
+            } else if (fixture.engine == "IntegralEuropeanEngine") {
+                if constexpr (!american_contract) check_engine(kiyosi::IntegralEuropeanEngine{});
+                else FAIL("IntegralEuropeanEngine requires a European contract");
+            } else if (fixture.engine == (american ? "FiniteDifferenceAmericanEngine" : "FiniteDifferenceEuropeanEngine")) {
+                const std::map<std::string, kiyosi::finite_difference_scheme> schemes{
+                    {"explicit_euler", kiyosi::finite_difference_scheme::explicit_euler},
+                    {"implicit_euler", kiyosi::finite_difference_scheme::implicit_euler},
+                    {"crank_nicolson", kiyosi::finite_difference_scheme::crank_nicolson}};
+                REQUIRE(schemes.contains(inputs.at("scheme")));
+                check_engine(FiniteDifference{{static_cast<int>(number("asset_steps")),
+                    static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
+            } else if (fixture.engine == (american ? "MonteCarloAmericanEngine" : "MonteCarloEuropeanEngine")) {
+                const auto& mc = *fixture.monte_carlo;
+                REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
+                REQUIRE(number("seed") == mc.seed);
+                REQUIRE(number("paths") == mc.paths);
+                REQUIRE(number("steps") == mc.steps);
+                check_engine(MonteCarlo{static_cast<int>(mc.paths), static_cast<int>(mc.steps), mc.seed});
+            } else {
+                FAIL("Unknown generated engine: " << fixture.engine);
             }
-            REQUIRE(fixture.outputs.size() == available);
         };
-        if (fixture.engine == "AnalyticEuropeanEngine") {
-            const kiyosi::AnalyticEuropeanEngine engine;
-            check_engine(engine);
-            const auto implied = engine.implied_volatility(*option, *context, fixture.outputs.at("price"));
-            INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
-            REQUIRE(implied.has_value());
-            CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
-        } else if (fixture.engine == "BinomialEuropeanEngine") {
-            check_engine(kiyosi::BinomialEuropeanEngine{static_cast<int>(number("steps"))});
-        } else if (fixture.engine == "CrrEngine") {
-            check_engine(kiyosi::CrrEngine{static_cast<int>(number("steps"))});
-        } else if (fixture.engine == "IntegralEuropeanEngine") {
-            check_engine(kiyosi::IntegralEuropeanEngine{});
-        } else if (fixture.engine == "FiniteDifferenceEuropeanEngine") {
-            const std::map<std::string, kiyosi::finite_difference_scheme> schemes{
-                {"explicit_euler", kiyosi::finite_difference_scheme::explicit_euler},
-                {"implicit_euler", kiyosi::finite_difference_scheme::implicit_euler},
-                {"crank_nicolson", kiyosi::finite_difference_scheme::crank_nicolson}};
-            REQUIRE(schemes.contains(inputs.at("scheme")));
-            check_engine(kiyosi::FiniteDifferenceEuropeanEngine{{static_cast<int>(number("asset_steps")),
-                static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
-        } else if (fixture.engine == "MonteCarloEuropeanEngine") {
-            const auto& mc = *fixture.monte_carlo;
-            REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
-            REQUIRE(number("seed") == mc.seed);
-            REQUIRE(number("paths") == mc.paths);
-            REQUIRE(number("steps") == mc.steps);
-            check_engine(kiyosi::MonteCarloEuropeanEngine{static_cast<int>(mc.paths), static_cast<int>(mc.steps), mc.seed});
+        const auto type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
+        if (american) {
+            const auto option = kiyosi::make_american_option(type, number("strike"), date("effective"), date("expiry"));
+            REQUIRE(option.has_value());
+            check_contract(*option);
         } else {
-            FAIL("Unknown generated engine: " << fixture.engine);
+            const auto option = kiyosi::make_european_option(type, number("strike"), date("effective"), date("expiry"));
+            REQUIRE(option.has_value());
+            check_contract(*option);
         }
         compared_engines.insert(fixture.engine);
         ++compared;
     }
     REQUIRE(compared > 0);
-    REQUIRE(compared_engines.size() == 6);
-    REQUIRE(migrated == 5);
-    REQUIRE(converged == 3);
+    REQUIRE(compared_engines.size() == 10);
+    REQUIRE(migrated == 9);
+    REQUIRE(converged == 5);
     for (const auto& engine : compared_engines) REQUIRE(wrappers[engine] >= 2);
 }
 
@@ -241,6 +267,29 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
              {"uncertainty_price=0", "uncertainty_price=nan"},
              {"uncertainty_price=0", "uncertainty_price=10"},
              {"unit_price=price", "unit_price=price;unavailable_typo=unknown"}}) {
+        auto changed = row;
+        const auto position = changed.find(from);
+        REQUIRE(position != std::string::npos);
+        changed.replace(position, from.size(), to);
+        auto text = original;
+        text.replace(start, row.size(), changed);
+        std::istringstream input{text};
+        CHECK_THROWS_AS(kiyosi::test::parse_reference_cases(input), kiyosi::test::FixtureParseError);
+    }
+}
+
+TEST_CASE("American reference fixtures reject unknown measures and exercise boundary omissions")
+{
+    const auto original = fixture_text();
+    const auto start = original.find("ql-american-call-exercise-start-binomialamericanengine\t");
+    REQUIRE(start != std::string::npos);
+    const auto end = original.find('\n', start);
+    const auto row = original.substr(start, end - start);
+    for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
+             {"unavailable_theta=whole-day stability stencil precedes exercise window;", ""},
+             {"unavailable_theta=whole-day stability stencil precedes exercise window", "unavailable_theta=unknown"},
+             {"unit_price=price", "unit_price=price;unavailable_typo=unknown"},
+             {"\tdelta=", "\ttypo="}}) {
         auto changed = row;
         const auto position = changed.find(from);
         REQUIRE(position != std::string::npos);
@@ -327,7 +376,7 @@ TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical
     CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.monte_carlo.has_value(); }));
 }
 
-TEST_CASE("Pricing reference manifest closes every concrete engine and contract variant")
+TEST_CASE("Pricing reference manifest inventories engines and retained contract variants")
 {
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const std::set<std::string> required_engines{
@@ -352,8 +401,9 @@ TEST_CASE("Pricing reference manifest closes every concrete engine and contract 
         "Accumulator/FiniteDifferenceAccumulatorEngine", "Accumulator/MonteCarloAccumulatorEngine",
         "AmericanOption/BinomialAmericanEngine", "AmericanOption/FiniteDifferenceAmericanEngine",
         "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
+        "AmericanOption/CrrEngine",
         "ArithmeticAverageOption/ArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
-        "BarrierOption/FiniteDifferenceBarrierEngine", "BermudanOption/BinomialAmericanEngine",
+        "BarrierOption/FiniteDifferenceBarrierEngine",
         "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "BinarySnowballOption/FiniteDifferenceBinarySnowballEngine",
         "BinarySnowballOption/MonteCarloBinarySnowballEngine", "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
         "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
@@ -374,7 +424,8 @@ TEST_CASE("Pricing reference manifest closes every concrete engine and contract 
     for (const auto& value : cases) {
         actual_engines.insert(value.engine);
         actual_instruments.insert(value.instrument);
-        actual_pairs.insert(value.instrument + "/" + value.engine);
+        // The retained Bermudan-labelled row is historical data, not a pricing comparison.
+        if (value.instrument != "BermudanOption") actual_pairs.insert(value.instrument + "/" + value.engine);
         has_settlement |= value.inputs.contains("settlement");
         has_monitoring |= value.inputs.contains("monitoring");
         has_calendar |= value.inputs.contains("calendar");

@@ -298,7 +298,11 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             const auto expiry = calendar_date({required_input("expiry")}, index, row, "expiry");
             index = 0;
             const auto valuation = calendar_date({required_input("valuation")}, index, row, "valuation");
-            const bool boundary = (expiry - valuation).count() <= 2;
+            const bool expiry_boundary = (expiry - valuation).count() <= 2;
+            index = 0;
+            const bool exercise_boundary = value.instrument == "AmericanOption" &&
+                (valuation - calendar_date({required_input("effective")}, index, row, "effective")).count() < 2;
+            const bool boundary = expiry_boundary || exercise_boundary;
             std::size_t available = 0;
             for (const auto& [name, unit] : units) {
                 const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
@@ -306,7 +310,8 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                     value.inputs.contains("unavailable_" + name) != unavailable ||
                     value.outputs.contains(name) == unavailable) throw invalid();
                 if (unavailable) {
-                    if (required_input("unavailable_" + name) != "whole-day stability stencil touches expiry")
+                    if (required_input("unavailable_" + name) != (expiry_boundary ?
+                        "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"))
                         throw invalid();
                     continue;
                 }

@@ -1,0 +1,349 @@
+{
+  "scenarios": [
+    {
+      "case_id": "ql-american-call-80-30d",
+      "inputs": {
+        "option": "call",
+        "strike": 100,
+        "spot": 80,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2025-02-05"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-call-100-365d",
+      "inputs": {
+        "option": "call",
+        "strike": 100,
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2026-01-06"
+      },
+      "wrapper": true
+    },
+    {
+      "case_id": "ql-american-call-120-730d",
+      "inputs": {
+        "option": "call",
+        "strike": 100,
+        "spot": 120,
+        "rate": 0.04,
+        "dividend": 0.08,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2027-01-06"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-put-120-30d",
+      "inputs": {
+        "option": "put",
+        "strike": 100,
+        "spot": 120,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2025-02-05"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-put-100-365d",
+      "inputs": {
+        "option": "put",
+        "strike": 100,
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2026-01-06"
+      },
+      "wrapper": true
+    },
+    {
+      "case_id": "ql-american-put-80-730d",
+      "inputs": {
+        "option": "put",
+        "strike": 100,
+        "spot": 80,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2027-01-06"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-call-immediate",
+      "inputs": {
+        "option": "call",
+        "strike": 100,
+        "spot": 150,
+        "rate": 0.04,
+        "dividend": 0.1,
+        "volatility": 0.1,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2026-01-06"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-put-immediate",
+      "inputs": {
+        "option": "put",
+        "strike": 100,
+        "spot": 50,
+        "rate": 0.1,
+        "dividend": 0,
+        "volatility": 0.1,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2026-01-06"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-put-90-1d",
+      "inputs": {
+        "option": "put",
+        "strike": 100,
+        "spot": 90,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2024-12-30",
+        "valuation": "2025-01-06",
+        "expiry": "2025-01-07"
+      },
+      "wrapper": false
+    },
+    {
+      "case_id": "ql-american-call-exercise-start",
+      "inputs": {
+        "option": "call",
+        "strike": 100,
+        "spot": 100,
+        "rate": 0.04,
+        "dividend": 0.01,
+        "volatility": 0.3,
+        "effective": "2025-01-06",
+        "valuation": "2025-01-06",
+        "expiry": "2026-01-06"
+      },
+      "wrapper": false
+    }
+  ],
+  "profiles": [
+    {
+      "engine": "BinomialAmericanEngine",
+      "settings": {
+        "steps": 800
+      },
+      "shifts": {
+        "spot_shift": 4,
+        "volatility_shift": 0.01,
+        "rate_shift": 0.001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 0.04,
+        "delta": 0.003,
+        "gamma": 0.0003,
+        "speed": 0.0002,
+        "theta": 0.0003,
+        "charm": 3e-05,
+        "color": 1e-05,
+        "vega": 0.005,
+        "vanna": 0.001,
+        "zomma": 0.0003,
+        "rho": 0.005
+      },
+      "numerical_tolerances": {
+        "price": 0.04,
+        "delta": 0.003,
+        "gamma": 0.002,
+        "speed": 0.0002,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 3e-05,
+        "vega": 0.01,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.02
+      }
+    },
+    {
+      "engine": "CrrEngine",
+      "settings": {
+        "steps": 800
+      },
+      "shifts": {
+        "spot_shift": 4,
+        "volatility_shift": 0.01,
+        "rate_shift": 0.001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 0.04,
+        "delta": 0.003,
+        "gamma": 0.0003,
+        "speed": 0.0002,
+        "theta": 0.0003,
+        "charm": 3e-05,
+        "color": 1e-05,
+        "vega": 0.005,
+        "vanna": 0.001,
+        "zomma": 0.0003,
+        "rho": 0.005
+      },
+      "numerical_tolerances": {
+        "price": 0.04,
+        "delta": 0.003,
+        "gamma": 0.002,
+        "speed": 0.0002,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 3e-05,
+        "vega": 0.01,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.02
+      }
+    },
+    {
+      "engine": "FiniteDifferenceAmericanEngine",
+      "settings": {
+        "asset_steps": 400,
+        "time_steps": 800,
+        "scheme": "crank_nicolson",
+        "upper_boundary": 400
+      },
+      "shifts": {
+        "spot_shift": 4,
+        "volatility_shift": 0.01,
+        "rate_shift": 0.001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 0.03,
+        "delta": 0.003,
+        "gamma": 0.0003,
+        "speed": 0.0002,
+        "theta": 0.0003,
+        "charm": 3e-05,
+        "color": 1e-05,
+        "vega": 0.005,
+        "vanna": 0.001,
+        "zomma": 0.0003,
+        "rho": 0.005
+      },
+      "numerical_tolerances": {
+        "price": 0.03,
+        "delta": 0.003,
+        "gamma": 0.002,
+        "speed": 0.0002,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 3e-05,
+        "vega": 0.01,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.02
+      }
+    },
+    {
+      "engine": "BjerksundStenslandAmericanEngine",
+      "settings": {},
+      "shifts": {
+        "spot_shift": 0.5,
+        "volatility_shift": 0.002,
+        "rate_shift": 0.001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 0.15,
+        "delta": 0.003,
+        "gamma": 0.0003,
+        "speed": 1e-07,
+        "theta": 3e-05,
+        "charm": 1e-07,
+        "color": 1e-08,
+        "vega": 1e-06,
+        "vanna": 1e-07,
+        "zomma": 1e-07,
+        "rho": 1e-06
+      },
+      "numerical_tolerances": {
+        "price": 0.15,
+        "delta": 0.015,
+        "gamma": 0.002,
+        "speed": 0.0003,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 2e-05,
+        "vega": 0.02,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.04
+      }
+    },
+    {
+      "engine": "MonteCarloAmericanEngine",
+      "settings": {
+        "seed": 42,
+        "paths": 40000,
+        "steps": 50
+      },
+      "shifts": {
+        "spot_shift": 8,
+        "volatility_shift": 0.02,
+        "rate_shift": 0.01,
+        "time_shift_days": 2
+      },
+      "tolerances": {
+        "price": 0.7,
+        "delta": 0.003,
+        "gamma": 0.0003,
+        "speed": 0.0002,
+        "theta": 0.001,
+        "charm": 5e-05,
+        "color": 2e-05,
+        "vega": 0.015,
+        "vanna": 0.001,
+        "zomma": 0.0003,
+        "rho": 0.01
+      },
+      "numerical_tolerances": {
+        "price": 0.7,
+        "delta": 0.03,
+        "gamma": 0.004,
+        "speed": 0.0008,
+        "theta": 0.005,
+        "charm": 0.001,
+        "color": 0.0003,
+        "vega": 0.05,
+        "vanna": 0.004,
+        "zomma": 0.002,
+        "rho": 0.08
+      }
+    }
+  ]
+}

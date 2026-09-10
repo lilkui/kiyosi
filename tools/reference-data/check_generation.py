@@ -7,6 +7,7 @@ import tempfile
 from unittest.mock import patch
 
 import generate
+import american
 
 
 def check_generation():
@@ -27,12 +28,39 @@ def check_generation():
         assert retained(first) == retained(original), "retained provenance and checks changed"
         rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
         for profile in profiles:
-            matching = [row for row in rows if row[2] == profile["engine"]]
+            matching = [row for row in rows if row[1] == "EuropeanOption" and row[2] == profile["engine"]]
             assert len(matching) == 18, "numerical matrix incomplete"
             assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == 2
+        american_rows = [row for row in rows if row[1] == "AmericanOption"]
+        american_inputs = {case["case_id"]: case["inputs"] for case in
+                           json.loads((generate.PROJECT / "american.json").read_text())["scenarios"]}
+        assert len(american_rows) == 50, "American matrix incomplete"
+        for engine in american.ENGINES:
+            matching = [row for row in american_rows if row[2] == engine]
+            assert len(matching) == 10
+            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == 2
+        for row in american_rows:
+            attributes = generate.attributes(row[4])
+            assert attributes["source_symbol"] == "QuantLib.FdBlackScholesVanillaEngine"
+            assert float(attributes["refinement_price"]) <= american.STABILITY["price"]
+            if float(attributes["refinement_price"]) > max(1e-9, float(attributes["coarse_refinement_price"])):
+                # Grid alignment can make tiny discretization errors non-monotonic.
+                # Verify another refinement against the existing uncertainty, without enlarging it.
+                market = american_inputs[row[0].rsplit("-", 1)[0]]
+                refined = american.measure(market, "price", (6400, 6400))
+                price = float(generate.attributes(row[5])["price"])
+                assert abs(refined - price) <= float(attributes["uncertainty_price"])
         # Migration is independent of the old target values and preserves other rows.
         for line in retained(first):
             fields = line.decode().split("\t")
+            if fields[0] in american.LEGACY:
+                fields[5] = "price=123456"
+                if fields[8] != "-":
+                    parts = fields[8].split("|")
+                    parts[2] = "123456"
+                    fields[8] = "|".join(parts)
+                assert american.migrate("\t".join(fields)) == line.decode()
+                continue
             if fields[0] not in generate.LEGACY_NUMERICAL:
                 assert generate.migrate_numerical(line.decode()) == line.decode()
                 continue
@@ -121,6 +149,21 @@ def check_generation():
                 else:
                     raise AssertionError("unstable or non-finite Greek accepted")
             assert fixture.read_bytes() == first, "bad Greek replaced fixture"
+
+        real_american_measure = american.measure
+        for bad in (float("nan"), float("inf"), 1000.0):
+            def corrupted_american(market, name, grid=american.GRIDS[-1], scale=1):
+                if name == "vega" and scale == 2:
+                    return bad
+                return real_american_measure(market, name, grid, scale)
+            with patch.object(american, "measure", side_effect=corrupted_american):
+                try:
+                    generate.regenerate(fixture, inputs)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("unstable American Greek accepted")
+            assert fixture.read_bytes() == first, "bad American Greek replaced fixture"
 
     # Exercise price-derived higher Greeks on the smooth matrix, independent of Kiyosi.
     for case in scenarios[:18]:

@@ -189,7 +189,9 @@ result<PricingResult> MonteCarloAmericanEngine::price_impl(
     }
     double sum = 0.0;
     for (double value : cash_flows) sum += value;
-    const double value = sum / static_cast<double>(path_count) * discount;
+    const double continuation = sum / static_cast<double>(path_count) * discount;
+    const double value = std::max(continuation,
+        payoff(option.type(), context.asset_price().value(), option.strike()));
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return PricingResult{{risk_measure::price, value}};

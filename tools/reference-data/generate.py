@@ -78,7 +78,7 @@ def validate_scenario(scenario):
                     for v in scenario[field].values()), f"invalid {field}")
 
 
-def european_option(inputs):
+def vanilla_option(inputs, american_grid=None):
     valuation = ql.DateParser.parseISO(inputs["valuation"])
     expiry = ql.DateParser.parseISO(inputs["expiry"])
     ql.Settings.instance().evaluationDate = valuation
@@ -91,9 +91,16 @@ def european_option(inputs):
             valuation, ql.NullCalendar(), inputs["volatility"], day_count)))
     option = ql.VanillaOption(ql.PlainVanillaPayoff(
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put, inputs["strike"]),
-        ql.EuropeanExercise(expiry))
-    option.setPricingEngine(ql.AnalyticEuropeanEngine(process))
+        ql.EuropeanExercise(expiry) if american_grid is None else
+        ql.AmericanExercise(ql.DateParser.parseISO(inputs["effective"]), expiry))
+    option.setPricingEngine(ql.AnalyticEuropeanEngine(process) if american_grid is None else
+                           ql.FdBlackScholesVanillaEngine(process, *american_grid, 2,
+                                                         ql.FdmSchemeDesc.Douglas()))
     return option
+
+
+def european_option(inputs):
+    return vanilla_option(inputs)
 
 
 def shifted(inputs, field, bump):
@@ -269,26 +276,32 @@ def validate_manifest(text):
         require(owned == fields[0].startswith("ql-"), "inconsistent QuantLib ownership")
 
         if owned:
+            import american
+            is_american = fields[1] == "AmericanOption"
+            require(is_american or fields[1] == "EuropeanOption", "unknown generated instrument")
+            limits = american.STABILITY if is_american else STABILITY
             days = (date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])).days
-            unavailable = TIME_MEASURES if days <= 2 else set()
-            require(set(outputs) == set(MEASURES) - unavailable, "incomplete measures")
+            unavailable = american.exclusions(inputs) if is_american else dict.fromkeys(
+                TIME_MEASURES if days <= 2 else set(), "whole-day stability stencil touches expiry")
+            require(set(outputs) == set(MEASURES) - unavailable.keys(), "incomplete measures")
             require({key.removeprefix("unavailable_") for key in inputs if key.startswith("unavailable_")}
-                    == unavailable, "invalid unavailable declarations")
+                    == unavailable.keys(), "invalid unavailable declarations")
             for name in MEASURES:
                 require(inputs.get(f"unit_{name}") == UNITS[name], f"invalid {name} unit")
                 if name in unavailable:
-                    require(inputs[f"unavailable_{name}"] == "whole-day stability stencil touches expiry",
+                    require(inputs[f"unavailable_{name}"] == unavailable[name],
                             "invalid unavailable reason")
                     continue
                 uncertainty = float(inputs[f"uncertainty_{name}"])
-                require(math.isfinite(uncertainty) and 0 <= uncertainty <= STABILITY[name], "unstable output")
-                require(float(inputs[f"stability_limit_{name}"]) == STABILITY[name], "invalid stability limit")
+                require(math.isfinite(uncertainty) and 0 <= uncertainty <= limits[name], "unstable output")
+                require(float(inputs[f"stability_limit_{name}"]) == limits[name], "invalid stability limit")
                 budget = float(inputs[f"numerical_tolerance_{name}"])
                 require(math.isfinite(budget) and budget >= 0, "invalid numerical tolerance")
 
 
 def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
                profiles_path=PROJECT / "numerical_engines.json"):
+    import american
     require(version("QuantLib-Python") == "1.18" and version("QuantLib") == ql.__version__ == "1.41",
             "run with the frozen uv environment")
     scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))
@@ -299,10 +312,11 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
     original = fixture.read_text(encoding="utf-8")
     validate_manifest(original)
     profiles = numerical_profiles(profiles_path)
-    retained = [migrate_numerical(line) for line in original.splitlines() if not line.startswith("ql-")]
+    retained = [american.migrate(migrate_numerical(line)) for line in original.splitlines() if not line.startswith("ql-")]
     generated = [european_row(item) for item in sorted(scenarios, key=lambda item: item["case_id"])]
     generated += [numerical_row(item, profile) for item in scenarios for profile in profiles
                   if (date.fromisoformat(item["inputs"]["expiry"]) - date.fromisoformat(item["inputs"]["valuation"])).days > 2]
+    generated += list(american.rows())
     generated.sort(key=lambda row: row.split("\t")[0])
     content = "\n".join(retained + generated) + "\n"
     validate_manifest(content)
@@ -315,7 +329,7 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
     finally:
         if temporary is not None:
             temporary.unlink(missing_ok=True)
-    print(f"Generated {len(generated)} QuantLib European price and Greek references")
+    print(f"Generated {len(generated)} QuantLib price and Greek references")
 
 
 if __name__ == "__main__":
