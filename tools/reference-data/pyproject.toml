@@ -1,0 +1,10 @@
+[project]
+name = "kiyosi-reference-data"
+version = "0.1.0"
+requires-python = "==3.13.12"
+dependencies = ["QuantLib-Python==1.18", "QuantLib==1.41"]
+
+[tool.uv]
+package = false
+required-version = "==0.11.2"
+python-preference = "only-managed"

@@ -53,6 +53,57 @@ void check_price(const kiyosi::test::ReferenceCase& fixture, const PriceResult& 
 
 } // namespace
 
+TEST_CASE("QuantLib generated reference rows all compare European prices")
+{
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
+    std::set<std::string> identifiers;
+    std::size_t compared = 0;
+    for (const auto& fixture : cases) {
+        INFO("case=" << fixture.case_id);
+        REQUIRE(identifiers.insert(fixture.case_id).second);
+        const auto& inputs = fixture.inputs;
+        const bool owned = inputs.contains("owner") && inputs.at("owner") == "QuantLib";
+        REQUIRE(owned == fixture.case_id.starts_with("ql-"));
+        if (!owned) continue;
+        REQUIRE(fixture.instrument == "EuropeanOption");
+        REQUIRE(fixture.engine == "AnalyticEuropeanEngine");
+        REQUIRE(fixture.case_id.starts_with("ql-european-"));
+        REQUIRE(fixture.outputs.size() == 1);
+        REQUIRE(fixture.outputs.contains("price"));
+        REQUIRE_FALSE(fixture.validation.has_value());
+        REQUIRE_FALSE(fixture.convergence.has_value());
+        REQUIRE_FALSE(fixture.monte_carlo.has_value());
+        REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
+        REQUIRE(fixture.provenance.reference_kind == "analytic");
+        REQUIRE(fixture.provenance.explicit_tolerance == fixture.tolerances.at("price"));
+        const auto number = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::number({inputs.at(key)}, index, 0, key);
+        };
+        const auto date = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::calendar_date({inputs.at(key)}, index, 0, key);
+        };
+        REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
+        REQUIRE(fixture.variant == inputs.at("option"));
+        REQUIRE(date("effective") <= date("valuation"));
+        REQUIRE(date("valuation") < date("expiry"));
+        const auto option = kiyosi::make_european_option(
+            inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            number("strike"), date("effective"), date("expiry"));
+        REQUIRE(option.has_value());
+        const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
+        REQUIRE(parameters.has_value());
+        const auto spot = kiyosi::make_asset_price(number("spot"));
+        REQUIRE(spot.has_value());
+        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
+        REQUIRE(context.has_value());
+        check_price(fixture, kiyosi::AnalyticEuropeanEngine{}.price(*option, *context));
+        ++compared;
+    }
+    REQUIRE(compared > 0);
+}
+
 TEST_CASE("Reference fixture parser reports malformed rows")
 {
     auto text = fixture_text();
