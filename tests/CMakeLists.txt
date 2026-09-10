@@ -1,0 +1,30 @@
+add_executable(kiyosi_tests
+    api/header_tests.cpp
+    core/version_tests.cpp
+    instruments/vanilla_tests.cpp
+    market/calendar_tests.cpp
+    market/context_tests.cpp
+    pricing/engines/barrier/analytic_tests.cpp
+    pricing/engines/barrier/binary_tests.cpp
+    pricing/engines/structured/structured_tests.cpp
+    pricing/engines/vanilla/analytic_tests.cpp
+    pricing/engines/vanilla/binomial_tests.cpp
+    pricing/engines/vanilla/finite_difference_tests.cpp
+    pricing/engines/vanilla/monte_carlo_tests.cpp
+    pricing/instrument_integration_tests.cpp
+    pricing/numerical_validation_tests.cpp
+    reference/fixture_tests.cpp
+)
+set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
+target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
+target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+if(EXISTS "${catch2_SOURCE_DIR}/extras/Catch.cmake")
+    include("${catch2_SOURCE_DIR}/extras/Catch.cmake")
+else()
+    include(Catch)
+endif()
+catch_discover_tests(kiyosi_tests
+    DISCOVERY_MODE PRE_TEST
+    DL_PATHS $<TARGET_FILE_DIR:kiyosi>
+)

@@ -78,17 +78,21 @@ target_link_libraries(kiyosi PRIVATE $<BUILD_INTERFACE:kiyosi::warnings> $<BUILD
 target_sources(kiyosi
     PRIVATE
         src/core/types.cpp
-        src/pricing/engines/analytic.cpp
-        src/pricing/engines/binomial.cpp
-        src/pricing/engines/finite_difference.cpp
-        src/pricing/engines/monte_carlo.cpp
-        src/pricing/engines/digital_barrier.cpp
-        src/pricing/engines/asian.cpp
-        src/pricing/engines/integral.cpp
-        src/pricing/engines/digital_fd.cpp
-        src/pricing/engines/binary_barrier.cpp
-        src/pricing/engines/structured.cpp
-        src/pricing/engines/barrier_fd.cpp
+        src/pricing/engines/asian/average.cpp
+        src/pricing/engines/barrier/analytic.cpp
+        src/pricing/engines/barrier/binary.cpp
+        src/pricing/engines/barrier/finite_difference.cpp
+        src/pricing/engines/digital/analytic.cpp
+        src/pricing/engines/digital/finite_difference.cpp
+        src/pricing/engines/digital/integral.cpp
+        src/pricing/engines/structured/finite_difference.cpp
+        src/pricing/engines/structured/monte_carlo.cpp
+        src/pricing/engines/vanilla/analytic.cpp
+        src/pricing/engines/vanilla/binomial.cpp
+        src/pricing/engines/vanilla/bjerksund_stensland.cpp
+        src/pricing/engines/vanilla/finite_difference.cpp
+        src/pricing/engines/vanilla/integral.cpp
+        src/pricing/engines/vanilla/monte_carlo.cpp
     PUBLIC
         FILE_SET HEADERS
         BASE_DIRS include
@@ -105,17 +109,22 @@ target_sources(kiyosi
             include/kiyosi/market/detail/sse_holidays.hpp
             include/kiyosi/market/context.hpp
             include/kiyosi/pricing/analytics.hpp
-            include/kiyosi/pricing/engines/analytic.hpp
-            include/kiyosi/pricing/engines/asian.hpp
-            include/kiyosi/pricing/engines/barrier.hpp
-            include/kiyosi/pricing/engines/binary_barrier.hpp
-            include/kiyosi/pricing/engines/binomial.hpp
-            include/kiyosi/pricing/engines/digital.hpp
-            include/kiyosi/pricing/engines/digital_fd.hpp
-            include/kiyosi/pricing/engines/finite_difference.hpp
-            include/kiyosi/pricing/engines/integral.hpp
-            include/kiyosi/pricing/engines/monte_carlo.hpp
-            include/kiyosi/pricing/engines/structured.hpp
+            include/kiyosi/pricing/engines/asian/average.hpp
+            include/kiyosi/pricing/engines/barrier/analytic.hpp
+            include/kiyosi/pricing/engines/barrier/binary.hpp
+            include/kiyosi/pricing/engines/barrier/finite_difference.hpp
+            include/kiyosi/pricing/engines/digital/analytic.hpp
+            include/kiyosi/pricing/engines/digital/finite_difference.hpp
+            include/kiyosi/pricing/engines/digital/integral.hpp
+            include/kiyosi/pricing/engines/settings/finite_difference.hpp
+            include/kiyosi/pricing/engines/structured/finite_difference.hpp
+            include/kiyosi/pricing/engines/structured/monte_carlo.hpp
+            include/kiyosi/pricing/engines/vanilla/analytic.hpp
+            include/kiyosi/pricing/engines/vanilla/binomial.hpp
+            include/kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp
+            include/kiyosi/pricing/engines/vanilla/finite_difference.hpp
+            include/kiyosi/pricing/engines/vanilla/integral.hpp
+            include/kiyosi/pricing/engines/vanilla/monte_carlo.hpp
             include/kiyosi/pricing/result.hpp
         FILE_SET generated_headers TYPE HEADERS
         BASE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/generated"
@@ -144,20 +153,7 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     )
     FetchContent_MakeAvailable(Catch2)
 
-    add_executable(kiyosi_tests tests/smoke_tests.cpp tests/reference_fixture_tests.cpp tests/header_smoke.cpp
-                              tests/validation_tests.cpp tests/remaining_tests.cpp)
-    set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
-    target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
-    target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
-    if(EXISTS "${catch2_SOURCE_DIR}/extras/Catch.cmake")
-        include("${catch2_SOURCE_DIR}/extras/Catch.cmake")
-    else()
-        include(Catch)
-    endif()
-    catch_discover_tests(kiyosi_tests
-        DISCOVERY_MODE PRE_TEST
-        DL_PATHS $<TARGET_FILE_DIR:kiyosi>
-    )
+    add_subdirectory(tests)
 endif()
 
 if(KIYOSI_ENABLE_CLANG_TIDY)
