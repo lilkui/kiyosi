@@ -30,7 +30,8 @@ result<PricingResult> price_digital_integral(option_type type, double strike, do
     const double step = (upper - lower) / panels;
     auto integrand = [&](double z) {
         const double terminal = spot * std::exp(drift + volatility * root * z);
-        return (sign * (terminal - strike) > 0.0 ? (asset ? terminal : payout) : 0.0) * normal_pdf(z);
+        // Bounds already select the ITM branch; use its one-sided limit at strike.
+        return (asset ? terminal : payout) * normal_pdf(z);
     };
     double sum = integrand(lower) + integrand(upper);
     for (int index = 1; index < panels; ++index) sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);

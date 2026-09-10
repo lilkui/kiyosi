@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import generate
 import american
+import digital
 
 
 def check_generation():
@@ -27,6 +28,12 @@ def check_generation():
         retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
         assert retained(first) == retained(original), "retained provenance and checks changed"
         rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
+        digital_rows = [row for row in rows if row[1] in digital.INSTRUMENTS.values()]
+        assert len(digital_rows) == 120, "digital matrix incomplete"
+        for engine in digital.ENGINES:
+            matching = [row for row in digital_rows if row[2] == engine]
+            assert len(matching) == 40
+            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == (4 if engine == "FiniteDifferenceDigitalEngine" else 36)
         for profile in profiles:
             matching = [row for row in rows if row[1] == "EuropeanOption" and row[2] == profile["engine"]]
             assert len(matching) == 18, "numerical matrix incomplete"
@@ -53,13 +60,13 @@ def check_generation():
         # Migration is independent of the old target values and preserves other rows.
         for line in retained(first):
             fields = line.decode().split("\t")
-            if fields[0] in american.LEGACY:
+            if fields[0] in set(american.LEGACY) | digital.LEGACY:
                 fields[5] = "price=123456"
                 if fields[8] != "-":
                     parts = fields[8].split("|")
                     parts[2] = "123456"
                     fields[8] = "|".join(parts)
-                assert american.migrate("\t".join(fields)) == line.decode()
+                assert digital.migrate(american.migrate("\t".join(fields))) == line.decode()
                 continue
             if fields[0] not in generate.LEGACY_NUMERICAL:
                 assert generate.migrate_numerical(line.decode()) == line.decode()
@@ -165,12 +172,39 @@ def check_generation():
                     raise AssertionError("unstable American Greek accepted")
             assert fixture.read_bytes() == first, "bad American Greek replaced fixture"
 
+        for bad in (float("nan"), float("inf"), 1000.0):
+            def corrupted_digital(market, name, scale=1, price_only=False):
+                if "payoff" in market and name == "vega" and scale == 2:
+                    return bad
+                return real_measure(market, name, scale, price_only)
+            with patch.object(generate, "measure", side_effect=corrupted_digital):
+                try:
+                    generate.regenerate(fixture, inputs)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("unstable digital Greek accepted")
+            assert fixture.read_bytes() == first, "bad digital Greek replaced fixture"
+
     # Exercise price-derived higher Greeks on the smooth matrix, independent of Kiyosi.
     for case in scenarios[:18]:
         for name in ("speed", "charm", "color", "vanna", "zomma"):
             direct = generate.measure(case["inputs"], name)
             fallback = generate.measure(case["inputs"], name, price_only=True)
             assert abs(direct - fallback) < 1e-7, (case["case_id"], name, direct, fallback)
+    for identifier, market in digital.scenarios(digital.configuration()):
+        if market["expiry"] == "2025-01-07":
+            continue
+        for name in ("speed", "charm", "color", "vanna", "zomma"):
+            direct = generate.measure(market, name)
+            fallback = generate.measure(market, name, price_only=True)
+            assert abs(direct - fallback) < digital.STABILITY[name], (identifier, name, direct, fallback)
+    # AnalyticEuropeanEngine prices pre-expiry; at expiry QuantLib marks the instrument
+    # expired, so verify strict strike settlement directly through its payoff bindings.
+    for direction, cash, asset in ((generate.ql.Option.Call, [0, 0, 10], [0, 0, 101]),
+                                    (generate.ql.Option.Put, [10, 0, 0], [99, 0, 0])):
+        assert [generate.ql.CashOrNothingPayoff(direction, 100, 10)(s) for s in (99, 100, 101)] == cash
+        assert [generate.ql.AssetOrNothingPayoff(direction, 100)(s) for s in (99, 100, 101)] == asset
     print("Generation checks passed")
 
 

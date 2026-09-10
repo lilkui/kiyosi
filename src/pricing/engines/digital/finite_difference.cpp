@@ -59,7 +59,13 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 :
                          settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5;
     auto terminal = [&](double underlying) {
-        return sign * (underlying - strike) > 0.0 ? (asset ? underlying : payout) : 0.0;
+        // Average the discontinuous payoff over each cell to avoid strike-alignment bias.
+        const double low = underlying - 0.5 * spacing;
+        const double high = underlying + 0.5 * spacing;
+        const double left = sign > 0.0 ? std::max(low, strike) : low;
+        const double right = sign > 0.0 ? high : std::min(high, strike);
+        if (left >= right) return 0.0;
+        return (right - left) / spacing * (asset ? 0.5 * (left + right) : payout);
     };
     auto boundary = [&](double tau, bool high) {
         const bool call = option.type() == option_type::call;
@@ -116,8 +122,11 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     const double weight = grid_position - static_cast<double>(index);
     const auto center = static_cast<std::size_t>(index);
     const double value = old[center] + weight * (old[center + 1] - old[center]);
-    const double delta = (old[center + 1] - old[center - 1]) / (2.0 * spacing);
-    const double gamma = (old[center + 1] - 2.0 * old[center] + old[center - 1]) / (spacing * spacing);
+    const auto right = std::min(center + 1, old.size() - 2);
+    const auto node_delta = [&](std::size_t node) { return (old[node + 1] - old[node - 1]) / (2.0 * spacing); };
+    const auto node_gamma = [&](std::size_t node) { return (old[node + 1] - 2.0 * old[node] + old[node - 1]) / (spacing * spacing); };
+    const double delta = std::lerp(node_delta(center), node_delta(right), weight);
+    const double gamma = std::lerp(node_gamma(center), node_gamma(right), weight);
     PricingResult output{{risk_measure::price, value}, {risk_measure::delta, delta}, {risk_measure::gamma, gamma}};
     if (!std::ranges::all_of(output.values, [](const auto& item) { return !item || std::isfinite(*item); }))
         return std::unexpected(Error{error_category::invalid_result, "finite-difference pricing produced a non-finite result"});

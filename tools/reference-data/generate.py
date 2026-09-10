@@ -89,8 +89,13 @@ def vanilla_option(inputs, american_grid=None):
         ql.QuoteHandle(ql.SimpleQuote(inputs["spot"])), curve(inputs["dividend"]), curve(inputs["rate"]),
         ql.BlackVolTermStructureHandle(ql.BlackConstantVol(
             valuation, ql.NullCalendar(), inputs["volatility"], day_count)))
-    option = ql.VanillaOption(ql.PlainVanillaPayoff(
-        ql.Option.Call if inputs["option"] == "call" else ql.Option.Put, inputs["strike"]),
+    direction = ql.Option.Call if inputs["option"] == "call" else ql.Option.Put
+    kind = inputs.get("payoff", "vanilla")
+    require(kind in {"vanilla", "cash", "asset"}, "unknown payoff")
+    payoff = (ql.CashOrNothingPayoff(direction, inputs["strike"], inputs["payout"]) if kind == "cash" else
+              ql.AssetOrNothingPayoff(direction, inputs["strike"]) if kind == "asset" else
+              ql.PlainVanillaPayoff(direction, inputs["strike"]))
+    option = ql.VanillaOption(payoff,
         ql.EuropeanExercise(expiry) if american_grid is None else
         ql.AmericanExercise(ql.DateParser.parseISO(inputs["effective"]), expiry))
     option.setPricingEngine(ql.AnalyticEuropeanEngine(process) if american_grid is None else
@@ -154,7 +159,7 @@ def measure(inputs, name, scale=1, price_only=False):
     return value
 
 
-def european_row(scenario):
+def european_row(scenario, stability=STABILITY):
     inputs = scenario["inputs"]
     outputs, metadata = {}, {}
     days = (date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])).days
@@ -169,10 +174,10 @@ def european_row(scenario):
         estimates = [measure(inputs, name, scale, fallback) for scale in (1, 2)]
         require(all(math.isfinite(v) for v in [value, *estimates]), f"non-finite {name}")
         uncertainty = max(abs(value - estimate) for estimate in estimates)
-        require(uncertainty <= STABILITY[name], f"unstable {name}: {uncertainty}")
+        require(uncertainty <= stability[name], f"{scenario['case_id']}: unstable {name}: {uncertainty}")
         outputs[name] = value
         metadata[f"uncertainty_{name}"] = uncertainty
-        metadata[f"stability_limit_{name}"] = STABILITY[name]
+        metadata[f"stability_limit_{name}"] = stability[name]
         metadata[f"numerical_tolerance_{name}"] = scenario["numerical_tolerances"][name]
     require(outputs["price"] >= 0, "invalid QuantLib price")
     provenance = dict(inputs, owner="QuantLib", source_revision=f"QuantLib-{ql.__version__}",
@@ -277,9 +282,11 @@ def validate_manifest(text):
 
         if owned:
             import american
+            import digital
             is_american = fields[1] == "AmericanOption"
-            require(is_american or fields[1] == "EuropeanOption", "unknown generated instrument")
-            limits = american.STABILITY if is_american else STABILITY
+            is_digital = fields[1] in digital.INSTRUMENTS.values()
+            require(is_american or is_digital or fields[1] == "EuropeanOption", "unknown generated instrument")
+            limits = american.STABILITY if is_american else digital.STABILITY if is_digital else STABILITY
             days = (date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])).days
             unavailable = american.exclusions(inputs) if is_american else dict.fromkeys(
                 TIME_MEASURES if days <= 2 else set(), "whole-day stability stencil touches expiry")
@@ -302,6 +309,7 @@ def validate_manifest(text):
 def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
                profiles_path=PROJECT / "numerical_engines.json"):
     import american
+    import digital
     require(version("QuantLib-Python") == "1.18" and version("QuantLib") == ql.__version__ == "1.41",
             "run with the frozen uv environment")
     scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))
@@ -312,11 +320,12 @@ def regenerate(fixture=FIXTURE, scenarios_path=PROJECT / "scenarios.json",
     original = fixture.read_text(encoding="utf-8")
     validate_manifest(original)
     profiles = numerical_profiles(profiles_path)
-    retained = [american.migrate(migrate_numerical(line)) for line in original.splitlines() if not line.startswith("ql-")]
+    retained = [digital.migrate(american.migrate(migrate_numerical(line))) for line in original.splitlines() if not line.startswith("ql-")]
     generated = [european_row(item) for item in sorted(scenarios, key=lambda item: item["case_id"])]
     generated += [numerical_row(item, profile) for item in scenarios for profile in profiles
                   if (date.fromisoformat(item["inputs"]["expiry"]) - date.fromisoformat(item["inputs"]["valuation"])).days > 2]
     generated += list(american.rows())
+    generated += list(digital.rows())
     generated.sort(key=lambda row: row.split("\t")[0])
     content = "\n".join(retained + generated) + "\n"
     validate_manifest(content)

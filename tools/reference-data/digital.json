@@ -1,0 +1,141 @@
+{
+  "inputs": {
+    "strike": 100,
+    "effective": "2024-12-30",
+    "valuation": "2025-01-06",
+    "rate": 0.04,
+    "dividend": 0.01,
+    "volatility": 0.3
+  },
+  "spots": [
+    80,
+    100,
+    120
+  ],
+  "maturities": [
+    30,
+    365,
+    730
+  ],
+  "payout": 10,
+  "profiles": [
+    {
+      "engine": "AnalyticDigitalEngine",
+      "settings": {},
+      "shifts": {
+        "spot_shift": 0.01,
+        "volatility_shift": 0.0001,
+        "rate_shift": 0.0001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 1e-08,
+        "delta": 1e-09,
+        "gamma": 1e-09,
+        "speed": 1e-06,
+        "theta": 0.0001,
+        "charm": 1e-06,
+        "color": 1e-07,
+        "vega": 1e-05,
+        "vanna": 1e-06,
+        "zomma": 1e-06,
+        "rho": 1e-05
+      },
+      "numerical_tolerances": {
+        "price": 1e-08,
+        "delta": 1e-05,
+        "gamma": 1e-06,
+        "speed": 1e-06,
+        "theta": 0.0001,
+        "charm": 1e-06,
+        "color": 1e-07,
+        "vega": 1e-05,
+        "vanna": 1e-06,
+        "zomma": 1e-06,
+        "rho": 1e-05
+      },
+      "boundary_settings": {}
+    },
+    {
+      "engine": "IntegralDigitalEngine",
+      "settings": {},
+      "shifts": {
+        "spot_shift": 0.01,
+        "volatility_shift": 0.0001,
+        "rate_shift": 0.0001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 1e-08,
+        "delta": 1e-09,
+        "gamma": 1e-09,
+        "speed": 1e-06,
+        "theta": 0.0001,
+        "charm": 1e-06,
+        "color": 1e-07,
+        "vega": 1e-05,
+        "vanna": 1e-06,
+        "zomma": 1e-06,
+        "rho": 1e-05
+      },
+      "numerical_tolerances": {
+        "price": 1e-08,
+        "delta": 1e-05,
+        "gamma": 1e-06,
+        "speed": 1e-06,
+        "theta": 0.0001,
+        "charm": 1e-06,
+        "color": 1e-07,
+        "vega": 1e-05,
+        "vanna": 1e-06,
+        "zomma": 1e-06,
+        "rho": 1e-05
+      },
+      "boundary_settings": {}
+    },
+    {
+      "engine": "FiniteDifferenceDigitalEngine",
+      "settings": {
+        "asset_steps": 1602,
+        "time_steps": 1600,
+        "scheme": "crank_nicolson",
+        "upper_boundary": 400
+      },
+      "shifts": {
+        "spot_shift": 2,
+        "volatility_shift": 0.002,
+        "rate_shift": 0.001,
+        "time_shift_days": 1
+      },
+      "tolerances": {
+        "price": 0.03,
+        "delta": 0.003,
+        "gamma": 0.003,
+        "speed": 0.0003,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 3e-05,
+        "vega": 0.01,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.02
+      },
+      "numerical_tolerances": {
+        "price": 0.03,
+        "delta": 0.003,
+        "gamma": 0.003,
+        "speed": 0.0003,
+        "theta": 0.001,
+        "charm": 0.0001,
+        "color": 3e-05,
+        "vega": 0.01,
+        "vanna": 0.002,
+        "zomma": 0.0005,
+        "rho": 0.02
+      },
+      "boundary_settings": {
+        "asset_steps": 9602
+      }
+    }
+  ]
+}

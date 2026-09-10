@@ -11,7 +11,7 @@ uv downloads managed CPython **3.13.12** and installs **QuantLib-Python 1.18**
 and its **QuantLib 1.41** binding distribution from the committed `uv.lock`.
 The project requires that uv version and managed Python; no system Python is
 needed. The runtime checks both distribution versions and executes the required
-European and American bindings for every scenario. Run from a fresh checkout to verify initial
+European, American, and digital bindings for every scenario. Run from a fresh checkout to verify initial
 environment creation. Subsequent runs use the same frozen environment.
 
 `scenarios.json` declares inputs and Kiyosi per-measure absolute tolerances, never
@@ -25,7 +25,7 @@ IDs, invalid dates/markets/tolerances, and malformed outputs.
 The TSV retains its ten columns. Generated IDs start with `ql-` and carry
 `owner=QuantLib`; both markers must agree. Unmatched existing rows stay in their original
 order with their original values and provenance. Five matching numerical European
-and four American rows retain their IDs and comparison settings but now use
+four American, and four digital rows retain their IDs and comparison settings but now use
 QuantLib prices and provenance. Generated rows follow in case-ID
 order, with sorted attributes, 17-significant-digit numbers, UTF-8 without BOM,
 LF newlines, fixed dates, and no timestamps or random numbers. A second run is
@@ -122,8 +122,8 @@ a proposed step cannot remove at least 10% of the bracket.
 | European analytic vanilla price and all ten Greeks | 18 smooth independent QuantLib cases plus two one-day boundary cases |
 | Original `european-analytic` and `european-analytic-put` | Retained unchanged, including their original Greek and implied-volatility checks; retained alongside independent Greek comparisons |
 | European numerical engines | 90 independent analytic targets across five engines; five original prices and three convergence targets migrated |
-| American vanilla | Original references retained; independent converged references pending |
-| European cash/asset digitals | Original references retained; analytic migration pending |
+| American vanilla | Independent refined FD references; see the American section |
+| European cash/asset digitals | Independent analytic prices and Greeks across analytic, integral, and FD engines; four original pricing rows migrated |
 | Continuous barriers and binary barriers | Original references retained; migration must match rebate/hit/expiry settlement exactly |
 | Scheduled barriers | Retained: repeating Kiyosi's BGK adjustment would not independently price discrete monitoring |
 | Continuous geometric/arithmetic Asians | Original references retained; migration pending; seasoned geometric and deferred arithmetic variants need separate capability verification; Levy is approximate |
@@ -348,3 +348,118 @@ Run the same frozen regeneration and `check_generation.py` commands above.
 They validate byte identity, retained rows, corrupted-reference rejection and
 atomic replacement for both families. CMake and the ordinary C++ tests only
 read committed TSV data and never invoke Python or QuantLib.
+
+
+## European digital references (issue 05)
+
+`digital.json` declares the common market, spots 80/100/120, maturities
+30/365/730 days, cash payout 10, and all Kiyosi engine profiles. `digital.py`
+crosses both payoff kinds and call/put directions with that matrix, adding
+one-day ATM contracts for each kind/direction: 40 contracts, 120 generated
+rows. Every row is reconstructed and priced in C++; unknown instruments,
+engines, payoff kinds, variants, and measures fail the comparison.
+
+The frozen QuantLib-Python 1.18 / QuantLib 1.41 bindings support
+`CashOrNothingPayoff(direction, strike, cashPayoff)` and
+`AssetOrNothingPayoff(direction, strike)` in `VanillaOption` with
+`EuropeanExercise` and `AnalyticEuropeanEngine`. Spot, strike, payout,
+continuous rate/dividend yield, volatility, Actual/365 Fixed dates, and
+expiry settlement match Kiyosi. Cash pays the specified amount; asset pays
+the terminal underlying. Both use strictly positive signed intrinsic value
+and pay zero exactly at strike. There are no date rolls or interim events.
+
+QuantLib supplies price/delta/gamma/theta/vega/rho natively for both payoffs.
+The existing price fallback and higher-Greek finite differences are retained
+and checked at both bump sizes. Reference units and spot/volatility/rate/time
+bumps are those in the common table above. Every row records its own measured
+uncertainty. Digital reference stability ceilings are calibrated from
+QuantLib alone, before Kiyosi comparisons:
+
+| Measure | Reference stability ceiling |
+| --- | --- |
+| price | 1e-10 |
+| delta / speed / vega / rho | 1e-5 |
+| gamma / vanna / zomma | 1e-6 |
+| theta | 3e-4 |
+| charm | 2e-4 |
+| color | 1e-5 |
+
+Asset digitals have greater curvature than vanilla options: maximum whole-day
+bump discrepancies were 2.732e-4 theta, 1.617e-4 charm, and 7.623e-6 color.
+The largest speed discrepancy was 6.257e-6 on the one-day asset call. These
+are empirical reference uncertainties, not Kiyosi error allowances or rigorous
+bounds. Unexpected non-finite or above-ceiling sensitivities abort before
+fixture replacement. The generation check injects bad digital Greeks to verify
+this, checks price-derived higher Greeks, and verifies byte-identical frozen
+regeneration and preservation of unrelated rows.
+
+One-day cases still check price and native delta/gamma, and carry reference
+values for all seven non-time Greeks. Theta/charm/color explicitly declare
+`whole-day stability stencil touches expiry`; the parser enforces that reason.
+No numerical wrapper is run on these cases. All smooth analytic/integral rows
+check all ten wrapper Greeks; FD does so on the one-year ATM call and put of
+each payoff kind. No time stencil reaching expiry is evidence of smoothness.
+For exact expiry, QuantLib's option NPV reports an expired contract, so it is
+not a settlement oracle. `check_generation.py` instead verifies its payoff
+bindings at spot 99/100/101 for both directions and payoff kinds. The C++ test
+`Digital expiry settlement uses strict strikes without smooth Greeks` checks
+those same exact cash flows through all three engines and requires every
+Greek to be absent. In particular, every ATM settlement is zero.
+
+| Kiyosi engine | Settings | Native price / delta / gamma budgets |
+| --- | --- | --- |
+| AnalyticDigitalEngine | fixed formula | 1e-8 / 1e-9 / 1e-9 |
+| IntegralDigitalEngine | Simpson, 2048 panels, normal bounds +/-12, split at strike | 1e-8 / unavailable / unavailable |
+| FiniteDifferenceDigitalEngine | Crank-Nicolson, 1602 asset / 1600 time steps, upper=400; one-day cases use 9602 asset steps | 0.03 / 0.003 / 0.003 |
+
+Analytic budgets allow floating-point evaluation; the integral price budget
+allows smooth-branch Simpson truncation and tail loss. FD budgets allow cell
+averaging, spatial/time discretization, and interpolation. The upper boundary
+stays fixed under spot bumps. The strike lies between grid nodes on the main
+matrix; the migrated convergence sequence additionally exercises aligned and
+unaligned strikes. The one-day asset delta error at 1602 steps was 0.08069;
+resolution is increased for those cases rather than relaxing the 0.003 budget.
+
+| Wrapper measure | Analytic / integral budget | FD budget |
+| --- | --- | --- |
+| price | 1e-8 | 0.03 |
+| delta | 1e-5 | 0.003 |
+| gamma | 1e-6 | 0.003 |
+| speed | 1e-6 | 0.0003 |
+| theta | 0.0001 | 0.001 |
+| charm | 1e-6 | 0.0001 |
+| color | 1e-7 | 0.00003 |
+| vega | 1e-5 | 0.01 |
+| vanna | 1e-6 | 0.002 |
+| zomma | 1e-6 | 0.0005 |
+| rho | 1e-5 | 0.02 |
+
+Analytic/integral wrapper shifts are spot 0.01, volatility/rate 0.0001 and
+one day. Their higher-derivative budgets allow roundoff amplification from
+price differences and truncation relative to native reference derivatives.
+FD uses spot 2, volatility 0.002, rate 0.001 and one day: the spatial stencil
+spans multiple cells instead of differentiating locally linear interpolation;
+its budgets allow the resulting truncation and amplified discretization error.
+Reference uncertainty is added separately in Greek comparisons and never
+absorbed into these Kiyosi budgets.
+
+Discrepancies exposed two production problems. Integral quadrature selected
+the ITM interval but re-tested the strict payoff at the strike endpoint,
+occasionally replacing its one-sided limit with zero due to rounding. This
+lost about 0.078 in asset digital value and produced enormous spurious bumped
+Greeks. The integrand now uses the smooth ITM branch throughout the selected
+interval; exact-expiry strict settlement is unchanged. FD sampled the terminal
+jump at grid nodes and returned Greeks at the lower node rather than at spot.
+Cell-average terminal payoffs remove strike-alignment bias, and interpolation
+of node Greeks evaluates them at spot. The new independent comparisons failed
+before these fixes. All original Kiyosi error budgets were retained.
+
+Migrated rows: `cash-digital-analytic`, `asset-digital-analytic`,
+`digital-integral`, `digital-fd`. All have complete fixture inputs and freshly
+computed QuantLib prices. The FD put's old 4.0 target was stale: the independent
+value is 4.9955171365497844. Its grid sequence 50/100/200 and original final
+0.3 convergence budget remain, now against that target. Constructor validation
+and other families' references/provenance remain unchanged. All requested
+European cash/asset combinations are supported. American/Bermudan digital
+payoffs have no applicable Kiyosi pricing engine and are not claimed as
+validated pricing variants; their constructor/capability checks are retained.
