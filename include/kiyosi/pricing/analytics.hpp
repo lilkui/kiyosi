@@ -165,7 +165,7 @@ template <typename Engine, typename Option>
     if (!d_up || !d_down || !d_up_low || !d_down_low)
         return std::unexpected(Error{error_category::invalid_result, "numerical analytics shift failed"});
     const double vol_scale = 100.0 * settings.volatility_shift;
-    const double vega = (*v_up - *v_down) / vol_scale;
+    const double vega = (*v_up - *v_down) / (2.0 * vol_scale);
     const double vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                          (4.0 * h * vol_scale);
 
@@ -181,7 +181,7 @@ template <typename Engine, typename Option>
         return std::unexpected(Error{error_category::invalid_result, "numerical analytics shift failed"});
     const double gamma_high = (*g_up - 2.0 * *v_up + *g_down) / (h * h);
     const double gamma_low = (*g_up_low - 2.0 * *v_down + *g_down_low) / (h * h);
-    const double zomma = (gamma_high - gamma_low) / vol_scale;
+    const double zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
 
     const auto r_up = detail::shifted_value(engine, option, context, spot, volatility,
                                             rate + settings.rate_shift, today);
@@ -189,7 +189,7 @@ template <typename Engine, typename Option>
                                               rate - settings.rate_shift, today);
     if (!r_up) return std::unexpected(r_up.error());
     if (!r_down) return std::unexpected(r_down.error());
-    const double rho = (*r_up - *r_down) / (100.0 * settings.rate_shift);
+    const double rho = (*r_up - *r_down) / (200.0 * settings.rate_shift);
 
     date before = today - std::chrono::days{settings.time_shift_days};
     date after = today + std::chrono::days{settings.time_shift_days};

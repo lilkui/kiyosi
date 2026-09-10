@@ -14,6 +14,14 @@
 
 namespace {
 
+const std::map<std::string, kiyosi::risk_measure> measures{
+        {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta},
+        {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed},
+        {"theta", kiyosi::risk_measure::theta}, {"charm", kiyosi::risk_measure::charm},
+        {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega},
+        {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma},
+        {"rho", kiyosi::risk_measure::rho}};
+
 std::filesystem::path fixture_path()
 {
     return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "pricing_reference.tsv";
@@ -53,7 +61,7 @@ void check_price(const kiyosi::test::ReferenceCase& fixture, const PriceResult& 
 
 } // namespace
 
-TEST_CASE("QuantLib generated reference rows all compare European prices")
+TEST_CASE("QuantLib generated references validate all Greeks and boundary declarations")
 {
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     std::set<std::string> identifiers;
@@ -68,7 +76,7 @@ TEST_CASE("QuantLib generated reference rows all compare European prices")
         REQUIRE(fixture.instrument == "EuropeanOption");
         REQUIRE(fixture.engine == "AnalyticEuropeanEngine");
         REQUIRE(fixture.case_id.starts_with("ql-european-"));
-        REQUIRE(fixture.outputs.size() == 1);
+
         REQUIRE(fixture.outputs.contains("price"));
         REQUIRE_FALSE(fixture.validation.has_value());
         REQUIRE_FALSE(fixture.convergence.has_value());
@@ -98,10 +106,64 @@ TEST_CASE("QuantLib generated reference rows all compare European prices")
         REQUIRE(spot.has_value());
         const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
         REQUIRE(context.has_value());
-        check_price(fixture, kiyosi::AnalyticEuropeanEngine{}.price(*option, *context));
+        const kiyosi::AnalyticEuropeanEngine engine;
+        const auto native = engine.price(*option, *context);
+        check_price(fixture, native);
+        const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
+        const auto numerical = kiyosi::NumericalAnalyticsEngine{engine}.price(*option, *context);
+        REQUIRE(numerical.has_value());
+        std::size_t available = 0;
+        for (const auto& [name, measure] : measures) {
+            INFO("measure=" << name);
+            const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
+            REQUIRE(inputs.contains("unit_" + name));
+            REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
+            REQUIRE(fixture.outputs.contains(name) != unavailable);
+            if (unavailable) {
+                REQUIRE(inputs.at("unavailable_" + name) == "whole-day stability stencil touches expiry");
+                continue;
+            }
+            ++available;
+            REQUIRE(native->get(measure).has_value());
+            const double expected = fixture.outputs.at(name);
+            CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
+            REQUIRE(number("uncertainty_" + name) >= 0);
+            REQUIRE(numerical->get(measure).has_value());
+            CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+        }
+        REQUIRE(fixture.outputs.size() == available);
+        const auto implied = engine.implied_volatility(*option, *context, fixture.outputs.at("price"));
+        INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
+        REQUIRE(implied.has_value());
+        CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
         ++compared;
     }
     REQUIRE(compared > 0);
+}
+
+TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations")
+{
+    const auto original = fixture_text();
+    const auto start = original.find("ql-european-call-100-1d\t");
+    REQUIRE(start != std::string::npos);
+    const auto end = original.find('\n', start);
+    const auto row = original.substr(start, end - start);
+    for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
+             {"unavailable_theta=whole-day stability stencil touches expiry;", ""},
+             {"unavailable_theta=whole-day stability stencil touches expiry", "unavailable_theta=unknown"},
+             {"unit_vega=price/volatility-pp", "unit_vega=price/volatility"},
+             {"uncertainty_price=0", "uncertainty_price=nan"},
+             {"uncertainty_price=0", "uncertainty_price=10"},
+             {"unit_price=price", "unit_price=price;unavailable_typo=unknown"}}) {
+        auto changed = row;
+        const auto position = changed.find(from);
+        REQUIRE(position != std::string::npos);
+        changed.replace(position, from.size(), to);
+        auto text = original;
+        text.replace(start, row.size(), changed);
+        std::istringstream input{text};
+        CHECK_THROWS_AS(kiyosi::test::parse_reference_cases(input), kiyosi::test::FixtureParseError);
+    }
 }
 
 TEST_CASE("Reference fixture parser reports malformed rows")
@@ -252,13 +314,7 @@ TEST_CASE("Pricing reference manifest closes every concrete engine and contract 
 TEST_CASE("European reference fixtures compare price, every Greek, and implied volatility")
 {
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
-    const std::map<std::string, kiyosi::risk_measure> measures{
-        {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta},
-        {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed},
-        {"theta", kiyosi::risk_measure::theta}, {"charm", kiyosi::risk_measure::charm},
-        {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega},
-        {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma},
-        {"rho", kiyosi::risk_measure::rho}};
+
     for (const auto* id : {"european-analytic", "european-analytic-put"}) {
         const auto fixture = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
         REQUIRE(fixture != cases.end());

@@ -285,6 +285,46 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                 throw FixtureParseError("fixture row " + std::to_string(row) +
                                         ": outputs and tolerances must have matching keys");
         for (const auto& [name, tolerance] : value.tolerances) check_tolerance(tolerance, row, name + " tolerance");
+        if (value.inputs.contains("owner") && value.inputs.at("owner") == "QuantLib") {
+            const auto invalid = [&] {
+                return FixtureParseError("fixture row " + std::to_string(row) + ": invalid Greek declaration");
+            };
+            const std::map<std::string, std::string> units{
+                {"price", "price"}, {"delta", "price/spot"}, {"gamma", "price/spot^2"},
+                {"speed", "price/spot^3"}, {"theta", "price/day"}, {"charm", "delta/day"},
+                {"color", "gamma/day"}, {"vega", "price/volatility-pp"},
+                {"vanna", "delta/volatility-pp"}, {"zomma", "gamma/volatility-pp"}, {"rho", "price/rate-pp"}};
+            std::size_t index = 0;
+            const auto expiry = calendar_date({required_input("expiry")}, index, row, "expiry");
+            index = 0;
+            const auto valuation = calendar_date({required_input("valuation")}, index, row, "valuation");
+            const bool boundary = (expiry - valuation).count() <= 2;
+            std::size_t available = 0;
+            for (const auto& [name, unit] : units) {
+                const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
+                if (required_input("unit_" + name) != unit ||
+                    value.inputs.contains("unavailable_" + name) != unavailable ||
+                    value.outputs.contains(name) == unavailable) throw invalid();
+                if (unavailable) {
+                    if (required_input("unavailable_" + name) != "whole-day stability stencil touches expiry")
+                        throw invalid();
+                    continue;
+                }
+                ++available;
+                const auto read = [&](const std::string& prefix) {
+                    std::size_t position = 0;
+                    const double result = number({required_input(prefix + name)}, position, row, prefix + name);
+                    check_tolerance(result, row, prefix + name);
+                    return result;
+                };
+                if (read("uncertainty_") > read("stability_limit_")) throw invalid();
+                (void)read("numerical_tolerance_");
+            }
+            if (value.outputs.size() != available) throw invalid();
+            for (const auto& [name, reason] : value.inputs) {
+                if (name.starts_with("unavailable_") && !units.contains(name.substr(12))) throw invalid();
+            }
+        }
         if (!fields[7].empty() && fields[7] != "-") {
             const auto parts = split(fields[7], '|');
             if (parts.size() != 2 || parts[0].empty() || parts[1].empty())

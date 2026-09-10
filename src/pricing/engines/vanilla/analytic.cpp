@@ -176,7 +176,11 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
                     next = secant;
             }
         }
-        candidate = next;
+        // Near-zero vega can make secant steps stagnate at a bracket endpoint.
+        // Bisect unless the proposed step removes at least 10% of the bracket.
+        const double margin = 0.1 * (upper_bound - lower_bound);
+        candidate = next > lower_bound + margin && next < upper_bound - margin
+                        ? next : std::midpoint(lower_bound, upper_bound);
     }
 
     return std::unexpected(Error{error_category::solver_non_convergence,

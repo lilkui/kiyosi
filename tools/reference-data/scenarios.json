@@ -4,7 +4,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 80,
@@ -13,7 +13,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -21,7 +44,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 80,
@@ -30,7 +53,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -38,7 +84,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 100,
@@ -47,7 +93,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -55,7 +124,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 100,
@@ -64,7 +133,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -72,7 +164,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 120,
@@ -81,7 +173,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -89,7 +204,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2025-02-05",
       "spot": 120,
@@ -98,7 +213,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -106,7 +244,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 80,
@@ -115,7 +253,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -123,7 +284,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 80,
@@ -132,7 +293,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -140,7 +324,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 100,
@@ -149,7 +333,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -157,7 +364,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 100,
@@ -166,7 +373,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -174,7 +404,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 120,
@@ -183,7 +413,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -191,7 +444,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2026-01-06",
       "spot": 120,
@@ -200,7 +453,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -208,7 +484,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 80,
@@ -217,7 +493,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -225,7 +524,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 80,
@@ -234,7 +533,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -242,7 +564,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 100,
@@ -251,7 +573,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -259,7 +604,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 100,
@@ -268,7 +613,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -276,7 +644,7 @@
     "inputs": {
       "option": "call",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 120,
@@ -285,7 +653,30 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
     }
   },
   {
@@ -293,7 +684,7 @@
     "inputs": {
       "option": "put",
       "strike": 100,
-      "effective": "2025-01-06",
+      "effective": "2024-12-30",
       "valuation": "2025-01-06",
       "expiry": "2027-01-06",
       "spot": 120,
@@ -302,7 +693,110 @@
       "volatility": 0.3
     },
     "tolerances": {
-      "price": 1E-10
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-07,
+      "speed": 1e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 1e-07,
+      "rho": 1e-06
+    }
+  },
+  {
+    "case_id": "ql-european-call-100-1d",
+    "inputs": {
+      "option": "call",
+      "strike": 100,
+      "effective": "2024-12-30",
+      "valuation": "2025-01-06",
+      "expiry": "2025-01-07",
+      "spot": 100,
+      "rate": 0.04,
+      "dividend": 0.01,
+      "volatility": 0.3
+    },
+    "tolerances": {
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-06,
+      "speed": 5e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 2e-07,
+      "rho": 1e-06
+    }
+  },
+  {
+    "case_id": "ql-european-put-100-1d",
+    "inputs": {
+      "option": "put",
+      "strike": 100,
+      "effective": "2024-12-30",
+      "valuation": "2025-01-06",
+      "expiry": "2025-01-07",
+      "spot": 100,
+      "rate": 0.04,
+      "dividend": 0.01,
+      "volatility": 0.3
+    },
+    "tolerances": {
+      "price": 1e-10,
+      "delta": 1e-10,
+      "gamma": 1e-10,
+      "speed": 1e-08,
+      "theta": 1e-10,
+      "charm": 4e-06,
+      "color": 5e-07,
+      "vega": 1e-10,
+      "vanna": 1e-08,
+      "zomma": 1e-09,
+      "rho": 1e-10
+    },
+    "numerical_tolerances": {
+      "price": 1e-10,
+      "delta": 1e-06,
+      "gamma": 1e-06,
+      "speed": 5e-07,
+      "theta": 3e-05,
+      "charm": 1e-07,
+      "color": 1e-08,
+      "vega": 1e-06,
+      "vanna": 1e-07,
+      "zomma": 2e-07,
+      "rho": 1e-06
     }
   }
 ]

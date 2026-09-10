@@ -20,13 +20,15 @@ def check_generation():
         generate.regenerate(fixture, inputs)
         first = fixture.read_bytes()
         generate.regenerate(fixture, inputs)
-        assert fixture.read_bytes() == first, "regeneration must be byte-identical"
+        assert fixture.read_bytes() == first == original, "regeneration must match committed bytes"
         retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
         assert retained(first) == retained(original), "retained provenance and checks changed"
         lines = first.decode().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith("ql-"))
         fields = lines[index].split("\t")
-        fields[5] = "price=123456"
+        outputs = generate.attributes(fields[5])
+        outputs["price"] = 123456.0
+        fields[5] = generate.encode(outputs)
         lines[index] = "\t".join(fields)
         fixture.write_text("\n".join(lines) + "\n")
         generate.regenerate(fixture, inputs)
@@ -68,6 +70,27 @@ def check_generation():
                 else:
                     raise AssertionError("invalid output accepted")
             assert fixture.read_bytes() == first, "invalid output replaced fixture"
+        real_measure = generate.measure
+        for bad in (float("nan"), float("inf"), 1000.0):
+            def corrupted(market, name, scale=1, price_only=False):
+                if name == "vega" and scale == 2:
+                    return bad
+                return real_measure(market, name, scale, price_only)
+            with patch.object(generate, "measure", side_effect=corrupted):
+                try:
+                    generate.regenerate(fixture, inputs)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("unstable or non-finite Greek accepted")
+            assert fixture.read_bytes() == first, "bad Greek replaced fixture"
+
+    # Exercise price-derived higher Greeks on the smooth matrix, independent of Kiyosi.
+    for case in scenarios[:18]:
+        for name in ("speed", "charm", "color", "vanna", "zomma"):
+            direct = generate.measure(case["inputs"], name)
+            fallback = generate.measure(case["inputs"], name, price_only=True)
+            assert abs(direct - fallback) < 1e-7, (case["case_id"], name, direct, fallback)
     print("Generation checks passed")
 
 
