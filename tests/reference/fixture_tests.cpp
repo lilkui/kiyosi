@@ -83,6 +83,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         const bool legacy = inputs.contains("reference_provider") && inputs.at("reference_provider") == "QuantLib";
         if (!owned && !legacy) continue;
         if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption") continue;
+        if (fixture.instrument == "GeometricAverageOption" || fixture.instrument == "ArithmeticAverageOption") continue;
         const bool american = fixture.instrument == "AmericanOption";
         const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
         if (digital && owned) ++digital_rows[fixture.engine];
@@ -433,6 +434,7 @@ TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical
         CHECK_FALSE(value.provenance.source_symbol.empty());
         CHECK_FALSE(value.provenance.convention.empty());
         CHECK((value.provenance.reference_kind == "analytic" ||
+               value.provenance.reference_kind == "approximate" ||
                value.provenance.reference_kind == "discretized" ||
                value.provenance.reference_kind == "statistical"));
         REQUIRE(value.outputs.size() == value.tolerances.size());
@@ -686,6 +688,120 @@ TEST_CASE("Barrier validation fixtures exercise public constructors")
                                              kiyosi::rebate_timing::at_expiry,
                                              kiyosi::observation_mode::scheduled).error().category ==
           category(expected("invalid-binary-schedule")));
+}
+
+TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approximate Greeks")
+{
+    std::size_t generated = 0;
+    std::size_t migrated = 0;
+    std::size_t wrapped = 0;
+    for (const auto& fixture : kiyosi::test::load_reference_cases(fixture_path())) {
+        if (fixture.instrument != "GeometricAverageOption" && fixture.instrument != "ArithmeticAverageOption") continue;
+        const auto& inputs = fixture.inputs;
+        if (!inputs.contains("owner") && !inputs.contains("reference_provider")) continue;
+        INFO("case=" << fixture.case_id);
+        const bool owned = inputs.contains("owner");
+        REQUIRE(inputs.at(owned ? "owner" : "reference_provider") == "QuantLib");
+        REQUIRE(owned == fixture.case_id.starts_with("ql-asian-"));
+        const auto number = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::number({inputs.at(key)}, index, 0, key);
+        };
+        const auto date = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::calendar_date({inputs.at(key)}, index, 0, key);
+        };
+        const bool geometric = fixture.instrument == "GeometricAverageOption";
+        REQUIRE(inputs.at("averaging") == (geometric ? "geometric" : "arithmetic"));
+        REQUIRE(inputs.at("monitoring") == "continuous");
+        REQUIRE(inputs.at("settlement") == "expiry");
+        REQUIRE(inputs.at("date_roll") == "none");
+        REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
+        REQUIRE((inputs.at("calendar") == "null" || inputs.at("calendar") == "sse"));
+        REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
+        const auto type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
+        REQUIRE(date("effective") <= date("valuation"));
+        REQUIRE(date("average_start") <= date("valuation"));
+        REQUIRE(date("valuation") <= date("expiry"));
+        const bool terminal = date("valuation") == date("expiry");
+        REQUIRE(fixture.provenance.source_symbol == (terminal ? "QuantLib.PlainVanillaPayoff" :
+            geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine" : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
+        REQUIRE(fixture.provenance.reference_kind == (!geometric && !terminal ? "approximate" : "analytic"));
+        if (geometric) {
+            REQUIRE(date("average_start") == date("valuation"));
+            REQUIRE(number("realized_average") == 0);
+        }
+        const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
+        const auto spot = kiyosi::make_asset_price(number("spot"));
+        REQUIRE(parameters.has_value());
+        REQUIRE(spot.has_value());
+        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"),
+            inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar());
+        REQUIRE(context.has_value());
+        const auto check = [&](const auto& option, const auto& engine) {
+            REQUIRE(option.has_value());
+            const auto native = engine.price(*option, *context);
+            check_price(fixture, native);
+            for (const auto& [name, measure] : measures)
+                REQUIRE(native->get(measure).has_value() == (name == "price"));
+            if (!owned) { ++migrated; REQUIRE(fixture.outputs.size() == 1); return; }
+            ++generated;
+            const bool smooth = !terminal && (date("valuation") - date("average_start")).count() > 2 &&
+                (date("expiry") - date("valuation")).count() > 2;
+            REQUIRE(inputs.at("wrapper") == (smooth ? "true" : "false"));
+            if (!smooth) { REQUIRE(fixture.outputs.size() == 1); return; }
+            ++wrapped;
+            REQUIRE(fixture.outputs.size() == measures.size());
+            const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, kiyosi::NumericalShiftSettings{
+                number("spot_shift"), number("volatility_shift"), number("rate_shift"),
+                static_cast<int>(number("time_shift_days"))}}.price(*option, *context);
+            REQUIRE(numerical.has_value());
+            for (const auto& [name, measure] : measures) {
+                INFO("measure=" << name);
+                REQUIRE(numerical->get(measure).has_value());
+                CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(fixture.outputs.at(name),
+                    number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+            }
+        };
+        if (geometric) {
+            REQUIRE(fixture.engine == "GeometricAverageAsianEngine");
+            check(kiyosi::make_geometric_average_option(type, number("strike"), date("average_start"),
+                date("effective"), date("expiry"), number("realized_average")), kiyosi::GeometricAverageAsianEngine{});
+        } else {
+            REQUIRE(fixture.engine == "ArithmeticAverageAsianEngine");
+            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("average_start"),
+                date("effective"), date("expiry"), number("realized_average")), kiyosi::ArithmeticAverageAsianEngine{});
+        }
+    }
+    CHECK(generated == 24);
+    CHECK(migrated == 4);
+    CHECK(wrapped == 6);
+}
+
+TEST_CASE("Asian fixtures reject missing boundary declarations and unknown measures")
+{
+    const auto original = fixture_text();
+    for (const auto& identifier : {"ql-asian-geometric-call-100-365d-0elapsed", "ql-asian-arithmetic-call-expiry-100"}) {
+        const auto start = original.find(std::string{identifier} + '\t');
+        REQUIRE(start != std::string::npos);
+        const auto row = original.substr(start, original.find('\n', start) - start);
+        const auto declaration = row.find("unavailable_theta=");
+        REQUIRE(declaration != std::string::npos);
+        auto changed = row;
+        changed.erase(declaration, changed.find(';', declaration) - declaration + 1);
+        auto text = original;
+        text.replace(start, row.size(), changed);
+        std::istringstream missing{text};
+        CHECK_THROWS_AS(kiyosi::test::parse_reference_cases(missing), kiyosi::test::FixtureParseError);
+        changed = row;
+        const auto output = changed.find("\tprice=");
+        REQUIRE(output != std::string::npos);
+        changed.replace(output, 7, "\ttypo=");
+        text = original;
+        text.replace(start, row.size(), changed);
+        std::istringstream unknown{text};
+        CHECK_THROWS_AS(kiyosi::test::parse_reference_cases(unknown), kiyosi::test::FixtureParseError);
+    }
 }
 
 TEST_CASE("Asian engines match pinned terms and market assumptions")

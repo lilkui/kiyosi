@@ -260,10 +260,11 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             required_input("source_revision"), required_input("source_symbol"),
             required_input("convention"), required_input("reference_kind"), 0.0};
         if (value.provenance.reference_kind != "analytic" &&
+            value.provenance.reference_kind != "approximate" &&
             value.provenance.reference_kind != "discretized" &&
             value.provenance.reference_kind != "statistical")
             throw FixtureParseError("fixture row " + std::to_string(row) +
-                                    ": reference_kind must be analytic, discretized, or statistical");
+                                    ": reference_kind must be analytic, approximate, discretized, or statistical");
         const auto tolerance_text = required_input("tolerance");
         try {
             std::size_t parsed = 0;
@@ -304,6 +305,11 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                 (valuation - calendar_date({required_input("effective")}, index, row, "effective")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
             const bool binary_expiry = value.instrument == "BinaryBarrierOption" && expiry == valuation;
+            const bool asian = value.instrument == "GeometricAverageOption" || value.instrument == "ArithmeticAverageOption";
+            const bool asian_expiry = asian && expiry == valuation;
+            index = 0;
+            const bool asian_start = asian &&
+                (valuation - calendar_date({required_input("average_start")}, index, row, "average_start")).count() <= 2;
             index = 0;
             const bool binary_boundary = value.instrument == "BinaryBarrierOption" &&
                 number({required_input("spot")}, index, row, "spot") == [&] {
@@ -312,13 +318,15 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                 }();
             std::size_t available = 0;
             for (const auto& [name, unit] : units) {
-                const bool unavailable = ((binary_boundary || binary_expiry) && name != "price") ||
+                const bool unavailable = ((binary_boundary || binary_expiry || asian_expiry || asian_start) && name != "price") ||
                     (boundary && (name == "theta" || name == "charm" || name == "color"));
                 if (required_input("unit_" + name) != unit ||
                     value.inputs.contains("unavailable_" + name) != unavailable ||
                     value.outputs.contains(name) == unavailable) throw invalid();
                 if (unavailable) {
-                    if (required_input("unavailable_" + name) != (binary_expiry ?
+                    if (required_input("unavailable_" + name) != (asian_expiry ?
+                        "terminal average payoff: no smooth sensitivities" : asian_start ?
+                        "averaging-start boundary: price only, no smooth time stencil" : binary_expiry ?
                         "terminal payoff: no smooth sensitivities" : binary_boundary ?
                         "spot equals barrier: hit-state boundary" : expiry_boundary ?
                         "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"))

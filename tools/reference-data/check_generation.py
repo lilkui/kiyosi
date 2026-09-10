@@ -11,11 +11,13 @@ import american
 import digital
 import barrier
 import binary
+import asian
 
 
 def check_generation():
     barrier.check_bindings()
     binary.check_bindings()
+    asian.check_bindings()
     original = generate.FIXTURE.read_bytes()
     scenarios = json.loads((generate.PROJECT / "scenarios.json").read_text())
     profiles = json.loads((generate.PROJECT / "numerical_engines.json").read_text())
@@ -32,6 +34,15 @@ def check_generation():
         retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
         assert retained(first) == retained(original), "retained provenance and checks changed"
         rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
+        asian_rows = [row for row in rows if row[1] in asian.INSTRUMENTS.values()]
+        assert len(asian_rows) == 24
+        assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in asian_rows) == 6
+        for row in asian_rows:
+            terms = generate.attributes(row[4])
+            assert terms["source_symbol"] == ("QuantLib.PlainVanillaPayoff" if terms["valuation"] == terms["expiry"] else
+                                              asian.SOURCES[terms["averaging"]])
+            assert (terms["reference_kind"] == "approximate") == (
+                terms["averaging"] == "arithmetic" and terms["valuation"] != terms["expiry"])
         binary_rows = [row for row in rows if row[1] == "BinaryBarrierOption"]
         assert len(binary_rows) == 268
         assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in binary_rows) == 140
@@ -74,6 +85,21 @@ def check_generation():
         # Migration is independent of the old target values and preserves other rows.
         for line in retained(first):
             fields = line.decode().split("\t")
+            if len(fields) == 10 and fields[1] in asian.INSTRUMENTS.values() and fields[5] != "-":
+                fields[5] = "price=123456"
+                assert asian.migrate("\t".join(fields)) == line.decode()
+                # Unsupported contracts must retain their exact evidence, even when otherwise migratable.
+                terms = generate.attributes(fields[4])
+                terms["average_start"] = "2025-12-01"
+                fields[4] = generate.encode(terms)
+                unmatched = "\t".join(fields)
+                assert asian.migrate(unmatched) == unmatched
+                if fields[1] == "GeometricAverageOption":
+                    terms["average_start"], terms["realized_average"] = "2024-12-01", "101"
+                    fields[4] = generate.encode(terms)
+                    unmatched = "\t".join(fields)
+                    assert asian.migrate(unmatched) == unmatched
+                continue
             if fields[0] in set(american.LEGACY) | digital.LEGACY or len(fields) == 10 and fields[1] in {"BarrierOption", "BinaryBarrierOption"} and fields[5] != "-" and generate.attributes(fields[4]).get("monitoring") == "continuous":
                 fields[5] = "price=123456"
                 if fields[8] != "-":
@@ -213,6 +239,20 @@ def check_generation():
                 else:
                     raise AssertionError("unstable binary Greek accepted")
             assert fixture.read_bytes() == first, "bad binary Greek replaced fixture"
+
+        for bad in (float("nan"), float("inf"), 1000.0):
+            def corrupted_asian(market, name, scale=1, price_only=False):
+                if "averaging" in market and name == "vega" and scale == 2:
+                    return bad
+                return real_measure(market, name, scale, price_only)
+            with patch.object(generate, "measure", side_effect=corrupted_asian):
+                try:
+                    generate.regenerate(fixture, inputs)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError("unstable Asian Greek accepted")
+            assert fixture.read_bytes() == first, "bad Asian Greek replaced fixture"
 
     # Exercise price-derived higher Greeks on the smooth matrix, independent of Kiyosi.
     for case in scenarios[:18]:

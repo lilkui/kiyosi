@@ -37,6 +37,77 @@ or measures instead of skipping them.
 
 ## Supported contracts and tolerance policy
 
+### Continuous Asian options
+
+`asian.py` generates 24 cases and migrates all four existing matching Asian
+price rows, including the SSE-calendar geometric row. It runtime-checks the
+QuantLib 1.41 continuous geometric analytic and continuous arithmetic Levy
+engines. The call/put matrix uses spots 80/100/120, strike 100, and respectively
+90/365/730 remaining calendar days. Arithmetic cases cover both an averaging
+start at valuation and 90 elapsed days with running average 101. Six arithmetic
+expiry cases cover call/put terminal averages 90/100/110. The running average
+is the time average over the elapsed portion, not an accumulated sum; its
+weight is elapsed days divided by total averaging days.
+
+Every fixture records effective, valuation, start and expiry dates, spot, strike,
+rates, volatility, averaging type, running average, continuous monitoring,
+calendar, no date roll, and expiry settlement. QuantLib uses flat continuous
+BSM curves with Actual/365 Fixed and NullCalendar; Kiyosi uses all-days or the
+explicit SSE calendar. These engines use calendar-day time, so SSE holidays
+do not alter the averaging period or roll expiry. The migrated SSE comparison
+reconstructs that calendar explicitly.
+
+Levy evaluates a lognormal moment approximation to an arithmetic average.
+`reference_kind=approximate` and `reference_classification` distinguish it from
+an exact contract value. Its price and finite-difference Greeks are sensitivities
+of that approximation. Agreement with Kiyosi establishes agreement of the same
+moment approximation, **not** accuracy against the true arithmetic distribution.
+No convergence claim or bound on that model error is made. Expiry uses QuantLib's
+plain vanilla payoff on the realized average (instrument NPV would report an
+expired instrument as zero); terminal payoffs are exact rather than Levy values.
+
+Both Kiyosi Asian engines promise only price. Six seasoned arithmetic cases
+exercise all ten Greeks through the existing numerical analytics wrapper.
+Levy supplies no native Greeks in these bindings, verified at runtime, so the
+established central-price fallback supplies the reference. Spot bumps are
+0.02/0.04, rate and volatility bumps 0.0001/0.0002, and time shifts one/two whole
+calendar days; units follow the table below. Time shifts hold the contractual
+dates and running average fixed; they do not simulate new observations.
+Geometric native delta/gamma/vega/rho are independently checked against price
+differences by the binding check. Its native theta rolls the averaging period
+and is not a fixed-start contractual sensitivity.
+
+At averaging start we deliberately keep price-only checks for both engines.
+Although non-time sensitivities exist there, the current wrapper also evaluates
+time shifts, so it is not called across the averaging-start event. Expiry also
+has price-only checks. Each omitted Greek carries an explicit reason, validated
+by the generator and C++ parser; malformed omissions and unknown measures fail.
+The generator independently rejects time stencils touching averaging start.
+
+Absolute budgets: price 1e-9; delta/gamma/speed/vega/vanna/zomma/rho 1e-6;
+theta 1e-4 per day; charm 1e-5 per day; color 2e-6 per day. These cover roundoff
+and finite-stencil truncation between implementations of the same formula,
+not arithmetic model error. Separate reference stability ceilings use the
+shared European limits except gamma/speed/vanna/zomma at 1e-6 to account for
+cancellation in nested price differences. Actual bump discrepancies are stored
+per measure and must fit those predeclared ceilings. No budget was enlarged
+after a failed C++ comparison, and no production defect was exposed.
+
+Verified exclusions: geometric engine calls with an explicit start date
+(past, present, or future) throw `seasoned continuous geometric Asian options
+not yet supported`. The unseasoned constructor averages from valuation and
+cannot encode accumulated geometric history or deferred averaging. Levy accepts
+past/present starts and a running-average quote, but rejects a future start with
+`start date must be earlier than or equal to reference date`. Migration retains
+unmatched rows byte-for-byte; checks exercise synthetic seasoned-geometric and
+deferred variants to prove this rule. None of the four original Asian rows
+requires retention. Unrelated structured-product and constructor-validation
+rows keep their original evidence. The existing Kiyosi geometric engine ignores
+start/history before expiry; these references make no claim to validate that
+unmatched behavior.
+
+### European options
+
 The smooth matrix covers European vanilla calls and puts at spot 80/100/120,
 strike 100, and maturities 30/365/730 calendar days. Volatility is 30%, rate 4%,
 and dividend yield 1%. Two additional ATM call/put cases expire in one day.
