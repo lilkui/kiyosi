@@ -16,12 +16,7 @@ namespace {
 
 std::filesystem::path fixture_path()
 {
-    return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "european_bsm.tsv";
-}
-
-std::filesystem::path cpu_fixture_path()
-{
-    return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "cpu_reference.tsv";
+    return std::filesystem::path{KIYOSI_SOURCE_DIR} / "tests" / "fixtures" / "pricing_reference.tsv";
 }
 
 std::string fixture_text()
@@ -58,59 +53,28 @@ void check_price(const kiyosi::test::ReferenceCase& fixture, const PriceResult& 
 
 } // namespace
 
-TEST_CASE("European reference fixtures compare value, Greeks, and implied volatility")
-{
-    const auto fixtures = kiyosi::test::load_reference_fixtures(fixture_path());
-    REQUIRE(fixtures.size() == 2);
-    const kiyosi::AnalyticEuropeanEngine engine;
-    for (const auto& fixture : fixtures) {
-        const auto option = kiyosi::make_european_option(fixture.option, fixture.strike, fixture.expiry);
-        REQUIRE(option.has_value());
-        const auto parameters = kiyosi::make_bsm_parameters(
-            fixture.risk_free_rate, fixture.dividend_yield, fixture.volatility);
-        REQUIRE(parameters.has_value());
-        const auto context = kiyosi::make_pricing_context(
-            *parameters, *kiyosi::make_asset_price(fixture.spot), fixture.valuation_date);
-        REQUIRE(context.has_value());
-        const auto priced = engine.price(*option, *context);
-        REQUIRE(priced.has_value());
-        const auto implied = engine.implied_volatility(*option, *context, fixture.observed_price);
-        REQUIRE(implied.has_value());
-        kiyosi::test::check_fixture(fixture, *priced, *implied);
-    }
-}
-
 TEST_CASE("Reference fixture parser reports malformed rows")
 {
     auto text = fixture_text();
-    const auto option = text.find("\tcall\t");
-    REQUIRE(option != std::string::npos);
-    text.replace(option + 1, 4, "future");
+    const auto output = text.find("\tprice=13.151137");
+    REQUIRE(output != std::string::npos);
+    text.replace(output + 1, std::string{"price=13.151137"}.size(), "price=oops");
     auto parse = [&] {
         std::istringstream input{text};
-        return kiyosi::test::parse_reference_fixtures(input);
+        return kiyosi::test::parse_reference_cases(input);
     };
-    CHECK_THROWS_WITH(parse(),
-                      Catch::Matchers::ContainsSubstring("fixture row 4"));
+    CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("fixture row 5"));
+    CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("invalid outputs"));
 
     text = fixture_text();
-    const auto number = text.find("\t100\t100\t0.04");
-    REQUIRE(number != std::string::npos);
-    text.replace(number + 9, 4, "oops");
-    CHECK_THROWS_WITH(parse(),
-                      Catch::Matchers::ContainsSubstring("invalid"));
-
-    text = fixture_text();
-    const auto date = text.find("2025-01-06");
-    REQUIRE(date != std::string::npos);
-    text.replace(date + 5, 2, "0x");
-    CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("valuation_date"));
-
-    text = fixture_text();
-    const auto tolerance = text.find("\t0.00001\t");
+    const auto tolerance = text.find("price=0.00001");
     REQUIRE(tolerance != std::string::npos);
-    text.replace(tolerance + 1, 7, "-1");
+    text.replace(tolerance, std::string{"price=0.00001"}.size(), "price=-1");
     CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("non-negative"));
+
+    std::size_t index = 0;
+    CHECK_THROWS_WITH(kiyosi::test::detail::calendar_date({"2025-0x-06"}, index, 0, "valuation"),
+                      Catch::Matchers::ContainsSubstring("valuation"));
 }
 
 TEST_CASE("Reference fixture tolerances are inclusive and mismatch reports are useful")
@@ -118,32 +82,23 @@ TEST_CASE("Reference fixture tolerances are inclusive and mismatch reports are u
     CHECK(kiyosi::test::within_tolerance(2.0, 1.0, 1.0));
     CHECK_FALSE(kiyosi::test::within_tolerance(2.000001, 1.0, 1.0));
 
-    auto fixture = kiyosi::test::load_reference_fixtures(fixture_path()).front();
-    fixture.value += 1.0;
-    const kiyosi::PricingResult actual{{kiyosi::risk_measure::price, fixture.value - 1.0},
-                                       {kiyosi::risk_measure::delta, fixture.delta},
-                                       {kiyosi::risk_measure::gamma, fixture.gamma},
-                                       {kiyosi::risk_measure::speed, fixture.speed},
-                                       {kiyosi::risk_measure::theta, fixture.theta},
-                                       {kiyosi::risk_measure::charm, fixture.charm},
-                                       {kiyosi::risk_measure::color, fixture.color},
-                                       {kiyosi::risk_measure::vega, fixture.vega},
-                                       {kiyosi::risk_measure::vanna, fixture.vanna},
-                                       {kiyosi::risk_measure::zomma, fixture.zomma},
-                                       {kiyosi::risk_measure::rho, fixture.rho}};
-    const auto failures = kiyosi::test::compare_fixture(fixture, actual, fixture.implied_volatility);
-    REQUIRE_FALSE(failures.empty());
+    auto fixture = kiyosi::test::load_reference_cases(fixture_path()).front();
+    const auto actual = fixture.outputs;
+    CHECK(kiyosi::test::compare_fixture(fixture, actual).empty());
+    fixture.outputs.at("price") += 1.0;
+    const auto failures = kiyosi::test::compare_fixture(fixture, actual);
+    REQUIRE(failures.size() == 1);
     const auto message = failures.front().message();
-    CHECK(message.find("case='reviewed-call-1'") != std::string::npos);
-    CHECK(message.find("output='value'") != std::string::npos);
+    CHECK(message.find("case='european-analytic'") != std::string::npos);
+    CHECK(message.find("output='price'") != std::string::npos);
     CHECK(message.find("expected=") != std::string::npos);
     CHECK(message.find("actual=") != std::string::npos);
     CHECK(message.find("tolerance=") != std::string::npos);
 }
 
-TEST_CASE("CPU reference manifest covers instruments, engines, and numerical metadata")
+TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical metadata")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     REQUIRE(cases.size() >= 20);
     std::vector<std::string> names;
     names.reserve(cases.size());
@@ -173,9 +128,9 @@ TEST_CASE("CPU reference manifest covers instruments, engines, and numerical met
     CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.monte_carlo.has_value(); }));
 }
 
-TEST_CASE("CPU reference manifest closes every concrete engine and contract variant")
+TEST_CASE("Pricing reference manifest closes every concrete engine and contract variant")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const std::set<std::string> required_engines{
         "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
         "AnalyticEuropeanEngine", "ArithmeticAverageAsianEngine", "BinomialAmericanEngine",
@@ -243,19 +198,9 @@ TEST_CASE("CPU reference manifest closes every concrete engine and contract vari
     CHECK(has_calendar);
 }
 
-TEST_CASE("Reviewed analytic CPU fixture matches every exposed risk measure")
+TEST_CASE("European reference fixtures compare price, every Greek, and implied volatility")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
-    const auto fixture = std::ranges::find_if(cases, [](const auto& value) {
-        return value.case_id == "european-analytic";
-    });
-    REQUIRE(fixture != cases.end());
-    const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
-    const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 6};
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(100.0), valuation);
-    const auto option = *kiyosi::make_european_call(100.0, expiry);
-    const auto result = *kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const std::map<std::string, kiyosi::risk_measure> measures{
         {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta},
         {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed},
@@ -263,18 +208,51 @@ TEST_CASE("Reviewed analytic CPU fixture matches every exposed risk measure")
         {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega},
         {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma},
         {"rho", kiyosi::risk_measure::rho}};
-    for (const auto& [name, measure] : measures) {
-        INFO("case=" << fixture->case_id << " output=" << name);
-        REQUIRE(fixture->outputs.contains(name));
-        REQUIRE(fixture->tolerances.contains(name));
-        REQUIRE(result.get(measure).has_value());
-        CHECK(std::abs(*result.get(measure) - fixture->outputs.at(name)) <= fixture->tolerances.at(name));
+    for (const auto* id : {"european-analytic", "european-analytic-put"}) {
+        const auto fixture = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
+        REQUIRE(fixture != cases.end());
+        INFO("case=" << fixture->case_id);
+        const auto& inputs = fixture->inputs;
+        const auto number = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::number({inputs.at(key)}, index, 0, key);
+        };
+        const auto date = [&](const std::string& key) {
+            std::size_t index = 0;
+            return kiyosi::test::detail::calendar_date({inputs.at(key)}, index, 0, key);
+        };
+        REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
+        const auto option = kiyosi::make_european_option(
+            inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            number("strike"), date("expiry"));
+        REQUIRE(option.has_value());
+        const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
+        REQUIRE(parameters.has_value());
+        const auto spot = kiyosi::make_asset_price(number("spot"));
+        REQUIRE(spot.has_value());
+        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
+        REQUIRE(context.has_value());
+        const kiyosi::AnalyticEuropeanEngine engine;
+        const auto result = engine.price(*option, *context);
+        REQUIRE(result.has_value());
+        const auto implied = engine.implied_volatility(*option, *context, number("observed_price"));
+        REQUIRE(implied.has_value());
+        std::map<std::string, double> actual{{"implied_volatility", *implied}};
+        for (const auto& [name, measure] : measures) {
+            REQUIRE(result->get(measure).has_value());
+            actual.emplace(name, *result->get(measure));
+        }
+        REQUIRE(fixture->outputs.size() == actual.size());
+        for (const auto& [name, value] : actual) {
+            REQUIRE(fixture->outputs.contains(name));
+        }
+        kiyosi::test::check_fixture(*fixture, actual);
     }
 }
 
-TEST_CASE("Vanilla and digital engines match reviewed CPU fixtures")
+TEST_CASE("Vanilla and digital engines match reviewed pricing fixtures")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto context = standard_context();
     const auto expiry = standard_expiry();
     const auto call = *kiyosi::make_european_call(100.0, context.valuation_date(), expiry);
@@ -302,7 +280,7 @@ TEST_CASE("Vanilla and digital engines match reviewed CPU fixtures")
 
 TEST_CASE("Barrier fixtures reconstruct every pinned public variant")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto valuation = standard_context().valuation_date();
     const auto expiry = standard_expiry();
     const auto context = standard_context();
@@ -389,7 +367,7 @@ TEST_CASE("Barrier fixtures reconstruct every pinned public variant")
 
 TEST_CASE("Barrier validation fixtures exercise public constructors")
 {
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto expiry = standard_expiry();
     const auto expected = [&](std::string_view id) {
         const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
@@ -428,7 +406,7 @@ TEST_CASE("Asian engines match pinned terms and market assumptions")
     const auto expiry = effective + std::chrono::days{180};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto find = [&](std::string_view id) -> const auto& {
         const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == id; });
         REQUIRE(found != cases.end());
@@ -451,7 +429,7 @@ TEST_CASE("Asian engines match pinned terms and market assumptions")
     check_price(find("asian-geometric-sse"), kiyosi::GeometricAverageAsianEngine{}.price(geometric, sse_context));
 }
 
-TEST_CASE("CPU reference public properties cover payoff, in-out, convergence, and seeded paths")
+TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence, and seeded paths")
 {
     const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
     const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 6};
@@ -481,7 +459,7 @@ TEST_CASE("CPU reference public properties cover payoff, in-out, convergence, an
     CHECK(std::abs(*fine.get(kiyosi::risk_measure::price) - call_price) <
           std::abs(*coarse.get(kiyosi::risk_measure::price) - call_price));
 
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto binomial_fixture = std::ranges::find_if(cases, [](const auto& value) {
         return value.case_id == "european-binomial";
     });
@@ -537,7 +515,7 @@ TEST_CASE("Typed structured finite-difference fixtures execute every concrete pr
     const auto ternary = *kiyosi::make_ternary_snowball_option(
         coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto fixture = [&](std::string_view case_id) -> const auto& {
         const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
         REQUIRE(found != cases.end());
@@ -575,7 +553,7 @@ TEST_CASE("Seeded Monte Carlo fixtures execute every concrete Monte Carlo engine
     const auto ternary = *kiyosi::make_ternary_snowball_option(
         coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto cases = kiyosi::test::load_reference_cases(cpu_fixture_path());
+    const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const auto require_repeatable = [&](std::string_view case_id, const auto& instrument, const auto& first_engine) {
         const auto found = std::ranges::find_if(cases, [&](const auto& value) { return value.case_id == case_id; });
         REQUIRE(found != cases.end());
@@ -677,7 +655,7 @@ TEST_CASE("Seeded Monte Carlo fixtures execute every concrete Monte Carlo engine
     CHECK(engines.size() == 10);
 */
 
-TEST_CASE("CPU reference manifest rejects incomplete output tolerances")
+TEST_CASE("Pricing reference manifest rejects incomplete output tolerances")
 {
     std::istringstream input{
         "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
@@ -685,7 +663,7 @@ TEST_CASE("CPU reference manifest rejects incomplete output tolerances")
     CHECK_THROWS_WITH(kiyosi::test::parse_reference_cases(input), Catch::Matchers::ContainsSubstring("matching keys"));
 }
 
-TEST_CASE("CPU reference manifest requires complete reference provenance")
+TEST_CASE("Pricing reference manifest requires complete reference provenance")
 {
     std::istringstream input{
         "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"

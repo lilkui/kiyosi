@@ -23,44 +23,6 @@
 
 namespace kiyosi::test {
 
-struct ReferenceFixture {
-    std::string case_id;
-    option_type option;
-    date valuation_date;
-    date expiry;
-    double spot;
-    double strike;
-    double risk_free_rate;
-    double dividend_yield;
-    double volatility;
-    double observed_price;
-
-    double value;
-    double value_tolerance;
-    double delta;
-    double delta_tolerance;
-    double gamma;
-    double gamma_tolerance;
-    double speed;
-    double speed_tolerance;
-    double theta;
-    double theta_tolerance;
-    double charm;
-    double charm_tolerance;
-    double color;
-    double color_tolerance;
-    double vega;
-    double vega_tolerance;
-    double vanna;
-    double vanna_tolerance;
-    double zomma;
-    double zomma_tolerance;
-    double rho;
-    double rho_tolerance;
-    double implied_volatility;
-    double implied_volatility_tolerance;
-};
-
 using FixtureAttributes = std::map<std::string, std::string>;
 
 struct ValidationExpectation {
@@ -376,98 +338,6 @@ inline std::vector<ReferenceCase> load_reference_cases(const std::filesystem::pa
     return parse_reference_cases(input);
 }
 
-inline std::vector<ReferenceFixture> parse_reference_fixtures(std::istream& input, char delimiter = '\0')
-{
-    constexpr std::array columns{
-        "case_id", "option_type", "valuation_date", "expiry", "spot", "strike",
-        "risk_free_rate", "dividend_yield", "volatility", "observed_price",
-        "value", "value_tolerance", "delta", "delta_tolerance", "gamma", "gamma_tolerance",
-        "speed", "speed_tolerance", "theta", "theta_tolerance", "charm", "charm_tolerance",
-        "color", "color_tolerance", "vega", "vega_tolerance", "vanna", "vanna_tolerance",
-        "zomma", "zomma_tolerance", "rho", "rho_tolerance", "implied_volatility",
-        "implied_volatility_tolerance"};
-
-    std::string line;
-    std::size_t row = 0;
-    std::vector<ReferenceFixture> fixtures;
-    bool header_read = false;
-    while (std::getline(input, line)) {
-        ++row;
-        if (!line.empty() && line.back() == '\r') line.pop_back();
-        if (line.empty() || line.front() == '#') continue;
-        if (!header_read) {
-            if (delimiter == '\0') delimiter = line.find('\t') != std::string::npos ? '\t' : ',';
-            const auto header = detail::split(line, delimiter);
-            if (header.size() != columns.size()) {
-                throw FixtureParseError("fixture header: expected " + std::to_string(columns.size()) +
-                                        " columns, got " + std::to_string(header.size()));
-            }
-            for (std::size_t index = 0; index < columns.size(); ++index) {
-                if (header[index] != columns[index]) {
-                    throw FixtureParseError("fixture header: column " + std::to_string(index + 1) +
-                                            " must be '" + columns[index] + "'");
-                }
-            }
-            header_read = true;
-            continue;
-        }
-
-        const auto fields = detail::split(line, delimiter);
-        if (fields.size() != columns.size()) {
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": expected " +
-                                    std::to_string(columns.size()) + " columns, got " +
-                                    std::to_string(fields.size()));
-        }
-        std::size_t index = 0;
-        ReferenceFixture fixture{};
-        fixture.case_id = detail::field(fields, index++, row, "case_id");
-        const auto option_text = detail::field(fields, index++, row, "option_type");
-        if (option_text == "call") fixture.option = option_type::call;
-        else if (option_text == "put") fixture.option = option_type::put;
-        else throw FixtureParseError("fixture row " + std::to_string(row) + ": option_type must be call or put");
-        fixture.valuation_date = detail::calendar_date(fields, index, row, "valuation_date");
-        fixture.expiry = detail::calendar_date(fields, index, row, "expiry");
-        fixture.spot = detail::number(fields, index, row, "spot");
-        fixture.strike = detail::number(fields, index, row, "strike");
-        fixture.risk_free_rate = detail::number(fields, index, row, "risk_free_rate");
-        fixture.dividend_yield = detail::number(fields, index, row, "dividend_yield");
-        fixture.volatility = detail::number(fields, index, row, "volatility");
-        fixture.observed_price = detail::number(fields, index, row, "observed_price");
-#define KIYOSI_FIXTURE_OUTPUT(name)                                                    \
-    fixture.name = detail::number(fields, index, row, #name);                          \
-    fixture.name##_tolerance = detail::number(fields, index, row, #name "_tolerance"); \
-    detail::check_tolerance(fixture.name##_tolerance, row, #name "_tolerance");
-        KIYOSI_FIXTURE_OUTPUT(value)
-        KIYOSI_FIXTURE_OUTPUT(delta)
-        KIYOSI_FIXTURE_OUTPUT(gamma)
-        KIYOSI_FIXTURE_OUTPUT(speed)
-        KIYOSI_FIXTURE_OUTPUT(theta)
-        KIYOSI_FIXTURE_OUTPUT(charm)
-        KIYOSI_FIXTURE_OUTPUT(color)
-        KIYOSI_FIXTURE_OUTPUT(vega)
-        KIYOSI_FIXTURE_OUTPUT(vanna)
-        KIYOSI_FIXTURE_OUTPUT(zomma)
-        KIYOSI_FIXTURE_OUTPUT(rho)
-#undef KIYOSI_FIXTURE_OUTPUT
-        fixture.implied_volatility = detail::number(fields, index, row, "implied_volatility");
-        fixture.implied_volatility_tolerance =
-            detail::number(fields, index, row, "implied_volatility_tolerance");
-        detail::check_tolerance(fixture.implied_volatility_tolerance, row,
-                                "implied_volatility_tolerance");
-        fixtures.push_back(std::move(fixture));
-    }
-    if (!header_read) throw FixtureParseError("fixture is missing a header");
-    if (fixtures.empty()) throw FixtureParseError("fixture contains no data rows");
-    return fixtures;
-}
-
-inline std::vector<ReferenceFixture> load_reference_fixtures(const std::filesystem::path& path)
-{
-    std::ifstream input(path);
-    if (!input) throw FixtureParseError("cannot open fixture '" + path.string() + "'");
-    return parse_reference_fixtures(input);
-}
-
 struct FixtureFailure {
     std::string case_id;
     std::string output;
@@ -491,45 +361,22 @@ inline bool within_tolerance(double actual, double expected, double tolerance) n
 }
 
 inline std::vector<FixtureFailure> compare_fixture(
-    const ReferenceFixture& fixture, const PricingResult& actual, double implied_volatility)
+    const ReferenceCase& fixture, const std::map<std::string, double>& actual)
 {
-    struct ExpectedOutput {
-        std::string_view name;
-        double expected;
-        double tolerance;
-    };
-    const std::array<ExpectedOutput, 12> expected{{{"value", fixture.value, fixture.value_tolerance},
-                                                   {"delta", fixture.delta, fixture.delta_tolerance},
-                                                   {"gamma", fixture.gamma, fixture.gamma_tolerance},
-                                                   {"speed", fixture.speed, fixture.speed_tolerance},
-                                                   {"theta", fixture.theta, fixture.theta_tolerance},
-                                                   {"charm", fixture.charm, fixture.charm_tolerance},
-                                                   {"color", fixture.color, fixture.color_tolerance},
-                                                   {"vega", fixture.vega, fixture.vega_tolerance},
-                                                   {"vanna", fixture.vanna, fixture.vanna_tolerance},
-                                                   {"zomma", fixture.zomma, fixture.zomma_tolerance},
-                                                   {"rho", fixture.rho, fixture.rho_tolerance},
-                                                   {"implied_volatility", fixture.implied_volatility, fixture.implied_volatility_tolerance}}};
-    const std::array<double, 12> values{{*actual.get(risk_measure::price), *actual.get(risk_measure::delta),
-                                         *actual.get(risk_measure::gamma), *actual.get(risk_measure::speed),
-                                         *actual.get(risk_measure::theta), *actual.get(risk_measure::charm),
-                                         *actual.get(risk_measure::color), *actual.get(risk_measure::vega),
-                                         *actual.get(risk_measure::vanna), *actual.get(risk_measure::zomma),
-                                         *actual.get(risk_measure::rho), implied_volatility}};
     std::vector<FixtureFailure> failures;
-    for (std::size_t index = 0; index < values.size(); ++index) {
-        if (!within_tolerance(values[index], expected[index].expected, expected[index].tolerance)) {
-            failures.push_back(FixtureFailure{fixture.case_id, std::string{expected[index].name},
-                                              expected[index].expected, values[index], expected[index].tolerance});
+    for (const auto& [name, expected] : fixture.outputs) {
+        const auto value = actual.at(name);
+        const auto tolerance = fixture.tolerances.at(name);
+        if (!within_tolerance(value, expected, tolerance)) {
+            failures.push_back(FixtureFailure{fixture.case_id, name, expected, value, tolerance});
         }
     }
     return failures;
 }
 
-inline void check_fixture(const ReferenceFixture& fixture, const PricingResult& actual,
-                          double implied_volatility)
+inline void check_fixture(const ReferenceCase& fixture, const std::map<std::string, double>& actual)
 {
-    for (const auto& failure : compare_fixture(fixture, actual, implied_volatility)) {
+    for (const auto& failure : compare_fixture(fixture, actual)) {
         INFO(failure.message());
         CHECK_THAT(failure.actual, Catch::Matchers::WithinAbs(failure.expected, failure.tolerance));
     }
