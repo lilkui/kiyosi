@@ -192,49 +192,6 @@ TEST_CASE("Analytic prices are monotone and bounded")
     }
 }
 
-TEST_CASE("Analytic binary barriers match generated reference data")
-{
-    struct binary_case { bool asset; kiyosi::barrier_type barrier; kiyosi::rebate_timing timing; std::optional<kiyosi::option_type> type; double level; double payout; double expected; };
-    const std::array<binary_case, 28> cases{
-        binary_case{false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_hit, {}, 90, 10, 7.310536},
-        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_hit, {}, 110, 10, 7.322345},
-        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_hit, {}, 90, 90, 65.794826},
-        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_hit, {}, 110, 110, 80.545795},
-        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, {}, 90, 10, 7.091270},
-        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, {}, 110, 10, 7.097140},
-        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, {}, 90, 0, 65.295307},
-        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, {}, 110, 0, 79.918599},
-        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, {}, 90, 10, 2.516625},
-        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, {}, 110, 10, 2.510755},
-        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, {}, 90, 0, 33.709677},
-        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, {}, 110, 0, 19.086385},
-        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 10, 2.248046},
-        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 10, 4.499068},
-        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 0, 27.035296},
-        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 0, 58.104678},
-        {false, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 10, 4.843224},
-        {false, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 10, 2.598072},
-        {true, kiyosi::barrier_type::down_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 0, 38.260011},
-        {true, kiyosi::barrier_type::up_and_in, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 0, 21.813921},
-        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 10, 2.364332},
-        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 10, 0.113309},
-        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 90, 0, 32.239613},
-        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::call, 110, 0, 1.170232},
-        {false, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 10, 0.152293},
-        {false, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 10, 2.397445},
-        {true, kiyosi::barrier_type::down_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 90, 0, 1.470063},
-        {true, kiyosi::barrier_type::up_and_out, kiyosi::rebate_timing::at_expiry, kiyosi::option_type::put, 110, 0, 17.916153},
-    };
-    for (const auto& item : cases) {
-        const auto option = kiyosi::make_binary_barrier_option(item.type, 100.0, valuation, expiry, item.level,
-                                                                item.barrier, item.payout, item.asset, item.timing);
-        REQUIRE(option.has_value());
-        const auto result = kiyosi::AnalyticBinaryBarrierEngine{}.price(*option, context());
-        REQUIRE(result.has_value());
-        check_close(risk_value(*result, kiyosi::risk_measure::price), item.expected, 5e-7, 0.0);
-    }
-}
-
 TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
 {
     struct expiry_case { bool asset; kiyosi::barrier_type barrier; std::optional<kiyosi::option_type> type; double strike; double level; double expected; };

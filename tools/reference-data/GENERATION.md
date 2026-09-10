@@ -589,3 +589,115 @@ independent discrete-monitoring reference. Binary-barrier, Asian, constructor
 and unrelated pricing references are outside this migration and retained.
 Frozen regeneration and failure-atomicity checks run offline tooling only;
 CMake/CTest use committed TSV values and never invoke Python or QuantLib.
+
+## Binary barriers
+
+`binary.py` migrates all 30 continuous binary-barrier TSV price references and
+adds 268 independently generated rows. The old 28 rounded literals in
+`numerical_validation_tests.cpp` duplicated the migrated contracts and were
+removed; the fixture consumer now reconstructs all their terms. Constructor,
+terminal-settlement and scheduled-monitoring checks remain in place.
+
+### Mapping verified in QuantLib 1.41
+
+| Kiyosi contract | QuantLib representation |
+| --- | --- |
+| Cash/asset call/put, up/down, in/out, expiry payment | `BarrierOption` with zero rebate, cash/asset digital payoff, `AmericanExercise(valuation, expiry, True)`, `AnalyticBinaryBarrierEngine` |
+| No strike condition, expiry payment | Sum of the matching call and put binary contracts at the same positive strike |
+| Cash one-touch, hit payment | Cash digital struck at H, call for up/put for down, `AmericanExercise(valuation, expiry, False)`, `AnalyticDigitalAmericanEngine` |
+| Asset one-touch, hit payment | Same cash digital with cash amount H: a continuous path first hits at S=H |
+| Already-hit knock-in, expiry payment | Matching European digital(s), `AnalyticEuropeanEngine` |
+| Already-hit knock-out | Zero cashflow |
+| Already-hit one-touch | Immediate cashflow of cash payout or H, matching the instrument's hit-settlement convention |
+| Terminal expiry-payment contract | QuantLib cash/asset payoff evaluated at terminal spot, or `SimpleCashFlow` for an unconditional payment, after the inclusive barrier predicate |
+
+Call and put payoffs partition positive terminal spots except at K. With
+strictly positive volatility and time, S(T)=K has probability zero, so their
+sum is exactly the no-strike contract, including under a barrier event. The
+terminal case uses the actual payoff/cashflow instead of this almost-sure
+identity. QuantLib option NPV treats expiry-date contracts as expired, so it
+is not used as a terminal settlement oracle.
+
+Runtime probes establish that both analytic engines reject European exercise
+and exercise windows beginning after valuation. The binary engine also rejects
+immediate payment and supplies no native Greeks. The digital American engine
+accepts cash and asset payoffs with immediate or deferred payment. Its one-touch
+values independently cross-check the call-plus-put expiry portfolio and the
+asset-at-hit cash decomposition, in both directions. Despite its name,
+`AmericanExercise(..., True)` on the binary engine represents a barrier event
+with terminal digital payment, not an optional early-exercise strategy.
+
+Effective, valuation and expiry dates, spot, strike, barrier, rates, volatility,
+payout, payoff kind, strike condition, barrier kind, monitoring and settlement
+are recorded in every migrated/generated row. Curves use Actual/365 Fixed,
+continuously compounded rates and the shifted valuation date. There is no
+unrecorded historical touch state or delayed exercise window.
+
+### Matrix, boundaries and tolerances
+
+The 28 valid contract combinations pair cash/asset, call/put/no-strike,
+up/down, in/out and allowed hit/expiry payments. Each has 90-day, one-year and
+two-year moneyness scenarios, the opposite strike/barrier ordering, barrier
+equality, strictly already-hit spot, and a one-day expiry boundary. The 24
+expiry-payment combinations additionally have three terminal scenarios,
+including strict strike equality and inclusive barrier equality. All 268
+prices are compared, plus every native price in the 30 migrated rows. All ten
+Greeks are compared through `NumericalAnalyticsEngine` on 140 smooth rows.
+
+At barrier equality all Greeks are explicitly unavailable because the spot
+stencil changes hit state. At terminal expiry all Greeks are unavailable.
+One-day rows exclude theta/charm/color because whole-day stability stencils
+touch expiry; the seven other reference Greeks are retained, but are not
+claimed as native or wrapper comparisons. The wrapper computes all time
+Greeks, so it runs only where the entire stencil is valid. The C++ parser
+checks the exact exclusions/reasons and rejects missing or unknown measures;
+the consumer rejects unknown contract discriminators and engines.
+
+References use native delta/gamma/rho for hit-paid American digitals and all
+supplied European Greeks after knock-in. Missing first-order Greeks and gamma
+use price differences; higher orders differentiate native delta/gamma where
+available, with price fallback otherwise. Stability checks always compare
+first-order/gamma references against price-derived estimates. Price stencils
+use spot bumps 0.02/0.04, rate/volatility
+bumps 0.0001/0.0002 and 1/2 whole days. The wrapper uses spot 0.02,
+rate/volatility 0.0001 and one day. Dates other than valuation stay fixed;
+time stencils remain within life and spot stencils remain in the same hit
+state. Vega/rho/vanna/zomma are per percentage point, theta/charm/color per
+calendar day. All values are serialized with 17 significant digits.
+
+The binary references reuse the continuous-barrier stability ceilings and
+analytic comparison budgets in the table above, unchanged. Observed maximum
+bump discrepancies are delta 1.50e-6, gamma 5.03e-7, speed 2.06e-7,
+theta 2.25e-5, charm 3.20e-6, color 6.64e-7, vega 3.78e-7,
+vanna 3.30e-7, zomma 3.18e-8 and rho 1.24e-7. Price uncertainty is zero
+for these deterministic analytic references. The independent bump discrepancy
+is added to the separate per-Greek comparison budget, not to the price budget.
+Initial 0.01 wrapper spot bumps amplified nested gamma/volatility roundoff:
+four asset zomma comparisons missed by approximately 2.3–2.5e-8. A 0.02 bump
+reduces cancellation; all comparisons pass without increasing tolerances.
+Ninety days is the short smooth maturity; the one-day scenario tests the
+expiry boundary without demanding stable whole-day time derivatives there.
+
+### Diagnosed defect and unsupported combinations
+
+An up-and-in asset put with K>H used `a1-a2+a3` where `a1-a2+a4` is required.
+For S=100, K=150, H=130 and one year the old price was 52.6017295715558,
+versus QuantLib 32.9401813202996. QuantLib knock-in plus knock-out matches the
+European asset put to 1.5e-14. The corrected single shared formula term fixes
+the price and all derived Greeks; the opposite-ordering generated fixture is
+the regression. Cash puts and other asset branches already matched.
+
+Scheduled monitoring is unsupported by these analytic QuantLib bindings.
+Existing scheduled binary BGK checks and their expected values are retained
+with their original provenance; no such scheduled binary TSV row existed.
+A migration check also proves a scheduled row is returned unchanged. Repeating
+the BGK shift would not independently validate discrete observation. Knock-out
+hit payment, strike-conditioned hit payment and asset hit payout different
+from H remain invalid constructors. Hit-payment contracts at terminal expiry
+would require an explicit hitting history and are not generated. Existing
+terminal constructor/settlement checks are preserved without claiming such a
+history is represented by a QuantLib engine.
+
+Frozen regeneration checks byte-identical output and rejection of NaN,
+infinite and unstable binary Greeks before fixture replacement. Normal C++
+reference tests and the full CTest suite consume only the committed TSV.

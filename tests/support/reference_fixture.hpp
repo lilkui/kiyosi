@@ -303,14 +303,24 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             const bool exercise_boundary = value.instrument == "AmericanOption" &&
                 (valuation - calendar_date({required_input("effective")}, index, row, "effective")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
+            const bool binary_expiry = value.instrument == "BinaryBarrierOption" && expiry == valuation;
+            index = 0;
+            const bool binary_boundary = value.instrument == "BinaryBarrierOption" &&
+                number({required_input("spot")}, index, row, "spot") == [&] {
+                    std::size_t position = 0;
+                    return number({required_input("barrier")}, position, row, "barrier");
+                }();
             std::size_t available = 0;
             for (const auto& [name, unit] : units) {
-                const bool unavailable = boundary && (name == "theta" || name == "charm" || name == "color");
+                const bool unavailable = ((binary_boundary || binary_expiry) && name != "price") ||
+                    (boundary && (name == "theta" || name == "charm" || name == "color"));
                 if (required_input("unit_" + name) != unit ||
                     value.inputs.contains("unavailable_" + name) != unavailable ||
                     value.outputs.contains(name) == unavailable) throw invalid();
                 if (unavailable) {
-                    if (required_input("unavailable_" + name) != (expiry_boundary ?
+                    if (required_input("unavailable_" + name) != (binary_expiry ?
+                        "terminal payoff: no smooth sensitivities" : binary_boundary ?
+                        "spot equals barrier: hit-state boundary" : expiry_boundary ?
                         "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"))
                         throw invalid();
                     continue;

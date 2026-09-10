@@ -94,7 +94,7 @@ result<PricingResult> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOpti
         if (call) value = down ? (option.strike() > barrier ? factors.a3 : factors.a1 - factors.a2 + factors.a4)
                                : (option.strike() > barrier ? factors.a1 : factors.a2 - factors.a3 + factors.a4);
         else value = down ? (option.strike() > barrier ? factors.a2 - factors.a3 + factors.a4 : factors.a1)
-                          : (option.strike() > barrier ? factors.a1 - factors.a2 + factors.a3 : factors.a3);
+                          : (option.strike() > barrier ? factors.a1 - factors.a2 + factors.a4 : factors.a3);
     } else if (!option.asset_settlement()) {
         if (call) value = down ? (option.strike() > barrier ? factors.b1 - factors.b3 : factors.b2 - factors.b4)
                                : (option.strike() > barrier ? 0.0 : factors.b1 - factors.b2 + factors.b3 - factors.b4);
