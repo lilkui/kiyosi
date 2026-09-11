@@ -9,13 +9,8 @@ namespace kiyosi {
 enum class observation_frequency { daily,
                                    at_expiry };
 enum class barrier_touch_status { none,
-                                  no_touch = none,
                                   up,
-                                  up_touch = up,
-                                  down,
-                                  down_touch = down };
-using ObservationFrequency = observation_frequency;
-using BarrierTouchStatus = barrier_touch_status;
+                                  down };
 
 class AutocallableNote {
 public:

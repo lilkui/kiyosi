@@ -77,7 +77,6 @@ private:
     AsianOptionTerms terms_;
     friend result<ArithmeticAverageOption> make_arithmetic_average_option(option_type, double, date, date, date, double);
 };
-using AsianOption = AsianOptionTerms;
 
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
     option_type type, double strike, date average_start, date effective, date expiry, double realized_average = 0.0)
@@ -110,7 +109,5 @@ using AsianOption = AsianOptionTerms;
         return std::unexpected(Error{error_category::invalid_schedule, "average start precedes effective date"});
     return make_arithmetic_average_option(type, strike, average_start, effective, expiry, realized_average);
 }
-using GeometricAsianOption = GeometricAverageOption;
-using ArithmeticAsianOption = ArithmeticAverageOption;
 
 } // namespace kiyosi

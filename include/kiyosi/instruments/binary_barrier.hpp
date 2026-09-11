@@ -90,16 +90,14 @@ private:
     barrier_type kind, double payout, bool asset = false, rebate_timing timing = rebate_timing::at_expiry,
     observation_mode observation = observation_mode::continuous, std::vector<date> observations = {})
 { return make_binary_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, payout, asset, timing, observation, std::move(observations)); }
-using CashOrNothingBarrierOption = BinaryBarrierOption;
-using AssetOrNothingBarrierOption = BinaryBarrierOption;
 
-[[nodiscard]] inline result<CashOrNothingBarrierOption> make_cash_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_or_nothing_barrier_option(
     option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind, double payout,
     rebate_timing timing = rebate_timing::at_expiry, observation_mode observation = observation_mode::continuous,
     std::vector<date> observations = {})
 { return make_binary_barrier_option(type, strike, effective, expiry, barrier, kind, payout, false, timing, observation, std::move(observations)); }
 
-[[nodiscard]] inline result<CashOrNothingBarrierOption> make_cash_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_or_nothing_barrier_option(
     option_type type, double strike, date expiry, double barrier, barrier_type kind, double payout,
     rebate_timing timing = rebate_timing::at_expiry, observation_mode observation = observation_mode::continuous,
     std::vector<date> observations = {})
@@ -107,13 +105,13 @@ using AssetOrNothingBarrierOption = BinaryBarrierOption;
     return make_binary_barrier_option(type, strike, expiry, barrier, kind, payout, false, timing, observation,
                                       std::move(observations));
 }
-[[nodiscard]] inline result<AssetOrNothingBarrierOption> make_asset_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_or_nothing_barrier_option(
     option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind,
     double payout = 1.0, rebate_timing timing = rebate_timing::at_expiry,
     observation_mode observation = observation_mode::continuous, std::vector<date> observations = {})
 { return make_binary_barrier_option(type, strike, effective, expiry, barrier, kind, payout, true, timing, observation, std::move(observations)); }
 
-[[nodiscard]] inline result<AssetOrNothingBarrierOption> make_asset_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_or_nothing_barrier_option(
     option_type type, double strike, date expiry, double barrier, barrier_type kind,
     double payout = 1.0, rebate_timing timing = rebate_timing::at_expiry,
     observation_mode observation = observation_mode::continuous,
@@ -122,7 +120,7 @@ using AssetOrNothingBarrierOption = BinaryBarrierOption;
     return make_binary_barrier_option(type, strike, expiry, barrier, kind, payout, true, timing, observation,
                                       std::move(observations));
 }
-[[nodiscard]] inline result<AssetOrNothingBarrierOption> make_asset_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_or_nothing_barrier_option(
     option_type type, double strike, date expiry, double barrier, barrier_type kind,
     rebate_timing timing, observation_mode observation = observation_mode::continuous,
     std::vector<date> observations = {})
@@ -130,7 +128,7 @@ using AssetOrNothingBarrierOption = BinaryBarrierOption;
     return make_asset_or_nothing_barrier_option(type, strike, expiry, barrier, kind, 1.0, timing, observation,
                                                 std::move(observations));
 }
-[[nodiscard]] inline result<CashOrNothingBarrierOption> make_cash_or_nothing_barrier_option(
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_or_nothing_barrier_option(
     double strike, date expiry, double barrier, barrier_type kind, double payout,
     rebate_timing timing = rebate_timing::at_expiry, observation_mode observation = observation_mode::continuous,
     std::vector<date> observations = {})
