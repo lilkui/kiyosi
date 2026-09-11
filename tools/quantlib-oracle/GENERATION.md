@@ -3,8 +3,8 @@
 From the repository root, with uv **0.11.2** installed:
 
 ```sh
-uv run --project tools/reference-data --frozen tools/reference-data/generate.py
-uv run --project tools/reference-data --frozen tools/reference-data/check_generation.py
+uv run --project tools/quantlib-oracle --frozen tools/quantlib-oracle/generate.py
+uv run --project tools/quantlib-oracle --frozen tools/quantlib-oracle/check_generation.py
 ```
 
 uv downloads managed CPython **3.13.12** and installs **QuantLib-Python 1.18**
@@ -207,7 +207,6 @@ All unmatched rows retain their original `source_revision` and
 and QuantLib source provenance while keeping their legacy IDs and price-only schema. Their `reference_kind=analytic` alone does **not** imply QuantLib
 ownership. No retained row in this slice is silently promoted to an independent
 reference.
-
 
 ## Numerical European engines
 
@@ -419,7 +418,6 @@ Run the same frozen regeneration and `check_generation.py` commands above.
 They validate byte identity, retained rows, corrupted-reference rejection and
 atomic replacement for both families. CMake and the ordinary C++ tests only
 read committed TSV data and never invoke Python or QuantLib.
-
 
 ## European digital references
 

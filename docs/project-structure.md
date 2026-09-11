@@ -34,7 +34,7 @@ executable. CTest discovers individual Catch2 test cases as before.
   pricing method, matching the production layout.
 - `tests/pricing/`: numerical comparisons across engines and integration
   checks spanning multiple instrument families.
-- `tests/reference/`: fixture-driven pricing and reference-data validation.
+- `tests/reference/`: fixture-driven pricing and reference-fixture validation.
 - `tests/support/`: shared test helpers and reference-fixture parsing.
 - `tests/fixtures/`: pinned TSV reference data.
 

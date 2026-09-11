@@ -1,0 +1,12 @@
+[project]
+name = "kiyosi-quantlib-oracle"
+version = "0.1.0"
+requires-python = ">=3.13,<3.15"
+dependencies = ["QuantLib==1.43"]
+
+[dependency-groups]
+dev = ["ruff"]
+
+[tool.uv]
+package = false
+python-preference = "only-managed"

@@ -1,17 +1,17 @@
 """Runnable checks for regeneration and failure atomicity; standard library only."""
 
-from copy import deepcopy
 import json
-from pathlib import Path
 import tempfile
+from copy import deepcopy
+from pathlib import Path
 from unittest.mock import patch
 
-import generate
 import american
-import digital
+import asian
 import barrier
 import binary
-import asian
+import digital
+import generate
 
 
 def check_generation():
@@ -30,52 +30,97 @@ def check_generation():
         generate.regenerate(fixture, inputs)
         first = fixture.read_bytes()
         generate.regenerate(fixture, inputs)
-        assert fixture.read_bytes() == first == original, "regeneration must match committed bytes"
-        retained = lambda data: [line for line in data.splitlines() if not line.startswith(b"ql-")]
-        assert retained(first) == retained(original), "retained provenance and checks changed"
-        rows = [line.split("\t") for line in first.decode().splitlines() if line.startswith("ql-")]
+        assert fixture.read_bytes() == first == original, (
+            "regeneration must match committed bytes"
+        )
+        retained = lambda data: [
+            line for line in data.splitlines() if not line.startswith(b"ql-")
+        ]
+        assert retained(first) == retained(original), (
+            "retained provenance and checks changed"
+        )
+        rows = [
+            line.split("\t")
+            for line in first.decode().splitlines()
+            if line.startswith("ql-")
+        ]
         asian_rows = [row for row in rows if row[1] in asian.INSTRUMENTS.values()]
         assert len(asian_rows) == 24
-        assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in asian_rows) == 6
+        assert (
+            sum(generate.attributes(row[4])["wrapper"] == "true" for row in asian_rows)
+            == 6
+        )
         for row in asian_rows:
             terms = generate.attributes(row[4])
-            assert terms["source_symbol"] == ("QuantLib.PlainVanillaPayoff" if terms["valuation"] == terms["expiry"] else
-                                              asian.SOURCES[terms["averaging"]])
+            assert terms["source_symbol"] == (
+                "QuantLib.PlainVanillaPayoff"
+                if terms["valuation"] == terms["expiry"]
+                else asian.SOURCES[terms["averaging"]]
+            )
             assert (terms["reference_kind"] == "approximate") == (
-                terms["averaging"] == "arithmetic" and terms["valuation"] != terms["expiry"])
+                terms["averaging"] == "arithmetic"
+                and terms["valuation"] != terms["expiry"]
+            )
         binary_rows = [row for row in rows if row[1] == "BinaryBarrierOption"]
         assert len(binary_rows) == 268
-        assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in binary_rows) == 140
+        assert (
+            sum(generate.attributes(row[4])["wrapper"] == "true" for row in binary_rows)
+            == 140
+        )
         assert sum(len(generate.attributes(row[5])) == 1 for row in binary_rows) == 100
         barrier_rows = [row for row in rows if row[1] == "BarrierOption"]
         assert len(barrier_rows) == 120
         for engine in barrier.ENGINES:
             matching = [row for row in barrier_rows if row[2] == engine]
             assert len(matching) == 60
-            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == (48 if engine == barrier.ENGINES[0] else 12)
+            assert sum(
+                generate.attributes(row[4])["wrapper"] == "true" for row in matching
+            ) == (48 if engine == barrier.ENGINES[0] else 12)
         digital_rows = [row for row in rows if row[1] in digital.INSTRUMENTS.values()]
         assert len(digital_rows) == 120, "digital matrix incomplete"
         for engine in digital.ENGINES:
             matching = [row for row in digital_rows if row[2] == engine]
             assert len(matching) == 40
-            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == (4 if engine == "FiniteDifferenceDigitalEngine" else 36)
+            assert sum(
+                generate.attributes(row[4])["wrapper"] == "true" for row in matching
+            ) == (4 if engine == "FiniteDifferenceDigitalEngine" else 36)
         for profile in profiles:
-            matching = [row for row in rows if row[1] == "EuropeanOption" and row[2] == profile["engine"]]
+            matching = [
+                row
+                for row in rows
+                if row[1] == "EuropeanOption" and row[2] == profile["engine"]
+            ]
             assert len(matching) == 18, "numerical matrix incomplete"
-            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == 2
+            assert (
+                sum(
+                    generate.attributes(row[4])["wrapper"] == "true" for row in matching
+                )
+                == 2
+            )
         american_rows = [row for row in rows if row[1] == "AmericanOption"]
-        american_inputs = {case["case_id"]: case["inputs"] for case in
-                           json.loads((generate.PROJECT / "american.json").read_text())["scenarios"]}
+        american_inputs = {
+            case["case_id"]: case["inputs"]
+            for case in json.loads((generate.PROJECT / "american.json").read_text())[
+                "scenarios"
+            ]
+        }
         assert len(american_rows) == 50, "American matrix incomplete"
         for engine in american.ENGINES:
             matching = [row for row in american_rows if row[2] == engine]
             assert len(matching) == 10
-            assert sum(generate.attributes(row[4])["wrapper"] == "true" for row in matching) == 2
+            assert (
+                sum(
+                    generate.attributes(row[4])["wrapper"] == "true" for row in matching
+                )
+                == 2
+            )
         for row in american_rows:
             attributes = generate.attributes(row[4])
             assert attributes["source_symbol"] == "QuantLib.FdBlackScholesVanillaEngine"
             assert float(attributes["refinement_price"]) <= american.STABILITY["price"]
-            if float(attributes["refinement_price"]) > max(1e-9, float(attributes["coarse_refinement_price"])):
+            if float(attributes["refinement_price"]) > max(
+                1e-9, float(attributes["coarse_refinement_price"])
+            ):
                 # Grid alignment can make tiny discretization errors non-monotonic.
                 # Verify another refinement against the existing uncertainty, without enlarging it.
                 market = american_inputs[row[0].rsplit("-", 1)[0]]
@@ -85,7 +130,11 @@ def check_generation():
         # Migration is independent of the old target values and preserves other rows.
         for line in retained(first):
             fields = line.decode().split("\t")
-            if len(fields) == 10 and fields[1] in asian.INSTRUMENTS.values() and fields[5] != "-":
+            if (
+                len(fields) == 10
+                and fields[1] in asian.INSTRUMENTS.values()
+                and fields[5] != "-"
+            ):
                 fields[5] = "price=123456"
                 assert asian.migrate("\t".join(fields)) == line.decode()
                 # Unsupported contracts must retain their exact evidence, even when otherwise migratable.
@@ -95,18 +144,34 @@ def check_generation():
                 unmatched = "\t".join(fields)
                 assert asian.migrate(unmatched) == unmatched
                 if fields[1] == "GeometricAverageOption":
-                    terms["average_start"], terms["realized_average"] = "2024-12-01", "101"
+                    terms["average_start"], terms["realized_average"] = (
+                        "2024-12-01",
+                        "101",
+                    )
                     fields[4] = generate.encode(terms)
                     unmatched = "\t".join(fields)
                     assert asian.migrate(unmatched) == unmatched
                 continue
-            if fields[0] in set(american.LEGACY) | digital.LEGACY or len(fields) == 10 and fields[1] in {"BarrierOption", "BinaryBarrierOption"} and fields[5] != "-" and generate.attributes(fields[4]).get("monitoring") == "continuous":
+            if (
+                fields[0] in set(american.LEGACY) | digital.LEGACY
+                or len(fields) == 10
+                and fields[1] in {"BarrierOption", "BinaryBarrierOption"}
+                and fields[5] != "-"
+                and generate.attributes(fields[4]).get("monitoring") == "continuous"
+            ):
                 fields[5] = "price=123456"
                 if fields[8] != "-":
                     parts = fields[8].split("|")
                     parts[2] = "123456"
                     fields[8] = "|".join(parts)
-                assert binary.migrate(barrier.migrate(digital.migrate(american.migrate("\t".join(fields))))) == line.decode()
+                assert (
+                    binary.migrate(
+                        barrier.migrate(
+                            digital.migrate(american.migrate("\t".join(fields)))
+                        )
+                    )
+                    == line.decode()
+                )
                 continue
             if fields[0] not in generate.LEGACY_NUMERICAL:
                 assert generate.migrate_numerical(line.decode()) == line.decode()
@@ -138,8 +203,12 @@ def check_generation():
             case = deepcopy(scenarios)
             case[0]["tolerances"]["price"] = value
             invalid.append(case)
-        for field, value in (("option", "unknown"), ("spot", 0), ("rate", float("nan")),
-                             ("expiry", "2025-01-06")):
+        for field, value in (
+            ("option", "unknown"),
+            ("spot", 0),
+            ("rate", float("nan")),
+            ("expiry", "2025-01-06"),
+        ):
             case = deepcopy(scenarios)
             case[0]["inputs"][field] = value
             invalid.append(case)
@@ -155,13 +224,24 @@ def check_generation():
 
         inputs.write_text(json.dumps(scenarios))
         invalid_profiles = []
-        for mutation in ("unknown engine", "unknown setting", "fractional steps", "bad shift", "missing budget"):
+        for mutation in (
+            "unknown engine",
+            "unknown setting",
+            "fractional steps",
+            "bad shift",
+            "missing budget",
+        ):
             changed = deepcopy(profiles)
-            if mutation == "unknown engine": changed[0]["engine"] = "UnknownEngine"
-            elif mutation == "unknown setting": changed[0]["settings"]["typo"] = 1
-            elif mutation == "fractional steps": changed[0]["settings"]["steps"] = 1.5
-            elif mutation == "bad shift": changed[0]["shifts"]["spot_shift"] = float("nan")
-            else: del changed[0]["numerical_tolerances"]["zomma"]
+            if mutation == "unknown engine":
+                changed[0]["engine"] = "UnknownEngine"
+            elif mutation == "unknown setting":
+                changed[0]["settings"]["typo"] = 1
+            elif mutation == "fractional steps":
+                changed[0]["settings"]["steps"] = 1.5
+            elif mutation == "bad shift":
+                changed[0]["shifts"]["spot_shift"] = float("nan")
+            else:
+                del changed[0]["numerical_tolerances"]["zomma"]
             invalid_profiles.append(changed)
         for changed in invalid_profiles:
             engines.write_text(json.dumps(changed))
@@ -184,10 +264,12 @@ def check_generation():
             assert fixture.read_bytes() == first, "invalid output replaced fixture"
         real_measure = generate.measure
         for bad in (float("nan"), float("inf"), 1000.0):
+
             def corrupted(market, name, scale=1, price_only=False):
                 if name == "vega" and scale == 2:
                     return bad
                 return real_measure(market, name, scale, price_only)
+
             with patch.object(generate, "measure", side_effect=corrupted):
                 try:
                     generate.regenerate(fixture, inputs)
@@ -199,10 +281,12 @@ def check_generation():
 
         real_american_measure = american.measure
         for bad in (float("nan"), float("inf"), 1000.0):
+
             def corrupted_american(market, name, grid=american.GRIDS[-1], scale=1):
                 if name == "vega" and scale == 2:
                     return bad
                 return real_american_measure(market, name, grid, scale)
+
             with patch.object(american, "measure", side_effect=corrupted_american):
                 try:
                     generate.regenerate(fixture, inputs)
@@ -213,10 +297,12 @@ def check_generation():
             assert fixture.read_bytes() == first, "bad American Greek replaced fixture"
 
         for bad in (float("nan"), float("inf"), 1000.0):
+
             def corrupted_digital(market, name, scale=1, price_only=False):
                 if "payoff" in market and name == "vega" and scale == 2:
                     return bad
                 return real_measure(market, name, scale, price_only)
+
             with patch.object(generate, "measure", side_effect=corrupted_digital):
                 try:
                     generate.regenerate(fixture, inputs)
@@ -227,10 +313,12 @@ def check_generation():
             assert fixture.read_bytes() == first, "bad digital Greek replaced fixture"
 
         for bad in (float("nan"), float("inf"), 1000.0):
+
             def corrupted_binary(market, name, scale=1, price_only=False):
                 if "asset_settlement" in market and name == "vega" and scale == 2:
                     return bad
                 return real_measure(market, name, scale, price_only)
+
             with patch.object(generate, "measure", side_effect=corrupted_binary):
                 try:
                     generate.regenerate(fixture, inputs)
@@ -241,10 +329,12 @@ def check_generation():
             assert fixture.read_bytes() == first, "bad binary Greek replaced fixture"
 
         for bad in (float("nan"), float("inf"), 1000.0):
+
             def corrupted_asian(market, name, scale=1, price_only=False):
                 if "averaging" in market and name == "vega" and scale == 2:
                     return bad
                 return real_measure(market, name, scale, price_only)
+
             with patch.object(generate, "measure", side_effect=corrupted_asian):
                 try:
                     generate.regenerate(fixture, inputs)
@@ -259,20 +349,37 @@ def check_generation():
         for name in ("speed", "charm", "color", "vanna", "zomma"):
             direct = generate.measure(case["inputs"], name)
             fallback = generate.measure(case["inputs"], name, price_only=True)
-            assert abs(direct - fallback) < 1e-7, (case["case_id"], name, direct, fallback)
+            assert abs(direct - fallback) < 1e-7, (
+                case["case_id"],
+                name,
+                direct,
+                fallback,
+            )
     for identifier, market in digital.scenarios(digital.configuration()):
         if market["expiry"] == "2025-01-07":
             continue
         for name in ("speed", "charm", "color", "vanna", "zomma"):
             direct = generate.measure(market, name)
             fallback = generate.measure(market, name, price_only=True)
-            assert abs(direct - fallback) < digital.STABILITY[name], (identifier, name, direct, fallback)
+            assert abs(direct - fallback) < digital.STABILITY[name], (
+                identifier,
+                name,
+                direct,
+                fallback,
+            )
     # AnalyticEuropeanEngine prices pre-expiry; at expiry QuantLib marks the instrument
     # expired, so verify strict strike settlement directly through its payoff bindings.
-    for direction, cash, asset in ((generate.ql.Option.Call, [0, 0, 10], [0, 0, 101]),
-                                    (generate.ql.Option.Put, [10, 0, 0], [99, 0, 0])):
-        assert [generate.ql.CashOrNothingPayoff(direction, 100, 10)(s) for s in (99, 100, 101)] == cash
-        assert [generate.ql.AssetOrNothingPayoff(direction, 100)(s) for s in (99, 100, 101)] == asset
+    for direction, cash, asset in (
+        (generate.ql.Option.Call, [0, 0, 10], [0, 0, 101]),
+        (generate.ql.Option.Put, [10, 0, 0], [99, 0, 0]),
+    ):
+        assert [
+            generate.ql.CashOrNothingPayoff(direction, 100, 10)(s)
+            for s in (99, 100, 101)
+        ] == cash
+        assert [
+            generate.ql.AssetOrNothingPayoff(direction, 100)(s) for s in (99, 100, 101)
+        ] == asset
     print("Generation checks passed")
 
 
