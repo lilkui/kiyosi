@@ -9,16 +9,16 @@
 
 namespace kiyosi::detail {
 
-inline std::vector<date> trading_dates(const TradingCalendar& calendar, date start, date end, bool include_start = false)
+inline std::vector<date> trading_dates(const TradingCalendar& calendar, timestamp start, date end, bool include_start = false)
 {
     std::vector<date> dates;
-    for (auto value = include_start ? start : start + std::chrono::days{1}; value <= end; value += std::chrono::days{1})
+    for (auto value = include_start && start == start_of_day(date_of(start)) ? date_of(start) : date_of(start) + std::chrono::days{1}; value <= end; value += std::chrono::days{1})
         if (calendar.is_trading_day(value)) dates.push_back(value);
     return dates;
 }
 
 template <typename Option>
-std::vector<std::size_t> observation_schedule(const Option& option, date valuation)
+std::vector<std::size_t> observation_schedule(const Option& option, timestamp valuation)
 {
     std::vector<std::size_t> schedule;
     if constexpr (requires { option.observation_dates(); }) {

@@ -26,10 +26,10 @@ TEST_CASE("Binomial American engine prices expiry and validates steps")
     REQUIRE(priced.has_value());
     CHECK(risk_value(*priced, kiyosi::risk_measure::price) == 10.0);
 
-    const auto invalid = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{0}}.price(option, context);
+    const auto invalid = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{0}}.price(option, context);
     REQUIRE_FALSE(invalid.has_value());
     CHECK(invalid.error().category == kiyosi::error_category::invalid_parameter);
-    const auto too_many = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{1'000'001}}
+    const auto too_many = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{1'000'001}}
                               .price(option, context);
     REQUIRE_FALSE(too_many.has_value());
     CHECK(too_many.error().category == kiyosi::error_category::invalid_parameter);
@@ -43,7 +43,7 @@ TEST_CASE("Binomial American engine does not expose gamma below two steps")
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto option = *kiyosi::make_american_call(100.0, expiry);
 
-    const auto result = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{1}}.price(option, context);
+    const auto result = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{1}}.price(option, context);
     REQUIRE(result.has_value());
     CHECK(result->has(kiyosi::risk_measure::price));
     CHECK(result->has(kiyosi::risk_measure::delta));
@@ -63,7 +63,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const auto european_put_option = *kiyosi::make_european_put(100.0, expiry);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto american_call_option = *kiyosi::make_american_call(100.0, expiry);
-    const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialAmericanSettings{400}};
+    const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialSettings{400}};
 
     const auto american_put = engine.price(put, context);
     const auto european_put = kiyosi::AnalyticEuropeanEngine{}.price(european_put_option, context);
@@ -82,7 +82,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     CHECK(std::isfinite(risk_value(*american_call, kiyosi::risk_measure::delta)));
     CHECK(std::isfinite(risk_value(*american_call, kiyosi::risk_measure::gamma)));
 
-    const auto high_resolution = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{1200}}
+    const auto high_resolution = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{1200}}
                                      .price(american_call_option, at_the_money_context);
     REQUIRE(high_resolution.has_value());
     CHECK_THAT(risk_value(*high_resolution, kiyosi::risk_measure::price),
@@ -97,7 +97,7 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto call = *kiyosi::make_american_call(100.0, expiry);
     const auto put = *kiyosi::make_american_put(100.0, expiry);
-    const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialAmericanSettings{200}};
+    const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialSettings{200}};
 
     const auto call_result = engine.price(call, context);
     const auto put_result = engine.price(put, context);

@@ -11,7 +11,7 @@ template <typename Option>
 result<PricingResult> price_finite_difference_structured(
     const Option& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
-    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (settings.asset_steps < 3 || settings.time_steps <= 0 || settings.asset_steps > 2000 || settings.time_steps > 2000)
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
@@ -52,7 +52,7 @@ result<PricingResult> price_finite_difference_structured(
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up)
             return PricingResult{{risk_measure::price, 0.0}};
-    const double maturity = actual_365(context.valuation_date(), option.expiry());
+    const double maturity = actual_365(context.valuation_time(), option.expiry());
     if (maturity == 0.0) {
         if constexpr (std::is_same_v<Option, Accumulator>) {
             double quantity = option.accumulated_quantity();
@@ -83,17 +83,17 @@ result<PricingResult> price_finite_difference_structured(
     const int asset_steps = settings.asset_steps;
     const double upper = settings.upper_boundary > 0.0 ? settings.upper_boundary : std::max(4.0 * relevant, relevant + 1.0);
     const double spacing = upper / static_cast<double>(asset_steps);
-    const double max_dt = maturity / static_cast<double>(settings.time_steps);
     std::vector<double> anchors{0.0, maturity};
     auto add_anchor = [&](date value) {
-        const double time = actual_365(context.valuation_date(), value);
+        if (value <= context.valuation_time()) return;
+        const double time = actual_365(context.valuation_time(), value);
         if (time > 0.0 && time < maturity) anchors.push_back(time);
     };
-    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_date(), option.expiry(), true);
+    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_time(), option.expiry(), true);
     std::vector<double> trading_times;
     trading_times.reserve(future_trading_dates.size());
     for (const date value : future_trading_dates)
-        trading_times.push_back(actual_365(context.valuation_date(), value));
+        trading_times.push_back(actual_365(context.valuation_time(), value));
     if constexpr (std::is_same_v<Option, Accumulator>) {
         for (const date value : future_trading_dates) add_anchor(value);
     } else {
@@ -102,16 +102,7 @@ result<PricingResult> price_finite_difference_structured(
             if (option.knock_in_frequency() == observation_frequency::daily)
                 for (const date value : future_trading_dates) add_anchor(value);
     }
-    std::sort(anchors.begin(), anchors.end());
-    anchors.erase(std::unique(anchors.begin(), anchors.end()), anchors.end());
-    std::vector<double> grid{0.0};
-    for (std::size_t index = 1; index < anchors.size(); ++index) {
-        const double width = anchors[index] - anchors[index - 1];
-        const int pieces = std::max(1, static_cast<int>(std::ceil(width / max_dt)));
-        for (int piece = 1; piece <= pieces; ++piece)
-            grid.push_back(piece == pieces ? anchors[index] : anchors[index - 1] +
-                           width * static_cast<double>(piece) / static_cast<double>(pieces));
-    }
+    const auto grid = finite_difference_grid(maturity, settings.time_steps, std::move(anchors));
     if (settings.scheme == finite_difference_scheme::explicit_euler) {
         double largest_dt = 0.0;
         for (std::size_t index = 1; index < grid.size(); ++index)
@@ -131,22 +122,23 @@ result<PricingResult> price_finite_difference_structured(
         return values[static_cast<std::size_t>(index)] + weight *
                (values[static_cast<std::size_t>(index + 1)] - values[static_cast<std::size_t>(index)]);
     };
+    FiniteDifferenceStep stepper(size);
     auto advance = [&](const std::vector<double>& old, std::vector<double>& next, double dt) -> bool {
         const double high_slope = (old.back() - old[old.size() - 2]) / spacing;
         const double high_intercept = old.back() - high_slope * upper;
         const double high_boundary = high_slope * upper * std::exp(-dividend * dt) +
                                      high_intercept * std::exp(-rate * dt);
-        return advance_finite_difference(old, next, dt, rate, dividend, sigma, theta,
+        return stepper.advance(old, next, dt, rate, dividend, sigma, theta,
                                          old.front() * std::exp(-rate * dt), high_boundary);
     };
-    const auto observation_events = observation_schedule(option, context.valuation_date());
+    const auto observation_events = observation_schedule(option, context.valuation_time());
     auto event_index = [&](double time) -> std::optional<std::size_t> {
         if constexpr (std::is_same_v<Option, Accumulator>) {
             (void)time;
             return std::nullopt;
         } else {
             const auto found = std::find_if(observation_events.begin(), observation_events.end(), [&](std::size_t index) {
-                return actual_365(context.valuation_date(), option.observation_dates()[index]) == time;
+                return actual_365(context.valuation_time(), option.observation_dates()[index]) == time;
             });
             return found == observation_events.end() ? std::nullopt : std::optional<std::size_t>{*found};
         }
@@ -158,7 +150,7 @@ result<PricingResult> price_finite_difference_structured(
         } else if constexpr (requires { option.knock_in_frequency(); }) {
             return option.knock_in_frequency() == observation_frequency::daily &&
                    std::any_of(future_trading_dates.begin(), future_trading_dates.end(), [&](date value) {
-                                   return actual_365(context.valuation_date(), value) == time;
+                                   return actual_365(context.valuation_time(), value) == time;
                                });
         } else {
             (void)time;

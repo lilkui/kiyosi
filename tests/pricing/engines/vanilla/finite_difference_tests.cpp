@@ -42,7 +42,7 @@ TEST_CASE("Finite-difference engines validate grids and track reference engines"
                WithinAbs(risk_value(analytic, kiyosi::risk_measure::price), 0.05));
     const auto put = *kiyosi::make_american_put(100.0, expiry);
     const auto finite_put = kiyosi::FiniteDifferenceAmericanEngine{settings}.price(put, context);
-    const auto tree_put = kiyosi::BinomialAmericanEngine{kiyosi::BinomialAmericanSettings{400}}.price(put, context);
+    const auto tree_put = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{400}}.price(put, context);
     REQUIRE(finite_put.has_value());
     REQUIRE(tree_put.has_value());
     CHECK_THAT(risk_value(*finite_put, kiyosi::risk_measure::price),

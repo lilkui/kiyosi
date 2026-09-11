@@ -8,7 +8,7 @@
 namespace kiyosi {
 using namespace detail;
 
-result<PricingResult> AnalyticEuropeanEngine::price_impl(
+result<PricingResult> AnalyticEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
     return price_at_volatility(option, context, context.parameters().volatility());
@@ -29,7 +29,7 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "implied-volatility settings must be finite, positive, and ordered"});
     }
-    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid_expiry) {
         return std::unexpected(valid_expiry.error());
     }
@@ -38,7 +38,7 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
                                      "implied volatility is undefined at expiry"});
     }
 
-    const double time = actual_365(context.valuation_date(), option.expiry());
+    const double time = actual_365(context.valuation_time(), option.expiry());
     const double spot_discount = std::exp(-context.parameters().dividend_yield() * time);
     const double strike_discount = std::exp(-context.parameters().risk_free_rate() * time);
     const double discounted_spot = context.asset_price().value() * spot_discount;

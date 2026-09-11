@@ -4,6 +4,7 @@ add_executable(kiyosi_tests
     instruments/vanilla_tests.cpp
     market/calendar_tests.cpp
     market/context_tests.cpp
+    pricing/architecture_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
     pricing/engines/barrier/binary_tests.cpp
     pricing/engines/structured/structured_tests.cpp

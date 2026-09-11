@@ -43,7 +43,7 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
 {
-    const auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
         auto schedule_valid = validate_schedule(option.schedule(), option.effective(),
@@ -56,7 +56,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
         *make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context,
         context.parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
-    const double t = actual_365(context.valuation_date(), option.expiry());
+    const double t = actual_365(context.valuation_time(), option.expiry());
     const double spot = context.asset_price().value();
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
@@ -66,7 +66,11 @@ result<PricingResult> AnalyticBarrierEngine::price(
                        option.barrier_kind() == barrier_type::up_and_out;
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in ||
                           option.barrier_kind() == barrier_type::down_and_in;
-    const bool touched = upper ? spot >= barrier : spot <= barrier;
+    const bool observed_now = option.observation() == observation_mode::continuous ||
+        std::ranges::any_of(option.observation_dates(), [&](date event) {
+            return event == context.valuation_time();
+        });
+    const bool touched = observed_now && (upper ? spot >= barrier : spot <= barrier);
     if (option.observation() == observation_mode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(option.observation_interval()));

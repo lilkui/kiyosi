@@ -21,11 +21,11 @@ double vanilla_digital(const BinaryBarrierOption& option, const PricingContext& 
                                       : option.payout() * std::exp(-rate * time) * normal_cdf(sign * d2);
 }
 
-double terminal_payoff(const BinaryBarrierOption& option, double spot)
+double terminal_payoff(const BinaryBarrierOption& option, double spot, bool observed)
 {
     const bool upper = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
     const bool in_money = !option.type() || (*option.type() == option_type::call ? spot > option.strike() : spot < option.strike());
-    const bool hit = upper ? spot >= option.barrier() : spot <= option.barrier();
+    const bool hit = observed && (upper ? spot >= option.barrier() : spot <= option.barrier());
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
     return knock_in == hit && in_money ? (option.asset_settlement() ? spot : option.payout()) : 0.0;
 }
@@ -33,18 +33,22 @@ double terminal_payoff(const BinaryBarrierOption& option, double spot)
 
 result<PricingResult> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOption& option, const PricingContext& context) const
 {
-    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(Error{error_category::invalid_schedule, schedule.error().message});
     }
-    const double time = actual_365(context.valuation_date(), option.expiry());
+    const double time = actual_365(context.valuation_time(), option.expiry());
     const double spot = context.asset_price().value();
     const bool upper = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
-    const bool touched = upper ? spot >= option.barrier() : spot <= option.barrier();
-    if (time == 0.0) return PricingResult{{risk_measure::price, terminal_payoff(option, spot)}};
+    const bool observed_now = option.observation() == observation_mode::continuous ||
+        std::ranges::any_of(option.observation_dates(), [&](date event) {
+            return event == context.valuation_time();
+        });
+    const bool touched = observed_now && (upper ? spot >= option.barrier() : spot <= option.barrier());
+    if (time == 0.0) return PricingResult{{risk_measure::price, terminal_payoff(option, spot, observed_now)}};
     if (touched) {
         if (!knock_in) return PricingResult{{risk_measure::price, 0.0}};
         if (option.settlement_timing() == rebate_timing::at_hit)

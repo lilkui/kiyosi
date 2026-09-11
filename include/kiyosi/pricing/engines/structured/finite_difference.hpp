@@ -31,12 +31,5 @@ using FiniteDifferencePhoenixEngine = FiniteDifferenceStructuredEngine<PhoenixOp
 using FiniteDifferenceSnowballEngine = FiniteDifferenceStructuredEngine<SnowballOption>;
 using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceStructuredEngine<BinarySnowballOption>;
 using FiniteDifferenceTernarySnowballEngine = FiniteDifferenceStructuredEngine<TernarySnowballOption>;
-using FdAccumulatorEngine = FiniteDifferenceAccumulatorEngine;
-using FdPhoenixEngine = FiniteDifferencePhoenixEngine;
-using FdSnowballEngine = FiniteDifferenceSnowballEngine;
-using FdBinarySnowballEngine = FiniteDifferenceBinarySnowballEngine;
-using FdTernarySnowballEngine = FiniteDifferenceTernarySnowballEngine;
-using FdAutocallableEngine = FiniteDifferenceBinarySnowballEngine;
-using FdKiAutocallableEngine = FiniteDifferenceSnowballEngine;
 
 } // namespace kiyosi

@@ -12,9 +12,9 @@ double payoff(option_type type, double value, double strike)
 }
 result<double> time_to_expiry(const PricingContext& context, date effective, date expiry)
 {
-    auto valid = validate_life(context.valuation_date(), effective, expiry);
+    auto valid = validate_life(context.valuation_time(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
-    return actual_365(context.valuation_date(), expiry);
+    return actual_365(context.valuation_time(), expiry);
 }
 } // namespace
 

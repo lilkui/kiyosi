@@ -18,6 +18,5 @@ public:
 private:
     FiniteDifferenceSettings settings_;
 };
-using FdBarrierEngine = FiniteDifferenceBarrierEngine;
 
 } // namespace kiyosi

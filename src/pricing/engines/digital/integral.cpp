@@ -10,9 +10,9 @@ namespace {
 result<PricingResult> price_digital_integral(option_type type, double strike, double payout, bool asset,
                                              date effective, date expiry, const PricingContext& context)
 {
-    const auto valid = validate_life(context.valuation_date(), effective, expiry);
+    const auto valid = validate_life(context.valuation_time(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
-    const double time = actual_365(context.valuation_date(), expiry);
+    const double time = actual_365(context.valuation_time(), expiry);
     const double spot = context.asset_price().value();
     const double sign = type == option_type::call ? 1.0 : -1.0;
     if (time == 0.0)

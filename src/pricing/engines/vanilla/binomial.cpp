@@ -15,7 +15,7 @@ result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, bool american)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
-    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
     if (settings.steps <= 0 || settings.steps > 1'000'000) {
         return std::unexpected(Error{error_category::invalid_parameter,
@@ -25,7 +25,7 @@ result<PricingResult> price_binomial(
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double time = actual_365(context.valuation_date(), option.expiry());
+    const double time = actual_365(context.valuation_time(), option.expiry());
     if (time == 0.0) {
         auto output = PricingResult{{risk_measure::price, std::max(sign * (spot - strike), 0.0)}};
         return output;
@@ -120,13 +120,13 @@ result<PricingResult> price_binomial(
     return output;
 }
 
-result<PricingResult> BinomialAmericanEngine::price_impl(
+result<PricingResult> BinomialAmericanEngine::price(
     const AmericanOption& option, const PricingContext& context) const
 {
     return price_binomial(option, context, settings_, true);
 }
 
-result<PricingResult> BinomialEuropeanEngine::price_impl(
+result<PricingResult> BinomialEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
     return price_binomial(option, context, settings_, false);

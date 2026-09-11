@@ -80,4 +80,11 @@ using result = std::expected<T, Error>;
         return std::unexpected(Error{error_category::invalid_expiry, "valuation date must be within the instrument life"});
     return {};
 }
+
+[[nodiscard]] inline result<void> validate_life(timestamp valuation_time, date effective, date expiry)
+{
+    auto valid = validate_life(date_of(valuation_time), effective, expiry);
+    if (!valid) return valid;
+    return validate_expiry(valuation_time, expiry);
+}
 } // namespace kiyosi

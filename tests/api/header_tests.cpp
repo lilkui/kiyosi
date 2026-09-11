@@ -67,7 +67,6 @@ static_assert(can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::EuropeanOption
 static_assert(!can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::AmericanOption>);
 static_assert(can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::EuropeanOption>);
-static_assert(can_price<kiyosi::McEuropeanEngine, kiyosi::EuropeanOption>);
 
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceEuropeanEngine,
                                        kiyosi::EuropeanOption,
@@ -77,4 +76,4 @@ static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceAmericanEngine,
                                        kiyosi::FiniteDifferenceSettings>);
 static_assert(!can_price_with_settings<kiyosi::BinomialAmericanEngine,
                                        kiyosi::AmericanOption,
-                                       kiyosi::BinomialAmericanSettings>);
+                                       kiyosi::BinomialSettings>);

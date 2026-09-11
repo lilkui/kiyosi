@@ -16,9 +16,8 @@ constexpr int maximum_step_count = 10'000;
 
 result<double> simulation_time(const PricingContext& context, date effective, date expiry)
 {
-    const auto valid = validate_life(context.valuation_date(), effective, expiry);
+    const auto valid = validate_life(context.valuation_time(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
-    if (context.valuation_date() == expiry) return 0.0;
     const auto time = year_fraction(context.valuation_time(), start_of_day(expiry));
     if (!time || !std::isfinite(*time) || *time < 0.0)
         return std::unexpected(Error{error_category::invalid_expiry, "expiry produces an invalid simulation time"});
@@ -124,7 +123,7 @@ bool fit_quadratic(std::span<const double> regression_spots,
 
 } // namespace
 
-result<PricingResult> MonteCarloEuropeanEngine::price_impl(
+result<PricingResult> MonteCarloEuropeanEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective(), option.expiry());
@@ -143,7 +142,7 @@ result<PricingResult> MonteCarloEuropeanEngine::price_impl(
     return PricingResult{{risk_measure::price, value}};
 }
 
-result<PricingResult> MonteCarloAmericanEngine::price_impl(
+result<PricingResult> MonteCarloAmericanEngine::price(
     const AmericanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective(), option.expiry());

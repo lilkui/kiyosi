@@ -20,10 +20,10 @@ PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt
 result<PricingResult> digital_price(double strike, option_type type, double payout,
                                     bool asset, date effective, date expiry, const PricingContext& context)
 {
-    const auto valid = validate_life(context.valuation_date(), effective, expiry);
+    const auto valid = validate_life(context.valuation_time(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
     const double spot = context.asset_price().value();
-    const double t = actual_365(context.valuation_date(), expiry);
+    const double t = actual_365(context.valuation_time(), expiry);
     const double sign = type == option_type::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;

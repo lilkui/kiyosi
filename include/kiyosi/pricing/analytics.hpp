@@ -97,7 +97,7 @@ result<double> numerical_value(const Engine& engine, const Option& option, const
 }
 
 inline result<PricingContext> shifted_context(const PricingContext& context, double spot, double volatility,
-                                              double rate, date valuation)
+                                              double rate, timestamp valuation)
 {
     auto parameters = make_bsm_parameters(rate, context.parameters().dividend_yield(), volatility);
     if (!parameters) return std::unexpected(parameters.error());
@@ -108,7 +108,7 @@ inline result<PricingContext> shifted_context(const PricingContext& context, dou
 
 template <typename Engine, typename Option>
 result<double> shifted_value(const Engine& engine, const Option& option, const PricingContext& context,
-                             double spot, double volatility, double rate, date valuation)
+                             double spot, double volatility, double rate, timestamp valuation)
 {
     auto shifted = shifted_context(context, spot, volatility, rate, valuation);
     if (!shifted) return std::unexpected(shifted.error());
@@ -129,7 +129,7 @@ template <typename Engine, typename Option>
     const double spot = context.asset_price().value();
     const double volatility = context.parameters().volatility();
     const double rate = context.parameters().risk_free_rate();
-    const date today = context.valuation_date();
+    const timestamp today = context.valuation_time();
     const auto p0 = detail::numerical_value(engine, option, context);
     if (!p0) return std::unexpected(p0.error());
     const auto p_up = detail::shifted_value(engine, option, context, spot + settings.spot_shift,
@@ -191,12 +191,12 @@ template <typename Engine, typename Option>
     if (!r_down) return std::unexpected(r_down.error());
     const double rho = (*r_up - *r_down) / (200.0 * settings.rate_shift);
 
-    date before = today - std::chrono::days{settings.time_shift_days};
-    date after = today + std::chrono::days{settings.time_shift_days};
-    if constexpr (requires { option.effective(); }) before = std::max(before, option.effective());
-    if constexpr (requires { option.expiry(); }) after = std::min(after, option.expiry());
-    const double before_days = static_cast<double>((today - before).count());
-    const double after_days = static_cast<double>((after - today).count());
+    timestamp before = today - std::chrono::days{settings.time_shift_days};
+    timestamp after = today + std::chrono::days{settings.time_shift_days};
+    if constexpr (requires { option.effective(); }) before = std::max(before, start_of_day(option.effective()));
+    if constexpr (requires { option.expiry(); }) after = std::min(after, start_of_day(option.expiry()));
+    const double before_days = std::chrono::duration<double, std::ratio<86400>>{today - before}.count();
+    const double after_days = std::chrono::duration<double, std::ratio<86400>>{after - today}.count();
     if (before_days == 0.0 && after_days == 0.0)
         return std::unexpected(Error{error_category::invalid_result, "time shifts are unavailable at the boundary"});
     const auto t_before = detail::shifted_value(engine, option, context, spot, volatility, rate, before);
@@ -254,7 +254,7 @@ template <typename Engine, typename Option>
     result.values.reserve(spots.size()); result.deltas.reserve(spots.size()); result.gammas.reserve(spots.size());
     for (double spot : spots) {
         auto shifted = detail::shifted_context(context, spot, context.parameters().volatility(),
-                                               context.parameters().risk_free_rate(), context.valuation_date());
+                                               context.parameters().risk_free_rate(), context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         auto analytics = numerical_analytics(engine, option, *shifted, settings);
         if (!analytics) return std::unexpected(analytics.error());
@@ -285,7 +285,7 @@ template <typename Engine, typename Option>
         return std::unexpected(Error{error_category::invalid_parameter, "implied-volatility settings are invalid"});
     const auto evaluate = [&](double volatility) -> result<double> {
         auto shifted = detail::shifted_context(context, context.asset_price().value(), volatility,
-                                               context.parameters().risk_free_rate(), context.valuation_date());
+                                               context.parameters().risk_free_rate(), context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         return detail::numerical_value(engine, option, *shifted);
     };

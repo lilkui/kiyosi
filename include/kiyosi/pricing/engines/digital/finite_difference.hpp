@@ -20,6 +20,5 @@ public:
 private:
     FiniteDifferenceSettings settings_;
 };
-using FdDigitalEngine = FiniteDifferenceDigitalEngine;
 
 } // namespace kiyosi

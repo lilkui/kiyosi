@@ -1,5 +1,6 @@
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include "../../detail/common.hpp"
+#include "../../detail/finite_difference.hpp"
 #include <algorithm>
 #include <cmath>
 #include <ranges>
@@ -13,7 +14,7 @@ template <typename Option>
 result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
                                        FiniteDifferenceSettings settings, bool asset)
 {
-    const auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (settings.asset_steps < 3 || settings.asset_steps > 10'000 ||
         settings.time_steps <= 0 || settings.time_steps > 100'000)
@@ -30,7 +31,7 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference scheme is invalid"});
     }
 
-    const double time = actual_365(context.valuation_date(), option.expiry());
+    const double time = actual_365(context.valuation_time(), option.expiry());
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
@@ -77,44 +78,16 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     std::vector<double> old(static_cast<std::size_t>(asset_steps) + 1);
     std::vector<double> next(old.size());
     for (int index = 0; index <= asset_steps; ++index) old[static_cast<std::size_t>(index)] = terminal(spacing * index);
-    std::vector<double> lower(old.size() - 2), diagonal(lower.size()), upper_diagonal(lower.size()), rhs(lower.size());
-    auto solve = [&]() {
-        for (std::size_t index = 1; index < diagonal.size(); ++index) {
-            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
-            const double factor = lower[index] / diagonal[index - 1];
-            diagonal[index] -= factor * upper_diagonal[index - 1];
-            rhs[index] -= factor * rhs[index - 1];
-        }
-        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0) return false;
-        rhs.back() /= diagonal.back();
-        for (std::size_t index = diagonal.size() - 1; index-- > 0;)
-            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
-        return std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); });
-    };
+    FiniteDifferenceStep stepper(old.size());
+
+    const auto grid = finite_difference_grid(time, time_steps);
     for (int step = 0; step < time_steps; ++step) {
-        const double new_tau = (static_cast<double>(step) + 1.0) * dt;
+        const double new_tau = grid[static_cast<std::size_t>(step + 1)];
         next.front() = boundary(new_tau, false);
         next.back() = boundary(new_tau, true);
-        for (int index = 1; index < asset_steps; ++index) {
-            const double i = static_cast<double>(index);
-            const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
-            const double b = -volatility * volatility * i * i - rate;
-            const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
-            const auto position = static_cast<std::size_t>(index - 1);
-            rhs[position] = old[static_cast<std::size_t>(index)] + (1.0 - theta) * dt *
-                (a * old[static_cast<std::size_t>(index - 1)] + b * old[static_cast<std::size_t>(index)] + c * old[static_cast<std::size_t>(index + 1)]);
-            if (index == 1) rhs[position] += theta * dt * a * next.front();
-            if (index == asset_steps - 1) rhs[position] += theta * dt * c * next.back();
-            lower[position] = -theta * dt * a;
-            diagonal[position] = 1.0 - theta * dt * b;
-            upper_diagonal[position] = -theta * dt * c;
-        }
-        if (theta == 0.0) {
-            for (std::size_t index = 0; index < rhs.size(); ++index) next[index + 1] = rhs[index];
-        } else {
-            if (!solve()) return std::unexpected(Error{error_category::invalid_result, "finite-difference system is numerically unstable"});
-            for (std::size_t index = 0; index < rhs.size(); ++index) next[index + 1] = rhs[index];
-        }
+        if (!stepper.advance(old, next, dt, rate, dividend, volatility, theta, next.front(), next.back()))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "finite-difference system is numerically unstable"});
         old.swap(next);
     }
     const double grid_position = spot / spacing;

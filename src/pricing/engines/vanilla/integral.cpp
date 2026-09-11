@@ -8,9 +8,9 @@ using namespace detail;
 
 result<PricingResult> IntegralEuropeanEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
-    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    const double tau = actual_365(context.valuation_date(), option.expiry());
+    const double tau = actual_365(context.valuation_time(), option.expiry());
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;

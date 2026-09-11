@@ -15,7 +15,7 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
     const double spot = context.asset_price().value();
-    const date valuation = context.valuation_date();
+    const timestamp valuation = context.valuation_time();
     const auto& calendar = context.calendar();
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up) return 0.0;
@@ -25,7 +25,7 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
         double terminal = spot;
         std::normal_distribution<double> normal;
         auto previous = valuation;
-        if (calendar.is_trading_day(valuation)) {
+        if (valuation == start_of_day(date_of(valuation)) && calendar.is_trading_day(date_of(valuation))) {
             if (spot >= option.knock_out())
                 return quantity * (spot - option.strike());
             quantity += spot < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
@@ -50,7 +50,8 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
         double value = spot;
         double coupons = 0.0;
         bool knocked_in = option.touch_status() == barrier_touch_status::down;
-        knocked_in = is_knocked_in(option, value, knocked_in, valuation == option.expiry());
+        if (valuation == start_of_day(date_of(valuation)))
+            knocked_in = is_knocked_in(option, value, knocked_in, valuation == option.expiry());
         std::size_t index = 0;
         if (!schedule.empty() && dates[schedule.front()] == valuation) {
             const auto event = schedule.front();
@@ -98,7 +99,7 @@ result<PricingResult> price_structured(const Option& option, const PricingContex
         auto contract = validate_note(option);
         if (!contract) return std::unexpected(contract.error());
     }
-    auto valid = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if constexpr (requires { option.observation_dates(); }) {
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());

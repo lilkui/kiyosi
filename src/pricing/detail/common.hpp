@@ -26,6 +26,11 @@ inline double actual_365(date start, date end) noexcept
     return *year_fraction(start, end);
 }
 
+inline double actual_365(timestamp start, timestamp end) noexcept
+{
+    return *year_fraction(start, end);
+}
+
 inline double normal_cdf(double value) noexcept
 {
     return 0.5 * std::erfc(-value * inverse_sqrt_two);
@@ -50,7 +55,7 @@ inline result<PricingResult> price_at_volatility(
     const EuropeanOption& option, const PricingContext& context, double volatility,
     risk_measure_output requested_output = risk_measure_output::all)
 {
-    const auto valid_expiry = validate_life(context.valuation_date(), option.effective(), option.expiry());
+    const auto valid_expiry = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid_expiry) {
         return std::unexpected(valid_expiry.error());
     }
@@ -58,7 +63,7 @@ inline result<PricingResult> price_at_volatility(
     const double spot = context.asset_price().value();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double year_fraction = actual_365(context.valuation_date(), option.expiry());
+    const double year_fraction = actual_365(context.valuation_time(), option.expiry());
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
