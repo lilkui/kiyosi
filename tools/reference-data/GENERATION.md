@@ -186,7 +186,7 @@ They also exposed implied-volatility secant stagnation for the 30-day OTM call:
 near-zero vega kept steps near a bracket endpoint. The solver now bisects when
 a proposed step cannot remove at least 10% of the bracket.
 
-## Migration ledger
+## Reference coverage
 
 | Family / variant | Current status |
 | --- | --- |
@@ -195,9 +195,9 @@ a proposed step cannot remove at least 10% of the bracket.
 | European numerical engines | 90 independent analytic targets across five engines; five original prices and three convergence targets migrated |
 | American vanilla | Independent refined FD references; see the American section |
 | European cash/asset digitals | Independent analytic prices and Greeks across analytic, integral, and FD engines; four original pricing rows migrated |
-| Continuous barriers and binary barriers | Original references retained; migration must match rebate/hit/expiry settlement exactly |
+| Continuous barriers and binary barriers | Independent QuantLib prices and Greeks with explicit rebate/hit/expiry settlement mappings |
 | Scheduled barriers | Retained: repeating Kiyosi's BGK adjustment would not independently price discrete monitoring |
-| Continuous geometric/arithmetic Asians | Original references retained; migration pending; seasoned geometric and deferred arithmetic variants need separate capability verification; Levy is approximate |
+| Continuous geometric/arithmetic Asians | 24 independent cases and four migrated prices; Levy is approximate; seasoned geometric and deferred averaging are unsupported by the pinned bindings |
 | Accumulator, Phoenix, binary/standard/ternary snowballs | Retained: no matching built-in QuantLib contract identified |
 | Bermudan | Retained construction/capability checks; Kiyosi has no pricing engine |
 | Constructor validation and other-family convergence/simulation checks | Retained with original provenance; not claimed as QuantLib comparisons |
@@ -206,10 +206,10 @@ All unmatched rows retain their original `source_revision` and
 `source_symbol`. The five migrated numerical rows use `reference_provider=QuantLib`
 and QuantLib source provenance while keeping their legacy IDs and price-only schema. Their `reference_kind=analytic` alone does **not** imply QuantLib
 ownership. No retained row in this slice is silently promoted to an independent
-reference. Other contract families remain assigned to subsequent tickets.
+reference.
 
 
-## Numerical European engines (issue 03)
+## Numerical European engines
 
 `numerical_engines.json` declares five engine profiles, all settings, absolute
 budgets, and wrapper shifts. The 18 smooth scenarios are crossed with each profile
@@ -421,7 +421,7 @@ atomic replacement for both families. CMake and the ordinary C++ tests only
 read committed TSV data and never invoke Python or QuantLib.
 
 
-## European digital references (issue 05)
+## European digital references
 
 `digital.json` declares the common market, spots 80/100/120, maturities
 30/365/730 days, cash payout 10, and all Kiyosi engine profiles. `digital.py`
@@ -535,7 +535,7 @@ European cash/asset combinations are supported. American/Bermudan digital
 payoffs have no applicable Kiyosi pricing engine and are not claimed as
 validated pricing variants; their constructor/capability checks are retained.
 
-## Continuous vanilla barriers (issue 06)
+## Continuous vanilla barriers
 
 `barrier.py` generates 120 rows (60 contracts through each of the analytic and
 finite-difference engines), and migrates all 18 continuous vanilla-barrier
@@ -656,8 +656,8 @@ The consumer executes every legacy convergence sequence and final bound.
 `barrier-scheduled-monitoring` remains byte-for-byte unchanged with its
 DerivaSharp provenance. QuantLib's continuous `BarrierOption` has no schedule
 argument. Applying Kiyosi's BGK shift and then pricing continuously is not an
-independent discrete-monitoring reference. Binary-barrier, Asian, constructor
-and unrelated pricing references are outside this migration and retained.
+independent discrete-monitoring reference. Constructor and unrelated pricing
+references retain their original provenance.
 Frozen regeneration and failure-atomicity checks run offline tooling only;
 CMake/CTest use committed TSV values and never invoke Python or QuantLib.
 
