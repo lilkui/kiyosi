@@ -73,19 +73,7 @@ def option(inputs):
     if valuation == expiry:
         # Instrument NPV is zero on expiry; evaluate its contractual payoff instead.
         return SimpleNamespace(NPV=lambda: payoff(inputs["realized_average"]))
-    curve = lambda rate: ql.YieldTermStructureHandle(
-        ql.FlatForward(valuation, rate, ql.Actual365Fixed())
-    )
-    process = ql.BlackScholesMertonProcess(
-        ql.QuoteHandle(ql.SimpleQuote(inputs["spot"])),
-        curve(inputs["dividend"]),
-        curve(inputs["rate"]),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(
-                valuation, ql.NullCalendar(), inputs["volatility"], ql.Actual365Fixed()
-            )
-        ),
-    )
+    process = g.market_process(inputs)
     if kind == "geometric":
         g.require(
             start == valuation and inputs["realized_average"] == 0,
@@ -180,17 +168,12 @@ def metadata(inputs):
 
 def rows():
     for identifier, inputs in scenarios():
-        fields = g.european_row(
-            {
-                "case_id": identifier,
-                "inputs": inputs,
-                "tolerances": BUDGET,
-                "numerical_tolerances": BUDGET,
-            },
-            STABILITY,
-        ).split("\t")
-        fields[1:3] = [INSTRUMENTS[inputs["averaging"]], ENGINES[inputs["averaging"]]]
-        terms = g.attributes(fields[4])
+        row = g.contract_row(identifier, inputs, BUDGET, STABILITY)
+        row["instrument"], row["engine"] = (
+            INSTRUMENTS[inputs["averaging"]],
+            ENGINES[inputs["averaging"]],
+        )
+        terms = row["inputs"]
         terms.update(
             metadata(inputs),
             spot_shift=0.02,
@@ -199,52 +182,7 @@ def rows():
             time_shift_days=1,
             wrapper=str(not exclusions(inputs)).lower(),
         )
-        fields[4] = g.encode(terms)
-        yield "\t".join(fields)
-
-
-def migrate(line):
-    fields = line.split("\t")
-    if (
-        len(fields) != 10
-        or fields[0].startswith("ql-")
-        or fields[1] not in INSTRUMENTS.values()
-        or fields[5] == "-"
-    ):
-        return line
-    terms = g.attributes(fields[4])
-    kind = next(key for key, value in INSTRUMENTS.items() if value == fields[1])
-    if (
-        terms["average_start"] > terms["valuation"]
-        or kind == "geometric"
-        and (
-            terms["average_start"] != terms["valuation"]
-            or float(terms["realized_average"]) != 0
-        )
-    ):
-        return line
-    g.require(fields[2] == ENGINES[kind], "unknown Asian engine")
-    inputs = {
-        key: float(terms[key])
-        if key
-        in {"spot", "strike", "rate", "dividend", "volatility", "realized_average"}
-        else terms[key]
-        for key in g.INPUTS | {"average_start", "realized_average"}
-    }
-    inputs.update(
-        averaging=kind, monitoring="continuous", calendar=terms.get("calendar", "null")
-    )
-    terms.update(
-        inputs,
-        **metadata(inputs),
-        reference_provider="QuantLib",
-        reference_uncertainty=0,
-    )
-    fields[4], fields[5] = (
-        g.encode(terms),
-        g.encode({"price": g.measure(inputs, "price")}),
-    )
-    return "\t".join(fields)
+        yield g.serialize_row(row)
 
 
 def check_bindings():

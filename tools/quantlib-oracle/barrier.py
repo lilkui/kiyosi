@@ -73,20 +73,8 @@ def price(items):
     valuation = ql.DateParser.parseISO(inputs["valuation"])
     expiry = ql.DateParser.parseISO(inputs["expiry"])
     ql.Settings.instance().evaluationDate = valuation
-    curve = lambda rate: ql.YieldTermStructureHandle(
-        ql.FlatForward(valuation, rate, ql.Actual365Fixed())
-    )
-    rates = curve(inputs["rate"])
-    process = ql.BlackScholesMertonProcess(
-        ql.QuoteHandle(ql.SimpleQuote(inputs["spot"])),
-        curve(inputs["dividend"]),
-        rates,
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(
-                valuation, ql.NullCalendar(), inputs["volatility"], ql.Actual365Fixed()
-            )
-        ),
-    )
+    process = g.market_process(inputs)
+    rates = process.riskFreeRate()
     payoff = ql.PlainVanillaPayoff(
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put,
         inputs["strike"],
@@ -120,7 +108,7 @@ def price(items):
     )
     if hit:
         if knock_in:
-            return g.european_option(inputs).NPV()
+            return g.vanilla_option(inputs).NPV()
         return (
             ql.SimpleCashFlow(inputs["rebate"], valuation).amount()
             if inputs["settlement"] == "at_hit"
@@ -172,7 +160,7 @@ def scenarios():
                     )
 
 
-def metadata(inputs):
+def metadata():
     return {
         "source_revision": f"QuantLib-{ql.__version__}",
         "source_symbol": SOURCE,
@@ -188,19 +176,11 @@ def rows():
     for identifier, inputs in scenarios():
         for engine in ENGINES:
             budget = ANALYTIC if engine == ENGINES[0] else FD
-            fields = g.european_row(
-                {
-                    "case_id": identifier,
-                    "inputs": inputs,
-                    "tolerances": budget,
-                    "numerical_tolerances": budget,
-                },
-                STABILITY,
-            ).split("\t")
-            fields[0] += "-" + engine.lower()
-            fields[1:3] = ["BarrierOption", engine]
-            terms = g.attributes(fields[4])
-            terms.update(metadata(inputs))
+            row = g.contract_row(identifier, inputs, budget, STABILITY)
+            row["case_id"] += "-" + engine.lower()
+            row["instrument"], row["engine"] = "BarrierOption", engine
+            terms = row["inputs"]
+            terms.update(metadata())
             terms["numerical_settings"] = (
                 "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days"
             )
@@ -221,58 +201,7 @@ def rows():
                     upper_boundary=400,
                     scheme="crank_nicolson",
                 )
-            fields[4] = g.encode(terms)
-            yield "\t".join(fields)
-
-
-def migrate(line):
-    fields = line.split("\t")
-    if (
-        len(fields) != 10
-        or fields[0].startswith("ql-")
-        or fields[1] != "BarrierOption"
-        or fields[5] == "-"
-    ):
-        return line
-    terms = g.attributes(fields[4])
-    if terms.get("monitoring") == "scheduled":
-        return line
-    g.require(fields[2] in ENGINES, "unknown barrier engine")
-    inputs = {
-        "option": terms["option"],
-        "strike": float(terms["strike"]),
-        "spot": 100,
-        "rate": 0.04,
-        "dividend": 0.01,
-        "volatility": 0.3,
-        "effective": "2024-12-30",
-        "valuation": "2025-01-06",
-        "expiry": terms["expiry"],
-        "barrier": float(terms["barrier"]),
-        "rebate": float(terms["rebate"]),
-        "barrier_kind": terms.get("barrier_kind", "down_and_in"),
-        "settlement": terms["settlement"],
-        "monitoring": "continuous",
-    }
-    value = g.measure(inputs, "price")
-    terms.update(inputs)
-    terms.update(
-        metadata(inputs), reference_provider="QuantLib", reference_uncertainty=0
-    )
-    if fields[2] == ENGINES[1]:
-        terms.update(
-            asset_steps=1000, time_steps=1000, upper_boundary=0, scheme="crank_nicolson"
-        )
-        if fields[0] == "barrier-fd":
-            terms.update(asset_steps=1600, time_steps=1600, upper_boundary=400)
-    fields[4], fields[5] = g.encode(terms), g.encode(dict(price=value))
-    if fields[8] != "-":
-        parts = fields[8].split("|")
-        if fields[0] == "barrier-fd":
-            parts[1] = "400,800,1600"
-        parts[2] = format(value, ".17g")
-        fields[8] = "|".join(parts)
-    return "\t".join(fields)
+            yield g.serialize_row(row)
 
 
 def check_bindings():

@@ -2,6 +2,7 @@
 
 import json
 import math
+import re
 from datetime import date
 from functools import lru_cache
 from importlib.metadata import version
@@ -34,17 +35,6 @@ ENGINES = {
     },
     "BjerksundStenslandAmericanEngine": set(),
     "MonteCarloAmericanEngine": {"seed", "paths", "steps"},
-}
-LEGACY = {
-    "american-binomial": {"steps": 200},
-    "american-fd": {
-        "asset_steps": 200,
-        "time_steps": 4000,
-        "scheme": "explicit_euler",
-        "upper_boundary": 0,
-    },
-    "american-bs": {},
-    "american-mc": {"seed": 42, "paths": 20000, "steps": 50},
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
@@ -157,7 +147,11 @@ def provenance(inputs):
 
 def rows():
     data = json.loads((g.PROJECT / "american.json").read_text())
-    g.require(set(data) == {"scenarios", "profiles"}, "invalid American configuration")
+    g.require(
+        set(data) == {"scenarios", "profiles", "profile_defaults"},
+        "invalid American configuration",
+    )
+    data["profiles"] = g.expand_profiles(data)
     g.require(
         {p["engine"] for p in data["profiles"]} == set(ENGINES)
         and len(data["profiles"]) == len(ENGINES),
@@ -170,22 +164,14 @@ def rows():
             "invalid American scenario",
         )
         g.require(
-            scenario["case_id"].startswith("ql-american-")
+            re.fullmatch(r"ql-american-[a-z0-9-]+", scenario["case_id"])
             and scenario["case_id"] not in seen,
             "invalid American case identifier",
         )
         seen.add(scenario["case_id"])
         g.require(type(scenario["wrapper"]) is bool, "invalid wrapper selection")
         inputs = scenario["inputs"]
-        # Reuse the common contract/market validation with European identifier syntax.
-        g.validate_scenario(
-            {
-                "case_id": scenario["case_id"].replace("ql-american-", "ql-european-"),
-                "inputs": inputs,
-                "tolerances": STABILITY,
-                "numerical_tolerances": STABILITY,
-            }
-        )
+        g.validate_inputs(inputs)
         outputs, metadata = reference(inputs)
         for profile in data["profiles"]:
             engine = profile["engine"]
@@ -200,38 +186,13 @@ def rows():
                 },
                 "invalid American profile",
             )
+            g.validate_settings(profile["settings"], ENGINES[engine])
             g.require(
-                set(profile["settings"]) == ENGINES[engine], "invalid American settings"
+                profile["settings"].get("scheme", "crank_nicolson") == "crank_nicolson",
+                "invalid American scheme",
             )
-            for key, value in profile["settings"].items():
-                g.require(
-                    value == "crank_nicolson"
-                    if key == "scheme"
-                    else type(value) is int and value > 0,
-                    "invalid American setting",
-                )
-            g.require(
-                set(profile["shifts"])
-                == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"},
-                "invalid American shifts",
-            )
-            g.require(
-                all(
-                    type(v) in (int, float) and math.isfinite(v) and v > 0
-                    for v in profile["shifts"].values()
-                )
-                and type(profile["shifts"]["time_shift_days"]) is int,
-                "invalid American shift",
-            )
-            for field in ("tolerances", "numerical_tolerances"):
-                g.require(
-                    set(profile[field]) == set(g.MEASURES)
-                    and all(
-                        type(v) in (int, float) and math.isfinite(v) and v >= 0
-                        for v in profile[field].values()
-                    ),
-                    "invalid American budgets",
-                )
+            g.validate_shifts(profile["shifts"])
+            g.validate_budgets(profile)
             attributes = provenance(inputs)
             attributes.update(metadata)
             attributes.update(profile["settings"])
@@ -256,58 +217,19 @@ def rows():
                 if engine == "MonteCarloAmericanEngine"
                 else "-"
             )
-            yield "\t".join(
-                [
-                    scenario["case_id"] + "-" + engine.lower(),
-                    "AmericanOption",
-                    engine,
-                    inputs["option"],
-                    g.encode(attributes),
-                    g.encode(outputs),
-                    g.encode({name: profile["tolerances"][name] for name in outputs}),
-                    "-",
-                    "-",
-                    mc,
-                ]
+            yield g.serialize_row(
+                {
+                    "case_id": scenario["case_id"] + "-" + engine.lower(),
+                    "instrument": "AmericanOption",
+                    "engine": engine,
+                    "variant": inputs["option"],
+                    "inputs": attributes,
+                    "outputs": outputs,
+                    "tolerances": {
+                        name: profile["tolerances"][name] for name in outputs
+                    },
+                    "validation": "-",
+                    "convergence": "-",
+                    "monte_carlo": mc,
+                }
             )
-
-
-def migrate(line):
-    fields = line.split("\t")
-    if fields[0] not in LEGACY:
-        return line
-    old = g.attributes(fields[4])
-    inputs = {
-        "option": old["option"],
-        "strike": 100,
-        "spot": 100,
-        "rate": 0.04,
-        "dividend": 0.01,
-        "volatility": 0.3,
-        "effective": "2024-12-30",
-        "valuation": "2025-01-06",
-        "expiry": "2026-01-06",
-    }
-    for key in g.INPUTS & old.keys():
-        inputs[key] = (
-            float(old[key])
-            if key in {"strike", "spot", "rate", "dividend", "volatility"}
-            else old[key]
-        )
-    prices = [measure(inputs, "price", grid) for grid in GRIDS]
-    uncertainty = abs(prices[-1] - prices[-2])
-    g.require(uncertainty <= STABILITY["price"], "unconverged migrated American price")
-    old.update(provenance(inputs))
-    old.update(LEGACY[fields[0]])
-    old.update(
-        reference_provider="QuantLib",
-        reference_uncertainty=uncertainty,
-        tolerance_rationale="retained absolute comparison budget: GENERATION.md",
-    )
-    fields[4] = g.encode(old)
-    fields[5] = g.encode({"price": prices[-1]})
-    if fields[8] != "-":
-        convergence = fields[8].split("|")
-        convergence[2] = format(prices[-1], ".17g")
-        fields[8] = "|".join(convergence)
-    return "\t".join(fields)

@@ -19,14 +19,32 @@ def check_generation():
     binary.check_bindings()
     asian.check_bindings()
     original = generate.FIXTURE.read_bytes()
-    scenarios = json.loads((generate.PROJECT / "scenarios.json").read_text())
-    profiles = json.loads((generate.PROJECT / "numerical_engines.json").read_text())
+    scenarios = generate.load_scenarios(generate.PROJECT / "scenarios.json")
+    profiles = generate.numerical_profiles(generate.PROJECT / "numerical_engines.json")
     with tempfile.TemporaryDirectory() as directory:
         fixture = Path(directory) / "fixture.tsv"
         inputs = Path(directory) / "scenarios.json"
         engines = Path(directory) / "engines.json"
         fixture.write_bytes(original)
-        inputs.write_text(json.dumps(scenarios))
+
+        def write_scenarios(cases):
+            inputs.write_text(
+                json.dumps(
+                    {
+                        "defaults": {
+                            field: {}
+                            for field in (
+                                "inputs",
+                                "tolerances",
+                                "numerical_tolerances",
+                            )
+                        },
+                        "scenarios": cases,
+                    }
+                )
+            )
+
+        inputs.write_bytes((generate.PROJECT / "scenarios.json").read_bytes())
         generate.regenerate(fixture, inputs)
         first = fixture.read_bytes()
         generate.regenerate(fixture, inputs)
@@ -127,61 +145,6 @@ def check_generation():
                 refined = american.measure(market, "price", (6400, 6400))
                 price = float(generate.attributes(row[5])["price"])
                 assert abs(refined - price) <= float(attributes["uncertainty_price"])
-        # Migration is independent of the old target values and preserves other rows.
-        for line in retained(first):
-            fields = line.decode().split("\t")
-            if (
-                len(fields) == 10
-                and fields[1] in asian.INSTRUMENTS.values()
-                and fields[5] != "-"
-            ):
-                fields[5] = "price=123456"
-                assert asian.migrate("\t".join(fields)) == line.decode()
-                # Unsupported contracts must retain their exact evidence, even when otherwise migratable.
-                terms = generate.attributes(fields[4])
-                terms["average_start"] = "2025-12-01"
-                fields[4] = generate.encode(terms)
-                unmatched = "\t".join(fields)
-                assert asian.migrate(unmatched) == unmatched
-                if fields[1] == "GeometricAverageOption":
-                    terms["average_start"], terms["realized_average"] = (
-                        "2024-12-01",
-                        "101",
-                    )
-                    fields[4] = generate.encode(terms)
-                    unmatched = "\t".join(fields)
-                    assert asian.migrate(unmatched) == unmatched
-                continue
-            if (
-                fields[0] in set(american.LEGACY) | digital.LEGACY
-                or len(fields) == 10
-                and fields[1] in {"BarrierOption", "BinaryBarrierOption"}
-                and fields[5] != "-"
-                and generate.attributes(fields[4]).get("monitoring") == "continuous"
-            ):
-                fields[5] = "price=123456"
-                if fields[8] != "-":
-                    parts = fields[8].split("|")
-                    parts[2] = "123456"
-                    fields[8] = "|".join(parts)
-                assert (
-                    binary.migrate(
-                        barrier.migrate(
-                            digital.migrate(american.migrate("\t".join(fields)))
-                        )
-                    )
-                    == line.decode()
-                )
-                continue
-            if fields[0] not in generate.LEGACY_NUMERICAL:
-                assert generate.migrate_numerical(line.decode()) == line.decode()
-                continue
-            fields[5] = "price=123456"
-            if fields[8] != "-":
-                parts = fields[8].split("|")
-                parts[2] = "123456"
-                fields[8] = "|".join(parts)
-            assert generate.migrate_numerical("\t".join(fields)) == line.decode()
         lines = first.decode().splitlines()
         index = next(i for i, line in enumerate(lines) if line.startswith("ql-"))
         fields = lines[index].split("\t")
@@ -213,7 +176,7 @@ def check_generation():
             case[0]["inputs"][field] = value
             invalid.append(case)
         for case in invalid:
-            inputs.write_text(json.dumps(case))
+            write_scenarios(case)
             try:
                 generate.regenerate(fixture, inputs)
             except ValueError:
@@ -222,7 +185,7 @@ def check_generation():
                 raise AssertionError("invalid scenario accepted")
             assert fixture.read_bytes() == first, "failure replaced fixture"
 
-        inputs.write_text(json.dumps(scenarios))
+        write_scenarios(scenarios)
         invalid_profiles = []
         for mutation in (
             "unknown engine",
@@ -244,7 +207,21 @@ def check_generation():
                 del changed[0]["numerical_tolerances"]["zomma"]
             invalid_profiles.append(changed)
         for changed in invalid_profiles:
-            engines.write_text(json.dumps(changed))
+            engines.write_text(
+                json.dumps(
+                    {
+                        "profiles": changed,
+                        "profile_defaults": {
+                            field: {}
+                            for field in (
+                                "shifts",
+                                "tolerances",
+                                "numerical_tolerances",
+                            )
+                        },
+                    }
+                )
+            )
             try:
                 generate.regenerate(fixture, inputs, engines)
             except ValueError:
@@ -254,7 +231,9 @@ def check_generation():
             assert fixture.read_bytes() == first, "invalid profile replaced fixture"
         for invalid_output in ("price=nan", "delta=1"):
             fields[5] = invalid_output
-            with patch.object(generate, "european_row", return_value="\t".join(fields)):
+            with patch.object(
+                generate, "serialize_row", return_value="\t".join(fields)
+            ):
                 try:
                     generate.regenerate(fixture, inputs)
                 except ValueError:
@@ -296,53 +275,26 @@ def check_generation():
                     raise AssertionError("unstable American Greek accepted")
             assert fixture.read_bytes() == first, "bad American Greek replaced fixture"
 
-        for bad in (float("nan"), float("inf"), 1000.0):
+        for field in ("payoff", "asset_settlement", "averaging"):
+            for bad in (float("nan"), float("inf"), 1000.0):
 
-            def corrupted_digital(market, name, scale=1, price_only=False):
-                if "payoff" in market and name == "vega" and scale == 2:
-                    return bad
-                return real_measure(market, name, scale, price_only)
+                def corrupted_contract(
+                    market, name, scale=1, price_only=False, field=field, bad=bad
+                ):
+                    if field in market and name == "vega" and scale == 2:
+                        return bad
+                    return real_measure(market, name, scale, price_only)
 
-            with patch.object(generate, "measure", side_effect=corrupted_digital):
-                try:
-                    generate.regenerate(fixture, inputs)
-                except ValueError:
-                    pass
-                else:
-                    raise AssertionError("unstable digital Greek accepted")
-            assert fixture.read_bytes() == first, "bad digital Greek replaced fixture"
-
-        for bad in (float("nan"), float("inf"), 1000.0):
-
-            def corrupted_binary(market, name, scale=1, price_only=False):
-                if "asset_settlement" in market and name == "vega" and scale == 2:
-                    return bad
-                return real_measure(market, name, scale, price_only)
-
-            with patch.object(generate, "measure", side_effect=corrupted_binary):
-                try:
-                    generate.regenerate(fixture, inputs)
-                except ValueError:
-                    pass
-                else:
-                    raise AssertionError("unstable binary Greek accepted")
-            assert fixture.read_bytes() == first, "bad binary Greek replaced fixture"
-
-        for bad in (float("nan"), float("inf"), 1000.0):
-
-            def corrupted_asian(market, name, scale=1, price_only=False):
-                if "averaging" in market and name == "vega" and scale == 2:
-                    return bad
-                return real_measure(market, name, scale, price_only)
-
-            with patch.object(generate, "measure", side_effect=corrupted_asian):
-                try:
-                    generate.regenerate(fixture, inputs)
-                except ValueError:
-                    pass
-                else:
-                    raise AssertionError("unstable Asian Greek accepted")
-            assert fixture.read_bytes() == first, "bad Asian Greek replaced fixture"
+                with patch.object(generate, "measure", side_effect=corrupted_contract):
+                    try:
+                        generate.regenerate(fixture, inputs)
+                    except ValueError:
+                        pass
+                    else:
+                        raise AssertionError(f"unstable {field} Greek accepted")
+                assert fixture.read_bytes() == first, (
+                    f"bad {field} Greek replaced fixture"
+                )
 
     # Exercise price-derived higher Greeks on the smooth matrix, independent of Kiyosi.
     for case in scenarios[:18]:

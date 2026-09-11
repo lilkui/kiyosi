@@ -99,19 +99,7 @@ def make_contract(inputs):
             else ql.CashOrNothingPayoff(side, inputs["strike"], inputs["payout"])
         )
         return cash(payoff(inputs["spot"]))
-    curve = lambda rate: ql.YieldTermStructureHandle(
-        ql.FlatForward(valuation, rate, ql.Actual365Fixed())
-    )
-    process = ql.BlackScholesMertonProcess(
-        ql.QuoteHandle(ql.SimpleQuote(inputs["spot"])),
-        curve(inputs["dividend"]),
-        curve(inputs["rate"]),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(
-                valuation, ql.NullCalendar(), inputs["volatility"], ql.Actual365Fixed()
-            )
-        ),
-    )
+    process = g.market_process(inputs)
     if hit and not knock_in:
         return cash(0)
     if hit and at_hit:
@@ -225,17 +213,12 @@ def metadata():
 
 def rows():
     for identifier, inputs in scenarios():
-        fields = g.european_row(
-            {
-                "case_id": identifier,
-                "inputs": inputs,
-                "tolerances": BUDGET,
-                "numerical_tolerances": BUDGET,
-            },
-            STABILITY,
-        ).split("\t")
-        fields[1:3] = ["BinaryBarrierOption", "AnalyticBinaryBarrierEngine"]
-        terms = g.attributes(fields[4])
+        row = g.contract_row(identifier, inputs, BUDGET, STABILITY)
+        row["instrument"], row["engine"] = (
+            "BinaryBarrierOption",
+            "AnalyticBinaryBarrierEngine",
+        )
+        terms = row["inputs"]
         terms.update(
             metadata(),
             spot_shift=0.02,
@@ -244,45 +227,7 @@ def rows():
             time_shift_days=1,
             wrapper=str(not exclusions(inputs)).lower(),
         )
-        fields[4] = g.encode(terms)
-        yield "\t".join(fields)
-
-
-def migrate(line):
-    fields = line.split("\t")
-    if (
-        len(fields) != 10
-        or fields[0].startswith("ql-")
-        or fields[1] != "BinaryBarrierOption"
-        or fields[5] == "-"
-    ):
-        return line
-    terms = g.attributes(fields[4])
-    if terms.get("monitoring") == "scheduled":
-        return line
-    g.require(fields[2] == "AnalyticBinaryBarrierEngine", "unknown binary engine")
-    inputs = {
-        "option": terms.get("option", "none"),
-        "strike": float(terms["strike"]),
-        "spot": 100,
-        "rate": 0.04,
-        "dividend": 0.01,
-        "volatility": 0.3,
-        "effective": "2024-12-30",
-        "valuation": "2025-01-06",
-        "expiry": terms["expiry"],
-        "barrier": float(terms["barrier"]),
-        "barrier_kind": terms.get("barrier_kind", "down_and_in"),
-        "payout": float(terms["payout"]),
-        "asset_settlement": terms.get("asset_settlement", "false"),
-        "settlement": terms.get("settlement", "at_expiry"),
-        "monitoring": "continuous",
-    }
-    value = g.measure(inputs, "price")
-    terms.update(inputs)
-    terms.update(metadata(), reference_provider="QuantLib", reference_uncertainty=0)
-    fields[4], fields[5] = g.encode(terms), g.encode(dict(price=value))
-    return "\t".join(fields)
+        yield g.serialize_row(row)
 
 
 def check_bindings():
@@ -396,7 +341,7 @@ def check_bindings():
                         direct = (
                             sum(
                                 getattr(
-                                    g.european_option(
+                                    g.vanilla_option(
                                         dict(
                                             touched,
                                             option=direction,
@@ -414,16 +359,4 @@ def check_bindings():
                             abs(g.measure(touched, name, price_only=True) - direct)
                             < STABILITY[name]
                         )
-    # An unsupported schedule must retain its original expected value and provenance.
-    legacy = next(
-        line
-        for line in g.FIXTURE.read_text().splitlines()
-        if line.startswith("binary-barrier\t")
-    )
-    fields = legacy.split("\t")
-    terms = g.attributes(fields[4])
-    terms["monitoring"] = "scheduled"
-    fields[4] = g.encode(terms)
-    scheduled = "\t".join(fields)
-    assert migrate(scheduled) == scheduled
     print("QuantLib binary barrier and American digital binding checks passed")

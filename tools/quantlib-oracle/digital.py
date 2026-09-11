@@ -15,12 +15,6 @@ ENGINES = {
     "IntegralDigitalEngine",
     "FiniteDifferenceDigitalEngine",
 }
-LEGACY = {
-    "cash-digital-analytic",
-    "asset-digital-analytic",
-    "digital-integral",
-    "digital-fd",
-}
 # Whole-day time stencils see greater curvature for digital asset payouts.
 STABILITY = dict(
     g.STABILITY,
@@ -40,7 +34,7 @@ STABILITY = dict(
 def configuration():
     config = json.loads((g.PROJECT / "digital.json").read_text(encoding="utf-8"))
     g.require(
-        set(config) == {"inputs", "spots", "maturities", "payout", "profiles"},
+        set(config) == {"inputs", "payout", "profiles", "profile_defaults"},
         "invalid digital configuration",
     )
     g.require(
@@ -48,15 +42,12 @@ def configuration():
         "invalid digital market",
     )
     g.require(
-        config["spots"] == [80, 100, 120] and config["maturities"] == [30, 365, 730],
-        "invalid digital matrix",
-    )
-    g.require(
         type(config["payout"]) in (int, float)
         and math.isfinite(config["payout"])
         and config["payout"] > 0,
         "invalid cash payout",
     )
+    config["profiles"] = g.expand_profiles(config)
     g.require(
         {p["engine"] for p in config["profiles"]} == ENGINES
         and len(config["profiles"]) == 3,
@@ -81,14 +72,11 @@ def configuration():
             if profile["engine"] == "FiniteDifferenceDigitalEngine"
             else set()
         )
-        g.require(set(settings) == expected, "invalid digital settings")
-        for key, value in settings.items():
-            g.require(
-                value == "crank_nicolson"
-                if key == "scheme"
-                else type(value) is int and value > 0,
-                "invalid digital setting",
-            )
+        g.validate_settings(settings, expected)
+        g.require(
+            settings.get("scheme", "crank_nicolson") == "crank_nicolson",
+            "invalid digital scheme",
+        )
         g.require(
             set(profile["boundary_settings"])
             == ({"asset_steps"} if expected else set()),
@@ -101,21 +89,10 @@ def configuration():
             ),
             "invalid boundary grid",
         )
+        g.validate_shifts(profile["shifts"])
+        g.validate_budgets(profile)
         g.require(
-            set(profile["shifts"])
-            == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"},
-            "invalid digital shifts",
-        )
-        g.require(
-            all(
-                type(v) in (int, float) and math.isfinite(v) and v > 0
-                for v in profile["shifts"].values()
-            ),
-            "invalid digital shift",
-        )
-        g.require(
-            type(profile["shifts"]["time_shift_days"]) is int
-            and profile["shifts"]["time_shift_days"] == 1,
+            profile["shifts"]["time_shift_days"] == 1,
             "invalid digital time shift",
         )
     return config
@@ -125,7 +102,7 @@ def scenarios(config):
     for kind in INSTRUMENTS:
         for direction in ("call", "put"):
             for spot, days in [
-                (s, t) for s in config["spots"] for t in config["maturities"]
+                (spot, days) for spot in (80, 100, 120) for days in (30, 365, 730)
             ] + [(100, 1)]:
                 inputs = dict(
                     config["inputs"],
@@ -156,18 +133,16 @@ def rows():
                 "tolerances": profile["tolerances"],
                 "numerical_tolerances": profile["numerical_tolerances"],
             }
-            # Reuse the common market/date/budget validation without admitting digital keys into vanilla inputs.
-            g.validate_scenario(
-                dict(
-                    scenario,
-                    case_id=identifier.replace("ql-digital-", "ql-european-"),
-                    inputs={k: v for k, v in inputs.items() if k in g.INPUTS},
-                )
+            g.validate_inputs(
+                {key: value for key, value in inputs.items() if key in g.INPUTS}
             )
-            fields = g.european_row(scenario, STABILITY).split("\t")
-            fields[0] += "-" + profile["engine"].lower()
-            fields[1], fields[2] = INSTRUMENTS[inputs["payoff"]], profile["engine"]
-            metadata = g.attributes(fields[4])
+            row = g.reference_row(scenario, STABILITY)
+            row["case_id"] += "-" + profile["engine"].lower()
+            row["instrument"], row["engine"] = (
+                INSTRUMENTS[inputs["payoff"]],
+                profile["engine"],
+            )
+            metadata = row["inputs"]
             metadata.update(profile["settings"])
             metadata.update(profile["shifts"])
             # Boundary prices/native Greeks remain checked; no wrapper time stencil touches expiry.
@@ -190,53 +165,4 @@ def rows():
                 settlement="expiry",
                 tolerance_rationale="digital quadrature or grid and bump truncation, see GENERATION.md",
             )
-            fields[4] = g.encode(metadata)
-            yield "\t".join(fields)
-
-
-def migrate(line):
-    fields = line.split("\t")
-    if fields[0] not in LEGACY:
-        return line
-    inputs = g.attributes(fields[4])
-    kind = "asset" if fields[1] == INSTRUMENTS["asset"] else "cash"
-    g.require(
-        fields[1] == INSTRUMENTS[kind] and fields[2] in ENGINES,
-        "invalid digital migration",
-    )
-    market = {
-        "option": inputs["option"],
-        "strike": float(inputs["strike"]),
-        "spot": 100,
-        "rate": 0.04,
-        "dividend": 0.01,
-        "volatility": 0.3,
-        "effective": "2024-12-30",
-        "valuation": "2025-01-06",
-        "expiry": inputs["expiry"],
-        "payoff": kind,
-    }
-    if kind == "cash":
-        market["payout"] = float(inputs["payout"])
-    value = g.measure(market, "price")
-    inputs.update(market)
-    inputs.update(
-        source_revision=f"QuantLib-{g.ql.__version__}",
-        source_symbol="QuantLib.AnalyticEuropeanEngine",
-        reference_kind="analytic",
-        reference_provider="QuantLib",
-        reference_uncertainty=0,
-        payoff_condition="strict ITM, zero at strike",
-        settlement="expiry",
-        tolerance_rationale="retained comparison budget, see GENERATION.md",
-    )
-    if fields[0] == "digital-fd":
-        inputs.update(
-            asset_steps=200, time_steps=200, scheme="crank_nicolson", upper_boundary=0
-        )
-    fields[4], fields[5] = g.encode(inputs), g.encode({"price": value})
-    if fields[8] != "-":
-        parts = fields[8].split("|")
-        parts[2] = format(value, ".17g")
-        fields[8] = "|".join(parts)
-    return "\t".join(fields)
+            yield g.serialize_row(row)

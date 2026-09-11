@@ -90,18 +90,6 @@ NUMERICAL_ENGINES = {
     },
     "MonteCarloEuropeanEngine": {"seed", "paths", "steps"},
 }
-LEGACY_NUMERICAL = {
-    "european-binomial": {"steps": 200},
-    "crr-vanilla": {"steps": 200},
-    "european-integral": {},
-    "european-fd": {
-        "asset_steps": 200,
-        "time_steps": 4000,
-        "scheme": "explicit_euler",
-        "upper_boundary": 0,
-    },
-    "european-mc": {"seed": 42, "paths": 20000, "steps": 252},
-}
 
 
 def require(condition, message):
@@ -136,7 +124,11 @@ def validate_scenario(scenario):
         re.fullmatch(r"ql-european-[a-z0-9-]+", scenario["case_id"]),
         "invalid case identifier",
     )
-    inputs = scenario["inputs"]
+    validate_inputs(scenario["inputs"])
+    validate_budgets(scenario)
+
+
+def validate_inputs(inputs):
     require(set(inputs) == INPUTS, "incomplete or unknown inputs")
     require(inputs["option"] in ("call", "put"), "unknown option")
     for key in ("strike", "spot", "rate", "dividend", "volatility"):
@@ -160,26 +152,28 @@ def validate_scenario(scenario):
         dates["effective"] <= dates["valuation"] < dates["expiry"],
         "invalid date ordering",
     )
+
+
+def validate_budgets(profile):
     for field in ("tolerances", "numerical_tolerances"):
-        require(set(scenario[field]) == set(MEASURES), f"all measure {field} required")
+        require(set(profile[field]) == set(MEASURES), f"all measure {field} required")
         require(
             all(
                 type(v) in (int, float) and math.isfinite(v) and v >= 0
-                for v in scenario[field].values()
+                for v in profile[field].values()
             ),
             f"invalid {field}",
         )
 
 
-def vanilla_option(inputs, american_grid=None):
+def market_process(inputs):
     valuation = ql.DateParser.parseISO(inputs["valuation"])
-    expiry = ql.DateParser.parseISO(inputs["expiry"])
     ql.Settings.instance().evaluationDate = valuation
     day_count = ql.Actual365Fixed()
     curve = lambda rate: ql.YieldTermStructureHandle(
         ql.FlatForward(valuation, rate, day_count, ql.Continuous, ql.Annual)
     )
-    process = ql.BlackScholesMertonProcess(
+    return ql.BlackScholesMertonProcess(
         ql.QuoteHandle(ql.SimpleQuote(inputs["spot"])),
         curve(inputs["dividend"]),
         curve(inputs["rate"]),
@@ -189,6 +183,11 @@ def vanilla_option(inputs, american_grid=None):
             )
         ),
     )
+
+
+def vanilla_option(inputs, american_grid=None):
+    process = market_process(inputs)
+    expiry = ql.DateParser.parseISO(inputs["expiry"])
     direction = ql.Option.Call if inputs["option"] == "call" else ql.Option.Put
     kind = inputs.get("payoff", "vanilla")
     require(kind in {"vanilla", "cash", "asset"}, "unknown payoff")
@@ -215,10 +214,6 @@ def vanilla_option(inputs, american_grid=None):
     return option
 
 
-def european_option(inputs):
-    return vanilla_option(inputs)
-
-
 def shifted(inputs, field, bump):
     value = dict(inputs)
     value[field] = (
@@ -242,7 +237,7 @@ def measure(inputs, name, scale=1, price_only=False):
         option = (binary if is_binary else barrier).option(inputs)
         price_only = price_only or not is_binary
     else:
-        option = european_option(inputs)
+        option = vanilla_option(inputs)
     if name == "price":
         value = option.NPV()
     else:
@@ -310,7 +305,19 @@ def measure(inputs, name, scale=1, price_only=False):
     return value
 
 
-def european_row(scenario, stability=STABILITY):
+def contract_row(identifier, inputs, budget, stability):
+    return reference_row(
+        {
+            "case_id": identifier,
+            "inputs": inputs,
+            "tolerances": budget,
+            "numerical_tolerances": budget,
+        },
+        stability,
+    )
+
+
+def reference_row(scenario, stability=STABILITY):
     inputs = scenario["inputs"]
     outputs, metadata = {}, {}
     days = (
@@ -366,24 +373,75 @@ def european_row(scenario, stability=STABILITY):
         tolerance=scenario["tolerances"]["price"],
     )
     provenance.update(metadata)
+    return {
+        "case_id": scenario["case_id"],
+        "instrument": "EuropeanOption",
+        "engine": "AnalyticEuropeanEngine",
+        "variant": inputs["option"],
+        "inputs": provenance,
+        "outputs": outputs,
+        "tolerances": {name: scenario["tolerances"][name] for name in outputs},
+        "validation": "-",
+        "convergence": "-",
+        "monte_carlo": "-",
+    }
+
+
+def serialize_row(row):
     return "\t".join(
-        [
-            scenario["case_id"],
-            "EuropeanOption",
-            "AnalyticEuropeanEngine",
-            inputs["option"],
-            encode(provenance),
-            encode(outputs),
-            encode({name: scenario["tolerances"][name] for name in outputs}),
-            "-",
-            "-",
-            "-",
-        ]
+        encode(row[key]) if isinstance(row[key], dict) else row[key] for key in HEADER
     )
 
 
+def validate_settings(settings, expected):
+    require(set(settings) == expected, "invalid engine settings")
+    for name, value in settings.items():
+        require(
+            value in {"explicit_euler", "implicit_euler", "crank_nicolson"}
+            if name == "scheme"
+            else type(value) is int and value > 0,
+            "invalid numerical setting",
+        )
+
+
+def validate_shifts(shifts):
+    require(
+        set(shifts)
+        == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"},
+        "invalid shifts",
+    )
+    require(
+        all(
+            type(value) in (int, float) and math.isfinite(value) and value > 0
+            for value in shifts.values()
+        )
+        and type(shifts["time_shift_days"]) is int,
+        "invalid shift",
+    )
+
+
+def expand_profiles(config):
+    defaults = config["profile_defaults"]
+    require(
+        set(defaults) == {"shifts", "tolerances", "numerical_tolerances"},
+        "invalid profile defaults",
+    )
+    return [
+        dict(
+            profile,
+            **{
+                field: dict(values, **profile.get(field, {}))
+                for field, values in defaults.items()
+            },
+        )
+        for profile in config["profiles"]
+    ]
+
+
 def numerical_profiles(path):
-    profiles = json.loads(path.read_text(encoding="utf-8"))
+    config = json.loads(path.read_text(encoding="utf-8"))
+    require(set(config) == {"profiles", "profile_defaults"}, "invalid profiles")
+    profiles = expand_profiles(config)
     require(
         isinstance(profiles, list) and len(profiles) == len(NUMERICAL_ENGINES),
         "incomplete engine profiles",
@@ -398,59 +456,24 @@ def numerical_profiles(path):
             == {"engine", "settings", "shifts", "tolerances", "numerical_tolerances"},
             "invalid profile",
         )
-        settings = profile["settings"]
-        require(
-            set(settings) == NUMERICAL_ENGINES[profile["engine"]],
-            "invalid engine settings",
-        )
-        for name, value in settings.items():
-            if name == "scheme":
-                require(
-                    value in {"explicit_euler", "implicit_euler", "crank_nicolson"},
-                    "unknown scheme",
-                )
-            else:
-                require(type(value) is int and value > 0, "invalid numerical setting")
-        shifts = profile["shifts"]
-        require(
-            set(shifts)
-            == {"spot_shift", "volatility_shift", "rate_shift", "time_shift_days"},
-            "invalid shifts",
-        )
-        require(
-            all(
-                type(v) in (int, float) and math.isfinite(v) and v > 0
-                for v in shifts.values()
-            ),
-            "invalid shift",
-        )
-        require(
-            type(shifts["time_shift_days"]) is int and shifts["time_shift_days"] <= 3,
-            "invalid time shift",
-        )
-        for key in ("tolerances", "numerical_tolerances"):
-            require(set(profile[key]) == set(MEASURES), "incomplete numerical budgets")
-            require(
-                all(
-                    type(v) in (int, float) and math.isfinite(v) and v >= 0
-                    for v in profile[key].values()
-                ),
-                "invalid budget",
-            )
+        validate_settings(profile["settings"], NUMERICAL_ENGINES[profile["engine"]])
+        validate_shifts(profile["shifts"])
+        require(profile["shifts"]["time_shift_days"] <= 3, "invalid time shift")
+        validate_budgets(profile)
     return profiles
 
 
 def numerical_row(scenario, profile):
-    fields = european_row(
+    row = reference_row(
         dict(
             scenario,
             tolerances=profile["tolerances"],
             numerical_tolerances=profile["numerical_tolerances"],
         )
-    ).split("\t")
-    fields[0] += "-" + profile["engine"].lower()
-    fields[2] = profile["engine"]
-    inputs = attributes(fields[4])
+    )
+    row["case_id"] += "-" + profile["engine"].lower()
+    row["engine"] = profile["engine"]
+    inputs = row["inputs"]
     inputs.update(profile["settings"])
     inputs.update(profile["shifts"])
     inputs["wrapper"] = str(
@@ -460,58 +483,14 @@ def numerical_row(scenario, profile):
     inputs["tolerance_rationale"] = (
         "engine-specific discretization or sampling budget, see GENERATION.md"
     )
-    fields[4] = encode(inputs)
-    if fields[2] == "MonteCarloEuropeanEngine":
-        fields[9] = "|".join(
-            str(inputs[key]) for key in ("seed", "paths", "steps", "tolerance")
+    if row["engine"] == "MonteCarloEuropeanEngine":
+        row["monte_carlo"] = "|".join(
+            format(inputs[key], ".17g")
+            if isinstance(inputs[key], float)
+            else str(inputs[key])
+            for key in ("seed", "paths", "steps", "tolerance")
         )
-    return "\t".join(fields)
-
-
-def migrate_numerical(line):
-    fields = line.split("\t")
-    if fields[0] not in LEGACY_NUMERICAL:
-        return line
-    inputs = attributes(fields[4])
-    require(
-        fields[1] == "EuropeanOption" and fields[2] in NUMERICAL_ENGINES,
-        "invalid migration target",
-    )
-    market = {
-        "option": inputs["option"],
-        "strike": 100,
-        "spot": 100,
-        "rate": 0.04,
-        "dividend": 0.01,
-        "volatility": 0.3,
-        "effective": "2024-12-30",
-        "valuation": "2025-01-06",
-        "expiry": "2026-01-06",
-    }
-    for key in INPUTS & inputs.keys():
-        market[key] = (
-            float(inputs[key])
-            if key in {"strike", "spot", "rate", "dividend", "volatility"}
-            else inputs[key]
-        )
-    value = measure(market, "price")
-    inputs.update(market)
-    inputs.update(LEGACY_NUMERICAL[fields[0]])
-    inputs.update(
-        source_revision=f"QuantLib-{ql.__version__}",
-        source_symbol="QuantLib.AnalyticEuropeanEngine",
-        reference_kind="analytic",
-        reference_provider="QuantLib",
-        reference_uncertainty=0,
-        tolerance_rationale="retained numerical comparison budget, see GENERATION.md",
-    )
-    fields[4] = encode(inputs)
-    fields[5] = encode(dict(price=value))
-    if fields[8] != "-":
-        convergence = fields[8].split("|")
-        convergence[2] = format(value, ".17g")
-        fields[8] = "|".join(convergence)
-    return "\t".join(fields)
+    return serialize_row(row)
 
 
 def validate_manifest(text):
@@ -640,6 +619,35 @@ def validate_manifest(text):
                 )
 
 
+def load_scenarios(path):
+    config = json.loads(path.read_text(encoding="utf-8"))
+    require(set(config) == {"defaults", "scenarios"}, "invalid scenario configuration")
+    defaults = config["defaults"]
+    require(
+        set(defaults) == {"inputs", "tolerances", "numerical_tolerances"},
+        "invalid scenario defaults",
+    )
+    require(
+        isinstance(config["scenarios"], list) and config["scenarios"], "no scenarios"
+    )
+    scenarios = []
+    for scenario in config["scenarios"]:
+        require(
+            {"case_id", "inputs"} <= set(scenario) <= {"case_id", *defaults},
+            "invalid scenario overrides",
+        )
+        expanded = dict(scenario)
+        for field in defaults:
+            expanded[field] = dict(defaults[field], **scenario.get(field, {}))
+        validate_scenario(expanded)
+        scenarios.append(expanded)
+    require(
+        len({item["case_id"] for item in scenarios}) == len(scenarios),
+        "duplicate scenario identifier",
+    )
+    return scenarios
+
+
 def regenerate(
     fixture=FIXTURE,
     scenarios_path=PROJECT / "scenarios.json",
@@ -655,30 +663,13 @@ def regenerate(
         version("QuantLib") == ql.__version__ == "1.43",
         "run with the frozen uv environment",
     )
-    scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))
-    require(isinstance(scenarios, list) and scenarios, "no scenarios")
-    for scenario in scenarios:
-        validate_scenario(scenario)
-    require(
-        len({item["case_id"] for item in scenarios}) == len(scenarios),
-        "duplicate scenario identifier",
-    )
+    scenarios = load_scenarios(scenarios_path)
     original = fixture.read_text(encoding="utf-8")
     validate_manifest(original)
     profiles = numerical_profiles(profiles_path)
-    retained = [
-        asian.migrate(
-            binary.migrate(
-                barrier.migrate(
-                    digital.migrate(american.migrate(migrate_numerical(line)))
-                )
-            )
-        )
-        for line in original.splitlines()
-        if not line.startswith("ql-")
-    ]
+    retained = [line for line in original.splitlines() if not line.startswith("ql-")]
     generated = [
-        european_row(item)
+        serialize_row(reference_row(item))
         for item in sorted(scenarios, key=lambda item: item["case_id"])
     ]
     generated += [
