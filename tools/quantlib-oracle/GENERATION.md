@@ -7,10 +7,10 @@ uv run --project tools/quantlib-oracle --frozen tools/quantlib-oracle/generate.p
 uv run --project tools/quantlib-oracle --frozen tools/quantlib-oracle/check_generation.py
 ```
 
-uv downloads managed CPython **3.13.12** and installs **QuantLib-Python 1.18**
-and its **QuantLib 1.41** binding distribution from the committed `uv.lock`.
+uv downloads managed CPython **3.13.12** and installs **QuantLib 1.43**
+from the committed `uv.lock`.
 The project requires that uv version and managed Python; no system Python is
-needed. The runtime checks both distribution versions and executes the required
+needed. The runtime checks the distribution and binding versions and executes the required
 European, American, and digital bindings for every scenario. Run from a fresh checkout to verify initial
 environment creation. Subsequent runs use the same frozen environment.
 
@@ -41,7 +41,7 @@ or measures instead of skipping them.
 
 `asian.py` generates 24 cases and migrates all four existing matching Asian
 price rows, including the SSE-calendar geometric row. It runtime-checks the
-QuantLib 1.41 continuous geometric analytic and continuous arithmetic Levy
+QuantLib 1.43 continuous geometric analytic and continuous arithmetic Levy
 engines. The call/put matrix uses spots 80/100/120, strike 100, and respectively
 90/365/730 remaining calendar days. Arithmetic cases cover both an averaging
 start at valuation and 90 elapsed days with running average 101. Six arithmetic
@@ -292,7 +292,7 @@ four older `american-binomial`, `american-fd`, `american-bs`, and `american-mc`
 rows also have independently recomputed targets and complete reconstruction
 inputs, including the two retained Kiyosi convergence sequences.
 
-Verified in the frozen QuantLib-Python 1.18 / QuantLib 1.41 wheel:
+Verified in the frozen QuantLib 1.43 wheel:
 `AmericanExercise(earliestDate, latestDate, payoffAtExpiry=False)` and
 `FdBlackScholesVanillaEngine(process, tGrid, xGrid, dampingSteps, schemeDesc)`
 are callable. The engine supplies NPV, delta, and gamma. Curves and volatility
@@ -428,7 +428,7 @@ one-day ATM contracts for each kind/direction: 40 contracts, 120 generated
 rows. Every row is reconstructed and priced in C++; unknown instruments,
 engines, payoff kinds, variants, and measures fail the comparison.
 
-The frozen QuantLib-Python 1.18 / QuantLib 1.41 bindings support
+The frozen QuantLib 1.43 bindings support
 `CashOrNothingPayoff(direction, strike, cashPayoff)` and
 `AssetOrNothingPayoff(direction, strike)` in `VanillaOption` with
 `EuropeanExercise` and `AnalyticEuropeanEngine`. Spot, strike, payout,
@@ -547,8 +547,8 @@ The existing at-hit knock-in constructor rejection remains unchanged.
 
 ### Pinned binding and exact settlement mapping
 
-`barrier.check_bindings()` executes against QuantLib-Python 1.18 / QuantLib
-1.41. `BarrierOption` accepts a barrier type, level, rebate, payoff and exercise;
+`barrier.check_bindings()` executes against QuantLib 1.43.
+`BarrierOption` accepts a barrier type, level, rebate, payoff and exercise;
 it exposes neither a rebate-payment flag nor an observation schedule.
 `AnalyticBarrierEngine` prices European plain-vanilla barriers. Actual probes
 reject cash-or-nothing payoffs (`non-plain payoff given`) and American exercise
@@ -667,7 +667,7 @@ adds 268 independently generated rows. The old 28 rounded literals in
 removed; the fixture consumer now reconstructs all their terms. Constructor,
 terminal-settlement and scheduled-monitoring checks remain in place.
 
-### Mapping verified in QuantLib 1.41
+### Mapping verified in QuantLib 1.43
 
 | Kiyosi contract | QuantLib representation |
 | --- | --- |

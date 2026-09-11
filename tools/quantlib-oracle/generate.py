@@ -359,7 +359,6 @@ def european_row(scenario, stability=STABILITY):
         convention=CONVENTION,
         reference_kind="analytic",
         reference_classification="independent-analytic",
-        quantlib_python=version("QuantLib-Python"),
         quantlib=version("QuantLib"),
         numerical_settings="central differences: spot 0.01/0.02 (0.001/0.002 within 2 days of expiry),volatility and rate 0.0001/0.0002,time 1/2 calendar days",
         measure_sources="price/delta/gamma/theta/vega/rho native with price fallback,others central delta/gamma differences with price fallback",
@@ -653,8 +652,7 @@ def regenerate(
     import digital
 
     require(
-        version("QuantLib-Python") == "1.18"
-        and version("QuantLib") == ql.__version__ == "1.41",
+        version("QuantLib") == ql.__version__ == "1.43",
         "run with the frozen uv environment",
     )
     scenarios = json.loads(scenarios_path.read_text(encoding="utf-8"))

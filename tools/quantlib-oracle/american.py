@@ -145,7 +145,6 @@ def provenance(inputs):
         convention=g.CONVENTION,
         reference_kind="discretized",
         reference_classification="convergence-verified-contract",
-        quantlib_python=version("QuantLib-Python"),
         quantlib=version("QuantLib"),
         exercise="AmericanExercise(effective,expiry,payoffAtExpiry=false)",
         reference_grids="800x800,1600x1600,3200x3200 time-by-space",
