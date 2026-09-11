@@ -87,8 +87,7 @@ private:
                                const auto year = parts.year();
                                const int encoded = int(year) * 10000 + int(unsigned(parts.month())) * 100 + int(unsigned(parts.day()));
                                return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday &&
-                                      (year < std::chrono::year{1991} || year > std::chrono::year{2030} ||
-                                       !std::ranges::binary_search(detail::sse_holidays, encoded));
+                                      !std::ranges::binary_search(detail::sse_holidays, encoded);
                            },
                            243};
 }

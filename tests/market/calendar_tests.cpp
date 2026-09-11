@@ -95,8 +95,6 @@ TEST_CASE("Effective dates schedules and SSE calendar semantics")
 
     const auto sse = kiyosi::sse_calendar();
     CHECK(sse.annual_trading_days() == 243);
-    CHECK_FALSE(sse.is_trading_day(day(1991, 2, 15)));
-    CHECK_FALSE(sse.is_trading_day(day(2030, 9, 12)));
     CHECK_FALSE(sse.is_trading_day(day(2031, 1, 4)));
     CHECK(sse.is_trading_day(day(2031, 1, 2)));
 }

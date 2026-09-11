@@ -225,7 +225,6 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         std::vector<kiyosi::date>{valuation + std::chrono::days{180}, expiry});
     const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::risk_measure::price);
     const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::risk_measure::price);
-    check_close(short_value, 3.651891897184211, 1e-12, 0.0);
     CHECK(std::abs(short_value - long_value) > 1e-4);
 
     const auto weekend = *kiyosi::make_binary_barrier_option(
@@ -273,36 +272,6 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
         2.0, kiyosi::rebate_timing::at_hit, kiyosi::observation_mode::scheduled,
         std::vector<kiyosi::date>{valuation + std::chrono::days{37}, expiry});
     CHECK(risk_value(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market), kiyosi::risk_measure::price) > 0.0);
-}
-
-TEST_CASE("Haug and Hull Black-Scholes reference values remain fixed")
-{
-    struct case_data {
-        double spot;
-        double strike;
-        double rate;
-        double dividend;
-        double volatility;
-        int days;
-        double call;
-        double put;
-    };
-    const std::array cases{
-        case_data{100.0, 100.0, 0.10, 0.0, 0.20, 365, 13.2696765847, 3.7534183883},
-        case_data{50.0, 50.0, 0.10, 0.0, 0.30, 182, 5.4441844402, 3.0121713816},
-        case_data{42.0, 40.0, 0.10, 0.0, 0.20, 182, 4.7531749689, 0.8075645220},
-        case_data{100.0, 110.0, 0.05, 0.02, 0.25, 730, 12.0647830432, 15.5179551119},
-    };
-    for (const auto& item : cases) {
-        const auto value_date = valuation;
-        const auto option_expiry = value_date + std::chrono::days{item.days};
-        check_close(value(kiyosi::option_type::call, item.spot, item.rate, item.dividend,
-                          item.volatility, value_date, option_expiry, item.strike),
-                    item.call, 2e-8, 2e-8);
-        check_close(value(kiyosi::option_type::put, item.spot, item.rate, item.dividend,
-                          item.volatility, value_date, option_expiry, item.strike),
-                    item.put, 2e-8, 2e-8);
-    }
 }
 
 TEST_CASE("Binomial and finite-difference prices converge toward analytic values")

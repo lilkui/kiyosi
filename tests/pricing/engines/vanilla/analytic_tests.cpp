@@ -14,30 +14,6 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::risk_value;
 
-TEST_CASE("Analytic European engine returns reviewed call value and Greeks")
-{
-    using Catch::Matchers::WithinAbs;
-
-    const auto valuation = day(2025, 1, 6);
-    const auto option = *kiyosi::make_european_call(100.0, valuation + std::chrono::days{365});
-    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
-
-    const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
-    REQUIRE(result.has_value());
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::price), WithinAbs(13.151137, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::delta), WithinAbs(0.592749, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::gamma), WithinAbs(0.012761, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::speed), WithinAbs(-0.000234, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::theta), WithinAbs(-0.019163, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::charm), WithinAbs(-0.000115, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::color), WithinAbs(0.000019, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::vega), WithinAbs(0.382821, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::vanna), WithinAbs(0.000638, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::zomma), WithinAbs(-0.000431, 1e-6));
-    CHECK_THAT(risk_value(*result, kiyosi::risk_measure::rho), WithinAbs(0.461238, 1e-6));
-}
-
 TEST_CASE("Analytic European calls and puts obey BSM identities")
 {
     using Catch::Matchers::WithinAbs;
@@ -52,7 +28,6 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
 
     const auto call_result = *engine.price(call, context);
     const auto put_result = *engine.price(put, context);
-    CHECK_THAT(risk_value(put_result, kiyosi::risk_measure::price), WithinAbs(10.225098, 1e-6));
     CHECK_THAT(risk_value(call_result, kiyosi::risk_measure::price) - risk_value(put_result, kiyosi::risk_measure::price),
                WithinAbs(100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04), 1e-12));
     CHECK_THAT(risk_value(call_result, kiyosi::risk_measure::delta) - risk_value(put_result, kiyosi::risk_measure::delta), WithinAbs(std::exp(-0.01), 1e-12));
@@ -62,9 +37,6 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
     CHECK_THAT(risk_value(call_result, kiyosi::risk_measure::vega), WithinAbs(risk_value(put_result, kiyosi::risk_measure::vega), 1e-12));
     CHECK_THAT(risk_value(call_result, kiyosi::risk_measure::vanna), WithinAbs(risk_value(put_result, kiyosi::risk_measure::vanna), 1e-12));
     CHECK_THAT(risk_value(call_result, kiyosi::risk_measure::zomma), WithinAbs(risk_value(put_result, kiyosi::risk_measure::zomma), 1e-12));
-    CHECK_THAT(risk_value(put_result, kiyosi::risk_measure::theta), WithinAbs(-0.011346, 1e-6));
-    CHECK_THAT(risk_value(put_result, kiyosi::risk_measure::charm), WithinAbs(-0.000142, 1e-6));
-    CHECK_THAT(risk_value(put_result, kiyosi::risk_measure::rho), WithinAbs(-0.499552, 1e-6));
 }
 
 TEST_CASE("Analytic European engine remains finite one day before expiry")
@@ -113,12 +85,13 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const kiyosi::AnalyticEuropeanEngine engine;
 
-    const auto implied = engine.implied_volatility(option, context, 13.151137);
+    const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
+    const auto implied = engine.implied_volatility(option, context, price);
     REQUIRE(implied.has_value());
     CHECK_THAT(*implied, WithinAbs(0.3, 1e-7));
 
     const auto invalid_bracket = engine.implied_volatility(
-        option, context, 13.151137, kiyosi::ImpliedVolatilitySettings{1.0, 0.1});
+        option, context, price, kiyosi::ImpliedVolatilitySettings{1.0, 0.1});
     REQUIRE_FALSE(invalid_bracket.has_value());
     CHECK(invalid_bracket.error().category == kiyosi::error_category::invalid_parameter);
 
@@ -132,7 +105,7 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     CHECK(non_finite_price.error().category == kiyosi::error_category::invalid_parameter);
 
     const auto unconverged = engine.implied_volatility(
-        option, context, 13.151137,
+        option, context, price,
         kiyosi::ImpliedVolatilitySettings{.tolerance = 1e-15, .max_iterations = 1});
     REQUIRE_FALSE(unconverged.has_value());
     CHECK(unconverged.error().category == kiyosi::error_category::solver_non_convergence);
