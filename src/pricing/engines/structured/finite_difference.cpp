@@ -1,4 +1,5 @@
 #include <kiyosi/pricing/engines/structured/finite_difference.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 #include "../../detail/common.hpp"
 #include "../../detail/structured.hpp"
 #include "../../detail/finite_difference.hpp"

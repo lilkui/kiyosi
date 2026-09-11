@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <optional>
 #include <kiyosi/instruments/structured.hpp>
+#include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
 

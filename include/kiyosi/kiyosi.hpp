@@ -2,8 +2,12 @@
 
 #include <kiyosi/core/types.hpp>
 #include <kiyosi/market/calendar.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/instruments/exercise_based_option.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
+#include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/instruments/barrier.hpp>
 #include <kiyosi/instruments/asian.hpp>
@@ -17,6 +21,7 @@
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/integral.hpp>
 #include <kiyosi/pricing/engines/settings/finite_difference.hpp>
+#include <kiyosi/pricing/engines/settings/implied_volatility.hpp>
 #include <kiyosi/pricing/engines/structured/finite_difference.hpp>
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/vanilla/analytic.hpp>

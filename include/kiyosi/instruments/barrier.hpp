@@ -2,8 +2,8 @@
 
 #include <vector>
 #include <kiyosi/core/types.hpp>
-#include <kiyosi/instruments/vanilla.hpp>
-#include <kiyosi/market/calendar.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 
 namespace kiyosi {
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <utility>
 #include <kiyosi/core/types.hpp>
 #include <kiyosi/market/calendar.hpp>

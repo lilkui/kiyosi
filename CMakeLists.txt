@@ -99,6 +99,9 @@ target_sources(kiyosi
         FILES
             include/kiyosi/core/types.hpp
             include/kiyosi/instruments/asian.hpp
+            include/kiyosi/instruments/accumulator.hpp
+            include/kiyosi/instruments/exercise_based_option.hpp
+            include/kiyosi/instruments/option_terms.hpp
             include/kiyosi/instruments/barrier.hpp
             include/kiyosi/instruments/binary_barrier.hpp
             include/kiyosi/instruments/digital.hpp
@@ -106,6 +109,7 @@ target_sources(kiyosi
             include/kiyosi/instruments/vanilla.hpp
             include/kiyosi/kiyosi.hpp
             include/kiyosi/market/calendar.hpp
+            include/kiyosi/market/observation_schedule.hpp
             include/kiyosi/market/detail/sse_holidays.hpp
             include/kiyosi/market/context.hpp
             include/kiyosi/pricing/analytics.hpp
@@ -117,6 +121,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/digital/finite_difference.hpp
             include/kiyosi/pricing/engines/digital/integral.hpp
             include/kiyosi/pricing/engines/settings/finite_difference.hpp
+            include/kiyosi/pricing/engines/settings/implied_volatility.hpp
             include/kiyosi/pricing/engines/structured/finite_difference.hpp
             include/kiyosi/pricing/engines/structured/monte_carlo.hpp
             include/kiyosi/pricing/engines/vanilla/analytic.hpp

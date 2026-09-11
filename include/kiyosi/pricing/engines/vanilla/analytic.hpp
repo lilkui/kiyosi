@@ -1,17 +1,11 @@
 #pragma once
 
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/engines/settings/implied_volatility.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
 
 namespace kiyosi {
-
-struct ImpliedVolatilitySettings {
-    double lower_bound = 0.0001;
-    double upper_bound = 4.0;
-    double tolerance = 1e-8;
-    int max_iterations = 100;
-};
 
 class KIYOSI_EXPORT AnalyticEuropeanEngine {
 public:

@@ -11,7 +11,7 @@
 #include <kiyosi/core/types.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/engines/vanilla/analytic.hpp>
+#include <kiyosi/pricing/engines/settings/implied_volatility.hpp>
 
 namespace kiyosi {
 

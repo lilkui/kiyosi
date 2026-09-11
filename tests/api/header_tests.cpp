@@ -1,4 +1,6 @@
 #include <kiyosi/core/types.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 #include <kiyosi/instruments/barrier.hpp>
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/instruments/vanilla.hpp>

@@ -2,7 +2,7 @@
 
 #include <cmath>
 #include <vector>
-#include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
 
 namespace kiyosi {
 

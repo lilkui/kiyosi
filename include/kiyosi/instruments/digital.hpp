@@ -1,8 +1,15 @@
 #pragma once
 
-#include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/instruments/exercise_based_option.hpp>
 
 namespace kiyosi {
+
+using EuropeanCashOrNothingOption = ExerciseBasedOption<CashOrNothingPayoff, EuropeanExercise>;
+using AmericanCashOrNothingOption = ExerciseBasedOption<CashOrNothingPayoff, AmericanExercise>;
+using BermudanCashOrNothingOption = ExerciseBasedOption<CashOrNothingPayoff, BermudanExercise>;
+using EuropeanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, EuropeanExercise>;
+using AmericanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, AmericanExercise>;
+using BermudanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, BermudanExercise>;
 
 template <OptionExercise Exercise>
 [[nodiscard]] inline result<ExerciseBasedOption<CashOrNothingPayoff, Exercise>> make_cash_or_nothing_option(

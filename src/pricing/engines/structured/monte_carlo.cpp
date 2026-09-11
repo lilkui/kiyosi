@@ -1,4 +1,5 @@
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 #include "../../detail/common.hpp"
 #include "../../detail/structured.hpp"
 #include <cmath>
