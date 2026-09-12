@@ -80,9 +80,10 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
 }
 result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
-    if (settings_.asset_steps < 3 || settings_.asset_steps > 10'000 || settings_.time_steps <= 0 || settings_.time_steps > 100'000) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
-    if (settings_.upper_boundary != 0.0 && (!std::isfinite(settings_.upper_boundary) || settings_.upper_boundary <= 0.0)) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference upper boundary must be finite and positive"});
-    if (settings_.scheme != finite_difference_scheme::explicit_euler && settings_.scheme != finite_difference_scheme::implicit_euler && settings_.scheme != finite_difference_scheme::crank_nicolson) return std::unexpected(Error{error_category::invalid_parameter, "finite-difference scheme is invalid"});
+    auto settings_valid = validate_finite_difference_settings(settings_);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
+    if (settings_.asset_steps > 10'000 || settings_.time_steps > 100'000)
+        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {

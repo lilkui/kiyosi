@@ -18,25 +18,10 @@ result<PricingResult> price_finite_difference(
 {
     const auto valid_expiry = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
-    if (settings.asset_steps < 3 || settings.asset_steps > 10'000 ||
-        settings.time_steps <= 0 || settings.time_steps > 100'000) {
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference grid dimensions are out of range"});
-    }
-    if (settings.upper_boundary != 0.0 &&
-        (!std::isfinite(settings.upper_boundary) || settings.upper_boundary <= 0.0)) {
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference upper boundary must be finite and positive"});
-    }
-    switch (settings.scheme) {
-    case finite_difference_scheme::explicit_euler:
-    case finite_difference_scheme::implicit_euler:
-    case finite_difference_scheme::crank_nicolson:
-        break;
-    default:
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference scheme is invalid"});
-    }
+    auto settings_valid = validate_finite_difference_settings(settings);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
+    if (settings.asset_steps > 10'000 || settings.time_steps > 100'000)
+        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
 
     const double time = actual_365(context.valuation_time(), option.expiry());
     const double spot = context.asset_price().value();

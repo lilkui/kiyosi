@@ -4,7 +4,7 @@
 #include <vector>
 #include <utility>
 #include <kiyosi/core/types.hpp>
-#include <kiyosi/market/observation_schedule.hpp>
+#include <kiyosi/core/schedule.hpp>
 
 namespace kiyosi {
 enum class observation_frequency { daily,

@@ -52,6 +52,24 @@ private:
     friend result<AssetPrice> make_asset_price(double);
 };
 
+class MarketState {
+public:
+    const BsmParameters& parameters() const noexcept { return parameters_; }
+    AssetPrice asset_price() const noexcept { return asset_price_; }
+    date valuation_date() const noexcept { return date_of(valuation_time_); }
+    timestamp valuation_time() const noexcept { return valuation_time_; }
+
+private:
+    MarketState(BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time)
+        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_time_(valuation_time) {}
+
+    BsmParameters parameters_;
+    AssetPrice asset_price_;
+    timestamp valuation_time_;
+
+    friend class PricingContext;
+};
+
 [[nodiscard]] inline result<AssetPrice> make_asset_price(double value)
 {
     if (!std::isfinite(value) || value <= 0.0) {
@@ -63,21 +81,20 @@ private:
 
 class PricingContext {
 public:
-    const BsmParameters& parameters() const noexcept { return parameters_; }
-    AssetPrice asset_price() const noexcept { return asset_price_; }
-    date valuation_date() const noexcept { return date_of(valuation_time_); }
-    timestamp valuation_time() const noexcept { return valuation_time_; }
+    const BsmParameters& parameters() const noexcept { return market_.parameters(); }
+    AssetPrice asset_price() const noexcept { return market_.asset_price(); }
+    date valuation_date() const noexcept { return market_.valuation_date(); }
+    timestamp valuation_time() const noexcept { return market_.valuation_time(); }
+    const MarketState& market() const noexcept { return market_; }
     const TradingCalendar& calendar() const noexcept { return calendar_; }
 
 private:
     PricingContext(BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time,
                    TradingCalendar calendar)
-        : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_time_(valuation_time),
+        : market_(std::move(parameters), asset_price, valuation_time),
           calendar_(std::move(calendar)) {}
 
-    BsmParameters parameters_;
-    AssetPrice asset_price_;
-    timestamp valuation_time_;
+    MarketState market_;
     TradingCalendar calendar_;
 
     friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, date, TradingCalendar);

@@ -59,7 +59,7 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
             const double coupon = observation_coupon(option, event, value);
             if (value >= option.knock_out_prices()[event])
                 return option.principal_ratio() + coupon;
-            if constexpr (std::is_same_v<Option, PhoenixOption>) coupons = coupon;
+            if constexpr (carries_observation_coupon<Option>) coupons = coupon;
             index = 1;
         }
         if (valuation == option.expiry()) {
@@ -80,7 +80,7 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
             if (value >= option.knock_out_prices()[event]) {
                 return (option.principal_ratio() + coupon) * std::exp(-rate * time) + coupons;
             }
-            if constexpr (std::is_same_v<Option, PhoenixOption>)
+            if constexpr (carries_observation_coupon<Option>)
                 coupons += coupon * std::exp(-rate * time);
             ++index;
         }

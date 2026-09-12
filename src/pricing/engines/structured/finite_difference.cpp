@@ -14,15 +14,10 @@ result<PricingResult> price_finite_difference_structured(
 {
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (settings.asset_steps < 3 || settings.time_steps <= 0 || settings.asset_steps > 2000 || settings.time_steps > 2000)
+    auto settings_valid = validate_finite_difference_settings(settings);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
+    if (settings.asset_steps > 2000 || settings.time_steps > 2000)
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
-    if (settings.upper_boundary != 0.0 && (!std::isfinite(settings.upper_boundary) || settings.upper_boundary <= 0.0))
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference upper boundary must be finite and positive"});
-    if (settings.scheme != finite_difference_scheme::explicit_euler &&
-        settings.scheme != finite_difference_scheme::implicit_euler &&
-        settings.scheme != finite_difference_scheme::crank_nicolson)
-        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference scheme is invalid"});
     if constexpr (std::is_same_v<Option, Accumulator>) {
         auto contract = make_accumulator(option.strike(), option.knock_out(), option.daily_quantity(), option.acceleration(),
                                          option.accumulated_quantity(), option.effective(), option.expiry());
@@ -73,7 +68,7 @@ result<PricingResult> price_finite_difference_structured(
                 return PricingResult{{risk_measure::price, option.principal_ratio() + observation_coupon(option, expiry_index,
                                                                                                           context.asset_price().value())}};
             const double coupon = expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
-                                  std::is_same_v<Option, PhoenixOption>
+                                   carries_observation_coupon<Option>
                                       ? observation_coupon(option, expiry_index, context.asset_price().value()) : 0.0;
             return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price().value(), knocked_in) + coupon}};
         }
@@ -197,7 +192,7 @@ result<PricingResult> price_finite_difference_structured(
                 knocked_in_values[index] = not_knocked_in_values[index] =
                     option.principal_ratio() + observation_coupon(option, *expiry_observation, value);
             } else {
-                const double coupon = expiry_observation && std::is_same_v<Option, PhoenixOption>
+                const double coupon = expiry_observation && carries_observation_coupon<Option>
                                           ? observation_coupon(option, *expiry_observation, value) : 0.0;
                 knocked_in_values[index] = terminal_settlement(option, value, true) + coupon;
                 not_knocked_in_values[index] = terminal_settlement(option, value, ki) + coupon;
@@ -219,7 +214,7 @@ result<PricingResult> price_finite_difference_structured(
                     next_knocked_in_values[index] = next_not_knocked_in_values[index] =
                         option.principal_ratio() + observation_coupon(option, *observation, value);
                 } else if (observation) {
-                    const double coupon = std::is_same_v<Option, PhoenixOption> ? observation_coupon(option, *observation, value) : 0.0;
+                    const double coupon = carries_observation_coupon<Option> ? observation_coupon(option, *observation, value) : 0.0;
                     const double continuation_in = next_knocked_in_values[index];
                     const double continuation_out = transitioned ? continuation_in : next_not_knocked_in_values[index];
                     next_knocked_in_values[index] = continuation_in + coupon;

@@ -8,7 +8,9 @@
 #include <vector>
 
 #include <kiyosi/core/types.hpp>
+#include <kiyosi/core/schedule.hpp>
 #include <kiyosi/instruments/option_terms.hpp>
+#include <kiyosi/market/calendar.hpp>
 #include <kiyosi/market/observation_schedule.hpp>
 
 namespace kiyosi {
@@ -77,14 +79,12 @@ private:
 }
 
 template <typename Value>
-concept OptionPayoff = std::same_as<std::remove_cvref_t<Value>, VanillaPayoff> ||
-                       std::same_as<std::remove_cvref_t<Value>, CashOrNothingPayoff> ||
-                       std::same_as<std::remove_cvref_t<Value>, AssetOrNothingPayoff>;
+concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
+                       std::equality_comparable<std::remove_cvref_t<Value>>;
 
 template <typename Value>
-concept OptionExercise = std::same_as<std::remove_cvref_t<Value>, EuropeanExercise> ||
-                         std::same_as<std::remove_cvref_t<Value>, AmericanExercise> ||
-                         std::same_as<std::remove_cvref_t<Value>, BermudanExercise>;
+concept OptionExercise = std::copy_constructible<std::remove_cvref_t<Value>> &&
+                         std::equality_comparable<std::remove_cvref_t<Value>>;
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption;

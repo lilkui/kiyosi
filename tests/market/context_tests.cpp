@@ -58,7 +58,7 @@ TEST_CASE("Pricing context and result preserve their values")
     REQUIRE(risk_value(copy, kiyosi::risk_measure::rho) == 11.0);
     STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::PricingResult>);
     STATIC_REQUIRE(std::is_copy_assignable_v<kiyosi::PricingResult>);
-    STATIC_REQUIRE(std::is_trivially_copyable_v<kiyosi::Error>);
+    STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::Error>);
     STATIC_REQUIRE_FALSE(std::is_convertible_v<double, kiyosi::AssetPrice>);
 }
 

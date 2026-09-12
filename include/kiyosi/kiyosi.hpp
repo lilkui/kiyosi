@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kiyosi/core/types.hpp>
+#include <kiyosi/core/schedule.hpp>
 #include <kiyosi/market/calendar.hpp>
 #include <kiyosi/market/observation_schedule.hpp>
 #include <kiyosi/market/context.hpp>

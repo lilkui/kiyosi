@@ -98,6 +98,7 @@ target_sources(kiyosi
         BASE_DIRS include
         FILES
             include/kiyosi/core/types.hpp
+            include/kiyosi/core/schedule.hpp
             include/kiyosi/instruments/asian.hpp
             include/kiyosi/instruments/accumulator.hpp
             include/kiyosi/instruments/exercise_based_option.hpp

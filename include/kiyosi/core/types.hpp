@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdint>
 #include <expected>
+#include <string>
 #include <string_view>
 #include <kiyosi/kiyosi_export.h>
 
@@ -55,7 +56,7 @@ enum class error_category : unsigned char {
 
 struct Error {
     error_category category;
-    std::string_view message;
+    std::string message;
 
     friend bool operator==(const Error&, const Error&) = default;
 };
