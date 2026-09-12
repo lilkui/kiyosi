@@ -43,7 +43,9 @@ print(result["delta"])
 
 The result contains `price`, `delta`, `gamma`, `theta`, `vega`, and `rho`.
 Use `EuropeanOption`, `Market`, and `price` when you prefer to construct the
-inputs explicitly.
+inputs explicitly. `EuropeanOption.effective` is optional and uses the C++
+core's default effective date when omitted. Core validation failures raise
+`KiyosiError` with a stable `category` from `ErrorCategory`.
 
 ## Development
 
