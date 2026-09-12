@@ -15,7 +15,7 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::risk_value;
 
-TEST_CASE("Digital and barrier contracts validate and share pricing results")
+TEST_CASE("Digital contracts validate and expose pricing results")
 {
     using Catch::Matchers::WithinAbs;
     const auto valuation = day(2025, 1, 6);
@@ -37,7 +37,15 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
                    risk_value(*put_value, kiyosi::risk_measure::price),
                WithinAbs(10.0 * std::exp(-0.04), 1e-10));
     CHECK_FALSE(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry).has_value());
+}
 
+TEST_CASE("Barrier in and out prices compose to vanilla")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto down_out = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out);
     const auto down_in = *kiyosi::make_barrier_option(
@@ -51,7 +59,14 @@ TEST_CASE("Digital and barrier contracts validate and share pricing results")
     CHECK_THAT(risk_value(*barrier_out, kiyosi::risk_measure::price) +
                    risk_value(*barrier_in, kiyosi::risk_measure::price),
                WithinAbs(risk_value(*vanilla, kiyosi::risk_measure::price), 1e-5));
+}
 
+TEST_CASE("Scheduled barrier contracts price analytically")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto scheduled = kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
@@ -86,7 +101,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     REQUIRE(note_result->has(kiyosi::risk_measure::price));
 }
 
-TEST_CASE("Shared numerical analytics and immutable coupon replacement")
+TEST_CASE("Numerical analytics expose shared risk measures")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry = day(2025, 7, 1);
@@ -104,7 +119,12 @@ TEST_CASE("Shared numerical analytics and immutable coupon replacement")
     auto shared_result = shared.price(*option, *context);
     REQUIRE(shared_result.has_value());
     CHECK(shared_result->has(kiyosi::risk_measure::vega));
+}
 
+TEST_CASE("Structured coupon replacement preserves the original note")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = day(2025, 7, 1);
     const auto note = kiyosi::make_snowball_option(
         {0.1}, 0.05, 100.0, 60.0, {110.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::at_expiry, kiyosi::barrier_touch_status::none,

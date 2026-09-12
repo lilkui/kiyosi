@@ -74,7 +74,7 @@ TEST_CASE("Analytic European engine returns intrinsic value and zero Greeks at e
     CHECK_FALSE(call_result.has(kiyosi::risk_measure::theta));
 }
 
-TEST_CASE("Analytic European engine reports pricing and implied-volatility failures")
+TEST_CASE("Analytic European implied volatility recovers market volatility")
 {
     using Catch::Matchers::WithinAbs;
 
@@ -89,27 +89,55 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     const auto implied = engine.implied_volatility(option, context, price);
     REQUIRE(implied.has_value());
     CHECK_THAT(*implied, WithinAbs(0.3, 1e-7));
+}
 
+TEST_CASE("Analytic European implied volatility rejects invalid settings and prices")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const kiyosi::AnalyticEuropeanEngine engine;
+    const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
     const auto invalid_bracket = engine.implied_volatility(
         option, context, price, kiyosi::ImpliedVolatilitySettings{1.0, 0.1});
     REQUIRE_FALSE(invalid_bracket.has_value());
     CHECK(invalid_bracket.error().category == kiyosi::error_category::invalid_parameter);
 
-    const auto unbracketed = engine.implied_volatility(option, context, 95.0);
-    REQUIRE_FALSE(unbracketed.has_value());
-    CHECK(unbracketed.error().category == kiyosi::error_category::unbracketed_volatility);
-
     const auto non_finite_price = engine.implied_volatility(
         option, context, std::numeric_limits<double>::quiet_NaN());
     REQUIRE_FALSE(non_finite_price.has_value());
     CHECK(non_finite_price.error().category == kiyosi::error_category::invalid_parameter);
+}
+
+TEST_CASE("Analytic European implied volatility reports solver failures")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const kiyosi::AnalyticEuropeanEngine engine;
+    const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
+    const auto unbracketed = engine.implied_volatility(option, context, 95.0);
+    REQUIRE_FALSE(unbracketed.has_value());
+    CHECK(unbracketed.error().category == kiyosi::error_category::unbracketed_volatility);
 
     const auto unconverged = engine.implied_volatility(
         option, context, price,
         kiyosi::ImpliedVolatilitySettings{.tolerance = 1e-15, .max_iterations = 1});
     REQUIRE_FALSE(unconverged.has_value());
     CHECK(unconverged.error().category == kiyosi::error_category::solver_non_convergence);
+}
 
+TEST_CASE("Analytic European engine reports invalid expiry")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const kiyosi::AnalyticEuropeanEngine engine;
     const auto expired_context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), expiry);
     REQUIRE_FALSE(engine.implied_volatility(option, expired_context, 0.0).has_value());
 
@@ -117,7 +145,12 @@ TEST_CASE("Analytic European engine reports pricing and implied-volatility failu
     const auto invalid_expiry = engine.price(option, stale_context);
     REQUIRE_FALSE(invalid_expiry.has_value());
     CHECK(invalid_expiry.error().category == kiyosi::error_category::invalid_expiry);
+}
 
+TEST_CASE("Analytic European engine reports non-finite pricing and solver results")
+{
+    const auto valuation = day(2025, 1, 6);
+    const kiyosi::AnalyticEuropeanEngine engine;
     const auto extreme_parameters = *kiyosi::make_bsm_parameters(-1000.0, 0.0, 0.3);
     const auto extreme_context = *kiyosi::make_pricing_context(extreme_parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto long_option = *kiyosi::make_european_put(
@@ -145,7 +178,7 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
     CHECK_FALSE(result->has(kiyosi::risk_measure::gamma));
 }
 
-TEST_CASE("Analytic European implied volatility enforces arbitrage bounds and handles moneyness")
+TEST_CASE("Analytic European implied volatility recovers at-the-money volatility")
 {
     using Catch::Matchers::WithinAbs;
 
@@ -162,21 +195,51 @@ TEST_CASE("Analytic European implied volatility enforces arbitrage bounds and ha
                                                         risk_value(call_price, kiyosi::risk_measure::price));
     REQUIRE(call_implied.has_value());
     CHECK_THAT(*call_implied, WithinAbs(0.35, 1e-7));
+}
 
+TEST_CASE("Analytic European implied volatility recovers deep-in-the-money volatility")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
+    const kiyosi::AnalyticEuropeanEngine engine;
+    const auto call_context = *kiyosi::make_pricing_context(
+        parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto deep_in_the_money = *kiyosi::make_european_call(20.0, expiry);
     const auto deep_itm_price = *engine.price(deep_in_the_money, call_context);
     const auto deep_itm_implied = engine.implied_volatility(deep_in_the_money, call_context,
                                                             risk_value(deep_itm_price, kiyosi::risk_measure::price));
     REQUIRE(deep_itm_implied.has_value());
     CHECK_THAT(*deep_itm_implied, WithinAbs(0.35, 1e-6));
+}
 
+TEST_CASE("Analytic European implied volatility recovers deep-out-of-the-money volatility")
+{
+    using Catch::Matchers::WithinAbs;
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
+    const kiyosi::AnalyticEuropeanEngine engine;
+    const auto call_context = *kiyosi::make_pricing_context(
+        parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto deep_out_of_the_money = *kiyosi::make_european_call(180.0, expiry);
     const auto deep_otm_price = *engine.price(deep_out_of_the_money, call_context);
     const auto deep_otm_implied = engine.implied_volatility(deep_out_of_the_money, call_context,
                                                             risk_value(deep_otm_price, kiyosi::risk_measure::price));
     REQUIRE(deep_otm_implied.has_value());
     CHECK_THAT(*deep_otm_implied, WithinAbs(0.35, 1e-6));
+}
 
+TEST_CASE("Analytic European implied volatility enforces arbitrage bounds")
+{
+    const auto valuation = day(2025, 1, 6);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
+    const kiyosi::AnalyticEuropeanEngine engine;
+    const auto call = *kiyosi::make_european_call(100.0, expiry);
+    const auto call_context = *kiyosi::make_pricing_context(
+        parameters, *kiyosi::make_asset_price(100.0), valuation);
     const auto invalid_quote = engine.implied_volatility(call, call_context, 0.01);
     REQUIRE_FALSE(invalid_quote.has_value());
     CHECK(invalid_quote.error().category == kiyosi::error_category::invalid_quote);

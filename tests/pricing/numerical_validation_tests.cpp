@@ -337,7 +337,7 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
     }
 }
 
-TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
+TEST_CASE("Exercise-based European options compose terms and payoff")
 {
     const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
     const auto payoff = *kiyosi::make_cash_or_nothing_payoff(10.0);
@@ -347,15 +347,19 @@ TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
     CHECK(european->strike() == 100.0);
     CHECK(european->payout() == 10.0);
     CHECK(european->exercise() == kiyosi::EuropeanExercise{});
+}
 
+TEST_CASE("Bermudan options preserve exercise dates")
+{
+    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
     const auto dates = std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{180}};
     const auto bermudan = kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, dates);
     REQUIRE(bermudan.has_value());
     CHECK(bermudan->exercise_dates() == dates);
-    CHECK_FALSE(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{},
-                                             std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
-                    .has_value());
+}
 
+TEST_CASE("Exercise-based option factories reject invalid contracts")
+{
     const auto invalid_type = static_cast<kiyosi::option_type>(99);
     for (const auto invalid : {
              kiyosi::make_european_option(invalid_type, 100.0, expiry).error().category,
@@ -372,7 +376,14 @@ TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
     CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry)
               .error()
               .category == kiyosi::error_category::invalid_parameter);
+}
 
+TEST_CASE("Bermudan options reject invalid schedules")
+{
+    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
+    CHECK_FALSE(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{},
+                                             std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
+                    .has_value());
     CHECK(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, {}).error().category ==
           kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(

@@ -49,7 +49,6 @@ TEST_CASE("Binomial American engine does not expose gamma below two steps")
     CHECK(result->has(kiyosi::risk_measure::delta));
     CHECK_FALSE(result->has(kiyosi::risk_measure::gamma));
     CHECK_FALSE(result->get(kiyosi::risk_measure::gamma).has_value());
-    CHECK_FALSE(result->get(kiyosi::risk_measure::gamma).has_value());
 }
 
 TEST_CASE("Binomial American engine exercises puts and converges to European calls")
