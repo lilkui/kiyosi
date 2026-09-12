@@ -35,7 +35,8 @@ inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_
     return index;
 }
 
-struct PricingResult {
+class PricingResult {
+public:
     using values_type = std::array<std::optional<double>, risk_measure_count>;
 
     PricingResult() = default;
