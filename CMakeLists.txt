@@ -12,6 +12,7 @@ option(KIYOSI_INSTALL "Enable install rules" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 
 add_library(kiyosi_warnings INTERFACE)
 add_library(kiyosi::warnings ALIAS kiyosi_warnings)
@@ -170,6 +171,19 @@ if(KIYOSI_ENABLE_CLANG_TIDY)
     foreach(target_name IN LISTS KIYOSI_TIDY_TARGETS)
         set_target_properties(${target_name} PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
     endforeach()
+endif()
+
+if(KIYOSI_BUILD_PYTHON)
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+    find_package(nanobind CONFIG REQUIRED)
+
+    nanobind_add_module(_native python/kiyosi/_native.cpp)
+    target_compile_features(_native PRIVATE cxx_std_23)
+    target_link_libraries(_native PRIVATE kiyosi::kiyosi)
+    install(TARGETS _native
+        LIBRARY DESTINATION kiyosi
+        RUNTIME DESTINATION kiyosi
+    )
 endif()
 
 if(KIYOSI_INSTALL)

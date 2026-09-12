@@ -1,0 +1,23 @@
+[build-system]
+requires = ["scikit-build-core>=0.10", "nanobind>=2.4"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "kiyosi"
+description = "A modern quantitative finance library for pricing vanilla and exotic derivatives"
+requires-python = ">=3.11"
+dynamic = ["version"]
+
+[tool.scikit-build.metadata.version]
+provider = "scikit_build_core.metadata.regex"
+input = "CMakeLists.txt"
+regex = "project\\(kiyosi VERSION (?P<value>[0-9.]+)"
+
+[tool.scikit-build]
+minimum-version = "build-system.requires"
+wheel.packages = ["python/kiyosi"]
+cmake.args = [
+    "-DKIYOSI_BUILD_PYTHON=ON",
+    "-DKIYOSI_INSTALL=OFF",
+    "-DBUILD_TESTING=OFF",
+]
