@@ -70,7 +70,7 @@ private:
     if (dates.empty())
         return std::unexpected(Error{error_category::invalid_schedule,
                                      "Bermudan exercise requires at least one date"});
-    auto valid = validate_observation_dates(dates, dates.front(), expiry, calendar);
+    auto valid = validate_schedule(dates, dates.front(), expiry, calendar);
     if (!valid)
         return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     return BermudanExercise{std::move(dates)};
@@ -135,7 +135,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     OptionTerms terms, Payoff payoff, Exercise exercise)
 {
     if constexpr (std::same_as<Exercise, BermudanExercise>) {
-        auto valid = validate_observation_dates(
+        auto valid = validate_schedule(
             exercise.dates(), terms.effective(), terms.expiry(), all_days_calendar());
         if (!valid)
             return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
@@ -164,8 +164,6 @@ template <OptionPayoff Payoff>
 {
     auto exercise = make_bermudan_exercise(std::move(dates), terms.expiry(), calendar);
     if (!exercise) return std::unexpected(exercise.error());
-    auto valid = validate_observation_dates(exercise->dates(), terms.effective(), terms.expiry(), calendar);
-    if (!valid) return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     return make_exercise_based_option(std::move(terms), std::move(payoff), std::move(*exercise));
 }
 

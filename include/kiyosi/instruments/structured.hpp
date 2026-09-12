@@ -4,6 +4,7 @@
 #include <vector>
 #include <utility>
 #include <kiyosi/core/types.hpp>
+#include <kiyosi/market/observation_schedule.hpp>
 
 namespace kiyosi {
 enum class observation_frequency { daily,
@@ -155,14 +156,12 @@ template <typename Note>
         !std::isfinite(note.lower_strike()) || note.lower_strike() < 0.0 || note.lower_strike() > note.upper_strike() ||
         !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0)
         return std::unexpected(Error{error_category::invalid_parameter, "autocallable terms are invalid"});
-    if (!is_valid_date(note.effective()) || !is_valid_date(note.expiry()) || note.effective() > note.expiry() ||
-        note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size())
+    if (note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size())
+        return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
+    auto schedule = validate_schedule(note.observation_dates(), note.effective(), note.expiry(), all_days_calendar());
+    if (!schedule)
         return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-        if (!is_valid_date(note.observation_dates()[index]) || note.observation_dates()[index] < note.effective() ||
-            note.observation_dates()[index] > note.expiry() ||
-            (index > 0 && note.observation_dates()[index] <= note.observation_dates()[index - 1]))
-            return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
         if (!std::isfinite(note.knock_out_prices()[index]) || note.knock_out_prices()[index] <= 0.0)
             return std::unexpected(Error{error_category::invalid_parameter, "knock-out prices are invalid"});
     }
