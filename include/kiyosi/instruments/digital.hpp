@@ -54,21 +54,19 @@ template <OptionExercise Exercise>
 }
 
 [[nodiscard]] inline result<BermudanCashOrNothingOption> make_bermudan_cash_or_nothing_option(
-    option_type type, double strike, double payout, date expiry, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
+    option_type type, double strike, double payout, date expiry, std::vector<date> dates)
 {
-    auto exercise = make_bermudan_exercise(std::move(dates), expiry, calendar);
+    auto exercise = make_bermudan_exercise(std::move(dates), expiry);
     if (!exercise) return std::unexpected(exercise.error());
     return make_cash_or_nothing_option(type, strike, payout, expiry, std::move(*exercise));
 }
 
 [[nodiscard]] inline result<BermudanCashOrNothingOption> make_bermudan_cash_or_nothing_option(
-    option_type type, double strike, double payout, date valuation, date expiry, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
+    option_type type, double strike, double payout, date valuation, date expiry, std::vector<date> dates)
 {
     auto valid = validate_expiry(valuation, expiry);
     if (!valid) return std::unexpected(valid.error());
-    return make_bermudan_cash_or_nothing_option(type, strike, payout, expiry, std::move(dates), calendar);
+    return make_bermudan_cash_or_nothing_option(type, strike, payout, expiry, std::move(dates));
 }
 
 [[nodiscard]] inline result<AmericanCashOrNothingOption> make_american_cash_or_nothing_option(
@@ -125,21 +123,19 @@ template <OptionExercise Exercise>
 }
 
 [[nodiscard]] inline result<BermudanAssetOrNothingOption> make_bermudan_asset_or_nothing_option(
-    option_type type, double strike, date expiry, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
+    option_type type, double strike, date expiry, std::vector<date> dates)
 {
-    auto exercise = make_bermudan_exercise(std::move(dates), expiry, calendar);
+    auto exercise = make_bermudan_exercise(std::move(dates), expiry);
     if (!exercise) return std::unexpected(exercise.error());
     return make_asset_or_nothing_option(type, strike, expiry, std::move(*exercise));
 }
 
 [[nodiscard]] inline result<BermudanAssetOrNothingOption> make_bermudan_asset_or_nothing_option(
-    option_type type, double strike, date valuation, date expiry, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
+    option_type type, double strike, date valuation, date expiry, std::vector<date> dates)
 {
     auto valid = validate_expiry(valuation, expiry);
     if (!valid) return std::unexpected(valid.error());
-    return make_bermudan_asset_or_nothing_option(type, strike, expiry, std::move(dates), calendar);
+    return make_bermudan_asset_or_nothing_option(type, strike, expiry, std::move(dates));
 }
 
 [[nodiscard]] inline result<EuropeanAssetOrNothingOption> make_asset_or_nothing_call(double strike, date expiry)

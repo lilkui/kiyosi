@@ -94,8 +94,8 @@ private:
     }
     if (observation == observation_mode::continuous)
         return BarrierOption{type, strike, effective, expiry, barrier, kind, rebate, timing, observation,
-                             *make_observation_schedule({}, effective, expiry, all_days_calendar())};
-    auto schedule = make_observation_schedule(observations, effective, expiry, all_days_calendar());
+                             *make_date_schedule({}, effective, expiry)};
+    auto schedule = make_date_schedule(std::move(observations), effective, expiry);
     if (!schedule)
         return std::unexpected(Error{error_category::invalid_schedule,
                                      "observation dates must be ordered and precede expiry"});

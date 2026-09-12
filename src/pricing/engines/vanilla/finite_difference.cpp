@@ -116,9 +116,7 @@ result<PricingResult> price_finite_difference(
                          (spacing * spacing);
     const auto output = PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
                                       {risk_measure::gamma, gamma}};
-    if (!std::ranges::all_of(output.values, [](const auto& item) {
-            return !item || std::isfinite(*item);
-        }))
+    if (!output.all_finite())
         return std::unexpected(Error{error_category::invalid_result,
                                      "finite-difference pricing produced a non-finite result"});
     return output;

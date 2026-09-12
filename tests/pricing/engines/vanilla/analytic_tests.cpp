@@ -48,7 +48,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry")
 
     const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
     REQUIRE(result.has_value());
-    for (const auto& item : result->values) {
+    for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
         const double value = *item;
         CHECK(std::isfinite(value));
@@ -203,7 +203,7 @@ TEST_CASE("Analytic European engine remains finite in deep tails")
 
     const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
     REQUIRE(result.has_value());
-    for (const auto& item : result->values) {
+    for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
         const double value = *item;
         CHECK(std::isfinite(value));

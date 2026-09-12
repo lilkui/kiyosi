@@ -16,14 +16,14 @@ public:
     bool asset_settlement() const noexcept { return asset_; }
     rebate_timing settlement_timing() const noexcept { return timing_; }
     observation_mode observation() const noexcept { return observation_; }
-    const std::vector<date>& observation_dates() const noexcept { return observations_; }
+    const std::vector<date>& observation_dates() const noexcept { return observations_.dates(); }
     date expiry() const noexcept { return expiry_; }
     date effective() const noexcept { return effective_; }
     double observation_interval() const noexcept
     {
         return observation_ == observation_mode::continuous || observations_.empty()
-                   ? 0.0
-                   : static_cast<double>(*year_fraction(effective_, observations_.back())) /
+                    ? 0.0
+                    : static_cast<double>(*year_fraction(effective_, observations_.dates().back())) /
                          static_cast<double>(observations_.size());
     }
     friend bool operator==(const BinaryBarrierOption&, const BinaryBarrierOption&) = default;
@@ -31,7 +31,7 @@ public:
 private:
     BinaryBarrierOption(std::optional<option_type> type, double strike, date effective, date expiry, double barrier,
                         barrier_type kind, double payout, bool asset, rebate_timing timing,
-                        observation_mode observation, std::vector<date> observations)
+                         observation_mode observation, ObservationSchedule observations)
         : type_(type), strike_(strike), expiry_(expiry), barrier_(barrier), kind_(kind), payout_(payout), asset_(asset),
           timing_(timing), observation_(observation), observations_(std::move(observations)), effective_(effective) {}
     std::optional<option_type> type_;
@@ -43,7 +43,7 @@ private:
     bool asset_;
     rebate_timing timing_;
     observation_mode observation_;
-    std::vector<date> observations_;
+    ObservationSchedule observations_;
     date effective_;
     friend result<BinaryBarrierOption> make_binary_barrier_option(std::optional<option_type>, double, date, date, double, barrier_type, double, bool, rebate_timing, observation_mode, std::vector<date>);
 };
@@ -77,12 +77,9 @@ private:
         return std::unexpected(Error{error_category::invalid_schedule, "continuous barriers cannot have observations"});
     if (observation == observation_mode::scheduled && observations.empty())
         return std::unexpected(Error{error_category::invalid_schedule, "scheduled barriers require observations"});
-    for (std::size_t index = 0; index < observations.size(); ++index) {
-        if (!is_valid_date(observations[index]) || observations[index] < effective || observations[index] > expiry ||
-            (index > 0 && observations[index] <= observations[index - 1]))
-            return std::unexpected(Error{error_category::invalid_schedule, "observation dates are invalid"});
-    }
-    return BinaryBarrierOption{type, strike, effective, expiry, barrier, kind, payout, asset, timing, observation, std::move(observations)};
+    auto schedule = make_date_schedule(std::move(observations), effective, expiry);
+    if (!schedule) return std::unexpected(Error{error_category::invalid_schedule, "observation dates are invalid"});
+    return BinaryBarrierOption{type, strike, effective, expiry, barrier, kind, payout, asset, timing, observation, std::move(*schedule)};
 }
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_binary_barrier_option(

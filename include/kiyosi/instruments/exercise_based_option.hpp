@@ -61,16 +61,16 @@ private:
     explicit BermudanExercise(std::vector<date> dates) : dates_(std::move(dates)) {}
     std::vector<date> dates_;
     friend result<BermudanExercise> make_bermudan_exercise(
-        std::vector<date>, date, const TradingCalendar&);
+        std::vector<date>, date);
 };
 
 [[nodiscard]] inline result<BermudanExercise> make_bermudan_exercise(
-    std::vector<date> dates, date expiry, const TradingCalendar& calendar = all_days_calendar())
+    std::vector<date> dates, date expiry)
 {
     if (dates.empty())
         return std::unexpected(Error{error_category::invalid_schedule,
                                      "Bermudan exercise requires at least one date"});
-    auto valid = validate_schedule(dates, dates.front(), expiry, calendar);
+    auto valid = validate_date_schedule(dates, dates.front(), expiry);
     if (!valid)
         return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     return BermudanExercise{std::move(dates)};
@@ -135,8 +135,8 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     OptionTerms terms, Payoff payoff, Exercise exercise)
 {
     if constexpr (std::same_as<Exercise, BermudanExercise>) {
-        auto valid = validate_schedule(
-            exercise.dates(), terms.effective(), terms.expiry(), all_days_calendar());
+        auto valid = validate_date_schedule(
+            exercise.dates(), terms.effective(), terms.expiry());
         if (!valid)
             return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     }
@@ -159,10 +159,9 @@ template <OptionPayoff Payoff>
 
 template <OptionPayoff Payoff>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, BermudanExercise>> make_bermudan_option(
-    OptionTerms terms, Payoff payoff, std::vector<date> dates,
-    const TradingCalendar& calendar = all_days_calendar())
+    OptionTerms terms, Payoff payoff, std::vector<date> dates)
 {
-    auto exercise = make_bermudan_exercise(std::move(dates), terms.expiry(), calendar);
+    auto exercise = make_bermudan_exercise(std::move(dates), terms.expiry());
     if (!exercise) return std::unexpected(exercise.error());
     return make_exercise_based_option(std::move(terms), std::move(payoff), std::move(*exercise));
 }

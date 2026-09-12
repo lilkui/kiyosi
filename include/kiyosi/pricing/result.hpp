@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
@@ -37,8 +38,6 @@ inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_
 struct PricingResult {
     using values_type = std::array<std::optional<double>, risk_measure_count>;
 
-    values_type values{};
-
     PricingResult() = default;
     PricingResult(std::initializer_list<std::pair<risk_measure, double>> entries)
     {
@@ -49,18 +48,18 @@ struct PricingResult {
     [[nodiscard]] bool has(risk_measure measure) const noexcept
     {
         const auto index = risk_measure_index(measure);
-        return index && values[*index].has_value();
+        return index && values_[*index].has_value();
     }
 
     [[nodiscard]] std::optional<double> get(risk_measure measure) const noexcept
     {
         const auto index = risk_measure_index(measure);
-        return index ? values[*index] : std::nullopt;
+        return index ? values_[*index] : std::nullopt;
     }
 
     PricingResult& set(risk_measure measure, std::optional<double> value) noexcept
     {
-        if (const auto index = risk_measure_index(measure)) values[*index] = value;
+        if (const auto index = risk_measure_index(measure)) values_[*index] = value;
         return *this;
     }
 
@@ -68,6 +67,18 @@ struct PricingResult {
     {
         return set(measure, std::optional<double>{value});
     }
+
+    [[nodiscard]] const values_type& values_view() const noexcept { return values_; }
+
+    [[nodiscard]] bool all_finite() const noexcept
+    {
+        for (const auto& value : values_)
+            if (value && !std::isfinite(*value)) return false;
+        return true;
+    }
+
+private:
+    values_type values_{};
 };
 
 } // namespace kiyosi

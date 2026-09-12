@@ -111,9 +111,7 @@ result<PricingResult> price_binomial(
 
     auto output = PricingResult{{risk_measure::price, values[0]}, {risk_measure::delta, delta}};
     if (gamma_available) output.set(risk_measure::gamma, gamma);
-    if (!std::ranges::all_of(output.values, [](const auto& value) {
-            return !value || std::isfinite(*value);
-        })) {
+    if (!output.all_finite()) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "binomial pricing produced a non-finite result"});
     }

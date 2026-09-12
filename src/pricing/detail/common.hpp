@@ -152,9 +152,7 @@ inline result<PricingResult> price_at_volatility(
                                {risk_measure::color, color}, {risk_measure::vega, vega},
                                {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
                                {risk_measure::rho, rho}};
-    if (!std::ranges::all_of(output.values, [](const auto& item) {
-            return !item || std::isfinite(*item);
-        })) {
+    if (!output.all_finite()) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     }

@@ -101,7 +101,7 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     const double delta = std::lerp(node_delta(center), node_delta(right), weight);
     const double gamma = std::lerp(node_gamma(center), node_gamma(right), weight);
     PricingResult output{{risk_measure::price, value}, {risk_measure::delta, delta}, {risk_measure::gamma, gamma}};
-    if (!std::ranges::all_of(output.values, [](const auto& item) { return !item || std::isfinite(*item); }))
+    if (!output.all_finite())
         return std::unexpected(Error{error_category::invalid_result, "finite-difference pricing produced a non-finite result"});
     return output;
 }

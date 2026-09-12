@@ -232,9 +232,8 @@ template <typename Engine, typename Option>
                          {risk_measure::color, color}, {risk_measure::vega, vega},
                          {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
                          {risk_measure::rho, rho}};
-    for (const auto& value : output.values)
-        if (value && !std::isfinite(*value))
-            return std::unexpected(Error{error_category::invalid_result, "numerical analytics are non-finite"});
+    if (!output.all_finite())
+        return std::unexpected(Error{error_category::invalid_result, "numerical analytics are non-finite"});
     return output;
 }
 

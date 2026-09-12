@@ -15,58 +15,89 @@ enum class barrier_touch_status { none,
 
 class AutocallableNote {
 public:
-    double initial_price() const noexcept { return initial_price_; }
-    const std::vector<double>& knock_out_prices() const noexcept { return knock_out_prices_; }
-    double upper_strike() const noexcept { return upper_strike_; }
-    double lower_strike() const noexcept { return lower_strike_; }
-    const std::vector<date>& observation_dates() const noexcept { return observation_dates_; }
-    double principal_ratio() const noexcept { return principal_ratio_; }
-    date effective() const noexcept { return effective_; }
-    date expiry() const noexcept { return expiry_; }
-    barrier_touch_status touch_status() const noexcept { return touch_status_; }
+    double initial_price() const noexcept { return terms_.initial_price; }
+    const std::vector<double>& knock_out_prices() const noexcept { return terms_.knock_out_prices; }
+    double upper_strike() const noexcept { return terms_.upper_strike; }
+    double lower_strike() const noexcept { return terms_.lower_strike; }
+    const std::vector<date>& observation_dates() const noexcept { return terms_.observation_dates; }
+    double principal_ratio() const noexcept { return terms_.principal_ratio; }
+    date effective() const noexcept { return terms_.effective; }
+    date expiry() const noexcept { return terms_.expiry; }
+    barrier_touch_status touch_status() const noexcept { return terms_.touch_status; }
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
 
-protected:
+private:
     AutocallableNote(double initial_price, std::vector<double> knock_out_prices, double upper_strike,
                      double lower_strike, std::vector<date> observations, double principal_ratio,
                      barrier_touch_status touch_status, date effective, date expiry)
-        : initial_price_(initial_price), knock_out_prices_(std::move(knock_out_prices)), upper_strike_(upper_strike),
-          lower_strike_(lower_strike), observation_dates_(std::move(observations)), principal_ratio_(principal_ratio),
-          touch_status_(touch_status), effective_(effective), expiry_(expiry) {}
+        : terms_{initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                 std::move(observations), principal_ratio, touch_status, effective, expiry} {}
 
 private:
-    double initial_price_;
-    std::vector<double> knock_out_prices_;
-    double upper_strike_;
-    double lower_strike_;
-    std::vector<date> observation_dates_;
-    double principal_ratio_;
-    barrier_touch_status touch_status_;
-    date effective_;
-    date expiry_;
+    struct Terms {
+        double initial_price;
+        std::vector<double> knock_out_prices;
+        double upper_strike;
+        double lower_strike;
+        std::vector<date> observation_dates;
+        double principal_ratio;
+        barrier_touch_status touch_status;
+        date effective;
+        date expiry;
+        friend bool operator==(const Terms&, const Terms&) = default;
+    } terms_;
+
+    friend class KiAutocallableNote;
+    friend class BinarySnowballOption;
 };
 
-class KiAutocallableNote : public AutocallableNote {
+class KiAutocallableNote {
 public:
+    double initial_price() const noexcept { return note_.initial_price(); }
+    const std::vector<double>& knock_out_prices() const noexcept { return note_.knock_out_prices(); }
+    double upper_strike() const noexcept { return note_.upper_strike(); }
+    double lower_strike() const noexcept { return note_.lower_strike(); }
+    const std::vector<date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    date effective() const noexcept { return note_.effective(); }
+    date expiry() const noexcept { return note_.expiry(); }
+    barrier_touch_status touch_status() const noexcept { return note_.touch_status(); }
     double knock_in_price() const noexcept { return knock_in_price_; }
     observation_frequency knock_in_frequency() const noexcept { return frequency_; }
+    friend bool operator==(const KiAutocallableNote&, const KiAutocallableNote&) = default;
 
-protected:
+private:
     KiAutocallableNote(double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
                        double upper_strike, double lower_strike, std::vector<date> observations,
                        observation_frequency frequency, barrier_touch_status touch_status, double principal_ratio,
                        date effective, date expiry)
-        : AutocallableNote(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                           std::move(observations), principal_ratio, touch_status, effective, expiry),
+        : note_(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                std::move(observations), principal_ratio, touch_status, effective, expiry),
           knock_in_price_(knock_in_price), frequency_(frequency) {}
 
 private:
+    AutocallableNote note_;
     double knock_in_price_;
     observation_frequency frequency_;
+
+    friend class PhoenixOption;
+    friend class SnowballOption;
+    friend class TernarySnowballOption;
 };
 
-class PhoenixOption : public KiAutocallableNote {
+class PhoenixOption {
 public:
+    double initial_price() const noexcept { return note_.initial_price(); }
+    const std::vector<double>& knock_out_prices() const noexcept { return note_.knock_out_prices(); }
+    double upper_strike() const noexcept { return note_.upper_strike(); }
+    double lower_strike() const noexcept { return note_.lower_strike(); }
+    const std::vector<date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    date effective() const noexcept { return note_.effective(); }
+    date expiry() const noexcept { return note_.expiry(); }
+    barrier_touch_status touch_status() const noexcept { return note_.touch_status(); }
+    double knock_in_price() const noexcept { return note_.knock_in_price(); }
+    observation_frequency knock_in_frequency() const noexcept { return note_.knock_in_frequency(); }
     result<PhoenixOption> with_coupon_rate(double coupon) const;
     double coupon_rate() const noexcept { return coupon_rate_; }
     const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
@@ -76,17 +107,29 @@ private:
                   std::vector<double> coupon_barriers, double upper_strike, double lower_strike,
                   std::vector<date> observations, observation_frequency frequency, barrier_touch_status touch_status,
                   double principal_ratio, date effective, date expiry)
-        : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                             std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
+        : note_(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           coupon_rate_(coupon_rate), coupon_barriers_(std::move(coupon_barriers)) {}
     friend result<PhoenixOption> make_phoenix_option(double, double, double, std::vector<double>, std::vector<double>, double, double,
                                                      std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
+    KiAutocallableNote note_;
     double coupon_rate_;
     std::vector<double> coupon_barriers_;
 };
 
-class SnowballOption : public KiAutocallableNote {
+class SnowballOption {
 public:
+    double initial_price() const noexcept { return note_.initial_price(); }
+    const std::vector<double>& knock_out_prices() const noexcept { return note_.knock_out_prices(); }
+    double upper_strike() const noexcept { return note_.upper_strike(); }
+    double lower_strike() const noexcept { return note_.lower_strike(); }
+    const std::vector<date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    date effective() const noexcept { return note_.effective(); }
+    date expiry() const noexcept { return note_.expiry(); }
+    barrier_touch_status touch_status() const noexcept { return note_.touch_status(); }
+    double knock_in_price() const noexcept { return note_.knock_in_price(); }
+    observation_frequency knock_in_frequency() const noexcept { return note_.knock_in_frequency(); }
     result<SnowballOption> with_coupon_rate(double coupon) const;
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
@@ -97,17 +140,27 @@ private:
                    double upper_strike, double lower_strike, std::vector<date> observations,
                    observation_frequency frequency, barrier_touch_status touch_status, double principal_ratio,
                    date effective, date expiry)
-        : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                             std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
+        : note_(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate) {}
     friend result<SnowballOption> make_snowball_option(std::vector<double>, double, double, double, std::vector<double>, double, double,
                                                        std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
+    KiAutocallableNote note_;
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 };
 
-class BinarySnowballOption : public AutocallableNote {
+class BinarySnowballOption {
 public:
+    double initial_price() const noexcept { return note_.initial_price(); }
+    const std::vector<double>& knock_out_prices() const noexcept { return note_.knock_out_prices(); }
+    double upper_strike() const noexcept { return note_.upper_strike(); }
+    double lower_strike() const noexcept { return note_.lower_strike(); }
+    const std::vector<date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    date effective() const noexcept { return note_.effective(); }
+    date expiry() const noexcept { return note_.expiry(); }
+    barrier_touch_status touch_status() const noexcept { return note_.touch_status(); }
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
 
@@ -116,17 +169,29 @@ private:
                          double initial_price, std::vector<double> knock_out_prices, double upper_strike,
                          double lower_strike, std::vector<date> observations, barrier_touch_status touch_status,
                          double principal_ratio, date effective, date expiry)
-        : AutocallableNote(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                           std::move(observations), principal_ratio, touch_status, effective, expiry),
+        : note_(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                std::move(observations), principal_ratio, touch_status, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate) {}
     friend result<BinarySnowballOption> make_binary_snowball_option(std::vector<double>, double, double, std::vector<double>, double, double,
                                                                     std::vector<date>, barrier_touch_status, double, date, date);
+    AutocallableNote note_;
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 };
 
-class TernarySnowballOption : public KiAutocallableNote {
+class TernarySnowballOption {
 public:
+    double initial_price() const noexcept { return note_.initial_price(); }
+    const std::vector<double>& knock_out_prices() const noexcept { return note_.knock_out_prices(); }
+    double upper_strike() const noexcept { return note_.upper_strike(); }
+    double lower_strike() const noexcept { return note_.lower_strike(); }
+    const std::vector<date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    date effective() const noexcept { return note_.effective(); }
+    date expiry() const noexcept { return note_.expiry(); }
+    barrier_touch_status touch_status() const noexcept { return note_.touch_status(); }
+    double knock_in_price() const noexcept { return note_.knock_in_price(); }
+    observation_frequency knock_in_frequency() const noexcept { return note_.knock_in_frequency(); }
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
     double minimal_coupon_rate() const noexcept { return minimal_coupon_rate_; }
@@ -137,13 +202,14 @@ private:
                           std::vector<double> knock_out_prices, double upper_strike, double lower_strike,
                           std::vector<date> observations, observation_frequency frequency,
                           barrier_touch_status touch_status, double principal_ratio, date effective, date expiry)
-        : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                             std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
+        : note_(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike, lower_strike,
+                std::move(observations), frequency, touch_status, principal_ratio, effective, expiry),
           knock_out_coupon_rates_(std::move(knock_out_coupon_rates)), maturity_coupon_rate_(maturity_coupon_rate),
           minimal_coupon_rate_(minimal_coupon_rate) {}
     friend result<TernarySnowballOption> make_ternary_snowball_option(std::vector<double>, double, double, double, double, std::vector<double>,
                                                                       double, double, std::vector<date>, observation_frequency,
                                                                       barrier_touch_status, double, date, date);
+    KiAutocallableNote note_;
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_, minimal_coupon_rate_;
 };
@@ -158,7 +224,7 @@ template <typename Note>
         return std::unexpected(Error{error_category::invalid_parameter, "autocallable terms are invalid"});
     if (note.observation_dates().empty() || note.knock_out_prices().size() != note.observation_dates().size())
         return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
-    auto schedule = validate_schedule(note.observation_dates(), note.effective(), note.expiry(), all_days_calendar());
+    auto schedule = validate_date_schedule(note.observation_dates(), note.effective(), note.expiry());
     if (!schedule)
         return std::unexpected(Error{error_category::invalid_schedule, "autocallable schedule is invalid"});
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {

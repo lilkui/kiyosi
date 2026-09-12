@@ -381,9 +381,8 @@ TEST_CASE("Exercise-based options compose shared terms, payoff, and exercise")
               .error()
               .category == kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(
-              terms, kiyosi::VanillaPayoff{}, std::vector{day(2025, 1, 11)}, kiyosi::exchange_calendar())
-              .error()
-              .category == kiyosi::error_category::invalid_schedule);
+              terms, kiyosi::VanillaPayoff{}, std::vector{day(2025, 1, 11)})
+              .has_value());
 
     const auto later_terms = *kiyosi::make_option_terms(
         kiyosi::option_type::call, 100.0, expiry + std::chrono::days{30});
