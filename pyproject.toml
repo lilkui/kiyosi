@@ -5,8 +5,23 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "kiyosi"
 description = "A modern quantitative finance library for pricing vanilla and exotic derivatives"
+readme = "python/README.md"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "Jiangping Li" }]
 requires-python = ">=3.11"
 dynamic = ["version"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: C++",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.urls]
+Repository = "https://github.com/lilkui/kiyosi"
+Issues = "https://github.com/lilkui/kiyosi/issues"
 
 [tool.scikit-build.metadata.version]
 provider = "scikit_build_core.metadata.regex"
