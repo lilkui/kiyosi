@@ -67,7 +67,6 @@ public:
     AssetPrice asset_price() const noexcept { return asset_price_; }
     date valuation_date() const noexcept { return date_of(valuation_time_); }
     timestamp valuation_time() const noexcept { return valuation_time_; }
-    timestamp valuation_moment() const noexcept { return valuation_time_; }
     const TradingCalendar& calendar() const noexcept { return calendar_; }
 
 private:
