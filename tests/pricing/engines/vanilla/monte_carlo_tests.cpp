@@ -18,7 +18,7 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto american = *kiyosi::make_american_put(100.0, expiry);
 
@@ -46,7 +46,7 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry")
 {
     const auto expiry = day(2025, 1, 1);
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(110.0), expiry);
+    const auto context = *kiyosi::make_pricing_context(parameters, 110.0, expiry);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto result = kiyosi::MonteCarloEuropeanEngine{10, 2, 1}.price(call, context);
     REQUIRE(result.has_value());
@@ -58,7 +58,7 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     const auto valuation = day(2025, 1, 6);
     const auto expiry = day(2026, 1, 6);
     const auto parameters = *kiyosi::make_bsm_parameters(0.10, 0.0, 0.10);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(50.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 50.0, valuation);
     const auto put = *kiyosi::make_american_put(100.0, expiry);
     const auto result = kiyosi::MonteCarloAmericanEngine{20'000, 50, 42}.price(put, context);
     REQUIRE(result.has_value());

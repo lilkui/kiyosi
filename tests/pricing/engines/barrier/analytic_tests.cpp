@@ -19,7 +19,7 @@ TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto barrier = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_expiry);
@@ -34,7 +34,7 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.03, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto barrier = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_hit);
@@ -56,7 +56,7 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(-0.02, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto barrier = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
         10.0, kiyosi::rebate_timing::at_hit);

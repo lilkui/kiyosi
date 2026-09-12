@@ -10,7 +10,7 @@ struct Factors { double a1, b1, a2, b2, a3, b3, a4, b4, a5; };
 
 double vanilla_digital(const BinaryBarrierOption& option, const PricingContext& context, double time)
 {
-    const double spot = context.asset_price().value(), rate = context.parameters().risk_free_rate();
+    const double spot = context.asset_price(), rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield(), volatility = context.parameters().volatility();
     if (!option.type()) return option.asset_settlement() ? spot * std::exp(-dividend * time) : option.payout() * std::exp(-rate * time);
     const double sign = *option.type() == option_type::call ? 1.0 : -1.0;
@@ -40,7 +40,7 @@ result<PricingResult> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOpti
         if (!schedule) return std::unexpected(Error{error_category::invalid_schedule, schedule.error().message});
     }
     const double time = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const bool upper = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
     const bool observed_now = option.observation() == observation_mode::continuous ||

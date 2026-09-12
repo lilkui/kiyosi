@@ -63,7 +63,7 @@ TEST_CASE("Phoenix expiry settlement applies state and final observations")
     const auto expiry = day(2026, 1, 1);
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(spot), expiry);
+                                             spot, expiry);
     };
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
@@ -90,7 +90,7 @@ TEST_CASE("Snowball expiry settlement applies state and final observations")
     const auto expiry = day(2026, 1, 1);
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(spot), expiry);
+                                             spot, expiry);
     };
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
@@ -117,7 +117,7 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
     const auto expiry = day(2026, 1, 1);
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(spot), expiry);
+                                             spot, expiry);
     };
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
@@ -137,7 +137,7 @@ TEST_CASE("Ternary snowball expiry settlement applies final observations")
     const auto expiry = day(2026, 1, 1);
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(spot), expiry);
+                                             spot, expiry);
     };
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
@@ -159,7 +159,7 @@ TEST_CASE("Accumulator expiry settlement agrees across pricing engines")
     const auto expiry = day(2026, 1, 1);
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(spot), expiry);
+                                             spot, expiry);
     };
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
@@ -179,7 +179,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     const auto valuation = day(2025, 7, 1);
     const auto expiry = day(2026, 1, 1);
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), *kiyosi::make_asset_price(100.0), valuation);
+        *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), 100.0, valuation);
     const auto monte_carlo_price = [&](const auto& instrument) {
         using Instrument = std::remove_cvref_t<decltype(instrument)>;
         const auto result = kiyosi::MonteCarloStructuredEngine<Instrument>{{32, 7}}.price(instrument, context);
@@ -221,7 +221,7 @@ TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
     check_structured_refinement(accumulator, context);
 }
@@ -233,7 +233,7 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const auto phoenix = *kiyosi::make_phoenix_option(
         0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0,
@@ -249,7 +249,7 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto snowball = *kiyosi::make_snowball_option(
@@ -265,7 +265,7 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto binary = *kiyosi::make_binary_snowball_option(
@@ -281,7 +281,7 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto ternary = *kiyosi::make_ternary_snowball_option(
@@ -297,7 +297,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto binary = *kiyosi::make_binary_snowball_option(
@@ -314,7 +314,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
     const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const auto phoenix = *kiyosi::make_phoenix_option(
         0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0,

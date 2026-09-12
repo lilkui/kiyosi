@@ -21,7 +21,7 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto cash_call = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, expiry);
     const auto cash_put = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::put, 100.0, 10.0, expiry);
     const kiyosi::AnalyticDigitalEngine digital;
@@ -45,7 +45,7 @@ TEST_CASE("Barrier in and out prices compose to vanilla")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto down_out = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out);
     const auto down_in = *kiyosi::make_barrier_option(
@@ -66,7 +66,7 @@ TEST_CASE("Scheduled barrier contracts price analytically")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto scheduled = kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
@@ -80,8 +80,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = day(2025, 7, 1);
     auto parameters = kiyosi::make_bsm_parameters(0.03, 0.01, 0.2);
-    auto asset = kiyosi::make_asset_price(100.0);
-    auto context = kiyosi::make_pricing_context(*parameters, *asset, valuation);
+    auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
     REQUIRE(context.has_value());
 
     auto asian = kiyosi::make_geometric_average_option(kiyosi::option_type::call, 100.0, valuation, expiry);
@@ -106,8 +105,7 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = day(2025, 7, 1);
     auto parameters = kiyosi::make_bsm_parameters(0.03, 0.01, 0.2);
-    auto asset = kiyosi::make_asset_price(100.0);
-    auto context = kiyosi::make_pricing_context(*parameters, *asset, valuation);
+    auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
     REQUIRE(context.has_value());
     auto option = kiyosi::make_european_call(100.0, expiry);
     REQUIRE(option.has_value());

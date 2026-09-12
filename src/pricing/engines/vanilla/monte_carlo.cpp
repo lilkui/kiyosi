@@ -37,7 +37,7 @@ result<std::vector<double>> simulate_paths(
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
     const auto size = static_cast<std::size_t>(path_count) * static_cast<std::size_t>(settings.step_count);
     std::vector<double> paths(size);
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double volatility = context.parameters().volatility();
@@ -129,7 +129,7 @@ result<PricingResult> MonteCarloEuropeanEngine::price(
     const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
-        return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price().value(), option.strike())}};
+        return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price(), option.strike())}};
     auto paths = simulate_paths(context, *time, settings_);
     if (!paths) return std::unexpected(paths.error());
     const auto path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
@@ -148,7 +148,7 @@ result<PricingResult> MonteCarloAmericanEngine::price(
     const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
-        return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price().value(), option.strike())}};
+        return PricingResult{{risk_measure::price, payoff(option.type(), context.asset_price(), option.strike())}};
     if (settings_.step_count < 3)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
@@ -190,7 +190,7 @@ result<PricingResult> MonteCarloAmericanEngine::price(
     for (double value : cash_flows) sum += value;
     const double continuation = sum / static_cast<double>(path_count) * discount;
     const double value = std::max(continuation,
-        payoff(option.type(), context.asset_price().value(), option.strike()));
+        payoff(option.type(), context.asset_price(), option.strike()));
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return PricingResult{{risk_measure::price, value}};

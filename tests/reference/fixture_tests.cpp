@@ -102,9 +102,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(date("valuation") < date("expiry"));
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
-        const auto spot = kiyosi::make_asset_price(number("spot"));
-        REQUIRE(spot.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
+        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
         REQUIRE(context.has_value());
         const auto check_contract = [&](const auto& option) {
             const auto check_engine = [&](const auto& engine) {
@@ -287,7 +285,7 @@ TEST_CASE("Digital expiry settlement uses strict strikes without smooth Greeks")
     const auto expiry = standard_expiry();
     for (const auto& item : cases) {
         const auto context = *kiyosi::make_pricing_context(
-            *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(item.spot), expiry);
+            *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), item.spot, expiry);
         const auto cash = *kiyosi::make_cash_or_nothing_option(item.type, 100, 10, expiry);
         const auto asset = *kiyosi::make_asset_or_nothing_option(item.type, 100, expiry);
         const auto check = [&](const auto& engine, const auto& option, double expected) {
@@ -519,10 +517,8 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             REQUIRE(number("realized_average") == 0);
         }
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
-        const auto spot = kiyosi::make_asset_price(number("spot"));
         REQUIRE(parameters.has_value());
-        REQUIRE(spot.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"),
+        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"),
             inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar());
         REQUIRE(context.has_value());
         const auto check = [&](const auto& option, const auto& engine) {
@@ -594,7 +590,7 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     const auto valuation = kiyosi::date{std::chrono::year{2025} / 1 / 6};
     const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 6};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto put = *kiyosi::make_european_put(100.0, expiry);
@@ -630,7 +626,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
     const auto effective = kiyosi::date{std::chrono::year{2025} / 1 / 1};
     const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 1};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const auto call = *kiyosi::make_european_call(100.0, effective, expiry);
     const auto put = *kiyosi::make_american_put(100.0, effective, expiry);
     const std::vector<kiyosi::date> observations{effective + std::chrono::days{90},
@@ -717,10 +713,8 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             number("rebate"), inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry);
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
-        const auto spot = kiyosi::make_asset_price(number("spot"));
         REQUIRE(parameters.has_value());
-        REQUIRE(spot.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
+        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
         REQUIRE(context.has_value());
         const auto check = [&](const auto& engine) {
             const auto native = engine.price(*option, *context);
@@ -797,10 +791,8 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
             inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry);
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
-        const auto spot = kiyosi::make_asset_price(number("spot"));
         REQUIRE(parameters.has_value());
-        REQUIRE(spot.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, *spot, date("valuation"));
+        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
         REQUIRE(context.has_value());
         const kiyosi::AnalyticBinaryBarrierEngine engine;
         const auto native = engine.price(*option, *context);

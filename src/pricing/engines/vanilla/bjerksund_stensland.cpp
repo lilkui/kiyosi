@@ -125,7 +125,7 @@ result<PricingResult> BjerksundStenslandAmericanEngine::price(const AmericanOpti
     const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     const double time = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();

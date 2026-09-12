@@ -22,7 +22,7 @@ result<PricingResult> price_binomial(
                                      "binomial step count must be between 1 and 1000000"});
     }
 
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double time = actual_365(context.valuation_time(), option.expiry());

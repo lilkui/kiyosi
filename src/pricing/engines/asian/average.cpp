@@ -24,7 +24,7 @@ result<PricingResult> GeometricAverageAsianEngine::price(
     auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     if (tau == 0.0) return PricingResult{{risk_measure::price, payoff(option.type(), option.realized_average() > 0.0 ? option.realized_average() : spot, strike)}};
@@ -51,7 +51,7 @@ result<PricingResult> ArithmeticAverageAsianEngine::price(
     auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double rate = context.parameters().risk_free_rate();

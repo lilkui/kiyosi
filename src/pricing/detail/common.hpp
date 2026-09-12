@@ -60,7 +60,7 @@ inline result<PricingResult> price_at_volatility(
         return std::unexpected(valid_expiry.error());
     }
 
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double year_fraction = actual_365(context.valuation_time(), option.expiry());

@@ -15,7 +15,7 @@ double path_payoff(const Option& option, const PricingContext& context, std::mt1
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const timestamp valuation = context.valuation_time();
     const auto& calendar = context.calendar();
     if constexpr (requires { option.touch_status(); })

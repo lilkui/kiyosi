@@ -40,56 +40,35 @@ private:
     return BsmParameters{risk_free_rate, dividend_yield, volatility};
 }
 
-class AssetPrice {
-public:
-    double value() const noexcept { return value_; }
-
-    friend bool operator==(const AssetPrice&, const AssetPrice&) = default;
-
-private:
-    explicit AssetPrice(double value) : value_(value) {}
-    double value_;
-    friend result<AssetPrice> make_asset_price(double);
-};
-
 class MarketState {
 public:
     const BsmParameters& parameters() const noexcept { return parameters_; }
-    AssetPrice asset_price() const noexcept { return asset_price_; }
+    double asset_price() const noexcept { return asset_price_; }
     date valuation_date() const noexcept { return date_of(valuation_time_); }
     timestamp valuation_time() const noexcept { return valuation_time_; }
 
 private:
-    MarketState(BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time)
+    MarketState(BsmParameters parameters, double asset_price, timestamp valuation_time)
         : parameters_(std::move(parameters)), asset_price_(asset_price), valuation_time_(valuation_time) {}
 
     BsmParameters parameters_;
-    AssetPrice asset_price_;
+    double asset_price_;
     timestamp valuation_time_;
 
     friend class PricingContext;
 };
 
-[[nodiscard]] inline result<AssetPrice> make_asset_price(double value)
-{
-    if (!std::isfinite(value) || value <= 0.0) {
-        return std::unexpected(Error{error_category::invalid_asset_price,
-                                     "asset price must be finite and positive"});
-    }
-    return AssetPrice{value};
-}
-
 class PricingContext {
 public:
     const BsmParameters& parameters() const noexcept { return market_.parameters(); }
-    AssetPrice asset_price() const noexcept { return market_.asset_price(); }
+    double asset_price() const noexcept { return market_.asset_price(); }
     date valuation_date() const noexcept { return market_.valuation_date(); }
     timestamp valuation_time() const noexcept { return market_.valuation_time(); }
     const MarketState& market() const noexcept { return market_; }
     const TradingCalendar& calendar() const noexcept { return calendar_; }
 
 private:
-    PricingContext(BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time,
+    PricingContext(BsmParameters parameters, double asset_price, timestamp valuation_time,
                    TradingCalendar calendar)
         : market_(std::move(parameters), asset_price, valuation_time),
           calendar_(std::move(calendar)) {}
@@ -97,16 +76,20 @@ private:
     MarketState market_;
     TradingCalendar calendar_;
 
-    friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, date, TradingCalendar);
-    friend result<PricingContext> make_pricing_context(BsmParameters, AssetPrice, timestamp, TradingCalendar);
+    friend result<PricingContext> make_pricing_context(BsmParameters, double, date, TradingCalendar);
+    friend result<PricingContext> make_pricing_context(BsmParameters, double, timestamp, TradingCalendar);
 };
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
-    BsmParameters, AssetPrice, date, TradingCalendar);
+    BsmParameters, double, date, TradingCalendar);
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
-    BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time, TradingCalendar calendar)
+    BsmParameters parameters, double asset_price, timestamp valuation_time, TradingCalendar calendar)
 {
+    if (!std::isfinite(asset_price) || asset_price <= 0.0) {
+        return std::unexpected(Error{error_category::invalid_asset_price,
+                                     "asset price must be finite and positive"});
+    }
     if (!is_valid_date(date_of(valuation_time)))
         return std::unexpected(Error{error_category::invalid_date,
                                      "valuation time must contain a valid calendar date"});
@@ -114,20 +97,24 @@ private:
 }
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
-    BsmParameters parameters, AssetPrice asset_price, timestamp valuation_time)
+    BsmParameters parameters, double asset_price, timestamp valuation_time)
 {
     return make_pricing_context(std::move(parameters), asset_price, valuation_time, all_days_calendar());
 }
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
-    BsmParameters parameters, AssetPrice asset_price, date valuation_date)
+    BsmParameters parameters, double asset_price, date valuation_date)
 {
     return make_pricing_context(std::move(parameters), asset_price, start_of_day(valuation_date), all_days_calendar());
 }
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
-    BsmParameters parameters, AssetPrice asset_price, date valuation_date, TradingCalendar calendar)
+    BsmParameters parameters, double asset_price, date valuation_date, TradingCalendar calendar)
 {
+    if (!std::isfinite(asset_price) || asset_price <= 0.0) {
+        return std::unexpected(Error{error_category::invalid_asset_price,
+                                     "asset price must be finite and positive"});
+    }
     if (!is_valid_date(valuation_date)) {
         return std::unexpected(Error{error_category::invalid_date,
                                      "valuation date must be a valid calendar date"});

@@ -18,7 +18,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         if (!schedule) return std::unexpected(schedule.error());
     }
     const double maturity = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price().value(), strike = option.strike();
+    const double spot = context.asset_price(), strike = option.strike();
     if (maturity == 0.0) return std::max((option.type() == option_type::call ? spot - strike : strike - spot), 0.0);
     const double rate = context.parameters().risk_free_rate(), dividend = context.parameters().dividend_yield(), volatility = context.parameters().volatility();
     const double barrier = option.barrier();
@@ -92,8 +92,8 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     }
     const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
     const bool touched = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out
-                             ? context.asset_price().value() >= option.barrier()
-                             : context.asset_price().value() <= option.barrier();
+                             ? context.asset_price() >= option.barrier()
+                             : context.asset_price() <= option.barrier();
     const bool observed_now = option.observation() == observation_mode::continuous ||
         std::ranges::any_of(option.observation_dates(), [&](date event) {
             return event == context.valuation_time();

@@ -101,9 +101,7 @@ inline result<PricingContext> shifted_context(const PricingContext& context, dou
 {
     auto parameters = make_bsm_parameters(rate, context.parameters().dividend_yield(), volatility);
     if (!parameters) return std::unexpected(parameters.error());
-    auto asset = make_asset_price(spot);
-    if (!asset) return std::unexpected(asset.error());
-    return make_pricing_context(*parameters, *asset, valuation, context.calendar());
+    return make_pricing_context(*parameters, spot, valuation, context.calendar());
 }
 
 template <typename Engine, typename Option>
@@ -126,7 +124,7 @@ template <typename Engine, typename Option>
         !std::isfinite(settings.rate_shift) || settings.rate_shift <= 0.0 || settings.time_shift_days <= 0)
         return std::unexpected(Error{error_category::invalid_parameter, "numerical shifts are invalid"});
 
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double volatility = context.parameters().volatility();
     const double rate = context.parameters().risk_free_rate();
     const timestamp today = context.valuation_time();
@@ -283,7 +281,7 @@ template <typename Engine, typename Option>
         !std::isfinite(settings.tolerance) || settings.tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{error_category::invalid_parameter, "implied-volatility settings are invalid"});
     const auto evaluate = [&](double volatility) -> result<double> {
-        auto shifted = detail::shifted_context(context, context.asset_price().value(), volatility,
+        auto shifted = detail::shifted_context(context, context.asset_price(), volatility,
                                                context.parameters().risk_free_rate(), context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         return detail::numerical_value(engine, option, *shifted);

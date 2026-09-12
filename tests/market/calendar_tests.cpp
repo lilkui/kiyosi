@@ -39,7 +39,7 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
                       .has_value());
 
     auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    auto context = kiyosi::make_pricing_context(*parameters, *kiyosi::make_asset_price(100.0), valuation, copied_calendar);
+    auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation, copied_calendar);
     REQUIRE(context.has_value());
     const auto context_copy = *context;
     REQUIRE(context_copy.calendar().is_trading_day(day(2025, 1, 2)));
@@ -55,7 +55,7 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
 
     const auto noon = kiyosi::start_of_day(start) + std::chrono::hours{12};
     const auto context = kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), *kiyosi::make_asset_price(100.0), noon);
+        *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 100.0, noon);
     REQUIRE(context.has_value());
     CHECK(context->valuation_date() == start);
     CHECK(context->valuation_time().time_since_epoch() == noon.time_since_epoch());

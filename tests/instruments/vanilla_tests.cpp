@@ -47,7 +47,7 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto european = *kiyosi::make_european_call(100.0, expiry);
     const auto american = *kiyosi::make_american_call(100.0, expiry);
     const auto european_result = kiyosi::AnalyticEuropeanEngine{}.price(european, context);

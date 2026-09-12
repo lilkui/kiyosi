@@ -18,7 +18,7 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
     const auto midnight = kiyosi::start_of_day(expiry);
     const auto market = [&](kiyosi::timestamp instant) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.0, 0.2),
-                                             *kiyosi::make_asset_price(110.0), instant);
+                                             110.0, instant);
     };
     const auto check = [&](const auto& engine, const auto& option, double terminal) {
         const auto settled = engine.price(option, market(midnight));
@@ -87,7 +87,7 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     const auto expiry = day(2026, 1, 1);
     const auto noon = kiyosi::start_of_day(expiry) - std::chrono::hours{12};
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.4),
-                                                       *kiyosi::make_asset_price(100.0), noon);
+                                                       100.0, noon);
     const auto option = *kiyosi::make_european_call(100.0, expiry);
     const double expected = 100.0 * std::erf(0.4 * std::sqrt(0.5 / 365.0) / (2.0 * std::sqrt(2.0)));
     const auto check = [&](const auto& engine, double tolerance) {
@@ -122,7 +122,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
 {
     const auto noon = kiyosi::start_of_day(day(2025, 7, 1)) + std::chrono::hours{12};
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.0, 0.2),
-                                                       *kiyosi::make_asset_price(100.0), noon);
+                                                       100.0, noon);
     const auto option = *kiyosi::make_european_call(100.0, day(2026, 1, 1));
     std::vector<kiyosi::timestamp> moments;
     const RecordingEngine engine{moments, noon};
@@ -163,7 +163,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
     const auto check = [&](const auto& engine) {
         for (const int hour : {0, 12}) {
             const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12),
-                                                               *kiyosi::make_asset_price(100.0), kiyosi::start_of_day(observation) + std::chrono::hours{hour});
+                                                               100.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
             const auto priced = engine.price(note, context);
             REQUIRE(priced);
             const double expected = hour == 0 ? 1.0 + 10.0 * kiyosi::year_fraction(effective, observation).value() : 1.1;
@@ -186,7 +186,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
     const kiyosi::MonteCarloTernarySnowballEngine engine{{32, 7}};
     for (const int hour : {0, 12}) {
         const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(400.0, 0.0, 1e-12),
-            *kiyosi::make_asset_price(50.0), kiyosi::start_of_day(observation) + std::chrono::hours{hour});
+            50.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
         const auto priced = engine.price(note, context);
         REQUIRE(priced);
         const double coupon = hour == 0 ? 0.2 : 0.8;

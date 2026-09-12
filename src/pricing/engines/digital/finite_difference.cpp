@@ -22,7 +22,7 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
 
     const double time = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double payout = [&] {

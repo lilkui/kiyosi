@@ -20,7 +20,7 @@ TEST_CASE("Finite-difference European engines track analytic prices")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto american_call = *kiyosi::make_american_call(100.0, expiry);
     const auto analytic = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
@@ -44,7 +44,7 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     const auto american_call = *kiyosi::make_american_call(100.0, expiry);
     const auto analytic = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
@@ -67,7 +67,7 @@ TEST_CASE("Finite-difference engines reject invalid grids")
     const auto valuation = day(2025, 1, 1);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(100.0), valuation);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_call(100.0, expiry);
     CHECK_FALSE(kiyosi::FiniteDifferenceEuropeanEngine{{2, 10, kiyosi::finite_difference_scheme::implicit_euler}}
                     .price(call, context)
@@ -78,7 +78,7 @@ TEST_CASE("Finite-difference American engine returns intrinsic value at expiry")
 {
     const auto expiry = day(2026, 1, 1);
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto expiry_context = *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(90.0), expiry);
+    const auto expiry_context = *kiyosi::make_pricing_context(parameters, 90.0, expiry);
     const auto expiry_put = *kiyosi::make_american_put(100.0, expiry);
     const auto at_expiry = kiyosi::FiniteDifferenceAmericanEngine{}.price(expiry_put, expiry_context);
     REQUIRE(at_expiry.has_value());

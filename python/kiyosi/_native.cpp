@@ -65,9 +65,7 @@ nb::dict price(
 
     auto parameters = make_bsm_parameters(risk_free_rate, dividend_yield, volatility);
     if (!parameters) return error_result(parameters.error());
-    auto asset_price = make_asset_price(spot);
-    if (!asset_price) return error_result(asset_price.error());
-    auto context = make_pricing_context(*parameters, *asset_price, valuation);
+    auto context = make_pricing_context(*parameters, spot, valuation);
     if (!context) return error_result(context.error());
 
     const auto priced = AnalyticEuropeanEngine{}.price(*option, *context);

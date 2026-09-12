@@ -23,7 +23,7 @@ kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
                                kiyosi::date value_date = valuation)
 {
     const auto parameters = *kiyosi::make_bsm_parameters(rate, dividend, volatility);
-    return *kiyosi::make_pricing_context(parameters, *kiyosi::make_asset_price(spot), value_date);
+    return *kiyosi::make_pricing_context(parameters, spot, value_date);
 }
 
 kiyosi::PricingResult analytic(kiyosi::option_type type, double spot = 100.0, double rate = 0.04,
@@ -232,7 +232,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
         std::vector<kiyosi::date>{day(2025, 1, 11)});
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
-                                                       *kiyosi::make_asset_price(100.0), valuation,
+                                                       100.0, valuation,
                                                        kiyosi::exchange_calendar());
     CHECK(kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market).error().category ==
           kiyosi::error_category::invalid_schedule);
@@ -260,7 +260,7 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
         2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
         std::vector<kiyosi::date>{day(2025, 1, 11)});
     const auto exchange_market = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), *kiyosi::make_asset_price(100.0), valuation,
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), 100.0, valuation,
         kiyosi::exchange_calendar());
     CHECK(kiyosi::AnalyticBarrierEngine{}.price(weekend, exchange_market).error().category ==
           kiyosi::error_category::invalid_schedule);

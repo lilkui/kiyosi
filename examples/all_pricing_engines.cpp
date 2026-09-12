@@ -28,7 +28,7 @@ int main()
     const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
     const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
     const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), *kiyosi::make_asset_price(100.0), effective);
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
 
     const auto european = *kiyosi::make_european_call(100.0, effective, expiry);
     const auto american = *kiyosi::make_american_put(100.0, effective, expiry);

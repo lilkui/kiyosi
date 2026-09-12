@@ -22,7 +22,7 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
 {
     const auto valid = validate_life(context.valuation_time(), effective, expiry);
     if (!valid) return std::unexpected(valid.error());
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double t = actual_365(context.valuation_time(), expiry);
     const double sign = type == option_type::call ? 1.0 : -1.0;
     if (t == 0.0) {

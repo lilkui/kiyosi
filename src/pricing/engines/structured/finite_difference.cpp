@@ -31,7 +31,7 @@ result<PricingResult> price_finite_difference_structured(
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up && settings.upper_boundary == 0.0)
             return PricingResult{{risk_measure::price, 0.0}};
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     double relevant = spot;
     if constexpr (std::is_same_v<Option, Accumulator>) {
         relevant = std::max({relevant, option.strike(), option.knock_out()});
@@ -52,25 +52,25 @@ result<PricingResult> price_finite_difference_structured(
     if (maturity == 0.0) {
         if constexpr (std::is_same_v<Option, Accumulator>) {
             double quantity = option.accumulated_quantity();
-            const double value = context.asset_price().value();
+            const double value = context.asset_price();
             if (context.calendar().is_trading_day(option.expiry()) && value < option.knock_out())
                 quantity += value < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
             return PricingResult{{risk_measure::price, quantity * (value - option.strike())}};
         }
         else {
             bool knocked_in = option.touch_status() == barrier_touch_status::down;
-            knocked_in = is_knocked_in(option, context.asset_price().value(), knocked_in, true);
+            knocked_in = is_knocked_in(option, context.asset_price(), knocked_in, true);
             const auto& dates = option.observation_dates();
             std::size_t expiry_index = 0;
             while (expiry_index < dates.size() && dates[expiry_index] < option.expiry()) ++expiry_index;
             if (expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
-                context.asset_price().value() >= option.knock_out_prices()[expiry_index])
+                context.asset_price() >= option.knock_out_prices()[expiry_index])
                 return PricingResult{{risk_measure::price, option.principal_ratio() + observation_coupon(option, expiry_index,
-                                                                                                          context.asset_price().value())}};
+                                                                                                          context.asset_price())}};
             const double coupon = expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
                                    carries_observation_coupon<Option>
-                                      ? observation_coupon(option, expiry_index, context.asset_price().value()) : 0.0;
-            return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price().value(), knocked_in) + coupon}};
+                                      ? observation_coupon(option, expiry_index, context.asset_price()) : 0.0;
+            return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price(), knocked_in) + coupon}};
         }
     }
     const double rate = context.parameters().risk_free_rate();

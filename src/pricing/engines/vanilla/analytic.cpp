@@ -41,7 +41,7 @@ result<double> AnalyticEuropeanEngine::implied_volatility(
     const double time = actual_365(context.valuation_time(), option.expiry());
     const double spot_discount = std::exp(-context.parameters().dividend_yield() * time);
     const double strike_discount = std::exp(-context.parameters().risk_free_rate() * time);
-    const double discounted_spot = context.asset_price().value() * spot_discount;
+    const double discounted_spot = context.asset_price() * spot_discount;
     const double discounted_strike = option.strike() * strike_discount;
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double intrinsic = std::max(sign * (discounted_spot - discounted_strike), 0.0);

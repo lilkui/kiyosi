@@ -57,7 +57,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
         context.parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price().value();
+    const double spot = context.asset_price();
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
