@@ -42,9 +42,8 @@ result<PricingResult> price_finite_difference_structured(
         if constexpr (requires { option.coupon_barriers(); })
             for (const double level : option.coupon_barriers()) relevant = std::max(relevant, level);
     }
-    if (settings.upper_boundary != 0.0 && settings.upper_boundary <= relevant)
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference upper boundary must exceed every product level"});
+    const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
+    if (!space) return std::unexpected(space.error());
     if constexpr (requires { option.touch_status(); })
         if (option.touch_status() == barrier_touch_status::up)
             return PricingResult{{risk_measure::price, 0.0}};
@@ -77,8 +76,8 @@ result<PricingResult> price_finite_difference_structured(
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
     const int asset_steps = settings.asset_steps;
-    const double upper = settings.upper_boundary > 0.0 ? settings.upper_boundary : std::max(4.0 * relevant, relevant + 1.0);
-    const double spacing = upper / static_cast<double>(asset_steps);
+    const double upper = space->upper;
+    const double spacing = space->spacing;
     std::vector<double> anchors{0.0, maturity};
     auto add_anchor = [&](date value) {
         if (value <= context.valuation_time()) return;
@@ -99,25 +98,11 @@ result<PricingResult> price_finite_difference_structured(
                 for (const date value : future_trading_dates) add_anchor(value);
     }
     const auto grid = finite_difference_grid(maturity, settings.time_steps, std::move(anchors));
-    if (settings.scheme == finite_difference_scheme::explicit_euler) {
-        double largest_dt = 0.0;
-        for (std::size_t index = 1; index < grid.size(); ++index)
-            largest_dt = std::max(largest_dt, grid[index] - grid[index - 1]);
-        if (largest_dt * (sigma * sigma * asset_steps * asset_steps + std::abs(rate)) > 1.0)
-            return std::unexpected(Error{error_category::invalid_parameter,
-                                         "explicit finite-difference grid is unstable"});
-    }
-    const double theta = settings.scheme == finite_difference_scheme::explicit_euler ? 0.0 :
-                         settings.scheme == finite_difference_scheme::implicit_euler ? 1.0 : 0.5;
-    const std::size_t size = static_cast<std::size_t>(asset_steps) + 1;
+    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, asset_steps); !stable)
+        return std::unexpected(stable.error());
+    const double theta = scheme_theta(settings.scheme);
+    const std::size_t size = space->size();
     const auto asset = [&](std::size_t index) { return spacing * static_cast<double>(index); };
-    const auto interpolate = [&](const std::vector<double>& values) {
-        const double position = spot / spacing;
-        const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_steps - 1);
-        const double weight = position - static_cast<double>(index);
-        return values[static_cast<std::size_t>(index)] + weight *
-               (values[static_cast<std::size_t>(index + 1)] - values[static_cast<std::size_t>(index)]);
-    };
     FiniteDifferenceStep stepper(size);
     auto advance = [&](const std::vector<double>& old, std::vector<double>& next, double dt) -> bool {
         const double high_slope = (old.back() - old[old.size() - 2]) / spacing;
@@ -178,7 +163,9 @@ result<PricingResult> price_finite_difference_structured(
             slope.swap(next_slope);
             intercept.swap(next_intercept);
         }
-        return PricingResult{{risk_measure::price, interpolate(slope) * option.accumulated_quantity() + interpolate(intercept)}};
+        return PricingResult{{risk_measure::price,
+                              space->interpolate(slope, spot) * option.accumulated_quantity() +
+                                  space->interpolate(intercept, spot)}};
     } else {
         std::vector<double> knocked_in_values(size), not_knocked_in_values(size);
         std::vector<double> next_knocked_in_values(size), next_not_knocked_in_values(size);
@@ -226,9 +213,9 @@ result<PricingResult> price_finite_difference_structured(
             knocked_in_values.swap(next_knocked_in_values);
             not_knocked_in_values.swap(next_not_knocked_in_values);
         }
-        const double value = interpolate(option.touch_status() == barrier_touch_status::down
-                                             ? knocked_in_values : not_knocked_in_values);
-        return PricingResult{{risk_measure::price, value}};
+        return PricingResult{{risk_measure::price,
+                              space->interpolate(option.touch_status() == barrier_touch_status::down
+                                                     ? knocked_in_values : not_knocked_in_values, spot)}};
     }
 }
 

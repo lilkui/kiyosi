@@ -36,71 +36,46 @@ result<PricingResult> price_finite_difference(
     const double dividend = context.parameters().dividend_yield();
     const double volatility = context.parameters().volatility();
     const int asset_steps = settings.asset_steps;
-    const double upper = settings.upper_boundary > 0.0
-                             ? settings.upper_boundary
-                             : std::max(4.0 * strike, 4.0 * spot);
-    if (!std::isfinite(upper) || upper <= std::max(spot, strike)) {
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "finite-difference upper boundary must exceed spot and strike"});
-    }
-    const double spacing = upper / static_cast<double>(asset_steps);
+    const auto space = make_spatial_grid(settings, std::max(4.0 * strike, 4.0 * spot), {spot, strike});
+    if (!space) return std::unexpected(space.error());
+    const double upper = space->upper;
+    const double spacing = space->spacing;
     const int time_steps = settings.time_steps;
-    const double dt = time / static_cast<double>(time_steps);
-    if (settings.scheme == finite_difference_scheme::explicit_euler &&
-        dt * (volatility * volatility * asset_steps * asset_steps + rate) > 1.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "explicit finite-difference grid is unstable"});
-    const double theta = settings.scheme == finite_difference_scheme::explicit_euler   ? 0.0
-                         : settings.scheme == finite_difference_scheme::implicit_euler ? 1.0
-                                                                                       : 0.5;
+    const auto grid = finite_difference_grid(time, time_steps);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_steps);
+        !stable)
+        return std::unexpected(stable.error());
+    const double theta = scheme_theta(settings.scheme);
 
-    auto boundary = [&](double tau, bool high) {
-        if (high) {
-            if (option.type() == option_type::call)
-                return american ? upper - strike : upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau);
-            return 0.0;
-        }
-        if (option.type() == option_type::put)
-            return american ? strike : strike * std::exp(-rate * tau);
-        return 0.0;
+    auto boundary = [&](double tau) {
+        const bool call = option.type() == option_type::call;
+        const double high = call ? (american ? upper - strike
+                                             : upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau))
+                                 : 0.0;
+        const double low = call ? 0.0 : (american ? strike : strike * std::exp(-rate * tau));
+        return Boundaries{low, high};
     };
     auto intrinsic = [&](double underlying) {
         return std::max(sign * (underlying - strike), 0.0);
     };
 
-    std::vector<double> old(static_cast<std::size_t>(asset_steps) + 1);
-    std::vector<double> next(old.size());
+    std::vector<double> old(space->size());
     for (int index = 0; index <= asset_steps; ++index)
         old[static_cast<std::size_t>(index)] = intrinsic(spacing * index);
 
-    FiniteDifferenceStep stepper(old.size());
-
-    const auto grid = finite_difference_grid(time, time_steps);
-    for (int step = 0; step < time_steps; ++step) {
-        const double new_tau = grid[static_cast<std::size_t>(step + 1)];
-        next.front() = boundary(new_tau, false);
-        next.back() = boundary(new_tau, true);
-        if (!stepper.advance(old, next, dt, rate, dividend, volatility, theta, next.front(), next.back()))
-            return std::unexpected(Error{error_category::invalid_result,
-                                         "finite-difference system is numerically unstable"});
-        if (american) {
+    const auto marched = march_backward(
+        grid, DiffusionParameters{rate, dividend, volatility, theta}, old, boundary,
+        [&](std::vector<double>& layer, double, double) {
+            if (!american) return;
             for (int index = 1; index < asset_steps; ++index)
-                next[static_cast<std::size_t>(index)] =
-                    std::max(next[static_cast<std::size_t>(index)], intrinsic(spacing * index));
-        }
-        old.swap(next);
-    }
+                layer[static_cast<std::size_t>(index)] =
+                    std::max(layer[static_cast<std::size_t>(index)], intrinsic(spacing * index));
+        });
+    if (!marched) return std::unexpected(marched.error());
 
-    const double grid_position = spot / spacing;
-    const int index = std::clamp(static_cast<int>(std::floor(grid_position)), 1, asset_steps - 1);
-    const double weight = grid_position - static_cast<double>(index);
-    const auto center = static_cast<std::size_t>(index);
-    const double value = old[center] + weight * (old[center + 1] - old[center]);
-    const double delta = (old[center + 1] - old[center - 1]) / (2.0 * spacing);
-    const double gamma = (old[center + 1] - 2.0 * old[center] + old[center - 1]) /
-                         (spacing * spacing);
-    const auto output = PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
-                                      {risk_measure::gamma, gamma}};
+    const auto output = PricingResult{{risk_measure::price, space->interpolate(old, spot)},
+                                      {risk_measure::delta, space->delta(old, spot)},
+                                      {risk_measure::gamma, space->gamma(old, spot)}};
     if (!output.all_finite())
         return std::unexpected(Error{error_category::invalid_result,
                                      "finite-difference pricing produced a non-finite result"});
