@@ -1,8 +1,14 @@
 add_executable(kiyosi_tests
     api/header_tests.cpp
     core/version_tests.cpp
+    instruments/accumulator_tests.cpp
+    instruments/asian_tests.cpp
+    instruments/digital_tests.cpp
     instruments/vanilla_tests.cpp
+    instruments/barrier/binary_tests.cpp
+    instruments/barrier/option_tests.cpp
     instruments/barrier/terms_tests.cpp
+    instruments/structured/snowball_tests.cpp
     market/calendar_tests.cpp
     market/context_tests.cpp
     pricing/integration_tests.cpp

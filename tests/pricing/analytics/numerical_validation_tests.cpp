@@ -348,17 +348,6 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
     }
 }
 
-TEST_CASE("European digital options expose their terms and payoff")
-{
-    const auto european = kiyosi::make_cash_or_nothing_option(
-        kiyosi::option_type::call, 100.0, 10.0, valuation, expiry);
-    REQUIRE(european.has_value());
-    CHECK(european->type() == kiyosi::option_type::call);
-    CHECK(european->strike() == 100.0);
-    CHECK(european->payout() == 10.0);
-    CHECK(european->exercise() == kiyosi::EuropeanExercise{});
-}
-
 TEST_CASE("Bermudan options preserve exercise dates")
 {
     const auto dates = std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{180}};
@@ -366,26 +355,6 @@ TEST_CASE("Bermudan options preserve exercise dates")
         kiyosi::option_type::call, 100.0, valuation, expiry, dates);
     REQUIRE(bermudan.has_value());
     CHECK(bermudan->exercise_dates() == dates);
-}
-
-TEST_CASE("Exercise-based option factories reject invalid contracts")
-{
-    const auto invalid_type = static_cast<kiyosi::option_type>(99);
-    for (const auto invalid : {
-             kiyosi::make_european_option(invalid_type, 100.0, valuation, expiry).error().category,
-             kiyosi::make_cash_or_nothing_option(invalid_type, 100.0, 10.0, valuation, expiry).error().category,
-             kiyosi::make_asset_or_nothing_option(invalid_type, 100.0, valuation, expiry).error().category}) {
-        CHECK(invalid == kiyosi::error_category::invalid_option);
-    }
-    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 0.0, 10.0, valuation, expiry)
-              .error()
-              .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_asset_or_nothing_option(kiyosi::option_type::call, 0.0, valuation, expiry)
-              .error()
-              .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, valuation, expiry)
-              .error()
-              .category == kiyosi::error_category::invalid_parameter);
 }
 
 TEST_CASE("Bermudan options reject invalid schedules")

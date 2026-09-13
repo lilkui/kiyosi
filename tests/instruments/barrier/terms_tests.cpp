@@ -14,32 +14,6 @@ kiyosi::date standard_expiry()
 }
 } // namespace
 
-TEST_CASE("Barrier public constructors reject invalid contracts")
-{
-    const auto expiry = standard_expiry();
-    const auto effective = expiry - std::chrono::days{365};
-    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, -1.0, effective, expiry, 90.0,
-                                      kiyosi::barrier_type::down_and_in)
-              .error()
-              .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, effective, expiry, 90.0,
-                                      kiyosi::barrier_type::down_and_in, 10.0,
-                                      kiyosi::rebate_timing::at_hit)
-              .error()
-              .category == kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
-                                             kiyosi::barrier_type::down_and_out, 10.0, false,
-                                             kiyosi::rebate_timing::at_hit)
-              .error()
-              .category == kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
-                                             kiyosi::barrier_type::down_and_in, 10.0, false,
-                                             kiyosi::rebate_timing::at_expiry,
-                                             kiyosi::observation_mode::scheduled)
-              .error()
-              .category == kiyosi::error_category::invalid_schedule);
-}
-
 TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
 {
     const auto expiry = standard_expiry();
