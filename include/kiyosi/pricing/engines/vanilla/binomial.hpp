@@ -10,38 +10,12 @@ struct BinomialSettings {
     int steps = 256;
 };
 
-/// Cox-Ross-Rubinstein American engine.
+/// Cox-Ross-Rubinstein binomial-tree engine for vanilla European and American options.
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unavailable.
-class KIYOSI_EXPORT BinomialAmericanEngine {
+class KIYOSI_EXPORT CrrVanillaEngine {
 public:
-    explicit BinomialAmericanEngine(BinomialSettings settings = {}) : settings_(settings) {}
-    explicit BinomialAmericanEngine(int steps) : settings_{steps} {}
-
-    [[nodiscard]] result<PricingResult> price(
-        const AmericanOption& option, const PricingContext& context) const;
-
-    BinomialSettings settings() const noexcept { return settings_; }
-
-private:
-    BinomialSettings settings_;
-};
-class KIYOSI_EXPORT BinomialEuropeanEngine {
-public:
-    explicit BinomialEuropeanEngine(BinomialSettings settings = {}) : settings_(settings) {}
-    explicit BinomialEuropeanEngine(int steps) : settings_{steps} {}
-
-    [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption& option, const PricingContext& context) const;
-
-    BinomialSettings settings() const noexcept { return settings_; }
-
-private:
-    BinomialSettings settings_;
-};
-class KIYOSI_EXPORT CrrEngine {
-public:
-    explicit CrrEngine(BinomialSettings settings = {}) : settings_(settings) {}
-    explicit CrrEngine(int steps) : settings_{steps} {}
+    explicit CrrVanillaEngine(BinomialSettings settings = {}) : settings_(settings) {}
+    explicit CrrVanillaEngine(int steps) : settings_{steps} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&

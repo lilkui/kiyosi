@@ -116,11 +116,11 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     auto option = kiyosi::make_european_option(
         kiyosi::option_type::call, 100.0, valuation, expiry);
     REQUIRE(option.has_value());
-    auto analytics = kiyosi::numerical_analytics(kiyosi::BinomialEuropeanEngine{64}, *option, *context);
+    auto analytics = kiyosi::numerical_analytics(kiyosi::CrrVanillaEngine{64}, *option, *context);
     REQUIRE(analytics.has_value());
     CHECK(analytics->has(kiyosi::risk_measure::speed));
     CHECK(analytics->has(kiyosi::risk_measure::rho));
-    kiyosi::NumericalAnalyticsEngine<kiyosi::BinomialEuropeanEngine> shared{kiyosi::BinomialEuropeanEngine{64}};
+    kiyosi::NumericalAnalyticsEngine<kiyosi::CrrVanillaEngine> shared{kiyosi::CrrVanillaEngine{64}};
     auto shared_result = shared.price(*option, *context);
     REQUIRE(shared_result.has_value());
     CHECK(shared_result->has(kiyosi::risk_measure::vega));

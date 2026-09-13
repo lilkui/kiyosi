@@ -36,8 +36,8 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
         kiyosi::option_type::call, 100.0, effective, expiry);
     check(kiyosi::AnalyticEuropeanEngine{}, european, 10.0);
     check(kiyosi::IntegralEuropeanEngine{}, european, 10.0);
-    check(kiyosi::BinomialEuropeanEngine{32}, european, 10.0);
-    check(kiyosi::BinomialAmericanEngine{32}, american, 10.0);
+    check(kiyosi::CrrVanillaEngine{32}, european, 10.0);
+    check(kiyosi::CrrVanillaEngine{32}, american, 10.0);
     check(kiyosi::FiniteDifferenceEuropeanEngine{}, european, 10.0);
     check(kiyosi::FiniteDifferenceAmericanEngine{}, american, 10.0);
     check(kiyosi::MonteCarloEuropeanEngine{{32, 4, 7}}, european, 10.0);
@@ -101,7 +101,7 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     };
     check(kiyosi::AnalyticEuropeanEngine{}, 1e-10);
     check(kiyosi::IntegralEuropeanEngine{}, 1e-6);
-    check(kiyosi::BinomialEuropeanEngine{400}, 0.003);
+    check(kiyosi::CrrVanillaEngine{400}, 0.003);
     check(kiyosi::FiniteDifferenceEuropeanEngine{{1000, 100}}, 0.02);
     check(kiyosi::MonteCarloEuropeanEngine{{20000, 2, 7}}, 0.02);
 }

@@ -69,6 +69,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(owned);
         if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption") continue;
         if (fixture.instrument == "GeometricAverageOption" || fixture.instrument == "ArithmeticAverageOption") continue;
+        if (fixture.engine == "BinomialAmericanEngine" || fixture.engine == "BinomialEuropeanEngine") continue;
         const bool american = fixture.instrument == "AmericanOption";
         const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
         if (digital) ++digital_rows[fixture.engine];
@@ -132,8 +133,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     }
                     ++available;
                     const bool native_measure = analytic || name == "price" ||
-                                                ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
-                                                  fixture.engine == "FiniteDifferenceEuropeanEngine" || fixture.engine == "BinomialAmericanEngine" ||
+                                                ((fixture.engine == "CrrEngine" ||
+                                                  fixture.engine == "FiniteDifferenceEuropeanEngine" ||
                                                   fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
                                                   fixture.engine == "FiniteDifferenceDigitalEngine") &&
                                                  (name == "delta" || name == "gamma"));
@@ -150,7 +151,6 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                 REQUIRE(fixture.outputs.size() == available);
             };
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
-            using Binomial = std::conditional_t<american_contract, kiyosi::BinomialAmericanEngine, kiyosi::BinomialEuropeanEngine>;
             using FiniteDifference = std::conditional_t<american_contract, kiyosi::FiniteDifferenceAmericanEngine, kiyosi::FiniteDifferenceEuropeanEngine>;
             using MonteCarlo = std::conditional_t<american_contract, kiyosi::MonteCarloAmericanEngine, kiyosi::MonteCarloEuropeanEngine>;
             constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ||
@@ -181,10 +181,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                 } else if (fixture.engine == "BjerksundStenslandAmericanEngine") {
                     if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandAmericanEngine{});
                     else FAIL("BjerksundStenslandAmericanEngine requires an American contract");
-                } else if (fixture.engine == (american ? "BinomialAmericanEngine" : "BinomialEuropeanEngine")) {
-                    check_engine(Binomial{static_cast<int>(number("steps"))});
                 } else if (fixture.engine == "CrrEngine") {
-                    check_engine(kiyosi::CrrEngine{static_cast<int>(number("steps"))});
+                    check_engine(kiyosi::CrrVanillaEngine{static_cast<int>(number("steps"))});
                 } else if (fixture.engine == "IntegralEuropeanEngine") {
                     if constexpr (!american_contract) check_engine(kiyosi::IntegralEuropeanEngine{});
                     else FAIL("IntegralEuropeanEngine requires a European contract");
@@ -230,7 +228,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         ++compared;
     }
     REQUIRE(compared > 0);
-    REQUIRE(compared_engines.size() == 13);
+    REQUIRE(compared_engines.size() == 11);
     for (const auto& engine : compared_engines)
         REQUIRE(wrappers[engine] >= 2);
     REQUIRE(digital_rows.size() == 3);
@@ -629,8 +627,8 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     CHECK(std::abs(*barrier_in.get(kiyosi::risk_measure::price) +
                    *barrier_out.get(kiyosi::risk_measure::price) - call_price) < 2e-5);
 
-    const auto coarse = *kiyosi::BinomialEuropeanEngine{32}.price(call, context);
-    const auto fine = *kiyosi::BinomialEuropeanEngine{128}.price(call, context);
+    const auto coarse = *kiyosi::CrrVanillaEngine{32}.price(call, context);
+    const auto fine = *kiyosi::CrrVanillaEngine{128}.price(call, context);
     CHECK(std::abs(*fine.get(kiyosi::risk_measure::price) - call_price) <
           std::abs(*coarse.get(kiyosi::risk_measure::price) - call_price));
 

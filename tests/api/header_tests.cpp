@@ -57,9 +57,9 @@ static_assert(!can_price<kiyosi::FiniteDifferenceEuropeanEngine, kiyosi::America
 static_assert(can_price<kiyosi::FiniteDifferenceAmericanEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::FiniteDifferenceAmericanEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::BinomialAmericanEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::BinomialAmericanEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::BinomialAmericanEngine, kiyosi::BermudanOption>);
+static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::AmericanOption>);
+static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!can_price<kiyosi::CrrVanillaEngine, kiyosi::BermudanOption>);
 
 static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
@@ -75,6 +75,6 @@ static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceEuropeanEngine,
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceAmericanEngine,
                                        kiyosi::AmericanOption,
                                        kiyosi::FiniteDifferenceSettings>);
-static_assert(!can_price_with_settings<kiyosi::BinomialAmericanEngine,
+static_assert(!can_price_with_settings<kiyosi::CrrVanillaEngine,
                                        kiyosi::AmericanOption,
                                        kiyosi::BinomialSettings>);

@@ -63,7 +63,7 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
     CHECK(european_result->has(kiyosi::risk_measure::price));
     CHECK(european_result->has(kiyosi::risk_measure::vega));
 
-    const auto american_result = kiyosi::BinomialAmericanEngine{}.price(american, context);
+    const auto american_result = kiyosi::CrrVanillaEngine{}.price(american, context);
     REQUIRE(american_result.has_value());
     CHECK(american_result->has(kiyosi::risk_measure::price));
     CHECK(american_result->has(kiyosi::risk_measure::gamma));

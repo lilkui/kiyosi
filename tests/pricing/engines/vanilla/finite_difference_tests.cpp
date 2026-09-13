@@ -57,7 +57,7 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
                WithinAbs(risk_value(analytic, kiyosi::risk_measure::price), 0.05));
     const auto put = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, valuation, expiry);
     const auto finite_put = kiyosi::FiniteDifferenceAmericanEngine{settings}.price(put, context);
-    const auto tree_put = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{400}}.price(put, context);
+    const auto tree_put = kiyosi::CrrVanillaEngine{kiyosi::BinomialSettings{400}}.price(put, context);
     REQUIRE(finite_put.has_value());
     REQUIRE(tree_put.has_value());
     CHECK_THAT(risk_value(*finite_put, kiyosi::risk_measure::price),

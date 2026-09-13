@@ -293,7 +293,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {
         const int steps = 64 << static_cast<int>(index);
-        const auto result = kiyosi::BinomialAmericanEngine{steps}.price(american_call, market);
+        const auto result = kiyosi::CrrVanillaEngine{steps}.price(american_call, market);
         REQUIRE(result.has_value());
         tree_errors[index] = difference(risk_value(*result, kiyosi::risk_measure::price), reference);
     }

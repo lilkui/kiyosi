@@ -118,25 +118,13 @@ result<PricingResult> price_binomial(
     return output;
 }
 
-result<PricingResult> BinomialAmericanEngine::price(
-    const AmericanOption& option, const PricingContext& context) const
-{
-    return price_binomial(option, context, settings_, true);
-}
-
-result<PricingResult> BinomialEuropeanEngine::price(
+result<PricingResult> CrrVanillaEngine::price_european(
     const EuropeanOption& option, const PricingContext& context) const
 {
     return price_binomial(option, context, settings_, false);
 }
 
-result<PricingResult> CrrEngine::price_european(
-    const EuropeanOption& option, const PricingContext& context) const
-{
-    return price_binomial(option, context, settings_, false);
-}
-
-result<PricingResult> CrrEngine::price_american(
+result<PricingResult> CrrVanillaEngine::price_american(
     const AmericanOption& option, const PricingContext& context) const
 {
     return price_binomial(option, context, settings_, true);

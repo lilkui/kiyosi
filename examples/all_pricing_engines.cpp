@@ -69,14 +69,12 @@ int main()
     };
 
     price("EuropeanOption", "AnalyticEuropeanEngine", kiyosi::AnalyticEuropeanEngine{}.price(european, context));
-    price("EuropeanOption", "BinomialEuropeanEngine", kiyosi::BinomialEuropeanEngine{128}.price(european, context));
-    price("EuropeanOption", "CrrEngine", kiyosi::CrrEngine{128}.price(european, context));
+    price("EuropeanOption", "CrrVanillaEngine", kiyosi::CrrVanillaEngine{128}.price(european, context));
     price("EuropeanOption", "FiniteDifferenceEuropeanEngine", kiyosi::FiniteDifferenceEuropeanEngine{80, 80}.price(european, context));
     price("EuropeanOption", "IntegralEuropeanEngine", kiyosi::IntegralEuropeanEngine{}.price(european, context));
     price("EuropeanOption", "MonteCarloEuropeanEngine", kiyosi::MonteCarloEuropeanEngine{5'000, 10, 42}.price(european, context));
 
-    price("AmericanOption", "BinomialAmericanEngine", kiyosi::BinomialAmericanEngine{128}.price(american, context));
-    price("AmericanOption", "CrrEngine", kiyosi::CrrEngine{128}.price(american, context));
+    price("AmericanOption", "CrrVanillaEngine", kiyosi::CrrVanillaEngine{128}.price(american, context));
     price("AmericanOption", "BjerksundStenslandAmericanEngine", kiyosi::BjerksundStenslandAmericanEngine{}.price(american, context));
     price("AmericanOption", "FiniteDifferenceAmericanEngine", kiyosi::FiniteDifferenceAmericanEngine{80, 80}.price(american, context));
     price("AmericanOption", "MonteCarloAmericanEngine", kiyosi::MonteCarloAmericanEngine{5'000, 20, 42}.price(american, context));
