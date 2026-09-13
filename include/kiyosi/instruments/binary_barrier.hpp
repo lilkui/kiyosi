@@ -82,4 +82,36 @@ private:
     return BinaryBarrierOption{type, strike, effective, expiry, barrier, kind, payout, asset, timing, observation, std::move(*schedule)};
 }
 
+[[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_up(
+    double strike, date effective, date expiry, double barrier, double payout,
+    rebate_timing timing = rebate_timing::at_expiry)
+{
+    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
+                                      barrier_type::up_and_in, payout, false, timing);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_down(
+    double strike, date effective, date expiry, double barrier, double payout,
+    rebate_timing timing = rebate_timing::at_expiry)
+{
+    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
+                                      barrier_type::down_and_in, payout, false, timing);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_up(
+    double strike, date effective, date expiry, double barrier, double payout)
+{
+    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
+                                      barrier_type::up_and_out, payout, false,
+                                      rebate_timing::at_expiry);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_down(
+    double strike, date effective, date expiry, double barrier, double payout)
+{
+    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
+                                      barrier_type::down_and_out, payout, false,
+                                      rebate_timing::at_expiry);
+}
+
 } // namespace kiyosi
