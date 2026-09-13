@@ -13,11 +13,13 @@ option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets"
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
+option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
 
 add_library(kiyosi_warnings INTERFACE)
 add_library(kiyosi::warnings ALIAS kiyosi_warnings)
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-    target_compile_options(kiyosi_warnings INTERFACE /W4 /permissive-)
+    # /utf-8 stops MSVC from decoding non-ASCII sources with the machine's ANSI code page.
+    target_compile_options(kiyosi_warnings INTERFACE /W4 /permissive- /utf-8 /Zc:__cplusplus)
 else()
     target_compile_options(kiyosi_warnings INTERFACE
         "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang,Intel,IntelLLVM>:-Wall;-Wextra;-Wpedantic>"
@@ -45,7 +47,8 @@ endif()
 
 if(KIYOSI_ENABLE_CLANG_FORMAT)
     find_program(KIYOSI_CLANG_FORMAT_EXECUTABLE NAMES clang-format REQUIRED)
-    file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES
+    file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
@@ -163,10 +166,17 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
+if(KIYOSI_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
+
 if(KIYOSI_ENABLE_CLANG_TIDY)
     set(KIYOSI_TIDY_TARGETS kiyosi)
     if(TARGET kiyosi_tests)
         list(APPEND KIYOSI_TIDY_TARGETS kiyosi_tests)
+    endif()
+    if(TARGET kiyosi_example_all_pricing_engines)
+        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_example_all_pricing_engines)
     endif()
     foreach(target_name IN LISTS KIYOSI_TIDY_TARGETS)
         set_target_properties(${target_name} PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")
@@ -174,12 +184,27 @@ if(KIYOSI_ENABLE_CLANG_TIDY)
 endif()
 
 if(KIYOSI_BUILD_PYTHON)
+    if(BUILD_SHARED_LIBS)
+        message(FATAL_ERROR
+            "KIYOSI_BUILD_PYTHON requires BUILD_SHARED_LIBS=OFF: the wheel ships only the "
+            "extension module, so the core library must be linked into it statically.")
+    endif()
+
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
     find_package(nanobind CONFIG REQUIRED)
 
     nanobind_add_module(_native python/kiyosi/_native.cpp)
-    target_compile_features(_native PRIVATE cxx_std_23)
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)
+
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT KIYOSI_IPO_SUPPORTED)
+    if(KIYOSI_IPO_SUPPORTED)
+        set_target_properties(_native PROPERTIES
+            INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
+            INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON
+        )
+    endif()
+
     install(TARGETS _native
         LIBRARY DESTINATION kiyosi
         RUNTIME DESTINATION kiyosi

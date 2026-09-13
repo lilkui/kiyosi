@@ -34,5 +34,6 @@ wheel.packages = ["python/kiyosi"]
 cmake.args = [
     "-DKIYOSI_BUILD_PYTHON=ON",
     "-DKIYOSI_INSTALL=OFF",
+    "-DKIYOSI_BUILD_EXAMPLES=OFF",
     "-DBUILD_TESTING=OFF",
 ]

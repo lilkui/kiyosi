@@ -20,11 +20,11 @@ set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MO
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
 target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-if(EXISTS "${catch2_SOURCE_DIR}/extras/Catch.cmake")
-    include("${catch2_SOURCE_DIR}/extras/Catch.cmake")
-else()
-    include(Catch)
+# Only set when FetchContent built Catch2 from source; an installed package ships Catch.cmake itself.
+if(catch2_SOURCE_DIR)
+    list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 endif()
+include(Catch)
 catch_discover_tests(kiyosi_tests
     DISCOVERY_MODE PRE_TEST
     DL_PATHS $<TARGET_FILE_DIR:kiyosi>

@@ -8,7 +8,8 @@
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
-                "CMAKE_CXX_COMPILER": "cl.exe"
+                "CMAKE_CXX_COMPILER": "cl.exe",
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true
             },
             "architecture": {
                 "value": "x64",
@@ -42,6 +43,9 @@
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
+            "cacheVariables": {
+                "CMAKE_EXPORT_COMPILE_COMMANDS": true
+            },
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -72,6 +76,22 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "KIYOSI_ENABLE_SANITIZERS": true
             }
+        },
+        {
+            "name": "windows-ci",
+            "displayName": "Windows x64 Release (warnings as errors)",
+            "inherits": "windows-release",
+            "cacheVariables": {
+                "CMAKE_COMPILE_WARNING_AS_ERROR": true
+            }
+        },
+        {
+            "name": "linux-ci",
+            "displayName": "Linux Release (warnings as errors)",
+            "inherits": "linux-release",
+            "cacheVariables": {
+                "CMAKE_COMPILE_WARNING_AS_ERROR": true
+            }
         }
     ],
     "buildPresets": [
@@ -84,12 +104,20 @@
             "configurePreset": "windows-release"
         },
         {
+            "name": "windows-ci",
+            "configurePreset": "windows-ci"
+        },
+        {
             "name": "linux-debug",
             "configurePreset": "linux-debug"
         },
         {
             "name": "linux-release",
             "configurePreset": "linux-release"
+        },
+        {
+            "name": "linux-ci",
+            "configurePreset": "linux-ci"
         },
         {
             "name": "linux-sanitizers",
@@ -130,6 +158,22 @@
             "name": "linux-release",
             "inherits": "test-base",
             "configurePreset": "linux-release",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "windows-ci",
+            "inherits": "test-base",
+            "configurePreset": "windows-ci",
+            "output": {
+                "outputOnFailure": true
+            }
+        },
+        {
+            "name": "linux-ci",
+            "inherits": "test-base",
+            "configurePreset": "linux-ci",
             "output": {
                 "outputOnFailure": true
             }
