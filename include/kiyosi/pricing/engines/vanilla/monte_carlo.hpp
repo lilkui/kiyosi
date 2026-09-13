@@ -6,16 +6,11 @@
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
 
-struct MonteCarloSettings {
-    int path_count = 100'000;
-    int step_count = 50;
-    std::optional<std::uint64_t> seed;
-};
-
-
+/// Antithetic Euler-lognormal simulation of the terminal payoff.
 class KIYOSI_EXPORT MonteCarloEuropeanEngine {
 public:
     explicit MonteCarloEuropeanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
@@ -32,6 +27,7 @@ private:
     MonteCarloSettings settings_;
 };
 
+/// Longstaff-Schwartz least-squares Monte Carlo with a quadratic continuation basis.
 class KIYOSI_EXPORT MonteCarloAmericanEngine {
 public:
     explicit MonteCarloAmericanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
@@ -47,6 +43,5 @@ public:
 private:
     MonteCarloSettings settings_;
 };
-
 
 } // namespace kiyosi

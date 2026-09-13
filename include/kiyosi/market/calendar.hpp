@@ -1,13 +1,20 @@
 #pragma once
 
-#include <functional>
-#include <algorithm>
 #include <chrono>
+#include <functional>
 #include <utility>
-#include <kiyosi/core/types.hpp>
-#include <kiyosi/market/detail/sse_holidays.hpp>
+
+#include <kiyosi/core/error.hpp>
+#include <kiyosi/core/time.hpp>
 
 namespace kiyosi {
+
+class TradingCalendar;
+
+namespace detail {
+// Unchecked construction shared by the venue calendars under kiyosi/market/calendars.
+[[nodiscard]] TradingCalendar make_calendar(std::function<bool(date)>, int);
+}
 
 class TradingCalendar {
 public:
@@ -39,14 +46,17 @@ private:
     TradingCalendar(trading_day_predicate predicate, int annual_trading_days)
         : predicate_(std::move(predicate)), annual_trading_days_(annual_trading_days) {}
 
-    friend result<TradingCalendar> make_trading_calendar(trading_day_predicate, int);
-    friend TradingCalendar all_days_calendar();
-    friend TradingCalendar exchange_calendar();
-    friend TradingCalendar sse_calendar();
+    friend TradingCalendar detail::make_calendar(trading_day_predicate, int);
 
     trading_day_predicate predicate_;
     int annual_trading_days_;
 };
+
+[[nodiscard]] inline TradingCalendar detail::make_calendar(
+    TradingCalendar::trading_day_predicate predicate, int annual_trading_days)
+{
+    return TradingCalendar{std::move(predicate), annual_trading_days};
+}
 
 [[nodiscard]] inline result<TradingCalendar> make_trading_calendar(
     TradingCalendar::trading_day_predicate predicate, int annual_trading_days)
@@ -59,34 +69,22 @@ private:
         return std::unexpected(Error{error_category::invalid_calendar,
                                      "annual trading-day count must be positive"});
     }
-    return TradingCalendar{std::move(predicate), annual_trading_days};
+    return detail::make_calendar(std::move(predicate), annual_trading_days);
 }
 
 [[nodiscard]] inline TradingCalendar all_days_calendar()
 {
-    return TradingCalendar{[](date) { return true; }, 365};
+    return detail::make_calendar([](date) { return true; }, 365);
 }
 
 [[nodiscard]] inline TradingCalendar exchange_calendar()
 {
-    return TradingCalendar{[](date value) {
-                               const auto weekday = std::chrono::weekday{value};
-                               return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday;
-                           },
-                           252};
-}
-
-[[nodiscard]] inline TradingCalendar sse_calendar()
-{
-    return TradingCalendar{[](date value) {
-                               const auto weekday = std::chrono::weekday{value};
-                               const auto parts = std::chrono::year_month_day{value};
-                               const auto year = parts.year();
-                               const int encoded = int(year) * 10000 + int(unsigned(parts.month())) * 100 + int(unsigned(parts.day()));
-                               return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday &&
-                                      !std::ranges::binary_search(detail::sse_holidays, encoded);
-                           },
-                           243};
+    return detail::make_calendar(
+        [](date value) {
+            const auto weekday = std::chrono::weekday{value};
+            return weekday != std::chrono::Saturday && weekday != std::chrono::Sunday;
+        },
+        252);
 }
 
 } // namespace kiyosi

@@ -1,7 +1,9 @@
 #pragma once
 
 #include <cmath>
-#include <kiyosi/core/types.hpp>
+
+#include <kiyosi/core/error.hpp>
+#include <kiyosi/core/time.hpp>
 
 namespace kiyosi {
 
@@ -14,6 +16,7 @@ namespace detail {
 [[nodiscard]] result<OptionTerms> make_option_terms(option_type, double, date, date);
 }
 
+/// Contractual essentials shared by every strike-and-life option: type, strike, and life dates.
 class OptionTerms {
 public:
     option_type type() const noexcept { return type_; }
@@ -43,4 +46,5 @@ private:
         return std::unexpected(Error{error_category::invalid_schedule, "option life dates are invalid"});
     return OptionTerms{type, strike, effective, expiry};
 }
+
 } // namespace kiyosi

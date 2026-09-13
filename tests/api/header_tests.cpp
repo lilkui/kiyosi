@@ -1,19 +1,23 @@
-#include <kiyosi/core/types.hpp>
-#include <kiyosi/instruments/option_terms.hpp>
-#include <kiyosi/market/observation_schedule.hpp>
-#include <kiyosi/instruments/barrier.hpp>
+#include <kiyosi/core/error.hpp>
+#include <kiyosi/core/time.hpp>
+#include <kiyosi/core/version.hpp>
+#include <kiyosi/instruments/barrier/binary.hpp>
+#include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/instruments/digital.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/calendar.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/engines/asian/average.hpp>
+#include <kiyosi/market/schedule.hpp>
+#include <kiyosi/pricing/engines/accumulator/finite_difference.hpp>
+#include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/asian/analytic.hpp>
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
-#include <kiyosi/pricing/engines/barrier/binary.hpp>
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
+#include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/integral.hpp>
-#include <kiyosi/pricing/engines/settings/finite_difference.hpp>
 #include <kiyosi/pricing/engines/structured/finite_difference.hpp>
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/vanilla/analytic.hpp>
@@ -23,6 +27,7 @@
 #include <kiyosi/pricing/engines/vanilla/integral.hpp>
 #include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/finite_difference.hpp>
 
 #include <concepts>
 

@@ -1,11 +1,14 @@
 #pragma once
 
-#include <kiyosi/pricing/result.hpp>
-#include <kiyosi/market/context.hpp>
+#include <concepts>
+
 #include <kiyosi/instruments/digital.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/result.hpp>
 
 namespace kiyosi {
 
+/// Closed-form cash-or-nothing and asset-or-nothing valuation with analytic delta and gamma.
 class KIYOSI_EXPORT AnalyticDigitalEngine {
 public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
@@ -16,20 +19,14 @@ public:
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
         if constexpr (std::same_as<Payoff, AssetOrNothingPayoff>)
-            return price_impl(option, 1.0, true, context);
+            return price_impl(option.type(), option.strike(), 1.0, true, option.effective(),
+                              option.expiry(), context);
         else
-            return price_impl(option, option.payout(), false, context);
+            return price_impl(option.type(), option.strike(), option.payout(), false,
+                              option.effective(), option.expiry(), context);
     }
 
 private:
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-    [[nodiscard]] result<PricingResult> price_impl(
-        const ExerciseBasedOption<Payoff, Exercise>& option, double payout, bool asset,
-        const PricingContext& context) const
-    {
-        return price_impl(option.type(), option.strike(), payout, asset, option.effective(), option.expiry(), context);
-    }
-
     [[nodiscard]] result<PricingResult> price_impl(
         option_type, double, double, bool, date, date, const PricingContext&) const;
 };

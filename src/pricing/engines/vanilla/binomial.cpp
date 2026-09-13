@@ -1,11 +1,11 @@
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
-#include "../../detail/common.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <limits>
-#include <ranges>
 #include <vector>
+
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;

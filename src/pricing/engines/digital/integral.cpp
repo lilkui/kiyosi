@@ -1,7 +1,9 @@
 #include <kiyosi/pricing/engines/digital/integral.hpp>
-#include "../../detail/common.hpp"
+
 #include <algorithm>
 #include <cmath>
+
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;

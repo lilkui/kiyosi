@@ -1,7 +1,8 @@
 #pragma once
 
 #include <cmath>
-#include <vector>
+#include <utility>
+
 #include <kiyosi/instruments/option_terms.hpp>
 
 namespace kiyosi {
@@ -13,6 +14,7 @@ namespace detail {
     option_type, double, date, double, date, date);
 }
 
+/// Option terms extended with the averaging window and the average realized so far.
 class AsianOptionTerms {
 public:
     option_type type() const noexcept { return type_; }
@@ -24,8 +26,10 @@ public:
     friend bool operator==(const AsianOptionTerms&, const AsianOptionTerms&) = default;
 
 private:
-    AsianOptionTerms(option_type type, double strike, date average_start, double realized_average, date effective, date expiry)
-        : type_(type), strike_(strike), average_start_(average_start), realized_average_(realized_average), effective_(effective), expiry_(expiry) {}
+    AsianOptionTerms(option_type type, double strike, date average_start, double realized_average,
+                     date effective, date expiry)
+        : type_(type), strike_(strike), average_start_(average_start),
+          realized_average_(realized_average), effective_(effective), expiry_(expiry) {}
     option_type type_;
     double strike_;
     date average_start_;
@@ -37,20 +41,42 @@ private:
 };
 
 [[nodiscard]] inline result<AsianOptionTerms> detail::make_asian_option_terms(
-    option_type type, double strike, date average_start, double realized_average, date effective, date expiry)
+    option_type type, double strike, date average_start, double realized_average, date effective,
+    date expiry)
 {
     if (type != option_type::call && type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0)
         return std::unexpected(Error{error_category::invalid_strike, "strike must be finite and positive"});
     if (!std::isfinite(realized_average) || realized_average < 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter, "realized average must be finite and non-negative"});
-    if (!is_valid_date(average_start) || !is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry || average_start < effective || average_start > expiry)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "realized average must be finite and non-negative"});
+    if (!is_valid_date(average_start) || !is_valid_date(effective) || !is_valid_date(expiry) ||
+        effective > expiry || average_start < effective || average_start > expiry)
         return std::unexpected(Error{error_category::invalid_schedule, "average dates are invalid"});
     return AsianOptionTerms{type, strike, average_start, realized_average, effective, expiry};
 }
 
-class GeometricAverageOption {
+/// Averaging conventions; the tag selects the pricing engine overload.
+struct GeometricAveraging {
+    friend bool operator==(const GeometricAveraging&, const GeometricAveraging&) = default;
+};
+
+struct ArithmeticAveraging {
+    friend bool operator==(const ArithmeticAveraging&, const ArithmeticAveraging&) = default;
+};
+
+template <typename Averaging>
+class AverageOption;
+
+namespace detail {
+template <typename Averaging>
+[[nodiscard]] result<AverageOption<Averaging>> make_average_option(AsianOptionTerms);
+}
+
+/// Average-rate option; `Averaging` distinguishes the geometric and arithmetic conventions.
+template <typename Averaging>
+class AverageOption {
 public:
     option_type type() const noexcept { return terms_.type(); }
     double strike() const noexcept { return terms_.strike(); }
@@ -58,44 +84,51 @@ public:
     date effective() const noexcept { return terms_.effective(); }
     double realized_average() const noexcept { return terms_.realized_average(); }
     date expiry() const noexcept { return terms_.expiry(); }
-    friend bool operator==(const GeometricAverageOption&, const GeometricAverageOption&) = default;
+    const AsianOptionTerms& terms() const noexcept { return terms_; }
+    friend bool operator==(const AverageOption&, const AverageOption&) = default;
 
 private:
-    explicit GeometricAverageOption(AsianOptionTerms terms) : terms_(std::move(terms)) {}
+    explicit AverageOption(AsianOptionTerms terms) : terms_(std::move(terms)) {}
     AsianOptionTerms terms_;
-    friend result<GeometricAverageOption> make_geometric_average_option(option_type, double, date, date, date, double);
+
+    template <typename OtherAveraging>
+    friend result<AverageOption<OtherAveraging>> detail::make_average_option(AsianOptionTerms);
 };
 
-class ArithmeticAverageOption {
-public:
-    option_type type() const noexcept { return terms_.type(); }
-    double strike() const noexcept { return terms_.strike(); }
-    date average_start() const noexcept { return terms_.average_start(); }
-    date effective() const noexcept { return terms_.effective(); }
-    double realized_average() const noexcept { return terms_.realized_average(); }
-    date expiry() const noexcept { return terms_.expiry(); }
-    friend bool operator==(const ArithmeticAverageOption&, const ArithmeticAverageOption&) = default;
+template <typename Averaging>
+[[nodiscard]] inline result<AverageOption<Averaging>> detail::make_average_option(AsianOptionTerms terms)
+{
+    return AverageOption<Averaging>{std::move(terms)};
+}
 
-private:
-    explicit ArithmeticAverageOption(AsianOptionTerms terms) : terms_(std::move(terms)) {}
-    AsianOptionTerms terms_;
-    friend result<ArithmeticAverageOption> make_arithmetic_average_option(option_type, double, date, date, date, double);
-};
+using GeometricAverageOption = AverageOption<GeometricAveraging>;
+using ArithmeticAverageOption = AverageOption<ArithmeticAveraging>;
+
+template <typename Averaging>
+[[nodiscard]] inline result<AverageOption<Averaging>> make_average_option(
+    option_type type, double strike, date average_start, date effective, date expiry,
+    double realized_average = 0.0)
+{
+    auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average,
+                                                 effective, expiry);
+    if (!terms) return std::unexpected(terms.error());
+    return detail::make_average_option<Averaging>(std::move(*terms));
+}
 
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
-    option_type type, double strike, date average_start, date effective, date expiry, double realized_average = 0.0)
+    option_type type, double strike, date average_start, date effective, date expiry,
+    double realized_average = 0.0)
 {
-    auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
-    if (!terms) return std::unexpected(terms.error());
-    return GeometricAverageOption{std::move(*terms)};
+    return make_average_option<GeometricAveraging>(type, strike, average_start, effective, expiry,
+                                                   realized_average);
 }
 
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
-    option_type type, double strike, date average_start, date effective, date expiry, double realized_average = 0.0)
+    option_type type, double strike, date average_start, date effective, date expiry,
+    double realized_average = 0.0)
 {
-    auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
-    if (!terms) return std::unexpected(terms.error());
-    return ArithmeticAverageOption{std::move(*terms)};
+    return make_average_option<ArithmeticAveraging>(type, strike, average_start, effective, expiry,
+                                                    realized_average);
 }
 
 } // namespace kiyosi

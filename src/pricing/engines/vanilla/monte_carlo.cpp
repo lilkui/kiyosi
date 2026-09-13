@@ -8,6 +8,8 @@
 #include <span>
 #include <vector>
 
+#include <kiyosi/core/day_count.hpp>
+
 namespace kiyosi {
 namespace {
 

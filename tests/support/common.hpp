@@ -1,7 +1,8 @@
 #pragma once
 
 #include <chrono>
-#include <kiyosi/core/types.hpp>
+#include <kiyosi/core/error.hpp>
+#include <kiyosi/core/time.hpp>
 #include <kiyosi/pricing/result.hpp>
 
 namespace kiyosi::test {

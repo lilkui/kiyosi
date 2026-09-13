@@ -81,11 +81,14 @@ endif()
 target_link_libraries(kiyosi PRIVATE $<BUILD_INTERFACE:kiyosi::warnings> $<BUILD_INTERFACE:kiyosi::sanitizers>)
 target_sources(kiyosi
     PRIVATE
-        src/core/types.cpp
-        src/pricing/engines/asian/average.cpp
+        src/core/day_count.cpp
+        src/core/time.cpp
+        src/pricing/engines/accumulator/finite_difference.cpp
+        src/pricing/engines/accumulator/monte_carlo.cpp
+        src/pricing/engines/asian/analytic.cpp
         src/pricing/engines/barrier/analytic.cpp
-        src/pricing/engines/barrier/binary.cpp
         src/pricing/engines/barrier/finite_difference.cpp
+        src/pricing/engines/binary_barrier/analytic.cpp
         src/pricing/engines/digital/analytic.cpp
         src/pricing/engines/digital/finite_difference.cpp
         src/pricing/engines/digital/integral.cpp
@@ -101,32 +104,53 @@ target_sources(kiyosi
         FILE_SET HEADERS
         BASE_DIRS include
         FILES
-            include/kiyosi/core/types.hpp
-            include/kiyosi/core/schedule.hpp
-            include/kiyosi/instruments/asian.hpp
+            include/kiyosi/kiyosi.hpp
+            include/kiyosi/core/day_count.hpp
+            include/kiyosi/core/error.hpp
+            include/kiyosi/core/time.hpp
+            include/kiyosi/core/version.hpp
             include/kiyosi/instruments/accumulator.hpp
+            include/kiyosi/instruments/asian.hpp
+            include/kiyosi/instruments/digital.hpp
+            include/kiyosi/instruments/exercise.hpp
             include/kiyosi/instruments/exercise_based_option.hpp
             include/kiyosi/instruments/option_terms.hpp
-            include/kiyosi/instruments/barrier.hpp
-            include/kiyosi/instruments/binary_barrier.hpp
-            include/kiyosi/instruments/digital.hpp
-            include/kiyosi/instruments/structured.hpp
+            include/kiyosi/instruments/payoff.hpp
             include/kiyosi/instruments/vanilla.hpp
-            include/kiyosi/kiyosi.hpp
+            include/kiyosi/instruments/barrier/binary.hpp
+            include/kiyosi/instruments/barrier/option.hpp
+            include/kiyosi/instruments/barrier/terms.hpp
+            include/kiyosi/instruments/structured/autocallable.hpp
+            include/kiyosi/instruments/structured/phoenix.hpp
+            include/kiyosi/instruments/structured/presets.hpp
+            include/kiyosi/instruments/structured/snowball.hpp
+            include/kiyosi/market/bsm_parameters.hpp
             include/kiyosi/market/calendar.hpp
-            include/kiyosi/market/observation_schedule.hpp
-            include/kiyosi/market/detail/sse_holidays.hpp
             include/kiyosi/market/context.hpp
+            include/kiyosi/market/schedule.hpp
+            include/kiyosi/market/schedule_builders.hpp
+            include/kiyosi/market/calendars/sse.hpp
+            include/kiyosi/market/calendars/detail/sse_holidays.hpp
             include/kiyosi/pricing/analytics.hpp
-            include/kiyosi/pricing/engines/asian/average.hpp
+            include/kiyosi/pricing/implied.hpp
+            include/kiyosi/pricing/numerical_greeks.hpp
+            include/kiyosi/pricing/result.hpp
+            include/kiyosi/pricing/scenario.hpp
+            include/kiyosi/pricing/detail/revaluation.hpp
+            include/kiyosi/pricing/settings/binomial.hpp
+            include/kiyosi/pricing/settings/finite_difference.hpp
+            include/kiyosi/pricing/settings/implied.hpp
+            include/kiyosi/pricing/settings/monte_carlo.hpp
+            include/kiyosi/pricing/settings/numerical_shift.hpp
+            include/kiyosi/pricing/engines/accumulator/finite_difference.hpp
+            include/kiyosi/pricing/engines/accumulator/monte_carlo.hpp
+            include/kiyosi/pricing/engines/asian/analytic.hpp
             include/kiyosi/pricing/engines/barrier/analytic.hpp
-            include/kiyosi/pricing/engines/barrier/binary.hpp
             include/kiyosi/pricing/engines/barrier/finite_difference.hpp
+            include/kiyosi/pricing/engines/binary_barrier/analytic.hpp
             include/kiyosi/pricing/engines/digital/analytic.hpp
             include/kiyosi/pricing/engines/digital/finite_difference.hpp
             include/kiyosi/pricing/engines/digital/integral.hpp
-            include/kiyosi/pricing/engines/settings/finite_difference.hpp
-            include/kiyosi/pricing/engines/settings/implied_volatility.hpp
             include/kiyosi/pricing/engines/structured/finite_difference.hpp
             include/kiyosi/pricing/engines/structured/monte_carlo.hpp
             include/kiyosi/pricing/engines/vanilla/analytic.hpp
@@ -135,7 +159,6 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/vanilla/finite_difference.hpp
             include/kiyosi/pricing/engines/vanilla/integral.hpp
             include/kiyosi/pricing/engines/vanilla/monte_carlo.hpp
-            include/kiyosi/pricing/result.hpp
         FILE_SET generated_headers TYPE HEADERS
         BASE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/generated"
         FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"

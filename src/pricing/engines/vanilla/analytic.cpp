@@ -1,9 +1,13 @@
 #include <kiyosi/pricing/engines/vanilla/analytic.hpp>
-#include "../../detail/common.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <numeric>
+
+#include "../../detail/black_scholes.hpp"
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;

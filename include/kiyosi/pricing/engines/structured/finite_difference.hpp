@@ -1,33 +1,38 @@
 #pragma once
 
-#include <kiyosi/instruments/structured.hpp>
-#include <kiyosi/instruments/accumulator.hpp>
+#include <kiyosi/instruments/structured/phoenix.hpp>
+#include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/engines/settings/finite_difference.hpp>
+#include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi {
 
-template <typename Option>
-[[nodiscard]] KIYOSI_EXPORT result<PricingResult> price_finite_difference_structured(
-    const Option&, const PricingContext&, FiniteDifferenceSettings);
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT result<PricingResult> price_autocallable_finite_difference(
+    const Note&, const PricingContext&, FiniteDifferenceSettings);
 
-template <typename Option>
+/// Two-layer (knocked-in / not-knocked-in) backward induction with knock-out and coupon events
+/// anchored onto the time grid.
+template <typename Note>
 class KIYOSI_EXPORT FiniteDifferenceStructuredEngine {
 public:
     explicit FiniteDifferenceStructuredEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceStructuredEngine(int asset_steps, int time_steps,
                                      finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
         : settings_{asset_steps, time_steps, scheme} {}
-    [[nodiscard]] result<PricingResult> price(const Option& option, const PricingContext& context) const
+
+    [[nodiscard]] result<PricingResult> price(const Note& note, const PricingContext& context) const
     {
-        return price_finite_difference_structured(option, context, settings_);
+        return price_autocallable_finite_difference(note, context, settings_);
     }
+
+    FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
     FiniteDifferenceSettings settings_;
 };
-using FiniteDifferenceAccumulatorEngine = FiniteDifferenceStructuredEngine<Accumulator>;
+
 using FiniteDifferencePhoenixEngine = FiniteDifferenceStructuredEngine<PhoenixOption>;
 using FiniteDifferenceSnowballEngine = FiniteDifferenceStructuredEngine<SnowballOption>;
 using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceStructuredEngine<BinarySnowballOption>;

@@ -1,0 +1,48 @@
+#pragma once
+
+#include <cmath>
+#include <concepts>
+#include <type_traits>
+
+#include <kiyosi/core/error.hpp>
+
+namespace kiyosi {
+
+template <typename Value>
+concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
+                       std::equality_comparable<std::remove_cvref_t<Value>>;
+
+struct VanillaPayoff {
+    friend bool operator==(const VanillaPayoff&, const VanillaPayoff&) = default;
+};
+
+struct AssetOrNothingPayoff {
+    friend bool operator==(const AssetOrNothingPayoff&, const AssetOrNothingPayoff&) = default;
+};
+
+class CashOrNothingPayoff;
+
+namespace detail {
+[[nodiscard]] result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
+}
+
+class CashOrNothingPayoff {
+public:
+    double payout() const noexcept { return payout_; }
+    friend bool operator==(const CashOrNothingPayoff&, const CashOrNothingPayoff&) = default;
+
+private:
+    explicit CashOrNothingPayoff(double payout) : payout_(payout) {}
+    double payout_;
+    friend result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
+};
+
+[[nodiscard]] inline result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
+{
+    if (!std::isfinite(payout) || payout <= 0.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "payout must be finite and positive"});
+    return CashOrNothingPayoff{payout};
+}
+
+} // namespace kiyosi

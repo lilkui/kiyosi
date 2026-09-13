@@ -1,14 +1,13 @@
 #pragma once
 
-#include <kiyosi/pricing/result.hpp>
-#include <kiyosi/market/context.hpp>
+#include <concepts>
+
 #include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/binomial.hpp>
 
 namespace kiyosi {
-
-struct BinomialSettings {
-    int steps = 256;
-};
 
 /// Cox-Ross-Rubinstein binomial-tree engine for vanilla European and American options.
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unavailable.

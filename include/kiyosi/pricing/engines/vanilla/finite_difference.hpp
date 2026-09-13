@@ -1,9 +1,9 @@
 #pragma once
 
-#include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/engines/settings/finite_difference.hpp>
-#include <kiyosi/market/context.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
+#include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi {
 

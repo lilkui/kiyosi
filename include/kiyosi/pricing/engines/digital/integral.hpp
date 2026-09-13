@@ -6,6 +6,7 @@
 
 namespace kiyosi {
 
+/// Simpson quadrature over the terminal lognormal density.
 class KIYOSI_EXPORT IntegralDigitalEngine {
 public:
     [[nodiscard]] result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;

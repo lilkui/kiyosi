@@ -1,37 +1,21 @@
 #pragma once
 
-#include <cmath>
-#include <concepts>
 #include <span>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
-#include <kiyosi/core/types.hpp>
-#include <kiyosi/core/schedule.hpp>
+#include <kiyosi/instruments/exercise.hpp>
 #include <kiyosi/instruments/option_terms.hpp>
+#include <kiyosi/instruments/payoff.hpp>
 #include <kiyosi/market/calendar.hpp>
-#include <kiyosi/market/observation_schedule.hpp>
+#include <kiyosi/market/schedule.hpp>
 
 namespace kiyosi {
-
-template <typename Value>
-concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                       std::equality_comparable<std::remove_cvref_t<Value>>;
-
-template <typename Value>
-concept OptionExercise = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                         std::equality_comparable<std::remove_cvref_t<Value>>;
-
-class CashOrNothingPayoff;
-class BermudanExercise;
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption;
 
 namespace detail {
-[[nodiscard]] result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
-[[nodiscard]] result<BermudanExercise> make_bermudan_exercise(std::vector<date>, date);
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
@@ -40,71 +24,10 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_option(
     option_type, double, date, date, Payoff, Exercise);
+
 } // namespace detail
 
-struct VanillaPayoff {
-    friend bool operator==(const VanillaPayoff&, const VanillaPayoff&) = default;
-};
-
-class CashOrNothingPayoff {
-public:
-    double payout() const noexcept { return payout_; }
-    friend bool operator==(const CashOrNothingPayoff&, const CashOrNothingPayoff&) = default;
-
-private:
-    explicit CashOrNothingPayoff(double payout) : payout_(payout) {}
-    double payout_;
-    friend result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
-};
-
-[[nodiscard]] inline result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
-{
-    if (!std::isfinite(payout) || payout <= 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "payout must be finite and positive"});
-    return CashOrNothingPayoff{payout};
-}
-
-struct AssetOrNothingPayoff {
-    friend bool operator==(const AssetOrNothingPayoff&, const AssetOrNothingPayoff&) = default;
-};
-
-struct EuropeanExercise {
-    friend bool operator==(const EuropeanExercise&, const EuropeanExercise&) = default;
-};
-
-struct AmericanExercise {
-    friend bool operator==(const AmericanExercise&, const AmericanExercise&) = default;
-};
-
-class BermudanExercise {
-public:
-    const std::vector<date>& dates() const noexcept { return dates_; }
-    const std::vector<date>& exercise_dates() const noexcept { return dates_; }
-    const std::vector<date>& observation_dates() const noexcept { return dates_; }
-    std::size_t size() const noexcept { return dates_.size(); }
-    bool empty() const noexcept { return dates_.empty(); }
-    friend bool operator==(const BermudanExercise&, const BermudanExercise&) = default;
-
-private:
-    explicit BermudanExercise(std::vector<date> dates) : dates_(std::move(dates)) {}
-    std::vector<date> dates_;
-    friend result<BermudanExercise> detail::make_bermudan_exercise(
-        std::vector<date>, date);
-};
-
-[[nodiscard]] inline result<BermudanExercise> detail::make_bermudan_exercise(
-    std::vector<date> dates, date expiry)
-{
-    if (dates.empty())
-        return std::unexpected(Error{error_category::invalid_schedule,
-                                     "Bermudan exercise requires at least one date"});
-    auto valid = validate_date_schedule(dates, dates.front(), expiry);
-    if (!valid)
-        return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
-    return BermudanExercise{std::move(dates)};
-}
-
+/// An option built from an independent payoff and exercise style over shared option terms.
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption {
 public:
@@ -148,8 +71,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     OptionTerms terms, Payoff payoff, Exercise exercise)
 {
     if constexpr (std::same_as<Exercise, BermudanExercise>) {
-        auto valid = validate_date_schedule(
-            exercise.dates(), terms.effective(), terms.expiry());
+        auto valid = validate_date_schedule(exercise.dates(), terms.effective(), terms.expiry());
         if (!valid)
             return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     }

@@ -1,7 +1,9 @@
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
-#include "../../detail/common.hpp"
+
 #include <cmath>
-#include <ranges>
+#include <optional>
+
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;

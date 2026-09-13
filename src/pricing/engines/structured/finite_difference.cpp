@@ -1,228 +1,194 @@
 #include <kiyosi/pricing/engines/structured/finite_difference.hpp>
-#include <kiyosi/market/observation_schedule.hpp>
-#include "../../detail/common.hpp"
-#include "../../detail/structured.hpp"
-#include "../../detail/finite_difference.hpp"
+
+#include <algorithm>
 #include <cmath>
+#include <optional>
+#include <vector>
+
+#include <kiyosi/market/schedule.hpp>
+
+#include "../../detail/autocallable_traits.hpp"
+#include "../../detail/calendar_dates.hpp"
+#include "../../detail/fd_grid.hpp"
+#include "../../detail/fd_scheme.hpp"
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;
 
-template <typename Option>
-result<PricingResult> price_finite_difference_structured(
-    const Option& option, const PricingContext& context, FiniteDifferenceSettings settings)
+namespace {
+
+/// Highest product level the grid must span so no barrier or strike is clipped.
+template <typename Note>
+double highest_relevant_level(const Note& note, double spot)
 {
-    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
+    double relevant = std::max({spot, note.initial_price(), note.upper_strike(), note.lower_strike()});
+    for (const double level : note.knock_out_prices()) relevant = std::max(relevant, level);
+    if constexpr (requires { note.knock_in_price(); })
+        relevant = std::max(relevant, note.knock_in_price());
+    if constexpr (requires { note.coupon_barriers(); })
+        for (const double level : note.coupon_barriers()) relevant = std::max(relevant, level);
+    return relevant;
+}
+
+template <typename Note>
+result<PricingResult> terminal_value(const Note& note, const PricingContext& context)
+{
+    const double spot = context.asset_price();
+    const bool knocked_in =
+        is_knocked_in(note, spot, note.touch_status() == barrier_touch_status::down, true);
+    const auto& dates = note.observation_dates();
+    std::size_t index = 0;
+    while (index < dates.size() && dates[index] < note.expiry()) ++index;
+    const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry();
+    if (observed_at_expiry && spot >= note.knock_out_prices()[index])
+        return PricingResult{{risk_measure::price,
+                              note.principal_ratio() + observation_coupon(note, index, spot)}};
+    const double coupon = observed_at_expiry && carries_observation_coupon<Note>
+                              ? observation_coupon(note, index, spot)
+                              : 0.0;
+    return PricingResult{{risk_measure::price, terminal_settlement(note, spot, knocked_in) + coupon}};
+}
+
+} // namespace
+
+template <typename Note>
+result<PricingResult> price_autocallable_finite_difference(
+    const Note& note, const PricingContext& context, FiniteDifferenceSettings settings)
+{
+    auto valid = validate_life(context.valuation_time(), note.effective(), note.expiry());
     if (!valid) return std::unexpected(valid.error());
     auto settings_valid = validate_finite_difference_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     if (settings.asset_steps > 2000 || settings.time_steps > 2000)
-        return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
-    if constexpr (std::is_same_v<Option, Accumulator>) {
-        auto contract = make_accumulator(option.strike(), option.knock_out(), option.daily_quantity(), option.acceleration(),
-                                         option.accumulated_quantity(), option.effective(), option.expiry());
-        if (!contract) return std::unexpected(contract.error());
-    } else {
-        auto contract = validate_note(option);
-        if (!contract) return std::unexpected(contract.error());
-        auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
-        if (!schedule) return std::unexpected(schedule.error());
-    }
-    if constexpr (requires { option.touch_status(); })
-        if (option.touch_status() == barrier_touch_status::up && settings.upper_boundary == 0.0)
-            return PricingResult{{risk_measure::price, 0.0}};
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "finite-difference grid dimensions are out of range"});
+    auto contract = validate_note(note);
+    if (!contract) return std::unexpected(contract.error());
+    auto schedule = validate_observation_dates(note.observation_dates(), note.effective(),
+                                               note.expiry(), context.calendar());
+    if (!schedule) return std::unexpected(schedule.error());
+
+    // An up-touch has already autocalled the note, so nothing remains to discount.
+    if (note.touch_status() == barrier_touch_status::up && settings.upper_boundary == 0.0)
+        return PricingResult{{risk_measure::price, 0.0}};
+
     const double spot = context.asset_price();
-    double relevant = spot;
-    if constexpr (std::is_same_v<Option, Accumulator>) {
-        relevant = std::max({relevant, option.strike(), option.knock_out()});
-    } else {
-        relevant = std::max({relevant, option.initial_price(), option.upper_strike(), option.lower_strike()});
-        for (const double level : option.knock_out_prices()) relevant = std::max(relevant, level);
-        if constexpr (requires { option.knock_in_price(); }) relevant = std::max(relevant, option.knock_in_price());
-        if constexpr (requires { option.coupon_barriers(); })
-            for (const double level : option.coupon_barriers()) relevant = std::max(relevant, level);
-    }
+    const double relevant = highest_relevant_level(note, spot);
     const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
-    if constexpr (requires { option.touch_status(); })
-        if (option.touch_status() == barrier_touch_status::up)
-            return PricingResult{{risk_measure::price, 0.0}};
-    const double maturity = actual_365(context.valuation_time(), option.expiry());
-    if (maturity == 0.0) {
-        if constexpr (std::is_same_v<Option, Accumulator>) {
-            double quantity = option.accumulated_quantity();
-            const double value = context.asset_price();
-            if (context.calendar().is_trading_day(option.expiry()) && value < option.knock_out())
-                quantity += value < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity();
-            return PricingResult{{risk_measure::price, quantity * (value - option.strike())}};
-        }
-        else {
-            bool knocked_in = option.touch_status() == barrier_touch_status::down;
-            knocked_in = is_knocked_in(option, context.asset_price(), knocked_in, true);
-            const auto& dates = option.observation_dates();
-            std::size_t expiry_index = 0;
-            while (expiry_index < dates.size() && dates[expiry_index] < option.expiry()) ++expiry_index;
-            if (expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
-                context.asset_price() >= option.knock_out_prices()[expiry_index])
-                return PricingResult{{risk_measure::price, option.principal_ratio() + observation_coupon(option, expiry_index,
-                                                                                                          context.asset_price())}};
-            const double coupon = expiry_index < dates.size() && dates[expiry_index] == option.expiry() &&
-                                   carries_observation_coupon<Option>
-                                      ? observation_coupon(option, expiry_index, context.asset_price()) : 0.0;
-            return PricingResult{{risk_measure::price, terminal_settlement(option, context.asset_price(), knocked_in) + coupon}};
-        }
-    }
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double sigma = context.parameters().volatility();
-    const int asset_steps = settings.asset_steps;
-    const double upper = space->upper;
-    const double spacing = space->spacing;
+    if (note.touch_status() == barrier_touch_status::up)
+        return PricingResult{{risk_measure::price, 0.0}};
+
+    const double maturity = actual_365(context.valuation_time(), note.expiry());
+    if (maturity == 0.0) return terminal_value(note, context);
+
+    const auto future_trading_dates =
+        trading_dates(context.calendar(), context.valuation_time(), note.expiry(), true);
     std::vector<double> anchors{0.0, maturity};
-    auto add_anchor = [&](date value) {
+    const auto add_anchor = [&](date value) {
         if (value <= context.valuation_time()) return;
         const double time = actual_365(context.valuation_time(), value);
         if (time > 0.0 && time < maturity) anchors.push_back(time);
     };
-    const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_time(), option.expiry(), true);
-    std::vector<double> trading_times;
-    trading_times.reserve(future_trading_dates.size());
-    for (const date value : future_trading_dates)
-        trading_times.push_back(actual_365(context.valuation_time(), value));
-    if constexpr (std::is_same_v<Option, Accumulator>) {
+    for (const date value : note.observation_dates()) add_anchor(value);
+    constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_frequency(); };
+    bool monitors_daily = false;
+    if constexpr (monitors_knock_in)
+        monitors_daily = note.knock_in_frequency() == observation_frequency::daily;
+    if (monitors_daily)
         for (const date value : future_trading_dates) add_anchor(value);
-    } else {
-        for (const date value : option.observation_dates()) add_anchor(value);
-        if constexpr (requires { option.knock_in_frequency(); })
-            if (option.knock_in_frequency() == observation_frequency::daily)
-                for (const date value : future_trading_dates) add_anchor(value);
-    }
+
+    const double rate = context.parameters().risk_free_rate();
+    const double dividend = context.parameters().dividend_yield();
+    const double sigma = context.parameters().volatility();
     const auto grid = finite_difference_grid(maturity, settings.time_steps, std::move(anchors));
-    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, asset_steps); !stable)
+    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, settings.asset_steps);
+        !stable)
         return std::unexpected(stable.error());
-    const double theta = scheme_theta(settings.scheme);
-    const std::size_t size = space->size();
-    const auto asset = [&](std::size_t index) { return spacing * static_cast<double>(index); };
-    FiniteDifferenceStep stepper(size);
-    auto advance = [&](const std::vector<double>& old, std::vector<double>& next, double dt) -> bool {
-        const double high_slope = (old.back() - old[old.size() - 2]) / spacing;
-        const double high_intercept = old.back() - high_slope * upper;
-        const double high_boundary = high_slope * upper * std::exp(-dividend * dt) +
-                                     high_intercept * std::exp(-rate * dt);
-        return stepper.advance(old, next, dt, rate, dividend, sigma, theta,
-                                         old.front() * std::exp(-rate * dt), high_boundary);
-    };
-    const auto observation_events = observation_schedule(option, context.valuation_time());
-    auto event_index = [&](double time) -> std::optional<std::size_t> {
-        if constexpr (std::is_same_v<Option, Accumulator>) {
-            (void)time;
-            return std::nullopt;
-        } else {
-            const auto found = std::find_if(observation_events.begin(), observation_events.end(), [&](std::size_t index) {
-                return actual_365(context.valuation_time(), option.observation_dates()[index]) == time;
+
+    const auto observation_events = observation_schedule(note, context.valuation_time());
+    const auto event_index = [&](double time) -> std::optional<std::size_t> {
+        const auto found = std::find_if(
+            observation_events.begin(), observation_events.end(), [&](std::size_t index) {
+                return actual_365(context.valuation_time(), note.observation_dates()[index]) == time;
             });
-            return found == observation_events.end() ? std::nullopt : std::optional<std::size_t>{*found};
-        }
+        return found == observation_events.end() ? std::nullopt : std::optional<std::size_t>{*found};
     };
-    auto daily_event = [&](double time) {
-        if constexpr (std::is_same_v<Option, Accumulator>) {
-            (void)time;
-            return false;
-        } else if constexpr (requires { option.knock_in_frequency(); }) {
-            return option.knock_in_frequency() == observation_frequency::daily &&
-                   std::any_of(future_trading_dates.begin(), future_trading_dates.end(), [&](date value) {
-                                   return actual_365(context.valuation_time(), value) == time;
-                               });
+    const auto daily_event = [&](double time) {
+        return monitors_daily &&
+               std::any_of(future_trading_dates.begin(), future_trading_dates.end(), [&](date value) {
+                   return actual_365(context.valuation_time(), value) == time;
+               });
+    };
+
+    const std::size_t size = space->size();
+    const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
+    std::vector<double> knocked_in(size), alive(size), next_knocked_in(size), next_alive(size);
+    const auto expiry_observation = event_index(maturity);
+    for (std::size_t index = 0; index < size; ++index) {
+        const double value = asset(index);
+        bool ki = note.touch_status() == barrier_touch_status::down;
+        if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_price();
+        if (expiry_observation && value >= note.knock_out_prices()[*expiry_observation]) {
+            knocked_in[index] = alive[index] =
+                note.principal_ratio() + observation_coupon(note, *expiry_observation, value);
         } else {
-            (void)time;
-            return false;
+            const double coupon = expiry_observation && carries_observation_coupon<Note>
+                                      ? observation_coupon(note, *expiry_observation, value)
+                                      : 0.0;
+            knocked_in[index] = terminal_settlement(note, value, true) + coupon;
+            alive[index] = terminal_settlement(note, value, ki) + coupon;
         }
-    };
-    if constexpr (std::is_same_v<Option, Accumulator>) {
-        std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
-        const bool expiry_trading = context.calendar().is_trading_day(option.expiry());
-        for (std::size_t index = 0; index < size; ++index) {
-            slope[index] = asset(index) - option.strike();
-            intercept[index] = expiry_trading ? slope[index] * (asset(index) < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity()) : 0.0;
-            if (!expiry_trading) continue;
-            if (asset(index) >= option.knock_out()) intercept[index] = 0.0;
-        }
-        for (std::size_t step = grid.size() - 1; step-- > 0;) {
-            const double dt = grid[step + 1] - grid[step];
-            if (!advance(slope, next_slope, dt) || !advance(intercept, next_intercept, dt))
-                return std::unexpected(Error{error_category::invalid_result, "finite-difference system is numerically unstable"});
-            const bool trading = std::binary_search(trading_times.begin(), trading_times.end(), grid[step]);
-            if (trading) for (std::size_t index = 0; index < size; ++index) {
-                if (asset(index) >= option.knock_out()) {
-                    next_intercept[index] += next_slope[index] * option.accumulated_quantity();
-                    next_slope[index] = 0.0;
-                } else {
-                    next_intercept[index] += next_slope[index] * (asset(index) < option.strike() ? option.daily_quantity() * option.acceleration() : option.daily_quantity());
-                }
-            }
-            slope.swap(next_slope);
-            intercept.swap(next_intercept);
-        }
-        return PricingResult{{risk_measure::price,
-                              space->interpolate(slope, spot) * option.accumulated_quantity() +
-                                  space->interpolate(intercept, spot)}};
-    } else {
-        std::vector<double> knocked_in_values(size), not_knocked_in_values(size);
-        std::vector<double> next_knocked_in_values(size), next_not_knocked_in_values(size);
-        const auto expiry_observation = event_index(maturity);
+    }
+
+    LinearBoundaryStepper stepper(
+        size, space->upper, space->spacing,
+        DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
+    for (std::size_t step = grid.size() - 1; step-- > 0;) {
+        const double dt = grid[step + 1] - grid[step];
+        if (!stepper.advance(knocked_in, next_knocked_in, dt) ||
+            !stepper.advance(alive, next_alive, dt))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "finite-difference system is numerically unstable"});
+        const auto observation = event_index(grid[step]);
+        const bool daily = daily_event(grid[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
-            bool ki = option.touch_status() == barrier_touch_status::down;
-            if constexpr (requires { option.knock_in_frequency(); })
-                ki = ki || value < option.knock_in_price();
-            if (expiry_observation && value >= option.knock_out_prices()[*expiry_observation]) {
-                knocked_in_values[index] = not_knocked_in_values[index] =
-                    option.principal_ratio() + observation_coupon(option, *expiry_observation, value);
-            } else {
-                const double coupon = expiry_observation && carries_observation_coupon<Option>
-                                          ? observation_coupon(option, *expiry_observation, value) : 0.0;
-                knocked_in_values[index] = terminal_settlement(option, value, true) + coupon;
-                not_knocked_in_values[index] = terminal_settlement(option, value, ki) + coupon;
+            bool transitioned = false;
+            if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_price();
+            if (observation && value >= note.knock_out_prices()[*observation]) {
+                next_knocked_in[index] = next_alive[index] =
+                    note.principal_ratio() + observation_coupon(note, *observation, value);
+            } else if (observation) {
+                const double coupon = carries_observation_coupon<Note>
+                                          ? observation_coupon(note, *observation, value)
+                                          : 0.0;
+                const double continuation_in = next_knocked_in[index];
+                const double continuation_out = transitioned ? continuation_in : next_alive[index];
+                next_knocked_in[index] = continuation_in + coupon;
+                next_alive[index] = continuation_out + coupon;
+            } else if (transitioned) {
+                next_alive[index] = next_knocked_in[index];
             }
         }
-        for (std::size_t step = grid.size() - 1; step-- > 0;) {
-            const double dt = grid[step + 1] - grid[step];
-            if (!advance(knocked_in_values, next_knocked_in_values, dt) ||
-                !advance(not_knocked_in_values, next_not_knocked_in_values, dt))
-                return std::unexpected(Error{error_category::invalid_result, "finite-difference system is numerically unstable"});
-            const auto observation = event_index(grid[step]);
-            const bool daily = daily_event(grid[step]);
-            for (std::size_t index = 0; index < size; ++index) {
-                const double value = asset(index);
-                bool transitioned = false;
-                if constexpr (requires { option.knock_in_price(); })
-                    transitioned = daily && value < option.knock_in_price();
-                if (observation && value >= option.knock_out_prices()[*observation]) {
-                    next_knocked_in_values[index] = next_not_knocked_in_values[index] =
-                        option.principal_ratio() + observation_coupon(option, *observation, value);
-                } else if (observation) {
-                    const double coupon = carries_observation_coupon<Option> ? observation_coupon(option, *observation, value) : 0.0;
-                    const double continuation_in = next_knocked_in_values[index];
-                    const double continuation_out = transitioned ? continuation_in : next_not_knocked_in_values[index];
-                    next_knocked_in_values[index] = continuation_in + coupon;
-                    next_not_knocked_in_values[index] = continuation_out + coupon;
-                } else if (transitioned) {
-                    next_not_knocked_in_values[index] = next_knocked_in_values[index];
-                }
-            }
-            knocked_in_values.swap(next_knocked_in_values);
-            not_knocked_in_values.swap(next_not_knocked_in_values);
-        }
-        return PricingResult{{risk_measure::price,
-                              space->interpolate(option.touch_status() == barrier_touch_status::down
-                                                     ? knocked_in_values : not_knocked_in_values, spot)}};
+        knocked_in.swap(next_knocked_in);
+        alive.swap(next_alive);
     }
+
+    return PricingResult{
+        {risk_measure::price,
+         space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in : alive,
+                            spot)}};
 }
 
-template result<PricingResult> price_finite_difference_structured(const Accumulator&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_finite_difference_structured(const PhoenixOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_finite_difference_structured(const SnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_finite_difference_structured(const BinarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_finite_difference_structured(const TernarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_autocallable_finite_difference(
+    const PhoenixOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_autocallable_finite_difference(
+    const SnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_autocallable_finite_difference(
+    const BinarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template result<PricingResult> price_autocallable_finite_difference(
+    const TernarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
 
 } // namespace kiyosi

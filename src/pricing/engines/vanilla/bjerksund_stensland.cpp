@@ -1,8 +1,10 @@
 #include <kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp>
-#include "../../detail/common.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;

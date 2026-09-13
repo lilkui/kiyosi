@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include <kiyosi/instruments/exercise_based_option.hpp>
 
 namespace kiyosi {
@@ -18,7 +20,8 @@ using EuropeanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, E
 [[nodiscard]] inline result<EuropeanAssetOrNothingOption> make_asset_or_nothing_option(
     option_type type, double strike, date effective, date expiry)
 {
-    return detail::make_option(type, strike, effective, expiry, AssetOrNothingPayoff{}, EuropeanExercise{});
+    return detail::make_option(type, strike, effective, expiry, AssetOrNothingPayoff{},
+                               EuropeanExercise{});
 }
 
 } // namespace kiyosi

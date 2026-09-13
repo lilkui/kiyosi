@@ -1,10 +1,13 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
-#include <kiyosi/pricing/engines/vanilla/analytic.hpp>
-#include "../../detail/common.hpp"
-#include "../../detail/finite_difference.hpp"
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
+
+#include "../../detail/black_scholes.hpp"
+#include "../../detail/fd_grid.hpp"
+#include "../../detail/fd_scheme.hpp"
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -28,7 +31,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     const double upper = space->upper, spacing = space->spacing;
     const int time_steps = settings.time_steps;
     const double theta = scheme_theta(settings.scheme);
-    const bool upper_barrier = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out;
+    const bool upper_barrier = option.barrier_terms().is_up();
     std::vector<double> observation_times;
     if (option.observation() == observation_mode::scheduled) {
         for (auto value : option.observation_dates()) {
@@ -87,14 +90,10 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
         auto schedule = validate_schedule(option.schedule(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
-    const bool knock_in = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::down_and_in;
-    const bool touched = option.barrier_kind() == barrier_type::up_and_in || option.barrier_kind() == barrier_type::up_and_out
-                             ? context.asset_price() >= option.barrier()
-                             : context.asset_price() <= option.barrier();
-    const bool observed_now = option.observation() == observation_mode::continuous ||
-        std::ranges::any_of(option.observation_dates(), [&](date event) {
-            return event == context.valuation_time();
-        });
+    const auto& terms = option.barrier_terms();
+    const bool knock_in = terms.is_knock_in();
+    const bool touched = terms.breaches(context.asset_price());
+    const bool observed_now = terms.monitors(context.valuation_time());
     const double t = actual_365(context.valuation_time(), option.expiry());
     const auto vanilla_price = [&]() -> result<double> {
         auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()),

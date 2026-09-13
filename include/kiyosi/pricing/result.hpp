@@ -7,7 +7,7 @@
 #include <initializer_list>
 #include <optional>
 #include <utility>
-#include <kiyosi/core/types.hpp>
+#include <kiyosi/core/error.hpp>
 
 namespace kiyosi {
 

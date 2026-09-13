@@ -1,9 +1,12 @@
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
-#include "../../detail/common.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
+
+#include "../../detail/black_scholes.hpp"
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -61,19 +64,14 @@ result<PricingResult> AnalyticBarrierEngine::price(
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
-    double barrier = option.barrier();
-    const bool upper = option.barrier_kind() == barrier_type::up_and_in ||
-                       option.barrier_kind() == barrier_type::up_and_out;
-    const bool knock_in = option.barrier_kind() == barrier_type::up_and_in ||
-                          option.barrier_kind() == barrier_type::down_and_in;
-    const bool observed_now = option.observation() == observation_mode::continuous ||
-        std::ranges::any_of(option.observation_dates(), [&](date event) {
-            return event == context.valuation_time();
-        });
-    const bool touched = observed_now && (upper ? spot >= barrier : spot <= barrier);
+    const auto& terms = option.barrier_terms();
+    double barrier = terms.barrier();
+    const bool upper = terms.is_up();
+    const bool knock_in = terms.is_knock_in();
+    const bool touched = terms.monitors(context.valuation_time()) && terms.breaches(spot);
     if (option.observation() == observation_mode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
-                            std::sqrt(option.observation_interval()));
+                            std::sqrt(terms.observation_interval()));
     }
     if (touched) {
         const double touched_value = *vanilla->get(risk_measure::price);

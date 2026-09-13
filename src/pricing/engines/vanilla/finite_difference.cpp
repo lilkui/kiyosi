@@ -1,12 +1,12 @@
 #include <kiyosi/pricing/engines/vanilla/finite_difference.hpp>
-#include "../../detail/common.hpp"
-#include "../../detail/finite_difference.hpp"
+
 #include <algorithm>
-#include <array>
 #include <cmath>
-#include <limits>
-#include <ranges>
 #include <vector>
+
+#include "../../detail/fd_grid.hpp"
+#include "../../detail/fd_scheme.hpp"
+#include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;
