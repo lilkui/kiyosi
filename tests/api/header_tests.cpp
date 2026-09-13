@@ -40,7 +40,7 @@ concept can_price_with_settings = requires(
     engine.price(option, context, Settings{});
 };
 
-}
+} // namespace
 
 static_assert(kiyosi::version_major == 0);
 
@@ -51,7 +51,6 @@ static_assert(!can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::EuropeanCashOrN
 static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
 static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
 static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::AmericanCashOrNothingOption>);
 
 static_assert(can_price<kiyosi::FiniteDifferenceEuropeanEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::FiniteDifferenceEuropeanEngine, kiyosi::AmericanOption>);

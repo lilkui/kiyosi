@@ -15,6 +15,33 @@
 
 namespace kiyosi {
 
+template <typename Value>
+concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
+                       std::equality_comparable<std::remove_cvref_t<Value>>;
+
+template <typename Value>
+concept OptionExercise = std::copy_constructible<std::remove_cvref_t<Value>> &&
+                         std::equality_comparable<std::remove_cvref_t<Value>>;
+
+class CashOrNothingPayoff;
+class BermudanExercise;
+
+template <OptionPayoff Payoff, OptionExercise Exercise>
+class ExerciseBasedOption;
+
+namespace detail {
+[[nodiscard]] result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
+[[nodiscard]] result<BermudanExercise> make_bermudan_exercise(std::vector<date>, date);
+
+template <OptionPayoff Payoff, OptionExercise Exercise>
+[[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
+    OptionTerms, Payoff, Exercise);
+
+template <OptionPayoff Payoff, OptionExercise Exercise>
+[[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_option(
+    option_type, double, date, date, Payoff, Exercise);
+} // namespace detail
+
 struct VanillaPayoff {
     friend bool operator==(const VanillaPayoff&, const VanillaPayoff&) = default;
 };
@@ -27,10 +54,10 @@ public:
 private:
     explicit CashOrNothingPayoff(double payout) : payout_(payout) {}
     double payout_;
-    friend result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
+    friend result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
 };
 
-[[nodiscard]] inline result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double payout)
+[[nodiscard]] inline result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
 {
     if (!std::isfinite(payout) || payout <= 0.0)
         return std::unexpected(Error{error_category::invalid_parameter,
@@ -62,11 +89,11 @@ public:
 private:
     explicit BermudanExercise(std::vector<date> dates) : dates_(std::move(dates)) {}
     std::vector<date> dates_;
-    friend result<BermudanExercise> make_bermudan_exercise(
+    friend result<BermudanExercise> detail::make_bermudan_exercise(
         std::vector<date>, date);
 };
 
-[[nodiscard]] inline result<BermudanExercise> make_bermudan_exercise(
+[[nodiscard]] inline result<BermudanExercise> detail::make_bermudan_exercise(
     std::vector<date> dates, date expiry)
 {
     if (dates.empty())
@@ -77,21 +104,6 @@ private:
         return std::unexpected(Error{error_category::invalid_schedule, valid.error().message});
     return BermudanExercise{std::move(dates)};
 }
-
-template <typename Value>
-concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                       std::equality_comparable<std::remove_cvref_t<Value>>;
-
-template <typename Value>
-concept OptionExercise = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                         std::equality_comparable<std::remove_cvref_t<Value>>;
-
-template <OptionPayoff Payoff, OptionExercise Exercise>
-class ExerciseBasedOption;
-
-template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
-    OptionTerms, Payoff, Exercise);
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption {
@@ -104,7 +116,8 @@ public:
     const Payoff& payoff() const noexcept { return payoff_; }
     const Exercise& exercise() const noexcept { return exercise_; }
 
-    double payout() const noexcept requires requires(const Payoff& value) { value.payout(); }
+    double payout() const noexcept
+        requires requires(const Payoff& value) { value.payout(); }
     {
         return payoff_.payout();
     }
@@ -126,12 +139,12 @@ private:
     Exercise exercise_;
 
     template <OptionPayoff OtherPayoff, OptionExercise OtherExercise>
-    friend result<ExerciseBasedOption<OtherPayoff, OtherExercise>> make_exercise_based_option(
+    friend result<ExerciseBasedOption<OtherPayoff, OtherExercise>> detail::make_exercise_based_option(
         OptionTerms, OtherPayoff, OtherExercise);
 };
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
+[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> detail::make_exercise_based_option(
     OptionTerms terms, Payoff payoff, Exercise exercise)
 {
     if constexpr (std::same_as<Exercise, BermudanExercise>) {
@@ -143,41 +156,41 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     return ExerciseBasedOption<Payoff, Exercise>{std::move(terms), std::move(payoff), std::move(exercise)};
 }
 
+namespace detail {
+
 template <OptionPayoff Payoff>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, EuropeanExercise>> make_european_option(
     OptionTerms terms, Payoff payoff)
 {
-    return make_exercise_based_option(std::move(terms), std::move(payoff), EuropeanExercise{});
+    return detail::make_exercise_based_option(std::move(terms), std::move(payoff), EuropeanExercise{});
 }
 
 template <OptionPayoff Payoff>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, AmericanExercise>> make_american_option(
     OptionTerms terms, Payoff payoff)
 {
-    return make_exercise_based_option(std::move(terms), std::move(payoff), AmericanExercise{});
+    return detail::make_exercise_based_option(std::move(terms), std::move(payoff), AmericanExercise{});
 }
 
 template <OptionPayoff Payoff>
 [[nodiscard]] inline result<ExerciseBasedOption<Payoff, BermudanExercise>> make_bermudan_option(
     OptionTerms terms, Payoff payoff, std::vector<date> dates)
 {
-    auto exercise = make_bermudan_exercise(std::move(dates), terms.expiry());
+    auto exercise = detail::make_bermudan_exercise(std::move(dates), terms.expiry());
     if (!exercise) return std::unexpected(exercise.error());
-    return make_exercise_based_option(std::move(terms), std::move(payoff), std::move(*exercise));
+    return detail::make_exercise_based_option(std::move(terms), std::move(payoff), std::move(*exercise));
 }
 
+} // namespace detail
+
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_option(
+[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> detail::make_option(
     option_type type, double strike, date effective, date expiry, Payoff payoff, Exercise exercise)
 {
-    auto terms = make_option_terms(type, strike, effective, expiry);
+    auto terms = detail::make_option_terms(type, strike, effective, expiry);
     if (!terms) return std::unexpected(terms.error());
-    return make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
+    return detail::make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
 }
-template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> make_option(
-    option_type type, double strike, date expiry, Payoff payoff, Exercise exercise)
-{ return make_option(type, strike, default_effective_date, expiry, std::move(payoff), std::move(exercise)); }
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline result<void> validate_observation_dates(

@@ -30,8 +30,10 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
             CHECK(expired.error().category == kiyosi::error_category::invalid_expiry);
         }
     };
-    const auto european = *kiyosi::make_european_call(100.0, expiry);
-    const auto american = *kiyosi::make_american_call(100.0, expiry);
+    const auto european = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, effective, expiry);
+    const auto american = *kiyosi::make_american_option(
+        kiyosi::option_type::call, 100.0, effective, expiry);
     check(kiyosi::AnalyticEuropeanEngine{}, european, 10.0);
     check(kiyosi::IntegralEuropeanEngine{}, european, 10.0);
     check(kiyosi::BinomialEuropeanEngine{32}, european, 10.0);
@@ -41,7 +43,8 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
     check(kiyosi::MonteCarloEuropeanEngine{{32, 4, 7}}, european, 10.0);
     check(kiyosi::MonteCarloAmericanEngine{{32, 4, 7}}, american, 10.0);
     check(kiyosi::BjerksundStenslandAmericanEngine{}, american, 10.0);
-    const auto digital = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 7.0, expiry);
+    const auto digital = *kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::call, 100.0, 7.0, effective, expiry);
     check(kiyosi::AnalyticDigitalEngine{}, digital, 7.0);
     check(kiyosi::IntegralDigitalEngine{}, digital, 7.0);
     check(kiyosi::FiniteDifferenceDigitalEngine{}, digital, 7.0);
@@ -49,11 +52,11 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
         kiyosi::option_type::call, 100.0, effective, expiry, 80.0, kiyosi::barrier_type::down_and_out);
     check(kiyosi::AnalyticBarrierEngine{}, barrier, 10.0);
     check(kiyosi::FiniteDifferenceBarrierEngine{}, barrier, 10.0);
-    const auto binary = *kiyosi::make_cash_or_nothing_barrier_option(
+    const auto binary = *kiyosi::make_binary_barrier_option(
         kiyosi::option_type::call, 100.0, effective, expiry, 80.0, kiyosi::barrier_type::down_and_out, 7.0);
     check(kiyosi::AnalyticBinaryBarrierEngine{}, binary, 7.0);
-    check(kiyosi::GeometricAverageAsianEngine{}, *kiyosi::make_geometric_average_option(kiyosi::option_type::call, 100.0, effective, expiry, 110.0), 10.0);
-    check(kiyosi::ArithmeticAverageAsianEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::option_type::call, 100.0, effective, expiry, 110.0), 10.0);
+    check(kiyosi::GeometricAverageAsianEngine{}, *kiyosi::make_geometric_average_option(kiyosi::option_type::call, 100.0, effective, effective, expiry, 110.0), 10.0);
+    check(kiyosi::ArithmeticAverageAsianEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::option_type::call, 100.0, effective, effective, expiry, 110.0), 10.0);
     const auto note = *kiyosi::make_binary_snowball_option(
         {0.1}, 0.05, 100.0, {100.0}, 100.0, 60.0, {expiry},
         kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
@@ -88,7 +91,8 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     const auto noon = kiyosi::start_of_day(expiry) - std::chrono::hours{12};
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.4),
                                                        100.0, noon);
-    const auto option = *kiyosi::make_european_call(100.0, expiry);
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, kiyosi::date_of(noon), expiry);
     const double expected = 100.0 * std::erf(0.4 * std::sqrt(0.5 / 365.0) / (2.0 * std::sqrt(2.0)));
     const auto check = [&](const auto& engine, double tolerance) {
         const auto priced = engine.price(option, context);
@@ -121,9 +125,11 @@ struct RecordingEngine {
 TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architecture]")
 {
     const auto noon = kiyosi::start_of_day(day(2025, 7, 1)) + std::chrono::hours{12};
+    const auto effective = day(2025, 1, 1);
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.0, 0.2),
                                                        100.0, noon);
-    const auto option = *kiyosi::make_european_call(100.0, day(2026, 1, 1));
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, effective, day(2026, 1, 1));
     std::vector<kiyosi::timestamp> moments;
     const RecordingEngine engine{moments, noon};
     SECTION("numerical analytics and scenarios")
@@ -186,7 +192,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
     const kiyosi::MonteCarloTernarySnowballEngine engine{{32, 7}};
     for (const int hour : {0, 12}) {
         const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(400.0, 0.0, 1e-12),
-            50.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
+                                                           50.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
         const auto priced = engine.price(note, context);
         REQUIRE(priced);
         const double coupon = hour == 0 ? 0.2 : 0.8;

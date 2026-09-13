@@ -31,7 +31,7 @@ kiyosi::PricingResult analytic(kiyosi::option_type type, double spot = 100.0, do
                                kiyosi::date value_date = valuation, kiyosi::date option_expiry = expiry,
                                double strike = 100.0)
 {
-    const auto option = *kiyosi::make_european_option(type, strike, option_expiry);
+    const auto option = *kiyosi::make_european_option(type, strike, value_date, option_expiry);
     return *kiyosi::AnalyticEuropeanEngine{}.price(
         option, context(spot, rate, dividend, volatility, value_date));
 }
@@ -141,8 +141,8 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
 
     const kiyosi::AnalyticDigitalEngine digital;
     for (const auto type : {kiyosi::option_type::call, kiyosi::option_type::put}) {
-        const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 100.0, expiry);
-        const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, expiry);
+        const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 100.0, valuation, expiry);
+        const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, valuation, expiry);
         const auto vanilla = analytic(type);
         const auto cash_value = risk_value(*digital.price(cash, context()), kiyosi::risk_measure::price);
         const auto asset_value = risk_value(*digital.price(asset, context()), kiyosi::risk_measure::price);
@@ -154,7 +154,7 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
     for (const auto kind : {kiyosi::barrier_type::up_and_in, kiyosi::barrier_type::up_and_out,
                             kiyosi::barrier_type::down_and_in, kiyosi::barrier_type::down_and_out}) {
         const auto option = *kiyosi::make_barrier_option(
-            kiyosi::option_type::call, 100.0, expiry,
+            kiyosi::option_type::call, 100.0, valuation, expiry,
             kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
             kind);
         const auto paired_kind = kind == kiyosi::barrier_type::up_and_in
@@ -163,7 +163,7 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
                                  : kind == kiyosi::barrier_type::down_and_in ? kiyosi::barrier_type::down_and_out
                                                                              : kiyosi::barrier_type::down_and_in;
         const auto paired = *kiyosi::make_barrier_option(
-            kiyosi::option_type::call, 100.0, expiry,
+            kiyosi::option_type::call, 100.0, valuation, expiry,
             kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
             paired_kind);
         check_close(risk_value(*barriers.price(option, context()), kiyosi::risk_measure::price) +
@@ -194,7 +194,14 @@ TEST_CASE("Analytic prices are monotone and bounded")
 
 TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
 {
-    struct expiry_case { bool asset; kiyosi::barrier_type barrier; std::optional<kiyosi::option_type> type; double strike; double level; double expected; };
+    struct expiry_case {
+        bool asset;
+        kiyosi::barrier_type barrier;
+        std::optional<kiyosi::option_type> type;
+        double strike;
+        double level;
+        double expected;
+    };
     const std::array<expiry_case, 8> cases{
         expiry_case{false, kiyosi::barrier_type::up_and_in, kiyosi::option_type::call, 100, 100, 0},
         {false, kiyosi::barrier_type::down_and_in, kiyosi::option_type::put, 101, 100, 10},
@@ -232,8 +239,8 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
         std::vector<kiyosi::date>{day(2025, 1, 11)});
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
-                                                       100.0, valuation,
-                                                       kiyosi::exchange_calendar());
+                                                      100.0, valuation,
+                                                      kiyosi::exchange_calendar());
     CHECK(kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market).error().category ==
           kiyosi::error_category::invalid_schedule);
 }
@@ -276,8 +283,10 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
 
 TEST_CASE("Binomial and finite-difference prices converge toward analytic values")
 {
-    const auto option = *kiyosi::make_european_call(100.0, expiry);
-    const auto american_call = *kiyosi::make_american_call(100.0, expiry);
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto american_call = *kiyosi::make_american_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto market = context(100.0, 0.04, 0.0, 0.3);
     const double reference = risk_value(*kiyosi::AnalyticEuropeanEngine{}.price(option, market), kiyosi::risk_measure::price);
 
@@ -307,8 +316,10 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
 TEST_CASE("Explicit finite-difference engines honor signed stability grids")
 {
     const auto grid_expiry = valuation + std::chrono::days{730};
-    const auto call = *kiyosi::make_european_call(100.0, grid_expiry);
-    const auto digital = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, grid_expiry);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, grid_expiry);
+    const auto digital = *kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::call, 100.0, 10.0, valuation, grid_expiry);
     const auto barrier = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, valuation, grid_expiry, 90.0, kiyosi::barrier_type::down_and_out);
 
@@ -337,11 +348,10 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
     }
 }
 
-TEST_CASE("Exercise-based European options compose terms and payoff")
+TEST_CASE("European digital options expose their terms and payoff")
 {
-    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
-    const auto payoff = *kiyosi::make_cash_or_nothing_payoff(10.0);
-    const auto european = kiyosi::make_european_option(terms, payoff);
+    const auto european = kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::call, 100.0, 10.0, valuation, expiry);
     REQUIRE(european.has_value());
     CHECK(european->type() == kiyosi::option_type::call);
     CHECK(european->strike() == 100.0);
@@ -351,9 +361,9 @@ TEST_CASE("Exercise-based European options compose terms and payoff")
 
 TEST_CASE("Bermudan options preserve exercise dates")
 {
-    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
     const auto dates = std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{180}};
-    const auto bermudan = kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, dates);
+    const auto bermudan = kiyosi::make_bermudan_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry, dates);
     REQUIRE(bermudan.has_value());
     CHECK(bermudan->exercise_dates() == dates);
 }
@@ -362,46 +372,42 @@ TEST_CASE("Exercise-based option factories reject invalid contracts")
 {
     const auto invalid_type = static_cast<kiyosi::option_type>(99);
     for (const auto invalid : {
-             kiyosi::make_european_option(invalid_type, 100.0, expiry).error().category,
-             kiyosi::make_cash_or_nothing_option(invalid_type, 100.0, 10.0, expiry).error().category,
-             kiyosi::make_asset_or_nothing_option(invalid_type, 100.0, expiry).error().category}) {
+             kiyosi::make_european_option(invalid_type, 100.0, valuation, expiry).error().category,
+             kiyosi::make_cash_or_nothing_option(invalid_type, 100.0, 10.0, valuation, expiry).error().category,
+             kiyosi::make_asset_or_nothing_option(invalid_type, 100.0, valuation, expiry).error().category}) {
         CHECK(invalid == kiyosi::error_category::invalid_option);
     }
-    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 0.0, 10.0, expiry)
+    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 0.0, 10.0, valuation, expiry)
               .error()
               .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_asset_or_nothing_option(kiyosi::option_type::call, 0.0, expiry)
+    CHECK(kiyosi::make_asset_or_nothing_option(kiyosi::option_type::call, 0.0, valuation, expiry)
               .error()
               .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry)
+    CHECK(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, valuation, expiry)
               .error()
               .category == kiyosi::error_category::invalid_parameter);
 }
 
 TEST_CASE("Bermudan options reject invalid schedules")
 {
-    const auto terms = *kiyosi::make_option_terms(kiyosi::option_type::call, 100.0, expiry);
-    CHECK_FALSE(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{},
-                                             std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
+    CHECK_FALSE(kiyosi::make_bermudan_option(
+                    kiyosi::option_type::call, 100.0, valuation, expiry,
+                    std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
                     .has_value());
-    CHECK(kiyosi::make_bermudan_option(terms, kiyosi::VanillaPayoff{}, {}).error().category ==
+    CHECK(kiyosi::make_bermudan_option(
+              kiyosi::option_type::call, 100.0, valuation, expiry, {})
+              .error()
+              .category ==
           kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(
-              terms, kiyosi::VanillaPayoff{},
+              kiyosi::option_type::call, 100.0, valuation, expiry,
               std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{30}})
               .error()
               .category == kiyosi::error_category::invalid_schedule);
     CHECK(kiyosi::make_bermudan_option(
-              terms, kiyosi::VanillaPayoff{}, std::vector{day(2025, 1, 11)})
+              kiyosi::option_type::call, 100.0, valuation, expiry,
+              std::vector{day(2025, 1, 11)})
               .has_value());
-
-    const auto later_terms = *kiyosi::make_option_terms(
-        kiyosi::option_type::call, 100.0, expiry + std::chrono::days{30});
-    const auto later_exercise = *kiyosi::make_bermudan_exercise(
-        std::vector{expiry + std::chrono::days{1}}, later_terms.expiry());
-    CHECK(kiyosi::make_exercise_based_option(terms, kiyosi::VanillaPayoff{}, later_exercise)
-              .error()
-              .category == kiyosi::error_category::invalid_schedule);
 }
 
 } // namespace

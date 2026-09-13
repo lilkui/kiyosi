@@ -17,7 +17,8 @@ using kiyosi::test::risk_value;
 TEST_CASE("Binomial American engine prices expiry and validates steps")
 {
     const auto expiry = day(2025, 1, 1);
-    const auto option = *kiyosi::make_american_put(100.0, expiry);
+    const auto option = *kiyosi::make_american_option(
+        kiyosi::option_type::put, 100.0, expiry, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 90.0, expiry);
     const kiyosi::BinomialAmericanEngine engine;
@@ -41,7 +42,8 @@ TEST_CASE("Binomial American engine does not expose gamma below two steps")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto option = *kiyosi::make_american_call(100.0, expiry);
+    const auto option = *kiyosi::make_american_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
 
     const auto result = kiyosi::BinomialAmericanEngine{kiyosi::BinomialSettings{1}}.price(option, context);
     REQUIRE(result.has_value());
@@ -58,10 +60,12 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 90.0, valuation);
-    const auto put = *kiyosi::make_american_put(100.0, expiry);
-    const auto european_put_option = *kiyosi::make_european_put(100.0, expiry);
-    const auto call = *kiyosi::make_european_call(100.0, expiry);
-    const auto american_call_option = *kiyosi::make_american_call(100.0, expiry);
+    const auto put = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, valuation, expiry);
+    const auto european_put_option = *kiyosi::make_european_option(
+        kiyosi::option_type::put, 100.0, valuation, expiry);
+    const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto american_call_option = *kiyosi::make_american_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
     const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialSettings{400}};
 
     const auto american_put = engine.price(put, context);
@@ -94,8 +98,8 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto call = *kiyosi::make_american_call(100.0, expiry);
-    const auto put = *kiyosi::make_american_put(100.0, expiry);
+    const auto call = *kiyosi::make_american_option(kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto put = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, valuation, expiry);
     const kiyosi::BinomialAmericanEngine engine{kiyosi::BinomialSettings{200}};
 
     const auto call_result = engine.price(call, context);
@@ -106,4 +110,4 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
                    risk_value(*put_result, kiyosi::risk_measure::price)) <= 1e-12);
 }
 
-}
+} // namespace

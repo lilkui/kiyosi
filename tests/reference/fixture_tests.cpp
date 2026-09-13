@@ -18,12 +18,7 @@
 namespace {
 
 const std::map<std::string, kiyosi::risk_measure> measures{
-        {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta},
-        {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed},
-        {"theta", kiyosi::risk_measure::theta}, {"charm", kiyosi::risk_measure::charm},
-        {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega},
-        {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma},
-        {"rho", kiyosi::risk_measure::rho}};
+    {"price", kiyosi::risk_measure::price}, {"delta", kiyosi::risk_measure::delta}, {"gamma", kiyosi::risk_measure::gamma}, {"speed", kiyosi::risk_measure::speed}, {"theta", kiyosi::risk_measure::theta}, {"charm", kiyosi::risk_measure::charm}, {"color", kiyosi::risk_measure::color}, {"vega", kiyosi::risk_measure::vega}, {"vanna", kiyosi::risk_measure::vanna}, {"zomma", kiyosi::risk_measure::zomma}, {"rho", kiyosi::risk_measure::rho}};
 
 std::filesystem::path fixture_path()
 {
@@ -78,7 +73,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
         if (digital) ++digital_rows[fixture.engine];
         REQUIRE((american || digital || fixture.instrument == "EuropeanOption"));
-        REQUIRE(fixture.case_id.starts_with(american ? "ql-american-" : digital ? "ql-digital-" : "ql-european-"));
+        REQUIRE(fixture.case_id.starts_with(american ? "ql-american-" : digital ? "ql-digital-"
+                                                                                : "ql-european-"));
 
         REQUIRE(fixture.outputs.contains("price"));
         REQUIRE_FALSE(fixture.validation.has_value());
@@ -131,16 +127,16 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
                     REQUIRE(fixture.outputs.contains(name) != unavailable);
                     if (unavailable) {
-                        REQUIRE(inputs.at("unavailable_" + name) == (expiry_boundary ? "whole-day stability stencil touches expiry" :
-                            "whole-day stability stencil precedes exercise window"));
+                        REQUIRE(inputs.at("unavailable_" + name) == (expiry_boundary ? "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"));
                         continue;
                     }
                     ++available;
                     const bool native_measure = analytic || name == "price" ||
-                        ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
-                          fixture.engine == "FiniteDifferenceEuropeanEngine" || fixture.engine == "BinomialAmericanEngine" ||
-                          fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
-                          fixture.engine == "FiniteDifferenceDigitalEngine") && (name == "delta" || name == "gamma"));
+                                                ((fixture.engine == "BinomialEuropeanEngine" || fixture.engine == "CrrEngine" ||
+                                                  fixture.engine == "FiniteDifferenceEuropeanEngine" || fixture.engine == "BinomialAmericanEngine" ||
+                                                  fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
+                                                  fixture.engine == "FiniteDifferenceDigitalEngine") &&
+                                                 (name == "delta" || name == "gamma"));
                     REQUIRE(native->get(measure).has_value() == native_measure);
                     const double expected = fixture.outputs.at(name);
                     if (native_measure)
@@ -158,7 +154,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             using FiniteDifference = std::conditional_t<american_contract, kiyosi::FiniteDifferenceAmericanEngine, kiyosi::FiniteDifferenceEuropeanEngine>;
             using MonteCarlo = std::conditional_t<american_contract, kiyosi::MonteCarloAmericanEngine, kiyosi::MonteCarloEuropeanEngine>;
             constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ||
-                std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanAssetOrNothingOption>;
+                                              std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanAssetOrNothingOption>;
             if constexpr (digital_contract) {
                 REQUIRE(inputs.at("payoff") == (std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ? "cash" : "asset"));
                 REQUIRE(inputs.at("payoff_condition") == "strict ITM, zero at strike");
@@ -168,7 +164,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                 else if (fixture.engine == "FiniteDifferenceDigitalEngine") {
                     REQUIRE(inputs.at("scheme") == "crank_nicolson");
                     check_engine(kiyosi::FiniteDifferenceDigitalEngine{{static_cast<int>(number("asset_steps")),
-                        static_cast<int>(number("time_steps")), kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
+                                                                        static_cast<int>(number("time_steps")), kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
                 } else FAIL("Unknown digital engine: " << fixture.engine);
             } else {
                 if (fixture.engine == "AnalyticEuropeanEngine") {
@@ -199,7 +195,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                         {"crank_nicolson", kiyosi::finite_difference_scheme::crank_nicolson}};
                     REQUIRE(schemes.contains(inputs.at("scheme")));
                     check_engine(FiniteDifference{{static_cast<int>(number("asset_steps")),
-                        static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
+                                                   static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
                 } else if (fixture.engine == (american ? "MonteCarloAmericanEngine" : "MonteCarloEuropeanEngine")) {
                     const auto& mc = *fixture.monte_carlo;
                     REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
@@ -235,7 +231,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
     }
     REQUIRE(compared > 0);
     REQUIRE(compared_engines.size() == 13);
-    for (const auto& engine : compared_engines) REQUIRE(wrappers[engine] >= 2);
+    for (const auto& engine : compared_engines)
+        REQUIRE(wrappers[engine] >= 2);
     REQUIRE(digital_rows.size() == 3);
     for (const auto& [engine, count] : digital_rows) {
         REQUIRE(count == 40);
@@ -247,10 +244,10 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
 {
     const auto original = fixture_text();
     for (const auto identifier : {"ql-european-call-100-1d\t",
-             "ql-digital-cash-call-100-1d-analyticdigitalengine\t",
-             "ql-digital-asset-put-100-1d-analyticdigitalengine\t",
-             "ql-barrier-call-up-and-out-at-expiry-110-1d-analyticbarrierengine\t",
-             "ql-binary-cash-call-up-and-in-at-expiry-110-100-1d\t"}) {
+                                  "ql-digital-cash-call-100-1d-analyticdigitalengine\t",
+                                  "ql-digital-asset-put-100-1d-analyticdigitalengine\t",
+                                  "ql-barrier-call-up-and-out-at-expiry-110-1d-analyticbarrierengine\t",
+                                  "ql-binary-cash-call-up-and-in-at-expiry-110-100-1d\t"}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
@@ -276,7 +273,12 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
 
 TEST_CASE("Digital expiry settlement uses strict strikes without smooth Greeks")
 {
-    struct Settlement { kiyosi::option_type type; double spot; double cash; double asset; };
+    struct Settlement {
+        kiyosi::option_type type;
+        double spot;
+        double cash;
+        double asset;
+    };
     // These exact settlement values are also checked against QuantLib payoff bindings.
     const std::array cases{
         Settlement{kiyosi::option_type::call, 99, 0, 0}, Settlement{kiyosi::option_type::call, 100, 0, 0},
@@ -286,8 +288,8 @@ TEST_CASE("Digital expiry settlement uses strict strikes without smooth Greeks")
     for (const auto& item : cases) {
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), item.spot, expiry);
-        const auto cash = *kiyosi::make_cash_or_nothing_option(item.type, 100, 10, expiry);
-        const auto asset = *kiyosi::make_asset_or_nothing_option(item.type, 100, expiry);
+        const auto cash = *kiyosi::make_cash_or_nothing_option(item.type, 100, 10, expiry, expiry);
+        const auto asset = *kiyosi::make_asset_or_nothing_option(item.type, 100, expiry, expiry);
         const auto check = [&](const auto& engine, const auto& option, double expected) {
             const auto result = engine.price(option, context);
             REQUIRE(result.has_value());
@@ -395,7 +397,7 @@ TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical
         for (const auto& [name, tolerance] : value.tolerances) {
             REQUIRE(value.outputs.contains(name));
             CHECK(tolerance >= 0.0);
-        names.push_back(value.instrument + "/" + value.engine);
+            names.push_back(value.instrument + "/" + value.engine);
         }
     }
     CHECK(std::ranges::any_of(names, [](const auto& name) { return name == "BarrierOption/FiniteDifferenceBarrierEngine"; }));
@@ -460,21 +462,30 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
 TEST_CASE("Barrier public constructors reject invalid contracts")
 {
     const auto expiry = standard_expiry();
-    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, -1.0, expiry, 90.0,
-                                      kiyosi::barrier_type::down_and_in).error().category ==
+    const auto effective = expiry - std::chrono::days{365};
+    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, -1.0, effective, expiry, 90.0,
+                                      kiyosi::barrier_type::down_and_in)
+              .error()
+              .category ==
           kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 90.0,
+    CHECK(kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, effective, expiry, 90.0,
                                       kiyosi::barrier_type::down_and_in, 10.0,
-                                      kiyosi::rebate_timing::at_hit).error().category ==
+                                      kiyosi::rebate_timing::at_hit)
+              .error()
+              .category ==
           kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, expiry, 90.0,
+    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
                                              kiyosi::barrier_type::down_and_out, 10.0, false,
-                                             kiyosi::rebate_timing::at_hit).error().category ==
+                                             kiyosi::rebate_timing::at_hit)
+              .error()
+              .category ==
           kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, expiry, 90.0,
+    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
                                              kiyosi::barrier_type::down_and_in, 10.0, false,
                                              kiyosi::rebate_timing::at_expiry,
-                                             kiyosi::observation_mode::scheduled).error().category ==
+                                             kiyosi::observation_mode::scheduled)
+              .error()
+              .category ==
           kiyosi::error_category::invalid_schedule);
 }
 
@@ -509,8 +520,8 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         REQUIRE(date("average_start") <= date("valuation"));
         REQUIRE(date("valuation") <= date("expiry"));
         const bool terminal = date("valuation") == date("expiry");
-        REQUIRE(fixture.provenance.source_symbol == (terminal ? "QuantLib.PlainVanillaPayoff" :
-            geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine" : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
+        REQUIRE(fixture.provenance.source_symbol == (terminal ? "QuantLib.PlainVanillaPayoff" : geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine"
+                                                                                                          : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
         REQUIRE(fixture.provenance.reference_kind == (!geometric && !terminal ? "approximate" : "analytic"));
         if (geometric) {
             REQUIRE(date("average_start") == date("valuation"));
@@ -519,7 +530,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
         const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"),
-            inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar());
+                                                          inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar());
         REQUIRE(context.has_value());
         const auto check = [&](const auto& option, const auto& engine) {
             REQUIRE(option.has_value());
@@ -529,30 +540,36 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
                 REQUIRE(native->get(measure).has_value() == (name == "price"));
             ++generated;
             const bool smooth = !terminal && (date("valuation") - date("average_start")).count() > 2 &&
-                (date("expiry") - date("valuation")).count() > 2;
+                                (date("expiry") - date("valuation")).count() > 2;
             REQUIRE(inputs.at("wrapper") == (smooth ? "true" : "false"));
-            if (!smooth) { REQUIRE(fixture.outputs.size() == 1); return; }
+            if (!smooth) {
+                REQUIRE(fixture.outputs.size() == 1);
+                return;
+            }
             ++wrapped;
             REQUIRE(fixture.outputs.size() == measures.size());
             const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, kiyosi::NumericalShiftSettings{
-                number("spot_shift"), number("volatility_shift"), number("rate_shift"),
-                static_cast<int>(number("time_shift_days"))}}.price(*option, *context);
+                                                                                number("spot_shift"), number("volatility_shift"), number("rate_shift"),
+                                                                                static_cast<int>(number("time_shift_days"))}}
+                                       .price(*option, *context);
             REQUIRE(numerical.has_value());
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(numerical->get(measure).has_value());
                 CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(fixture.outputs.at(name),
-                    number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                                                                                number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
             }
         };
         if (geometric) {
             REQUIRE(fixture.engine == "GeometricAverageAsianEngine");
             check(kiyosi::make_geometric_average_option(type, number("strike"), date("average_start"),
-                date("effective"), date("expiry"), number("realized_average")), kiyosi::GeometricAverageAsianEngine{});
+                                                        date("effective"), date("expiry"), number("realized_average")),
+                  kiyosi::GeometricAverageAsianEngine{});
         } else {
             REQUIRE(fixture.engine == "ArithmeticAverageAsianEngine");
             check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("average_start"),
-                date("effective"), date("expiry"), number("realized_average")), kiyosi::ArithmeticAverageAsianEngine{});
+                                                         date("effective"), date("expiry"), number("realized_average")),
+                  kiyosi::ArithmeticAverageAsianEngine{});
         }
     }
     CHECK(generated == 24);
@@ -592,8 +609,10 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto call = *kiyosi::make_european_call(100.0, expiry);
-    const auto put = *kiyosi::make_european_put(100.0, expiry);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto put = *kiyosi::make_european_option(
+        kiyosi::option_type::put, 100.0, valuation, expiry);
     const auto analytic_call = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
     const auto analytic_put = *kiyosi::AnalyticEuropeanEngine{}.price(put, context);
     const auto call_price = *analytic_call.get(kiyosi::risk_measure::price);
@@ -601,14 +620,14 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     CHECK(std::abs(call_price - put_price -
                    (100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04))) < 1e-10);
 
-    const auto in = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 130.0,
-                                                  kiyosi::barrier_type::up_and_in);
-    const auto out = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, expiry, 130.0,
-                                                   kiyosi::barrier_type::up_and_out);
+    const auto in = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, valuation, expiry, 130.0,
+                                                 kiyosi::barrier_type::up_and_in);
+    const auto out = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, valuation, expiry, 130.0,
+                                                  kiyosi::barrier_type::up_and_out);
     const auto barrier_in = *kiyosi::AnalyticBarrierEngine{}.price(in, context);
     const auto barrier_out = *kiyosi::AnalyticBarrierEngine{}.price(out, context);
     CHECK(std::abs(*barrier_in.get(kiyosi::risk_measure::price) +
-                       *barrier_out.get(kiyosi::risk_measure::price) - call_price) < 2e-5);
+                   *barrier_out.get(kiyosi::risk_measure::price) - call_price) < 2e-5);
 
     const auto coarse = *kiyosi::BinomialEuropeanEngine{32}.price(call, context);
     const auto fine = *kiyosi::BinomialEuropeanEngine{128}.price(call, context);
@@ -627,8 +646,10 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
     const auto expiry = kiyosi::date{std::chrono::year{2026} / 1 / 1};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
-    const auto call = *kiyosi::make_european_call(100.0, effective, expiry);
-    const auto put = *kiyosi::make_american_put(100.0, effective, expiry);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, effective, expiry);
+    const auto put = *kiyosi::make_american_option(
+        kiyosi::option_type::put, 100.0, effective, expiry);
     const std::vector<kiyosi::date> observations{effective + std::chrono::days{90},
                                                  effective + std::chrono::days{181},
                                                  effective + std::chrono::days{273}, expiry};
@@ -685,8 +706,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
 {
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const std::map<std::string, kiyosi::barrier_type> kinds{
-        {"up_and_in", kiyosi::barrier_type::up_and_in}, {"up_and_out", kiyosi::barrier_type::up_and_out},
-        {"down_and_in", kiyosi::barrier_type::down_and_in}, {"down_and_out", kiyosi::barrier_type::down_and_out}};
+        {"up_and_in", kiyosi::barrier_type::up_and_in}, {"up_and_out", kiyosi::barrier_type::up_and_out}, {"down_and_in", kiyosi::barrier_type::down_and_in}, {"down_and_out", kiyosi::barrier_type::down_and_out}};
     std::map<std::string, int> generated, wrappers;
     for (const auto& fixture : cases) {
         const auto& inputs = fixture.inputs;
@@ -725,11 +745,12 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
             const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
             if (boundary) REQUIRE(inputs.at("wrapper") == "false");
-            for (const auto& [name, value] : fixture.outputs) REQUIRE(measures.contains(name));
+            for (const auto& [name, value] : fixture.outputs)
+                REQUIRE(measures.contains(name));
             if (inputs.at("wrapper") == "false") return;
             ++wrappers[fixture.engine];
             const kiyosi::NumericalShiftSettings shifts{number("spot_shift"), number("volatility_shift"),
-                number("rate_shift"), static_cast<int>(number("time_shift_days"))};
+                                                        number("rate_shift"), static_cast<int>(number("time_shift_days"))};
             // Three nested spot shifts are used by speed; keep every stencil in the same hit state.
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
             const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(*option, *context);
@@ -739,7 +760,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
                 REQUIRE(fixture.outputs.contains(name));
                 REQUIRE(numerical->get(measure).has_value());
                 CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(fixture.outputs.at(name),
-                    number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                                                                                number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
             }
         };
         if (fixture.engine == "AnalyticBarrierEngine") check(kiyosi::AnalyticBarrierEngine{});
@@ -747,7 +768,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             REQUIRE(fixture.engine == "FiniteDifferenceBarrierEngine");
             REQUIRE(inputs.at("scheme") == "crank_nicolson");
             check(kiyosi::FiniteDifferenceBarrierEngine{{static_cast<int>(number("asset_steps")),
-                static_cast<int>(number("time_steps")), kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
+                                                         static_cast<int>(number("time_steps")), kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
         }
     }
     REQUIRE(generated.size() == 2);
@@ -761,8 +782,7 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
 {
     const auto cases = kiyosi::test::load_reference_cases(fixture_path());
     const std::map<std::string, kiyosi::barrier_type> kinds{
-        {"up_and_in", kiyosi::barrier_type::up_and_in}, {"up_and_out", kiyosi::barrier_type::up_and_out},
-        {"down_and_in", kiyosi::barrier_type::down_and_in}, {"down_and_out", kiyosi::barrier_type::down_and_out}};
+        {"up_and_in", kiyosi::barrier_type::up_and_in}, {"up_and_out", kiyosi::barrier_type::up_and_out}, {"down_and_in", kiyosi::barrier_type::down_and_in}, {"down_and_out", kiyosi::barrier_type::down_and_out}};
     int generated = 0, wrappers = 0;
     for (const auto& fixture : cases) {
         const auto& inputs = fixture.inputs;
@@ -787,8 +807,8 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         std::optional<kiyosi::option_type> type;
         if (inputs.at("option") != "none") type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
         const auto option = kiyosi::make_binary_barrier_option(type, number("strike"), date("effective"), date("expiry"),
-            number("barrier"), kinds.at(inputs.at("barrier_kind")), number("payout"), inputs.at("asset_settlement") == "true",
-            inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry);
+                                                               number("barrier"), kinds.at(inputs.at("barrier_kind")), number("payout"), inputs.at("asset_settlement") == "true",
+                                                               inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry);
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
@@ -797,8 +817,10 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         const kiyosi::AnalyticBinaryBarrierEngine engine;
         const auto native = engine.price(*option, *context);
         check_price(fixture, native);
-        for (const auto& [name, measure] : measures) REQUIRE(native->get(measure).has_value() == (name == "price"));
-        for (const auto& [name, value] : fixture.outputs) REQUIRE(measures.contains(name));
+        for (const auto& [name, measure] : measures)
+            REQUIRE(native->get(measure).has_value() == (name == "price"));
+        for (const auto& [name, value] : fixture.outputs)
+            REQUIRE(measures.contains(name));
         ++generated;
         REQUIRE(fixture.case_id.starts_with("ql-binary-"));
         const bool boundary = number("spot") == number("barrier") || (date("expiry") - date("valuation")).count() <= 2;
@@ -806,7 +828,7 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         if (boundary) continue;
         ++wrappers;
         const kiyosi::NumericalShiftSettings shifts{number("spot_shift"), number("volatility_shift"),
-            number("rate_shift"), static_cast<int>(number("time_shift_days"))};
+                                                    number("rate_shift"), static_cast<int>(number("time_shift_days"))};
         REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
         const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(*option, *context);
         REQUIRE(numerical.has_value());
@@ -814,7 +836,7 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
             INFO("measure=" << name);
             REQUIRE(numerical->get(measure).has_value());
             CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(fixture.outputs.at(name),
-                number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                                                                            number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
         }
     }
     CHECK(generated == 268);

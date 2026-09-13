@@ -16,7 +16,8 @@ using kiyosi::test::day;
 TEST_CASE("European options are validated immutable values")
 {
     const auto expiry = day(2030, 1, 1);
-    auto call = kiyosi::make_european_option(kiyosi::option_type::call, 100.0, expiry);
+    const auto effective = day(2029, 1, 1);
+    auto call = kiyosi::make_european_option(kiyosi::option_type::call, 100.0, effective, expiry);
     REQUIRE(call.has_value());
     REQUIRE(call->type() == kiyosi::option_type::call);
     REQUIRE(call->strike() == 100.0);
@@ -24,20 +25,25 @@ TEST_CASE("European options are validated immutable values")
 
     const auto copy = *call;
     REQUIRE(copy == *call);
-    REQUIRE(kiyosi::make_european_option(kiyosi::option_type::put, 100.0, expiry)->type() == kiyosi::option_type::put);
+    REQUIRE(kiyosi::make_european_option(
+                kiyosi::option_type::put, 100.0, effective, expiry)
+                ->type() == kiyosi::option_type::put);
 }
 
 TEST_CASE("European option factories reject invalid terms")
 {
     const auto expiry = day(2030, 1, 1);
-    REQUIRE(kiyosi::make_european_option(kiyosi::option_type::call, 0.0, expiry).error().category ==
+    const auto effective = day(2029, 1, 1);
+    REQUIRE(kiyosi::make_european_option(kiyosi::option_type::call, 0.0, effective, expiry).error().category ==
             kiyosi::error_category::invalid_strike);
-    REQUIRE(kiyosi::make_european_option(kiyosi::option_type::call, -1.0, expiry).error().message.find("strike") !=
+    REQUIRE(kiyosi::make_european_option(kiyosi::option_type::call, -1.0, effective, expiry).error().message.find("strike") !=
             std::string::npos);
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::option_type::call,
-                                               std::numeric_limits<double>::infinity(), expiry)
+                                               std::numeric_limits<double>::infinity(), effective, expiry)
                       .has_value());
-    REQUIRE_FALSE(kiyosi::make_european_option(static_cast<kiyosi::option_type>(99), 100.0, expiry).has_value());
+    REQUIRE_FALSE(kiyosi::make_european_option(
+                      static_cast<kiyosi::option_type>(99), 100.0, effective, expiry)
+                      .has_value());
     REQUIRE(kiyosi::make_european_option(kiyosi::option_type::call, 100.0, expiry, expiry).has_value());
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::option_type::call, 100.0, day(2031, 1, 1), expiry).has_value());
 }
@@ -48,8 +54,10 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto european = *kiyosi::make_european_call(100.0, expiry);
-    const auto american = *kiyosi::make_american_call(100.0, expiry);
+    const auto european = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto american = *kiyosi::make_american_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto european_result = kiyosi::AnalyticEuropeanEngine{}.price(european, context);
     REQUIRE(european_result.has_value());
     CHECK(european_result->has(kiyosi::risk_measure::price));
@@ -66,4 +74,4 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
     CHECK_FALSE(european_result->get(invalid_measure).has_value());
 }
 
-}
+} // namespace

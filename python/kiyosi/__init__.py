@@ -48,7 +48,7 @@ class EuropeanOption:
     kind: str
     strike: float
     expiry: date
-    effective: date | None = None
+    effective: date
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,17 +76,13 @@ def price(option: EuropeanOption, market: Market) -> dict[str, float | None]:
     risk_free_rate = _number(market.risk_free_rate, "risk_free_rate")
     dividend_yield = _number(market.dividend_yield, "dividend_yield")
     volatility = _number(market.volatility, "volatility")
-    effective = (
-        None
-        if option.effective is None
-        else _calendar_date(option.effective, "effective")
-    )
+    effective = _calendar_date(option.effective, "effective")
     result = _native.price(
         kind, spot, strike,
         valuation.year, valuation.month, valuation.day,
         expiry.year, expiry.month, expiry.day,
         risk_free_rate, dividend_yield, volatility,
-        *((effective.year, effective.month, effective.day) if effective else (0, 0, 0)),
+        effective.year, effective.month, effective.day,
     )
     if result.get("__kiyosi_error__"):
         raise KiyosiError(result["category"], str(result["message"]))
@@ -102,7 +98,7 @@ def black_scholes(
     risk_free_rate: float,
     dividend_yield: float,
     volatility: float,
-    effective: date | None = None,
+    effective: date,
 ) -> dict[str, float | None]:
     """Price a European option using the closed-form Black-Scholes model."""
     return price(

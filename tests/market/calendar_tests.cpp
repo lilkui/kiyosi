@@ -63,9 +63,8 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     CHECK_THAT(kiyosi::exchange_calendar().trading_year_fraction(start, end),
                Catch::Matchers::WithinAbs(3.0 / 252.0, 1e-15));
 
-    const auto schedule = kiyosi::make_observation_schedule(
-        std::vector<kiyosi::date>{day(2025, 1, 2), day(2025, 1, 3)}, start, end,
-        kiyosi::exchange_calendar());
+    const auto schedule = kiyosi::make_fixed_interval_schedule(
+        start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::exchange_calendar());
     REQUIRE(schedule.has_value());
     const auto barrier = kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, start, end, 90.0, kiyosi::barrier_type::down_and_out,
@@ -78,15 +77,20 @@ TEST_CASE("Effective dates schedules and SSE calendar semantics")
 {
     const auto effective = day(2025, 1, 3);
     const auto expiry = day(2025, 2, 3);
-    const auto option = kiyosi::make_european_call(100.0, effective, expiry);
+    const auto option = kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, effective, expiry);
     REQUIRE(option);
     CHECK(option->effective() == effective);
-    CHECK_FALSE(kiyosi::make_european_call(100.0, expiry, effective));
+    CHECK_FALSE(kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, expiry, effective));
 
-    const auto fixed = kiyosi::make_fixed_interval_schedule(effective, day(2025, 1, 7), 1);
+    const auto fixed = kiyosi::make_fixed_interval_schedule(
+        effective, day(2025, 1, 7), std::chrono::days{1});
     REQUIRE(fixed);
     CHECK(fixed->dates() == std::vector<kiyosi::date>{day(2025, 1, 6), day(2025, 1, 7)});
-    CHECK(kiyosi::make_fixed_interval_schedule(effective, day(2025, 1, 5), 10)->empty());
+    CHECK(kiyosi::make_fixed_interval_schedule(
+              effective, day(2025, 1, 5), std::chrono::days{10})
+              ->empty());
 
     const auto monthly = kiyosi::make_monthly_schedule(day(2025, 1, 2), day(2025, 4, 2), 2);
     REQUIRE(monthly);
@@ -99,4 +103,4 @@ TEST_CASE("Effective dates schedules and SSE calendar semantics")
     CHECK(sse.is_trading_day(day(2031, 1, 2)));
 }
 
-}
+} // namespace

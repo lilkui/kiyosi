@@ -30,15 +30,15 @@ int main()
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
 
-    const auto european = *kiyosi::make_european_call(100.0, effective, expiry);
-    const auto american = *kiyosi::make_american_put(100.0, effective, expiry);
+    const auto european = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, effective, expiry);
+    const auto american = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, effective, expiry);
     const auto cash_digital = *kiyosi::make_cash_or_nothing_option(
         kiyosi::option_type::call, 100.0, 10.0, effective, expiry);
     const auto asset_digital = *kiyosi::make_asset_or_nothing_option(
         kiyosi::option_type::call, 100.0, effective, expiry);
     const auto barrier = *kiyosi::make_barrier_option(
         kiyosi::option_type::call, 100.0, effective, expiry, 80.0, kiyosi::barrier_type::down_and_out);
-    const auto binary_barrier = *kiyosi::make_cash_or_nothing_barrier_option(
+    const auto binary_barrier = *kiyosi::make_binary_barrier_option(
         kiyosi::option_type::call, 100.0, effective, expiry, 80.0,
         kiyosi::barrier_type::down_and_out, 10.0);
     const auto geometric_asian = *kiyosi::make_geometric_average_option(

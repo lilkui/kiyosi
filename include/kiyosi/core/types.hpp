@@ -16,7 +16,6 @@ inline constexpr int version_patch = 0;
 using date = std::chrono::sys_days;
 // Intraday moments use UTC-like sys_time; date-based contracts remain midnight anchored.
 using timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
-inline constexpr date default_effective_date{std::chrono::year{1970} / 1 / 1};
 [[nodiscard]] KIYOSI_EXPORT bool is_valid_date(date value) noexcept;
 
 enum class day_count_convention : unsigned char {
@@ -32,7 +31,6 @@ enum class day_count_convention : unsigned char {
 {
     return date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
 }
-
 
 enum class error_category : unsigned char {
     invalid_option = 1,

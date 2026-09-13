@@ -6,6 +6,13 @@
 
 namespace kiyosi {
 
+class AsianOptionTerms;
+
+namespace detail {
+[[nodiscard]] result<AsianOptionTerms> make_asian_option_terms(
+    option_type, double, date, double, date, date);
+}
+
 class AsianOptionTerms {
 public:
     option_type type() const noexcept { return type_; }
@@ -25,10 +32,11 @@ private:
     double realized_average_;
     date effective_;
     date expiry_;
-    friend result<AsianOptionTerms> make_asian_option_terms(option_type, double, date, double, date, date);
+    friend result<AsianOptionTerms> detail::make_asian_option_terms(
+        option_type, double, date, double, date, date);
 };
 
-[[nodiscard]] inline result<AsianOptionTerms> make_asian_option_terms(
+[[nodiscard]] inline result<AsianOptionTerms> detail::make_asian_option_terms(
     option_type type, double strike, date average_start, double realized_average, date effective, date expiry)
 {
     if (type != option_type::call && type != option_type::put)
@@ -41,10 +49,6 @@ private:
         return std::unexpected(Error{error_category::invalid_schedule, "average dates are invalid"});
     return AsianOptionTerms{type, strike, average_start, realized_average, effective, expiry};
 }
-
-[[nodiscard]] inline result<AsianOptionTerms> make_asian_option_terms(
-    option_type type, double strike, date average_start, double realized_average, date expiry)
-{ return make_asian_option_terms(type, strike, average_start, realized_average, expiry, expiry); }
 
 class GeometricAverageOption {
 public:
@@ -81,7 +85,7 @@ private:
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
     option_type type, double strike, date average_start, date effective, date expiry, double realized_average = 0.0)
 {
-    auto terms = make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
+    auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
     if (!terms) return std::unexpected(terms.error());
     return GeometricAverageOption{std::move(*terms)};
 }
@@ -89,25 +93,9 @@ private:
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
     option_type type, double strike, date average_start, date effective, date expiry, double realized_average = 0.0)
 {
-    auto terms = make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
+    auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average, effective, expiry);
     if (!terms) return std::unexpected(terms.error());
     return ArithmeticAverageOption{std::move(*terms)};
-}
-
-[[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
-    option_type type, double strike, date average_start, date expiry, double realized_average = 0.0)
-{ return make_geometric_average_option(type, strike, average_start, default_effective_date, expiry, realized_average); }
-
-[[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
-    option_type type, double strike, date average_start, date expiry, double realized_average = 0.0)
-{ return make_arithmetic_average_option(type, strike, average_start, default_effective_date, expiry, realized_average); }
-
-[[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
-    option_type type, double strike, date average_start, double realized_average, date effective, date expiry)
-{
-    if (average_start < effective)
-        return std::unexpected(Error{error_category::invalid_schedule, "average start precedes effective date"});
-    return make_arithmetic_average_option(type, strike, average_start, effective, expiry, realized_average);
 }
 
 } // namespace kiyosi

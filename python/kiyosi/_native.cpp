@@ -45,19 +45,14 @@ nb::dict price(
 {
     const auto valuation = make_date(valuation_year, valuation_month, valuation_day);
     const auto expiry = make_date(expiry_year, expiry_month, expiry_day);
+    const auto effective = make_date(effective_year, effective_month, effective_day);
 
     result<EuropeanOption> option = std::unexpected(
         Error{error_category::invalid_option, "kind must be 'call' or 'put'"});
     if (kind == "call") {
-        option = effective_year == 0 ? make_european_call(strike, expiry)
-                                     : make_european_call(
-                                           strike,
-                                           make_date(effective_year, effective_month, effective_day), expiry);
+        option = make_european_option(option_type::call, strike, effective, expiry);
     } else if (kind == "put") {
-        option = effective_year == 0 ? make_european_put(strike, expiry)
-                                     : make_european_put(
-                                           strike,
-                                           make_date(effective_year, effective_month, effective_day), expiry);
+        option = make_european_option(option_type::put, strike, effective, expiry);
     } else {
         return error_result(option.error());
     }

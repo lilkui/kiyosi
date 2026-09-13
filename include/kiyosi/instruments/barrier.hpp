@@ -94,19 +94,13 @@ private:
     }
     if (observation == observation_mode::continuous)
         return BarrierOption{type, strike, effective, expiry, barrier, kind, rebate, timing, observation,
-                             *make_date_schedule({}, effective, expiry)};
-    auto schedule = make_date_schedule(std::move(observations), effective, expiry);
+                             *detail::make_date_schedule({}, effective, expiry)};
+    auto schedule = detail::make_date_schedule(std::move(observations), effective, expiry);
     if (!schedule)
         return std::unexpected(Error{error_category::invalid_schedule,
                                      "observation dates must be ordered and precede expiry"});
     return BarrierOption{type, strike, effective, expiry, barrier, kind, rebate, timing, observation, std::move(*schedule)};
 }
-
-[[nodiscard]] inline result<BarrierOption> make_barrier_option(
-    option_type type, double strike, date expiry, double barrier, barrier_type kind,
-    double rebate = 0.0, rebate_timing timing = rebate_timing::at_expiry,
-    observation_mode observation = observation_mode::continuous, std::vector<date> observations = {})
-{ return make_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, rebate, timing, observation, std::move(observations)); }
 
 [[nodiscard]] inline result<BarrierOption> make_barrier_option(
     option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind,
@@ -122,10 +116,5 @@ private:
     base->observations_ = std::move(schedule);
     return base;
 }
-
-[[nodiscard]] inline result<BarrierOption> make_barrier_option(
-    option_type type, double strike, date expiry, double barrier, barrier_type kind,
-    double rebate, rebate_timing timing, observation_mode observation, ObservationSchedule schedule)
-{ return make_barrier_option(type, strike, default_effective_date, expiry, barrier, kind, rebate, timing, observation, std::move(schedule)); }
 
 } // namespace kiyosi

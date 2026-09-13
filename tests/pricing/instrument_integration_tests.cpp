@@ -22,8 +22,10 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto cash_call = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 10.0, expiry);
-    const auto cash_put = *kiyosi::make_cash_or_nothing_option(kiyosi::option_type::put, 100.0, 10.0, expiry);
+    const auto cash_call = *kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::call, 100.0, 10.0, valuation, expiry);
+    const auto cash_put = *kiyosi::make_cash_or_nothing_option(
+        kiyosi::option_type::put, 100.0, 10.0, valuation, expiry);
     const kiyosi::AnalyticDigitalEngine digital;
     const auto call_value = digital.price(cash_call, context);
     const auto put_value = digital.price(cash_put, context);
@@ -36,7 +38,9 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     CHECK_THAT(risk_value(*call_value, kiyosi::risk_measure::price) +
                    risk_value(*put_value, kiyosi::risk_measure::price),
                WithinAbs(10.0 * std::exp(-0.04), 1e-10));
-    CHECK_FALSE(kiyosi::make_cash_or_nothing_option(kiyosi::option_type::call, 100.0, 0.0, expiry).has_value());
+    CHECK_FALSE(kiyosi::make_cash_or_nothing_option(
+                    kiyosi::option_type::call, 100.0, 0.0, valuation, expiry)
+                    .has_value());
 }
 
 TEST_CASE("Barrier in and out prices compose to vanilla")
@@ -52,7 +56,8 @@ TEST_CASE("Barrier in and out prices compose to vanilla")
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in);
     const auto barrier_out = kiyosi::AnalyticBarrierEngine{}.price(down_out, context);
     const auto barrier_in = kiyosi::AnalyticBarrierEngine{}.price(down_in, context);
-    const auto vanilla = kiyosi::AnalyticEuropeanEngine{}.price(*kiyosi::make_european_call(100.0, expiry), context);
+    const auto vanilla = kiyosi::AnalyticEuropeanEngine{}.price(
+        *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry), context);
     REQUIRE(barrier_out.has_value());
     REQUIRE(barrier_in.has_value());
     REQUIRE(vanilla.has_value());
@@ -83,7 +88,8 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
     REQUIRE(context.has_value());
 
-    auto asian = kiyosi::make_geometric_average_option(kiyosi::option_type::call, 100.0, valuation, expiry);
+    auto asian = kiyosi::make_geometric_average_option(
+        kiyosi::option_type::call, 100.0, valuation, valuation, expiry);
     REQUIRE(asian.has_value());
     auto asian_result = kiyosi::GeometricAverageAsianEngine{}.price(*asian, *context);
     REQUIRE(asian_result.has_value());
@@ -107,7 +113,8 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     auto parameters = kiyosi::make_bsm_parameters(0.03, 0.01, 0.2);
     auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
     REQUIRE(context.has_value());
-    auto option = kiyosi::make_european_call(100.0, expiry);
+    auto option = kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
     REQUIRE(option.has_value());
     auto analytics = kiyosi::numerical_analytics(kiyosi::BinomialEuropeanEngine{64}, *option, *context);
     REQUIRE(analytics.has_value());
@@ -134,4 +141,4 @@ TEST_CASE("Structured coupon replacement preserves the original note")
     CHECK(replaced->maturity_coupon_rate() == 0.08);
 }
 
-}
+} // namespace

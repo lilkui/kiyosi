@@ -35,6 +35,7 @@ result = kiyosi.black_scholes(
     risk_free_rate=0.05,
     dividend_yield=0.02,
     volatility=0.20,
+    effective=date(2025, 1, 1),
 )
 
 print(result["price"])
@@ -43,9 +44,8 @@ print(result["delta"])
 
 The result contains `price`, `delta`, `gamma`, `theta`, `vega`, and `rho`.
 Use `EuropeanOption`, `Market`, and `price` when you prefer to construct the
-inputs explicitly. `EuropeanOption.effective` is optional and uses the C++
-core's default effective date when omitted. Core validation failures raise
-`KiyosiError` with a stable `category` from `ErrorCategory`.
+inputs explicitly. `EuropeanOption.effective` is required. Core validation
+failures raise `KiyosiError` with a stable `category` from `ErrorCategory`.
 
 ## Development
 

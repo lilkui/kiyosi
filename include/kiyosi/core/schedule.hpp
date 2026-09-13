@@ -8,6 +8,15 @@
 
 namespace kiyosi {
 
+class ObservationSchedule;
+class TradingCalendar;
+
+namespace detail {
+[[nodiscard]] result<ObservationSchedule> make_date_schedule(std::vector<date>, date, date);
+[[nodiscard]] result<ObservationSchedule> make_observation_schedule(
+    std::vector<date>, date, date, const TradingCalendar&);
+} // namespace detail
+
 [[nodiscard]] inline result<void> validate_date_schedule(
     std::span<const date> observations, date instrument_start, date instrument_end)
 {
@@ -41,12 +50,12 @@ private:
     explicit ObservationSchedule(std::vector<date> dates) : dates_(std::move(dates)) {}
     std::vector<date> dates_;
 
-    friend result<ObservationSchedule> make_date_schedule(std::vector<date>, date, date);
-    friend result<ObservationSchedule> make_observation_schedule(
-        std::vector<date>, date, date, const class TradingCalendar&);
+    friend result<ObservationSchedule> detail::make_date_schedule(std::vector<date>, date, date);
+    friend result<ObservationSchedule> detail::make_observation_schedule(
+        std::vector<date>, date, date, const TradingCalendar&);
 };
 
-[[nodiscard]] inline result<ObservationSchedule> make_date_schedule(
+[[nodiscard]] inline result<ObservationSchedule> detail::make_date_schedule(
     std::vector<date> observations, date instrument_start, date instrument_end)
 {
     auto valid = validate_date_schedule(observations, instrument_start, instrument_end);

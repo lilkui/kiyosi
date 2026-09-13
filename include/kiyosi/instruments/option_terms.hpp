@@ -5,7 +5,14 @@
 
 namespace kiyosi {
 
-enum class option_type { call, put };
+enum class option_type { call,
+                         put };
+
+class OptionTerms;
+
+namespace detail {
+[[nodiscard]] result<OptionTerms> make_option_terms(option_type, double, date, date);
+}
 
 class OptionTerms {
 public:
@@ -22,10 +29,11 @@ private:
     double strike_;
     date effective_;
     date expiry_;
-    friend result<OptionTerms> make_option_terms(option_type, double, date, date);
+    friend result<OptionTerms> detail::make_option_terms(option_type, double, date, date);
 };
 
-[[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date effective, date expiry)
+[[nodiscard]] inline result<OptionTerms> detail::make_option_terms(
+    option_type type, double strike, date effective, date expiry)
 {
     if (type != option_type::call && type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
@@ -35,7 +43,4 @@ private:
         return std::unexpected(Error{error_category::invalid_schedule, "option life dates are invalid"});
     return OptionTerms{type, strike, effective, expiry};
 }
-[[nodiscard]] inline result<OptionTerms> make_option_terms(option_type type, double strike, date expiry)
-{ return make_option_terms(type, strike, default_effective_date, expiry); }
-
 } // namespace kiyosi
