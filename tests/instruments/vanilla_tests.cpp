@@ -68,10 +68,6 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
     CHECK(american_result->has(kiyosi::risk_measure::price));
     CHECK(american_result->has(kiyosi::risk_measure::gamma));
     CHECK_FALSE(american_result->has(kiyosi::risk_measure::vega));
-
-    const auto invalid_measure = static_cast<kiyosi::risk_measure>(255);
-    CHECK_FALSE(european_result->has(invalid_measure));
-    CHECK_FALSE(european_result->get(invalid_measure).has_value());
 }
 
 } // namespace

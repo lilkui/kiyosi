@@ -70,7 +70,7 @@ result<PricingResult> price_autocallable_finite_difference(
     if (!schedule) return std::unexpected(schedule.error());
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
-    if (note.touch_status() == barrier_touch_status::up && settings.upper_boundary == 0.0)
+    if (note.touch_status() == barrier_touch_status::up && !settings.upper_boundary)
         return PricingResult{{risk_measure::price, 0.0}};
 
     const double spot = context.asset_price();

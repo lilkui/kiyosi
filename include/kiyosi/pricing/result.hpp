@@ -23,16 +23,13 @@ enum class risk_measure : std::uint8_t {
     vanna,
     zomma,
     rho,
-    count,
 };
 
-inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_measure::count);
+inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_measure::rho) + 1;
 
-[[nodiscard]] constexpr std::optional<std::size_t> risk_measure_index(risk_measure measure) noexcept
+[[nodiscard]] constexpr std::size_t risk_measure_index(risk_measure measure) noexcept
 {
-    const auto index = static_cast<std::size_t>(measure);
-    if (index >= risk_measure_count) return std::nullopt;
-    return index;
+    return static_cast<std::size_t>(measure);
 }
 
 class PricingResult {
@@ -48,14 +45,12 @@ public:
 
     [[nodiscard]] bool has(risk_measure measure) const noexcept
     {
-        const auto index = risk_measure_index(measure);
-        return index && values_[*index].has_value();
+        return values_[risk_measure_index(measure)].has_value();
     }
 
     [[nodiscard]] std::optional<double> get(risk_measure measure) const noexcept
     {
-        const auto index = risk_measure_index(measure);
-        return index ? values_[*index] : std::nullopt;
+        return values_[risk_measure_index(measure)];
     }
 
     [[nodiscard]] result<double> require(risk_measure measure) const
@@ -67,7 +62,7 @@ public:
 
     PricingResult& set(risk_measure measure, std::optional<double> value) noexcept
     {
-        if (const auto index = risk_measure_index(measure)) values_[*index] = value;
+        values_[risk_measure_index(measure)] = value;
         return *this;
     }
 

@@ -98,7 +98,7 @@ private:
     const FiniteDifferenceSettings& settings, double default_upper,
     std::initializer_list<double> must_exceed)
 {
-    const double upper = settings.upper_boundary > 0.0 ? settings.upper_boundary : default_upper;
+    const double upper = settings.upper_boundary.value_or(default_upper);
     if (!std::isfinite(upper) || upper <= std::ranges::max(must_exceed))
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "finite-difference upper boundary must exceed every product level"});

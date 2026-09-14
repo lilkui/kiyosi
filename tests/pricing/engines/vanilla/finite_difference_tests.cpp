@@ -74,6 +74,11 @@ TEST_CASE("Finite-difference engines reject invalid grids")
     CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{{2, 10, kiyosi::finite_difference_scheme::implicit_euler}}
                     .price(call, context)
                     .has_value());
+    CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{{200, 200,
+                                                       kiyosi::finite_difference_scheme::crank_nicolson, -1.0}}
+                    .price(call, context)
+                    .has_value());
+    CHECK_FALSE(kiyosi::FiniteDifferenceSettings{}.upper_boundary.has_value());
 }
 
 TEST_CASE("Finite-difference American engine returns intrinsic value at expiry")
