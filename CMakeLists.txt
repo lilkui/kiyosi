@@ -14,6 +14,7 @@ option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targe
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
+option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" ${PROJECT_IS_TOP_LEVEL})
 
 add_library(kiyosi_warnings INTERFACE)
 add_library(kiyosi::warnings ALIAS kiyosi_warnings)
@@ -187,6 +188,21 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     FetchContent_MakeAvailable(Catch2)
 
     add_subdirectory(tests)
+endif()
+
+if(KIYOSI_BUILD_BENCHMARKS)
+    include(FetchContent)
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG v1.9.5
+        SYSTEM
+        EXCLUDE_FROM_ALL
+        FIND_PACKAGE_ARGS 1.9.5 CONFIG
+    )
+    FetchContent_MakeAvailable(benchmark)
+    add_subdirectory(benchmarks)
 endif()
 
 if(KIYOSI_BUILD_EXAMPLES)

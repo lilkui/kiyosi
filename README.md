@@ -31,6 +31,16 @@ On Linux, replace `windows-release` with `linux-release`.
 
 Debug and sanitizer presets are also available in `CMakePresets.json`.
 
+Benchmark builds are enabled for top-level configurations. Run the benchmark
+binary directly after building:
+
+```bash
+./out/build/linux-release/kiyosi_benchmarks
+```
+
+Disable benchmark targets with `-DKIYOSI_BUILD_BENCHMARKS=OFF` when embedding
+the project.
+
 ## Install and use from CMake
 
 ```bash
