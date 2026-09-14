@@ -57,9 +57,9 @@ result<PricingResult> FiniteDifferenceAccumulatorEngine::price(
     if (settings_.asset_steps > 2000 || settings_.time_steps > 2000)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "finite-difference grid dimensions are out of range"});
-    auto contract = make_accumulator(option.strike(), option.knock_out(), option.daily_quantity(),
-                                     option.acceleration(), option.accumulated_quantity(),
-                                     option.effective(), option.expiry());
+    auto contract = make_accumulator({option.strike(), option.knock_out(), option.daily_quantity(),
+                                      option.acceleration(), option.accumulated_quantity(),
+                                      option.effective(), option.expiry()});
     if (!contract) return std::unexpected(contract.error());
 
     const double spot = context.asset_price();

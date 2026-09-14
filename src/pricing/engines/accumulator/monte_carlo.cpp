@@ -53,9 +53,9 @@ double path_payoff(const Accumulator& option, const PricingContext& context, std
 result<PricingResult> MonteCarloAccumulatorEngine::price(
     const Accumulator& option, const PricingContext& context) const
 {
-    auto contract = make_accumulator(option.strike(), option.knock_out(), option.daily_quantity(),
-                                     option.acceleration(), option.accumulated_quantity(),
-                                     option.effective(), option.expiry());
+    auto contract = make_accumulator({option.strike(), option.knock_out(), option.daily_quantity(),
+                                      option.acceleration(), option.accumulated_quantity(),
+                                      option.effective(), option.expiry()});
     if (!contract) return std::unexpected(contract.error());
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());

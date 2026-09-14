@@ -58,6 +58,13 @@ public:
         return index ? values_[*index] : std::nullopt;
     }
 
+    [[nodiscard]] result<double> require(risk_measure measure) const
+    {
+        if (const auto value = get(measure)) return *value;
+        return std::unexpected(Error{error_category::invalid_result,
+                                     "requested risk measure is unavailable"});
+    }
+
     PricingResult& set(risk_measure measure, std::optional<double> value) noexcept
     {
         if (const auto index = risk_measure_index(measure)) values_[*index] = value;

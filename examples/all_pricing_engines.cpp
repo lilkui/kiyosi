@@ -12,9 +12,9 @@ bool print_price(std::string_view instrument, std::string_view engine,
         std::cerr << instrument << " / " << engine << ": " << result.error().message << '\n';
         return false;
     }
-    const auto price = result->get(kiyosi::risk_measure::price);
+    const auto price = result->require(kiyosi::risk_measure::price);
     if (!price) {
-        std::cerr << instrument << " / " << engine << ": price unavailable\n";
+        std::cerr << instrument << " / " << engine << ": " << price.error().message << '\n';
         return false;
     }
     std::cout << instrument << " / " << engine << ": " << *price << '\n';
