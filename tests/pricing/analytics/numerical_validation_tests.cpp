@@ -304,7 +304,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     std::array<double, 3> finite_difference_errors{};
     for (std::size_t index = 0; index < finite_difference_errors.size(); ++index) {
         const int steps = 50 << static_cast<int>(index);
-        const auto result = kiyosi::FiniteDifferenceEuropeanEngine{steps, steps}.price(option, market);
+        const auto result = kiyosi::FiniteDifferenceVanillaEngine{steps, steps}.price(option, market);
         REQUIRE(result.has_value());
         finite_difference_errors[index] = difference(risk_value(*result, kiyosi::risk_measure::price), reference);
     }
@@ -330,11 +330,11 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
         const auto boundary = kiyosi::FiniteDifferenceSettings{4, 2, kiyosi::finite_difference_scheme::explicit_euler};
         const auto unstable = kiyosi::FiniteDifferenceSettings{4, 1, kiyosi::finite_difference_scheme::explicit_euler};
 
-        const auto vanilla_stable = kiyosi::FiniteDifferenceEuropeanEngine{stable}.price(call, market);
+        const auto vanilla_stable = kiyosi::FiniteDifferenceVanillaEngine{stable}.price(call, market);
         CHECK(vanilla_stable.has_value());
-        const auto vanilla_boundary = kiyosi::FiniteDifferenceEuropeanEngine{boundary}.price(call, market);
+        const auto vanilla_boundary = kiyosi::FiniteDifferenceVanillaEngine{boundary}.price(call, market);
         CHECK((vanilla_boundary || vanilla_boundary.error().message != "explicit finite-difference grid is unstable"));
-        CHECK_FALSE(kiyosi::FiniteDifferenceEuropeanEngine{unstable}.price(call, market).has_value());
+        CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{unstable}.price(call, market).has_value());
         const auto digital_stable = kiyosi::FiniteDifferenceDigitalEngine{stable}.price(digital, market);
         CHECK(digital_stable.has_value());
         const auto digital_boundary = kiyosi::FiniteDifferenceDigitalEngine{boundary}.price(digital, market);

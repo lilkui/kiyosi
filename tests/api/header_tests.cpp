@@ -57,10 +57,13 @@ static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanCashOrNot
 static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
 static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::FiniteDifferenceEuropeanEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::FiniteDifferenceEuropeanEngine, kiyosi::AmericanOption>);
-static_assert(can_price<kiyosi::FiniteDifferenceAmericanEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::FiniteDifferenceAmericanEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::BermudanOption>);
+
+static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
+static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
+static_assert(!can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::AmericanOption>);
 static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::EuropeanOption>);
@@ -74,10 +77,10 @@ static_assert(!can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::AmericanOptio
 static_assert(can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::EuropeanOption>);
 
-static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceEuropeanEngine,
+static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
                                        kiyosi::EuropeanOption,
                                        kiyosi::FiniteDifferenceSettings>);
-static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceAmericanEngine,
+static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
                                        kiyosi::AmericanOption,
                                        kiyosi::FiniteDifferenceSettings>);
 static_assert(!can_price_with_settings<kiyosi::CrrVanillaEngine,

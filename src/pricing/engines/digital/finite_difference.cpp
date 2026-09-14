@@ -82,11 +82,13 @@ result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 
 }
 
-result<PricingResult> FiniteDifferenceDigitalEngine::price(const EuropeanCashOrNothingOption& option, const PricingContext& context) const
+result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
+    const EuropeanCashOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_fd(option, context, settings_, false);
 }
-result<PricingResult> FiniteDifferenceDigitalEngine::price(const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
+result<PricingResult> FiniteDifferenceDigitalEngine::price_asset_or_nothing(
+    const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_fd(option, context, settings_, true);
 }

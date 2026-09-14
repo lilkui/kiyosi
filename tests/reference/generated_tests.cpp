@@ -106,7 +106,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                 REQUIRE(fixture.outputs.size() == available);
             };
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
-            using FiniteDifference = std::conditional_t<american_contract, kiyosi::FiniteDifferenceAmericanEngine, kiyosi::FiniteDifferenceEuropeanEngine>;
+            using FiniteDifference = kiyosi::FiniteDifferenceVanillaEngine;
             using MonteCarlo = std::conditional_t<american_contract, kiyosi::MonteCarloAmericanEngine, kiyosi::MonteCarloEuropeanEngine>;
             constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ||
                                               std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanAssetOrNothingOption>;

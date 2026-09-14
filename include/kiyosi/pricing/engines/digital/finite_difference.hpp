@@ -1,5 +1,7 @@
 #pragma once
 
+#include <concepts>
+
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -14,11 +16,26 @@ public:
                                   finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
         : settings_{asset_steps, time_steps, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const EuropeanAssetOrNothingOption&, const PricingContext&) const;
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires (std::same_as<Payoff, CashOrNothingPayoff> ||
+                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
+                 std::same_as<Exercise, EuropeanExercise>
+    [[nodiscard]] result<PricingResult> price(
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
+    {
+        if constexpr (std::same_as<Payoff, CashOrNothingPayoff>)
+            return price_cash_or_nothing(option, context);
+        else
+            return price_asset_or_nothing(option, context);
+    }
+
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] result<PricingResult> price_cash_or_nothing(
+        const EuropeanCashOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price_asset_or_nothing(
+        const EuropeanAssetOrNothingOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };
 

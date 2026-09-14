@@ -82,13 +82,13 @@ result<PricingResult> price_finite_difference(
     return output;
 }
 
-result<PricingResult> FiniteDifferenceEuropeanEngine::price(
+result<PricingResult> FiniteDifferenceVanillaEngine::price_european(
     const EuropeanOption& option, const PricingContext& context) const
 {
     return price_finite_difference(option, context, settings_, false);
 }
 
-result<PricingResult> FiniteDifferenceAmericanEngine::price(
+result<PricingResult> FiniteDifferenceVanillaEngine::price_american(
     const AmericanOption& option, const PricingContext& context) const
 {
     return price_finite_difference(option, context, settings_, true);
