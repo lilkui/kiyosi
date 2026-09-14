@@ -48,6 +48,10 @@ concept can_price_with_settings = requires(
 } // namespace
 
 static_assert(kiyosi::version_major == 0);
+static_assert(std::equality_comparable<kiyosi::PhoenixOption>);
+static_assert(std::equality_comparable<kiyosi::SnowballOption>);
+static_assert(std::equality_comparable<kiyosi::BinarySnowballOption>);
+static_assert(std::equality_comparable<kiyosi::TernarySnowballOption>);
 
 static_assert(can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);

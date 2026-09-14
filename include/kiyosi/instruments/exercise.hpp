@@ -31,8 +31,6 @@ namespace detail {
 class BermudanExercise {
 public:
     const std::vector<date>& dates() const noexcept { return dates_; }
-    const std::vector<date>& exercise_dates() const noexcept { return dates_; }
-    const std::vector<date>& observation_dates() const noexcept { return dates_; }
     std::size_t size() const noexcept { return dates_.size(); }
     bool empty() const noexcept { return dates_.empty(); }
     friend bool operator==(const BermudanExercise&, const BermudanExercise&) = default;
