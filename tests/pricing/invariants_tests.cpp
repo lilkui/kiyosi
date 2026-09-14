@@ -20,8 +20,8 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
 
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto put = *kiyosi::make_european_option(kiyosi::option_type::put, 100.0, valuation, expiry);
-    const auto analytic_call = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
-    const auto analytic_put = *kiyosi::AnalyticEuropeanEngine{}.price(put, context);
+    const auto analytic_call = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
+    const auto analytic_put = *kiyosi::AnalyticVanillaEngine{}.price(put, context);
     const auto call_price = *analytic_call.get(kiyosi::risk_measure::price);
     const auto put_price = *analytic_put.get(kiyosi::risk_measure::price);
     CHECK(std::abs(call_price - put_price - (100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04))) < 1e-10);
@@ -40,7 +40,7 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     CHECK(std::abs(*fine.get(kiyosi::risk_measure::price) - call_price) <
           std::abs(*coarse.get(kiyosi::risk_measure::price) - call_price));
 
-    const kiyosi::MonteCarloEuropeanEngine monte_carlo{20000, 2, 42};
+    const kiyosi::MonteCarloVanillaEngine monte_carlo{20000, 2, 42};
     const auto first = *monte_carlo.price(call, context);
     const auto second = *monte_carlo.price(call, context);
     CHECK(*first.get(kiyosi::risk_measure::price) == *second.get(kiyosi::risk_measure::price));
@@ -81,8 +81,8 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
         CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
         CHECK(std::isfinite(*first->get(kiyosi::risk_measure::price)));
     };
-    require_repeatable(call, kiyosi::MonteCarloEuropeanEngine{20000, 252, 42});
-    require_repeatable(put, kiyosi::MonteCarloAmericanEngine{20000, 50, 42});
+    require_repeatable(call, kiyosi::MonteCarloVanillaEngine{20000, 252, 42});
+    require_repeatable(put, kiyosi::MonteCarloVanillaEngine{20000, 50, 42});
     require_repeatable(phoenix, kiyosi::MonteCarloPhoenixEngine{{1000, 42}});
     require_repeatable(snowball, kiyosi::MonteCarloSnowballEngine{{1000, 42}});
     require_repeatable(binary, kiyosi::MonteCarloBinarySnowballEngine{{1000, 42}});

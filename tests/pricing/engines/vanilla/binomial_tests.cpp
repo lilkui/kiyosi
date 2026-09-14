@@ -69,7 +69,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const kiyosi::CrrVanillaEngine engine{kiyosi::BinomialSettings{400}};
 
     const auto american_put = engine.price(put, context);
-    const auto european_put = kiyosi::AnalyticEuropeanEngine{}.price(european_put_option, context);
+    const auto european_put = kiyosi::AnalyticVanillaEngine{}.price(european_put_option, context);
     REQUIRE(american_put.has_value());
     REQUIRE(european_put.has_value());
     CHECK(risk_value(*american_put, kiyosi::risk_measure::price) >
@@ -77,7 +77,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
 
     const auto at_the_money_context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto american_call = engine.price(american_call_option, at_the_money_context);
-    const auto european_call = kiyosi::AnalyticEuropeanEngine{}.price(call, at_the_money_context);
+    const auto european_call = kiyosi::AnalyticVanillaEngine{}.price(call, at_the_money_context);
     REQUIRE(american_call.has_value());
     REQUIRE(european_call.has_value());
     CHECK_THAT(risk_value(*american_call, kiyosi::risk_measure::price),

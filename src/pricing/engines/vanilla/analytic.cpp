@@ -12,13 +12,13 @@
 namespace kiyosi {
 using namespace detail;
 
-result<PricingResult> AnalyticEuropeanEngine::price(
+result<PricingResult> AnalyticVanillaEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context) const
 {
     return price_at_volatility(option, context, context.parameters().volatility());
 }
 
-result<double> AnalyticEuropeanEngine::implied_volatility(
+result<double> AnalyticVanillaEngine::implied_volatility(
     const EuropeanOption& option, const PricingContext& context, double observed_price,
     ImpliedVolatilitySettings settings) const
 {

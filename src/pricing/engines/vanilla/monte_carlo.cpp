@@ -125,7 +125,7 @@ bool fit_quadratic(std::span<const double> regression_spots,
 
 } // namespace
 
-result<PricingResult> MonteCarloEuropeanEngine::price(
+result<PricingResult> MonteCarloVanillaEngine::price_european(
     const EuropeanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective(), option.expiry());
@@ -144,7 +144,7 @@ result<PricingResult> MonteCarloEuropeanEngine::price(
     return PricingResult{{risk_measure::price, value}};
 }
 
-result<PricingResult> MonteCarloAmericanEngine::price(
+result<PricingResult> MonteCarloVanillaEngine::price_american(
     const AmericanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective(), option.expiry());

@@ -59,7 +59,7 @@ nb::dict price(
     auto context = make_pricing_context(*parameters, spot, valuation);
     if (!context) return error_result(context.error());
 
-    const auto priced = AnalyticEuropeanEngine{}.price(*option, *context);
+    const auto priced = AnalyticVanillaEngine{}.price(*option, *context);
     if (!priced) return error_result(priced.error());
 
     nb::dict output;

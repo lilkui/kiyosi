@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <cstdint>
 #include <optional>
 
@@ -10,37 +11,29 @@
 
 namespace kiyosi {
 
-/// Antithetic Euler-lognormal simulation of the terminal payoff.
-class KIYOSI_EXPORT MonteCarloEuropeanEngine {
+/// Monte Carlo valuation for vanilla European and American options.
+class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
-    explicit MonteCarloEuropeanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
-    MonteCarloEuropeanEngine(int path_count, int step_count,
-                             std::optional<std::uint64_t> seed = std::nullopt)
+    explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
+    MonteCarloVanillaEngine(int path_count, int step_count,
+                            std::optional<std::uint64_t> seed = std::nullopt)
         : settings_{path_count, step_count, seed} {}
 
+    template <OptionPayoff Payoff, OptionExercise Exercise>
+        requires std::same_as<Payoff, VanillaPayoff> &&
+                 (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
     [[nodiscard]] result<PricingResult> price(
-        const EuropeanOption& option, const PricingContext& context) const;
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
+    {
+        if constexpr (std::same_as<Exercise, EuropeanExercise>) return price_european(option, context);
+        else return price_american(option, context);
+    }
 
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    MonteCarloSettings settings_;
-};
-
-/// Longstaff-Schwartz least-squares Monte Carlo with a quadratic continuation basis.
-class KIYOSI_EXPORT MonteCarloAmericanEngine {
-public:
-    explicit MonteCarloAmericanEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
-    MonteCarloAmericanEngine(int path_count, int step_count,
-                             std::optional<std::uint64_t> seed = std::nullopt)
-        : settings_{path_count, step_count, seed} {}
-
-    [[nodiscard]] result<PricingResult> price(
-        const AmericanOption& option, const PricingContext& context) const;
-
-    [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
-
-private:
+    [[nodiscard]] result<PricingResult> price_european(const EuropeanOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price_american(const AmericanOption&, const PricingContext&) const;
     MonteCarloSettings settings_;
 };
 

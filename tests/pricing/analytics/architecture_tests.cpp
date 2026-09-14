@@ -34,15 +34,15 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
         kiyosi::option_type::call, 100.0, effective, expiry);
     const auto american = *kiyosi::make_american_option(
         kiyosi::option_type::call, 100.0, effective, expiry);
-    check(kiyosi::AnalyticEuropeanEngine{}, european, 10.0);
-    check(kiyosi::IntegralEuropeanEngine{}, european, 10.0);
+    check(kiyosi::AnalyticVanillaEngine{}, european, 10.0);
+    check(kiyosi::IntegralVanillaEngine{}, european, 10.0);
     check(kiyosi::CrrVanillaEngine{32}, european, 10.0);
     check(kiyosi::CrrVanillaEngine{32}, american, 10.0);
     check(kiyosi::FiniteDifferenceVanillaEngine{}, european, 10.0);
     check(kiyosi::FiniteDifferenceVanillaEngine{}, american, 10.0);
-    check(kiyosi::MonteCarloEuropeanEngine{{32, 4, 7}}, european, 10.0);
-    check(kiyosi::MonteCarloAmericanEngine{{32, 4, 7}}, american, 10.0);
-    check(kiyosi::BjerksundStenslandAmericanEngine{}, american, 10.0);
+    check(kiyosi::MonteCarloVanillaEngine{{32, 4, 7}}, european, 10.0);
+    check(kiyosi::MonteCarloVanillaEngine{{32, 4, 7}}, american, 10.0);
+    check(kiyosi::BjerksundStenslandVanillaEngine{}, american, 10.0);
     const auto digital = *kiyosi::make_cash_or_nothing_option(
         kiyosi::option_type::call, 100.0, 7.0, effective, expiry);
     check(kiyosi::AnalyticDigitalEngine{}, digital, 7.0);
@@ -99,11 +99,11 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
         REQUIRE(priced);
         CHECK(risk_value(*priced, kiyosi::risk_measure::price) == Catch::Approx(expected).margin(tolerance));
     };
-    check(kiyosi::AnalyticEuropeanEngine{}, 1e-10);
-    check(kiyosi::IntegralEuropeanEngine{}, 1e-6);
+    check(kiyosi::AnalyticVanillaEngine{}, 1e-10);
+    check(kiyosi::IntegralVanillaEngine{}, 1e-6);
     check(kiyosi::CrrVanillaEngine{400}, 0.003);
     check(kiyosi::FiniteDifferenceVanillaEngine{{1000, 100}}, 0.02);
-    check(kiyosi::MonteCarloEuropeanEngine{{20000, 2, 7}}, 0.02);
+    check(kiyosi::MonteCarloVanillaEngine{{20000, 2, 7}}, 0.02);
 }
 
 struct RecordingEngine {

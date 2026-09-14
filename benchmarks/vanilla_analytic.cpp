@@ -26,7 +26,7 @@ const Scenario& scenario()
 void BM_AnalyticEuropeanPrice(benchmark::State& state)
 {
     const auto& [option, context] = scenario();
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     for (auto _ : state) {
         auto result = engine.price(option, context);
         benchmark::DoNotOptimize(result);

@@ -8,7 +8,7 @@
 namespace kiyosi {
 using namespace detail;
 
-result<PricingResult> IntegralEuropeanEngine::price(const EuropeanOption& option, const PricingContext& context) const
+result<PricingResult> IntegralVanillaEngine::price_impl(const EuropeanOption& option, const PricingContext& context) const
 {
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());

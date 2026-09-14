@@ -122,7 +122,7 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
 }
 }
 
-result<PricingResult> BjerksundStenslandAmericanEngine::price(const AmericanOption& option, const PricingContext& context) const
+result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const AmericanOption& option, const PricingContext& context) const
 {
     const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());

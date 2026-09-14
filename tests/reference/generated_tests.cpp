@@ -107,7 +107,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             };
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
             using FiniteDifference = kiyosi::FiniteDifferenceVanillaEngine;
-            using MonteCarlo = std::conditional_t<american_contract, kiyosi::MonteCarloAmericanEngine, kiyosi::MonteCarloEuropeanEngine>;
+            using MonteCarlo = kiyosi::MonteCarloVanillaEngine;
             constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ||
                                               std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanAssetOrNothingOption>;
             if constexpr (digital_contract) {
@@ -124,7 +124,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             } else {
                 if (fixture.engine == "AnalyticEuropeanEngine") {
                     if constexpr (!american_contract) {
-                        const kiyosi::AnalyticEuropeanEngine engine;
+                        const kiyosi::AnalyticVanillaEngine engine;
                         check_engine(engine);
                         const auto implied = engine.implied_volatility(option, *context, fixture.outputs.at("price"));
                         INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
@@ -134,12 +134,12 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                         FAIL("AnalyticEuropeanEngine cannot price an American contract");
                     }
                 } else if (fixture.engine == "BjerksundStenslandAmericanEngine") {
-                    if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandAmericanEngine{});
+                    if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandVanillaEngine{});
                     else FAIL("BjerksundStenslandAmericanEngine requires an American contract");
                 } else if (fixture.engine == "CrrEngine") {
                     check_engine(kiyosi::CrrVanillaEngine{static_cast<int>(number("steps"))});
                 } else if (fixture.engine == "IntegralEuropeanEngine") {
-                    if constexpr (!american_contract) check_engine(kiyosi::IntegralEuropeanEngine{});
+                    if constexpr (!american_contract) check_engine(kiyosi::IntegralVanillaEngine{});
                     else FAIL("IntegralEuropeanEngine requires a European contract");
                 } else if (fixture.engine == (american ? "FiniteDifferenceAmericanEngine" : "FiniteDifferenceEuropeanEngine")) {
                     const std::map<std::string, kiyosi::finite_difference_scheme> schemes{

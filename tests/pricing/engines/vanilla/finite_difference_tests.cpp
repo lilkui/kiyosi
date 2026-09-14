@@ -24,7 +24,7 @@ TEST_CASE("Finite-difference European engines track analytic prices")
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto american_call = *kiyosi::make_american_option(
         kiyosi::option_type::call, 100.0, valuation, expiry);
-    const auto analytic = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
+    const auto analytic = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const kiyosi::FiniteDifferenceSettings settings{200, 400, kiyosi::finite_difference_scheme::crank_nicolson};
     const auto european = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(call, context);
     REQUIRE(european.has_value());
@@ -49,7 +49,7 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto american_call = *kiyosi::make_american_option(
         kiyosi::option_type::call, 100.0, valuation, expiry);
-    const auto analytic = *kiyosi::AnalyticEuropeanEngine{}.price(call, context);
+    const auto analytic = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const kiyosi::FiniteDifferenceSettings settings{200, 400, kiyosi::finite_difference_scheme::crank_nicolson};
     const auto american = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(american_call, context);
     REQUIRE(american.has_value());

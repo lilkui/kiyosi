@@ -22,24 +22,24 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto american = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, valuation, expiry);
 
-    const kiyosi::MonteCarloEuropeanEngine european{20'000, 2, 42};
+    const kiyosi::MonteCarloVanillaEngine european{20'000, 2, 42};
     const auto first = european.price(call, context);
     const auto second = european.price(call, context);
     REQUIRE(first.has_value());
     REQUIRE(second.has_value());
     CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
     CHECK(std::abs(*first->get(kiyosi::risk_measure::price) -
-                   *kiyosi::AnalyticEuropeanEngine{}.price(call, context)->get(kiyosi::risk_measure::price)) < 0.5);
+                   *kiyosi::AnalyticVanillaEngine{}.price(call, context)->get(kiyosi::risk_measure::price)) < 0.5);
     CHECK_FALSE(first->has(kiyosi::risk_measure::delta));
 
-    const kiyosi::MonteCarloAmericanEngine american_engine{20'000, 20, 42};
+    const kiyosi::MonteCarloVanillaEngine american_engine{20'000, 20, 42};
     const auto american_result = american_engine.price(american, context);
     REQUIRE(american_result.has_value());
     CHECK(*american_result->get(kiyosi::risk_measure::price) >= 0.0);
     CHECK_FALSE(american_result->has(kiyosi::risk_measure::gamma));
 
-    CHECK_FALSE(kiyosi::MonteCarloEuropeanEngine{0, 2}.price(call, context).has_value());
-    CHECK_FALSE(kiyosi::MonteCarloAmericanEngine{20, 2}.price(american, context).has_value());
+    CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{0, 2}.price(call, context).has_value());
+    CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{20, 2}.price(american, context).has_value());
 }
 
 TEST_CASE("Monte Carlo engines return intrinsic value at expiry")
@@ -48,7 +48,7 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 110.0, expiry);
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, expiry, expiry);
-    const auto result = kiyosi::MonteCarloEuropeanEngine{10, 2, 1}.price(call, context);
+    const auto result = kiyosi::MonteCarloVanillaEngine{10, 2, 1}.price(call, context);
     REQUIRE(result.has_value());
     CHECK(*result->get(kiyosi::risk_measure::price) == 10.0);
 }
@@ -60,7 +60,7 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     const auto parameters = *kiyosi::make_bsm_parameters(0.10, 0.0, 0.10);
     const auto context = *kiyosi::make_pricing_context(parameters, 50.0, valuation);
     const auto put = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, valuation, expiry);
-    const auto result = kiyosi::MonteCarloAmericanEngine{20'000, 50, 42}.price(put, context);
+    const auto result = kiyosi::MonteCarloVanillaEngine{20'000, 50, 42}.price(put, context);
     REQUIRE(result.has_value());
     CHECK_THAT(*result->get(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(50.0, 1e-10));
 }

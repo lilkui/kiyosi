@@ -24,7 +24,7 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
     const auto put = *kiyosi::make_european_option(kiyosi::option_type::put, 100.0, valuation, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
 
     const auto call_result = *engine.price(call, context);
     const auto put_result = *engine.price(put, context);
@@ -47,7 +47,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price(option, context);
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
@@ -64,7 +64,7 @@ TEST_CASE("Analytic European engine returns intrinsic value and zero Greeks at e
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto call_context = *kiyosi::make_pricing_context(parameters, 110.0, expiry);
     const auto put_context = *kiyosi::make_pricing_context(parameters, 90.0, expiry);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
 
     const auto call_result = *engine.price(call, call_context);
     const auto put_result = *engine.price(put, put_context);
@@ -84,7 +84,7 @@ TEST_CASE("Analytic European implied volatility recovers market volatility")
     const auto option = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
 
     const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
     const auto implied = engine.implied_volatility(option, context, price);
@@ -99,7 +99,7 @@ TEST_CASE("Analytic European implied volatility rejects invalid settings and pri
     const auto option = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
     const auto invalid_bracket = engine.implied_volatility(
         option, context, price, kiyosi::ImpliedVolatilitySettings{1.0, 0.1});
@@ -119,7 +119,7 @@ TEST_CASE("Analytic European implied volatility reports solver failures")
     const auto option = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto price = risk_value(*engine.price(option, context), kiyosi::risk_measure::price);
     const auto unbracketed = engine.implied_volatility(option, context, 95.0);
     REQUIRE_FALSE(unbracketed.has_value());
@@ -138,7 +138,7 @@ TEST_CASE("Analytic European engine reports invalid expiry")
     const auto expiry = valuation + std::chrono::days{365};
     const auto option = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto expired_context = *kiyosi::make_pricing_context(parameters, 100.0, expiry);
     REQUIRE_FALSE(engine.implied_volatility(option, expired_context, 0.0).has_value());
 
@@ -151,7 +151,7 @@ TEST_CASE("Analytic European engine reports invalid expiry")
 TEST_CASE("Analytic European engine reports non-finite pricing and solver results")
 {
     const auto valuation = day(2025, 1, 6);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto extreme_parameters = *kiyosi::make_bsm_parameters(-1000.0, 0.0, 0.3);
     const auto extreme_context = *kiyosi::make_pricing_context(extreme_parameters, 100.0, valuation);
     const auto long_option = *kiyosi::make_european_option(
@@ -173,7 +173,7 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 1e-12);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price(option, context);
     REQUIRE(result.has_value());
     CHECK(std::isfinite(risk_value(*result, kiyosi::risk_measure::price)));
     CHECK(std::isfinite(risk_value(*result, kiyosi::risk_measure::delta)));
@@ -187,7 +187,7 @@ TEST_CASE("Analytic European implied volatility recovers at-the-money volatility
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
 
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto call_context = *kiyosi::make_pricing_context(
@@ -205,7 +205,7 @@ TEST_CASE("Analytic European implied volatility recovers deep-in-the-money volat
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto call_context = *kiyosi::make_pricing_context(
         parameters, 100.0, valuation);
     const auto deep_in_the_money = *kiyosi::make_european_option(
@@ -223,7 +223,7 @@ TEST_CASE("Analytic European implied volatility recovers deep-out-of-the-money v
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto call_context = *kiyosi::make_pricing_context(
         parameters, 100.0, valuation);
     const auto deep_out_of_the_money = *kiyosi::make_european_option(
@@ -240,7 +240,7 @@ TEST_CASE("Analytic European implied volatility enforces arbitrage bounds")
     const auto valuation = day(2025, 1, 6);
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.02, 0.01, 0.35);
-    const kiyosi::AnalyticEuropeanEngine engine;
+    const kiyosi::AnalyticVanillaEngine engine;
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto call_context = *kiyosi::make_pricing_context(
         parameters, 100.0, valuation);
@@ -270,7 +270,7 @@ TEST_CASE("Analytic European engine remains finite in deep tails")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price(option, context);
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
@@ -287,7 +287,7 @@ TEST_CASE("Analytic European engine remains finite for a short-dated low-volatil
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.05);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticEuropeanEngine{}.price(option, context);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price(option, context);
     REQUIRE(result.has_value());
     CHECK(std::isfinite(risk_value(*result, kiyosi::risk_measure::price)));
     CHECK(std::isfinite(risk_value(*result, kiyosi::risk_measure::delta)));

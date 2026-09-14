@@ -49,9 +49,13 @@ concept can_price_with_settings = requires(
 
 static_assert(kiyosi::version_major == 0);
 
-static_assert(can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::AnalyticEuropeanEngine, kiyosi::EuropeanCashOrNothingOption>);
+static_assert(can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanCashOrNothingOption>);
+static_assert(can_price<kiyosi::IntegralVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!can_price<kiyosi::IntegralVanillaEngine, kiyosi::AmericanOption>);
+static_assert(can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
 static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
@@ -72,10 +76,9 @@ static_assert(!can_price<kiyosi::CrrVanillaEngine, kiyosi::BermudanOption>);
 static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::MonteCarloEuropeanEngine, kiyosi::AmericanOption>);
-static_assert(can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::MonteCarloAmericanEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::BermudanOption>);
 
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
                                        kiyosi::EuropeanOption,

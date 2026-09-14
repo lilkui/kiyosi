@@ -56,7 +56,7 @@ TEST_CASE("Barrier in and out prices compose to vanilla")
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in);
     const auto barrier_out = kiyosi::AnalyticBarrierEngine{}.price(down_out, context);
     const auto barrier_in = kiyosi::AnalyticBarrierEngine{}.price(down_in, context);
-    const auto vanilla = kiyosi::AnalyticEuropeanEngine{}.price(
+    const auto vanilla = kiyosi::AnalyticVanillaEngine{}.price(
         *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry), context);
     REQUIRE(barrier_out.has_value());
     REQUIRE(barrier_in.has_value());

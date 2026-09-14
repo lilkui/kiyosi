@@ -32,7 +32,7 @@ kiyosi::PricingResult analytic(kiyosi::option_type type, double spot = 100.0, do
                                double strike = 100.0)
 {
     const auto option = *kiyosi::make_european_option(type, strike, value_date, option_expiry);
-    return *kiyosi::AnalyticEuropeanEngine{}.price(
+    return *kiyosi::AnalyticVanillaEngine{}.price(
         option, context(spot, rate, dividend, volatility, value_date));
 }
 
@@ -288,7 +288,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     const auto american_call = *kiyosi::make_american_option(
         kiyosi::option_type::call, 100.0, valuation, expiry);
     const auto market = context(100.0, 0.04, 0.0, 0.3);
-    const double reference = risk_value(*kiyosi::AnalyticEuropeanEngine{}.price(option, market), kiyosi::risk_measure::price);
+    const double reference = risk_value(*kiyosi::AnalyticVanillaEngine{}.price(option, market), kiyosi::risk_measure::price);
 
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {

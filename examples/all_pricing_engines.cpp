@@ -68,16 +68,16 @@ int main()
         ok = print_price(instrument, engine, value) && ok;
     };
 
-    price("EuropeanOption", "AnalyticEuropeanEngine", kiyosi::AnalyticEuropeanEngine{}.price(european, context));
+    price("EuropeanOption", "AnalyticVanillaEngine", kiyosi::AnalyticVanillaEngine{}.price(european, context));
     price("EuropeanOption", "CrrVanillaEngine", kiyosi::CrrVanillaEngine{128}.price(european, context));
     price("EuropeanOption", "FiniteDifferenceVanillaEngine", kiyosi::FiniteDifferenceVanillaEngine{80, 80}.price(european, context));
-    price("EuropeanOption", "IntegralEuropeanEngine", kiyosi::IntegralEuropeanEngine{}.price(european, context));
-    price("EuropeanOption", "MonteCarloEuropeanEngine", kiyosi::MonteCarloEuropeanEngine{5'000, 10, 42}.price(european, context));
+    price("EuropeanOption", "IntegralVanillaEngine", kiyosi::IntegralVanillaEngine{}.price(european, context));
+    price("EuropeanOption", "MonteCarloVanillaEngine", kiyosi::MonteCarloVanillaEngine{5'000, 10, 42}.price(european, context));
 
     price("AmericanOption", "CrrVanillaEngine", kiyosi::CrrVanillaEngine{128}.price(american, context));
-    price("AmericanOption", "BjerksundStenslandAmericanEngine", kiyosi::BjerksundStenslandAmericanEngine{}.price(american, context));
+    price("AmericanOption", "BjerksundStenslandVanillaEngine", kiyosi::BjerksundStenslandVanillaEngine{}.price(american, context));
     price("AmericanOption", "FiniteDifferenceVanillaEngine", kiyosi::FiniteDifferenceVanillaEngine{80, 80}.price(american, context));
-    price("AmericanOption", "MonteCarloAmericanEngine", kiyosi::MonteCarloAmericanEngine{5'000, 20, 42}.price(american, context));
+    price("AmericanOption", "MonteCarloVanillaEngine", kiyosi::MonteCarloVanillaEngine{5'000, 20, 42}.price(american, context));
 
     price("EuropeanCashOrNothingOption", "AnalyticDigitalEngine", kiyosi::AnalyticDigitalEngine{}.price(cash_digital, context));
     price("EuropeanCashOrNothingOption", "FiniteDifferenceDigitalEngine", kiyosi::FiniteDifferenceDigitalEngine{80, 80}.price(cash_digital, context));
