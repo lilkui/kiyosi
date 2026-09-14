@@ -2,13 +2,13 @@
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from . import _native
 
 ErrorCategory = _native.ErrorCategory
 
-__all__ = ["ErrorCategory", "EuropeanOption", "KiyosiError", "Market", "black_scholes", "price"]
+__all__ = ["ErrorCategory", "EuropeanOption", "KiyosiError", "Market", "PricingResult", "black_scholes", "price"]
 
 
 class KiyosiError(Exception):
@@ -62,7 +62,11 @@ class Market:
     valuation_date: date
 
 
-def price(option: EuropeanOption, market: Market) -> dict[str, float | None]:
+class PricingResult(dict[str, float | None]):
+    """Pricing data with stable premium and Greek keys."""
+
+
+def price(option: EuropeanOption, market: Market) -> PricingResult:
     """Price an option and return its premium and standard Greeks."""
     if not isinstance(option, EuropeanOption):
         raise TypeError("option must be a EuropeanOption")
@@ -79,18 +83,17 @@ def price(option: EuropeanOption, market: Market) -> dict[str, float | None]:
     effective = _calendar_date(option.effective, "effective")
     result = _native.price(
         kind, spot, strike,
-        valuation.year, valuation.month, valuation.day,
-        expiry.year, expiry.month, expiry.day,
+        valuation, expiry,
         risk_free_rate, dividend_yield, volatility,
-        effective.year, effective.month, effective.day,
+        effective,
     )
     if result.get("__kiyosi_error__"):
         raise KiyosiError(result["category"], str(result["message"]))
-    return result
+    return PricingResult(result)
 
 
 def black_scholes(
-    kind: str,
+    kind: Literal["call", "put"],
     spot: float,
     strike: float,
     valuation_date: date,
@@ -99,7 +102,7 @@ def black_scholes(
     dividend_yield: float,
     volatility: float,
     effective: date,
-) -> dict[str, float | None]:
+) -> PricingResult:
     """Price a European option using the closed-form Black-Scholes model."""
     return price(
         EuropeanOption(kind, strike, expiry, effective),
