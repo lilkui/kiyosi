@@ -11,9 +11,20 @@ namespace kiyosi {
 
 class BarrierOption;
 
-[[nodiscard]] result<BarrierOption> make_barrier_option(
-    option_type, double, date, date, double, barrier_type, double, rebate_timing, observation_mode,
-    std::vector<date>);
+struct BarrierOptionTerms {
+    option_type type{};
+    double strike{};
+    date effective{};
+    date expiry{};
+    double barrier{};
+    barrier_type kind{};
+    double rebate{};
+    rebate_timing timing{rebate_timing::at_expiry};
+    observation_mode observation{observation_mode::continuous};
+    std::vector<date> observations;
+};
+
+[[nodiscard]] result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 
 /// Knock-in or knock-out vanilla payoff with an optional rebate.
 class BarrierOption {
@@ -46,41 +57,27 @@ private:
     kiyosi::rebate_timing timing_;
     BarrierTerms barrier_;
 
-    friend result<BarrierOption> make_barrier_option(
-        option_type, double, date, date, double, barrier_type, double, rebate_timing,
-        observation_mode, std::vector<date>);
+    friend result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 };
 
-[[nodiscard]] inline result<BarrierOption> make_barrier_option(
-    option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind,
-    double rebate = 0.0, rebate_timing timing = rebate_timing::at_expiry,
-    observation_mode observation = observation_mode::continuous,
-    std::vector<date> observations = {})
+[[nodiscard]] inline result<BarrierOption> make_barrier_option(BarrierOptionTerms terms)
 {
-    auto terms = detail::make_barrier_terms(barrier, kind, observation, std::move(observations),
-                                            effective, expiry);
-    if (!terms) return std::unexpected(terms.error());
-    if (type != option_type::call && type != option_type::put)
+    auto barrier_terms = detail::make_barrier_terms(terms.barrier, terms.kind, terms.observation,
+                                                    std::move(terms.observations), terms.effective, terms.expiry);
+    if (!barrier_terms) return std::unexpected(barrier_terms.error());
+    if (terms.type != option_type::call && terms.type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
-    if (!std::isfinite(strike) || strike <= 0.0)
+    if (!std::isfinite(terms.strike) || terms.strike <= 0.0)
         return std::unexpected(Error{error_category::invalid_strike, "strike must be finite and positive"});
-    if (!std::isfinite(rebate) || rebate < 0.0)
+    if (!std::isfinite(terms.rebate) || terms.rebate < 0.0)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
-    if (timing != rebate_timing::at_hit && timing != rebate_timing::at_expiry)
+    if (terms.timing != rebate_timing::at_hit && terms.timing != rebate_timing::at_expiry)
         return std::unexpected(Error{error_category::invalid_option, "invalid rebate timing"});
-    if (terms->is_knock_in() && timing == rebate_timing::at_hit)
+    if (barrier_terms->is_knock_in() && terms.timing == rebate_timing::at_hit)
         return std::unexpected(Error{error_category::invalid_option,
                                      "at-hit rebates are invalid for knock-in barriers"});
-    return BarrierOption{type, strike, rebate, timing, std::move(*terms)};
-}
-
-[[nodiscard]] inline result<BarrierOption> make_barrier_option(
-    option_type type, double strike, date effective, date expiry, double barrier, barrier_type kind,
-    double rebate, rebate_timing timing, observation_mode observation, ObservationSchedule schedule)
-{
-    return make_barrier_option(type, strike, effective, expiry, barrier, kind, rebate, timing,
-                               observation, schedule.dates());
+    return BarrierOption{terms.type, terms.strike, terms.rebate, terms.timing, std::move(*barrier_terms)};
 }
 
 } // namespace kiyosi

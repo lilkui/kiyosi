@@ -11,15 +11,45 @@ class SnowballOption;
 class BinarySnowballOption;
 class TernarySnowballOption;
 
-[[nodiscard]] result<SnowballOption> make_snowball_option(
-    std::vector<double>, double, double, double, std::vector<double>, double, double,
-    std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
+struct SnowballTerms {
+    std::vector<double> knock_out_coupon_rates;
+    double maturity_coupon_rate{};
+    double initial_price{};
+    double knock_in_price{};
+    std::vector<double> knock_out_prices;
+    double upper_strike{};
+    double lower_strike{};
+    std::vector<date> observations;
+    observation_frequency frequency{};
+    barrier_touch_status touch_status{};
+    double principal_ratio{};
+    date effective{};
+    date expiry{};
+};
+
+struct TernarySnowballTerms {
+    std::vector<double> knock_out_coupon_rates;
+    double maturity_coupon_rate{};
+    double minimal_coupon_rate{};
+    double initial_price{};
+    double knock_in_price{};
+    std::vector<double> knock_out_prices;
+    double upper_strike{};
+    double lower_strike{};
+    std::vector<date> observations;
+    observation_frequency frequency{};
+    barrier_touch_status touch_status{};
+    double principal_ratio{};
+    date effective{};
+    date expiry{};
+};
+
+[[nodiscard]] result<SnowballOption> make_snowball_option(SnowballTerms);
+[[nodiscard]] result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
+
 [[nodiscard]] result<BinarySnowballOption> make_binary_snowball_option(
     std::vector<double>, double, double, std::vector<double>, double, double, std::vector<date>,
     barrier_touch_status, double, date, date);
-[[nodiscard]] result<TernarySnowballOption> make_ternary_snowball_option(
-    std::vector<double>, double, double, double, double, std::vector<double>, double, double,
-    std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
 
 /// Knock-in autocallable accruing a coupon until knock-out, with downside participation.
 class SnowballOption {
@@ -55,9 +85,7 @@ private:
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 
-    friend result<SnowballOption> make_snowball_option(
-        std::vector<double>, double, double, double, std::vector<double>, double, double,
-        std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
+    friend result<SnowballOption> make_snowball_option(SnowballTerms);
 };
 
 /// Snowball variant settling a flat coupon at maturity regardless of the terminal spot.
@@ -130,22 +158,8 @@ private:
     double maturity_coupon_rate_;
     double minimal_coupon_rate_;
 
-    friend result<TernarySnowballOption> make_ternary_snowball_option(
-        std::vector<double>, double, double, double, double, std::vector<double>, double, double,
-        std::vector<date>, observation_frequency, barrier_touch_status, double, date, date);
+    friend result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
 };
-
-[[nodiscard]] inline result<SnowballOption> make_snowball_option(
-    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double initial_price,
-    double knock_in_price, std::vector<double> knock_out_prices, double upper_strike,
-    double lower_strike, std::vector<date> observations, observation_frequency frequency,
-    barrier_touch_status touch_status, double principal_ratio, date effective, date expiry)
-{
-    return validate_note(SnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate,
-                                        initial_price, knock_in_price, std::move(knock_out_prices),
-                                        upper_strike, lower_strike, std::move(observations), frequency,
-                                        touch_status, principal_ratio, effective, expiry});
-}
 
 [[nodiscard]] inline result<BinarySnowballOption> make_binary_snowball_option(
     std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double initial_price,
@@ -159,26 +173,29 @@ private:
                                               principal_ratio, effective, expiry});
 }
 
-[[nodiscard]] inline result<TernarySnowballOption> make_ternary_snowball_option(
-    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double minimal_coupon_rate,
-    double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
-    double upper_strike, double lower_strike, std::vector<date> observations,
-    observation_frequency frequency, barrier_touch_status touch_status, double principal_ratio,
-    date effective, date expiry)
-{
-    return validate_note(TernarySnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate,
-                                               minimal_coupon_rate, initial_price, knock_in_price,
-                                               std::move(knock_out_prices), upper_strike, lower_strike,
-                                               std::move(observations), frequency, touch_status,
-                                               principal_ratio, effective, expiry});
-}
-
 inline result<SnowballOption> SnowballOption::with_coupon_rate(double coupon) const
 {
-    return make_snowball_option(knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(),
-                                knock_out_prices(), upper_strike(), lower_strike(), observation_dates(),
-                                knock_in_frequency(), touch_status(), principal_ratio(), effective(),
-                                expiry());
+    return make_snowball_option({knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(),
+                                 knock_out_prices(), upper_strike(), lower_strike(), observation_dates(),
+                                 knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()});
+}
+
+[[nodiscard]] inline result<SnowballOption> make_snowball_option(SnowballTerms terms)
+{
+    return validate_note(SnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                        terms.initial_price, terms.knock_in_price,
+                                        std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
+                                        std::move(terms.observations), terms.frequency, terms.touch_status,
+                                        terms.principal_ratio, terms.effective, terms.expiry});
+}
+
+[[nodiscard]] inline result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms terms)
+{
+    return validate_note(TernarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                               terms.minimal_coupon_rate, terms.initial_price, terms.knock_in_price,
+                                               std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
+                                               std::move(terms.observations), terms.frequency, terms.touch_status,
+                                               terms.principal_ratio, terms.effective, terms.expiry});
 }
 
 } // namespace kiyosi

@@ -9,7 +9,17 @@ namespace kiyosi {
 
 class Accumulator;
 
-[[nodiscard]] result<Accumulator> make_accumulator(double, double, double, double, double, date, date);
+struct AccumulatorTerms {
+    double strike{};
+    double knock_out{};
+    double daily_quantity{};
+    double acceleration{};
+    double accumulated_quantity{};
+    date effective{};
+    date expiry{};
+};
+
+[[nodiscard]] result<Accumulator> make_accumulator(AccumulatorTerms);
 
 /// Forward accrual that buys a fixed daily quantity, accelerating below strike and
 /// terminating once spot reaches the knock-out level.
@@ -34,13 +44,12 @@ private:
     double strike_, knock_out_, daily_quantity_, acceleration_, accumulated_quantity_;
     date effective_, expiry_;
 
-    friend result<Accumulator> make_accumulator(double, double, double, double, double, date, date);
+    friend result<Accumulator> make_accumulator(AccumulatorTerms);
 };
 
-[[nodiscard]] inline result<Accumulator> make_accumulator(
-    double strike, double knock_out, double daily_quantity, double acceleration,
-    double accumulated_quantity, date effective, date expiry)
+[[nodiscard]] inline result<Accumulator> make_accumulator(AccumulatorTerms terms)
 {
+    const auto [strike, knock_out, daily_quantity, acceleration, accumulated_quantity, effective, expiry] = terms;
     if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(knock_out) || knock_out <= 0.0 ||
         !std::isfinite(daily_quantity) || daily_quantity < 0.0 || !std::isfinite(acceleration) ||
         acceleration < 0.0 || !std::isfinite(accumulated_quantity) || accumulated_quantity < 0.0)
