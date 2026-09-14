@@ -246,11 +246,11 @@ TEST_CASE("Analytic European implied volatility enforces arbitrage bounds")
         parameters, 100.0, valuation);
     const auto invalid_quote = engine.implied_volatility(call, call_context, 0.01);
     REQUIRE_FALSE(invalid_quote.has_value());
-    CHECK(invalid_quote.error().category == kiyosi::error_category::invalid_quote);
+    CHECK(invalid_quote.error().category == kiyosi::error_category::invalid_parameter);
 
     const auto negative_quote = engine.implied_volatility(call, call_context, -1.0);
     REQUIRE_FALSE(negative_quote.has_value());
-    CHECK(negative_quote.error().category == kiyosi::error_category::invalid_quote);
+    CHECK(negative_quote.error().category == kiyosi::error_category::invalid_parameter);
 
     const auto boundary_put = *kiyosi::make_european_option(
         kiyosi::option_type::put, 120.0, valuation, expiry);

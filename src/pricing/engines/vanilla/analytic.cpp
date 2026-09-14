@@ -57,7 +57,7 @@ result<double> AnalyticVanillaEngine::implied_volatility(
                                      "implied-volatility bounds are non-finite"});
     }
     if (observed_price < intrinsic - bound_tolerance || observed_price > upper_price + bound_tolerance) {
-        return std::unexpected(Error{error_category::invalid_quote,
+        return std::unexpected(Error{error_category::invalid_parameter,
                                      "observed price violates the option arbitrage bounds"});
     }
 

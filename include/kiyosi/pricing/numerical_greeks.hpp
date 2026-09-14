@@ -118,12 +118,4 @@ template <typename Engine, typename Option>
     return output;
 }
 
-template <typename Engine, typename Option>
-[[nodiscard]] result<PricingResult> numerical_price(
-    const Engine& engine, const Option& option, const PricingContext& context,
-    NumericalShiftSettings settings = {})
-{
-    return numerical_analytics(engine, option, context, settings);
-}
-
 } // namespace kiyosi

@@ -116,11 +116,4 @@ requires requires(const Option& value, double coupon) { value.with_coupon_rate(c
                                  "implied-coupon solver did not converge"});
 }
 
-template <typename Option>
-[[nodiscard]] auto replace_coupon(const Option& option, double coupon)
-requires requires(const Option& value) { value.with_coupon_rate(coupon); }
-{
-    return option.with_coupon_rate(coupon);
-}
-
 } // namespace kiyosi
