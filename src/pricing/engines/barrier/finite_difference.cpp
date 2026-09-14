@@ -17,7 +17,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        auto schedule = validate_schedule(option.schedule(), option.effective(), option.expiry(), context.calendar());
+        auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
     const double maturity = actual_365(context.valuation_time(), option.expiry());
@@ -87,7 +87,7 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        auto schedule = validate_schedule(option.schedule(), option.effective(), option.expiry(), context.calendar());
+    auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
     const auto& terms = option.barrier_terms();

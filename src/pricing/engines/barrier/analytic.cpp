@@ -49,7 +49,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
     const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation() == observation_mode::scheduled) {
-        auto schedule_valid = validate_schedule(option.schedule(), option.effective(),
+        auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective(),
                                                 option.expiry(), context.calendar());
         if (!schedule_valid)
             return std::unexpected(Error{error_category::invalid_schedule, schedule_valid.error().message});

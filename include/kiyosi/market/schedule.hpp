@@ -106,18 +106,4 @@ private:
     return ObservationSchedule{std::move(observations)};
 }
 
-[[nodiscard]] inline result<void> validate_schedule(
-    std::span<const date> observations, date instrument_start, date instrument_end,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observations, instrument_start, instrument_end, calendar);
-}
-
-[[nodiscard]] inline result<void> validate_schedule(
-    const ObservationSchedule& schedule, date instrument_start, date instrument_end,
-    const TradingCalendar& calendar)
-{
-    return validate_observation_dates(schedule.dates(), instrument_start, instrument_end, calendar);
-}
-
 } // namespace kiyosi

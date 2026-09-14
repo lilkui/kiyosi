@@ -30,11 +30,11 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     REQUIRE(copied_calendar.annual_trading_days() == 2);
 
     const std::vector<kiyosi::date> observations{day(2025, 1, 2), day(2025, 1, 3)};
-    REQUIRE(kiyosi::validate_schedule(observations, valuation, expiry, copied_calendar).has_value());
-    REQUIRE_FALSE(kiyosi::validate_schedule(
+    REQUIRE(kiyosi::validate_observation_dates(observations, valuation, expiry, copied_calendar).has_value());
+    REQUIRE_FALSE(kiyosi::validate_observation_dates(
                       std::vector<kiyosi::date>{day(2025, 1, 4)}, valuation, expiry, copied_calendar)
                       .has_value());
-    REQUIRE_FALSE(kiyosi::validate_schedule(
+    REQUIRE_FALSE(kiyosi::validate_observation_dates(
                       std::vector<kiyosi::date>{day(2025, 1, 2), day(2025, 1, 2)}, valuation, expiry, copied_calendar)
                       .has_value());
 
