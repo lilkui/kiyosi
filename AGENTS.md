@@ -8,7 +8,7 @@
 - **Cross-language behavior:** For equivalent domain inputs under the same state and configuration, public APIs must provide semantically consistent results, domain defaults, boundary behavior, domain error categories, and failure-state guarantees. Expose structured errors from C++ and map them stably to idiomatic Python exceptions without parsing message text.
 - **Safe validation flow:** Validate language-specific protocols and representation constraints before or during conversion, rejecting unsafe or unintended lossy conversions. Then let the C++ core perform authoritative domain validation before committing state changes that depend on validity. Avoid duplicating domain checks outside the core; any necessary pre-checks must preserve core acceptance and domain failure semantics. Core validation must never depend on, be weakened by, or be bypassed through prior boundary checks.
 
-## Naming Conventions
+## C++ Naming Conventions
 
 - **Types:** `PascalCase`
 - **Namespaces, functions, and variables:** `snake_case`
