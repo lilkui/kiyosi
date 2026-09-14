@@ -17,9 +17,9 @@ struct BarrierOptionTerms {
     date effective{};
     date expiry{};
     double barrier{};
-    barrier_type kind{};
+    barrier_type barrier_kind{};
     double rebate{};
-    rebate_timing timing{rebate_timing::at_expiry};
+    rebate_timing rebate_payment{rebate_timing::at_expiry};
     observation_mode observation{observation_mode::continuous};
     std::vector<date> observations;
 };
@@ -62,7 +62,7 @@ private:
 
 [[nodiscard]] inline result<BarrierOption> make_barrier_option(BarrierOptionTerms terms)
 {
-    auto barrier_terms = detail::make_barrier_terms(terms.barrier, terms.kind, terms.observation,
+    auto barrier_terms = detail::make_barrier_terms(terms.barrier, terms.barrier_kind, terms.observation,
                                                     std::move(terms.observations), terms.effective, terms.expiry);
     if (!barrier_terms) return std::unexpected(barrier_terms.error());
     if (terms.type != option_type::call && terms.type != option_type::put)
@@ -72,12 +72,12 @@ private:
     if (!std::isfinite(terms.rebate) || terms.rebate < 0.0)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
-    if (terms.timing != rebate_timing::at_hit && terms.timing != rebate_timing::at_expiry)
+    if (terms.rebate_payment != rebate_timing::at_hit && terms.rebate_payment != rebate_timing::at_expiry)
         return std::unexpected(Error{error_category::invalid_option, "invalid rebate timing"});
-    if (barrier_terms->is_knock_in() && terms.timing == rebate_timing::at_hit)
+    if (barrier_terms->is_knock_in() && terms.rebate_payment == rebate_timing::at_hit)
         return std::unexpected(Error{error_category::invalid_option,
                                      "at-hit rebates are invalid for knock-in barriers"});
-    return BarrierOption{terms.type, terms.strike, terms.rebate, terms.timing, std::move(*barrier_terms)};
+    return BarrierOption{terms.type, terms.strike, terms.rebate, terms.rebate_payment, std::move(*barrier_terms)};
 }
 
 } // namespace kiyosi

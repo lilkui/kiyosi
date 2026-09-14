@@ -26,10 +26,10 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     const auto put_price = *analytic_put.get(kiyosi::risk_measure::price);
     CHECK(std::abs(call_price - put_price - (100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04))) < 1e-10);
 
-    const auto in = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, valuation, expiry,
-                                                 130.0, kiyosi::barrier_type::up_and_in);
-    const auto out = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, valuation, expiry,
-                                                  130.0, kiyosi::barrier_type::up_and_out);
+    const auto in = *kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, valuation, expiry,
+                                                  130.0, kiyosi::barrier_type::up_and_in});
+    const auto out = *kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, valuation, expiry,
+                                                   130.0, kiyosi::barrier_type::up_and_out});
     const auto barrier_in = *kiyosi::AnalyticBarrierEngine{}.price(in, context);
     const auto barrier_out = *kiyosi::AnalyticBarrierEngine{}.price(out, context);
     CHECK(std::abs(*barrier_in.get(kiyosi::risk_measure::price) +
@@ -59,18 +59,18 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                  effective + std::chrono::days{273}, expiry};
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto phoenix = *kiyosi::make_phoenix_option(
+    const auto phoenix = *kiyosi::make_phoenix_option({
         0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0, observations,
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto snowball = *kiyosi::make_snowball_option(
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
+    const auto snowball = *kiyosi::make_snowball_option({
         coupons, 0.08, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto binary = *kiyosi::make_binary_snowball_option(
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
+    const auto binary = *kiyosi::make_binary_snowball_option({
         coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto ternary = *kiyosi::make_ternary_snowball_option(
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
+    const auto ternary = *kiyosi::make_ternary_snowball_option({
         coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     const auto require_repeatable = [&](const auto& instrument, const auto& engine) {
         const auto first = engine.price(instrument, context);
         const auto second = engine.price(instrument, context);

@@ -18,8 +18,8 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
 {
     const auto expiry = standard_expiry();
     const auto effective = expiry - std::chrono::days{365};
-    const auto up_out = *kiyosi::make_barrier_option(kiyosi::option_type::call, 100.0, effective, expiry,
-                                                     120.0, kiyosi::barrier_type::up_and_out);
+    const auto up_out = *kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry,
+                                                      120.0, kiyosi::barrier_type::up_and_out});
     const auto& terms = up_out.barrier_terms();
     CHECK(terms.is_up());
     CHECK_FALSE(terms.is_knock_in());
@@ -32,8 +32,8 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     const std::vector<kiyosi::date> observations{effective + std::chrono::days{30},
                                                  effective + std::chrono::days{60}};
     const auto scheduled = *kiyosi::make_binary_barrier_option(
-        std::nullopt, 100.0, effective, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
-        kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations);
+        {std::nullopt, 100.0, effective, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
+         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations});
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
     CHECK(scheduled.barrier_terms().monitors(kiyosi::start_of_day(observations.front())));

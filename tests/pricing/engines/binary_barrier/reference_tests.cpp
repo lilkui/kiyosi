@@ -35,11 +35,11 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         std::optional<kiyosi::option_type> type;
         if (inputs.at("option") != "none")
             type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
-        const auto option = kiyosi::make_binary_barrier_option(
+        const auto option = kiyosi::make_binary_barrier_option({
             type, number("strike"), date("effective"), date("expiry"), number("barrier"),
             barrier_kinds.at(inputs.at("barrier_kind")), number("payout"),
             inputs.at("asset_settlement") == "true",
-            inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry);
+            inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry});
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());

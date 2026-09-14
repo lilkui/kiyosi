@@ -18,7 +18,7 @@ TEST_CASE("Accumulator expiry settlement agrees across pricing engines")
     const auto market = [&](double spot) {
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, expiry);
     };
-    const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
+    const auto accumulator = *kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry});
 
     const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(90.0));
     REQUIRE(monte_carlo);
@@ -36,7 +36,7 @@ TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid
     const auto expiry = day(2026, 1, 1);
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
-    const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry);
+    const auto accumulator = *kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry});
     for (const auto scheme : {kiyosi::finite_difference_scheme::explicit_euler,
                               kiyosi::finite_difference_scheme::implicit_euler,
                               kiyosi::finite_difference_scheme::crank_nicolson}) {

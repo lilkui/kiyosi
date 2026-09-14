@@ -153,19 +153,19 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
     const kiyosi::AnalyticBarrierEngine barriers;
     for (const auto kind : {kiyosi::barrier_type::up_and_in, kiyosi::barrier_type::up_and_out,
                             kiyosi::barrier_type::down_and_in, kiyosi::barrier_type::down_and_out}) {
-        const auto option = *kiyosi::make_barrier_option(
+        const auto option = *kiyosi::make_barrier_option({
             kiyosi::option_type::call, 100.0, valuation, expiry,
             kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
-            kind);
+            kind});
         const auto paired_kind = kind == kiyosi::barrier_type::up_and_in
                                      ? kiyosi::barrier_type::up_and_out
                                  : kind == kiyosi::barrier_type::up_and_out  ? kiyosi::barrier_type::up_and_in
                                  : kind == kiyosi::barrier_type::down_and_in ? kiyosi::barrier_type::down_and_out
                                                                              : kiyosi::barrier_type::down_and_in;
-        const auto paired = *kiyosi::make_barrier_option(
+        const auto paired = *kiyosi::make_barrier_option({
             kiyosi::option_type::call, 100.0, valuation, expiry,
             kind == kiyosi::barrier_type::up_and_in || kind == kiyosi::barrier_type::up_and_out ? 130.0 : 75.0,
-            paired_kind);
+            paired_kind});
         check_close(risk_value(*barriers.price(option, context()), kiyosi::risk_measure::price) +
                         risk_value(*barriers.price(paired, context()), kiyosi::risk_measure::price),
                     risk_value(analytic(kiyosi::option_type::call), kiyosi::risk_measure::price), 2e-5, 2e-5);
@@ -213,8 +213,8 @@ TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
         {true, kiyosi::barrier_type::down_and_out, kiyosi::option_type::call, 99, 90, 100},
     };
     for (const auto& item : cases) {
-        const auto option = *kiyosi::make_binary_barrier_option(
-            item.type, item.strike, expiry, expiry, item.level, item.barrier, item.asset ? 0.0 : 10.0, item.asset);
+        const auto option = *kiyosi::make_binary_barrier_option({
+            item.type, item.strike, expiry, expiry, item.level, item.barrier, item.asset ? 0.0 : 10.0, item.asset});
         CHECK(risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(option, context(100.0, 0.04, 0.01, 0.3, expiry)),
                          kiyosi::risk_measure::price) == item.expected);
     }
@@ -222,22 +222,22 @@ TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
 
 TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK interval")
 {
-    const auto short_schedule = *kiyosi::make_binary_barrier_option(
+    const auto short_schedule = *kiyosi::make_binary_barrier_option({
         std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{valuation + std::chrono::days{30}, valuation + std::chrono::days{60}});
-    const auto long_schedule = *kiyosi::make_binary_barrier_option(
+        std::vector<kiyosi::date>{valuation + std::chrono::days{30}, valuation + std::chrono::days{60}}});
+    const auto long_schedule = *kiyosi::make_binary_barrier_option({
         std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{valuation + std::chrono::days{180}, expiry});
+        std::vector<kiyosi::date>{valuation + std::chrono::days{180}, expiry}});
     const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::risk_measure::price);
     const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::risk_measure::price);
     CHECK(std::abs(short_value - long_value) > 1e-4);
 
-    const auto weekend = *kiyosi::make_binary_barrier_option(
+    const auto weekend = *kiyosi::make_binary_barrier_option({
         std::nullopt, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out, 10.0, false,
         kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{day(2025, 1, 11)});
+        std::vector<kiyosi::date>{day(2025, 1, 11)}});
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
                                                       100.0, valuation,
                                                       kiyosi::exchange_calendar());
@@ -249,12 +249,12 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
 {
     const std::vector<kiyosi::date> observations{
         valuation + std::chrono::days{37}, valuation + std::chrono::days{173}, expiry};
-    const auto out = *kiyosi::make_barrier_option(
+    const auto out = *kiyosi::make_barrier_option({
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
-        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations);
-    const auto in = *kiyosi::make_barrier_option(
+        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations});
+    const auto in = *kiyosi::make_barrier_option({
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in,
-        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations);
+        2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, observations});
     const auto market = context();
     const double coarse = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market), kiyosi::risk_measure::price);
     const double fine = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(out, market), kiyosi::risk_measure::price);
@@ -262,10 +262,10 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     CHECK(std::abs(fine - analytic) < std::abs(coarse - analytic));
     CHECK(risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market), kiyosi::risk_measure::price) > 0.0);
 
-    const auto weekend = *kiyosi::make_barrier_option(
+    const auto weekend = *kiyosi::make_barrier_option({
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         2.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{day(2025, 1, 11)});
+        std::vector<kiyosi::date>{day(2025, 1, 11)}});
     const auto exchange_market = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), 100.0, valuation,
         kiyosi::exchange_calendar());
@@ -274,10 +274,10 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(weekend, exchange_market).error().category ==
           kiyosi::error_category::invalid_date);
 
-    const auto at_hit = *kiyosi::make_barrier_option(
+    const auto at_hit = *kiyosi::make_barrier_option({
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         2.0, kiyosi::rebate_timing::at_hit, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{valuation + std::chrono::days{37}, expiry});
+        std::vector<kiyosi::date>{valuation + std::chrono::days{37}, expiry}});
     CHECK(risk_value(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market), kiyosi::risk_measure::price) > 0.0);
 }
 
@@ -320,8 +320,8 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
         kiyosi::option_type::call, 100.0, valuation, grid_expiry);
     const auto digital = *kiyosi::make_cash_or_nothing_option(
         kiyosi::option_type::call, 100.0, 10.0, valuation, grid_expiry);
-    const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, valuation, grid_expiry, 90.0, kiyosi::barrier_type::down_and_out);
+    const auto barrier = *kiyosi::make_barrier_option({
+        kiyosi::option_type::call, 100.0, valuation, grid_expiry, 90.0, kiyosi::barrier_type::down_and_out});
 
     for (const auto [rate, volatility] : {
              std::tuple{0.75, 0.125}, std::tuple{0.0, 0.25}, std::tuple{-3.0, 0.5}}) {

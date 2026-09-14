@@ -44,12 +44,24 @@ struct TernarySnowballTerms {
     date expiry{};
 };
 
+struct BinarySnowballTerms {
+    std::vector<double> knock_out_coupon_rates;
+    double maturity_coupon_rate{};
+    double initial_price{};
+    std::vector<double> knock_out_prices;
+    double upper_strike{};
+    double lower_strike{};
+    std::vector<date> observations;
+    barrier_touch_status touch_status{};
+    double principal_ratio{};
+    date effective{};
+    date expiry{};
+};
+
 [[nodiscard]] result<SnowballOption> make_snowball_option(SnowballTerms);
 [[nodiscard]] result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
 
-[[nodiscard]] result<BinarySnowballOption> make_binary_snowball_option(
-    std::vector<double>, double, double, std::vector<double>, double, double, std::vector<date>,
-    barrier_touch_status, double, date, date);
+[[nodiscard]] result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
 
 /// Knock-in autocallable accruing a coupon until knock-out, with downside participation.
 class SnowballOption {
@@ -118,9 +130,7 @@ private:
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 
-    friend result<BinarySnowballOption> make_binary_snowball_option(
-        std::vector<double>, double, double, std::vector<double>, double, double, std::vector<date>,
-        barrier_touch_status, double, date, date);
+    friend result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
 };
 
 /// Snowball variant whose maturity coupon steps down to a floor once knocked in.
@@ -161,16 +171,12 @@ private:
     friend result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
 };
 
-[[nodiscard]] inline result<BinarySnowballOption> make_binary_snowball_option(
-    std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate, double initial_price,
-    std::vector<double> knock_out_prices, double upper_strike, double lower_strike,
-    std::vector<date> observations, barrier_touch_status touch_status, double principal_ratio,
-    date effective, date expiry)
+[[nodiscard]] inline result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms terms)
 {
-    return validate_note(BinarySnowballOption{std::move(knock_out_coupon_rates), maturity_coupon_rate,
-                                              initial_price, std::move(knock_out_prices), upper_strike,
-                                              lower_strike, std::move(observations), touch_status,
-                                              principal_ratio, effective, expiry});
+    return validate_note(BinarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                              terms.initial_price, std::move(terms.knock_out_prices), terms.upper_strike,
+                                              terms.lower_strike, std::move(terms.observations), terms.touch_status,
+                                              terms.principal_ratio, terms.effective, terms.expiry});
 }
 
 inline result<SnowballOption> SnowballOption::with_coupon_rate(double coupon) const

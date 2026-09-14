@@ -15,23 +15,23 @@ TEST_CASE("Binary barrier option factory rejects invalid contracts")
 {
     const auto effective = day(2025, 1, 6);
     const auto expiry = effective + std::chrono::days{365};
-    CHECK(kiyosi::make_binary_barrier_option(std::optional{static_cast<kiyosi::option_type>(99)}, 100.0, effective,
-                                             expiry, 90.0, kiyosi::barrier_type::down_and_in, 10.0)
+    CHECK(kiyosi::make_binary_barrier_option({std::optional{static_cast<kiyosi::option_type>(99)}, 100.0, effective,
+                                              expiry, 90.0, kiyosi::barrier_type::down_and_in, 10.0})
               .error()
               .category == kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
-                                             kiyosi::barrier_type::down_and_out, -1.0)
+    CHECK(kiyosi::make_binary_barrier_option({std::nullopt, 100.0, effective, expiry, 90.0,
+                                              kiyosi::barrier_type::down_and_out, -1.0})
               .error()
               .category == kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
-                                             kiyosi::barrier_type::down_and_out, 10.0, false,
-                                             kiyosi::rebate_timing::at_hit)
+    CHECK(kiyosi::make_binary_barrier_option({std::nullopt, 100.0, effective, expiry, 90.0,
+                                              kiyosi::barrier_type::down_and_out, 10.0, false,
+                                              kiyosi::rebate_timing::at_hit})
               .error()
               .category == kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_binary_barrier_option(std::nullopt, 100.0, effective, expiry, 90.0,
-                                             kiyosi::barrier_type::down_and_in, 10.0, false,
-                                             kiyosi::rebate_timing::at_expiry,
-                                             kiyosi::observation_mode::scheduled)
+    CHECK(kiyosi::make_binary_barrier_option({std::nullopt, 100.0, effective, expiry, 90.0,
+                                              kiyosi::barrier_type::down_and_in, 10.0, false,
+                                              kiyosi::rebate_timing::at_expiry,
+                                              kiyosi::observation_mode::scheduled})
               .error()
               .category == kiyosi::error_category::invalid_schedule);
 }
@@ -41,8 +41,8 @@ TEST_CASE("Binary barrier option exposes its contractual terms")
     const auto effective = day(2025, 1, 6);
     const auto expiry = effective + std::chrono::days{365};
     const auto option = kiyosi::make_binary_barrier_option(
-        std::optional{kiyosi::option_type::put}, 100.0, effective, expiry, 90.0,
-        kiyosi::barrier_type::down_and_in, 10.0);
+        {std::optional{kiyosi::option_type::put}, 100.0, effective, expiry, 90.0,
+         kiyosi::barrier_type::down_and_in, 10.0});
     REQUIRE(option.has_value());
     CHECK(option->type() == std::optional{kiyosi::option_type::put});
     CHECK(option->strike() == 100.0);

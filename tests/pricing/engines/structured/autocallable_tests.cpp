@@ -41,16 +41,16 @@ TEST_CASE("Phoenix expiry settlement applies state and final observations")
         return *result->get(kiyosi::risk_measure::price);
     };
 
-    const auto phoenix = *kiyosi::make_phoenix_option(
+    const auto phoenix = *kiyosi::make_phoenix_option({
         0.08, 100.0, 80.0, {100.0}, {90.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::at_expiry, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK(price(phoenix, 100.0) == Catch::Approx(9.0));
     CHECK(price(phoenix, 80.0) == Catch::Approx(1.0));
-    const auto phoenix_up = *kiyosi::make_phoenix_option(
+    const auto phoenix_up = *kiyosi::make_phoenix_option({
         0.08, 100.0, 80.0, {100.0}, {90.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::up,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK(price(phoenix_up, 100.0) == 0.0);
 }
 
@@ -67,17 +67,17 @@ TEST_CASE("Snowball expiry settlement applies state and final observations")
         REQUIRE(result);
         return *result->get(kiyosi::risk_measure::price);
     };
-    const auto snowball = *kiyosi::make_snowball_option(
+    const auto snowball = *kiyosi::make_snowball_option({
         {0.10}, 0.05, 100.0, 80.0, {100.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::at_expiry, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK(price(snowball, 100.0) == Catch::Approx(1.10));
     CHECK(price(snowball, 80.0) == Catch::Approx(1.05));
     CHECK(price(snowball, 59.0) == Catch::Approx(0.60));
-    const auto snowball_down = *kiyosi::make_snowball_option(
+    const auto snowball_down = *kiyosi::make_snowball_option({
         {0.10}, 0.05, 100.0, 80.0, {110.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::down,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK(price(snowball_down, 70.0) == Catch::Approx(0.70));
 }
 
@@ -94,9 +94,9 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
         REQUIRE(result);
         return *result->get(kiyosi::risk_measure::price);
     };
-    const auto binary = *kiyosi::make_binary_snowball_option(
+    const auto binary = *kiyosi::make_binary_snowball_option({
         {0.10}, 0.05, 100.0, {100.0}, 100.0, 60.0, {expiry},
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     CHECK(price(binary, 100.0) == Catch::Approx(1.10));
     CHECK(price(binary, 90.0) == Catch::Approx(1.05));
 }
@@ -114,10 +114,10 @@ TEST_CASE("Ternary snowball expiry settlement applies final observations")
         REQUIRE(result);
         return *result->get(kiyosi::risk_measure::price);
     };
-    const auto ternary = *kiyosi::make_ternary_snowball_option(
+    const auto ternary = *kiyosi::make_ternary_snowball_option({
         {0.10}, 0.05, 0.02, 100.0, 80.0, {100.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::at_expiry, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK(price(ternary, 100.0) == Catch::Approx(1.10));
     CHECK(price(ternary, 80.0) == Catch::Approx(1.05));
     CHECK(price(ternary, 79.0) == Catch::Approx(1.02));
@@ -136,9 +136,9 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
         REQUIRE(result);
         return *result->get(kiyosi::risk_measure::price);
     };
-    const auto note = *kiyosi::make_binary_snowball_option(
+    const auto note = *kiyosi::make_binary_snowball_option({
         {99.0, 10.0, 0.10}, 0.05, 100.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
-        {effective, valuation, expiry}, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        {effective, valuation, expiry}, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     const kiyosi::MonteCarloBinarySnowballEngine engine{{32, 7}};
     const auto first = engine.price(note, context);
     const auto second = engine.price(note, context);
@@ -147,22 +147,22 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
     CHECK(*first->get(kiyosi::risk_measure::price) ==
           Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()).margin(1e-10));
-    const auto snowball = *kiyosi::make_snowball_option(
+    const auto snowball = *kiyosi::make_snowball_option({
         {99.0, 10.0, 0.10}, 0.05, 100.0, 80.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
         {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     CHECK(monte_carlo_price(snowball) == Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()));
 
-    const auto ternary = *kiyosi::make_ternary_snowball_option(
+    const auto ternary = *kiyosi::make_ternary_snowball_option({
         {99.0, 10.0, 0.10}, 0.05, 0.02, 100.0, 80.0, {90.0, 90.0, 99.0}, 100.0, 60.0,
         {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     CHECK(monte_carlo_price(ternary) == Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()));
 
-    const auto phoenix = *kiyosi::make_phoenix_option(
+    const auto phoenix = *kiyosi::make_phoenix_option({
         0.08, 100.0, 80.0, {90.0, 90.0, 99.0}, {90.0, 90.0, 90.0}, 100.0, 60.0,
         {effective, valuation, expiry}, kiyosi::observation_frequency::at_expiry,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     CHECK(monte_carlo_price(phoenix) == Catch::Approx(9.0));
 }
 
@@ -175,10 +175,10 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const auto phoenix = *kiyosi::make_phoenix_option(
+    const auto phoenix = *kiyosi::make_phoenix_option({
         0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0,
         observations, kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     check_structured_refinement(phoenix, context);
 }
 
@@ -192,9 +192,9 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto snowball = *kiyosi::make_snowball_option(
+    const auto snowball = *kiyosi::make_snowball_option({
         coupons, 0.08, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     check_structured_refinement(snowball, context);
 }
 
@@ -208,9 +208,9 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto binary = *kiyosi::make_binary_snowball_option(
+    const auto binary = *kiyosi::make_binary_snowball_option({
         coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     check_structured_refinement(binary, context);
 }
 
@@ -224,9 +224,9 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto ternary = *kiyosi::make_ternary_snowball_option(
+    const auto ternary = *kiyosi::make_ternary_snowball_option({
         coupons, 0.08, 0.02, 100.0, 75.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     check_structured_refinement(ternary, context);
 }
 
@@ -240,9 +240,9 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto binary = *kiyosi::make_binary_snowball_option(
+    const auto binary = *kiyosi::make_binary_snowball_option({
         coupons, 0.08, 100.0, knock_outs, 100.0, 60.0, observations,
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     CHECK_FALSE(kiyosi::FiniteDifferenceBinarySnowballEngine{{40, 1, kiyosi::finite_difference_scheme::explicit_euler}}
                     .price(binary, context));
 }
@@ -256,10 +256,10 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const auto phoenix = *kiyosi::make_phoenix_option(
+    const auto phoenix = *kiyosi::make_phoenix_option({
         0.02, 100.0, 75.0, knock_outs, {90.0, 90.0, 90.0, 90.0}, 100.0, 60.0,
         observations, kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
     CHECK_FALSE(kiyosi::FiniteDifferencePhoenixEngine{{40, 512, kiyosi::finite_difference_scheme::crank_nicolson, 110.0}}
                     .price(phoenix, context));
 }

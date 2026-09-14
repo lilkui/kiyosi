@@ -13,9 +13,21 @@ namespace kiyosi {
 
 class BinaryBarrierOption;
 
-[[nodiscard]] result<BinaryBarrierOption> make_binary_barrier_option(
-    std::optional<option_type>, double, date, date, double, barrier_type, double, bool,
-    rebate_timing, observation_mode, std::vector<date>);
+struct BinaryBarrierTerms {
+    std::optional<option_type> type;
+    double strike{};
+    date effective{};
+    date expiry{};
+    double barrier{};
+    barrier_type barrier_kind{};
+    double payout{};
+    bool asset_settlement{};
+    rebate_timing settlement_timing{rebate_timing::at_expiry};
+    observation_mode observation{observation_mode::continuous};
+    std::vector<date> observations;
+};
+
+[[nodiscard]] result<BinaryBarrierOption> make_binary_barrier_option(BinaryBarrierTerms);
 
 /// Barrier contract paying a fixed amount or the asset; an absent option type is a touch contract.
 class BinaryBarrierOption {
@@ -51,18 +63,13 @@ private:
     rebate_timing timing_;
     BarrierTerms barrier_;
 
-    friend result<BinaryBarrierOption> make_binary_barrier_option(
-        std::optional<option_type>, double, date, date, double, barrier_type, double, bool,
-        rebate_timing, observation_mode, std::vector<date>);
+    friend result<BinaryBarrierOption> make_binary_barrier_option(BinaryBarrierTerms);
 };
 
-[[nodiscard]] inline result<BinaryBarrierOption> make_binary_barrier_option(
-    std::optional<option_type> type, double strike, date effective, date expiry, double barrier,
-    barrier_type kind, double payout, bool asset = false,
-    rebate_timing timing = rebate_timing::at_expiry,
-    observation_mode observation = observation_mode::continuous,
-    std::vector<date> observations = {})
+[[nodiscard]] inline result<BinaryBarrierOption> make_binary_barrier_option(BinaryBarrierTerms contract_terms)
 {
+    auto [type, strike, effective, expiry, barrier, kind, payout, asset, timing, observation, observations] =
+        std::move(contract_terms);
     if (type && *type != option_type::call && *type != option_type::put)
         return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(barrier) || barrier <= 0.0 ||
@@ -93,32 +100,32 @@ private:
     double strike, date effective, date expiry, double barrier, double payout,
     rebate_timing timing = rebate_timing::at_expiry)
 {
-    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
-                                      barrier_type::up_and_in, payout, false, timing);
+    return make_binary_barrier_option({std::nullopt, strike, effective, expiry, barrier,
+                                       barrier_type::up_and_in, payout, false, timing});
 }
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_down(
     double strike, date effective, date expiry, double barrier, double payout,
     rebate_timing timing = rebate_timing::at_expiry)
 {
-    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
-                                      barrier_type::down_and_in, payout, false, timing);
+    return make_binary_barrier_option({std::nullopt, strike, effective, expiry, barrier,
+                                       barrier_type::down_and_in, payout, false, timing});
 }
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_up(
     double strike, date effective, date expiry, double barrier, double payout)
 {
-    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
-                                      barrier_type::up_and_out, payout, false,
-                                      rebate_timing::at_expiry);
+    return make_binary_barrier_option({std::nullopt, strike, effective, expiry, barrier,
+                                       barrier_type::up_and_out, payout, false,
+                                       rebate_timing::at_expiry});
 }
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_down(
     double strike, date effective, date expiry, double barrier, double payout)
 {
-    return make_binary_barrier_option(std::nullopt, strike, effective, expiry, barrier,
-                                      barrier_type::down_and_out, payout, false,
-                                      rebate_timing::at_expiry);
+    return make_binary_barrier_option({std::nullopt, strike, effective, expiry, barrier,
+                                       barrier_type::down_and_out, payout, false,
+                                       rebate_timing::at_expiry});
 }
 
 } // namespace kiyosi

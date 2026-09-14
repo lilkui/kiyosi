@@ -22,19 +22,18 @@ TEST_CASE("Snowball factory rejects invalid schedules and supports signed coupon
 
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const auto note = kiyosi::make_snowball_option(
+    const auto note = kiyosi::make_snowball_option(kiyosi::SnowballTerms{
         {-0.1}, -0.05, 100.0, 60.0, {110.0}, 100.0, 60.0, {expiry},
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     REQUIRE(note);
     const auto replaced = note->with_coupon_rate(-0.08);
     REQUIRE(replaced);
     CHECK(replaced->maturity_coupon_rate() == -0.08);
     CHECK_FALSE(note->with_coupon_rate(std::numeric_limits<double>::infinity()));
-    CHECK(kiyosi::make_snowball_option(
+    CHECK(kiyosi::make_snowball_option(kiyosi::SnowballTerms{
               {0.1}, 0.05, 100.0, 60.0, {110.0}, 100.0, 60.0,
-              {expiry, effective}, kiyosi::observation_frequency::daily,
-              kiyosi::barrier_touch_status::none, 1.0, effective, expiry)
+               {expiry, effective}, kiyosi::observation_frequency::daily,
+               kiyosi::barrier_touch_status::none, 1.0, effective, expiry})
               .error()
               .category == kiyosi::error_category::invalid_schedule);
 }

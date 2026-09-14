@@ -36,32 +36,29 @@ int main()
         kiyosi::option_type::call, 100.0, 10.0, effective, expiry);
     const auto asset_digital = *kiyosi::make_asset_or_nothing_option(
         kiyosi::option_type::call, 100.0, effective, expiry);
-    const auto barrier = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, effective, expiry, 80.0, kiyosi::barrier_type::down_and_out);
+    const auto barrier = *kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry, 80.0,
+                                                        kiyosi::barrier_type::down_and_out});
     const auto binary_barrier = *kiyosi::make_binary_barrier_option(
-        kiyosi::option_type::call, 100.0, effective, expiry, 80.0,
-        kiyosi::barrier_type::down_and_out, 10.0);
+        {kiyosi::option_type::call, 100.0, effective, expiry, 80.0, kiyosi::barrier_type::down_and_out, 10.0});
     const auto geometric_asian = *kiyosi::make_geometric_average_option(
         kiyosi::option_type::call, 100.0, effective, effective, expiry);
     const auto arithmetic_asian = *kiyosi::make_arithmetic_average_option(
         kiyosi::option_type::call, 100.0, effective, effective, expiry);
 
-    const auto accumulator = *kiyosi::make_accumulator(100.0, 110.0, 1.0, 2.0, 0.0, effective, expiry);
+    const auto accumulator = *kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, 0.0, effective, expiry});
     const auto phoenix = *kiyosi::make_phoenix_option(
-        0.08, 100.0, 80.0, {110.0}, {90.0}, 100.0, 60.0, {expiry},
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        {0.08, 100.0, 80.0, {110.0}, {90.0}, 100.0, 60.0, {expiry},
+         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     const auto snowball = *kiyosi::make_snowball_option(
-        {0.08}, 0.05, 100.0, 80.0, {110.0}, 100.0, 60.0, {expiry},
-        kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        {{0.08}, 0.05, 100.0, 80.0, {110.0}, 100.0, 60.0, {expiry},
+         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
     const auto binary_snowball = *kiyosi::make_binary_snowball_option(
-        {0.08}, 0.05, 100.0, {110.0}, 100.0, 60.0, {expiry},
-        kiyosi::barrier_touch_status::none, 1.0, effective, expiry);
-    const auto ternary_snowball = *kiyosi::make_ternary_snowball_option(
+        {{0.08}, 0.05, 100.0, {110.0}, 100.0, 60.0, {expiry},
+         kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
+    const auto ternary_snowball = *kiyosi::make_ternary_snowball_option({
         {0.08}, 0.05, 0.02, 100.0, 80.0, {110.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none,
-        1.0, effective, expiry);
+        1.0, effective, expiry});
 
     bool ok = true;
     const auto price = [&](std::string_view instrument, std::string_view engine, const auto& value) {

@@ -67,8 +67,8 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
         start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::exchange_calendar());
     REQUIRE(schedule.has_value());
     const auto barrier = kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, start, end, 90.0, kiyosi::barrier_type::down_and_out,
-        0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, *schedule);
+        {kiyosi::option_type::call, 100.0, start, end, 90.0, kiyosi::barrier_type::down_and_out,
+         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, schedule->dates()});
     REQUIRE(barrier.has_value());
     CHECK(barrier->schedule() == *schedule);
 }

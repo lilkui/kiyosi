@@ -50,10 +50,10 @@ TEST_CASE("Barrier in and out prices compose to vanilla")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto down_out = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out);
-    const auto down_in = *kiyosi::make_barrier_option(
-        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in);
+    const auto down_out = *kiyosi::make_barrier_option({
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out});
+    const auto down_in = *kiyosi::make_barrier_option({
+        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_in});
     const auto barrier_out = kiyosi::AnalyticBarrierEngine{}.price(down_out, context);
     const auto barrier_in = kiyosi::AnalyticBarrierEngine{}.price(down_in, context);
     const auto vanilla = kiyosi::AnalyticVanillaEngine{}.price(
@@ -72,10 +72,10 @@ TEST_CASE("Scheduled barrier contracts price analytically")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto scheduled = kiyosi::make_barrier_option(
+    const auto scheduled = kiyosi::make_barrier_option({
         kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::down_and_out,
         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled,
-        std::vector<kiyosi::date>{valuation + std::chrono::days{30}});
+        std::vector<kiyosi::date>{valuation + std::chrono::days{30}}});
     REQUIRE(scheduled.has_value());
     CHECK(kiyosi::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
 }
@@ -96,9 +96,9 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     REQUIRE(asian_result->has(kiyosi::risk_measure::price));
     REQUIRE(*asian_result->get(kiyosi::risk_measure::price) > 0.0);
 
-    auto note = kiyosi::make_binary_snowball_option(
+    auto note = kiyosi::make_binary_snowball_option({
         {0.1}, 0.05, 100.0, {110.0}, 100.0, 60.0, {expiry},
-        kiyosi::barrier_touch_status::none, 1.0, valuation, expiry);
+        kiyosi::barrier_touch_status::none, 1.0, valuation, expiry});
     REQUIRE(note);
     kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
     auto note_result = engine.price(*note, *context);
@@ -130,10 +130,10 @@ TEST_CASE("Structured coupon replacement preserves the original note")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry = day(2025, 7, 1);
-    const auto note = kiyosi::make_snowball_option(
+    const auto note = kiyosi::make_snowball_option({
         {0.1}, 0.05, 100.0, 60.0, {110.0}, 100.0, 60.0, {expiry},
         kiyosi::observation_frequency::at_expiry, kiyosi::barrier_touch_status::none,
-        1.0, valuation, expiry);
+        1.0, valuation, expiry});
     REQUIRE(note);
     const auto replaced = note->with_coupon_rate(0.08);
     REQUIRE(replaced);
