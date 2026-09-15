@@ -30,7 +30,6 @@ from ._native import (
     implied_coupon,
     implied_volatility,
     numerical_analytics,
-    price,
     scenario_grid,
 )
 
@@ -64,6 +63,5 @@ __all__ = [
     "implied_coupon",
     "implied_volatility",
     "numerical_analytics",
-    "price",
     "scenario_grid",
 ]

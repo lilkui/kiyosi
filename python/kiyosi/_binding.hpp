@@ -158,6 +158,5 @@ void bind_structured_instruments(nb::module_& module);
 void bind_results(nb::module_& module);
 void bind_engines(nb::module_& module);
 void bind_analytics(nb::module_& module);
-void bind_default_prices(nb::module_& module);
 
 } // namespace kiyosi::python_binding

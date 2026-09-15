@@ -45,5 +45,4 @@ NB_MODULE(_native, module)
     bind_results(module);
     bind_engines(module);
     bind_analytics(module);
-    bind_default_prices(module);
 }

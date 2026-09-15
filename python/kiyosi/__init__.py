@@ -1,7 +1,6 @@
 """Python API for the kiyosi derivatives pricing core."""
 
 from ._native import ErrorCategory, KiyosiError, PricingResult, RiskMeasure, __version__
-from .pricing import price
 
 __all__ = [
     "ErrorCategory",
@@ -9,5 +8,4 @@ __all__ = [
     "PricingResult",
     "RiskMeasure",
     "__version__",
-    "price",
 ]

@@ -72,17 +72,6 @@ void bind_engine_price(nb::class_<Engine>& binding)
         "instrument"_a, "context"_a, nb::call_guard<nb::gil_scoped_release>());
 }
 
-template <typename Instrument, typename Engine>
-void bind_default_price(nb::module_& module)
-{
-    module.def(
-        "price",
-        [](const Instrument& instrument, const PricingContext& context) {
-            return unwrap(Engine{}.price(instrument, context));
-        },
-        "instrument"_a, "context"_a, nb::call_guard<nb::gil_scoped_release>());
-}
-
 template <typename Engine>
 nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char* name)
 {
@@ -434,23 +423,6 @@ void bind_analytics(nb::module_& module)
     bind_implied_coupon_pair<MonteCarloSnowballEngine, SnowballOption>(module);
     bind_implied_coupon_pair<FiniteDifferencePhoenixEngine, PhoenixOption>(module);
     bind_implied_coupon_pair<MonteCarloPhoenixEngine, PhoenixOption>(module);
-}
-
-void bind_default_prices(nb::module_& module)
-{
-    bind_default_price<EuropeanOption, AnalyticVanillaEngine>(module);
-    bind_default_price<AmericanOption, BjerksundStenslandVanillaEngine>(module);
-    bind_default_price<EuropeanCashOrNothingOption, AnalyticDigitalEngine>(module);
-    bind_default_price<EuropeanAssetOrNothingOption, AnalyticDigitalEngine>(module);
-    bind_default_price<BarrierOption, AnalyticBarrierEngine>(module);
-    bind_default_price<BinaryBarrierOption, AnalyticBinaryBarrierEngine>(module);
-    bind_default_price<GeometricAverageOption, GeometricAverageAsianEngine>(module);
-    bind_default_price<ArithmeticAverageOption, ArithmeticAverageAsianEngine>(module);
-    bind_default_price<Accumulator, FiniteDifferenceAccumulatorEngine>(module);
-    bind_default_price<SnowballOption, FiniteDifferenceSnowballEngine>(module);
-    bind_default_price<BinarySnowballOption, FiniteDifferenceBinarySnowballEngine>(module);
-    bind_default_price<TernarySnowballOption, FiniteDifferenceTernarySnowballEngine>(module);
-    bind_default_price<PhoenixOption, FiniteDifferencePhoenixEngine>(module);
 }
 
 } // namespace kiyosi::python_binding

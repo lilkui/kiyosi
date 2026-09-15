@@ -14,9 +14,9 @@ python -m pip install .
 ```python
 from datetime import date
 
-import kiyosi
 from kiyosi.instruments import EuropeanOption, OptionType
 from kiyosi.market import BsmParameters, PricingContext
+from kiyosi.pricing import AnalyticVanillaEngine
 
 parameters = BsmParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.20)
 context = PricingContext(parameters=parameters, asset_price=100.0, valuation_time=date(2025, 1, 1))
@@ -27,7 +27,7 @@ option = EuropeanOption(
     expiry=date(2026, 1, 1),
 )
 
-result = kiyosi.price(option, context)
+result = AnalyticVanillaEngine().price(option, context)
 print(result.price, result.delta, result["vega"])
 ```
 
