@@ -34,7 +34,9 @@ void bind_average_option(
              "expiry"_a, "realized_average"_a = 0.0)
         .def_prop_ro("type", &AverageOptionType::type)
         .def_prop_ro("strike", &AverageOptionType::strike)
-        .def_prop_ro("average_start", &AverageOptionType::average_start)
+        .def_prop_ro("average_start", [](const AverageOptionType& value) {
+            return python_date(value.average_start());
+        })
         .def_prop_ro("realized_average", &AverageOptionType::realized_average)
         .def_prop_ro("effective", [](const AverageOptionType& value) { return python_date(value.effective()); })
         .def_prop_ro("expiry", [](const AverageOptionType& value) { return python_date(value.expiry()); });

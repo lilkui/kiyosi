@@ -1,9 +1,9 @@
 import unittest
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import kiyosi
 import kiyosi.pricing as pricing
-from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, OptionType
+from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
 from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, numerical_analytics
 
@@ -61,6 +61,24 @@ class KiyosiPythonTests(unittest.TestCase):
             PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1))
         aware = PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1, 8, tzinfo=timezone.utc))
         self.assertIsNotNone(AnalyticVanillaEngine().price(self.option, aware).price)
+
+    def test_temporal_accessors_preserve_date_and_timestamp_semantics(self):
+        average_start = date(2025, 2, 1)
+        average = GeometricAverageOption(type=OptionType.CALL, strike=100, average_start=average_start, effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
+        self.assertIs(type(average.average_start), date)
+        self.assertEqual(average.average_start, average_start)
+
+        expiry = date(2026, 1, 1)
+        note = standard_snowball(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observations=[expiry], effective=date(2025, 1, 1), expiry=expiry)
+        self.assertEqual(note.observation_dates, [expiry])
+        self.assertIs(type(note.effective), date)
+        self.assertIs(type(note.expiry), date)
+
+        local_time = datetime(2025, 1, 1, 8, 9, 10, 123456, tzinfo=timezone(timedelta(hours=8)))
+        context = PricingContext(parameters=self.parameters, asset_price=100, valuation_time=local_time)
+        self.assertEqual(context.valuation_time, datetime(2025, 1, 1, 0, 9, 10, 123456, tzinfo=timezone.utc))
+        midnight = PricingContext(parameters=self.parameters, asset_price=100, valuation_time=date(2025, 1, 1))
+        self.assertEqual(midnight.valuation_time, datetime(2025, 1, 1, tzinfo=timezone.utc))
 
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(type=OptionType.CALL, strike=100, payout=10, effective=date(2025, 1, 1), expiry=date(2026, 1, 1))

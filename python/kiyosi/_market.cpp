@@ -133,7 +133,9 @@ void bind_market(nb::module_& module)
         .def_prop_ro("valuation_date", [](const PricingContext& context) {
             return python_date(context.valuation_date());
         })
-        .def_prop_ro("valuation_time", &PricingContext::valuation_time)
+        .def_prop_ro("valuation_time", [](const PricingContext& context) {
+            return python_timestamp(context.valuation_time());
+        })
         .def_prop_ro("calendar", &PricingContext::calendar,
                      nb::rv_policy::reference_internal);
 

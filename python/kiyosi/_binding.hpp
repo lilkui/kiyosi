@@ -23,6 +23,7 @@ namespace nb = nanobind;
 namespace kiyosi::python_binding {
 
 struct PythonDateAnnotation {};
+struct PythonTimestampAnnotation {};
 struct PythonValuationTimeAnnotation {};
 
 } // namespace kiyosi::python_binding
@@ -33,6 +34,12 @@ template <>
 struct type_caster<kiyosi::python_binding::PythonDateAnnotation> {
     NB_TYPE_CASTER(kiyosi::python_binding::PythonDateAnnotation,
                    const_name("datetime.date"))
+};
+
+template <>
+struct type_caster<kiyosi::python_binding::PythonTimestampAnnotation> {
+    NB_TYPE_CASTER(kiyosi::python_binding::PythonTimestampAnnotation,
+                   const_name("datetime.datetime"))
 };
 
 template <>
@@ -54,6 +61,7 @@ using PythonDateSequence =
     nb::typed<nb::handle, nb::typed<nb::iterable, PythonDateAnnotation>>;
 using PythonOptionType = nb::typed<nb::object, option_type>;
 using PythonDateObject = nb::typed<nb::object, PythonDateAnnotation>;
+using PythonTimestampObject = nb::typed<nb::object, PythonTimestampAnnotation>;
 using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
 using PythonDateIterator =
     nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
@@ -141,6 +149,20 @@ inline PythonDateObject python_date(date value)
     return PythonDateObject{datetime.attr("date")(
         int(parts.year()), static_cast<unsigned>(parts.month()),
         static_cast<unsigned>(parts.day()))};
+}
+
+inline PythonTimestampObject python_timestamp(timestamp value)
+{
+    const date day = std::chrono::floor<std::chrono::days>(value);
+    const std::chrono::hh_mm_ss time{
+        std::chrono::floor<std::chrono::microseconds>(value - day)};
+    const auto parts = std::chrono::year_month_day{day};
+    const nb::object datetime = nb::module_::import_("datetime");
+    return PythonTimestampObject{datetime.attr("datetime")(
+        int(parts.year()), static_cast<unsigned>(parts.month()),
+        static_cast<unsigned>(parts.day()), time.hours().count(), time.minutes().count(),
+        time.seconds().count(), time.subseconds().count(),
+        datetime.attr("timezone").attr("utc"))};
 }
 
 inline timestamp valuation_time(nb::handle value)

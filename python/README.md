@@ -39,8 +39,9 @@ analytics, scenario grids, and implied quantities.
 `PricingResult` is a read-only mapping with the stable keys `price`, `delta`, `gamma`,
 `speed`, `theta`, `charm`, `color`, `vega`, `vanna`, `zomma`, and `rho`; unavailable
 measures are `None`. Domain validation failures raise `KiyosiError` with an
-`ErrorCategory`. `date` values represent midnight; valuation may also be a timezone-aware
-`datetime`, converted to UTC. Naive datetimes, booleans, strings, and `Decimal` values are rejected.
+`ErrorCategory`. Calendar-date accessors return `date`. `PricingContext.valuation_time`
+returns a timezone-aware UTC `datetime`; `date` inputs become midnight UTC. Naive datetimes,
+booleans, strings, and `Decimal` values are rejected.
 
 ## Development
 

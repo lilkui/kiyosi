@@ -13,11 +13,15 @@ void bind_note_properties(nb::class_<Note>& binding)
         .def_prop_ro("knock_out_prices", &Note::knock_out_prices)
         .def_prop_ro("upper_strike", &Note::upper_strike)
         .def_prop_ro("lower_strike", &Note::lower_strike)
-        .def_prop_ro("observation_dates", &Note::observation_dates)
+        .def_prop_ro("observation_dates", [](const Note& note) {
+            PythonDateList output;
+            for (const date value : note.observation_dates()) output.append(python_date(value));
+            return output;
+        })
         .def_prop_ro("principal_ratio", &Note::principal_ratio)
         .def_prop_ro("touch_status", &Note::touch_status)
-        .def_prop_ro("effective", &Note::effective)
-        .def_prop_ro("expiry", &Note::expiry);
+        .def_prop_ro("effective", [](const Note& note) { return python_date(note.effective()); })
+        .def_prop_ro("expiry", [](const Note& note) { return python_date(note.expiry()); });
 }
 
 template <typename Note>
