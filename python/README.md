@@ -1,19 +1,9 @@
 # kiyosi Python bindings
 
-The `kiyosi` Python package provides a small Python API over Kiyosi's native
-C++ pricing library. It currently exposes a closed-form Black–Scholes pricer
-for European call and put options, including the standard Greeks.
-
-## Requirements
-
-- Python 3.11 or newer
-
-The package contains a native extension. Installing from source therefore also
-requires a C++23 compiler and CMake 3.28 or newer.
+`kiyosi` exposes validated derivative instruments and pricing engines from the C++ core.
+The Python layer adapts Python values and exceptions; domain rules remain authoritative in C++.
 
 ## Installation
-
-From a checkout of this repository:
 
 ```bash
 python -m pip install .
@@ -25,37 +15,41 @@ python -m pip install .
 from datetime import date
 
 import kiyosi
+from kiyosi.instruments import EuropeanOption, OptionType
+from kiyosi.market import BsmParameters, PricingContext
 
-result = kiyosi.black_scholes(
-    "call",
-    spot=100.0,
+parameters = BsmParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.20)
+context = PricingContext(parameters=parameters, asset_price=100.0, valuation_time=date(2025, 1, 1))
+option = EuropeanOption(
+    type=OptionType.CALL,
     strike=100.0,
-    valuation_date=date(2025, 1, 1),
-    expiry=date(2026, 1, 1),
-    risk_free_rate=0.05,
-    dividend_yield=0.02,
-    volatility=0.20,
     effective=date(2025, 1, 1),
+    expiry=date(2026, 1, 1),
 )
 
-print(result["price"])
-print(result["delta"])
+result = kiyosi.price(option, context)
+print(result.price, result.delta, result["vega"])
 ```
 
-The result contains `price`, `delta`, `gamma`, `theta`, `vega`, and `rho`.
-Use `EuropeanOption`, `Market`, and `price` when you prefer to construct the
-inputs explicitly. `EuropeanOption.effective` is required. Core validation
-failures raise `KiyosiError` with a stable `category` from `ErrorCategory`.
+Use `kiyosi.instruments` for European/American, digital, Asian, barrier, accumulator,
+snowball, and Phoenix instruments. Use `kiyosi.market` for model parameters, valuation
+contexts, calendars, and schedules. Use `kiyosi.pricing` for explicit engines, numerical
+analytics, scenario grids, and implied quantities.
+
+`PricingResult` is a read-only mapping with the stable keys `price`, `delta`, `gamma`,
+`speed`, `theta`, `charm`, `color`, `vega`, `vanna`, `zomma`, and `rho`; unavailable
+measures are `None`. Domain validation failures raise `KiyosiError` with an
+`ErrorCategory`. `date` values represent midnight; valuation may also be a timezone-aware
+`datetime`, converted to UTC. Naive datetimes, booleans, strings, and `Decimal` values are rejected.
 
 ## Development
 
-The Python API lives in [`kiyosi`](kiyosi), its native extension is in
-[`kiyosi/_native.cpp`](_native.cpp), and Python tests are in
-[`../tests/python`](../tests/python).
+Run the Python checks with:
 
-For the C++ library and CMake presets, see the repository
+```bash
+python -m unittest discover -s tests/python
+```
+
+The native extension is implemented in [`kiyosi/_native.cpp`](_native.cpp) and split
+binding units beside it. The C++ library and CMake presets are documented in the repository
 [`README.md`](../README.md).
-
-## License
-
-kiyosi is licensed under the MIT License. See [`../LICENSE.txt`](../LICENSE.txt).

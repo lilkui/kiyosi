@@ -232,7 +232,13 @@ if(KIYOSI_BUILD_PYTHON)
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
     find_package(nanobind CONFIG REQUIRED)
 
-    nanobind_add_module(_native python/kiyosi/_native.cpp)
+    nanobind_add_module(_native
+        python/kiyosi/_native.cpp
+        python/kiyosi/_market.cpp
+        python/kiyosi/_instruments.cpp
+        python/kiyosi/_structured.cpp
+        python/kiyosi/_pricing.cpp
+    )
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)
 
     include(CheckIPOSupported)
