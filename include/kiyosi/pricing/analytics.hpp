@@ -15,6 +15,8 @@ namespace kiyosi {
 
 /// Wraps any price-only engine so it also reports bump-derived risk, scenario grids, and
 /// implied quantities without the caller threading shift settings through each call.
+/// Its thread-safety guarantees are those of the wrapped engine; built-in engines follow the
+/// library default.
 template <typename Engine>
 class NumericalAnalyticsEngine {
 public:

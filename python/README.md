@@ -43,6 +43,16 @@ measures are `None`. Domain validation failures raise `KiyosiError` with an
 returns a timezone-aware UTC `datetime`; `date` inputs become midnight UTC. Naive datetimes,
 booleans, strings, and `Decimal` values are rejected.
 
+## Thread safety
+
+Operations on distinct objects and concurrent read-only operations on the same object are safe.
+Do not mutate, reassign, move, or destroy an object while another thread is using it unless you
+provide synchronization. Pricing, numerical analytics, scenario grids, and implied solvers
+release the GIL while running in the C++ core.
+
+`PricingContext.parameters` and `PricingContext.calendar` are read-only borrowed views. Each view
+keeps its owning context alive, remains valid for that lifetime, and is safe for concurrent reads.
+
 ## Development
 
 Run the Python checks with:

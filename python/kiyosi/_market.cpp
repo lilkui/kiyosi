@@ -128,7 +128,8 @@ void bind_market(nb::module_& module)
              nb::kw_only(), "parameters"_a, "asset_price"_a, "valuation_time"_a,
              "calendar"_a = exchange_calendar())
         .def_prop_ro("parameters", &PricingContext::parameters,
-                     nb::rv_policy::reference_internal)
+                     nb::rv_policy::reference_internal,
+                     "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
         .def_prop_ro("asset_price", &PricingContext::asset_price)
         .def_prop_ro("valuation_date", [](const PricingContext& context) {
             return python_date(context.valuation_date());
@@ -137,7 +138,8 @@ void bind_market(nb::module_& module)
             return python_timestamp(context.valuation_time());
         })
         .def_prop_ro("calendar", &PricingContext::calendar,
-                     nb::rv_policy::reference_internal);
+                     nb::rv_policy::reference_internal,
+                     "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
 
     module.def("all_days_calendar", &all_days_calendar);
     module.def("exchange_calendar", &exchange_calendar);

@@ -1,5 +1,11 @@
 #pragma once
 
+/// \file
+/// Thread safety: Unless documented otherwise, operations on distinct objects and concurrent
+/// const operations on the same object are safe. An object must remain alive and must not be
+/// moved from, assigned to, or otherwise mutated during concurrent access. Concurrent access
+/// involving mutation requires external synchronization.
+
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
