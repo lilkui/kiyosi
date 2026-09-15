@@ -258,7 +258,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         .asset_settlement = false,
         .settlement_timing = kiyosi::rebate_timing::at_expiry,
         .observation = kiyosi::observation_mode::scheduled,
-        .observations = {valuation + std::chrono::days{180}, expiry}});
+        .observations = {valuation + std::chrono::days{179}, expiry}});
     const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::risk_measure::price);
     const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::risk_measure::price);
     CHECK(std::abs(short_value - long_value) > 1e-4);
@@ -284,7 +284,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
 TEST_CASE("Scheduled vanilla barriers validate events and refine")
 {
     const std::vector<kiyosi::date> observations{
-        valuation + std::chrono::days{37}, valuation + std::chrono::days{173}, expiry};
+        valuation + std::chrono::days{37}, valuation + std::chrono::days{172}, expiry};
     const auto terms = kiyosi::BarrierOptionTerms{.type = kiyosi::option_type::call,
                                                   .strike = 100.0,
                                                   .effective = valuation,
