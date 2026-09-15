@@ -14,36 +14,42 @@ TEST_CASE("Barrier option factory rejects invalid contracts")
 {
     const auto effective = day(2025, 1, 6);
     const auto expiry = effective + std::chrono::days{365};
-    CHECK(kiyosi::make_barrier_option({static_cast<kiyosi::option_type>(99), 100.0, effective, expiry, 90.0,
-                                       kiyosi::barrier_type::down_and_in})
-              .error()
-              .category == kiyosi::error_category::invalid_option);
-    CHECK(kiyosi::make_barrier_option({kiyosi::option_type::call, -1.0, effective, expiry, 90.0,
-                                       kiyosi::barrier_type::down_and_in})
-              .error()
-              .category == kiyosi::error_category::invalid_strike);
-    CHECK(kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry, -1.0,
-                                       kiyosi::barrier_type::down_and_in})
-              .error()
-              .category == kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry, 90.0,
-                                       kiyosi::barrier_type::down_and_in, -1.0})
-              .error()
-              .category == kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry, 90.0,
-                                       kiyosi::barrier_type::down_and_in, 10.0,
-                                       kiyosi::rebate_timing::at_hit})
-              .error()
-              .category == kiyosi::error_category::invalid_option);
+    const auto terms = kiyosi::BarrierOptionTerms{.type = kiyosi::option_type::call,
+                                                  .strike = 100.0,
+                                                  .effective = effective,
+                                                  .expiry = expiry,
+                                                  .barrier = 90.0,
+                                                  .barrier_kind = kiyosi::barrier_type::down_and_in};
+    auto invalid = terms;
+    invalid.type = static_cast<kiyosi::option_type>(99);
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::error_category::invalid_option);
+    invalid = terms;
+    invalid.strike = -1.0;
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::error_category::invalid_strike);
+    invalid = terms;
+    invalid.barrier = -1.0;
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::error_category::invalid_parameter);
+    invalid = terms;
+    invalid.rebate = -1.0;
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::error_category::invalid_parameter);
+    invalid = terms;
+    invalid.rebate = 10.0;
+    invalid.rebate_payment = kiyosi::rebate_timing::at_hit;
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::error_category::invalid_option);
 }
 
 TEST_CASE("Barrier option exposes its contractual terms")
 {
     const auto effective = day(2025, 1, 6);
     const auto expiry = effective + std::chrono::days{365};
-    const auto option = kiyosi::make_barrier_option({kiyosi::option_type::call, 100.0, effective, expiry, 120.0,
-                                                      kiyosi::barrier_type::up_and_out, 5.0,
-                                                      kiyosi::rebate_timing::at_expiry});
+    const auto option = kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+                                                     .strike = 100.0,
+                                                     .effective = effective,
+                                                     .expiry = expiry,
+                                                     .barrier = 120.0,
+                                                     .barrier_kind = kiyosi::barrier_type::up_and_out,
+                                                     .rebate = 5.0,
+                                                     .rebate_payment = kiyosi::rebate_timing::at_expiry});
     REQUIRE(option.has_value());
     CHECK(option->type() == kiyosi::option_type::call);
     CHECK(option->strike() == 100.0);

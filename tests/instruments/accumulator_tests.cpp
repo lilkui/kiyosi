@@ -18,17 +18,37 @@ TEST_CASE("Accumulator factory rejects invalid contracts")
 
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    CHECK(kiyosi::make_accumulator({0.0, 110.0, 1.0, 2.0, 0.0, effective, expiry}).error().category ==
+    const auto terms = kiyosi::AccumulatorTerms{.strike = 100.0,
+                                                .knock_out = 110.0,
+                                                .daily_quantity = 1.0,
+                                                .acceleration = 2.0,
+                                                .accumulated_quantity = 0.0,
+                                                .effective = effective,
+                                                .expiry = expiry};
+    auto invalid = terms;
+    invalid.strike = 0.0;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_accumulator({100.0, 0.0, 1.0, 2.0, 0.0, effective, expiry}).error().category ==
+    invalid = terms;
+    invalid.knock_out = 0.0;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_accumulator({100.0, 110.0, -1.0, 2.0, 0.0, effective, expiry}).error().category ==
+    invalid = terms;
+    invalid.daily_quantity = -1.0;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_accumulator({100.0, 110.0, 1.0, -1.0, 0.0, effective, expiry}).error().category ==
+    invalid = terms;
+    invalid.acceleration = -1.0;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, -1.0, effective, expiry}).error().category ==
+    invalid = terms;
+    invalid.accumulated_quantity = -1.0;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_parameter);
-    CHECK(kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, 0.0, expiry, effective}).error().category ==
+    invalid = terms;
+    invalid.effective = expiry;
+    invalid.expiry = effective;
+    CHECK(kiyosi::make_accumulator(invalid).error().category ==
           kiyosi::error_category::invalid_schedule);
 }
 
@@ -36,8 +56,13 @@ TEST_CASE("Accumulator exposes its contractual terms")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const auto accumulator =
-        kiyosi::make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, effective, expiry});
+    const auto accumulator = kiyosi::make_accumulator({.strike = 100.0,
+                                                       .knock_out = 110.0,
+                                                       .daily_quantity = 1.0,
+                                                       .acceleration = 2.0,
+                                                       .accumulated_quantity = 3.0,
+                                                       .effective = effective,
+                                                       .expiry = expiry});
     REQUIRE(accumulator.has_value());
     CHECK(accumulator->strike() == 100.0);
     CHECK(accumulator->knock_out() == 110.0);

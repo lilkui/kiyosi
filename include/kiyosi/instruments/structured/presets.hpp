@@ -15,10 +15,19 @@ namespace kiyosi {
     std::vector<date> observations, date effective, date expiry,
     barrier_touch_status touch_status = barrier_touch_status::none, double principal_ratio = 1.0)
 {
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::vector<double>(observations.size(), knock_out_price), initial_price, 0.0,
-        observations, observation_frequency::daily, touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::vector<double>(observations.size(), knock_out_price),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_step_down_snowball(
@@ -30,10 +39,19 @@ namespace kiyosi {
     knock_out_prices.reserve(observations.size());
     for (std::size_t index = 0; index < observations.size(); ++index)
         knock_out_prices.push_back(knock_out_start - static_cast<double>(index) * knock_out_step);
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::move(knock_out_prices), initial_price, 0.0, observations,
-        observation_frequency::daily, touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::move(knock_out_prices),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_both_down_snowball(
@@ -51,10 +69,19 @@ namespace kiyosi {
         knock_out_prices.push_back(knock_out_start - static_cast<double>(index) * knock_out_step);
     }
     const double maturity_coupon = coupons.empty() ? 0.0 : coupons.back();
-    return make_snowball_option({
-        std::move(coupons), maturity_coupon, initial_price, knock_in_price,
-        std::move(knock_out_prices), initial_price, 0.0, observations, observation_frequency::daily,
-        touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::move(coupons),
+                                 .maturity_coupon_rate = maturity_coupon,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::move(knock_out_prices),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_dual_coupon_snowball(
@@ -62,10 +89,19 @@ namespace kiyosi {
     double knock_out_price, std::vector<date> observations, date effective, date expiry,
     barrier_touch_status touch_status = barrier_touch_status::none, double principal_ratio = 1.0)
 {
-    return make_snowball_option({
-        std::vector<double>(observations.size(), knock_out_coupon), maturity_coupon, initial_price,
-        knock_in_price, std::vector<double>(observations.size(), knock_out_price), initial_price, 0.0,
-        observations, observation_frequency::daily, touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), knock_out_coupon),
+                                 .maturity_coupon_rate = maturity_coupon,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::vector<double>(observations.size(), knock_out_price),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_parachute_snowball(
@@ -75,10 +111,19 @@ namespace kiyosi {
 {
     std::vector<double> knock_out_prices(observations.size(), knock_out_price);
     if (!knock_out_prices.empty()) knock_out_prices.back() = final_knock_out_price;
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::move(knock_out_prices), initial_price, 0.0, observations,
-        observation_frequency::daily, touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::move(knock_out_prices),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_otm_snowball(
@@ -86,10 +131,19 @@ namespace kiyosi {
     double upper_strike, std::vector<date> observations, date effective, date expiry,
     barrier_touch_status touch_status = barrier_touch_status::none, double principal_ratio = 1.0)
 {
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::vector<double>(observations.size(), knock_out_price), upper_strike, 0.0,
-        observations, observation_frequency::daily, touch_status, principal_ratio, effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::vector<double>(observations.size(), knock_out_price),
+                                 .upper_strike = upper_strike,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_loss_capped_snowball(
@@ -97,11 +151,19 @@ namespace kiyosi {
     double lower_strike, std::vector<date> observations, date effective, date expiry,
     barrier_touch_status touch_status = barrier_touch_status::none, double principal_ratio = 1.0)
 {
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::vector<double>(observations.size(), knock_out_price), initial_price,
-        lower_strike, observations, observation_frequency::daily, touch_status, principal_ratio,
-        effective, expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::vector<double>(observations.size(), knock_out_price),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = lower_strike,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::daily,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_european_snowball(
@@ -109,11 +171,19 @@ namespace kiyosi {
     std::vector<date> observations, date effective, date expiry,
     barrier_touch_status touch_status = barrier_touch_status::none, double principal_ratio = 1.0)
 {
-    return make_snowball_option({
-        std::vector<double>(observations.size(), coupon_rate), coupon_rate, initial_price,
-        knock_in_price, std::vector<double>(observations.size(), knock_out_price), initial_price, 0.0,
-        observations, observation_frequency::at_expiry, touch_status, principal_ratio, effective,
-        expiry});
+    return make_snowball_option({.knock_out_coupon_rates = std::vector<double>(observations.size(), coupon_rate),
+                                 .maturity_coupon_rate = coupon_rate,
+                                 .initial_price = initial_price,
+                                 .knock_in_price = knock_in_price,
+                                 .knock_out_prices = std::vector<double>(observations.size(), knock_out_price),
+                                 .upper_strike = initial_price,
+                                 .lower_strike = 0.0,
+                                 .observations = observations,
+                                 .frequency = observation_frequency::at_expiry,
+                                 .touch_status = touch_status,
+                                 .principal_ratio = principal_ratio,
+                                 .effective = effective,
+                                 .expiry = expiry});
 }
 
 } // namespace kiyosi

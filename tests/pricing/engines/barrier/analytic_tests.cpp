@@ -20,9 +20,14 @@ TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto barrier = *kiyosi::make_barrier_option({
-        kiyosi::option_type::call, 100.0, valuation, expiry, 90.0, kiyosi::barrier_type::up_and_out,
-        10.0, kiyosi::rebate_timing::at_expiry});
+    const auto barrier = *kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+                                                       .strike = 100.0,
+                                                       .effective = valuation,
+                                                       .expiry = expiry,
+                                                       .barrier = 90.0,
+                                                       .barrier_kind = kiyosi::barrier_type::up_and_out,
+                                                       .rebate = 10.0,
+                                                       .rebate_payment = kiyosi::rebate_timing::at_expiry});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE(result.has_value());
@@ -35,9 +40,14 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.03, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto barrier = *kiyosi::make_barrier_option({
-        kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
-        10.0, kiyosi::rebate_timing::at_hit});
+    const auto barrier = *kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+                                                       .strike = 1'000'000'000.0,
+                                                       .effective = valuation,
+                                                       .expiry = expiry,
+                                                       .barrier = 110.0,
+                                                       .barrier_kind = kiyosi::barrier_type::up_and_out,
+                                                       .rebate = 10.0,
+                                                       .rebate_payment = kiyosi::rebate_timing::at_hit});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE(result.has_value());
@@ -57,9 +67,14 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     const auto expiry = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(-0.02, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto barrier = *kiyosi::make_barrier_option({
-        kiyosi::option_type::call, 1'000'000'000.0, valuation, expiry, 110.0, kiyosi::barrier_type::up_and_out,
-        10.0, kiyosi::rebate_timing::at_hit});
+    const auto barrier = *kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+                                                       .strike = 1'000'000'000.0,
+                                                       .effective = valuation,
+                                                       .expiry = expiry,
+                                                       .barrier = 110.0,
+                                                       .barrier_kind = kiyosi::barrier_type::up_and_out,
+                                                       .rebate = 10.0,
+                                                       .rebate_payment = kiyosi::rebate_timing::at_hit});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE_FALSE(result.has_value());

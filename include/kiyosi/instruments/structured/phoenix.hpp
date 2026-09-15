@@ -55,9 +55,19 @@ private:
 
 inline result<PhoenixOption> PhoenixOption::with_coupon_rate(double coupon) const
 {
-    return make_phoenix_option(PhoenixTerms{coupon, initial_price(), knock_in_price(), knock_out_prices(),
-                                            coupon_barriers(), upper_strike(), lower_strike(), observation_dates(),
-                                            knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()});
+    return make_phoenix_option(PhoenixTerms{.coupon_rate = coupon,
+                                            .initial_price = initial_price(),
+                                            .knock_in_price = knock_in_price(),
+                                            .knock_out_prices = knock_out_prices(),
+                                            .coupon_barriers = coupon_barriers(),
+                                            .upper_strike = upper_strike(),
+                                            .lower_strike = lower_strike(),
+                                            .observations = observation_dates(),
+                                            .frequency = knock_in_frequency(),
+                                            .touch_status = touch_status(),
+                                            .principal_ratio = principal_ratio(),
+                                            .effective = effective(),
+                                            .expiry = expiry()});
 }
 
 [[nodiscard]] inline result<PhoenixOption> make_phoenix_option(PhoenixTerms terms)

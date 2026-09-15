@@ -66,9 +66,16 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     const auto schedule = kiyosi::make_fixed_interval_schedule(
         start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::exchange_calendar());
     REQUIRE(schedule.has_value());
-    const auto barrier = kiyosi::make_barrier_option(
-        {kiyosi::option_type::call, 100.0, start, end, 90.0, kiyosi::barrier_type::down_and_out,
-         0.0, kiyosi::rebate_timing::at_expiry, kiyosi::observation_mode::scheduled, schedule->dates()});
+    const auto barrier = kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+                                                      .strike = 100.0,
+                                                      .effective = start,
+                                                      .expiry = end,
+                                                      .barrier = 90.0,
+                                                      .barrier_kind = kiyosi::barrier_type::down_and_out,
+                                                      .rebate = 0.0,
+                                                      .rebate_payment = kiyosi::rebate_timing::at_expiry,
+                                                      .observation = kiyosi::observation_mode::scheduled,
+                                                      .observations = schedule->dates()});
     REQUIRE(barrier.has_value());
     CHECK(barrier->schedule() == *schedule);
 }

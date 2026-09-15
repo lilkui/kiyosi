@@ -23,17 +23,38 @@ TEST_CASE("Snowball factory rejects invalid schedules and supports signed coupon
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
     const auto note = kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-        {-0.1}, -0.05, 100.0, 60.0, {110.0}, 100.0, 60.0, {expiry},
-         kiyosi::observation_frequency::daily, kiyosi::barrier_touch_status::none, 1.0, effective, expiry});
+        .knock_out_coupon_rates = {-0.1},
+        .maturity_coupon_rate = -0.05,
+        .initial_price = 100.0,
+        .knock_in_price = 60.0,
+        .knock_out_prices = {110.0},
+        .upper_strike = 100.0,
+        .lower_strike = 60.0,
+        .observations = {expiry},
+        .frequency = kiyosi::observation_frequency::daily,
+        .touch_status = kiyosi::barrier_touch_status::none,
+        .principal_ratio = 1.0,
+        .effective = effective,
+        .expiry = expiry});
     REQUIRE(note);
     const auto replaced = note->with_coupon_rate(-0.08);
     REQUIRE(replaced);
     CHECK(replaced->maturity_coupon_rate() == -0.08);
     CHECK_FALSE(note->with_coupon_rate(std::numeric_limits<double>::infinity()));
     CHECK(kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-              {0.1}, 0.05, 100.0, 60.0, {110.0}, 100.0, 60.0,
-               {expiry, effective}, kiyosi::observation_frequency::daily,
-               kiyosi::barrier_touch_status::none, 1.0, effective, expiry})
+              .knock_out_coupon_rates = {0.1},
+              .maturity_coupon_rate = 0.05,
+              .initial_price = 100.0,
+              .knock_in_price = 60.0,
+              .knock_out_prices = {110.0},
+              .upper_strike = 100.0,
+              .lower_strike = 60.0,
+              .observations = {expiry, effective},
+              .frequency = kiyosi::observation_frequency::daily,
+              .touch_status = kiyosi::barrier_touch_status::none,
+              .principal_ratio = 1.0,
+              .effective = effective,
+              .expiry = expiry})
               .error()
               .category == kiyosi::error_category::invalid_schedule);
 }

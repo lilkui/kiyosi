@@ -31,10 +31,15 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
         REQUIRE((inputs.at("settlement") == "at_hit" || inputs.at("settlement") == "at_expiry"));
         const auto option = kiyosi::make_barrier_option({
-            inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
-            number("strike"), date("effective"), date("expiry"), number("barrier"),
-            barrier_kinds.at(inputs.at("barrier_kind")), number("rebate"),
-            inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit : kiyosi::rebate_timing::at_expiry});
+            .type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            .strike = number("strike"),
+            .effective = date("effective"),
+            .expiry = date("expiry"),
+            .barrier = number("barrier"),
+            .barrier_kind = barrier_kinds.at(inputs.at("barrier_kind")),
+            .rebate = number("rebate"),
+            .rebate_payment = inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit
+                                                                   : kiyosi::rebate_timing::at_expiry});
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());

@@ -152,9 +152,19 @@ private:
 
 inline result<SnowballOption> SnowballOption::with_coupon_rate(double coupon) const
 {
-    return make_snowball_option({knock_out_coupon_rates(), coupon, initial_price(), knock_in_price(),
-                                 knock_out_prices(), upper_strike(), lower_strike(), observation_dates(),
-                                 knock_in_frequency(), touch_status(), principal_ratio(), effective(), expiry()});
+    return make_snowball_option({.knock_out_coupon_rates = knock_out_coupon_rates(),
+                                 .maturity_coupon_rate = coupon,
+                                 .initial_price = initial_price(),
+                                 .knock_in_price = knock_in_price(),
+                                 .knock_out_prices = knock_out_prices(),
+                                 .upper_strike = upper_strike(),
+                                 .lower_strike = lower_strike(),
+                                 .observations = observation_dates(),
+                                 .frequency = knock_in_frequency(),
+                                 .touch_status = touch_status(),
+                                 .principal_ratio = principal_ratio(),
+                                 .effective = effective(),
+                                 .expiry = expiry()});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_snowball_option(SnowballTerms terms)
