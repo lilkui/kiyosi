@@ -24,10 +24,10 @@ std::optional<risk_measure> measure_named(std::string_view name)
     return std::nullopt;
 }
 
-nb::object optional_value(const PricingResult& result, risk_measure measure)
+PythonOptionalReal optional_value(const PricingResult& result, risk_measure measure)
 {
-    if (const auto value = result.get(measure)) return nb::float_(*value);
-    return nb::none();
+    if (const auto value = result.get(measure)) return PythonOptionalReal{nb::float_(*value)};
+    return PythonOptionalReal{nb::none()};
 }
 
 nb::tuple result_keys()
@@ -77,8 +77,8 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 {
     nb::class_<Engine> binding{module, name};
     binding
-        .def(nb::new_([](nb::handle asset_steps, nb::handle time_steps,
-                        finite_difference_scheme scheme, nb::handle upper_boundary) {
+        .def(nb::new_([](PythonInteger asset_steps, PythonInteger time_steps,
+                        finite_difference_scheme scheme, PythonReal upper_boundary) {
                  std::optional<double> boundary;
                  if (!upper_boundary.is_none())
                      boundary = real_number(upper_boundary, "upper_boundary");
@@ -101,7 +101,7 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
 {
     nb::class_<Engine> binding{module, name};
     binding
-        .def(nb::new_([](nb::handle path_count, nb::handle seed) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger seed) {
                  return Engine{StructuredMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed)}};
              }),
@@ -144,21 +144,21 @@ void bind_analytics_pair(nb::module_& module)
     module.def(
         "numerical_analytics",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
-           nb::handle time_shift_days) {
+           PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
+           PythonInteger time_shift_days) {
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::numerical_analytics(engine, instrument, context, settings));
         },
-        "engine"_a, "instrument"_a, "context"_a, nb::kw_only(), "spot_shift"_a = 1e-2,
-        "volatility_shift"_a = 1e-4, "rate_shift"_a = 1e-4,
-        "time_shift_days"_a = 1);
+        "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
+        "spot_shift"_a = 1e-2, "volatility_shift"_a = 1e-4,
+        "rate_shift"_a = 1e-4, "time_shift_days"_a = 1);
     module.def(
         "scenario_grid",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           nb::handle spots, nb::handle spot_shift, nb::handle volatility_shift,
-           nb::handle rate_shift, nb::handle time_shift_days) {
+           PythonRealSequence spots, PythonReal spot_shift, PythonReal volatility_shift,
+           PythonReal rate_shift, PythonInteger time_shift_days) {
             const auto values = real_sequence(spots, "spots");
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
@@ -171,8 +171,8 @@ void bind_analytics_pair(nb::module_& module)
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           nb::handle observed_price, nb::handle lower_bound, nb::handle upper_bound,
-           nb::handle tolerance, nb::handle max_iterations) {
+           PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
+           PythonReal tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
             const auto settings = volatility_settings(
                 lower_bound, upper_bound, tolerance, max_iterations);
@@ -191,8 +191,8 @@ void bind_implied_coupon_pair(nb::module_& module)
     module.def(
         "implied_coupon",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           nb::handle observed_price, nb::handle lower_bound, nb::handle upper_bound,
-           nb::handle tolerance, nb::handle max_iterations) {
+           PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
+           PythonReal tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
             const auto settings = coupon_settings(
                 lower_bound, upper_bound, tolerance, max_iterations);
@@ -218,7 +218,7 @@ void bind_results(nb::module_& module)
     nb::class_<PricingResult>(module, "PricingResult")
         .def("__len__", [](const PricingResult&) { return risk_measure_count; })
         .def("__iter__", [](const PricingResult&) {
-            return result_keys().attr("__iter__")();
+            return PythonStringIterator{result_keys().attr("__iter__")()};
         })
         .def("__contains__", [](const PricingResult&, nb::str key) {
             return measure_named(nb::cast<std::string>(key)).has_value();
@@ -289,7 +289,7 @@ void bind_engines(nb::module_& module)
         module, "IntegralVanillaEngine").def(nb::init<>());
     bind_engine_price<IntegralVanillaEngine, EuropeanOption>(integral_vanilla);
     auto crr = nb::class_<CrrVanillaEngine>(module, "CrrVanillaEngine")
-        .def(nb::new_([](nb::handle steps) {
+        .def(nb::new_([](PythonInteger steps) {
                  return CrrVanillaEngine{integer(steps, "steps")};
              }),
              "steps"_a = 256)
@@ -307,7 +307,8 @@ void bind_engines(nb::module_& module)
     bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
         module, "MonteCarloVanillaEngine")
-        .def(nb::new_([](nb::handle path_count, nb::handle step_count, nb::handle seed) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
+                        PythonInteger seed) {
                  return MonteCarloVanillaEngine{MonteCarloSettings{
                      integer(path_count, "path_count"), integer(step_count, "step_count"),
                      optional_seed(seed)}};

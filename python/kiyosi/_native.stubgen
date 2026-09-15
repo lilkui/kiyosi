@@ -1,0 +1,5 @@
+_native.__suffix__:
+    __version__: str
+
+    class KiyosiError(Exception):
+        category: ErrorCategory

@@ -22,6 +22,44 @@ namespace nb = nanobind;
 
 namespace kiyosi::python_binding {
 
+struct PythonDateAnnotation {};
+struct PythonValuationTimeAnnotation {};
+
+} // namespace kiyosi::python_binding
+
+namespace nanobind::detail {
+
+template <>
+struct type_caster<kiyosi::python_binding::PythonDateAnnotation> {
+    NB_TYPE_CASTER(kiyosi::python_binding::PythonDateAnnotation,
+                   const_name("datetime.date"))
+};
+
+template <>
+struct type_caster<kiyosi::python_binding::PythonValuationTimeAnnotation> {
+    NB_TYPE_CASTER(kiyosi::python_binding::PythonValuationTimeAnnotation,
+                   const_name("datetime.date | datetime.datetime"))
+};
+
+} // namespace nanobind::detail
+
+namespace kiyosi::python_binding {
+
+using PythonReal = nb::typed<nb::handle, double>;
+using PythonInteger = nb::typed<nb::handle, int>;
+using PythonDate = nb::typed<nb::handle, PythonDateAnnotation>;
+using PythonValuationTime = nb::typed<nb::handle, PythonValuationTimeAnnotation>;
+using PythonRealSequence = nb::typed<nb::handle, nb::typed<nb::iterable, double>>;
+using PythonDateSequence =
+    nb::typed<nb::handle, nb::typed<nb::iterable, PythonDateAnnotation>>;
+using PythonOptionType = nb::typed<nb::object, option_type>;
+using PythonDateObject = nb::typed<nb::object, PythonDateAnnotation>;
+using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
+using PythonDateIterator =
+    nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
+using PythonStringIterator = nb::typed<nb::object, nb::typed<nb::iterator, std::string>>;
+using PythonOptionalReal = nb::typed<nb::object, std::optional<double>>;
+
 class DomainException final : public std::runtime_error {
 public:
     explicit DomainException(Error error)
@@ -96,12 +134,13 @@ inline date calendar_date(nb::handle value, std::string_view field)
                 std::chrono::day{nb::cast<unsigned>(object.attr("day"))}};
 }
 
-inline nb::object python_date(date value)
+inline PythonDateObject python_date(date value)
 {
     const auto parts = std::chrono::year_month_day{value};
     const nb::object datetime = nb::module_::import_("datetime");
-    return datetime.attr("date")(
-        int(parts.year()), static_cast<unsigned>(parts.month()), static_cast<unsigned>(parts.day()));
+    return PythonDateObject{datetime.attr("date")(
+        int(parts.year()), static_cast<unsigned>(parts.month()),
+        static_cast<unsigned>(parts.day()))};
 }
 
 inline timestamp valuation_time(nb::handle value)

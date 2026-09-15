@@ -67,8 +67,8 @@ void bind_enums(nb::module_& module)
 void bind_market(nb::module_& module)
 {
     nb::class_<BsmParameters>(module, "BsmParameters")
-        .def(nb::new_([](nb::handle risk_free_rate, nb::handle dividend_yield,
-                        nb::handle volatility) {
+        .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
+                        PythonReal volatility) {
                  return unwrap(make_bsm_parameters(
                      real_number(risk_free_rate, "risk_free_rate"),
                      real_number(dividend_yield, "dividend_yield"),
@@ -81,18 +81,18 @@ void bind_market(nb::module_& module)
 
     nb::class_<TradingCalendar>(module, "TradingCalendar")
         .def("is_trading_day",
-             [](const TradingCalendar& calendar, nb::handle value) {
+             [](const TradingCalendar& calendar, PythonDate value) {
                  return calendar.is_trading_day(calendar_date(value, "value"));
              },
              "value"_a)
         .def("trading_days_between",
-             [](const TradingCalendar& calendar, nb::handle start, nb::handle end) {
+             [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
                  return calendar.trading_days_between(
                      calendar_date(start, "start"), calendar_date(end, "end"));
              },
              "start"_a, "end"_a)
         .def("trading_year_fraction",
-             [](const TradingCalendar& calendar, nb::handle start, nb::handle end) {
+             [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
                  return calendar.trading_year_fraction(
                      calendar_date(start, "start"), calendar_date(end, "end"));
              },
@@ -108,19 +108,19 @@ void bind_market(nb::module_& module)
             return python_date(schedule[static_cast<std::size_t>(index)]);
         })
         .def("__iter__", [](const ObservationSchedule& schedule) {
-            nb::list output;
+            PythonDateList output;
             for (const date value : schedule.dates()) output.append(python_date(value));
-            return output.attr("__iter__")();
+            return PythonDateIterator{output.attr("__iter__")()};
         })
         .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
-            nb::list output;
+            PythonDateList output;
             for (const date value : schedule.dates()) output.append(python_date(value));
             return output;
         });
 
     nb::class_<PricingContext>(module, "PricingContext")
-        .def(nb::new_([](const BsmParameters& parameters, nb::handle asset_price,
-                        nb::handle time, const TradingCalendar& calendar) {
+        .def(nb::new_([](const BsmParameters& parameters, PythonReal asset_price,
+                        PythonValuationTime time, const TradingCalendar& calendar) {
                  return unwrap(make_pricing_context(
                      parameters, real_number(asset_price, "asset_price"),
                      valuation_time(time), calendar));
@@ -142,7 +142,7 @@ void bind_market(nb::module_& module)
     module.def("sse_calendar", &sse_calendar);
     module.def(
         "fixed_interval_schedule",
-        [](nb::handle start, nb::handle end, nb::handle interval_days,
+        [](PythonDate start, PythonDate end, PythonInteger interval_days,
            const TradingCalendar& calendar) {
             return unwrap(make_fixed_interval_schedule(
                 calendar_date(start, "start"), calendar_date(end, "end"),
@@ -152,7 +152,7 @@ void bind_market(nb::module_& module)
         "calendar"_a = exchange_calendar());
     module.def(
         "monthly_schedule",
-        [](nb::handle start, nb::handle end, nb::handle lock_up_months,
+        [](PythonDate start, PythonDate end, PythonInteger lock_up_months,
            const TradingCalendar& calendar) {
             return unwrap(make_monthly_schedule(
                 calendar_date(start, "start"), calendar_date(end, "end"),

@@ -241,6 +241,14 @@ if(KIYOSI_BUILD_PYTHON)
     )
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)
 
+    nanobind_add_stub(kiyosi_python_stubs
+        MODULE _native
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_native.pyi"
+        PYTHON_PATH $<TARGET_FILE_DIR:_native>
+        DEPENDS _native
+        PATTERN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/python/kiyosi/_native.stubgen"
+    )
+
     include(CheckIPOSupported)
     check_ipo_supported(RESULT KIYOSI_IPO_SUPPORTED)
     if(KIYOSI_IPO_SUPPORTED)
@@ -253,6 +261,9 @@ if(KIYOSI_BUILD_PYTHON)
     install(TARGETS _native
         LIBRARY DESTINATION kiyosi
         RUNTIME DESTINATION kiyosi
+    )
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/_native.pyi"
+        DESTINATION kiyosi
     )
 endif()
 

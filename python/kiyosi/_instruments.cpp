@@ -21,9 +21,9 @@ void bind_average_option(
     result<AverageOptionType> (*factory)(option_type, double, date, date, date, double))
 {
     nb::class_<AverageOptionType>(module, name)
-        .def(nb::new_([factory](option_type type, nb::handle strike, nb::handle average_start,
-                                nb::handle effective, nb::handle expiry,
-                                nb::handle realized_average) {
+        .def(nb::new_([factory](option_type type, PythonReal strike,
+                                PythonDate average_start, PythonDate effective,
+                                PythonDate expiry, PythonReal realized_average) {
                  return unwrap(factory(
                      type, real_number(strike, "strike"),
                      calendar_date(average_start, "average_start"),
@@ -45,8 +45,8 @@ void bind_average_option(
 void bind_instruments(nb::module_& module)
 {
     auto european = nb::class_<EuropeanOption>(module, "EuropeanOption")
-        .def(nb::new_([](option_type type, nb::handle strike, nb::handle effective,
-                        nb::handle expiry) {
+        .def(nb::new_([](option_type type, PythonReal strike, PythonDate effective,
+                        PythonDate expiry) {
                  return unwrap(make_european_option(
                      type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                      calendar_date(expiry, "expiry")));
@@ -55,8 +55,8 @@ void bind_instruments(nb::module_& module)
     bind_common_option_properties(european);
 
     auto american = nb::class_<AmericanOption>(module, "AmericanOption")
-        .def(nb::new_([](option_type type, nb::handle strike, nb::handle effective,
-                        nb::handle expiry) {
+        .def(nb::new_([](option_type type, PythonReal strike, PythonDate effective,
+                        PythonDate expiry) {
                  return unwrap(make_american_option(
                      type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                      calendar_date(expiry, "expiry")));
@@ -65,8 +65,8 @@ void bind_instruments(nb::module_& module)
     bind_common_option_properties(american);
 
     auto cash = nb::class_<EuropeanCashOrNothingOption>(module, "CashOrNothingOption")
-        .def(nb::new_([](option_type type, nb::handle strike, nb::handle payout,
-                        nb::handle effective, nb::handle expiry) {
+        .def(nb::new_([](option_type type, PythonReal strike, PythonReal payout,
+                        PythonDate effective, PythonDate expiry) {
                  return unwrap(make_cash_or_nothing_option(
                      type, real_number(strike, "strike"), real_number(payout, "payout"),
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")));
@@ -77,8 +77,8 @@ void bind_instruments(nb::module_& module)
     bind_common_option_properties(cash);
 
     auto asset = nb::class_<EuropeanAssetOrNothingOption>(module, "AssetOrNothingOption")
-        .def(nb::new_([](option_type type, nb::handle strike, nb::handle effective,
-                        nb::handle expiry) {
+        .def(nb::new_([](option_type type, PythonReal strike, PythonDate effective,
+                        PythonDate expiry) {
                  return unwrap(make_asset_or_nothing_option(
                      type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                      calendar_date(expiry, "expiry")));
@@ -90,10 +90,10 @@ void bind_instruments(nb::module_& module)
     bind_average_option(module, "ArithmeticAverageOption", &make_arithmetic_average_option);
 
     nb::class_<BarrierOption>(module, "BarrierOption")
-        .def(nb::new_([](option_type type, nb::handle strike, nb::handle effective,
-                        nb::handle expiry, nb::handle barrier, barrier_type barrier_kind,
-                        nb::handle rebate, rebate_timing rebate_payment,
-                        observation_mode observation, nb::handle observations) {
+        .def(nb::new_([](option_type type, PythonReal strike, PythonDate effective,
+                        PythonDate expiry, PythonReal barrier, barrier_type barrier_kind,
+                        PythonReal rebate, rebate_timing rebate_payment,
+                        observation_mode observation, PythonDateSequence observations) {
                  return unwrap(make_barrier_option({
                      type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                      calendar_date(expiry, "expiry"), real_number(barrier, "barrier"),
@@ -115,14 +115,17 @@ void bind_instruments(nb::module_& module)
         .def_prop_ro("rebate_payment", &BarrierOption::rebate_payment)
         .def_prop_ro("observation", &BarrierOption::observation)
         .def_prop_ro("observation_dates", [](const BarrierOption& value) {
-            nb::list output; for (const date item : value.observation_dates()) output.append(python_date(item)); return output;
+            PythonDateList output;
+            for (const date item : value.observation_dates()) output.append(python_date(item));
+            return output;
         });
 
     nb::class_<BinaryBarrierOption>(module, "BinaryBarrierOption")
-        .def(nb::new_([](nb::object type, nb::handle strike, nb::handle effective,
-                        nb::handle expiry, nb::handle barrier, barrier_type barrier_kind,
-                        nb::handle payout, bool asset_settlement, rebate_timing settlement_timing,
-                        observation_mode observation, nb::handle observations) {
+        .def(nb::new_([](PythonOptionType type, PythonReal strike, PythonDate effective,
+                        PythonDate expiry, PythonReal barrier, barrier_type barrier_kind,
+                        PythonReal payout, bool asset_settlement,
+                        rebate_timing settlement_timing, observation_mode observation,
+                        PythonDateSequence observations) {
                  std::optional<option_type> option;
                  if (!type.is_none()) option = nb::cast<option_type>(type);
                  return unwrap(make_binary_barrier_option({
@@ -148,14 +151,16 @@ void bind_instruments(nb::module_& module)
         .def_prop_ro("settlement_timing", &BinaryBarrierOption::settlement_timing)
         .def_prop_ro("observation", &BinaryBarrierOption::observation)
         .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
-            nb::list output; for (const date item : value.observation_dates()) output.append(python_date(item)); return output;
+            PythonDateList output;
+            for (const date item : value.observation_dates()) output.append(python_date(item));
+            return output;
         });
 
     nb::class_<Accumulator>(module, "Accumulator")
-        .def(nb::new_([](nb::handle strike, nb::handle knock_out,
-                        nb::handle daily_quantity, nb::handle acceleration,
-                        nb::handle accumulated_quantity, nb::handle effective,
-                        nb::handle expiry) {
+        .def(nb::new_([](PythonReal strike, PythonReal knock_out,
+                        PythonReal daily_quantity, PythonReal acceleration,
+                        PythonReal accumulated_quantity, PythonDate effective,
+                        PythonDate expiry) {
                  return unwrap(make_accumulator({
                      real_number(strike, "strike"), real_number(knock_out, "knock_out"),
                      real_number(daily_quantity, "daily_quantity"),
