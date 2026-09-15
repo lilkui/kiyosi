@@ -58,6 +58,24 @@ class KiyosiPythonTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             EuropeanOption(type=OptionType.CALL, strike="100", effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
         with self.assertRaises(TypeError):
+            BsmParameters(risk_free_rate=True, dividend_yield=0.02, volatility=0.2)
+        with self.assertRaises(TypeError):
+            pricing.FiniteDifferenceVanillaEngine(asset_steps=1.5)
+        with self.assertRaises(TypeError):
+            pricing.MonteCarloVanillaEngine(seed=True)
+        with self.assertRaises(OverflowError):
+            pricing.FiniteDifferenceVanillaEngine(asset_steps=2**40)
+        with self.assertRaises(OverflowError):
+            BsmParameters(risk_free_rate=10**400, dividend_yield=0.02, volatility=0.2)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            BsmParameters(risk_free_rate=float("inf"), dividend_yield=0.02, volatility=0.2)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RATE)
+        for seed in (-1, 2**64):
+            with self.subTest(seed=seed), self.assertRaises(OverflowError):
+                pricing.MonteCarloVanillaEngine(seed=seed)
+        maximum_seed = 2**64 - 1
+        self.assertEqual(pricing.MonteCarloVanillaEngine(seed=maximum_seed).seed, maximum_seed)
+        with self.assertRaises(TypeError):
             PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1))
         aware = PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1, 8, tzinfo=timezone.utc))
         self.assertIsNotNone(AnalyticVanillaEngine().price(self.option, aware).price)

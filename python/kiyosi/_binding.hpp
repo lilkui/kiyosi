@@ -102,7 +102,9 @@ inline double real_number(nb::handle value, std::string_view field)
     const int is_real = PyObject_IsInstance(value.ptr(), real_type.ptr());
     if (is_real < 0) throw nb::python_error();
     if (PyBool_Check(value.ptr()) || is_real == 0) type_error(field, "a real number");
-    return nb::cast<double>(value);
+    const double converted = PyFloat_AsDouble(value.ptr());
+    if (PyErr_Occurred()) throw nb::python_error();
+    return converted;
 }
 
 inline int integer(nb::handle value, std::string_view field)
@@ -111,7 +113,11 @@ inline int integer(nb::handle value, std::string_view field)
     const int is_integer = PyObject_IsInstance(value.ptr(), integer_type.ptr());
     if (is_integer < 0) throw nb::python_error();
     if (PyBool_Check(value.ptr()) || is_integer == 0) type_error(field, "an integer");
-    return nb::cast<int>(value);
+    const long long converted = PyLong_AsLongLong(value.ptr());
+    if (PyErr_Occurred()) throw nb::python_error();
+    if (!std::in_range<int>(converted))
+        throw std::overflow_error(std::string{field} + " is outside the range of a C++ int");
+    return static_cast<int>(converted);
 }
 
 inline std::optional<std::uint64_t> optional_seed(nb::handle value)
@@ -122,9 +128,11 @@ inline std::optional<std::uint64_t> optional_seed(nb::handle value)
     if (is_integer < 0) throw nb::python_error();
     if (PyBool_Check(value.ptr()) || is_integer == 0)
         type_error("seed", "a non-negative integer or None");
-    const auto seed = nb::cast<std::int64_t>(value);
-    if (seed < 0) type_error("seed", "a non-negative integer or None");
-    return static_cast<std::uint64_t>(seed);
+    const unsigned long long converted = PyLong_AsUnsignedLongLong(value.ptr());
+    if (PyErr_Occurred()) throw nb::python_error();
+    if (!std::in_range<std::uint64_t>(converted))
+        throw std::overflow_error("seed is outside the range of a uint64_t");
+    return static_cast<std::uint64_t>(converted);
 }
 
 inline date calendar_date(nb::handle value, std::string_view field)

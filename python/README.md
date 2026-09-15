@@ -43,6 +43,10 @@ measures are `None`. Domain validation failures raise `KiyosiError` with an
 returns a timezone-aware UTC `datetime`; `date` inputs become midnight UTC. Naive datetimes,
 booleans, strings, and `Decimal` values are rejected.
 
+Numeric protocol violations raise `TypeError`, and values outside the corresponding C++ type's
+range raise `OverflowError`. Values that convert safely but violate domain rules raise
+`KiyosiError` with an `ErrorCategory`.
+
 ## Thread safety
 
 Operations on distinct objects and concurrent read-only operations on the same object are safe.
