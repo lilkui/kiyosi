@@ -13,7 +13,7 @@ class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine {
 public:
     explicit FiniteDifferenceAccumulatorEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceAccumulatorEngine(int asset_steps, int time_steps,
-                                      finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
+                                      finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_steps, time_steps, scheme} {}
 
     [[nodiscard]] result<PricingResult> price(const Accumulator&, const PricingContext&) const;

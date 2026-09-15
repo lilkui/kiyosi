@@ -19,8 +19,8 @@ struct PhoenixTerms {
     double lower_strike{};
     std::vector<date> observations;
     observation_frequency frequency{};
-    barrier_touch_status touch_status{};
-    double principal_ratio{};
+    barrier_touch_status touch_status{barrier_touch_status::none};
+    double principal_ratio{1.0};
     date effective{};
     date expiry{};
 };

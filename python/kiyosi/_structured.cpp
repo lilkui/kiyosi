@@ -52,7 +52,8 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "observations"_a, "effective"_a, "expiry"_a,
-        "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0);
+        "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
 }
 
 void bind_presets(nb::module_& module)
@@ -77,8 +78,8 @@ void bind_presets(nb::module_& module)
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_start"_a, "knock_out_step"_a, "observations"_a, "effective"_a,
-        "expiry"_a, "touch_status"_a = barrier_touch_status::none,
-        "principal_ratio"_a = 1.0);
+        "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
     module.def(
         "both_down_snowball",
         [](PythonReal coupon_start, PythonReal coupon_step, PythonReal initial_price,
@@ -99,7 +100,8 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "coupon_start"_a, "coupon_step"_a, "initial_price"_a,
         "knock_in_price"_a, "knock_out_start"_a, "knock_out_step"_a,
         "observations"_a, "effective"_a, "expiry"_a,
-        "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0);
+        "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
     module.def(
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon, PythonReal maturity_coupon,
@@ -119,7 +121,8 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "knock_out_coupon"_a, "maturity_coupon"_a,
         "initial_price"_a, "knock_in_price"_a, "knock_out_price"_a,
         "observations"_a, "effective"_a, "expiry"_a,
-        "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0);
+        "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
     module.def(
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -138,8 +141,8 @@ void bind_presets(nb::module_& module)
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "final_knock_out_price"_a, "observations"_a,
-        "effective"_a, "expiry"_a, "touch_status"_a = barrier_touch_status::none,
-        "principal_ratio"_a = 1.0);
+        "effective"_a, "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
     module.def(
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -158,8 +161,8 @@ void bind_presets(nb::module_& module)
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "upper_strike"_a, "observations"_a, "effective"_a,
-        "expiry"_a, "touch_status"_a = barrier_touch_status::none,
-        "principal_ratio"_a = 1.0);
+        "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
     module.def(
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -178,8 +181,8 @@ void bind_presets(nb::module_& module)
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "lower_strike"_a, "observations"_a, "effective"_a,
-        "expiry"_a, "touch_status"_a = barrier_touch_status::none,
-        "principal_ratio"_a = 1.0);
+        "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
 }
 
 } // namespace
@@ -209,7 +212,8 @@ void bind_structured_instruments(nb::module_& module)
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
              "initial_price"_a, "knock_in_price"_a, "knock_out_prices"_a,
              "upper_strike"_a, "lower_strike"_a, "observations"_a, "frequency"_a,
-             "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0,
+             "touch_status"_a = SnowballTerms{}.touch_status,
+             "principal_ratio"_a = SnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a)
         .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate)
@@ -239,7 +243,8 @@ void bind_structured_instruments(nb::module_& module)
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
              "initial_price"_a, "knock_out_prices"_a, "upper_strike"_a,
              "lower_strike"_a, "observations"_a,
-             "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0,
+             "touch_status"_a = BinarySnowballTerms{}.touch_status,
+             "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a)
         .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate);
@@ -270,7 +275,8 @@ void bind_structured_instruments(nb::module_& module)
              "minimal_coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
              "knock_out_prices"_a, "upper_strike"_a, "lower_strike"_a,
              "observations"_a, "frequency"_a,
-             "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0,
+             "touch_status"_a = TernarySnowballTerms{}.touch_status,
+             "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a)
         .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate)
@@ -299,7 +305,8 @@ void bind_structured_instruments(nb::module_& module)
              nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
              "knock_out_prices"_a, "coupon_barriers"_a, "upper_strike"_a,
              "lower_strike"_a, "observations"_a, "frequency"_a,
-             "touch_status"_a = barrier_touch_status::none, "principal_ratio"_a = 1.0,
+             "touch_status"_a = PhoenixTerms{}.touch_status,
+             "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
              "effective"_a, "expiry"_a)
         .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate)
         .def_prop_ro("coupon_barriers", &PhoenixOption::coupon_barriers)

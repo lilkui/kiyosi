@@ -21,8 +21,8 @@ struct SnowballTerms {
     double lower_strike{};
     std::vector<date> observations;
     observation_frequency frequency{};
-    barrier_touch_status touch_status{};
-    double principal_ratio{};
+    barrier_touch_status touch_status{barrier_touch_status::none};
+    double principal_ratio{1.0};
     date effective{};
     date expiry{};
 };
@@ -38,8 +38,8 @@ struct TernarySnowballTerms {
     double lower_strike{};
     std::vector<date> observations;
     observation_frequency frequency{};
-    barrier_touch_status touch_status{};
-    double principal_ratio{};
+    barrier_touch_status touch_status{barrier_touch_status::none};
+    double principal_ratio{1.0};
     date effective{};
     date expiry{};
 };
@@ -52,8 +52,8 @@ struct BinarySnowballTerms {
     double upper_strike{};
     double lower_strike{};
     std::vector<date> observations;
-    barrier_touch_status touch_status{};
-    double principal_ratio{};
+    barrier_touch_status touch_status{barrier_touch_status::none};
+    double principal_ratio{1.0};
     date effective{};
     date expiry{};
 };

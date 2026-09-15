@@ -14,7 +14,8 @@ namespace kiyosi {
 class KIYOSI_EXPORT MonteCarloAccumulatorEngine {
 public:
     explicit MonteCarloAccumulatorEngine(StructuredMonteCarloSettings settings = {}) : settings_(settings) {}
-    explicit MonteCarloAccumulatorEngine(int path_count, std::optional<std::uint64_t> seed = 1)
+    explicit MonteCarloAccumulatorEngine(
+        int path_count, std::optional<std::uint64_t> seed = StructuredMonteCarloSettings{}.seed)
         : settings_{path_count, seed} {}
 
     [[nodiscard]] result<PricingResult> price(const Accumulator&, const PricingContext&) const;

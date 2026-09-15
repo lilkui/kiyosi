@@ -15,7 +15,7 @@ public:
     explicit FiniteDifferenceVanillaEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
     FiniteDifferenceVanillaEngine(int asset_steps, int time_steps,
-                                  finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
+                                  finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_steps, time_steps, scheme} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>

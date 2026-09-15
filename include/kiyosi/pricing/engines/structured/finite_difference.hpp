@@ -19,7 +19,7 @@ class KIYOSI_EXPORT FiniteDifferenceStructuredEngine {
 public:
     explicit FiniteDifferenceStructuredEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceStructuredEngine(int asset_steps, int time_steps,
-                                     finite_difference_scheme scheme = finite_difference_scheme::crank_nicolson)
+                                     finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_steps, time_steps, scheme} {}
 
     [[nodiscard]] result<PricingResult> price(const Note& note, const PricingContext& context) const

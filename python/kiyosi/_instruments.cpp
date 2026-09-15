@@ -31,7 +31,7 @@ void bind_average_option(
                      real_number(realized_average, "realized_average")));
              }),
              nb::kw_only(), "type"_a, "strike"_a, "average_start"_a, "effective"_a,
-             "expiry"_a, "realized_average"_a = 0.0)
+             "expiry"_a, "realized_average"_a = default_realized_average)
         .def_prop_ro("type", &AverageOptionType::type)
         .def_prop_ro("strike", &AverageOptionType::strike)
         .def_prop_ro("average_start", [](const AverageOptionType& value) {
@@ -103,9 +103,9 @@ void bind_instruments(nb::module_& module)
                      date_sequence(observations, "observations")}));
              }),
              nb::kw_only(), "type"_a, "strike"_a, "effective"_a, "expiry"_a,
-             "barrier"_a, "barrier_kind"_a, "rebate"_a = 0.0,
-             "rebate_payment"_a = rebate_timing::at_expiry,
-             "observation"_a = observation_mode::continuous,
+             "barrier"_a, "barrier_kind"_a, "rebate"_a = BarrierOptionTerms{}.rebate,
+             "rebate_payment"_a = BarrierOptionTerms{}.rebate_payment,
+             "observation"_a = BarrierOptionTerms{}.observation,
              "observations"_a = nb::make_tuple())
         .def_prop_ro("type", &BarrierOption::type)
         .def_prop_ro("strike", &BarrierOption::strike)
@@ -138,9 +138,9 @@ void bind_instruments(nb::module_& module)
              }),
              nb::kw_only(), "type"_a = nb::none(), "strike"_a, "effective"_a,
              "expiry"_a, "barrier"_a, "barrier_kind"_a, "payout"_a,
-             "asset_settlement"_a = false,
-             "settlement_timing"_a = rebate_timing::at_expiry,
-             "observation"_a = observation_mode::continuous,
+             "asset_settlement"_a = BinaryBarrierTerms{}.asset_settlement,
+             "settlement_timing"_a = BinaryBarrierTerms{}.settlement_timing,
+             "observation"_a = BinaryBarrierTerms{}.observation,
              "observations"_a = nb::make_tuple())
         .def_prop_ro("type", &BinaryBarrierOption::type)
         .def_prop_ro("strike", &BinaryBarrierOption::strike)
@@ -171,7 +171,8 @@ void bind_instruments(nb::module_& module)
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")}));
              }),
              nb::kw_only(), "strike"_a, "knock_out"_a, "daily_quantity"_a,
-             "acceleration"_a, "accumulated_quantity"_a = 0.0, "effective"_a,
+             "acceleration"_a,
+             "accumulated_quantity"_a = AccumulatorTerms{}.accumulated_quantity, "effective"_a,
              "expiry"_a)
         .def_prop_ro("strike", &Accumulator::strike)
         .def_prop_ro("knock_out", &Accumulator::knock_out)

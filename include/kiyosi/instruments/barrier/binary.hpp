@@ -98,7 +98,7 @@ private:
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_up(
     double strike, date effective, date expiry, double barrier, double payout,
-    rebate_timing timing = rebate_timing::at_expiry)
+    rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
 {
     return make_binary_barrier_option({.type = std::nullopt,
                                        .strike = strike,
@@ -113,7 +113,7 @@ private:
 
 [[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_down(
     double strike, date effective, date expiry, double barrier, double payout,
-    rebate_timing timing = rebate_timing::at_expiry)
+    rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
 {
     return make_binary_barrier_option({.type = std::nullopt,
                                        .strike = strike,

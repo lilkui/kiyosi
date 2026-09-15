@@ -7,6 +7,8 @@
 
 namespace kiyosi {
 
+inline constexpr double default_realized_average = 0.0;
+
 class AsianOptionTerms;
 
 namespace detail {
@@ -107,7 +109,7 @@ using ArithmeticAverageOption = AverageOption<ArithmeticAveraging>;
 template <typename Averaging>
 [[nodiscard]] inline result<AverageOption<Averaging>> make_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
-    double realized_average = 0.0)
+    double realized_average = default_realized_average)
 {
     auto terms = detail::make_asian_option_terms(type, strike, average_start, realized_average,
                                                  effective, expiry);
@@ -117,7 +119,7 @@ template <typename Averaging>
 
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
-    double realized_average = 0.0)
+    double realized_average = default_realized_average)
 {
     return make_average_option<GeometricAveraging>(type, strike, average_start, effective, expiry,
                                                    realized_average);
@@ -125,7 +127,7 @@ template <typename Averaging>
 
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
-    double realized_average = 0.0)
+    double realized_average = default_realized_average)
 {
     return make_average_option<ArithmeticAveraging>(type, strike, average_start, effective, expiry,
                                                     realized_average);

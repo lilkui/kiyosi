@@ -86,8 +86,9 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
                      integer(asset_steps, "asset_steps"), integer(time_steps, "time_steps"),
                      scheme, boundary}};
              }),
-             nb::kw_only(), "asset_steps"_a = 200, "time_steps"_a = 200,
-             "scheme"_a = finite_difference_scheme::crank_nicolson,
+             nb::kw_only(), "asset_steps"_a = FiniteDifferenceSettings{}.asset_steps,
+             "time_steps"_a = FiniteDifferenceSettings{}.time_steps,
+             "scheme"_a = FiniteDifferenceSettings{}.scheme,
              "upper_boundary"_a = nb::none())
         .def_prop_ro("asset_steps", [](const Engine& engine) { return engine.settings().asset_steps; })
         .def_prop_ro("time_steps", [](const Engine& engine) { return engine.settings().time_steps; })
@@ -105,7 +106,8 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
                  return Engine{StructuredMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed)}};
              }),
-             nb::kw_only(), "path_count"_a = 20'000, "seed"_a = 1)
+             nb::kw_only(), "path_count"_a = StructuredMonteCarloSettings{}.path_count,
+             "seed"_a = StructuredMonteCarloSettings{}.seed.value())
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; })
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; });
     return binding;
@@ -152,8 +154,10 @@ void bind_analytics_pair(nb::module_& module)
             return unwrap(kiyosi::numerical_analytics(engine, instrument, context, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
-        "spot_shift"_a = 1e-2, "volatility_shift"_a = 1e-4,
-        "rate_shift"_a = 1e-4, "time_shift_days"_a = 1);
+        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
+        "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
+        "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
+        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days);
     module.def(
         "scenario_grid",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -166,8 +170,10 @@ void bind_analytics_pair(nb::module_& module)
             return unwrap(kiyosi::scenario_grid(engine, instrument, context, values, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, "spots"_a, nb::kw_only(),
-        "spot_shift"_a = 1e-2, "volatility_shift"_a = 1e-4,
-        "rate_shift"_a = 1e-4, "time_shift_days"_a = 1);
+        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
+        "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
+        "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
+        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days);
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -181,8 +187,10 @@ void bind_analytics_pair(nb::module_& module)
                 engine, instrument, context, observed, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
-        "lower_bound"_a = 0.0001, "upper_bound"_a = 4.0,
-        "tolerance"_a = 1e-8, "max_iterations"_a = 100);
+        "lower_bound"_a = ImpliedVolatilitySettings{}.lower_bound,
+        "upper_bound"_a = ImpliedVolatilitySettings{}.upper_bound,
+        "tolerance"_a = ImpliedVolatilitySettings{}.tolerance,
+        "max_iterations"_a = ImpliedVolatilitySettings{}.max_iterations);
 }
 
 template <typename Engine, typename Instrument>
@@ -201,8 +209,10 @@ void bind_implied_coupon_pair(nb::module_& module)
                 engine, instrument, context, observed, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
-        "lower_bound"_a = 0.0, "upper_bound"_a = 2.0,
-        "tolerance"_a = 1e-8, "max_iterations"_a = 100);
+        "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
+        "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
+        "tolerance"_a = ImpliedCouponSettings{}.tolerance,
+        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations);
 }
 
 template <typename Engine, typename... Instruments>
@@ -292,7 +302,7 @@ void bind_engines(nb::module_& module)
         .def(nb::new_([](PythonInteger steps) {
                  return CrrVanillaEngine{integer(steps, "steps")};
              }),
-             "steps"_a = 256)
+             "steps"_a = BinomialSettings{}.steps)
         .def_prop_ro("steps", [](const CrrVanillaEngine& engine) {
             return engine.settings().steps;
         });
@@ -313,7 +323,8 @@ void bind_engines(nb::module_& module)
                      integer(path_count, "path_count"), integer(step_count, "step_count"),
                      optional_seed(seed)}};
              }),
-             nb::kw_only(), "path_count"_a = 100'000, "step_count"_a = 50,
+             nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
+             "step_count"_a = MonteCarloSettings{}.step_count,
              "seed"_a = nb::none())
         .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().path_count;
