@@ -27,29 +27,35 @@ TEST_CASE("Accumulator factory rejects invalid contracts")
                                                 .expiry = expiry};
     auto invalid = terms;
     invalid.strike = 0.0;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_parameter);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_strike,
+                         "strike must be finite and positive"}));
     invalid = terms;
     invalid.knock_out = 0.0;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_parameter);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_parameter,
+                         "knock-out price must be finite and positive"}));
     invalid = terms;
     invalid.daily_quantity = -1.0;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_parameter);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_parameter,
+                         "daily quantity must be finite and non-negative"}));
     invalid = terms;
     invalid.acceleration = -1.0;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_parameter);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_parameter,
+                         "acceleration must be finite and non-negative"}));
     invalid = terms;
     invalid.accumulated_quantity = -1.0;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_parameter);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_parameter,
+                         "accumulated quantity must be finite and non-negative"}));
     invalid = terms;
     invalid.effective = expiry;
     invalid.expiry = effective;
-    CHECK(kiyosi::make_accumulator(invalid).error().category ==
-          kiyosi::error_category::invalid_schedule);
+    CHECK((kiyosi::make_accumulator(invalid).error() ==
+           kiyosi::Error{kiyosi::error_category::invalid_expiry,
+                         "expiry must not precede effective"}));
 }
 
 TEST_CASE("Accumulator exposes its contractual terms")

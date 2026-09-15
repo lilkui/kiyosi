@@ -50,12 +50,30 @@ private:
 [[nodiscard]] inline result<Accumulator> make_accumulator(AccumulatorTerms terms)
 {
     const auto [strike, knock_out, daily_quantity, acceleration, accumulated_quantity, effective, expiry] = terms;
-    if (!std::isfinite(strike) || strike <= 0.0 || !std::isfinite(knock_out) || knock_out <= 0.0 ||
-        !std::isfinite(daily_quantity) || daily_quantity < 0.0 || !std::isfinite(acceleration) ||
-        acceleration < 0.0 || !std::isfinite(accumulated_quantity) || accumulated_quantity < 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter, "accumulator terms are invalid"});
-    if (!is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry)
-        return std::unexpected(Error{error_category::invalid_schedule, "accumulator dates are invalid"});
+    if (!std::isfinite(strike) || strike <= 0.0)
+        return std::unexpected(
+            Error{error_category::invalid_strike, "strike must be finite and positive"});
+    if (!std::isfinite(knock_out) || knock_out <= 0.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "knock-out price must be finite and positive"});
+    if (!std::isfinite(daily_quantity) || daily_quantity < 0.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "daily quantity must be finite and non-negative"});
+    if (!std::isfinite(acceleration) || acceleration < 0.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "acceleration must be finite and non-negative"});
+    if (!std::isfinite(accumulated_quantity) || accumulated_quantity < 0.0)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "accumulated quantity must be finite and non-negative"});
+    if (!is_valid_date(effective))
+        return std::unexpected(
+            Error{error_category::invalid_date, "effective must be a valid calendar date"});
+    if (!is_valid_date(expiry))
+        return std::unexpected(
+            Error{error_category::invalid_date, "expiry must be a valid calendar date"});
+    if (effective > expiry)
+        return std::unexpected(Error{error_category::invalid_expiry,
+                                     "expiry must not precede effective"});
     return Accumulator{strike, knock_out, daily_quantity, acceleration, accumulated_quantity,
                        effective, expiry};
 }
