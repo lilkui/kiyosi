@@ -66,7 +66,8 @@ void bind_enums(nb::module_& module)
 
 void bind_market(nb::module_& module)
 {
-    nb::class_<BsmParameters>(module, "BsmParameters")
+    auto parameters = nb::class_<BsmParameters>(
+        module, "BsmParameters", "Validated Black-Scholes-Merton market parameters.")
         .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
                         PythonReal volatility) {
                  return unwrap(make_bsm_parameters(
@@ -74,32 +75,45 @@ void bind_market(nb::module_& module)
                      real_number(dividend_yield, "dividend_yield"),
                      real_number(volatility, "volatility")));
              }),
-             nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a)
+             nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a,
+             "Create validated continuously compounded rates and volatility.")
         .def_prop_ro("risk_free_rate", &BsmParameters::risk_free_rate)
         .def_prop_ro("dividend_yield", &BsmParameters::dividend_yield)
         .def_prop_ro("volatility", &BsmParameters::volatility);
+    bind_value_equality(parameters);
+    bind_repr(parameters, "BsmParameters",
+              {{"risk_free_rate", "risk_free_rate"},
+               {"dividend_yield", "dividend_yield"},
+               {"volatility", "volatility"}});
 
-    nb::class_<TradingCalendar>(module, "TradingCalendar")
+    auto calendar = nb::class_<TradingCalendar>(
+        module, "TradingCalendar",
+        "Read-only trading-day calendar. Instances are created by calendar factories.")
         .def("is_trading_day",
              [](const TradingCalendar& calendar, PythonDate value) {
                  return calendar.is_trading_day(calendar_date(value, "value"));
              },
-             "value"_a)
+             "value"_a, "Return whether value is a trading day.")
         .def("trading_days_between",
              [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
                  return unwrap(calendar.trading_days_between(
                      calendar_date(start, "start"), calendar_date(end, "end")));
              },
-             "start"_a, "end"_a)
+             "start"_a, "end"_a,
+             "Count trading days in [start, end); reversed ranges are rejected.")
         .def("trading_year_fraction",
              [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
                  return unwrap(calendar.trading_year_fraction(
                      calendar_date(start, "start"), calendar_date(end, "end")));
              },
-             "start"_a, "end"_a)
+             "start"_a, "end"_a,
+             "Return trading days in [start, end) divided by annual_trading_days.")
         .def_prop_ro("annual_trading_days", &TradingCalendar::annual_trading_days);
+    bind_repr(calendar, "TradingCalendar",
+              {{"annual_trading_days", "annual_trading_days"}});
 
-    nb::class_<ObservationSchedule>(module, "ObservationSchedule")
+    auto schedule = nb::class_<ObservationSchedule>(
+        module, "ObservationSchedule", "Immutable ordered observation dates.")
         .def("__len__", &ObservationSchedule::size)
         .def("__getitem__", [](const ObservationSchedule& schedule, nb::ssize_t index) {
             const auto size = static_cast<nb::ssize_t>(schedule.size());
@@ -117,8 +131,11 @@ void bind_market(nb::module_& module)
             for (const date value : schedule.dates()) output.append(python_date(value));
             return output;
         });
+    bind_value_equality(schedule);
+    bind_repr(schedule, "ObservationSchedule", {{"dates", "dates"}});
 
-    nb::class_<PricingContext>(module, "PricingContext")
+    auto context = nb::class_<PricingContext>(
+        module, "PricingContext", "Validated market state for a valuation instant.")
         .def(nb::new_([](const BsmParameters& parameters, PythonReal asset_price,
                         PythonValuationTime time, const TradingCalendar& calendar) {
                  return unwrap(make_pricing_context(
@@ -126,7 +143,8 @@ void bind_market(nb::module_& module)
                      valuation_time(time), calendar));
              }),
              nb::kw_only(), "parameters"_a, "asset_price"_a, "valuation_time"_a,
-             "calendar"_a = weekdays_calendar())
+             "calendar"_a = weekdays_calendar(),
+             "Create a pricing context; dates denote midnight UTC and use the weekdays calendar by default.")
         .def_prop_ro("parameters", &PricingContext::parameters,
                      nb::rv_policy::reference_internal,
                      "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
@@ -140,10 +158,16 @@ void bind_market(nb::module_& module)
         .def_prop_ro("calendar", &PricingContext::calendar,
                      nb::rv_policy::reference_internal,
                      "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
+    bind_repr(context, "PricingContext",
+              {{"parameters", "parameters"}, {"asset_price", "asset_price"},
+               {"valuation_time", "valuation_time"}, {"calendar", "calendar"}});
 
-    module.def("all_days_calendar", &all_days_calendar);
-    module.def("weekdays_calendar", &weekdays_calendar);
-    module.def("sse_calendar", &sse_calendar);
+    module.def("all_days_calendar", &all_days_calendar,
+               "Return a 365-day calendar in which every day is a trading day.");
+    module.def("weekdays_calendar", &weekdays_calendar,
+               "Return a holiday-unaware Monday-to-Friday calendar with 252 annual trading days.");
+    module.def("sse_calendar", &sse_calendar,
+               "Return the Shanghai Stock Exchange holiday calendar with 252 annual trading days.");
     module.def(
         "fixed_interval_schedule",
         [](PythonDate start, PythonDate end, PythonInteger interval_days,
@@ -153,7 +177,8 @@ void bind_market(nb::module_& module)
                 std::chrono::days{integer(interval_days, "interval_days")}, calendar));
         },
         nb::kw_only(), "start"_a, "end"_a, "interval_days"_a,
-        "calendar"_a = weekdays_calendar());
+        "calendar"_a = weekdays_calendar(),
+        "Build dates at a fixed calendar-day interval, adjusted to trading days.");
     module.def(
         "monthly_schedule",
         [](PythonDate start, PythonDate end, PythonInteger lock_up_months,
@@ -163,7 +188,8 @@ void bind_market(nb::module_& module)
                 integer(lock_up_months, "lock_up_months"), calendar));
         },
         nb::kw_only(), "start"_a, "end"_a, "lock_up_months"_a,
-        "calendar"_a = weekdays_calendar());
+        "calendar"_a = weekdays_calendar(),
+        "Build a monthly observation schedule after the lock-up period.");
 }
 
 } // namespace kiyosi::python_binding

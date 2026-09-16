@@ -70,13 +70,24 @@ void bind_engine_price(nb::class_<Engine>& binding)
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context) {
             return unwrap(engine.price(instrument, context));
         },
-        "instrument"_a, "context"_a, nb::call_guard<nb::gil_scoped_release>());
+        "instrument"_a, "context"_a, nb::call_guard<nb::gil_scoped_release>(),
+        "Price the instrument under the supplied market context.");
+}
+
+template <typename Engine>
+nb::class_<Engine> bind_stateless_engine(nb::module_& module, const char* name)
+{
+    nb::class_<Engine> binding{module, name, "Stateless pricing engine."};
+    binding.def(nb::init<>(), "Create a stateless pricing engine.");
+    bind_repr(binding, name, {});
+    return binding;
 }
 
 template <typename Engine>
 nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char* name)
 {
-    nb::class_<Engine> binding{module, name};
+    nb::class_<Engine> binding{
+        module, name, "Finite-difference pricing engine with immutable configuration."};
     binding
         .def(nb::new_([](PythonInteger asset_steps, PythonInteger time_steps,
                         finite_difference_scheme scheme, PythonReal upper_boundary) {
@@ -90,27 +101,34 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
              nb::kw_only(), "asset_steps"_a = FiniteDifferenceSettings{}.asset_steps,
              "time_steps"_a = FiniteDifferenceSettings{}.time_steps,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
-             "upper_boundary"_a = nb::none())
+             "upper_boundary"_a = nb::none(),
+             "Create a finite-difference engine with validated settings.")
         .def_prop_ro("asset_steps", [](const Engine& engine) { return engine.settings().asset_steps; })
         .def_prop_ro("time_steps", [](const Engine& engine) { return engine.settings().time_steps; })
         .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; })
         .def_prop_ro("upper_boundary", [](const Engine& engine) { return engine.settings().upper_boundary; });
+    bind_repr(binding, name,
+              {{"asset_steps", "asset_steps"}, {"time_steps", "time_steps"},
+               {"scheme", "scheme"}, {"upper_boundary", "upper_boundary"}});
     return binding;
 }
 
 template <typename Engine>
 nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const char* name)
 {
-    nb::class_<Engine> binding{module, name};
+    nb::class_<Engine> binding{
+        module, name, "Monte Carlo pricing engine with immutable configuration."};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed) {
                  return Engine{StructuredMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed)}};
              }),
              nb::kw_only(), "path_count"_a = StructuredMonteCarloSettings{}.path_count,
-             "seed"_a = StructuredMonteCarloSettings{}.seed.value())
+             "seed"_a = StructuredMonteCarloSettings{}.seed.value(),
+             "Create a Monte Carlo engine with validated settings.")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; })
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; });
+    bind_repr(binding, name, {{"path_count", "path_count"}, {"seed", "seed"}});
     return binding;
 }
 
@@ -158,7 +176,8 @@ void bind_analytics_pair(nb::module_& module)
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
-        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days);
+        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
+        "Compute price and numerical risk measures using core-owned shift defaults.");
     module.def(
         "scenario_grid",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -174,7 +193,8 @@ void bind_analytics_pair(nb::module_& module)
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
-        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days);
+        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
+        "Evaluate price, delta, and gamma over the supplied spot grid.");
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -191,7 +211,8 @@ void bind_analytics_pair(nb::module_& module)
         "lower_bound"_a = ImpliedVolatilitySettings{}.lower_bound,
         "upper_bound"_a = ImpliedVolatilitySettings{}.upper_bound,
         "tolerance"_a = ImpliedVolatilitySettings{}.tolerance,
-        "max_iterations"_a = ImpliedVolatilitySettings{}.max_iterations);
+        "max_iterations"_a = ImpliedVolatilitySettings{}.max_iterations,
+        "Solve for volatility matching the observed price.");
 }
 
 template <typename Engine, typename Instrument>
@@ -213,7 +234,8 @@ void bind_implied_coupon_pair(nb::module_& module)
         "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
         "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
         "tolerance"_a = ImpliedCouponSettings{}.tolerance,
-        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations);
+        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
+        "Solve for the coupon rate matching the observed price.");
 }
 
 template <typename Engine, typename... Instruments>
@@ -226,7 +248,9 @@ void bind_engine_analytics(nb::module_& module)
 
 void bind_results(nb::module_& module)
 {
-    nb::class_<PricingResult>(module, "PricingResult")
+    auto pricing_result = nb::class_<PricingResult>(
+        module, "PricingResult",
+        "Read-only mapping of risk-measure names to optional values.")
         .def("__len__", [](const PricingResult&) { return risk_measure_count; })
         .def("__iter__", [](const PricingResult&) {
             return PythonStringIterator{result_keys().attr("__iter__")()};
@@ -243,13 +267,17 @@ void bind_results(nb::module_& module)
         .def("get", [](const PricingResult& result, nb::str key, nb::object fallback) {
             const auto measure = measure_named(nb::cast<std::string>(key));
             return measure ? optional_value(result, *measure) : fallback;
-        }, "key"_a, "default"_a = nb::none())
-        .def("keys", [](const PricingResult&) { return result_keys(); })
-        .def("values", [](const PricingResult& result) { return result_values(result); })
-        .def("items", [](const PricingResult& result) { return result_items(result); })
+        }, "key"_a, "default"_a = nb::none(),
+             "Return a measure by name, or default when the name is unknown.")
+        .def("keys", [](const PricingResult&) { return result_keys(); },
+             "Return risk-measure names in stable order.")
+        .def("values", [](const PricingResult& result) { return result_values(result); },
+             "Return optional risk-measure values in stable order.")
+        .def("items", [](const PricingResult& result) { return result_items(result); },
+             "Return name-value pairs in stable order.")
         .def("require", [](const PricingResult& result, risk_measure measure) {
             return unwrap(result.require(measure));
-        }, "measure"_a)
+        }, "measure"_a, "Return a required measure or raise KiyosiError when unavailable.")
         .def_prop_ro("price", [](const PricingResult& result) {
             return optional_value(result, risk_measure::price);
         })
@@ -283,41 +311,53 @@ void bind_results(nb::module_& module)
         .def_prop_ro("rho", [](const PricingResult& result) {
             return optional_value(result, risk_measure::rho);
         });
-    nb::class_<ScenarioGridResult>(module, "ScenarioGridResult")
+    bind_repr(pricing_result, "PricingResult",
+              {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"},
+               {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"},
+               {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
+               {"zomma", "zomma"}, {"rho", "rho"}});
+    auto scenario_result = nb::class_<ScenarioGridResult>(
+        module, "ScenarioGridResult", "Price, delta, and gamma vectors for a spot grid.")
         .def_prop_ro("values", [](const ScenarioGridResult& result) { return result.values; })
         .def_prop_ro("deltas", [](const ScenarioGridResult& result) { return result.deltas; })
         .def_prop_ro("gammas", [](const ScenarioGridResult& result) { return result.gammas; });
+    bind_repr(scenario_result, "ScenarioGridResult",
+              {{"values", "values"}, {"deltas", "deltas"}, {"gammas", "gammas"}});
     nb::module_::import_("collections.abc").attr("Mapping").attr("register")(
         module.attr("PricingResult"));
 }
 
 void bind_engines(nb::module_& module)
 {
-    auto analytic_vanilla = nb::class_<AnalyticVanillaEngine>(
-        module, "AnalyticVanillaEngine").def(nb::init<>());
+    auto analytic_vanilla = bind_stateless_engine<AnalyticVanillaEngine>(
+        module, "AnalyticVanillaEngine");
     bind_engine_price<AnalyticVanillaEngine, EuropeanOption>(analytic_vanilla);
-    auto integral_vanilla = nb::class_<IntegralVanillaEngine>(
-        module, "IntegralVanillaEngine").def(nb::init<>());
+    auto integral_vanilla = bind_stateless_engine<IntegralVanillaEngine>(
+        module, "IntegralVanillaEngine");
     bind_engine_price<IntegralVanillaEngine, EuropeanOption>(integral_vanilla);
-    auto crr = nb::class_<CrrVanillaEngine>(module, "CrrVanillaEngine")
+    auto crr = nb::class_<CrrVanillaEngine>(
+        module, "CrrVanillaEngine", "Cox-Ross-Rubinstein engine with immutable configuration.")
         .def(nb::new_([](PythonInteger steps) {
                  return CrrVanillaEngine{integer(steps, "steps")};
              }),
-             "steps"_a = BinomialSettings{}.steps)
+             "steps"_a = BinomialSettings{}.steps,
+             "Create a Cox-Ross-Rubinstein engine with validated settings.")
         .def_prop_ro("steps", [](const CrrVanillaEngine& engine) {
             return engine.settings().steps;
         });
+    bind_repr(crr, "CrrVanillaEngine", {{"steps", "steps"}});
     bind_engine_price<CrrVanillaEngine, EuropeanOption>(crr);
     bind_engine_price<CrrVanillaEngine, AmericanOption>(crr);
-    auto bjerksund = nb::class_<BjerksundStenslandVanillaEngine>(
-        module, "BjerksundStenslandVanillaEngine").def(nb::init<>());
+    auto bjerksund = bind_stateless_engine<BjerksundStenslandVanillaEngine>(
+        module, "BjerksundStenslandVanillaEngine");
     bind_engine_price<BjerksundStenslandVanillaEngine, AmericanOption>(bjerksund);
     auto finite_vanilla = bind_finite_difference_engine<FiniteDifferenceVanillaEngine>(
         module, "FiniteDifferenceVanillaEngine");
     bind_engine_price<FiniteDifferenceVanillaEngine, EuropeanOption>(finite_vanilla);
     bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
-        module, "MonteCarloVanillaEngine")
+        module, "MonteCarloVanillaEngine",
+        "Monte Carlo vanilla engine with immutable configuration.")
         .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                         PythonInteger seed) {
                  return MonteCarloVanillaEngine{MonteCarloSettings{
@@ -326,7 +366,8 @@ void bind_engines(nb::module_& module)
              }),
              nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
              "step_count"_a = MonteCarloSettings{}.step_count,
-             "seed"_a = nb::none())
+             "seed"_a = nb::none(),
+             "Create a Monte Carlo vanilla engine with validated settings.")
         .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().path_count;
         })
@@ -336,15 +377,18 @@ void bind_engines(nb::module_& module)
         .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().seed;
         });
+    bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
+              {{"path_count", "path_count"}, {"step_count", "step_count"},
+               {"seed", "seed"}});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(monte_carlo_vanilla);
 
-    auto analytic_digital = nb::class_<AnalyticDigitalEngine>(
-        module, "AnalyticDigitalEngine").def(nb::init<>());
+    auto analytic_digital = bind_stateless_engine<AnalyticDigitalEngine>(
+        module, "AnalyticDigitalEngine");
     bind_engine_price<AnalyticDigitalEngine, EuropeanCashOrNothingOption>(analytic_digital);
     bind_engine_price<AnalyticDigitalEngine, EuropeanAssetOrNothingOption>(analytic_digital);
-    auto integral_digital = nb::class_<IntegralDigitalEngine>(
-        module, "IntegralDigitalEngine").def(nb::init<>());
+    auto integral_digital = bind_stateless_engine<IntegralDigitalEngine>(
+        module, "IntegralDigitalEngine");
     bind_engine_price<IntegralDigitalEngine, EuropeanCashOrNothingOption>(integral_digital);
     bind_engine_price<IntegralDigitalEngine, EuropeanAssetOrNothingOption>(integral_digital);
     auto finite_digital = bind_finite_difference_engine<FiniteDifferenceDigitalEngine>(
@@ -352,21 +396,21 @@ void bind_engines(nb::module_& module)
     bind_engine_price<FiniteDifferenceDigitalEngine, EuropeanCashOrNothingOption>(finite_digital);
     bind_engine_price<FiniteDifferenceDigitalEngine, EuropeanAssetOrNothingOption>(finite_digital);
 
-    auto analytic_barrier = nb::class_<AnalyticBarrierEngine>(
-        module, "AnalyticBarrierEngine").def(nb::init<>());
+    auto analytic_barrier = bind_stateless_engine<AnalyticBarrierEngine>(
+        module, "AnalyticBarrierEngine");
     bind_engine_price<AnalyticBarrierEngine, BarrierOption>(analytic_barrier);
     auto finite_barrier = bind_finite_difference_engine<FiniteDifferenceBarrierEngine>(
         module, "FiniteDifferenceBarrierEngine");
     bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(finite_barrier);
-    auto analytic_binary = nb::class_<AnalyticBinaryBarrierEngine>(
-        module, "AnalyticBinaryBarrierEngine").def(nb::init<>());
+    auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
+        module, "AnalyticBinaryBarrierEngine");
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(analytic_binary);
 
-    auto geometric = nb::class_<GeometricAverageAsianEngine>(
-        module, "GeometricAverageAsianEngine").def(nb::init<>());
+    auto geometric = bind_stateless_engine<GeometricAverageAsianEngine>(
+        module, "GeometricAverageAsianEngine");
     bind_engine_price<GeometricAverageAsianEngine, GeometricAverageOption>(geometric);
-    auto arithmetic = nb::class_<ArithmeticAverageAsianEngine>(
-        module, "ArithmeticAverageAsianEngine").def(nb::init<>());
+    auto arithmetic = bind_stateless_engine<ArithmeticAverageAsianEngine>(
+        module, "ArithmeticAverageAsianEngine");
     bind_engine_price<ArithmeticAverageAsianEngine, ArithmeticAverageOption>(arithmetic);
 
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(

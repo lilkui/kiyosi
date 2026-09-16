@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstdint>
 #include <exception>
+#include <initializer_list>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -67,6 +68,37 @@ using PythonDateIterator =
     nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
 using PythonStringIterator = nb::typed<nb::object, nb::typed<nb::iterator, std::string>>;
 using PythonOptionalReal = nb::typed<nb::object, std::optional<double>>;
+
+struct ReprField {
+    const char* name;
+    const char* attribute;
+};
+
+template <typename T>
+void bind_repr(nb::class_<T>& binding, const char* name,
+               std::vector<ReprField> fields)
+{
+    const std::string type_name{name};
+    const std::vector<ReprField> attributes{std::move(fields)};
+    binding.def("__repr__", [type_name, attributes](const T& value) {
+        const nb::object self = nb::cast(&value, nb::rv_policy::reference);
+        nb::list parts;
+        for (const auto& [field, attribute] : attributes) {
+            parts.append(nb::str("{}={!r}").attr("format")(
+                nb::str(field), self.attr(attribute)));
+        }
+        return nb::str("{}({})").attr("format")(
+            nb::str(type_name.c_str()), nb::str(", ").attr("join")(parts));
+    });
+}
+
+template <typename T>
+void bind_value_equality(nb::class_<T>& binding)
+{
+    binding.def("__eq__", [](const T& left, const T& right) { return left == right; },
+                nb::is_operator());
+    binding.attr("__hash__") = nb::none();
+}
 
 class DomainException final : public std::runtime_error {
 public:

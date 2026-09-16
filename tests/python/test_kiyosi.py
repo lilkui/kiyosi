@@ -44,6 +44,48 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(result["price"], result.price)
         self.assertIn("speed", result)
 
+    def test_domain_values_have_value_equality_and_readable_representations(self):
+        same_parameters = BsmParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        same_option = EuropeanOption(type=OptionType.CALL, strike=100.0, effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
+        self.assertEqual(self.parameters, same_parameters)
+        self.assertEqual(self.option, same_option)
+        self.assertNotEqual(self.option, EuropeanOption(type=OptionType.PUT, strike=100.0, effective=date(2025, 1, 1), expiry=date(2026, 1, 1)))
+        with self.assertRaises(TypeError):
+            hash(self.parameters)
+
+        schedule = fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)
+        same_schedule = fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)
+        self.assertEqual(schedule, same_schedule)
+
+        note_terms = dict(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observations=[date(2026, 1, 1)], effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
+        note = standard_snowball(**note_terms)
+        self.assertEqual(note, standard_snowball(**note_terms))
+
+        result = AnalyticVanillaEngine().price(self.option, self.context)
+        cases = (
+            (self.parameters, "BsmParameters(", "volatility=0.2"),
+            (self.option, "EuropeanOption(", "strike=100.0"),
+            (schedule, "ObservationSchedule(", "dates=["),
+            (market.weekdays_calendar(), "TradingCalendar(", "annual_trading_days=252"),
+            (self.context, "PricingContext(", "asset_price=100.0"),
+            (note, "SnowballOption(", "knock_out_coupon_rates=[0.1]"),
+            (pricing.FiniteDifferenceVanillaEngine(), "FiniteDifferenceVanillaEngine(", "asset_steps="),
+            (result, "PricingResult(", "price="),
+        )
+        for value, prefix, field in cases:
+            with self.subTest(type=type(value).__name__):
+                representation = repr(value)
+                self.assertTrue(representation.startswith(prefix))
+                self.assertIn(field, representation)
+
+    def test_public_api_has_targeted_docstrings(self):
+        self.assertIn("validated", BsmParameters.__doc__.lower())
+        self.assertIn("weekdays", market.weekdays_calendar.__doc__.lower())
+        self.assertIn("reversed", market.TradingCalendar.trading_days_between.__doc__.lower())
+        self.assertIn("price", AnalyticVanillaEngine.price.__doc__.lower())
+        self.assertIn("risk-measure", kiyosi.PricingResult.__doc__.lower())
+        self.assertIn("solve", pricing.implied_volatility.__doc__.lower())
+
     def test_weekdays_calendar_is_the_explicit_default(self):
         self.assertFalse(hasattr(market, "exchange_calendar"))
         calendar = market.weekdays_calendar()

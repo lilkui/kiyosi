@@ -53,7 +53,8 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "observations"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a validated snowball preset.");
 }
 
 void bind_presets(nb::module_& module)
@@ -79,7 +80,8 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_start"_a, "knock_out_step"_a, "observations"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a snowball with linearly decreasing knock-out barriers.");
     module.def(
         "both_down_snowball",
         [](PythonReal coupon_start, PythonReal coupon_step, PythonReal initial_price,
@@ -101,7 +103,8 @@ void bind_presets(nb::module_& module)
         "knock_in_price"_a, "knock_out_start"_a, "knock_out_step"_a,
         "observations"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a snowball with decreasing coupons and knock-out barriers.");
     module.def(
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon, PythonReal maturity_coupon,
@@ -122,7 +125,8 @@ void bind_presets(nb::module_& module)
         "initial_price"_a, "knock_in_price"_a, "knock_out_price"_a,
         "observations"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a snowball with separate knock-out and maturity coupons.");
     module.def(
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -142,7 +146,8 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "final_knock_out_price"_a, "observations"_a,
         "effective"_a, "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a snowball with a distinct final knock-out barrier.");
     module.def(
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -162,7 +167,8 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "upper_strike"_a, "observations"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create an out-of-the-money snowball preset.");
     module.def(
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
@@ -182,14 +188,16 @@ void bind_presets(nb::module_& module)
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
         "knock_out_price"_a, "lower_strike"_a, "observations"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
-        "principal_ratio"_a = SnowballTerms{}.principal_ratio);
+        "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+        "Create a loss-capped snowball preset.");
 }
 
 } // namespace
 
 void bind_structured_instruments(nb::module_& module)
 {
-    auto snowball = nb::class_<SnowballOption>(module, "SnowballOption")
+    auto snowball = nb::class_<SnowballOption>(
+        module, "SnowballOption", "Immutable validated snowball option.")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_price,
                         PythonReal knock_in_price, PythonRealSequence knock_out_prices,
@@ -214,15 +222,27 @@ void bind_structured_instruments(nb::module_& module)
              "upper_strike"_a, "lower_strike"_a, "observations"_a, "frequency"_a,
              "touch_status"_a = SnowballTerms{}.touch_status,
              "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-             "effective"_a, "expiry"_a)
+             "effective"_a, "expiry"_a, "Create a validated snowball option.")
         .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate)
         .def("with_coupon_rate", [](const SnowballOption& option, PythonReal coupon) {
             return unwrap(option.with_coupon_rate(real_number(coupon, "coupon")));
         }, "coupon"_a);
     bind_knock_in_properties(snowball);
+    bind_value_equality(snowball);
+    bind_repr(snowball, "SnowballOption",
+              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
+               {"maturity_coupon_rate", "maturity_coupon_rate"},
+               {"initial_price", "initial_price"}, {"knock_in_price", "knock_in_price"},
+               {"knock_out_prices", "knock_out_prices"},
+               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
+               {"observations", "observation_dates"},
+               {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
+               {"principal_ratio", "principal_ratio"},
+               {"effective", "effective"}, {"expiry", "expiry"}});
 
-    auto binary = nb::class_<BinarySnowballOption>(module, "BinarySnowballOption")
+    auto binary = nb::class_<BinarySnowballOption>(
+        module, "BinarySnowballOption", "Immutable validated binary snowball option.")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_price,
                         PythonRealSequence knock_out_prices, PythonReal upper_strike,
@@ -245,12 +265,24 @@ void bind_structured_instruments(nb::module_& module)
              "lower_strike"_a, "observations"_a,
              "touch_status"_a = BinarySnowballTerms{}.touch_status,
              "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
-             "effective"_a, "expiry"_a)
+             "effective"_a, "expiry"_a,
+             "Create a validated binary snowball option.")
         .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate);
     bind_note_properties(binary);
+    bind_value_equality(binary);
+    bind_repr(binary, "BinarySnowballOption",
+              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
+               {"maturity_coupon_rate", "maturity_coupon_rate"},
+               {"initial_price", "initial_price"},
+               {"knock_out_prices", "knock_out_prices"},
+               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
+               {"observations", "observation_dates"}, {"touch_status", "touch_status"},
+               {"principal_ratio", "principal_ratio"},
+               {"effective", "effective"}, {"expiry", "expiry"}});
 
-    auto ternary = nb::class_<TernarySnowballOption>(module, "TernarySnowballOption")
+    auto ternary = nb::class_<TernarySnowballOption>(
+        module, "TernarySnowballOption", "Immutable validated ternary snowball option.")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal minimal_coupon_rate,
                         PythonReal initial_price, PythonReal knock_in_price,
@@ -277,13 +309,27 @@ void bind_structured_instruments(nb::module_& module)
              "observations"_a, "frequency"_a,
              "touch_status"_a = TernarySnowballTerms{}.touch_status,
              "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
-             "effective"_a, "expiry"_a)
+             "effective"_a, "expiry"_a,
+             "Create a validated ternary snowball option.")
         .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates)
         .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate)
         .def_prop_ro("minimal_coupon_rate", &TernarySnowballOption::minimal_coupon_rate);
     bind_knock_in_properties(ternary);
+    bind_value_equality(ternary);
+    bind_repr(ternary, "TernarySnowballOption",
+              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
+               {"maturity_coupon_rate", "maturity_coupon_rate"},
+               {"minimal_coupon_rate", "minimal_coupon_rate"},
+               {"initial_price", "initial_price"}, {"knock_in_price", "knock_in_price"},
+               {"knock_out_prices", "knock_out_prices"},
+               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
+               {"observations", "observation_dates"},
+               {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
+               {"principal_ratio", "principal_ratio"},
+               {"effective", "effective"}, {"expiry", "expiry"}});
 
-    auto phoenix = nb::class_<PhoenixOption>(module, "PhoenixOption")
+    auto phoenix = nb::class_<PhoenixOption>(
+        module, "PhoenixOption", "Immutable validated Phoenix option.")
         .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_price,
                         PythonReal knock_in_price, PythonRealSequence knock_out_prices,
                         PythonRealSequence coupon_barriers, PythonReal upper_strike,
@@ -307,13 +353,24 @@ void bind_structured_instruments(nb::module_& module)
              "lower_strike"_a, "observations"_a, "frequency"_a,
              "touch_status"_a = PhoenixTerms{}.touch_status,
              "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
-             "effective"_a, "expiry"_a)
+             "effective"_a, "expiry"_a, "Create a validated Phoenix option.")
         .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate)
         .def_prop_ro("coupon_barriers", &PhoenixOption::coupon_barriers)
         .def("with_coupon_rate", [](const PhoenixOption& option, PythonReal coupon) {
             return unwrap(option.with_coupon_rate(real_number(coupon, "coupon")));
         }, "coupon"_a);
     bind_knock_in_properties(phoenix);
+    bind_value_equality(phoenix);
+    bind_repr(phoenix, "PhoenixOption",
+              {{"coupon_rate", "coupon_rate"}, {"initial_price", "initial_price"},
+               {"knock_in_price", "knock_in_price"},
+               {"knock_out_prices", "knock_out_prices"},
+               {"coupon_barriers", "coupon_barriers"},
+               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
+               {"observations", "observation_dates"},
+               {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
+               {"principal_ratio", "principal_ratio"},
+               {"effective", "effective"}, {"expiry", "expiry"}});
 
     bind_presets(module);
 }
