@@ -59,9 +59,28 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     REQUIRE(context.has_value());
     CHECK(context->valuation_date() == start);
     CHECK(context->valuation_time().time_since_epoch() == noon.time_since_epoch());
-    CHECK(kiyosi::weekdays_calendar().trading_days_between(start, end) == 3);
-    CHECK_THAT(kiyosi::weekdays_calendar().trading_year_fraction(start, end),
+    CHECK(*kiyosi::weekdays_calendar().trading_days_between(start, end) == 3);
+    CHECK_THAT(*kiyosi::weekdays_calendar().trading_year_fraction(start, end),
                Catch::Matchers::WithinAbs(3.0 / 252.0, 1e-15));
+
+    const auto empty = kiyosi::weekdays_calendar().trading_days_between(start, start);
+    REQUIRE(empty.has_value());
+    CHECK(*empty == 0);
+    const auto weekend_only = kiyosi::weekdays_calendar().trading_days_between(
+        day(2025, 1, 4), day(2025, 1, 6));
+    REQUIRE(weekend_only.has_value());
+    CHECK(*weekend_only == 0);
+
+    const auto reversed = kiyosi::weekdays_calendar().trading_days_between(end, start);
+    REQUIRE_FALSE(reversed.has_value());
+    CHECK(reversed.error().category == kiyosi::error_category::invalid_expiry);
+    const auto reversed_fraction = kiyosi::weekdays_calendar().trading_year_fraction(end, start);
+    REQUIRE_FALSE(reversed_fraction.has_value());
+    CHECK(reversed_fraction.error().category == kiyosi::error_category::invalid_expiry);
+
+    const auto invalid = kiyosi::weekdays_calendar().trading_days_between(kiyosi::date::max(), end);
+    REQUIRE_FALSE(invalid.has_value());
+    CHECK(invalid.error().category == kiyosi::error_category::invalid_date);
 
     const auto schedule = kiyosi::make_fixed_interval_schedule(
         start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::weekdays_calendar());

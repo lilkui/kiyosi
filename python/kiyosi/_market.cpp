@@ -87,14 +87,14 @@ void bind_market(nb::module_& module)
              "value"_a)
         .def("trading_days_between",
              [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
-                 return calendar.trading_days_between(
-                     calendar_date(start, "start"), calendar_date(end, "end"));
+                 return unwrap(calendar.trading_days_between(
+                     calendar_date(start, "start"), calendar_date(end, "end")));
              },
              "start"_a, "end"_a)
         .def("trading_year_fraction",
              [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
-                 return calendar.trading_year_fraction(
-                     calendar_date(start, "start"), calendar_date(end, "end"));
+                 return unwrap(calendar.trading_year_fraction(
+                     calendar_date(start, "start"), calendar_date(end, "end")));
              },
              "start"_a, "end"_a)
         .def_prop_ro("annual_trading_days", &TradingCalendar::annual_trading_days);

@@ -50,6 +50,11 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(calendar.annual_trading_days, 252)
         self.assertFalse(calendar.is_trading_day(date(2025, 1, 4)))
         self.assertFalse(self.context.calendar.is_trading_day(date(2025, 1, 4)))
+        self.assertEqual(calendar.trading_days_between(date(2025, 1, 4), date(2025, 1, 6)), 0)
+        for operation in (calendar.trading_days_between, calendar.trading_year_fraction):
+            with self.subTest(operation=operation.__name__), self.assertRaises(kiyosi.KiyosiError) as error:
+                operation(date(2025, 1, 6), date(2025, 1, 4))
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_EXPIRY)
 
     def test_native_domain_errors_expose_categories(self):
         with self.assertRaises(kiyosi.KiyosiError) as error:

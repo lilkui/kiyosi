@@ -30,18 +30,25 @@ public:
 
     int annual_trading_days() const noexcept { return annual_trading_days_; }
 
-    [[nodiscard]] int trading_days_between(date start, date end) const
+    [[nodiscard]] result<int> trading_days_between(date start, date end) const
     {
-        if (!is_valid_date(start) || !is_valid_date(end) || end < start) return 0;
+        if (!is_valid_date(start) || !is_valid_date(end))
+            return std::unexpected(Error{error_category::invalid_date,
+                                         "calendar range dates must be valid"});
+        if (end < start)
+            return std::unexpected(Error{error_category::invalid_expiry,
+                                         "calendar range end must not precede start"});
         int count = 0;
         for (auto value = start; value < end; value += std::chrono::days{1})
             count += is_trading_day(value) ? 1 : 0;
         return count;
     }
 
-    [[nodiscard]] double trading_year_fraction(date start, date end) const
+    [[nodiscard]] result<double> trading_year_fraction(date start, date end) const
     {
-        return static_cast<double>(trading_days_between(start, end)) /
+        const auto days = trading_days_between(start, end);
+        if (!days) return std::unexpected(days.error());
+        return static_cast<double>(*days) /
                static_cast<double>(annual_trading_days_);
     }
 
