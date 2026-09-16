@@ -126,7 +126,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     if constexpr (!american_contract) {
                         const kiyosi::AnalyticVanillaEngine engine;
                         check_engine(engine);
-                        const auto implied = engine.implied_volatility(option, *context, fixture.outputs.at("price"));
+                        const auto implied = kiyosi::implied_volatility(
+                            engine, option, *context, fixture.outputs.at("price"));
                         INFO("implied volatility: " << (implied ? "ok" : implied.error().message));
                         REQUIRE(implied.has_value());
                         CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));

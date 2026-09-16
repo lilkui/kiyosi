@@ -5,7 +5,6 @@
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/settings/implied.hpp>
 
 namespace kiyosi {
 
@@ -19,11 +18,6 @@ public:
     {
         return price_impl(option, context);
     }
-
-    /// Halley-with-bisection-fallback inversion that also enforces the arbitrage bounds.
-    [[nodiscard]] result<double> implied_volatility(
-        const EuropeanOption& option, const PricingContext& context, double observed_price,
-        ImpliedVolatilitySettings settings = {}) const;
 
 private:
     [[nodiscard]] result<PricingResult> price_impl(
