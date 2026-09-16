@@ -1,11 +1,32 @@
+import csv
 import unittest
 from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
 
 import kiyosi
 import kiyosi.pricing as pricing
 from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, numerical_analytics
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, numerical_analytics
+
+
+def parity_fields(value):
+    if value == "-":
+        return {}
+    return dict(item.split("=", 1) for item in value.split(";"))
+
+
+def parity_cases():
+    path = Path(__file__).parents[1] / "fixtures" / "api_parity.tsv"
+    with path.open(newline="", encoding="utf-8") as stream:
+        return [
+            {**row, "inputs": parity_fields(row["inputs"]), "expected": parity_fields(row["expected"])}
+            for row in csv.DictReader(stream, delimiter="\t")
+        ]
+
+
+def utc_timestamp(value):
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 class KiyosiPythonTests(unittest.TestCase):
@@ -105,6 +126,53 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertGreater(AnalyticBarrierEngine().price(barrier, self.context).price, 0)
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
         self.assertIsNotNone(numerical_analytics(AnalyticVanillaEngine(), self.option, self.context).vega)
+
+    def test_public_api_matches_shared_language_parity_cases(self):
+        cases = parity_cases()
+        self.assertEqual(len(cases), 7)
+        for case in cases:
+            with self.subTest(case=case["case_id"]):
+                values = case["inputs"]
+                expected = case["expected"]
+                kind = case["kind"]
+                if kind == "construction":
+                    option = EuropeanOption(type=getattr(OptionType, values["type"].upper()), strike=float(values["strike"]), effective=date.fromisoformat(values["effective"]), expiry=date.fromisoformat(values["expiry"]))
+                    self.assertEqual(option.type, getattr(OptionType, expected["type"].upper()))
+                    self.assertEqual(option.strike, float(expected["strike"]))
+                    self.assertEqual(option.effective, date.fromisoformat(expected["effective"]))
+                    self.assertEqual(option.expiry, date.fromisoformat(expected["expiry"]))
+                elif kind == "defaults":
+                    engine = pricing.FiniteDifferenceVanillaEngine()
+                    self.assertEqual(engine.asset_steps, int(expected["asset_steps"]))
+                    self.assertEqual(engine.time_steps, int(expected["time_steps"]))
+                    self.assertEqual(engine.scheme, getattr(FiniteDifferenceScheme, expected["scheme"].upper()))
+                    self.assertEqual(expected["upper_boundary"], "none")
+                    self.assertIsNone(engine.upper_boundary)
+                elif kind == "pricing":
+                    parameters = BsmParameters(risk_free_rate=float(values["risk_free_rate"]), dividend_yield=float(values["dividend_yield"]), volatility=float(values["volatility"]))
+                    context = PricingContext(parameters=parameters, asset_price=float(values["asset_price"]), valuation_time=date.fromisoformat(values["valuation_date"]))
+                    option = EuropeanOption(type=getattr(OptionType, values["type"].upper()), strike=float(values["strike"]), effective=date.fromisoformat(values["effective"]), expiry=date.fromisoformat(values["expiry"]))
+                    result = AnalyticVanillaEngine().price(option, context)
+                    self.assertAlmostEqual(result.price, float(expected["price"]), delta=float(case["tolerance"]))
+                elif kind == "domain_error":
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        BsmParameters(risk_free_rate=float(values["risk_free_rate"]), dividend_yield=float(values["dividend_yield"]), volatility=float(values["volatility"]))
+                    self.assertEqual(error.exception.category, getattr(kiyosi.ErrorCategory, expected["category"].upper()))
+                elif kind == "date_round_trip":
+                    option = GeometricAverageOption(type=getattr(OptionType, values["type"].upper()), strike=float(values["strike"]), average_start=date.fromisoformat(values["average_start"]), effective=date.fromisoformat(values["effective"]), expiry=date.fromisoformat(values["expiry"]))
+                    self.assertEqual(option.average_start, date.fromisoformat(expected["average_start"]))
+                    self.assertEqual(option.effective, date.fromisoformat(expected["effective"]))
+                    self.assertEqual(option.expiry, date.fromisoformat(expected["expiry"]))
+                elif kind == "timestamp_round_trip":
+                    parameters = BsmParameters(risk_free_rate=float(values["risk_free_rate"]), dividend_yield=float(values["dividend_yield"]), volatility=float(values["volatility"]))
+                    context = PricingContext(parameters=parameters, asset_price=float(values["asset_price"]), valuation_time=utc_timestamp(values["valuation_time"]))
+                    self.assertEqual(context.valuation_time, utc_timestamp(expected["valuation_time"]))
+                    self.assertEqual(context.valuation_date, date.fromisoformat(expected["valuation_date"]))
+                elif kind == "numeric_boundary":
+                    engine = pricing.MonteCarloVanillaEngine(seed=int(values["seed"]))
+                    self.assertEqual(engine.seed, int(expected["seed"]))
+                else:
+                    self.fail(f"unknown parity case kind: {kind}")
 
 
 if __name__ == "__main__":

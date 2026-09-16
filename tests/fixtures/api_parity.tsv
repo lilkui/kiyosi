@@ -1,0 +1,8 @@
+case_id	kind	inputs	expected	tolerance
+european-call-construction	construction	type=call;strike=100;effective=2025-01-01;expiry=2026-01-01	type=call;strike=100;effective=2025-01-01;expiry=2026-01-01	-
+finite-difference-defaults	defaults	-	asset_steps=200;time_steps=200;scheme=crank_nicolson;upper_boundary=none	-
+analytic-european-call	pricing	type=call;strike=100;effective=2024-12-30;expiry=2026-01-06;risk_free_rate=0.04;dividend_yield=0.01;volatility=0.3;asset_price=100;valuation_date=2025-01-06	price=13.151137270960923	1e-10
+invalid-volatility	domain_error	risk_free_rate=0.05;dividend_yield=0.02;volatility=0	category=invalid_volatility	-
+geometric-average-dates	date_round_trip	type=call;strike=100;average_start=2025-02-01;effective=2025-01-01;expiry=2026-01-01	average_start=2025-02-01;effective=2025-01-01;expiry=2026-01-01	-
+utc-valuation-time	timestamp_round_trip	risk_free_rate=0.05;dividend_yield=0.02;volatility=0.2;asset_price=100;valuation_time=2025-01-01T00:09:10.123456Z	valuation_time=2025-01-01T00:09:10.123456Z;valuation_date=2025-01-01	-
+maximum-monte-carlo-seed	numeric_boundary	seed=18446744073709551615	seed=18446744073709551615	-
