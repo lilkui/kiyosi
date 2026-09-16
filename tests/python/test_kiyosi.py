@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import kiyosi
+import kiyosi.market as market
 import kiyosi.pricing as pricing
 from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
@@ -42,6 +43,13 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(len(result), 11)
         self.assertEqual(result["price"], result.price)
         self.assertIn("speed", result)
+
+    def test_weekdays_calendar_is_the_explicit_default(self):
+        self.assertFalse(hasattr(market, "exchange_calendar"))
+        calendar = market.weekdays_calendar()
+        self.assertEqual(calendar.annual_trading_days, 252)
+        self.assertFalse(calendar.is_trading_day(date(2025, 1, 4)))
+        self.assertFalse(self.context.calendar.is_trading_day(date(2025, 1, 4)))
 
     def test_native_domain_errors_expose_categories(self):
         with self.assertRaises(kiyosi.KiyosiError) as error:

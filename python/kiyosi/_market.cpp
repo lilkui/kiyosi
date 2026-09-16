@@ -126,7 +126,7 @@ void bind_market(nb::module_& module)
                      valuation_time(time), calendar));
              }),
              nb::kw_only(), "parameters"_a, "asset_price"_a, "valuation_time"_a,
-             "calendar"_a = exchange_calendar())
+             "calendar"_a = weekdays_calendar())
         .def_prop_ro("parameters", &PricingContext::parameters,
                      nb::rv_policy::reference_internal,
                      "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
@@ -142,7 +142,7 @@ void bind_market(nb::module_& module)
                      "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
 
     module.def("all_days_calendar", &all_days_calendar);
-    module.def("exchange_calendar", &exchange_calendar);
+    module.def("weekdays_calendar", &weekdays_calendar);
     module.def("sse_calendar", &sse_calendar);
     module.def(
         "fixed_interval_schedule",
@@ -153,7 +153,7 @@ void bind_market(nb::module_& module)
                 std::chrono::days{integer(interval_days, "interval_days")}, calendar));
         },
         nb::kw_only(), "start"_a, "end"_a, "interval_days"_a,
-        "calendar"_a = exchange_calendar());
+        "calendar"_a = weekdays_calendar());
     module.def(
         "monthly_schedule",
         [](PythonDate start, PythonDate end, PythonInteger lock_up_months,
@@ -163,7 +163,7 @@ void bind_market(nb::module_& module)
                 integer(lock_up_months, "lock_up_months"), calendar));
         },
         nb::kw_only(), "start"_a, "end"_a, "lock_up_months"_a,
-        "calendar"_a = exchange_calendar());
+        "calendar"_a = weekdays_calendar());
 }
 
 } // namespace kiyosi::python_binding

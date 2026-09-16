@@ -276,7 +276,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
                                                               .observations = {day(2025, 1, 11)}});
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
                                                       100.0, valuation,
-                                                      kiyosi::exchange_calendar());
+                                                      kiyosi::weekdays_calendar());
     CHECK(kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market).error().category ==
           kiyosi::error_category::invalid_schedule);
 }
@@ -309,12 +309,12 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     auto weekend_terms = terms;
     weekend_terms.observations = {day(2025, 1, 11)};
     const auto weekend = *kiyosi::make_barrier_option(weekend_terms);
-    const auto exchange_market = *kiyosi::make_pricing_context(
+    const auto weekdays_market = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), 100.0, valuation,
-        kiyosi::exchange_calendar());
-    CHECK(kiyosi::AnalyticBarrierEngine{}.price(weekend, exchange_market).error().category ==
+        kiyosi::weekdays_calendar());
+    CHECK(kiyosi::AnalyticBarrierEngine{}.price(weekend, weekdays_market).error().category ==
           kiyosi::error_category::invalid_schedule);
-    CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(weekend, exchange_market).error().category ==
+    CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(weekend, weekdays_market).error().category ==
           kiyosi::error_category::invalid_date);
 
     auto at_hit_terms = terms;

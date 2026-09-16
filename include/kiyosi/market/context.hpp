@@ -55,7 +55,7 @@ private:
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, double asset_price, timestamp valuation_time)
 {
-    return make_pricing_context(std::move(parameters), asset_price, valuation_time, exchange_calendar());
+    return make_pricing_context(std::move(parameters), asset_price, valuation_time, weekdays_calendar());
 }
 
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
@@ -72,7 +72,7 @@ private:
 [[nodiscard]] inline result<PricingContext> make_pricing_context(
     BsmParameters parameters, double asset_price, date valuation_date)
 {
-    return make_pricing_context(std::move(parameters), asset_price, valuation_date, exchange_calendar());
+    return make_pricing_context(std::move(parameters), asset_price, valuation_date, weekdays_calendar());
 }
 
 } // namespace kiyosi

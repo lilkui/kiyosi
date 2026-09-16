@@ -36,6 +36,10 @@ snowball, and Phoenix instruments. Use `kiyosi.market` for model parameters, val
 contexts, calendars, and schedules. Use `kiyosi.pricing` for explicit engines, numerical
 analytics, scenario grids, and implied quantities.
 
+Pricing contexts and schedule builders default to `weekdays_calendar()`, a holiday-unaware
+Monday-through-Friday calendar with a 252-day annualization basis. Pass `sse_calendar()` when
+Shanghai Stock Exchange holidays must affect valuation or scheduling.
+
 `PricingResult` is a read-only mapping with the stable keys `price`, `delta`, `gamma`,
 `speed`, `theta`, `charm`, `color`, `vega`, `vanna`, `zomma`, and `rho`; unavailable
 measures are `None`. Domain validation failures raise `KiyosiError` with an

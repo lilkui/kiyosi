@@ -20,7 +20,7 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     const auto expiry = valuation + std::chrono::days{10};
     REQUIRE(expiry > valuation);
     REQUIRE(kiyosi::all_days_calendar().is_trading_day(expiry));
-    REQUIRE_FALSE(kiyosi::exchange_calendar().is_trading_day(day(2025, 1, 4)));
+    REQUIRE_FALSE(kiyosi::weekdays_calendar().is_trading_day(day(2025, 1, 4)));
 
     auto custom = kiyosi::make_trading_calendar(
         [](kiyosi::date value) { return value == day(2025, 1, 2) || value == day(2025, 1, 3); }, 2);
@@ -59,12 +59,12 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     REQUIRE(context.has_value());
     CHECK(context->valuation_date() == start);
     CHECK(context->valuation_time().time_since_epoch() == noon.time_since_epoch());
-    CHECK(kiyosi::exchange_calendar().trading_days_between(start, end) == 3);
-    CHECK_THAT(kiyosi::exchange_calendar().trading_year_fraction(start, end),
+    CHECK(kiyosi::weekdays_calendar().trading_days_between(start, end) == 3);
+    CHECK_THAT(kiyosi::weekdays_calendar().trading_year_fraction(start, end),
                Catch::Matchers::WithinAbs(3.0 / 252.0, 1e-15));
 
     const auto schedule = kiyosi::make_fixed_interval_schedule(
-        start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::exchange_calendar());
+        start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::weekdays_calendar());
     REQUIRE(schedule.has_value());
     const auto barrier = kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
                                                       .strike = 100.0,

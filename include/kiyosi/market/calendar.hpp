@@ -80,7 +80,8 @@ private:
     return detail::make_calendar([](date) { return true; }, 365);
 }
 
-[[nodiscard]] inline TradingCalendar exchange_calendar()
+/// Holiday-unaware Monday-through-Friday calendar with a 252-day annualization basis.
+[[nodiscard]] inline TradingCalendar weekdays_calendar()
 {
     return detail::make_calendar(
         [](date value) {
