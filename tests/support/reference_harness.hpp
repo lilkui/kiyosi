@@ -59,9 +59,9 @@ void check_price(const ReferenceCase& fixture, const PriceResult& priced)
     REQUIRE(priced.has_value());
     REQUIRE(fixture.outputs.contains("price"));
     REQUIRE(fixture.tolerances.contains("price"));
-    REQUIRE(priced->get(kiyosi::risk_measure::price).has_value());
-    CAPTURE(*priced->get(kiyosi::risk_measure::price));
-    CHECK(std::abs(*priced->get(kiyosi::risk_measure::price) - fixture.outputs.at("price")) <=
+    REQUIRE(priced->require(kiyosi::risk_measure::price).has_value());
+    CAPTURE(*priced->require(kiyosi::risk_measure::price));
+    CHECK(std::abs(*priced->require(kiyosi::risk_measure::price) - fixture.outputs.at("price")) <=
           fixture.tolerances.at("price"));
 }
 

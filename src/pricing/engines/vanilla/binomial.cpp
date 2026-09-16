@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 #include "../../detail/math.hpp"
@@ -109,8 +110,10 @@ result<PricingResult> price_binomial(
         }
     }
 
-    auto output = PricingResult{{risk_measure::price, values[0]}, {risk_measure::delta, delta}};
-    if (gamma_available) output.set(risk_measure::gamma, gamma);
+    const PricingResult output{{risk_measure::price, values[0]},
+                               {risk_measure::delta, delta},
+                               {risk_measure::gamma,
+                                gamma_available ? std::optional<double>{gamma} : std::nullopt}};
     if (!output.all_finite()) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "binomial pricing produced a non-finite result"});

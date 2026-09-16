@@ -33,9 +33,9 @@ template <typename Engine, typename Option>
         if (!shifted) return std::unexpected(shifted.error());
         auto analytics = numerical_analytics(engine, option, *shifted, settings);
         if (!analytics) return std::unexpected(analytics.error());
-        result.values.push_back(*analytics->get(risk_measure::price));
-        result.deltas.push_back(*analytics->get(risk_measure::delta));
-        result.gammas.push_back(*analytics->get(risk_measure::gamma));
+        result.values.push_back(*analytics->require(risk_measure::price));
+        result.deltas.push_back(*analytics->require(risk_measure::delta));
+        result.gammas.push_back(*analytics->require(risk_measure::gamma));
     }
     return result;
 }

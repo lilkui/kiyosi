@@ -93,14 +93,14 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                                                   fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
                                                   fixture.engine == "FiniteDifferenceDigitalEngine") &&
                                                  (name == "delta" || name == "gamma"));
-                    REQUIRE(native->get(measure).has_value() == native_measure);
+                    REQUIRE(native->has(measure) == native_measure);
                     const double expected = fixture.outputs.at(name);
                     if (native_measure)
-                        CHECK_THAT(*native->get(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
+                        CHECK_THAT(*native->require(measure), Catch::Matchers::WithinAbs(expected, fixture.tolerances.at(name) + number("uncertainty_" + name)));
                     REQUIRE(number("uncertainty_" + name) >= 0);
                     if (wrapped) {
-                        REQUIRE(numerical->get(measure).has_value());
-                        CHECK_THAT(*numerical->get(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
+                        REQUIRE(numerical->has(measure));
+                        CHECK_THAT(*numerical->require(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
                     }
                 }
                 REQUIRE(fixture.outputs.size() == available);

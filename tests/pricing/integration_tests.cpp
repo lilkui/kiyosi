@@ -108,7 +108,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     auto asian_result = kiyosi::GeometricAverageAsianEngine{}.price(*asian, *context);
     REQUIRE(asian_result.has_value());
     REQUIRE(asian_result->has(kiyosi::risk_measure::price));
-    REQUIRE(*asian_result->get(kiyosi::risk_measure::price) > 0.0);
+    REQUIRE(*asian_result->require(kiyosi::risk_measure::price) > 0.0);
 
     auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
                                                      .maturity_coupon_rate = 0.05,

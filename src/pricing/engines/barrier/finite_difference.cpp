@@ -99,7 +99,7 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
         auto vanilla = price_at_volatility(*make_european_option(option.type(), option.strike(), option.effective(), option.expiry()),
                                            context, context.parameters().volatility(), risk_measure_output::price_only);
         if (!vanilla) return std::unexpected(vanilla.error());
-        return vanilla->get(risk_measure::price).value();
+        return *vanilla->require(risk_measure::price);
     };
     if (touched && observed_now) {
         if (!knock_in)

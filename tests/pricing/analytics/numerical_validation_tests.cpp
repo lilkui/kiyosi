@@ -43,7 +43,7 @@ double difference(double left, double right)
 
 double risk_value(const kiyosi::PricingResult& result, kiyosi::risk_measure measure)
 {
-    return *result.get(measure);
+    return *result.require(measure);
 }
 
 void check_close(double actual, double expected, double absolute = 1e-7, double relative = 1e-5)

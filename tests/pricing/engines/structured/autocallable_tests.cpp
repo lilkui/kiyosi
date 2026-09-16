@@ -19,8 +19,8 @@ void check_structured_refinement(const Instrument& instrument, const kiyosi::Pri
         const auto fine = kiyosi::FiniteDifferenceStructuredEngine<Instrument>{{80, 1024, scheme}}.price(instrument, context);
         REQUIRE(coarse);
         REQUIRE(fine);
-        const double coarse_value = *coarse->get(kiyosi::risk_measure::price);
-        const double fine_value = *fine->get(kiyosi::risk_measure::price);
+        const double coarse_value = *coarse->require(kiyosi::risk_measure::price);
+        const double fine_value = *fine->require(kiyosi::risk_measure::price);
         CHECK(std::isfinite(coarse_value));
         CHECK(std::isfinite(fine_value));
         CHECK(fine_value != coarse_value);
@@ -38,7 +38,7 @@ TEST_CASE("Phoenix expiry settlement applies state and final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->get(kiyosi::risk_measure::price);
+        return *result->require(kiyosi::risk_measure::price);
     };
 
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
@@ -83,7 +83,7 @@ TEST_CASE("Snowball expiry settlement applies state and final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->get(kiyosi::risk_measure::price);
+        return *result->require(kiyosi::risk_measure::price);
     };
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.10},
                                                          .maturity_coupon_rate = 0.05,
@@ -128,7 +128,7 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->get(kiyosi::risk_measure::price);
+        return *result->require(kiyosi::risk_measure::price);
     };
     const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.10},
                                                               .maturity_coupon_rate = 0.05,
@@ -156,7 +156,7 @@ TEST_CASE("Ternary snowball expiry settlement applies final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->get(kiyosi::risk_measure::price);
+        return *result->require(kiyosi::risk_measure::price);
     };
     const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.10},
                                                                 .maturity_coupon_rate = 0.05,
@@ -188,7 +188,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
         using Instrument = std::remove_cvref_t<decltype(instrument)>;
         const auto result = kiyosi::MonteCarloStructuredEngine<Instrument>{{32, 7}}.price(instrument, context);
         REQUIRE(result);
-        return *result->get(kiyosi::risk_measure::price);
+        return *result->require(kiyosi::risk_measure::price);
     };
     const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                             .maturity_coupon_rate = 0.05,
@@ -206,8 +206,8 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     const auto second = engine.price(note, context);
     REQUIRE(first);
     REQUIRE(second);
-    CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
-    CHECK(*first->get(kiyosi::risk_measure::price) ==
+    CHECK(*first->require(kiyosi::risk_measure::price) == *second->require(kiyosi::risk_measure::price));
+    CHECK(*first->require(kiyosi::risk_measure::price) ==
           Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective, valuation).value()).margin(1e-10));
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                          .maturity_coupon_rate = 0.05,

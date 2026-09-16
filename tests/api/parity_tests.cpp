@@ -120,8 +120,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 REQUIRE(context);
                 const auto result = kiyosi::AnalyticVanillaEngine{}.price(*option, *context);
                 REQUIRE(result);
-                REQUIRE(result->get(kiyosi::risk_measure::price));
-                CHECK_THAT(*result->get(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(
+                REQUIRE(result->require(kiyosi::risk_measure::price));
+                CHECK_THAT(*result->require(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(
                     std::stod(test.expected.at("price")), std::stod(test.tolerance)));
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(

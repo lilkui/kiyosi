@@ -82,10 +82,11 @@ requires requires(const Option& value, double coupon) { value.with_coupon_rate(c
         auto priced = engine.price(*replaced, context);
         if (!priced) return std::unexpected(priced.error());
         const auto value = priced->get(risk_measure::price);
-        if (!value || !std::isfinite(*value))
+        if (!value) return std::unexpected(value.error());
+        if (!*value || !std::isfinite(**value))
             return std::unexpected(Error{error_category::solver_non_finite,
                                          "implied-coupon pricing became non-finite"});
-        return *value - observed_price;
+        return **value - observed_price;
     };
 
     double lo = settings.lower_bound;

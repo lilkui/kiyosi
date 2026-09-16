@@ -26,7 +26,8 @@ std::optional<risk_measure> measure_named(std::string_view name)
 
 PythonOptionalReal optional_value(const PricingResult& result, risk_measure measure)
 {
-    if (const auto value = result.get(measure)) return PythonOptionalReal{nb::float_(*value)};
+    const auto value = result.get(measure);
+    if (value && *value) return PythonOptionalReal{nb::float_(**value)};
     return PythonOptionalReal{nb::none()};
 }
 

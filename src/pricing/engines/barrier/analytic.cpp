@@ -16,10 +16,8 @@ namespace {
 PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt,
                         std::optional<double> gamma = std::nullopt)
 {
-    PricingResult output{{risk_measure::price, value}};
-    output.set(risk_measure::delta, delta);
-    output.set(risk_measure::gamma, gamma);
-    return output;
+    return PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
+                         {risk_measure::gamma, gamma}};
 }
 
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
@@ -74,7 +72,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
                             std::sqrt(terms.observation_interval()));
     }
     if (touched) {
-        const double touched_value = *vanilla->get(risk_measure::price);
+        const double touched_value = *vanilla->require(risk_measure::price);
         return zero_tail(knock_in
             ? touched_value
             : option.rebate() * (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)));
@@ -89,8 +87,8 @@ result<PricingResult> AnalyticBarrierEngine::price(
                                          "barrier rebate discounting is numerically unstable"});
     }
     if (t == 0.0) {
-        return knock_in ? zero_tail(touched ? *vanilla->get(risk_measure::price) : option.rebate())
-                        : zero_tail(touched ? option.rebate() : *vanilla->get(risk_measure::price));
+        return knock_in ? zero_tail(touched ? *vanilla->require(risk_measure::price) : option.rebate())
+                        : zero_tail(touched ? option.rebate() : *vanilla->require(risk_measure::price));
     }
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);

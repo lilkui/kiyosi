@@ -28,12 +28,12 @@ TEST_CASE("Accumulator expiry settlement agrees across pricing engines")
 
     const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(90.0));
     REQUIRE(monte_carlo);
-    CHECK(*monte_carlo->get(kiyosi::risk_measure::price) == Catch::Approx(-50.0));
+    CHECK(*monte_carlo->require(kiyosi::risk_measure::price) == Catch::Approx(-50.0));
 
     const auto finite_difference =
         kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(90.0));
     REQUIRE(finite_difference);
-    CHECK(*finite_difference->get(kiyosi::risk_measure::price) == Catch::Approx(-50.0));
+    CHECK(*finite_difference->require(kiyosi::risk_measure::price) == Catch::Approx(-50.0));
 }
 
 TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid")
@@ -56,8 +56,8 @@ TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid
         const auto fine = kiyosi::FiniteDifferenceAccumulatorEngine{{80, 1024, scheme}}.price(accumulator, context);
         REQUIRE(coarse);
         REQUIRE(fine);
-        const double coarse_value = *coarse->get(kiyosi::risk_measure::price);
-        const double fine_value = *fine->get(kiyosi::risk_measure::price);
+        const double coarse_value = *coarse->require(kiyosi::risk_measure::price);
+        const double fine_value = *fine->require(kiyosi::risk_measure::price);
         CHECK(std::isfinite(coarse_value));
         CHECK(std::isfinite(fine_value));
         CHECK(fine_value != coarse_value);

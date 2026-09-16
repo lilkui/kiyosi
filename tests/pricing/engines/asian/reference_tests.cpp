@@ -58,7 +58,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             const auto native = engine.price(*option, *context);
             check_price(fixture, native);
             for (const auto& [name, measure] : measures)
-                REQUIRE(native->get(measure).has_value() == (name == "price"));
+                REQUIRE(native->has(measure) == (name == "price"));
             ++generated;
             const bool smooth = !terminal && (date("valuation") - date("average_start")).count() > 2 &&
                                 (date("expiry") - date("valuation")).count() > 2;
@@ -78,8 +78,8 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             REQUIRE(numerical.has_value());
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
-                REQUIRE(numerical->get(measure).has_value());
-                CHECK_THAT(*numerical->get(measure),
+                REQUIRE(numerical->has(measure));
+                CHECK_THAT(*numerical->require(measure),
                            Catch::Matchers::WithinAbs(fixture.outputs.at(name),
                                                       number("numerical_tolerance_" + name) +
                                                           number("uncertainty_" + name)));

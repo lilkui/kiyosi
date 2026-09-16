@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
+#include <stdexcept>
 #include <utility>
 #include <kiyosi/core/error.hpp>
 
@@ -27,9 +28,10 @@ enum class risk_measure : std::uint8_t {
 
 inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_measure::rho) + 1;
 
-[[nodiscard]] constexpr std::size_t risk_measure_index(risk_measure measure) noexcept
+[[nodiscard]] constexpr std::optional<std::size_t> risk_measure_index(risk_measure measure) noexcept
 {
-    return static_cast<std::size_t>(measure);
+    const auto index = static_cast<std::size_t>(measure);
+    return index < risk_measure_count ? std::optional{index} : std::nullopt;
 }
 
 class PricingResult {
@@ -37,38 +39,37 @@ public:
     using values_type = std::array<std::optional<double>, risk_measure_count>;
 
     PricingResult() = default;
-    PricingResult(std::initializer_list<std::pair<risk_measure, double>> entries)
+    PricingResult(std::initializer_list<std::pair<risk_measure, std::optional<double>>> entries)
     {
-        for (const auto& [measure, value] : entries)
-            set(measure, value);
+        for (const auto& [measure, value] : entries) {
+            const auto index = risk_measure_index(measure);
+            if (!index) throw std::invalid_argument{"unknown risk measure"};
+            values_[*index] = value;
+        }
     }
 
     [[nodiscard]] bool has(risk_measure measure) const noexcept
     {
-        return values_[risk_measure_index(measure)].has_value();
+        const auto index = risk_measure_index(measure);
+        return index && values_[*index].has_value();
     }
 
-    [[nodiscard]] std::optional<double> get(risk_measure measure) const noexcept
+    [[nodiscard]] result<std::optional<double>> get(risk_measure measure) const noexcept
     {
-        return values_[risk_measure_index(measure)];
+        const auto index = risk_measure_index(measure);
+        if (!index)
+            return std::unexpected(Error{error_category::invalid_parameter,
+                                         "unknown risk measure"});
+        return values_[*index];
     }
 
     [[nodiscard]] result<double> require(risk_measure measure) const
     {
-        if (const auto value = get(measure)) return *value;
+        const auto value = get(measure);
+        if (!value) return std::unexpected(value.error());
+        if (*value) return **value;
         return std::unexpected(Error{error_category::invalid_result,
                                      "requested risk measure is unavailable"});
-    }
-
-    PricingResult& set(risk_measure measure, std::optional<double> value) noexcept
-    {
-        values_[risk_measure_index(measure)] = value;
-        return *this;
-    }
-
-    PricingResult& set(risk_measure measure, double value) noexcept
-    {
-        return set(measure, std::optional<double>{value});
     }
 
     [[nodiscard]] const values_type& values_view() const noexcept { return values_; }

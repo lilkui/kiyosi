@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <limits>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -62,6 +63,30 @@ TEST_CASE("Pricing context and result preserve their values")
     STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::PricingResult>);
     STATIC_REQUIRE(std::is_copy_assignable_v<kiyosi::PricingResult>);
     STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::Error>);
+}
+
+TEST_CASE("Pricing result rejects unknown risk measures")
+{
+    const auto unknown = static_cast<kiyosi::risk_measure>(kiyosi::risk_measure_count);
+    const kiyosi::PricingResult result{{kiyosi::risk_measure::price, 1.0}};
+
+    CHECK_FALSE(result.has(unknown));
+
+    const auto unknown_value = result.get(unknown);
+    REQUIRE_FALSE(unknown_value.has_value());
+    CHECK(unknown_value.error().category == kiyosi::error_category::invalid_parameter);
+
+    const auto unknown_required = result.require(unknown);
+    REQUIRE_FALSE(unknown_required.has_value());
+    CHECK(unknown_required.error().category == kiyosi::error_category::invalid_parameter);
+
+    const auto unavailable = result.get(kiyosi::risk_measure::delta);
+    REQUIRE(unavailable.has_value());
+    CHECK_FALSE(unavailable->has_value());
+    CHECK(result.require(kiyosi::risk_measure::delta).error().category ==
+          kiyosi::error_category::invalid_result);
+
+    CHECK_THROWS_AS((kiyosi::PricingResult{{unknown, 1.0}}), std::invalid_argument);
 }
 
 }

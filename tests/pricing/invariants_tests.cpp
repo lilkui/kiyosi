@@ -22,8 +22,8 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     const auto put = *kiyosi::make_european_option(kiyosi::option_type::put, 100.0, valuation, expiry);
     const auto analytic_call = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const auto analytic_put = *kiyosi::AnalyticVanillaEngine{}.price(put, context);
-    const auto call_price = *analytic_call.get(kiyosi::risk_measure::price);
-    const auto put_price = *analytic_put.get(kiyosi::risk_measure::price);
+    const auto call_price = *analytic_call.require(kiyosi::risk_measure::price);
+    const auto put_price = *analytic_put.require(kiyosi::risk_measure::price);
     CHECK(std::abs(call_price - put_price - (100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04))) < 1e-10);
 
     const auto in = *kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
@@ -40,18 +40,18 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
                                                    .barrier_kind = kiyosi::barrier_type::up_and_out});
     const auto barrier_in = *kiyosi::AnalyticBarrierEngine{}.price(in, context);
     const auto barrier_out = *kiyosi::AnalyticBarrierEngine{}.price(out, context);
-    CHECK(std::abs(*barrier_in.get(kiyosi::risk_measure::price) +
-                   *barrier_out.get(kiyosi::risk_measure::price) - call_price) < 2e-5);
+    CHECK(std::abs(*barrier_in.require(kiyosi::risk_measure::price) +
+                   *barrier_out.require(kiyosi::risk_measure::price) - call_price) < 2e-5);
 
     const auto coarse = *kiyosi::CrrVanillaEngine{32}.price(call, context);
     const auto fine = *kiyosi::CrrVanillaEngine{128}.price(call, context);
-    CHECK(std::abs(*fine.get(kiyosi::risk_measure::price) - call_price) <
-          std::abs(*coarse.get(kiyosi::risk_measure::price) - call_price));
+    CHECK(std::abs(*fine.require(kiyosi::risk_measure::price) - call_price) <
+          std::abs(*coarse.require(kiyosi::risk_measure::price) - call_price));
 
     const kiyosi::MonteCarloVanillaEngine monte_carlo{20000, 2, 42};
     const auto first = *monte_carlo.price(call, context);
     const auto second = *monte_carlo.price(call, context);
-    CHECK(*first.get(kiyosi::risk_measure::price) == *second.get(kiyosi::risk_measure::price));
+    CHECK(*first.require(kiyosi::risk_measure::price) == *second.require(kiyosi::risk_measure::price));
 }
 
 TEST_CASE("Seeded Monte Carlo engines execute repeatably")
@@ -123,10 +123,10 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
         const auto second = engine.price(instrument, context);
         REQUIRE(first.has_value());
         REQUIRE(second.has_value());
-        REQUIRE(first->get(kiyosi::risk_measure::price).has_value());
-        REQUIRE(second->get(kiyosi::risk_measure::price).has_value());
-        CHECK(*first->get(kiyosi::risk_measure::price) == *second->get(kiyosi::risk_measure::price));
-        CHECK(std::isfinite(*first->get(kiyosi::risk_measure::price)));
+        REQUIRE(first->require(kiyosi::risk_measure::price).has_value());
+        REQUIRE(second->require(kiyosi::risk_measure::price).has_value());
+        CHECK(*first->require(kiyosi::risk_measure::price) == *second->require(kiyosi::risk_measure::price));
+        CHECK(std::isfinite(*first->require(kiyosi::risk_measure::price)));
     };
     require_repeatable(call, kiyosi::MonteCarloVanillaEngine{20000, 252, 42});
     require_repeatable(put, kiyosi::MonteCarloVanillaEngine{20000, 50, 42});

@@ -49,7 +49,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             const auto native = engine.price(*option, *context);
             check_price(fixture, native);
             for (const auto& [name, measure] : measures)
-                REQUIRE(native->get(measure).has_value() == (name == "price"));
+                REQUIRE(native->has(measure) == (name == "price"));
             ++generated[fixture.engine];
             REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
             const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
@@ -67,8 +67,8 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(fixture.outputs.contains(name));
-                REQUIRE(numerical->get(measure).has_value());
-                CHECK_THAT(*numerical->get(measure),
+                REQUIRE(numerical->has(measure));
+                CHECK_THAT(*numerical->require(measure),
                            Catch::Matchers::WithinAbs(fixture.outputs.at(name),
                                                       number("numerical_tolerance_" + name) +
                                                           number("uncertainty_" + name)));

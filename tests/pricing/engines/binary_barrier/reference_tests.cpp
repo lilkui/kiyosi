@@ -55,7 +55,7 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         const auto native = engine.price(*option, *context);
         check_price(fixture, native);
         for (const auto& [name, measure] : measures)
-            REQUIRE(native->get(measure).has_value() == (name == "price"));
+            REQUIRE(native->has(measure) == (name == "price"));
         for (const auto& [name, value] : fixture.outputs)
             REQUIRE(measures.contains(name));
         ++generated;
@@ -72,8 +72,8 @@ TEST_CASE("QuantLib binary barrier contracts validate prices and smooth Greeks")
         REQUIRE(numerical.has_value());
         for (const auto& [name, measure] : measures) {
             INFO("measure=" << name);
-            REQUIRE(numerical->get(measure).has_value());
-            CHECK_THAT(*numerical->get(measure),
+            REQUIRE(numerical->has(measure));
+            CHECK_THAT(*numerical->require(measure),
                        Catch::Matchers::WithinAbs(fixture.outputs.at(name),
                                                   number("numerical_tolerance_" + name) +
                                                       number("uncertainty_" + name)));

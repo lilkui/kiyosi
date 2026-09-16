@@ -13,10 +13,8 @@ namespace {
 PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt,
                         std::optional<double> gamma = std::nullopt)
 {
-    PricingResult output{{risk_measure::price, value}};
-    output.set(risk_measure::delta, delta);
-    output.set(risk_measure::gamma, gamma);
-    return output;
+    return PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
+                         {risk_measure::gamma, gamma}};
 }
 
 result<PricingResult> digital_price(double strike, option_type type, double payout,

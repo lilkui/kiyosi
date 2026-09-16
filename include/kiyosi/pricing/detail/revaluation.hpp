@@ -15,9 +15,10 @@ template <typename Engine, typename Option>
     auto priced = engine.price(option, context);
     if (!priced) return std::unexpected(priced.error());
     const auto value = priced->get(risk_measure::price);
-    if (!value || !std::isfinite(*value))
+    if (!value) return std::unexpected(value.error());
+    if (!*value || !std::isfinite(**value))
         return std::unexpected(Error{error_category::invalid_result, "pricing produced no finite price"});
-    return *value;
+    return **value;
 }
 
 /// Rebuilds `context` with bumped market state, preserving the dividend yield and calendar.

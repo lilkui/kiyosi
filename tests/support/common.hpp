@@ -14,7 +14,7 @@ inline kiyosi::date day(int year, unsigned month, unsigned day_number)
 
 inline double risk_value(const kiyosi::PricingResult& result, kiyosi::risk_measure measure)
 {
-    return *result.get(measure);
+    return *result.require(measure);
 }
 
 }

@@ -28,10 +28,10 @@ TEST_CASE("Digital expiry settlement uses strict strikes without smooth Greeks")
         const auto check = [&](const auto& engine, const auto& option, double expected) {
             const auto result = engine.price(option, context);
             REQUIRE(result.has_value());
-            REQUIRE(result->get(kiyosi::risk_measure::price).has_value());
-            CHECK(*result->get(kiyosi::risk_measure::price) == expected);
+            REQUIRE(result->has(kiyosi::risk_measure::price));
+            CHECK(*result->require(kiyosi::risk_measure::price) == expected);
             for (const auto& [name, measure] : measures)
-                if (name != "price") CHECK_FALSE(result->get(measure).has_value());
+                if (name != "price") CHECK_FALSE(result->has(measure));
         };
         const auto check_engine = [&](const auto& engine) {
             check(engine, cash, item.cash);
