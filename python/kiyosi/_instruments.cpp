@@ -200,6 +200,79 @@ void bind_instruments(nb::module_& module)
                {"observation", "observation"},
                {"observations", "observation_dates"}});
 
+    module.def("cash_one_touch_up",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier,
+                  PythonReal payout, rebate_timing timing) {
+                   return unwrap(make_cash_one_touch_up(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), real_number(payout, "payout"), timing));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
+               "timing"_a = BinaryBarrierTerms{}.settlement_timing,
+               "Create a continuous cash one-touch with an upper barrier.");
+    module.def("cash_one_touch_down",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier,
+                  PythonReal payout, rebate_timing timing) {
+                   return unwrap(make_cash_one_touch_down(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), real_number(payout, "payout"), timing));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
+               "timing"_a = BinaryBarrierTerms{}.settlement_timing,
+               "Create a continuous cash one-touch with a lower barrier.");
+    module.def("cash_no_touch_up",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier, PythonReal payout) {
+                   return unwrap(make_cash_no_touch_up(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), real_number(payout, "payout")));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
+               "Create a continuous cash no-touch with an upper barrier.");
+    module.def("cash_no_touch_down",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier, PythonReal payout) {
+                   return unwrap(make_cash_no_touch_down(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), real_number(payout, "payout")));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
+               "Create a continuous cash no-touch with a lower barrier.");
+    module.def("asset_one_touch_up",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier,
+                  rebate_timing timing) {
+                   return unwrap(make_asset_one_touch_up(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), timing));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
+               "timing"_a = BinaryBarrierTerms{}.settlement_timing,
+               "Create a continuous asset one-touch with an upper barrier.");
+    module.def("asset_one_touch_down",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier,
+                  rebate_timing timing) {
+                   return unwrap(make_asset_one_touch_down(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier"), timing));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
+               "timing"_a = BinaryBarrierTerms{}.settlement_timing,
+               "Create a continuous asset one-touch with a lower barrier.");
+    module.def("asset_no_touch_up",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier) {
+                   return unwrap(make_asset_no_touch_up(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier")));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
+               "Create a continuous asset no-touch with an upper barrier.");
+    module.def("asset_no_touch_down",
+               [](PythonDate effective, PythonDate expiry, PythonReal barrier) {
+                   return unwrap(make_asset_no_touch_down(
+                       calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
+                       real_number(barrier, "barrier")));
+               },
+               nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
+               "Create a continuous asset no-touch with a lower barrier.");
+
     auto accumulator = nb::class_<Accumulator>(
         module, "Accumulator", "Immutable validated accumulator contract.")
         .def(nb::new_([](PythonReal strike, PythonReal knock_out,

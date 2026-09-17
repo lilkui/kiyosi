@@ -6,7 +6,7 @@ from pathlib import Path
 import kiyosi
 import kiyosi.market as market
 import kiyosi.pricing as pricing
-from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, standard_snowball
+from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, RebateTiming, asset_no_touch_down, cash_one_touch_up, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
 from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, numerical_analytics
 
@@ -181,6 +181,21 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertGreater(AnalyticBarrierEngine().price(barrier, self.context).price, 0)
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
         self.assertIsNotNone(numerical_analytics(AnalyticVanillaEngine(), self.option, self.context).vega)
+
+    def test_touch_factories_require_only_payoff_relevant_terms(self):
+        terms = dict(effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
+        cash = cash_one_touch_up(**terms, barrier=130, payout=10, timing=RebateTiming.AT_HIT)
+        asset = asset_no_touch_down(**terms, barrier=70)
+        self.assertEqual(cash.barrier_kind, BarrierType.UP_AND_IN)
+        self.assertEqual(cash.payout, 10)
+        self.assertFalse(cash.asset_settlement)
+        self.assertEqual(cash.settlement_timing, RebateTiming.AT_HIT)
+        self.assertEqual(asset.barrier_kind, BarrierType.DOWN_AND_OUT)
+        self.assertTrue(asset.asset_settlement)
+        with self.assertRaises(TypeError):
+            cash_one_touch_up(**terms, barrier=130, payout=10, strike=100)
+        with self.assertRaises(TypeError):
+            asset_no_touch_down(**terms, barrier=70, payout=10)
 
     def test_public_api_matches_shared_language_parity_cases(self):
         cases = parity_cases()

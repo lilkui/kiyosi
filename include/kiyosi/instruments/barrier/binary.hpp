@@ -96,62 +96,83 @@ private:
     return BinaryBarrierOption{type, strike, payout, asset, timing, std::move(*terms)};
 }
 
-[[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_up(
-    double strike, date effective, date expiry, double barrier, double payout,
+namespace detail {
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_touch_option(
+    date effective, date expiry, double barrier, double payout, bool asset_settlement,
+    barrier_type barrier_kind, rebate_timing settlement_timing)
+{
+    return make_binary_barrier_option({.type = std::nullopt,
+                                       .strike = barrier,
+                                       .effective = effective,
+                                       .expiry = expiry,
+                                       .barrier = barrier,
+                                       .barrier_kind = barrier_kind,
+                                       .payout = payout,
+                                       .asset_settlement = asset_settlement,
+                                       .settlement_timing = settlement_timing});
+}
+
+} // namespace detail
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_one_touch_up(
+    date effective, date expiry, double barrier, double payout,
     rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
 {
-    return make_binary_barrier_option({.type = std::nullopt,
-                                       .strike = strike,
-                                       .effective = effective,
-                                       .expiry = expiry,
-                                       .barrier = barrier,
-                                       .barrier_kind = barrier_type::up_and_in,
-                                       .payout = payout,
-                                       .asset_settlement = false,
-                                       .settlement_timing = timing});
+    return detail::make_touch_option(effective, expiry, barrier, payout, false,
+                                     barrier_type::up_and_in, timing);
 }
 
-[[nodiscard]] inline result<BinaryBarrierOption> make_one_touch_down(
-    double strike, date effective, date expiry, double barrier, double payout,
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_one_touch_down(
+    date effective, date expiry, double barrier, double payout,
     rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
 {
-    return make_binary_barrier_option({.type = std::nullopt,
-                                       .strike = strike,
-                                       .effective = effective,
-                                       .expiry = expiry,
-                                       .barrier = barrier,
-                                       .barrier_kind = barrier_type::down_and_in,
-                                       .payout = payout,
-                                       .asset_settlement = false,
-                                       .settlement_timing = timing});
+    return detail::make_touch_option(effective, expiry, barrier, payout, false,
+                                     barrier_type::down_and_in, timing);
 }
 
-[[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_up(
-    double strike, date effective, date expiry, double barrier, double payout)
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_no_touch_up(
+    date effective, date expiry, double barrier, double payout)
 {
-    return make_binary_barrier_option({.type = std::nullopt,
-                                       .strike = strike,
-                                       .effective = effective,
-                                       .expiry = expiry,
-                                       .barrier = barrier,
-                                       .barrier_kind = barrier_type::up_and_out,
-                                       .payout = payout,
-                                       .asset_settlement = false,
-                                       .settlement_timing = rebate_timing::at_expiry});
+    return detail::make_touch_option(effective, expiry, barrier, payout, false,
+                                     barrier_type::up_and_out, rebate_timing::at_expiry);
 }
 
-[[nodiscard]] inline result<BinaryBarrierOption> make_no_touch_down(
-    double strike, date effective, date expiry, double barrier, double payout)
+[[nodiscard]] inline result<BinaryBarrierOption> make_cash_no_touch_down(
+    date effective, date expiry, double barrier, double payout)
 {
-    return make_binary_barrier_option({.type = std::nullopt,
-                                       .strike = strike,
-                                       .effective = effective,
-                                       .expiry = expiry,
-                                       .barrier = barrier,
-                                       .barrier_kind = barrier_type::down_and_out,
-                                       .payout = payout,
-                                       .asset_settlement = false,
-                                       .settlement_timing = rebate_timing::at_expiry});
+    return detail::make_touch_option(effective, expiry, barrier, payout, false,
+                                     barrier_type::down_and_out, rebate_timing::at_expiry);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_one_touch_up(
+    date effective, date expiry, double barrier,
+    rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
+{
+    return detail::make_touch_option(effective, expiry, barrier, barrier, true,
+                                     barrier_type::up_and_in, timing);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_one_touch_down(
+    date effective, date expiry, double barrier,
+    rebate_timing timing = BinaryBarrierTerms{}.settlement_timing)
+{
+    return detail::make_touch_option(effective, expiry, barrier, barrier, true,
+                                     barrier_type::down_and_in, timing);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_no_touch_up(
+    date effective, date expiry, double barrier)
+{
+    return detail::make_touch_option(effective, expiry, barrier, barrier, true,
+                                     barrier_type::up_and_out, rebate_timing::at_expiry);
+}
+
+[[nodiscard]] inline result<BinaryBarrierOption> make_asset_no_touch_down(
+    date effective, date expiry, double barrier)
+{
+    return detail::make_touch_option(effective, expiry, barrier, barrier, true,
+                                     barrier_type::down_and_out, rebate_timing::at_expiry);
 }
 
 } // namespace kiyosi

@@ -55,20 +55,23 @@ TEST_CASE("Binary barriers expose observation intervals and reject invalid at-hi
               .category == kiyosi::error_category::invalid_parameter);
 }
 
-TEST_CASE("One-touch and no-touch factories configure continuous cash barriers")
+TEST_CASE("Touch factories require only payoff-relevant terms")
 {
     const auto effective = day(2025, 1, 6);
     const auto expiry = effective + std::chrono::days{365};
-    const auto one_touch = kiyosi::make_one_touch_up(
-        100.0, effective, expiry, 130.0, 10.0, kiyosi::rebate_timing::at_hit);
-    const auto no_touch = kiyosi::make_no_touch_down(100.0, effective, expiry, 70.0, 10.0);
-    REQUIRE(one_touch);
-    REQUIRE(no_touch);
-    CHECK(one_touch->barrier_kind() == kiyosi::barrier_type::up_and_in);
-    CHECK(one_touch->settlement_timing() == kiyosi::rebate_timing::at_hit);
-    CHECK(one_touch->observation() == kiyosi::observation_mode::continuous);
-    CHECK(no_touch->barrier_kind() == kiyosi::barrier_type::down_and_out);
-    CHECK(no_touch->settlement_timing() == kiyosi::rebate_timing::at_expiry);
+    const auto cash = kiyosi::make_cash_one_touch_up(
+        effective, expiry, 130.0, 10.0, kiyosi::rebate_timing::at_hit);
+    const auto asset = kiyosi::make_asset_no_touch_down(effective, expiry, 70.0);
+    REQUIRE(cash);
+    REQUIRE(asset);
+    CHECK(cash->barrier_kind() == kiyosi::barrier_type::up_and_in);
+    CHECK(cash->payout() == 10.0);
+    CHECK_FALSE(cash->asset_settlement());
+    CHECK(cash->settlement_timing() == kiyosi::rebate_timing::at_hit);
+    CHECK(cash->observation() == kiyosi::observation_mode::continuous);
+    CHECK(asset->barrier_kind() == kiyosi::barrier_type::down_and_out);
+    CHECK(asset->asset_settlement());
+    CHECK(asset->settlement_timing() == kiyosi::rebate_timing::at_expiry);
 }
 
 } // namespace
