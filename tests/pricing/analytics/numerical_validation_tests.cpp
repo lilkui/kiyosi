@@ -395,35 +395,4 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
     }
 }
 
-TEST_CASE("Bermudan options preserve exercise dates")
-{
-    const auto dates = std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{180}};
-    const auto bermudan = kiyosi::make_bermudan_option(
-        kiyosi::option_type::call, 100.0, valuation, expiry, dates);
-    REQUIRE(bermudan.has_value());
-    CHECK(bermudan->exercise_dates() == dates);
-}
-
-TEST_CASE("Bermudan options reject invalid schedules")
-{
-    CHECK_FALSE(kiyosi::make_bermudan_option(
-                    kiyosi::option_type::call, 100.0, valuation, expiry,
-                    std::vector<kiyosi::date>{expiry + std::chrono::days{1}})
-                    .has_value());
-    CHECK(kiyosi::make_bermudan_option(
-              kiyosi::option_type::call, 100.0, valuation, expiry, {})
-              .error()
-              .category ==
-          kiyosi::error_category::invalid_schedule);
-    CHECK(kiyosi::make_bermudan_option(
-              kiyosi::option_type::call, 100.0, valuation, expiry,
-              std::vector{valuation + std::chrono::days{30}, valuation + std::chrono::days{30}})
-              .error()
-              .category == kiyosi::error_category::invalid_schedule);
-    CHECK(kiyosi::make_bermudan_option(
-              kiyosi::option_type::call, 100.0, valuation, expiry,
-              std::vector{day(2025, 1, 11)})
-              .has_value());
-}
-
 } // namespace

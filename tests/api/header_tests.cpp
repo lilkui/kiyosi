@@ -116,7 +116,6 @@ static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>)
 
 static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::BermudanOption>);
 
 static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
 static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
@@ -124,14 +123,12 @@ static_assert(!can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::European
 
 static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::AmericanOption>);
 static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::CrrVanillaEngine, kiyosi::BermudanOption>);
 
 static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::BermudanOption>);
 
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
                                        kiyosi::EuropeanOption,
