@@ -8,7 +8,7 @@ import kiyosi.market as market
 import kiyosi.pricing as pricing
 from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, ObservationMode, OptionType, PayoffType, SettlementTiming, TouchOption, asset_no_touch_down, cash_binary_barrier_option, cash_one_touch_up, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, numerical_analytics
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine
 
 
 def parity_fields(value):
@@ -87,7 +87,7 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("solve", pricing.implied_volatility.__doc__.lower())
+        self.assertIn("solve", NumericalAnalyticsEngine.implied_volatility.__doc__.lower())
 
     def test_weekdays_calendar_is_the_explicit_default(self):
         self.assertFalse(hasattr(market, "exchange_calendar"))
@@ -183,13 +183,33 @@ class KiyosiPythonTests(unittest.TestCase):
         barrier = BarrierOption(type=OptionType.CALL, strike=100, effective=date(2025, 1, 1), expiry=date(2026, 1, 1), barrier=80, barrier_kind=BarrierType.DOWN_AND_OUT)
         self.assertGreater(AnalyticBarrierEngine().price(barrier, self.context).price, 0)
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
-        self.assertIsNotNone(numerical_analytics(AnalyticVanillaEngine(), self.option, self.context).vega)
+        engine = AnalyticVanillaEngine()
+        analytics = NumericalAnalyticsEngine(engine)
+        self.assertIs(analytics.engine, engine)
+        with self.assertRaises(AttributeError):
+            analytics.engine = AnalyticVanillaEngine()
+        self.assertIsNotNone(analytics.price(self.option, self.context).vega)
+        observed_price = engine.price(self.option, self.context).price
+        self.assertAlmostEqual(
+            analytics.implied_volatility(self.option, self.context, observed_price),
+            self.parameters.volatility,
+        )
 
     def test_scenario_grid_carries_its_spots_and_prices(self):
-        result = pricing.scenario_grid(AnalyticVanillaEngine(), self.option, self.context, [90, 110])
+        result = NumericalAnalyticsEngine(AnalyticVanillaEngine()).scenario_grid(
+            self.option, self.context, [90, 110]
+        )
         self.assertEqual(result.spots, [90, 110])
         self.assertEqual(len(result.prices), 2)
         self.assertFalse(hasattr(result, "values"))
+
+    def test_numerical_analytics_forwards_explicit_shift_settings(self):
+        analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            analytics.price(self.option, self.context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        for name in ("numerical_analytics", "scenario_grid", "implied_volatility", "implied_coupon"):
+            self.assertFalse(hasattr(pricing, name))
 
     def test_touch_factories_require_only_payoff_relevant_terms(self):
         terms = dict(effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
