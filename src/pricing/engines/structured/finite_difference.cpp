@@ -18,6 +18,11 @@ using namespace detail;
 
 namespace {
 
+struct ObservationEvent {
+    double time;
+    std::size_t index;
+};
+
 /// Highest product level the grid must span so no barrier or strike is clipped.
 template <typename Note>
 double highest_relevant_level(const Note& note, double spot)
@@ -82,24 +87,35 @@ result<PricingResult> price_autocallable_finite_difference(
     if (note.touch_status() == barrier_touch_status::up)
         return make_pricing_result({{risk_measure::price, 0.0}});
 
-    const double maturity = actual_365(context.valuation_time(), note.expiry());
+    const timestamp valuation = context.valuation_time();
+    const double maturity = actual_365(valuation, note.expiry());
     if (maturity == 0.0) return terminal_value(note, context);
 
     const auto future_trading_dates =
-        trading_dates(context.calendar(), context.valuation_time(), note.expiry(), true);
+        trading_dates(context.calendar(), valuation, note.expiry(), true);
     std::vector<double> anchors{0.0, maturity};
-    const auto add_anchor = [&](date value) {
-        if (value <= context.valuation_time()) return;
-        const double time = actual_365(context.valuation_time(), value);
+    std::vector<ObservationEvent> observation_events;
+    observation_events.reserve(note.observation_dates().size());
+    for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
+        const date value = note.observation_dates()[index];
+        if (value < valuation) continue;
+        const double time = actual_365(valuation, value);
+        observation_events.push_back({time, index});
         if (time > 0.0 && time < maturity) anchors.push_back(time);
-    };
-    for (const date value : note.observation_dates()) add_anchor(value);
+    }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_frequency(); };
     bool monitors_daily = false;
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_frequency() == observation_frequency::daily;
-    if (monitors_daily)
-        for (const date value : future_trading_dates) add_anchor(value);
+    std::vector<double> trading_times;
+    if (monitors_daily) {
+        trading_times.reserve(future_trading_dates.size());
+        for (const date value : future_trading_dates) {
+            const double time = actual_365(valuation, value);
+            trading_times.push_back(time);
+            if (time > 0.0 && time < maturity) anchors.push_back(time);
+        }
+    }
 
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
@@ -109,19 +125,13 @@ result<PricingResult> price_autocallable_finite_difference(
         !stable)
         return std::unexpected(stable.error());
 
-    const auto observation_events = observation_schedule(note, context.valuation_time());
     const auto event_index = [&](double time) -> std::optional<std::size_t> {
-        const auto found = std::find_if(
-            observation_events.begin(), observation_events.end(), [&](std::size_t index) {
-                return actual_365(context.valuation_time(), note.observation_dates()[index]) == time;
-            });
-        return found == observation_events.end() ? std::nullopt : std::optional<std::size_t>{*found};
-    };
-    const auto daily_event = [&](double time) {
-        return monitors_daily &&
-               std::any_of(future_trading_dates.begin(), future_trading_dates.end(), [&](date value) {
-                   return actual_365(context.valuation_time(), value) == time;
-               });
+        const auto found = std::lower_bound(
+            observation_events.begin(), observation_events.end(), time,
+            [](const ObservationEvent& event, double value) { return event.time < value; });
+        return found == observation_events.end() || found->time != time
+                   ? std::nullopt
+                   : std::optional<std::size_t>{found->index};
     };
 
     const std::size_t size = space->size();
@@ -154,7 +164,8 @@ result<PricingResult> price_autocallable_finite_difference(
             return std::unexpected(Error{error_category::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);
-        const bool daily = daily_event(grid[step]);
+        const bool daily = monitors_daily &&
+                           std::binary_search(trading_times.begin(), trading_times.end(), grid[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false;

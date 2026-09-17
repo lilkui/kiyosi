@@ -357,6 +357,35 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
     CHECK(calls->load() == 7);
 }
 
+TEST_CASE("Structured finite difference preserves future observation indices")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto valuation_date = day(2025, 1, 2);
+    const auto future_observation = day(2025, 1, 4);
+    const auto expiry = day(2025, 1, 6);
+    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {100.0, 0.2, 0.3},
+                                                            .maturity_coupon_rate = 0.01,
+                                                            .initial_price = 100.0,
+                                                            .knock_out_prices = {90.0, 90.0, 90.0},
+                                                            .upper_strike = 100.0,
+                                                            .lower_strike = 60.0,
+                                                            .observation_dates = {valuation_date, future_observation, expiry},
+                                                            .touch_status = kiyosi::barrier_touch_status::none,
+                                                            .principal_ratio = 1.0,
+                                                            .effective = effective,
+                                                            .expiry = expiry});
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), 100.0,
+        kiyosi::start_of_day(valuation_date) + std::chrono::hours{12},
+        kiyosi::all_days_calendar());
+
+    const auto result = kiyosi::FiniteDifferenceBinarySnowballEngine{{100, 3}}.price(note, context);
+
+    REQUIRE(result);
+    const double expected = 1.0 + 0.2 * *kiyosi::year_fraction(effective, future_observation);
+    CHECK(*result->require(kiyosi::risk_measure::price) == Catch::Approx(expected).margin(1e-12));
+}
+
 TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
 {
     const auto effective = day(2025, 1, 1);
