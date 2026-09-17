@@ -73,12 +73,17 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
     const bool knock_in = terms.is_knock_in();
     const bool observed_now = terms.monitors(context.valuation_time());
     const bool touched = observed_now && terms.breaches(spot);
-    if (time == 0.0) return PricingResult{{risk_measure::price, terminal_payoff(option, spot, observed_now)}};
+    if (time == 0.0)
+        return make_pricing_result(
+            {{risk_measure::price, terminal_payoff(option, spot, observed_now)}});
     if (touched) {
-        if (!knock_in) return PricingResult{{risk_measure::price, 0.0}};
+        if (!knock_in) return make_pricing_result({{risk_measure::price, 0.0}});
         if (option.settlement_timing == settlement_timing::at_hit)
-            return PricingResult{{risk_measure::price, option.asset_settlement ? terms.barrier() : option.payout}};
-        return PricingResult{{risk_measure::price, vanilla_digital(option, context, time)}};
+            return make_pricing_result(
+                {{risk_measure::price,
+                  option.asset_settlement ? terms.barrier() : option.payout}});
+        return make_pricing_result(
+            {{risk_measure::price, vanilla_digital(option, context, time)}});
     }
     const double rate = context.parameters().risk_free_rate(), dividend = context.parameters().dividend_yield();
     const double volatility = context.parameters().volatility(), volatility_time = volatility * std::sqrt(time);
@@ -103,7 +108,7 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
     };
     if (option.settlement_timing == settlement_timing::at_hit) {
         const auto factors = common(upper ? -1.0 : 1.0, 0.0);
-        return PricingResult{{risk_measure::price, factors.a5}};
+        return make_pricing_result({{risk_measure::price, factors.a5}});
     }
     const bool down = !upper, call = option.type && *option.type == option_type::call;
     const double phi = option.type ? (call ? 1.0 : -1.0)
@@ -136,7 +141,7 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
                           : (option.strike > barrier ? factors.a2 - factors.a4 : factors.a1 - factors.a3);
     }
     if (!std::isfinite(value)) return std::unexpected(Error{error_category::invalid_result, "binary barrier pricing produced a non-finite result"});
-    return PricingResult{{risk_measure::price, std::max(value, 0.0)}};
+    return make_pricing_result({{risk_measure::price, std::max(value, 0.0)}});
 }
 } // namespace
 

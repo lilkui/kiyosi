@@ -169,8 +169,9 @@ struct RecordingEngine {
         const double elapsed_days = std::chrono::duration<double, std::ratio<86400>>{
             context.valuation_time() - origin}
                                         .count();
-        return kiyosi::PricingResult{{kiyosi::risk_measure::price,
-                                      context.parameters().volatility() + elapsed_days}};
+        return kiyosi::make_pricing_result(
+            {{kiyosi::risk_measure::price,
+              context.parameters().volatility() + elapsed_days}});
     }
 };
 

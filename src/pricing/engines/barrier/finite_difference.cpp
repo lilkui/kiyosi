@@ -103,16 +103,23 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     };
     if (touched && observed_now) {
         if (!knock_in)
-            return PricingResult{{risk_measure::price, option.rebate_timing() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
+            return make_pricing_result(
+                {{risk_measure::price,
+                  option.rebate_timing() == rebate_timing::at_hit
+                      ? option.rebate()
+                      : option.rebate() *
+                            std::exp(-context.parameters().risk_free_rate() * t)}});
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
-        return PricingResult{{risk_measure::price, *vanilla}};
+        return make_pricing_result({{risk_measure::price, *vanilla}});
     }
     auto out = knockout_fd(option, context, settings_); if (!out) return std::unexpected(out.error());
-    if (!knock_in) return PricingResult{{risk_measure::price, *out}};
+    if (!knock_in) return make_pricing_result({{risk_measure::price, *out}});
     auto vanilla = vanilla_price();
     if (!vanilla) return std::unexpected(vanilla.error());
-    return PricingResult{{risk_measure::price,
-                          *vanilla - *out + option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
+    return make_pricing_result(
+        {{risk_measure::price,
+          *vanilla - *out +
+              option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}});
 }
 } // namespace kiyosi

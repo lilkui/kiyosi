@@ -6,7 +6,6 @@
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
-#include <stdexcept>
 #include <utility>
 #include <kiyosi/core/error.hpp>
 
@@ -50,14 +49,6 @@ public:
     using values_type = std::array<std::optional<double>, risk_measure_count>;
 
     PricingResult() = default;
-    PricingResult(std::initializer_list<std::pair<risk_measure, std::optional<double>>> entries)
-    {
-        for (const auto& [measure, value] : entries) {
-            const auto index = risk_measure_index(measure);
-            if (!index) throw std::invalid_argument{"unknown risk measure"};
-            values_[*index] = value;
-        }
-    }
 
     /// Reports whether the measure is available; a stored zero is available.
     [[nodiscard]] bool has(risk_measure measure) const noexcept
@@ -66,7 +57,7 @@ public:
         return index && values_[*index].has_value();
     }
 
-    [[nodiscard]] result<std::optional<double>> get(risk_measure measure) const noexcept
+    [[nodiscard]] result<std::optional<double>> get(risk_measure measure) const
     {
         const auto index = risk_measure_index(measure);
         if (!index)
@@ -94,7 +85,26 @@ public:
     }
 
 private:
+    friend result<PricingResult> make_pricing_result(
+        std::initializer_list<std::pair<risk_measure, std::optional<double>>>);
+
     values_type values_{};
 };
+
+/// Builds a result from runtime risk-measure entries.
+/// Unknown measures are rejected with `invalid_parameter`.
+[[nodiscard]] inline result<PricingResult> make_pricing_result(
+    std::initializer_list<std::pair<risk_measure, std::optional<double>>> entries)
+{
+    PricingResult output;
+    for (const auto& [measure, value] : entries) {
+        const auto index = risk_measure_index(measure);
+        if (!index)
+            return std::unexpected(Error{error_category::invalid_parameter,
+                                         "unknown risk measure"});
+        output.values_[*index] = value;
+    }
+    return output;
+}
 
 } // namespace kiyosi

@@ -10,11 +10,11 @@ using namespace detail;
 
 namespace {
 
-PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt,
-                        std::optional<double> gamma = std::nullopt)
+result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
+                                std::optional<double> gamma = std::nullopt)
 {
-    return PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
-                         {risk_measure::gamma, gamma}};
+    return make_pricing_result({{risk_measure::price, value}, {risk_measure::delta, delta},
+                                {risk_measure::gamma, gamma}});
 }
 
 result<PricingResult> digital_price(double strike, option_type type, double payout,
@@ -56,7 +56,8 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
                 (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
     auto output = zero_tail(value, delta, gamma);
-    if (!output.all_finite())
+    if (!output) return std::unexpected(output.error());
+    if (!output->all_finite())
         return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
     return output;
 }

@@ -28,8 +28,8 @@ result<PricingResult> price_finite_difference(
     const double strike = option.strike();
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     if (time == 0.0) {
-        auto output = PricingResult{{risk_measure::price, std::max(sign * (spot - strike), 0.0)}};
-        return output;
+        return make_pricing_result(
+            {{risk_measure::price, std::max(sign * (spot - strike), 0.0)}});
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -73,10 +73,12 @@ result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
-    const auto output = PricingResult{{risk_measure::price, space->interpolate(old, spot)},
-                                      {risk_measure::delta, space->delta(old, spot)},
-                                      {risk_measure::gamma, space->gamma(old, spot)}};
-    if (!output.all_finite())
+    auto output = make_pricing_result(
+        {{risk_measure::price, space->interpolate(old, spot)},
+         {risk_measure::delta, space->delta(old, spot)},
+         {risk_measure::gamma, space->gamma(old, spot)}});
+    if (!output) return std::unexpected(output.error());
+    if (!output->all_finite())
         return std::unexpected(Error{error_category::invalid_result,
                                      "finite-difference pricing produced a non-finite result"});
     return output;

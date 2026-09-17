@@ -42,12 +42,14 @@ result<PricingResult> terminal_value(const Note& note, const PricingContext& con
     while (index < dates.size() && dates[index] < note.expiry()) ++index;
     const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry();
     if (observed_at_expiry && spot >= note.knock_out_prices()[index])
-        return PricingResult{{risk_measure::price,
-                              note.principal_ratio() + observation_coupon(note, index, spot)}};
+        return make_pricing_result(
+            {{risk_measure::price,
+              note.principal_ratio() + observation_coupon(note, index, spot)}});
     const double coupon = observed_at_expiry && carries_observation_coupon<Note>
                               ? observation_coupon(note, index, spot)
                               : 0.0;
-    return PricingResult{{risk_measure::price, terminal_settlement(note, spot, knocked_in) + coupon}};
+    return make_pricing_result(
+        {{risk_measure::price, terminal_settlement(note, spot, knocked_in) + coupon}});
 }
 
 } // namespace
@@ -71,14 +73,14 @@ result<PricingResult> price_autocallable_finite_difference(
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
     if (note.touch_status() == barrier_touch_status::up && !settings.upper_boundary)
-        return PricingResult{{risk_measure::price, 0.0}};
+        return make_pricing_result({{risk_measure::price, 0.0}});
 
     const double spot = context.asset_price();
     const double relevant = highest_relevant_level(note, spot);
     const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
     if (note.touch_status() == barrier_touch_status::up)
-        return PricingResult{{risk_measure::price, 0.0}};
+        return make_pricing_result({{risk_measure::price, 0.0}});
 
     const double maturity = actual_365(context.valuation_time(), note.expiry());
     if (maturity == 0.0) return terminal_value(note, context);
@@ -176,10 +178,9 @@ result<PricingResult> price_autocallable_finite_difference(
         alive.swap(next_alive);
     }
 
-    return PricingResult{
-        {risk_measure::price,
-         space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in : alive,
-                            spot)}};
+    return make_pricing_result({{risk_measure::price,
+                                 space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in : alive,
+                                                    spot)}});
 }
 
 template result<PricingResult> price_autocallable_finite_difference(

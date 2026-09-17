@@ -137,7 +137,7 @@ result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const American
                              : bjerksund_call(strike, spot, time, dividend, rate, volatility);
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
-    return PricingResult{{risk_measure::price, std::max(value, 0.0)}};
+    return make_pricing_result({{risk_measure::price, std::max(value, 0.0)}});
 }
 
 } // namespace kiyosi

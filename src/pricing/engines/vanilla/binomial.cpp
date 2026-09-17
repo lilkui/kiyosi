@@ -28,8 +28,8 @@ result<PricingResult> price_binomial(
     const double sign = option.type() == option_type::call ? 1.0 : -1.0;
     const double time = actual_365(context.valuation_time(), option.expiry());
     if (time == 0.0) {
-        auto output = PricingResult{{risk_measure::price, std::max(sign * (spot - strike), 0.0)}};
-        return output;
+        return make_pricing_result(
+            {{risk_measure::price, std::max(sign * (spot - strike), 0.0)}});
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -110,11 +110,13 @@ result<PricingResult> price_binomial(
         }
     }
 
-    const PricingResult output{{risk_measure::price, values[0]},
-                               {risk_measure::delta, delta},
-                               {risk_measure::gamma,
-                                gamma_available ? std::optional<double>{gamma} : std::nullopt}};
-    if (!output.all_finite()) {
+    auto output = make_pricing_result(
+        {{risk_measure::price, values[0]},
+         {risk_measure::delta, delta},
+         {risk_measure::gamma,
+          gamma_available ? std::optional<double>{gamma} : std::nullopt}});
+    if (!output) return std::unexpected(output.error());
+    if (!output->all_finite()) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "binomial pricing produced a non-finite result"});
     }

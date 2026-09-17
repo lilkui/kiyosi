@@ -141,13 +141,15 @@ template <typename Engine, typename Option>
                            (*d_before - 2.0 * *t_before + *d_before_low)) /
                           (h * h * day_scale));
 
-    PricingResult output{{risk_measure::price, *p0}, {risk_measure::delta, delta},
-                         {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
-                         {risk_measure::theta, theta}, {risk_measure::charm, charm},
-                         {risk_measure::color, color}, {risk_measure::vega, vega},
-                         {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
-                         {risk_measure::rho, rho}};
-    if (!output.all_finite())
+    auto output = make_pricing_result(
+        {{risk_measure::price, *p0}, {risk_measure::delta, delta},
+         {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
+         {risk_measure::theta, theta}, {risk_measure::charm, charm},
+         {risk_measure::color, color}, {risk_measure::vega, vega},
+         {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
+         {risk_measure::rho, rho}});
+    if (!output) return std::unexpected(output.error());
+    if (!output->all_finite())
         return std::unexpected(Error{error_category::invalid_result,
                                      "numerical analytics are non-finite"});
     return output;

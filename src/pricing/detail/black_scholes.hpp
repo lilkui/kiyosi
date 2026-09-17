@@ -11,9 +11,9 @@
 
 namespace kiyosi::detail {
 
-inline PricingResult price_only_result(double value)
+inline result<PricingResult> price_only_result(double value)
 {
-    return PricingResult{{risk_measure::price, value}};
+    return make_pricing_result({{risk_measure::price, value}});
 }
 
 enum class risk_measure_output {
@@ -38,7 +38,7 @@ inline result<PricingResult> price_at_volatility(
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
         if (requested_output == risk_measure_output::price_only) return price_only_result(value);
-        return PricingResult{{risk_measure::price, value}};
+        return make_pricing_result({{risk_measure::price, value}});
     }
 
     const double rate = context.parameters().risk_free_rate();
@@ -59,7 +59,8 @@ inline result<PricingResult> price_at_volatility(
                                          "analytic pricing produced a non-finite result"});
         if (requested_output == risk_measure_output::price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
-        return PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta}};
+        return make_pricing_result(
+            {{risk_measure::price, value}, {risk_measure::delta, delta}});
     }
 
     const double d1 = (std::log(spot / strike) +
@@ -111,13 +112,15 @@ inline result<PricingResult> price_at_volatility(
     }
     const double rho =
         sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_point;
-    const PricingResult output{{risk_measure::price, value}, {risk_measure::delta, delta},
-                               {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
-                               {risk_measure::theta, theta}, {risk_measure::charm, charm},
-                               {risk_measure::color, color}, {risk_measure::vega, vega},
-                               {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
-                               {risk_measure::rho, rho}};
-    if (!output.all_finite()) {
+    auto output = make_pricing_result(
+        {{risk_measure::price, value}, {risk_measure::delta, delta},
+         {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
+         {risk_measure::theta, theta}, {risk_measure::charm, charm},
+         {risk_measure::color, color}, {risk_measure::vega, vega},
+         {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
+         {risk_measure::rho, rho}});
+    if (!output) return std::unexpected(output.error());
+    if (!output->all_finite()) {
         return std::unexpected(Error{error_category::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     }

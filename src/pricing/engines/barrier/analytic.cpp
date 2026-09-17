@@ -13,11 +13,11 @@ using namespace detail;
 
 namespace {
 
-PricingResult zero_tail(double value, std::optional<double> delta = std::nullopt,
-                        std::optional<double> gamma = std::nullopt)
+result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
+                                std::optional<double> gamma = std::nullopt)
 {
-    return PricingResult{{risk_measure::price, value}, {risk_measure::delta, delta},
-                         {risk_measure::gamma, gamma}};
+    return make_pricing_result({{risk_measure::price, value}, {risk_measure::delta, delta},
+                                {risk_measure::gamma, gamma}});
 }
 
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)

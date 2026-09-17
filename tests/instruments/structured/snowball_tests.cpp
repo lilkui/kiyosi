@@ -25,8 +25,8 @@ struct CouponSumEngine {
         maturity_coupon = option.maturity_coupon_rate();
         if constexpr (requires { option.minimal_coupon_rate(); })
             minimal_coupon = option.minimal_coupon_rate();
-        return kiyosi::PricingResult{{kiyosi::risk_measure::price,
-                                      coupon_rates.front() + maturity_coupon}};
+        return kiyosi::make_pricing_result(
+            {{kiyosi::risk_measure::price, coupon_rates.front() + maturity_coupon}});
     }
 };
 } // namespace
