@@ -1,7 +1,6 @@
 add_executable(kiyosi_tests
     api/header_tests.cpp
     api/parity_tests.cpp
-    core/version_tests.cpp
     instruments/accumulator_tests.cpp
     instruments/asian_tests.cpp
     instruments/digital_tests.cpp

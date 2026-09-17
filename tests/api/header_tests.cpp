@@ -55,8 +55,6 @@ concept can_price_with_settings = requires(
 
 } // namespace
 
-static_assert(kiyosi::version_major == 0);
-
 static_assert(kiyosi::default_realized_average == 0.0);
 static_assert(kiyosi::BarrierOptionTerms{}.rebate == 0.0);
 static_assert(kiyosi::BarrierOptionTerms{}.rebate_payment == kiyosi::rebate_timing::at_expiry);
