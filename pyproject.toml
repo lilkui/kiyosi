@@ -4,7 +4,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "kiyosi"
-description = "A modern quantitative finance library for pricing vanilla and exotic derivatives"
+description = "A Python library for pricing vanilla and exotic derivatives"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
 authors = [{ name = "Jiangping Li" }]
@@ -35,5 +35,6 @@ cmake.args = [
     "-DKIYOSI_BUILD_PYTHON=ON",
     "-DKIYOSI_INSTALL=OFF",
     "-DKIYOSI_BUILD_EXAMPLES=OFF",
+    "-DKIYOSI_BUILD_BENCHMARKS=OFF",
     "-DBUILD_TESTING=OFF",
 ]

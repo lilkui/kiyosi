@@ -17,8 +17,21 @@ call "!vs_path!\Common7\Tools\VsDevCmd.bat" -arch=x64
 if errorlevel 1 exit /b %ERRORLEVEL%
 
 pushd "%~dp0"
-uv build
+uv build --sdist
+if errorlevel 1 goto :build_failed
+
+for %%V in (3.11 3.12 3.13 3.14) do (
+    uv build --wheel --python %%V
+    if errorlevel 1 goto :build_failed
+)
+
+set "exit_code=0"
+goto :build_finished
+
+:build_failed
 set "exit_code=%ERRORLEVEL%"
+
+:build_finished
 popd
 
 exit /b %exit_code%
