@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(kiyosi VERSION 0.1.0 LANGUAGES CXX)
+project(kiyosi VERSION 0.2.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
@@ -75,6 +75,11 @@ add_library(kiyosi::kiyosi ALIAS kiyosi)
 generate_export_header(kiyosi
     EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
 )
+configure_file(
+    include/kiyosi/core/version.hpp.in
+    "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
+    @ONLY
+)
 target_compile_features(kiyosi PUBLIC cxx_std_23)
 if(NOT BUILD_SHARED_LIBS)
     target_compile_definitions(kiyosi PUBLIC KIYOSI_STATIC_DEFINE)
@@ -109,7 +114,6 @@ target_sources(kiyosi
             include/kiyosi/core/day_count.hpp
             include/kiyosi/core/error.hpp
             include/kiyosi/core/time.hpp
-            include/kiyosi/core/version.hpp
             include/kiyosi/instruments/accumulator.hpp
             include/kiyosi/instruments/asian.hpp
             include/kiyosi/instruments/digital.hpp
@@ -162,7 +166,9 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/vanilla/monte_carlo.hpp
         FILE_SET generated_headers TYPE HEADERS
         BASE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/generated"
-        FILES "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
+        FILES
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
+            "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
 )
 set_target_properties(kiyosi PROPERTIES
     CXX_EXTENSIONS OFF
