@@ -16,6 +16,9 @@ namespace {
 constexpr int maximum_path_count = 10'000'000;
 constexpr int maximum_step_count = 10'000;
 
+enum class PathRetention { full,
+                           terminal };
+
 result<double> simulation_time(const PricingContext& context, date effective, date expiry)
 {
     const auto valid = validate_life(context.valuation_time(), effective, expiry);
@@ -27,7 +30,7 @@ result<double> simulation_time(const PricingContext& context, date effective, da
 }
 
 result<std::vector<double>> simulate_paths(
-    const PricingContext& context, double time, MonteCarloSettings settings)
+    const PricingContext& context, double time, MonteCarloSettings settings, PathRetention retention)
 {
     if (settings.path_count <= 0 || settings.path_count > maximum_path_count)
         return std::unexpected(Error{error_category::invalid_parameter,
@@ -37,7 +40,10 @@ result<std::vector<double>> simulate_paths(
                                      "Monte Carlo step count is out of range"});
 
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
-    const auto size = static_cast<std::size_t>(path_count) * static_cast<std::size_t>(settings.step_count);
+    const auto stride = retention == PathRetention::full
+                            ? static_cast<std::size_t>(settings.step_count)
+                            : std::size_t{1};
+    const auto size = static_cast<std::size_t>(path_count) * stride;
     std::vector<double> paths(size);
     const double spot = context.asset_price();
     const double rate = context.parameters().risk_free_rate();
@@ -61,23 +67,32 @@ result<std::vector<double>> simulate_paths(
     std::normal_distribution<double> normal;
     const int half_count = path_count / 2;
     for (int path = 0; path < half_count; ++path) {
-        const auto positive = static_cast<std::size_t>(path) * settings.step_count;
-        const auto negative = static_cast<std::size_t>(path + half_count) * settings.step_count;
-        paths[positive] = spot;
-        paths[negative] = spot;
+        const auto positive = static_cast<std::size_t>(path) * stride;
+        const auto negative = static_cast<std::size_t>(path + half_count) * stride;
+        if (retention == PathRetention::full) {
+            paths[positive] = spot;
+            paths[negative] = spot;
+        }
         double positive_spot = spot;
         double negative_spot = spot;
         for (int step = 1; step < settings.step_count; ++step) {
             const double normal_draw = normal(generator);
             positive_spot *= std::exp(drift + volatility * sqrt_dt * normal_draw);
             negative_spot *= std::exp(drift - volatility * sqrt_dt * normal_draw);
-            paths[positive + static_cast<std::size_t>(step)] = positive_spot;
-            paths[negative + static_cast<std::size_t>(step)] = negative_spot;
+            if (!std::isfinite(positive_spot) || positive_spot <= 0.0 ||
+                !std::isfinite(negative_spot) || negative_spot <= 0.0)
+                return std::unexpected(Error{error_category::invalid_result,
+                                             "Monte Carlo simulation produced a non-finite path"});
+            if (retention == PathRetention::full) {
+                paths[positive + static_cast<std::size_t>(step)] = positive_spot;
+                paths[negative + static_cast<std::size_t>(step)] = negative_spot;
+            }
+        }
+        if (retention == PathRetention::terminal) {
+            paths[positive] = positive_spot;
+            paths[negative] = negative_spot;
         }
     }
-    if (!std::ranges::all_of(paths, [](double value) { return std::isfinite(value) && value > 0.0; }))
-        return std::unexpected(Error{error_category::invalid_result,
-                                     "Monte Carlo simulation produced a non-finite path"});
     return paths;
 }
 
@@ -134,13 +149,12 @@ result<PricingResult> MonteCarloVanillaEngine::price_european(
         return make_pricing_result(
             {{risk_measure::price,
               payoff(option.type(), context.asset_price(), option.strike())}});
-    auto paths = simulate_paths(context, *time, settings_);
+    auto paths = simulate_paths(context, *time, settings_, PathRetention::terminal);
     if (!paths) return std::unexpected(paths.error());
-    const auto path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
     double sum = 0.0;
-    for (std::size_t path = 0; path < path_count; ++path)
-        sum += payoff(option.type(), (*paths)[path * settings_.step_count + settings_.step_count - 1], option.strike());
-    const double value = sum / static_cast<double>(path_count) * std::exp(-context.parameters().risk_free_rate() * *time);
+    for (double terminal_spot : *paths)
+        sum += payoff(option.type(), terminal_spot, option.strike());
+    const double value = sum / static_cast<double>(paths->size()) * std::exp(-context.parameters().risk_free_rate() * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return make_pricing_result({{risk_measure::price, value}});
@@ -158,7 +172,7 @@ result<PricingResult> MonteCarloVanillaEngine::price_american(
     if (settings_.step_count < 3)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
-    auto paths = simulate_paths(context, *time, settings_);
+    auto paths = simulate_paths(context, *time, settings_, PathRetention::full);
     if (!paths) return std::unexpected(paths.error());
     const auto path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
     const double discount = std::exp(-context.parameters().risk_free_rate() *
