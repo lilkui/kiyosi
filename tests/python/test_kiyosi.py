@@ -182,6 +182,12 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
         self.assertIsNotNone(numerical_analytics(AnalyticVanillaEngine(), self.option, self.context).vega)
 
+    def test_scenario_grid_carries_its_spots_and_prices(self):
+        result = pricing.scenario_grid(AnalyticVanillaEngine(), self.option, self.context, [90, 110])
+        self.assertEqual(result.spots, [90, 110])
+        self.assertEqual(len(result.prices), 2)
+        self.assertFalse(hasattr(result, "values"))
+
     def test_touch_factories_require_only_payoff_relevant_terms(self):
         terms = dict(effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
         cash = cash_one_touch_up(**terms, barrier=130, payout=10, timing=RebateTiming.AT_HIT)

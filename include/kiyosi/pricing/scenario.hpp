@@ -11,7 +11,8 @@
 namespace kiyosi {
 
 struct ScenarioGridResult {
-    std::vector<double> values;
+    std::vector<double> spots;
+    std::vector<double> prices;
     std::vector<double> deltas;
     std::vector<double> gammas;
 };
@@ -22,8 +23,8 @@ template <typename Engine, typename Option>
     const Engine& engine, const Option& option, const PricingContext& context,
     std::span<const double> spots, NumericalShiftSettings settings = {})
 {
-    ScenarioGridResult result;
-    result.values.reserve(spots.size());
+    ScenarioGridResult result{.spots = std::vector<double>{spots.begin(), spots.end()}};
+    result.prices.reserve(spots.size());
     result.deltas.reserve(spots.size());
     result.gammas.reserve(spots.size());
     for (double spot : spots) {
@@ -33,7 +34,7 @@ template <typename Engine, typename Option>
         if (!shifted) return std::unexpected(shifted.error());
         auto analytics = numerical_analytics(engine, option, *shifted, settings);
         if (!analytics) return std::unexpected(analytics.error());
-        result.values.push_back(*analytics->require(risk_measure::price));
+        result.prices.push_back(*analytics->require(risk_measure::price));
         result.deltas.push_back(*analytics->require(risk_measure::delta));
         result.gammas.push_back(*analytics->require(risk_measure::gamma));
     }

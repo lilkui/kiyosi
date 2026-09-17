@@ -317,12 +317,14 @@ void bind_results(nb::module_& module)
                {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
                {"zomma", "zomma"}, {"rho", "rho"}});
     auto scenario_result = nb::class_<ScenarioGridResult>(
-        module, "ScenarioGridResult", "Price, delta, and gamma vectors for a spot grid.")
-        .def_prop_ro("values", [](const ScenarioGridResult& result) { return result.values; })
+        module, "ScenarioGridResult", "Spot, price, delta, and gamma vectors for a scenario grid.")
+        .def_prop_ro("spots", [](const ScenarioGridResult& result) { return result.spots; })
+        .def_prop_ro("prices", [](const ScenarioGridResult& result) { return result.prices; })
         .def_prop_ro("deltas", [](const ScenarioGridResult& result) { return result.deltas; })
         .def_prop_ro("gammas", [](const ScenarioGridResult& result) { return result.gammas; });
     bind_repr(scenario_result, "ScenarioGridResult",
-              {{"values", "values"}, {"deltas", "deltas"}, {"gammas", "gammas"}});
+              {{"spots", "spots"}, {"prices", "prices"},
+               {"deltas", "deltas"}, {"gammas", "gammas"}});
     nb::module_::import_("collections.abc").attr("Mapping").attr("register")(
         module.attr("PricingResult"));
 }
