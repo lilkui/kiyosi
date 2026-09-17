@@ -12,6 +12,17 @@
 
 namespace kiyosi {
 
+/// Public risk-measure contract:
+/// - price uses the instrument's value units;
+/// - delta, gamma, and speed are price changes per one spot unit, squared spot unit, and cubed
+///   spot unit, respectively;
+/// - vega, vanna, and zomma are price, delta, and gamma changes per one volatility percentage
+///   point (an absolute volatility change of 0.01);
+/// - rho is the price change per one interest-rate percentage point (an absolute rate change of
+///   0.01);
+/// - theta, charm, and color are price, delta, and gamma changes per calendar day as valuation
+///   time moves forward.
+/// Undefined or unsupported measures are unavailable (`std::nullopt`), never represented by zero.
 enum class risk_measure : std::uint8_t {
     price,
     delta,
@@ -48,6 +59,7 @@ public:
         }
     }
 
+    /// Reports whether the measure is available; a stored zero is available.
     [[nodiscard]] bool has(risk_measure measure) const noexcept
     {
         const auto index = risk_measure_index(measure);

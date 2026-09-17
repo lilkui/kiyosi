@@ -56,7 +56,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry")
     }
 }
 
-TEST_CASE("Analytic European engine returns intrinsic value and zero Greeks at expiry")
+TEST_CASE("Analytic European engine returns intrinsic value and unavailable Greeks at expiry")
 {
     const auto expiry = day(2026, 1, 6);
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, expiry, expiry);
@@ -70,9 +70,12 @@ TEST_CASE("Analytic European engine returns intrinsic value and zero Greeks at e
     const auto put_result = *engine.price(put, put_context);
     REQUIRE(risk_value(call_result, kiyosi::risk_measure::price) == 10.0);
     REQUIRE(risk_value(put_result, kiyosi::risk_measure::price) == 10.0);
-    CHECK_FALSE(call_result.has(kiyosi::risk_measure::delta));
-    CHECK_FALSE(call_result.has(kiyosi::risk_measure::gamma));
-    CHECK_FALSE(call_result.has(kiyosi::risk_measure::theta));
+    for (std::size_t index = 1; index < kiyosi::risk_measure_count; ++index) {
+        const auto measure = static_cast<kiyosi::risk_measure>(index);
+        INFO("risk measure index: " << index);
+        CHECK_FALSE(call_result.has(measure));
+        CHECK_FALSE(put_result.has(measure));
+    }
 }
 
 TEST_CASE("Analytic European implied volatility recovers market volatility")

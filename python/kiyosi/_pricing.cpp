@@ -250,7 +250,14 @@ void bind_results(nb::module_& module)
 {
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",
-        "Read-only mapping of risk-measure names to optional values.")
+        R"doc(Read-only mapping over the fixed risk-measure vocabulary.
+
+Price uses instrument value units. Delta, gamma, and speed are per one spot unit,
+squared spot unit, and cubed spot unit. Vega, vanna, and zomma are price, delta,
+and gamma changes per one volatility percentage point (an absolute change of
+0.01). Rho is per one interest-rate percentage point. Theta, charm, and color
+are price, delta, and gamma changes per calendar day as valuation time moves
+forward. Undefined or unsupported measures are None, never a zero sentinel.)doc")
         .def("__len__", [](const PricingResult&) { return risk_measure_count; })
         .def("__iter__", [](const PricingResult&) {
             return PythonStringIterator{result_keys().attr("__iter__")()};

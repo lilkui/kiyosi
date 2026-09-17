@@ -14,6 +14,7 @@ namespace kiyosi {
 
 /// Derives the full risk-measure set for any engine by revaluing it on bumped market states.
 /// Time shifts are clamped to the instrument life, so boundary valuations use a one-sided step.
+/// If neither time direction is available, the operation fails with `invalid_result`.
 template <typename Engine, typename Option>
 [[nodiscard]] result<PricingResult> numerical_analytics(
     const Engine& engine, const Option& option, const PricingContext& context,

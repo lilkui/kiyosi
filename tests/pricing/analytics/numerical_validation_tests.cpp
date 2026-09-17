@@ -129,6 +129,23 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
     }
 }
 
+TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
+{
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation - std::chrono::days{30}, expiry);
+    const auto market = context();
+    const kiyosi::AnalyticVanillaEngine engine;
+    const auto analytic_result = *engine.price(option, market);
+    const auto numerical_result = *kiyosi::numerical_analytics(engine, option, market);
+
+    for (std::size_t index = 0; index < kiyosi::risk_measure_count; ++index) {
+        const auto measure = static_cast<kiyosi::risk_measure>(index);
+        INFO("risk measure index: " << index);
+        check_close(risk_value(numerical_result, measure), risk_value(analytic_result, measure),
+                    2e-6, 2e-3);
+    }
+}
+
 TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
 {
     const auto call = analytic(kiyosi::option_type::call);

@@ -84,6 +84,9 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("reversed", market.TradingCalendar.trading_days_between.__doc__.lower())
         self.assertIn("price", AnalyticVanillaEngine.price.__doc__.lower())
         self.assertIn("risk-measure", kiyosi.PricingResult.__doc__.lower())
+        self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
+        self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
+        self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("solve", pricing.implied_volatility.__doc__.lower())
 
     def test_weekdays_calendar_is_the_explicit_default(self):
