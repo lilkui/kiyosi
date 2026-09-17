@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <random>
+#include <utility>
+#include <vector>
 
 #include <kiyosi/market/schedule.hpp>
 
@@ -14,17 +16,51 @@ using namespace detail;
 
 namespace {
 
-template <typename Note>
-double path_payoff(const Note& note, const PricingContext& context, std::mt19937_64& generator)
-{
-    if (note.touch_status() == barrier_touch_status::up) return 0.0;
+struct SimulationStep {
+    date current;
+    double drift;
+    double diffusion;
+    double discount;
+};
 
+struct SimulationInputs {
+    std::vector<std::size_t> observation_schedule;
+    std::vector<SimulationStep> steps;
+    double terminal_discount;
+};
+
+template <typename Note>
+SimulationInputs prepare_simulation(const Note& note, const PricingContext& context)
+{
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
     const timestamp valuation = context.valuation_time();
+    const auto dates = trading_dates(context.calendar(), valuation, note.expiry());
+    std::vector<SimulationStep> steps;
+    steps.reserve(dates.size());
+    auto previous = valuation;
+    for (const date current : dates) {
+        const double dt = actual_365(previous, current);
+        steps.push_back({current,
+                         (rate - dividend - 0.5 * sigma * sigma) * dt,
+                         sigma * std::sqrt(dt),
+                         std::exp(-rate * actual_365(valuation, current))});
+        previous = current;
+    }
+    return {observation_schedule(note, valuation), std::move(steps),
+            std::exp(-rate * actual_365(valuation, note.expiry()))};
+}
+
+template <typename Note>
+double path_payoff(const Note& note, const PricingContext& context,
+                   const SimulationInputs& inputs, std::mt19937_64& generator)
+{
+    if (note.touch_status() == barrier_touch_status::up) return 0.0;
+
+    const timestamp valuation = context.valuation_time();
     const auto& dates = note.observation_dates();
-    const auto schedule = observation_schedule(note, valuation);
+    const auto& schedule = inputs.observation_schedule;
 
     double value = context.asset_price();
     double coupons = 0.0;
@@ -46,25 +82,19 @@ double path_payoff(const Note& note, const PricingContext& context, std::mt19937
     }
 
     std::normal_distribution<double> normal;
-    auto previous = valuation;
-    for (const auto current : trading_dates(context.calendar(), valuation, note.expiry())) {
-        const double dt = actual_365(previous, current);
-        value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt +
-                          sigma * std::sqrt(dt) * normal(generator));
-        previous = current;
+    for (const auto& step : inputs.steps) {
+        value *= std::exp(step.drift + step.diffusion * normal(generator));
         knocked_in = is_knocked_in(note, value, knocked_in, false);
-        if (index >= schedule.size() || dates[schedule[index]] != current) continue;
+        if (index >= schedule.size() || dates[schedule[index]] != step.current) continue;
         const auto event = schedule[index];
-        const double time = actual_365(valuation, current);
         const double coupon = observation_coupon(note, event, value);
         if (value >= note.knock_out_prices()[event])
-            return (note.principal_ratio() + coupon) * std::exp(-rate * time) + coupons;
-        if constexpr (carries_observation_coupon<Note>) coupons += coupon * std::exp(-rate * time);
+            return (note.principal_ratio() + coupon) * step.discount + coupons;
+        if constexpr (carries_observation_coupon<Note>) coupons += coupon * step.discount;
         ++index;
     }
     knocked_in = is_knocked_in(note, value, knocked_in, true);
-    return coupons + std::exp(-rate * actual_365(valuation, note.expiry())) *
-                         terminal_settlement(note, value, knocked_in);
+    return coupons + inputs.terminal_discount * terminal_settlement(note, value, knocked_in);
 }
 
 } // namespace
@@ -85,9 +115,10 @@ result<PricingResult> MonteCarloStructuredEngine<Note>::price(
                                      "structured Monte Carlo path count is out of range"});
 
     std::mt19937_64 generator(settings_.seed.value_or(std::random_device{}()));
+    const auto inputs = prepare_simulation(note, context);
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)
-        sum += path_payoff(note, context, generator);
+        sum += path_payoff(note, context, inputs, generator);
     const double value = sum / static_cast<double>(settings_.path_count);
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result,

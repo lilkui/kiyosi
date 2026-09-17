@@ -16,9 +16,10 @@ namespace detail {
 [[nodiscard]] TradingCalendar make_calendar(std::function<bool(date)>, int);
 }
 
-/// Calendar queries follow the library thread-safety default. For calendars created with
-/// make_trading_calendar, the caller must also ensure that the supplied predicate and any state
-/// shared by its copies support concurrent invocation.
+/// Calendar queries follow the library thread-safety default. Predicates supplied to
+/// make_trading_calendar must return the same answer for a date throughout each operation; callers
+/// must not depend on query frequency or order. The caller must also ensure that the predicate and
+/// any state shared by its copies support concurrent invocation.
 class TradingCalendar {
 public:
     using trading_day_predicate = std::function<bool(date)>;
