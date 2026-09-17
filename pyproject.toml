@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 [project]
 name = "kiyosi"
 description = "A modern quantitative finance library for pricing vanilla and exotic derivatives"
-readme = "python/README.md"
+readme = "README.md"
 license = { file = "LICENSE.txt" }
 authors = [{ name = "Jiangping Li" }]
 requires-python = ">=3.11"
