@@ -62,6 +62,16 @@ nb::tuple result_items(const PricingResult& result)
     return output;
 }
 
+nb::tuple real_tuple(const std::vector<double>& values)
+{
+    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(values.size()));
+    for (std::size_t index = 0; index < values.size(); ++index) {
+        nb::object value = nb::float_(values[index]);
+        PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
+    }
+    return output;
+}
+
 template <typename Engine, typename Instrument>
 void bind_engine_price(nb::class_<Engine>& binding)
 {
@@ -324,11 +334,20 @@ forward. Undefined or unsupported measures are None, never a zero sentinel.)doc"
                {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
                {"zomma", "zomma"}, {"rho", "rho"}});
     auto scenario_result = nb::class_<ScenarioGridResult>(
-        module, "ScenarioGridResult", "Spot, price, delta, and gamma vectors for a scenario grid.")
-        .def_prop_ro("spots", [](const ScenarioGridResult& result) { return result.spots; })
-        .def_prop_ro("prices", [](const ScenarioGridResult& result) { return result.prices; })
-        .def_prop_ro("deltas", [](const ScenarioGridResult& result) { return result.deltas; })
-        .def_prop_ro("gammas", [](const ScenarioGridResult& result) { return result.gammas; });
+        module, "ScenarioGridResult",
+        "Immutable spot, price, delta, and gamma columns for a scenario grid.")
+        .def_prop_ro("spots", [](const ScenarioGridResult& result) {
+            return real_tuple(result.spots());
+        })
+        .def_prop_ro("prices", [](const ScenarioGridResult& result) {
+            return real_tuple(result.prices());
+        })
+        .def_prop_ro("deltas", [](const ScenarioGridResult& result) {
+            return real_tuple(result.deltas());
+        })
+        .def_prop_ro("gammas", [](const ScenarioGridResult& result) {
+            return real_tuple(result.gammas());
+        });
     bind_repr(scenario_result, "ScenarioGridResult",
               {{"spots", "spots"}, {"prices", "prices"},
                {"deltas", "deltas"}, {"gammas", "gammas"}});

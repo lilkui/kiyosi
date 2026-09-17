@@ -199,9 +199,21 @@ class KiyosiPythonTests(unittest.TestCase):
         result = NumericalAnalyticsEngine(AnalyticVanillaEngine()).scenario_grid(
             self.option, self.context, [90, 110]
         )
-        self.assertEqual(result.spots, [90, 110])
-        self.assertEqual(len(result.prices), 2)
+        self.assertEqual(result.spots, (90, 110))
+        columns = (result.spots, result.prices, result.deltas, result.gammas)
+        self.assertTrue(all(isinstance(column, tuple) for column in columns))
+        self.assertEqual({len(column) for column in columns}, {2})
         self.assertFalse(hasattr(result, "values"))
+        with self.assertRaises(TypeError):
+            result.spots[0] = 95
+
+        empty = NumericalAnalyticsEngine(AnalyticVanillaEngine()).scenario_grid(
+            self.option, self.context, []
+        )
+        self.assertEqual(
+            (empty.spots, empty.prices, empty.deltas, empty.gammas),
+            ((), (), (), ()),
+        )
 
     def test_numerical_analytics_forwards_explicit_shift_settings(self):
         analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
