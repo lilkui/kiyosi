@@ -5,7 +5,6 @@
 #include <vector>
 
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/detail/revaluation.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 

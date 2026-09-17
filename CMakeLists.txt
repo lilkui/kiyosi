@@ -89,6 +89,7 @@ target_sources(kiyosi
     PRIVATE
         src/core/day_count.cpp
         src/core/time.cpp
+        src/market/calendars/sse.cpp
         src/pricing/engines/accumulator/finite_difference.cpp
         src/pricing/engines/accumulator/monte_carlo.cpp
         src/pricing/engines/asian/analytic.cpp
@@ -135,13 +136,11 @@ target_sources(kiyosi
             include/kiyosi/market/schedule.hpp
             include/kiyosi/market/schedule_builders.hpp
             include/kiyosi/market/calendars/sse.hpp
-            include/kiyosi/market/calendars/detail/sse_holidays.hpp
             include/kiyosi/pricing/analytics.hpp
             include/kiyosi/pricing/implied.hpp
             include/kiyosi/pricing/numerical_greeks.hpp
             include/kiyosi/pricing/result.hpp
             include/kiyosi/pricing/scenario.hpp
-            include/kiyosi/pricing/detail/revaluation.hpp
             include/kiyosi/pricing/settings/binomial.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp

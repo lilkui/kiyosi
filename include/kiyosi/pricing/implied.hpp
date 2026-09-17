@@ -4,7 +4,7 @@
 #include <numeric>
 
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/detail/revaluation.hpp>
+#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
 

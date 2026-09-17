@@ -1,10 +1,12 @@
-#pragma once
+#include <kiyosi/market/calendars/sse.hpp>
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 
-namespace kiyosi::detail {
+namespace {
 
-inline constexpr std::array sse_holidays{
+constexpr std::array sse_holidays{
     19010101, 19010404, 19010501, 19010502, 19010503, 19010506, 19010507, 19011001, 19011002, 19011003, 19011004, 19011007,
     19020101, 19020404, 19020501, 19020502, 19020505, 19020506, 19020507, 19020609, 19020915, 19021001, 19021002, 19021003,
     19021006, 19021007, 19030101, 19030501, 19030504, 19030505, 19030506, 19030507, 19030609, 19030915, 19031001, 19031002,
@@ -163,4 +165,22 @@ inline constexpr std::array sse_holidays{
     21830101, 21840101, 21870101, 21880101, 21890101, 21900101, 21930101, 21940101, 21950101, 21960101, 21980101, 21990101,
 };
 
+} // namespace
+
+namespace kiyosi {
+
+TradingCalendar sse_calendar()
+{
+    return detail::make_calendar(
+        [](date value) {
+            const auto weekday = std::chrono::weekday{value};
+            if (weekday == std::chrono::Saturday || weekday == std::chrono::Sunday) return false;
+            const auto parts = std::chrono::year_month_day{value};
+            const int encoded = int(parts.year()) * 10000 + int(unsigned(parts.month())) * 100 +
+                                int(unsigned(parts.day()));
+            return !std::ranges::binary_search(sse_holidays, encoded);
+        },
+        243);
 }
+
+} // namespace kiyosi
