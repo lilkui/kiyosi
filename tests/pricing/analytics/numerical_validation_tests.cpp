@@ -297,7 +297,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
 
 TEST_CASE("Scheduled vanilla barriers validate events and refine")
 {
-    const std::vector<kiyosi::date> observations{
+    const std::vector<kiyosi::date> observation_dates{
         valuation + std::chrono::days{37}, valuation + std::chrono::days{172}, expiry};
     const auto terms = kiyosi::BarrierOptionTerms{.type = kiyosi::option_type::call,
                                                   .strike = 100.0,
@@ -306,9 +306,9 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
                                                   .barrier = 90.0,
                                                   .barrier_kind = kiyosi::barrier_type::down_and_out,
                                                   .rebate = 2.0,
-                                                  .rebate_payment = kiyosi::rebate_timing::at_expiry,
-                                                  .observation = kiyosi::observation_mode::scheduled,
-                                                  .observations = observations};
+                                                  .rebate_timing = kiyosi::rebate_timing::at_expiry,
+                                                  .observation_mode = kiyosi::observation_mode::scheduled,
+                                                  .observation_dates = observation_dates};
     const auto out = *kiyosi::make_barrier_option(terms);
     auto knock_in_terms = terms;
     knock_in_terms.barrier_kind = kiyosi::barrier_type::down_and_in;
@@ -321,7 +321,7 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     CHECK(risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market), kiyosi::risk_measure::price) > 0.0);
 
     auto weekend_terms = terms;
-    weekend_terms.observations = {day(2025, 1, 11)};
+    weekend_terms.observation_dates = {day(2025, 1, 11)};
     const auto weekend = *kiyosi::make_barrier_option(weekend_terms);
     const auto weekdays_market = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), 100.0, valuation,
@@ -332,8 +332,8 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
           kiyosi::error_category::invalid_date);
 
     auto at_hit_terms = terms;
-    at_hit_terms.rebate_payment = kiyosi::rebate_timing::at_hit;
-    at_hit_terms.observations = {valuation + std::chrono::days{37}, expiry};
+    at_hit_terms.rebate_timing = kiyosi::rebate_timing::at_hit;
+    at_hit_terms.observation_dates = {valuation + std::chrono::days{37}, expiry};
     const auto at_hit = *kiyosi::make_barrier_option(at_hit_terms);
     CHECK(risk_value(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market), kiyosi::risk_measure::price) > 0.0);
 }

@@ -18,7 +18,7 @@ struct Contract {
     double strike;
     double payout;
     bool asset_settlement;
-    settlement_timing settlement;
+    kiyosi::settlement_timing settlement_timing;
 };
 
 Contract contract(const BinaryBarrierOption& option)
@@ -34,7 +34,7 @@ Contract contract(const TouchOption& option)
     const bool asset = option.payoff_kind() == payoff_type::asset;
     const auto* cash = std::get_if<CashOrNothingPayoff>(&option.payoff());
     return {option.barrier_terms(), std::nullopt, option.barrier(),
-            cash ? cash->payout() : option.barrier(), asset, option.settlement()};
+            cash ? cash->payout() : option.barrier(), asset, option.settlement_timing()};
 }
 
 double vanilla_digital(const Contract& option, const PricingContext& context, double time)
@@ -63,7 +63,7 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
     const auto& terms = option.barrier_terms;
     auto valid = validate_life(context.valuation_time(), terms.effective(), terms.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (terms.observation() == observation_mode::scheduled) {
+    if (terms.observation_mode() == observation_mode::scheduled) {
         auto schedule = validate_observation_dates(terms.observation_dates(), terms.effective(), terms.expiry(), context.calendar());
         if (!schedule) return std::unexpected(Error{error_category::invalid_schedule, schedule.error().message});
     }
@@ -76,14 +76,14 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
     if (time == 0.0) return PricingResult{{risk_measure::price, terminal_payoff(option, spot, observed_now)}};
     if (touched) {
         if (!knock_in) return PricingResult{{risk_measure::price, 0.0}};
-        if (option.settlement == settlement_timing::at_hit)
+        if (option.settlement_timing == settlement_timing::at_hit)
             return PricingResult{{risk_measure::price, option.asset_settlement ? terms.barrier() : option.payout}};
         return PricingResult{{risk_measure::price, vanilla_digital(option, context, time)}};
     }
     const double rate = context.parameters().risk_free_rate(), dividend = context.parameters().dividend_yield();
     const double volatility = context.parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier();
-    if (terms.observation() == observation_mode::scheduled)
+    if (terms.observation_mode() == observation_mode::scheduled)
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.observation_interval()));
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double lambda = std::sqrt(mu * mu + 2.0 * rate / (volatility * volatility));
@@ -101,7 +101,7 @@ result<PricingResult> price_contract(const Contract& option, const PricingContex
             spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y2), option.payout * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y2 - eta * volatility_time),
             option.payout * (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) + std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2 * eta * lambda * volatility_time))};
     };
-    if (option.settlement == settlement_timing::at_hit) {
+    if (option.settlement_timing == settlement_timing::at_hit) {
         const auto factors = common(upper ? -1.0 : 1.0, 0.0);
         return PricingResult{{risk_measure::price, factors.a5}};
     }

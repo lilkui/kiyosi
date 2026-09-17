@@ -33,10 +33,10 @@ public:
 
 private:
     AutocallableNote(double initial_price, std::vector<double> knock_out_prices, double upper_strike,
-                     double lower_strike, std::vector<date> observations, double principal_ratio,
+                     double lower_strike, std::vector<date> observation_dates, double principal_ratio,
                      barrier_touch_status touch_status, date effective, date expiry)
         : terms_{initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                 std::move(observations), principal_ratio, touch_status, effective, expiry} {}
+                 std::move(observation_dates), principal_ratio, touch_status, effective, expiry} {}
 
     struct Terms {
         double initial_price;
@@ -73,11 +73,11 @@ public:
 
 private:
     KiAutocallableNote(double initial_price, double knock_in_price, std::vector<double> knock_out_prices,
-                       double upper_strike, double lower_strike, std::vector<date> observations,
+                       double upper_strike, double lower_strike, std::vector<date> observation_dates,
                        observation_frequency frequency, barrier_touch_status touch_status,
                        double principal_ratio, date effective, date expiry)
         : note_(initial_price, std::move(knock_out_prices), upper_strike, lower_strike,
-                std::move(observations), principal_ratio, touch_status, effective, expiry),
+                std::move(observation_dates), principal_ratio, touch_status, effective, expiry),
           knock_in_price_(knock_in_price), frequency_(frequency) {}
 
     AutocallableNote note_;

@@ -57,9 +57,9 @@ concept can_price_with_settings = requires(
 
 static_assert(kiyosi::default_realized_average == 0.0);
 static_assert(kiyosi::BarrierOptionTerms{}.rebate == 0.0);
-static_assert(kiyosi::BarrierOptionTerms{}.rebate_payment == kiyosi::rebate_timing::at_expiry);
-static_assert(kiyosi::BarrierOptionTerms{}.observation == kiyosi::observation_mode::continuous);
-static_assert(kiyosi::BinaryBarrierTerms{}.observation == kiyosi::observation_mode::continuous);
+static_assert(kiyosi::BarrierOptionTerms{}.rebate_timing == kiyosi::rebate_timing::at_expiry);
+static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::observation_mode::continuous);
+static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::observation_mode::continuous);
 static_assert(kiyosi::settlement_timing::at_expiry != kiyosi::settlement_timing::at_hit);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
 static_assert(kiyosi::SnowballTerms{}.touch_status == kiyosi::barrier_touch_status::none);

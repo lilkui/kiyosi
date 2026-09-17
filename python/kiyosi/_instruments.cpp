@@ -116,19 +116,19 @@ void bind_instruments(nb::module_& module)
         module, "BarrierOption", "Immutable validated barrier option.")
         .def(nb::new_([](option_type type, PythonReal strike, PythonDate effective,
                         PythonDate expiry, PythonReal barrier, barrier_type barrier_kind,
-                        PythonReal rebate, rebate_timing rebate_payment,
-                        observation_mode observation, PythonDateSequence observations) {
+                        PythonReal rebate, rebate_timing rebate_timing,
+                        observation_mode observation_mode, PythonDateSequence observation_dates) {
                  return unwrap(make_barrier_option({
                      type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                      calendar_date(expiry, "expiry"), real_number(barrier, "barrier"),
-                     barrier_kind, real_number(rebate, "rebate"), rebate_payment, observation,
-                     date_sequence(observations, "observations")}));
+                     barrier_kind, real_number(rebate, "rebate"), rebate_timing, observation_mode,
+                     date_sequence(observation_dates, "observation_dates")}));
              }),
              nb::kw_only(), "type"_a, "strike"_a, "effective"_a, "expiry"_a,
              "barrier"_a, "barrier_kind"_a, "rebate"_a = BarrierOptionTerms{}.rebate,
-             "rebate_payment"_a = BarrierOptionTerms{}.rebate_payment,
-             "observation"_a = BarrierOptionTerms{}.observation,
-             "observations"_a = nb::make_tuple(),
+             "rebate_timing"_a = BarrierOptionTerms{}.rebate_timing,
+             "observation_mode"_a = BarrierOptionTerms{}.observation_mode,
+             "observation_dates"_a = nb::make_tuple(),
              "Create a validated barrier option.")
         .def_prop_ro("type", &BarrierOption::type)
         .def_prop_ro("strike", &BarrierOption::strike)
@@ -137,8 +137,8 @@ void bind_instruments(nb::module_& module)
         .def_prop_ro("barrier", &BarrierOption::barrier)
         .def_prop_ro("barrier_kind", &BarrierOption::barrier_kind)
         .def_prop_ro("rebate", &BarrierOption::rebate)
-        .def_prop_ro("rebate_payment", &BarrierOption::rebate_payment)
-        .def_prop_ro("observation", &BarrierOption::observation)
+        .def_prop_ro("rebate_timing", &BarrierOption::rebate_timing)
+        .def_prop_ro("observation_mode", &BarrierOption::observation_mode)
         .def_prop_ro("observation_dates", [](const BarrierOption& value) {
             PythonDateList output;
             for (const date item : value.observation_dates()) output.append(python_date(item));
@@ -149,9 +149,9 @@ void bind_instruments(nb::module_& module)
               {{"type", "type"}, {"strike", "strike"},
                {"effective", "effective"}, {"expiry", "expiry"},
                {"barrier", "barrier"}, {"barrier_kind", "barrier_kind"},
-               {"rebate", "rebate"}, {"rebate_payment", "rebate_payment"},
-               {"observation", "observation"},
-               {"observations", "observation_dates"}});
+               {"rebate", "rebate"}, {"rebate_timing", "rebate_timing"},
+               {"observation_mode", "observation_mode"},
+               {"observation_dates", "observation_dates"}});
 
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
         module, "BinaryBarrierOption", "Immutable validated strike-based binary barrier option.")
@@ -167,7 +167,7 @@ void bind_instruments(nb::module_& module)
                 return cash->payout();
             return std::nullopt;
         })
-        .def_prop_ro("observation", &BinaryBarrierOption::observation)
+        .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode)
         .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
             PythonDateList output;
             for (const date item : value.observation_dates()) output.append(python_date(item));
@@ -179,38 +179,38 @@ void bind_instruments(nb::module_& module)
                {"effective", "effective"}, {"expiry", "expiry"},
                {"barrier", "barrier"}, {"barrier_kind", "barrier_kind"},
                {"payoff_type", "payoff_type"}, {"payout", "payout"},
-               {"observation", "observation"},
-               {"observations", "observation_dates"}});
+               {"observation_mode", "observation_mode"},
+               {"observation_dates", "observation_dates"}});
 
     module.def("cash_binary_barrier_option",
                [](option_type type, PythonReal strike, PythonDate effective,
                   PythonDate expiry, PythonReal barrier, barrier_type barrier_kind,
-                  PythonReal payout, observation_mode observation,
-                  PythonDateSequence observations) {
+                  PythonReal payout, observation_mode observation_mode,
+                  PythonDateSequence observation_dates) {
                    return unwrap(make_cash_binary_barrier_option(
                        {type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                         calendar_date(expiry, "expiry"), real_number(barrier, "barrier"),
-                        barrier_kind, observation, date_sequence(observations, "observations")},
+                        barrier_kind, observation_mode, date_sequence(observation_dates, "observation_dates")},
                        real_number(payout, "payout")));
                },
                nb::kw_only(), "type"_a, "strike"_a, "effective"_a, "expiry"_a,
                "barrier"_a, "barrier_kind"_a, "payout"_a,
-               "observation"_a = BinaryBarrierTerms{}.observation,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = BinaryBarrierTerms{}.observation_mode,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a validated cash binary barrier option.");
     module.def("asset_binary_barrier_option",
                [](option_type type, PythonReal strike, PythonDate effective,
                   PythonDate expiry, PythonReal barrier, barrier_type barrier_kind,
-                  observation_mode observation, PythonDateSequence observations) {
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_asset_binary_barrier_option(
                        {type, real_number(strike, "strike"), calendar_date(effective, "effective"),
                         calendar_date(expiry, "expiry"), real_number(barrier, "barrier"),
-                        barrier_kind, observation, date_sequence(observations, "observations")}));
+                        barrier_kind, observation_mode, date_sequence(observation_dates, "observation_dates")}));
                },
                nb::kw_only(), "type"_a, "strike"_a, "effective"_a, "expiry"_a,
                "barrier"_a, "barrier_kind"_a,
-               "observation"_a = BinaryBarrierTerms{}.observation,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = BinaryBarrierTerms{}.observation_mode,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a validated asset binary barrier option.");
 
     auto touch = nb::class_<TouchOption>(
@@ -226,8 +226,8 @@ void bind_instruments(nb::module_& module)
                 return cash->payout();
             return std::nullopt;
         })
-        .def_prop_ro("settlement_timing", &TouchOption::settlement)
-        .def_prop_ro("observation", &TouchOption::observation)
+        .def_prop_ro("settlement_timing", &TouchOption::settlement_timing)
+        .def_prop_ro("observation_mode", &TouchOption::observation_mode)
         .def_prop_ro("observation_dates", [](const TouchOption& value) {
             PythonDateList output;
             for (const date item : value.observation_dates()) output.append(python_date(item));
@@ -239,112 +239,114 @@ void bind_instruments(nb::module_& module)
                {"barrier", "barrier"}, {"is_one_touch", "is_one_touch"},
                {"is_up", "is_up"}, {"payoff_type", "payoff_type"},
                {"payout", "payout"}, {"settlement_timing", "settlement_timing"},
-               {"observation", "observation"},
-               {"observations", "observation_dates"}});
+               {"observation_mode", "observation_mode"},
+               {"observation_dates", "observation_dates"}});
 
     module.def("cash_one_touch_up",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  PythonReal payout, settlement_timing settlement,
-                  observation_mode observation, PythonDateSequence observations) {
+                  PythonReal payout, settlement_timing settlement_timing,
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_cash_one_touch_up(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), real_number(payout, "payout"), settlement,
-                       observation, date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), real_number(payout, "payout"),
+                       settlement_timing,
+                       observation_mode, date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
                "settlement_timing"_a = settlement_timing::at_expiry,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a cash one-touch with an upper barrier.");
     module.def("cash_one_touch_down",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  PythonReal payout, settlement_timing settlement,
-                  observation_mode observation, PythonDateSequence observations) {
+                  PythonReal payout, settlement_timing settlement_timing,
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_cash_one_touch_down(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), real_number(payout, "payout"), settlement,
-                       observation, date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), real_number(payout, "payout"),
+                       settlement_timing,
+                       observation_mode, date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
                "settlement_timing"_a = settlement_timing::at_expiry,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a cash one-touch with a lower barrier.");
     module.def("cash_no_touch_up",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier, PythonReal payout,
-                  observation_mode observation, PythonDateSequence observations) {
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_cash_no_touch_up(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
                        real_number(barrier, "barrier"), real_number(payout, "payout"),
-                       observation, date_sequence(observations, "observations")));
+                       observation_mode, date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a cash no-touch with an upper barrier.");
     module.def("cash_no_touch_down",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier, PythonReal payout,
-                  observation_mode observation, PythonDateSequence observations) {
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_cash_no_touch_down(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
                        real_number(barrier, "barrier"), real_number(payout, "payout"),
-                       observation, date_sequence(observations, "observations")));
+                       observation_mode, date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a, "payout"_a,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create a cash no-touch with a lower barrier.");
     module.def("asset_one_touch_up",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  settlement_timing settlement, observation_mode observation,
-                  PythonDateSequence observations) {
+                  settlement_timing settlement_timing, observation_mode observation_mode,
+                  PythonDateSequence observation_dates) {
                    return unwrap(make_asset_one_touch_up(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), settlement, observation,
-                       date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), settlement_timing, observation_mode,
+                       date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
                "settlement_timing"_a = settlement_timing::at_expiry,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create an asset one-touch with an upper barrier.");
     module.def("asset_one_touch_down",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  settlement_timing settlement, observation_mode observation,
-                  PythonDateSequence observations) {
+                  settlement_timing settlement_timing, observation_mode observation_mode,
+                  PythonDateSequence observation_dates) {
                    return unwrap(make_asset_one_touch_down(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), settlement, observation,
-                       date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), settlement_timing, observation_mode,
+                       date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
                "settlement_timing"_a = settlement_timing::at_expiry,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create an asset one-touch with a lower barrier.");
     module.def("asset_no_touch_up",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  observation_mode observation, PythonDateSequence observations) {
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_asset_no_touch_up(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), observation,
-                       date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), observation_mode,
+                       date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create an asset no-touch with an upper barrier.");
     module.def("asset_no_touch_down",
                [](PythonDate effective, PythonDate expiry, PythonReal barrier,
-                  observation_mode observation, PythonDateSequence observations) {
+                  observation_mode observation_mode, PythonDateSequence observation_dates) {
                    return unwrap(make_asset_no_touch_down(
                        calendar_date(effective, "effective"), calendar_date(expiry, "expiry"),
-                       real_number(barrier, "barrier"), observation,
-                       date_sequence(observations, "observations")));
+                       real_number(barrier, "barrier"), observation_mode,
+                       date_sequence(observation_dates, "observation_dates")));
                },
                nb::kw_only(), "effective"_a, "expiry"_a, "barrier"_a,
-               "observation"_a = observation_mode::continuous,
-               "observations"_a = nb::make_tuple(),
+               "observation_mode"_a = observation_mode::continuous,
+               "observation_dates"_a = nb::make_tuple(),
                "Create an asset no-touch with a lower barrier.");
 
     auto accumulator = nb::class_<Accumulator>(

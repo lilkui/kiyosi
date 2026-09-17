@@ -28,7 +28,7 @@ TEST_CASE("Binary barrier factories reject invalid contracts")
     CHECK(kiyosi::make_cash_binary_barrier_option(terms, -1.0).error().category ==
           kiyosi::error_category::invalid_parameter);
     invalid = terms;
-    invalid.observation = kiyosi::observation_mode::scheduled;
+    invalid.observation_mode = kiyosi::observation_mode::scheduled;
     CHECK(kiyosi::make_asset_binary_barrier_option(invalid).error().category ==
           kiyosi::error_category::invalid_schedule);
 }
@@ -66,9 +66,9 @@ TEST_CASE("Touch options have no synthetic strike or option type")
     CHECK(cash->is_one_touch());
     CHECK(cash->is_up());
     CHECK(cash->payoff_kind() == kiyosi::payoff_type::cash);
-    CHECK(cash->settlement() == kiyosi::settlement_timing::at_hit);
+    CHECK(cash->settlement_timing() == kiyosi::settlement_timing::at_hit);
     CHECK_FALSE(asset->is_one_touch());
     CHECK_FALSE(asset->is_up());
     CHECK(asset->payoff_kind() == kiyosi::payoff_type::asset);
-    CHECK(asset->settlement() == kiyosi::settlement_timing::at_expiry);
+    CHECK(asset->settlement_timing() == kiyosi::settlement_timing::at_expiry);
 }

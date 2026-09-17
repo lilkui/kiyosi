@@ -18,17 +18,17 @@ namespace detail {
 } // namespace detail
 
 [[nodiscard]] inline result<void> validate_date_schedule(
-    std::span<const date> observations, date instrument_start, date instrument_end)
+    std::span<const date> observation_dates, date instrument_start, date instrument_end)
 {
     if (!is_valid_date(instrument_start) || !is_valid_date(instrument_end) || instrument_end < instrument_start)
         return std::unexpected(Error{error_category::invalid_date,
                                      "instrument life must be a valid ordered date range"});
-    for (std::size_t index = 0; index < observations.size(); ++index) {
-        if (index > 0 && observations[index] <= observations[index - 1])
+    for (std::size_t index = 0; index < observation_dates.size(); ++index) {
+        if (index > 0 && observation_dates[index] <= observation_dates[index - 1])
             return std::unexpected(Error{error_category::invalid_date,
                                          "observation dates must be strictly ordered"});
-        if (!is_valid_date(observations[index]) || observations[index] < instrument_start ||
-            observations[index] > instrument_end)
+        if (!is_valid_date(observation_dates[index]) || observation_dates[index] < instrument_start ||
+            observation_dates[index] > instrument_end)
             return std::unexpected(Error{error_category::invalid_date,
                                          "observation date must be within the instrument life"});
     }
@@ -36,14 +36,15 @@ namespace detail {
 }
 
 [[nodiscard]] inline result<void> validate_observation_date(
-    date observation, date instrument_start, date instrument_end, const TradingCalendar& calendar)
+    date observation_date, date instrument_start, date instrument_end, const TradingCalendar& calendar)
 {
-    if (!is_valid_date(observation) || !is_valid_date(instrument_start) || !is_valid_date(instrument_end) ||
-        instrument_end < instrument_start || observation < instrument_start || instrument_end < observation) {
+    if (!is_valid_date(observation_date) || !is_valid_date(instrument_start) ||
+        !is_valid_date(instrument_end) || instrument_end < instrument_start ||
+        observation_date < instrument_start || instrument_end < observation_date) {
         return std::unexpected(Error{error_category::invalid_date,
                                      "observation date must be within the instrument life"});
     }
-    if (!calendar.is_trading_day(observation)) {
+    if (!calendar.is_trading_day(observation_date)) {
         return std::unexpected(Error{error_category::invalid_date,
                                      "observation date is not a trading day"});
     }
@@ -51,19 +52,19 @@ namespace detail {
 }
 
 [[nodiscard]] inline result<void> validate_observation_dates(
-    std::span<const date> observations, date instrument_start, date instrument_end,
+    std::span<const date> observation_dates, date instrument_start, date instrument_end,
     const TradingCalendar& calendar)
 {
     if (!is_valid_date(instrument_start) || !is_valid_date(instrument_end) || instrument_end < instrument_start) {
         return std::unexpected(Error{error_category::invalid_date,
                                      "instrument life must be a valid ordered date range"});
     }
-    for (std::size_t index = 0; index < observations.size(); ++index) {
-        if (index > 0 && observations[index] <= observations[index - 1]) {
+    for (std::size_t index = 0; index < observation_dates.size(); ++index) {
+        if (index > 0 && observation_dates[index] <= observation_dates[index - 1]) {
             return std::unexpected(Error{error_category::invalid_date,
                                          "observation dates must be strictly ordered"});
         }
-        auto valid = validate_observation_date(observations[index], instrument_start, instrument_end, calendar);
+        auto valid = validate_observation_date(observation_dates[index], instrument_start, instrument_end, calendar);
         if (!valid) return std::unexpected(valid.error());
     }
     return {};
@@ -90,20 +91,20 @@ private:
 };
 
 [[nodiscard]] inline result<ObservationSchedule> detail::make_date_schedule(
-    std::vector<date> observations, date instrument_start, date instrument_end)
+    std::vector<date> observation_dates, date instrument_start, date instrument_end)
 {
-    auto valid = validate_date_schedule(observations, instrument_start, instrument_end);
+    auto valid = validate_date_schedule(observation_dates, instrument_start, instrument_end);
     if (!valid) return std::unexpected(valid.error());
-    return ObservationSchedule{std::move(observations)};
+    return ObservationSchedule{std::move(observation_dates)};
 }
 
 [[nodiscard]] inline result<ObservationSchedule> detail::make_observation_schedule(
-    std::vector<date> observations, date instrument_start, date instrument_end,
+    std::vector<date> observation_dates, date instrument_start, date instrument_end,
     const TradingCalendar& calendar)
 {
-    auto valid = validate_observation_dates(observations, instrument_start, instrument_end, calendar);
+    auto valid = validate_observation_dates(observation_dates, instrument_start, instrument_end, calendar);
     if (!valid) return std::unexpected(valid.error());
-    return ObservationSchedule{std::move(observations)};
+    return ObservationSchedule{std::move(observation_dates)};
 }
 
 } // namespace kiyosi

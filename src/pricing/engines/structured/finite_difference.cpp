@@ -151,18 +151,18 @@ result<PricingResult> price_autocallable_finite_difference(
             !stepper.advance(alive, next_alive, dt))
             return std::unexpected(Error{error_category::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        const auto observation = event_index(grid[step]);
+        const auto observation_index = event_index(grid[step]);
         const bool daily = daily_event(grid[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false;
             if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_price();
-            if (observation && value >= note.knock_out_prices()[*observation]) {
+            if (observation_index && value >= note.knock_out_prices()[*observation_index]) {
                 next_knocked_in[index] = next_alive[index] =
-                    note.principal_ratio() + observation_coupon(note, *observation, value);
-            } else if (observation) {
+                    note.principal_ratio() + observation_coupon(note, *observation_index, value);
+            } else if (observation_index) {
                 const double coupon = carries_observation_coupon<Note>
-                                          ? observation_coupon(note, *observation, value)
+                                          ? observation_coupon(note, *observation_index, value)
                                           : 0.0;
                 const double continuation_in = next_knocked_in[index];
                 const double continuation_out = transitioned ? continuation_in : next_alive[index];

@@ -95,10 +95,10 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline result<void> validate_observation_dates(
-    std::span<const date> observations, date valuation_date,
+    std::span<const date> observation_dates, date valuation_date,
     const ExerciseBasedOption<Payoff, Exercise>& option, const TradingCalendar& calendar)
 {
-    return validate_observation_dates(observations, valuation_date, option.expiry(), calendar);
+    return validate_observation_dates(observation_dates, valuation_date, option.expiry(), calendar);
 }
 
 } // namespace kiyosi

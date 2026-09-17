@@ -62,7 +62,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, effective, expiry);
     const auto put = *kiyosi::make_american_option(kiyosi::option_type::put, 100.0, effective, expiry);
-    const std::vector<kiyosi::date> observations{effective + std::chrono::days{90},
+    const std::vector<kiyosi::date> observation_dates{effective + std::chrono::days{90},
                                                  effective + std::chrono::days{181},
                                                  effective + std::chrono::days{273}, expiry};
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -74,7 +74,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                        .coupon_barriers = {90.0, 90.0, 90.0, 90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = observations,
+                                                       .observation_dates = observation_dates,
                                                        .frequency = kiyosi::observation_frequency::daily,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
@@ -87,7 +87,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                          .knock_out_prices = knock_outs,
                                                          .upper_strike = 100.0,
                                                          .lower_strike = 60.0,
-                                                         .observations = observations,
+                                                         .observation_dates = observation_dates,
                                                          .frequency = kiyosi::observation_frequency::daily,
                                                          .touch_status = kiyosi::barrier_touch_status::none,
                                                          .principal_ratio = 1.0,
@@ -99,7 +99,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                                .knock_out_prices = knock_outs,
                                                                .upper_strike = 100.0,
                                                                .lower_strike = 60.0,
-                                                               .observations = observations,
+                                                               .observation_dates = observation_dates,
                                                                .touch_status = kiyosi::barrier_touch_status::none,
                                                                .principal_ratio = 1.0,
                                                                .effective = effective,
@@ -112,7 +112,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                                  .knock_out_prices = knock_outs,
                                                                  .upper_strike = 100.0,
                                                                  .lower_strike = 60.0,
-                                                                 .observations = observations,
+                                                                 .observation_dates = observation_dates,
                                                                  .frequency = kiyosi::observation_frequency::daily,
                                                                  .touch_status = kiyosi::barrier_touch_status::none,
                                                                  .principal_ratio = 1.0,

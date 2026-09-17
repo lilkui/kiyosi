@@ -39,19 +39,19 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         name,
         [factory](PythonReal coupon_rate, PythonReal initial_price,
                   PythonReal knock_in_price, PythonReal knock_out_price,
-                  PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+                  PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
                   barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(factory(
                 real_number(coupon_rate, "coupon_rate"),
                 real_number(initial_price, "initial_price"),
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_price, "knock_out_price"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
-        "knock_out_price"_a, "observations"_a, "effective"_a, "expiry"_a,
+        "knock_out_price"_a, "observation_dates"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a validated snowball preset.");
@@ -65,7 +65,7 @@ void bind_presets(nb::module_& module)
         "step_down_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
            PythonReal knock_out_start, PythonReal knock_out_step,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_step_down_snowball(
                 real_number(coupon_rate, "coupon_rate"),
@@ -73,12 +73,12 @@ void bind_presets(nb::module_& module)
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_start, "knock_out_start"),
                 real_number(knock_out_step, "knock_out_step"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
-        "knock_out_start"_a, "knock_out_step"_a, "observations"_a, "effective"_a,
+        "knock_out_start"_a, "knock_out_step"_a, "observation_dates"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a snowball with linearly decreasing knock-out barriers.");
@@ -86,7 +86,7 @@ void bind_presets(nb::module_& module)
         "both_down_snowball",
         [](PythonReal coupon_start, PythonReal coupon_step, PythonReal initial_price,
            PythonReal knock_in_price, PythonReal knock_out_start, PythonReal knock_out_step,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_both_down_snowball(
                 real_number(coupon_start, "coupon_start"),
@@ -95,13 +95,13 @@ void bind_presets(nb::module_& module)
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_start, "knock_out_start"),
                 real_number(knock_out_step, "knock_out_step"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_start"_a, "coupon_step"_a, "initial_price"_a,
         "knock_in_price"_a, "knock_out_start"_a, "knock_out_step"_a,
-        "observations"_a, "effective"_a, "expiry"_a,
+        "observation_dates"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a snowball with decreasing coupons and knock-out barriers.");
@@ -109,7 +109,7 @@ void bind_presets(nb::module_& module)
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon, PythonReal maturity_coupon,
            PythonReal initial_price, PythonReal knock_in_price, PythonReal knock_out_price,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_dual_coupon_snowball(
                 real_number(knock_out_coupon, "knock_out_coupon"),
@@ -117,13 +117,13 @@ void bind_presets(nb::module_& module)
                 real_number(initial_price, "initial_price"),
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_price, "knock_out_price"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "knock_out_coupon"_a, "maturity_coupon"_a,
         "initial_price"_a, "knock_in_price"_a, "knock_out_price"_a,
-        "observations"_a, "effective"_a, "expiry"_a,
+        "observation_dates"_a, "effective"_a, "expiry"_a,
         "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a snowball with separate knock-out and maturity coupons.");
@@ -131,7 +131,7 @@ void bind_presets(nb::module_& module)
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
            PythonReal knock_out_price, PythonReal final_knock_out_price,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_parachute_snowball(
                 real_number(coupon_rate, "coupon_rate"),
@@ -139,12 +139,12 @@ void bind_presets(nb::module_& module)
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_price, "knock_out_price"),
                 real_number(final_knock_out_price, "final_knock_out_price"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
-        "knock_out_price"_a, "final_knock_out_price"_a, "observations"_a,
+        "knock_out_price"_a, "final_knock_out_price"_a, "observation_dates"_a,
         "effective"_a, "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a snowball with a distinct final knock-out barrier.");
@@ -152,7 +152,7 @@ void bind_presets(nb::module_& module)
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
            PythonReal knock_out_price, PythonReal upper_strike,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_otm_snowball(
                 real_number(coupon_rate, "coupon_rate"),
@@ -160,12 +160,12 @@ void bind_presets(nb::module_& module)
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_price, "knock_out_price"),
                 real_number(upper_strike, "upper_strike"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
-        "knock_out_price"_a, "upper_strike"_a, "observations"_a, "effective"_a,
+        "knock_out_price"_a, "upper_strike"_a, "observation_dates"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create an out-of-the-money snowball preset.");
@@ -173,7 +173,7 @@ void bind_presets(nb::module_& module)
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_price, PythonReal knock_in_price,
            PythonReal knock_out_price, PythonReal lower_strike,
-           PythonDateSequence observations, PythonDate effective, PythonDate expiry,
+           PythonDateSequence observation_dates, PythonDate effective, PythonDate expiry,
            barrier_touch_status touch_status, PythonReal principal_ratio) {
             return unwrap(make_loss_capped_snowball(
                 real_number(coupon_rate, "coupon_rate"),
@@ -181,12 +181,12 @@ void bind_presets(nb::module_& module)
                 real_number(knock_in_price, "knock_in_price"),
                 real_number(knock_out_price, "knock_out_price"),
                 real_number(lower_strike, "lower_strike"),
-                date_sequence(observations, "observations"), calendar_date(effective, "effective"),
+                date_sequence(observation_dates, "observation_dates"), calendar_date(effective, "effective"),
                 calendar_date(expiry, "expiry"), touch_status,
                 real_number(principal_ratio, "principal_ratio")));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
-        "knock_out_price"_a, "lower_strike"_a, "observations"_a, "effective"_a,
+        "knock_out_price"_a, "lower_strike"_a, "observation_dates"_a, "effective"_a,
         "expiry"_a, "touch_status"_a = SnowballTerms{}.touch_status,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
         "Create a loss-capped snowball preset.");
@@ -202,7 +202,7 @@ void bind_structured_instruments(nb::module_& module)
                         PythonReal maturity_coupon_rate, PythonReal initial_price,
                         PythonReal knock_in_price, PythonRealSequence knock_out_prices,
                         PythonReal upper_strike, PythonReal lower_strike,
-                        PythonDateSequence observations,
+                        PythonDateSequence observation_dates,
                         observation_frequency frequency, barrier_touch_status touch_status,
                         PythonReal principal_ratio, PythonDate effective, PythonDate expiry) {
                  return unwrap(make_snowball_option({
@@ -213,13 +213,13 @@ void bind_structured_instruments(nb::module_& module)
                      real_sequence(knock_out_prices, "knock_out_prices"),
                      real_number(upper_strike, "upper_strike"),
                      real_number(lower_strike, "lower_strike"),
-                     date_sequence(observations, "observations"), frequency, touch_status,
+                     date_sequence(observation_dates, "observation_dates"), frequency, touch_status,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")}));
              }),
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
              "initial_price"_a, "knock_in_price"_a, "knock_out_prices"_a,
-             "upper_strike"_a, "lower_strike"_a, "observations"_a, "frequency"_a,
+             "upper_strike"_a, "lower_strike"_a, "observation_dates"_a, "frequency"_a,
              "touch_status"_a = SnowballTerms{}.touch_status,
              "principal_ratio"_a = SnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a, "Create a validated snowball option.")
@@ -236,7 +236,7 @@ void bind_structured_instruments(nb::module_& module)
                {"initial_price", "initial_price"}, {"knock_in_price", "knock_in_price"},
                {"knock_out_prices", "knock_out_prices"},
                {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
-               {"observations", "observation_dates"},
+               {"observation_dates", "observation_dates"},
                {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
                {"principal_ratio", "principal_ratio"},
                {"effective", "effective"}, {"expiry", "expiry"}});
@@ -246,7 +246,7 @@ void bind_structured_instruments(nb::module_& module)
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_price,
                         PythonRealSequence knock_out_prices, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observations,
+                        PythonReal lower_strike, PythonDateSequence observation_dates,
                         barrier_touch_status touch_status, PythonReal principal_ratio,
                         PythonDate effective, PythonDate expiry) {
                  return unwrap(make_binary_snowball_option({
@@ -256,13 +256,13 @@ void bind_structured_instruments(nb::module_& module)
                      real_sequence(knock_out_prices, "knock_out_prices"),
                      real_number(upper_strike, "upper_strike"),
                      real_number(lower_strike, "lower_strike"),
-                     date_sequence(observations, "observations"), touch_status,
+                     date_sequence(observation_dates, "observation_dates"), touch_status,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")}));
              }),
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
              "initial_price"_a, "knock_out_prices"_a, "upper_strike"_a,
-             "lower_strike"_a, "observations"_a,
+             "lower_strike"_a, "observation_dates"_a,
              "touch_status"_a = BinarySnowballTerms{}.touch_status,
              "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a,
@@ -277,7 +277,7 @@ void bind_structured_instruments(nb::module_& module)
                {"initial_price", "initial_price"},
                {"knock_out_prices", "knock_out_prices"},
                {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
-               {"observations", "observation_dates"}, {"touch_status", "touch_status"},
+               {"observation_dates", "observation_dates"}, {"touch_status", "touch_status"},
                {"principal_ratio", "principal_ratio"},
                {"effective", "effective"}, {"expiry", "expiry"}});
 
@@ -287,7 +287,7 @@ void bind_structured_instruments(nb::module_& module)
                         PythonReal maturity_coupon_rate, PythonReal minimal_coupon_rate,
                         PythonReal initial_price, PythonReal knock_in_price,
                         PythonRealSequence knock_out_prices, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observations,
+                        PythonReal lower_strike, PythonDateSequence observation_dates,
                         observation_frequency frequency, barrier_touch_status touch_status,
                         PythonReal principal_ratio, PythonDate effective, PythonDate expiry) {
                  return unwrap(make_ternary_snowball_option({
@@ -299,14 +299,14 @@ void bind_structured_instruments(nb::module_& module)
                      real_sequence(knock_out_prices, "knock_out_prices"),
                      real_number(upper_strike, "upper_strike"),
                      real_number(lower_strike, "lower_strike"),
-                     date_sequence(observations, "observations"), frequency, touch_status,
+                     date_sequence(observation_dates, "observation_dates"), frequency, touch_status,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")}));
              }),
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
              "minimal_coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
              "knock_out_prices"_a, "upper_strike"_a, "lower_strike"_a,
-             "observations"_a, "frequency"_a,
+             "observation_dates"_a, "frequency"_a,
              "touch_status"_a = TernarySnowballTerms{}.touch_status,
              "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a,
@@ -323,7 +323,7 @@ void bind_structured_instruments(nb::module_& module)
                {"initial_price", "initial_price"}, {"knock_in_price", "knock_in_price"},
                {"knock_out_prices", "knock_out_prices"},
                {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
-               {"observations", "observation_dates"},
+               {"observation_dates", "observation_dates"},
                {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
                {"principal_ratio", "principal_ratio"},
                {"effective", "effective"}, {"expiry", "expiry"}});
@@ -333,7 +333,7 @@ void bind_structured_instruments(nb::module_& module)
         .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_price,
                         PythonReal knock_in_price, PythonRealSequence knock_out_prices,
                         PythonRealSequence coupon_barriers, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observations,
+                        PythonReal lower_strike, PythonDateSequence observation_dates,
                         observation_frequency frequency, barrier_touch_status touch_status,
                         PythonReal principal_ratio, PythonDate effective, PythonDate expiry) {
                  return unwrap(make_phoenix_option({
@@ -344,13 +344,13 @@ void bind_structured_instruments(nb::module_& module)
                      real_sequence(coupon_barriers, "coupon_barriers"),
                      real_number(upper_strike, "upper_strike"),
                      real_number(lower_strike, "lower_strike"),
-                     date_sequence(observations, "observations"), frequency, touch_status,
+                     date_sequence(observation_dates, "observation_dates"), frequency, touch_status,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective, "effective"), calendar_date(expiry, "expiry")}));
              }),
              nb::kw_only(), "coupon_rate"_a, "initial_price"_a, "knock_in_price"_a,
              "knock_out_prices"_a, "coupon_barriers"_a, "upper_strike"_a,
-             "lower_strike"_a, "observations"_a, "frequency"_a,
+             "lower_strike"_a, "observation_dates"_a, "frequency"_a,
              "touch_status"_a = PhoenixTerms{}.touch_status,
              "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
              "effective"_a, "expiry"_a, "Create a validated Phoenix option.")
@@ -367,7 +367,7 @@ void bind_structured_instruments(nb::module_& module)
                {"knock_out_prices", "knock_out_prices"},
                {"coupon_barriers", "coupon_barriers"},
                {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
-               {"observations", "observation_dates"},
+               {"observation_dates", "observation_dates"},
                {"frequency", "knock_in_frequency"}, {"touch_status", "touch_status"},
                {"principal_ratio", "principal_ratio"},
                {"effective", "effective"}, {"expiry", "expiry"}});

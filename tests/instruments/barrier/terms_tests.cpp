@@ -31,13 +31,13 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     CHECK(terms.monitors(kiyosi::start_of_day(effective)));
     CHECK(terms.observation_interval() == 0.0);
 
-    const std::vector<kiyosi::date> observations{effective + std::chrono::days{30},
+    const std::vector<kiyosi::date> observation_dates{effective + std::chrono::days{30},
                                                  effective + std::chrono::days{60}};
     const auto scheduled = *kiyosi::make_cash_no_touch_down(
-        effective, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled, observations);
+        effective, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled, observation_dates);
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
-    CHECK(scheduled.barrier_terms().monitors(kiyosi::start_of_day(observations.front())));
+    CHECK(scheduled.barrier_terms().monitors(kiyosi::start_of_day(observation_dates.front())));
     CHECK_FALSE(scheduled.barrier_terms().monitors(kiyosi::start_of_day(effective)));
     CHECK(scheduled.barrier_terms().observation_interval() > 0.0);
 }

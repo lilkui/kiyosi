@@ -29,8 +29,8 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     REQUIRE(copied_calendar.is_trading_day(day(2025, 1, 2)));
     REQUIRE(copied_calendar.annual_trading_days() == 2);
 
-    const std::vector<kiyosi::date> observations{day(2025, 1, 2), day(2025, 1, 3)};
-    REQUIRE(kiyosi::validate_observation_dates(observations, valuation, expiry, copied_calendar).has_value());
+    const std::vector<kiyosi::date> observation_dates{day(2025, 1, 2), day(2025, 1, 3)};
+    REQUIRE(kiyosi::validate_observation_dates(observation_dates, valuation, expiry, copied_calendar).has_value());
     REQUIRE_FALSE(kiyosi::validate_observation_dates(
                       std::vector<kiyosi::date>{day(2025, 1, 4)}, valuation, expiry, copied_calendar)
                       .has_value());
@@ -92,9 +92,9 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
                                                       .barrier = 90.0,
                                                       .barrier_kind = kiyosi::barrier_type::down_and_out,
                                                       .rebate = 0.0,
-                                                      .rebate_payment = kiyosi::rebate_timing::at_expiry,
-                                                      .observation = kiyosi::observation_mode::scheduled,
-                                                      .observations = schedule->dates()});
+                                                      .rebate_timing = kiyosi::rebate_timing::at_expiry,
+                                                      .observation_mode = kiyosi::observation_mode::scheduled,
+                                                      .observation_dates = schedule->dates()});
     REQUIRE(barrier.has_value());
     CHECK(barrier->schedule() == *schedule);
 }

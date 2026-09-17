@@ -16,7 +16,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
 {
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation() == observation_mode::scheduled) {
+    if (option.observation_mode() == observation_mode::scheduled) {
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
@@ -33,7 +33,7 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     const double theta = scheme_theta(settings.scheme);
     const bool upper_barrier = option.barrier_terms().is_up();
     std::vector<double> observation_times;
-    if (option.observation() == observation_mode::scheduled) {
+    if (option.observation_mode() == observation_mode::scheduled) {
         for (auto value : option.observation_dates()) {
             if (value < context.valuation_time()) continue;
             const double event_time = actual_365(context.valuation_time(), value);
@@ -44,25 +44,25 @@ result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_steps);
         !stable)
         return std::unexpected(stable.error());
-    auto active = [&](double time) { return option.observation() == observation_mode::continuous || std::binary_search(observation_times.begin(), observation_times.end(), time); };
+    auto active = [&](double time) { return option.observation_mode() == observation_mode::continuous || std::binary_search(observation_times.begin(), observation_times.end(), time); };
     std::sort(observation_times.begin(), observation_times.end());
     auto payoff = [&](double asset) { return std::max((option.type() == option_type::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
-    auto rebate_value = [&](double tau) { return option.rebate_payment() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
+    auto rebate_value = [&](double tau) { return option.rebate_timing() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
     std::vector<double> old(space->size());
     for (int index = 0; index <= asset_steps; ++index) old[index] = payoff(spacing * index);
     if (active(maturity)) for (int index = 0; index <= asset_steps; ++index) if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
         Boundaries edges{option.type() == option_type::put ? strike * std::exp(-rate * tau) : 0.0,
                          option.type() == option_type::call ? upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau) : 0.0};
-        if (option.observation() == observation_mode::continuous) {
+        if (option.observation_mode() == observation_mode::continuous) {
             if (knocked(0.0)) edges.lower = rebate_value(tau);
             if (knocked(upper)) edges.upper = rebate_value(tau);
         }
         return edges;
     };
     const auto constraint = [&](int index, double tau) -> std::optional<double> {
-        if (option.observation() == observation_mode::continuous && knocked(spacing * index))
+        if (option.observation_mode() == observation_mode::continuous && knocked(spacing * index))
             return rebate_value(tau);
         return std::nullopt;
     };
@@ -86,7 +86,7 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
         return std::unexpected(Error{error_category::invalid_parameter, "finite-difference grid dimensions are out of range"});
     auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation() == observation_mode::scheduled) {
+    if (option.observation_mode() == observation_mode::scheduled) {
     auto schedule = validate_observation_dates(option.observation_dates(), option.effective(), option.expiry(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
@@ -103,7 +103,7 @@ result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     };
     if (touched && observed_now) {
         if (!knock_in)
-            return PricingResult{{risk_measure::price, option.rebate_payment() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
+            return PricingResult{{risk_measure::price, option.rebate_timing() == rebate_timing::at_hit ? option.rebate() : option.rebate() * std::exp(-context.parameters().risk_free_rate() * t)}};
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
         return PricingResult{{risk_measure::price, *vanilla}};

@@ -17,7 +17,7 @@ struct PhoenixTerms {
     std::vector<double> coupon_barriers;
     double upper_strike{};
     double lower_strike{};
-    std::vector<date> observations;
+    std::vector<date> observation_dates;
     observation_frequency frequency{};
     barrier_touch_status touch_status{barrier_touch_status::none};
     double principal_ratio{1.0};
@@ -39,11 +39,11 @@ public:
 private:
     PhoenixOption(double coupon_rate, double initial_price, double knock_in_price,
                   std::vector<double> knock_out_prices, std::vector<double> coupon_barriers,
-                  double upper_strike, double lower_strike, std::vector<date> observations,
+                  double upper_strike, double lower_strike, std::vector<date> observation_dates,
                   observation_frequency frequency, barrier_touch_status touch_status,
                   double principal_ratio, date effective, date expiry)
         : KiAutocallableNote(initial_price, knock_in_price, std::move(knock_out_prices), upper_strike,
-                             lower_strike, std::move(observations), frequency, touch_status,
+                             lower_strike, std::move(observation_dates), frequency, touch_status,
                              principal_ratio, effective, expiry),
           coupon_rate_(coupon_rate), coupon_barriers_(std::move(coupon_barriers)) {}
 
@@ -62,7 +62,7 @@ inline result<PhoenixOption> PhoenixOption::with_coupon_rate(double coupon) cons
                                             .coupon_barriers = coupon_barriers(),
                                             .upper_strike = upper_strike(),
                                             .lower_strike = lower_strike(),
-                                            .observations = observation_dates(),
+                                            .observation_dates = observation_dates(),
                                             .frequency = knock_in_frequency(),
                                             .touch_status = touch_status(),
                                             .principal_ratio = principal_ratio(),
@@ -74,7 +74,7 @@ inline result<PhoenixOption> PhoenixOption::with_coupon_rate(double coupon) cons
 {
     return validate_note(PhoenixOption{terms.coupon_rate, terms.initial_price, terms.knock_in_price,
                                        std::move(terms.knock_out_prices), std::move(terms.coupon_barriers),
-                                       terms.upper_strike, terms.lower_strike, std::move(terms.observations),
+                                       terms.upper_strike, terms.lower_strike, std::move(terms.observation_dates),
                                        terms.frequency, terms.touch_status, terms.principal_ratio,
                                        terms.effective, terms.expiry});
 }

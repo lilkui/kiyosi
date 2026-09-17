@@ -6,7 +6,7 @@ from pathlib import Path
 import kiyosi
 import kiyosi.market as market
 import kiyosi.pricing as pricing
-from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, ObservationMode, OptionType, PayoffType, SettlementTiming, TouchOption, asset_no_touch_down, cash_binary_barrier_option, cash_one_touch_up, standard_snowball
+from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, ObservationMode, OptionType, PayoffType, RebateTiming, SettlementTiming, TouchOption, asset_no_touch_down, cash_binary_barrier_option, cash_one_touch_up, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
 from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine
 
@@ -57,7 +57,7 @@ class KiyosiPythonTests(unittest.TestCase):
         same_schedule = fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)
         self.assertEqual(schedule, same_schedule)
 
-        note_terms = dict(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observations=[date(2026, 1, 1)], effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
+        note_terms = dict(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observation_dates=[date(2026, 1, 1)], effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
         note = standard_snowball(**note_terms)
         self.assertEqual(note, standard_snowball(**note_terms))
 
@@ -166,7 +166,7 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(average.average_start, average_start)
 
         expiry = date(2026, 1, 1)
-        note = standard_snowball(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observations=[expiry], effective=date(2025, 1, 1), expiry=expiry)
+        note = standard_snowball(coupon_rate=0.1, initial_price=100, knock_in_price=80, knock_out_price=105, observation_dates=[expiry], effective=date(2025, 1, 1), expiry=expiry)
         self.assertEqual(note.observation_dates, [expiry])
         self.assertIs(type(note.effective), date)
         self.assertIs(type(note.expiry), date)
@@ -180,8 +180,13 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(type=OptionType.CALL, strike=100, payout=10, effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
         self.assertGreater(AnalyticDigitalEngine().price(digital, self.context).price, 0)
-        barrier = BarrierOption(type=OptionType.CALL, strike=100, effective=date(2025, 1, 1), expiry=date(2026, 1, 1), barrier=80, barrier_kind=BarrierType.DOWN_AND_OUT)
+        barrier = BarrierOption(type=OptionType.CALL, strike=100, effective=date(2025, 1, 1), expiry=date(2026, 1, 1), barrier=80, barrier_kind=BarrierType.DOWN_AND_OUT, rebate=1, rebate_timing=RebateTiming.AT_EXPIRY)
         self.assertGreater(AnalyticBarrierEngine().price(barrier, self.context).price, 0)
+        self.assertEqual(barrier.rebate_timing, RebateTiming.AT_EXPIRY)
+        self.assertEqual(barrier.observation_mode, ObservationMode.CONTINUOUS)
+        self.assertIn("observation_dates=[]", repr(barrier))
+        self.assertFalse(hasattr(barrier, "rebate_payment"))
+        self.assertFalse(hasattr(barrier, "observation"))
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
         engine = AnalyticVanillaEngine()
         analytics = NumericalAnalyticsEngine(engine)
@@ -228,8 +233,8 @@ class KiyosiPythonTests(unittest.TestCase):
         cash = cash_one_touch_up(
             **terms, barrier=130, payout=10,
             settlement_timing=SettlementTiming.AT_HIT,
-            observation=ObservationMode.SCHEDULED,
-            observations=[date(2025, 6, 2), terms["expiry"]])
+            observation_mode=ObservationMode.SCHEDULED,
+            observation_dates=[date(2025, 6, 2), terms["expiry"]])
         asset = asset_no_touch_down(**terms, barrier=70)
         self.assertIsInstance(cash, TouchOption)
         self.assertTrue(cash.is_one_touch)

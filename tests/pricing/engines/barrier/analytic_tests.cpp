@@ -27,7 +27,7 @@ TEST_CASE("Already-hit barrier rebates respect expiry payment timing")
                                                        .barrier = 90.0,
                                                        .barrier_kind = kiyosi::barrier_type::up_and_out,
                                                        .rebate = 10.0,
-                                                       .rebate_payment = kiyosi::rebate_timing::at_expiry});
+                                                       .rebate_timing = kiyosi::rebate_timing::at_expiry});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE(result.has_value());
@@ -47,7 +47,7 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
                                                        .barrier = 110.0,
                                                        .barrier_kind = kiyosi::barrier_type::up_and_out,
                                                        .rebate = 10.0,
-                                                       .rebate_payment = kiyosi::rebate_timing::at_hit});
+                                                       .rebate_timing = kiyosi::rebate_timing::at_hit});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE(result.has_value());
@@ -74,7 +74,7 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
                                                        .barrier = 110.0,
                                                        .barrier_kind = kiyosi::barrier_type::up_and_out,
                                                        .rebate = 10.0,
-                                                       .rebate_payment = kiyosi::rebate_timing::at_hit});
+                                                       .rebate_timing = kiyosi::rebate_timing::at_hit});
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE_FALSE(result.has_value());

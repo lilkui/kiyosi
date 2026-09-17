@@ -73,7 +73,7 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
                                                             .knock_out_prices = {100.0},
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
-                                                            .observations = {expiry},
+                                                            .observation_dates = {expiry},
                                                             .touch_status = kiyosi::barrier_touch_status::none,
                                                             .principal_ratio = 1.0,
                                                             .effective = effective,
@@ -96,7 +96,7 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
                                                          .knock_out_prices = {100.0},
                                                          .upper_strike = 100.0,
                                                          .lower_strike = 60.0,
-                                                         .observations = {expiry},
+                                                         .observation_dates = {expiry},
                                                          .frequency = kiyosi::observation_frequency::at_expiry,
                                                          .touch_status = kiyosi::barrier_touch_status::none,
                                                          .principal_ratio = 1.0,
@@ -112,7 +112,7 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
                                                                 .knock_out_prices = {100.0},
                                                                 .upper_strike = 100.0,
                                                                 .lower_strike = 60.0,
-                                                                .observations = {expiry},
+                                                                .observation_dates = {expiry},
                                                                 .frequency = kiyosi::observation_frequency::at_expiry,
                                                                 .touch_status = kiyosi::barrier_touch_status::none,
                                                                 .principal_ratio = 1.0,
@@ -127,7 +127,7 @@ TEST_CASE("Every engine treats date expiry as a midnight instant", "[architectur
                                                        .coupon_barriers = {90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = {expiry},
+                                                       .observation_dates = {expiry},
                                                        .frequency = kiyosi::observation_frequency::at_expiry,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
@@ -230,7 +230,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
 TEST_CASE("Structured observations occur at midnight only", "[architecture]")
 {
     const auto effective = day(2025, 1, 1);
-    const auto observation = day(2025, 7, 1);
+    const auto observation_date = day(2025, 7, 1);
     const auto expiry = day(2026, 1, 1);
     const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {10.0, 0.1},
                                                             .maturity_coupon_rate = 0.05,
@@ -238,7 +238,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
                                                             .knock_out_prices = {90.0, 90.0},
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
-                                                            .observations = {observation, expiry},
+                                                            .observation_dates = {observation_date, expiry},
                                                             .touch_status = kiyosi::barrier_touch_status::none,
                                                             .principal_ratio = 1.0,
                                                             .effective = effective,
@@ -246,10 +246,13 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
     const auto check = [&](const auto& engine) {
         for (const int hour : {0, 12}) {
             const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12),
-                                                               100.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
+                                                               100.0, kiyosi::start_of_day(observation_date) + std::chrono::hours{hour});
             const auto priced = engine.price(note, context);
             REQUIRE(priced);
-            const double expected = hour == 0 ? 1.0 + 10.0 * kiyosi::year_fraction(effective, observation).value() : 1.1;
+            const double expected = hour == 0
+                                        ? 1.0 + 10.0 *
+                                                    kiyosi::year_fraction(effective, observation_date).value()
+                                        : 1.1;
             CHECK(risk_value(*priced, kiyosi::risk_measure::price) == Catch::Approx(expected).margin(1e-8));
         }
     };
@@ -260,7 +263,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
 TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architecture]")
 {
     const auto effective = day(2025, 1, 1);
-    const auto observation = day(2025, 1, 2);
+    const auto observation_date = day(2025, 1, 2);
     const auto expiry = day(2025, 1, 3);
     const auto note = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.1},
                                                              .maturity_coupon_rate = 0.8,
@@ -270,7 +273,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
                                                              .knock_out_prices = {1000.0},
                                                              .upper_strike = 100.0,
                                                              .lower_strike = 60.0,
-                                                             .observations = {expiry},
+                                                             .observation_dates = {expiry},
                                                              .frequency = kiyosi::observation_frequency::daily,
                                                              .touch_status = kiyosi::barrier_touch_status::none,
                                                              .principal_ratio = 1.0,
@@ -279,7 +282,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
     const kiyosi::MonteCarloTernarySnowballEngine engine{{32, 7}};
     for (const int hour : {0, 12}) {
         const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(400.0, 0.0, 1e-12),
-                                                           50.0, kiyosi::start_of_day(observation) + std::chrono::hours{hour});
+                                                           50.0, kiyosi::start_of_day(observation_date) + std::chrono::hours{hour});
         const auto priced = engine.price(note, context);
         REQUIRE(priced);
         const double coupon = hour == 0 ? 0.2 : 0.8;

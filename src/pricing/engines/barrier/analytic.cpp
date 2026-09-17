@@ -46,7 +46,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
 {
     const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation() == observation_mode::scheduled) {
+    if (option.observation_mode() == observation_mode::scheduled) {
         auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective(),
                                                 option.expiry(), context.calendar());
         if (!schedule_valid)
@@ -67,7 +67,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
     const bool touched = terms.monitors(context.valuation_time()) && terms.breaches(spot);
-    if (option.observation() == observation_mode::scheduled) {
+    if (option.observation_mode() == observation_mode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.observation_interval()));
     }
@@ -75,9 +75,9 @@ result<PricingResult> AnalyticBarrierEngine::price(
         const double touched_value = *vanilla->require(risk_measure::price);
         return zero_tail(knock_in
             ? touched_value
-            : option.rebate() * (option.rebate_payment() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)));
+            : option.rebate() * (option.rebate_timing() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)));
     }
-    if (option.rebate_payment() == rebate_timing::at_hit) {
+    if (option.rebate_timing() == rebate_timing::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
         const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
@@ -110,7 +110,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
                 phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
             option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) -
                 std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
-            option.rebate() * (option.rebate_payment() == rebate_timing::at_hit
+            option.rebate() * (option.rebate_timing() == rebate_timing::at_hit
                 ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
                    std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
                 : discount) };
@@ -118,7 +118,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
     const bool call = option.type() == option_type::call;
     const double eta = upper ? -1.0 : 1.0;
     const auto f = factors(eta, call ? 1.0 : -1.0);
-    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_payment() == rebate_timing::at_hit ? values[5] : option.rebate() * discount - values[4]; };
+    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == rebate_timing::at_hit ? values[5] : option.rebate() * discount - values[4]; };
     double value = 0.0;
     if (call) {
         if (knock_in) value = upper ? (x > barrier ? f[0] + f[4] : f[1] - f[2] + f[3] + f[4]) : (x > barrier ? f[2] + f[4] : f[0] - f[1] + f[3] + f[4]);

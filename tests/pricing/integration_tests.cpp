@@ -87,9 +87,9 @@ TEST_CASE("Scheduled barrier contracts price analytically")
                                                         .barrier = 90.0,
                                                         .barrier_kind = kiyosi::barrier_type::down_and_out,
                                                         .rebate = 0.0,
-                                                        .rebate_payment = kiyosi::rebate_timing::at_expiry,
-                                                        .observation = kiyosi::observation_mode::scheduled,
-                                                        .observations = {valuation + std::chrono::days{30}}});
+                                                        .rebate_timing = kiyosi::rebate_timing::at_expiry,
+                                                        .observation_mode = kiyosi::observation_mode::scheduled,
+                                                        .observation_dates = {valuation + std::chrono::days{30}}});
     REQUIRE(scheduled.has_value());
     CHECK(kiyosi::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
 }
@@ -116,7 +116,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
                                                      .knock_out_prices = {110.0},
                                                      .upper_strike = 100.0,
                                                      .lower_strike = 60.0,
-                                                     .observations = {expiry},
+                                                     .observation_dates = {expiry},
                                                      .touch_status = kiyosi::barrier_touch_status::none,
                                                      .principal_ratio = 1.0,
                                                      .effective = valuation,
@@ -159,7 +159,7 @@ TEST_CASE("Structured coupon replacement preserves the original note")
                                                     .knock_out_prices = {110.0},
                                                     .upper_strike = 100.0,
                                                     .lower_strike = 60.0,
-                                                    .observations = {expiry},
+                                                    .observation_dates = {expiry},
                                                     .frequency = kiyosi::observation_frequency::at_expiry,
                                                     .touch_status = kiyosi::barrier_touch_status::none,
                                                     .principal_ratio = 1.0,

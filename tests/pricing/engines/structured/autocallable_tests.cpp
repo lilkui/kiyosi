@@ -48,7 +48,7 @@ TEST_CASE("Phoenix expiry settlement applies state and final observations")
                                                        .coupon_barriers = {90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = {expiry},
+                                                       .observation_dates = {expiry},
                                                        .frequency = kiyosi::observation_frequency::at_expiry,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
@@ -63,7 +63,7 @@ TEST_CASE("Phoenix expiry settlement applies state and final observations")
                                                           .coupon_barriers = {90.0},
                                                           .upper_strike = 100.0,
                                                           .lower_strike = 60.0,
-                                                          .observations = {expiry},
+                                                          .observation_dates = {expiry},
                                                           .frequency = kiyosi::observation_frequency::daily,
                                                           .touch_status = kiyosi::barrier_touch_status::up,
                                                           .principal_ratio = 1.0,
@@ -92,7 +92,7 @@ TEST_CASE("Snowball expiry settlement applies state and final observations")
                                                          .knock_out_prices = {100.0},
                                                          .upper_strike = 100.0,
                                                          .lower_strike = 60.0,
-                                                         .observations = {expiry},
+                                                         .observation_dates = {expiry},
                                                          .frequency = kiyosi::observation_frequency::at_expiry,
                                                          .touch_status = kiyosi::barrier_touch_status::none,
                                                          .principal_ratio = 1.0,
@@ -108,7 +108,7 @@ TEST_CASE("Snowball expiry settlement applies state and final observations")
                                                               .knock_out_prices = {110.0},
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
-                                                              .observations = {expiry},
+                                                              .observation_dates = {expiry},
                                                               .frequency = kiyosi::observation_frequency::daily,
                                                               .touch_status = kiyosi::barrier_touch_status::down,
                                                               .principal_ratio = 1.0,
@@ -136,7 +136,7 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
                                                               .knock_out_prices = {100.0},
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
-                                                              .observations = {expiry},
+                                                              .observation_dates = {expiry},
                                                               .touch_status = kiyosi::barrier_touch_status::none,
                                                               .principal_ratio = 1.0,
                                                               .effective = effective,
@@ -166,7 +166,7 @@ TEST_CASE("Ternary snowball expiry settlement applies final observations")
                                                                 .knock_out_prices = {100.0},
                                                                 .upper_strike = 100.0,
                                                                 .lower_strike = 60.0,
-                                                                .observations = {expiry},
+                                                                .observation_dates = {expiry},
                                                                 .frequency = kiyosi::observation_frequency::at_expiry,
                                                                 .touch_status = kiyosi::barrier_touch_status::none,
                                                                 .principal_ratio = 1.0,
@@ -196,7 +196,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                             .knock_out_prices = {90.0, 90.0, 99.0},
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
-                                                            .observations = {effective, valuation, expiry},
+                                                            .observation_dates = {effective, valuation, expiry},
                                                             .touch_status = kiyosi::barrier_touch_status::none,
                                                             .principal_ratio = 1.0,
                                                             .effective = effective,
@@ -216,7 +216,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                          .knock_out_prices = {90.0, 90.0, 99.0},
                                                          .upper_strike = 100.0,
                                                          .lower_strike = 60.0,
-                                                         .observations = {effective, valuation, expiry},
+                                                         .observation_dates = {effective, valuation, expiry},
                                                          .frequency = kiyosi::observation_frequency::at_expiry,
                                                          .touch_status = kiyosi::barrier_touch_status::none,
                                                          .principal_ratio = 1.0,
@@ -232,7 +232,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                                 .knock_out_prices = {90.0, 90.0, 99.0},
                                                                 .upper_strike = 100.0,
                                                                 .lower_strike = 60.0,
-                                                                .observations = {effective, valuation, expiry},
+                                                                .observation_dates = {effective, valuation, expiry},
                                                                 .frequency = kiyosi::observation_frequency::at_expiry,
                                                                 .touch_status = kiyosi::barrier_touch_status::none,
                                                                 .principal_ratio = 1.0,
@@ -247,7 +247,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                        .coupon_barriers = {90.0, 90.0, 90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = {effective, valuation, expiry},
+                                                       .observation_dates = {effective, valuation, expiry},
                                                        .frequency = kiyosi::observation_frequency::at_expiry,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
@@ -260,7 +260,7 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -272,7 +272,7 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
                                                        .coupon_barriers = {90.0, 90.0, 90.0, 90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = observations,
+                                                       .observation_dates = observation_dates,
                                                        .frequency = kiyosi::observation_frequency::daily,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
@@ -285,7 +285,7 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -298,7 +298,7 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
                                                          .knock_out_prices = knock_outs,
                                                          .upper_strike = 100.0,
                                                          .lower_strike = 60.0,
-                                                         .observations = observations,
+                                                         .observation_dates = observation_dates,
                                                          .frequency = kiyosi::observation_frequency::daily,
                                                          .touch_status = kiyosi::barrier_touch_status::none,
                                                          .principal_ratio = 1.0,
@@ -311,7 +311,7 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -323,7 +323,7 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
                                                               .knock_out_prices = knock_outs,
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
-                                                              .observations = observations,
+                                                              .observation_dates = observation_dates,
                                                               .touch_status = kiyosi::barrier_touch_status::none,
                                                               .principal_ratio = 1.0,
                                                               .effective = effective,
@@ -335,7 +335,7 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -349,7 +349,7 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
                                                                 .knock_out_prices = knock_outs,
                                                                 .upper_strike = 100.0,
                                                                 .lower_strike = 60.0,
-                                                                .observations = observations,
+                                                                .observation_dates = observation_dates,
                                                                 .frequency = kiyosi::observation_frequency::daily,
                                                                 .touch_status = kiyosi::barrier_touch_status::none,
                                                                 .principal_ratio = 1.0,
@@ -362,7 +362,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -374,7 +374,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
                                                               .knock_out_prices = knock_outs,
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
-                                                              .observations = observations,
+                                                              .observation_dates = observation_dates,
                                                               .touch_status = kiyosi::barrier_touch_status::none,
                                                               .principal_ratio = 1.0,
                                                               .effective = effective,
@@ -387,7 +387,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const std::vector<kiyosi::date> observations{day(2025, 4, 1), day(2025, 7, 1),
+    const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
                                                  day(2025, 10, 1), expiry};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective);
@@ -399,7 +399,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
                                                        .coupon_barriers = {90.0, 90.0, 90.0, 90.0},
                                                        .upper_strike = 100.0,
                                                        .lower_strike = 60.0,
-                                                       .observations = observations,
+                                                       .observation_dates = observation_dates,
                                                        .frequency = kiyosi::observation_frequency::daily,
                                                        .touch_status = kiyosi::barrier_touch_status::none,
                                                        .principal_ratio = 1.0,
