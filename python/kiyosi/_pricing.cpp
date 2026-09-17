@@ -248,6 +248,31 @@ void bind_implied_coupon_pair(nb::module_& module)
         "Solve for the coupon rate matching the observed price.");
 }
 
+template <typename Engine, typename Instrument>
+void bind_snowball_implied_coupon_pair(nb::module_& module)
+{
+    module.def(
+        "implied_coupon",
+        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
+           PythonReal observed_price, coupon_quote_convention quote_convention,
+           PythonReal lower_bound, PythonReal upper_bound, PythonReal tolerance,
+           PythonInteger max_iterations) {
+            const double observed = real_number(observed_price, "observed_price");
+            const auto settings = coupon_settings(
+                lower_bound, upper_bound, tolerance, max_iterations);
+            nb::gil_scoped_release release;
+            return unwrap(kiyosi::implied_coupon(
+                engine, instrument, context, observed, quote_convention, settings));
+        },
+        "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
+        "quote_convention"_a,
+        "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
+        "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
+        "tolerance"_a = ImpliedCouponSettings{}.tolerance,
+        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
+        "Solve for a Snowball's quoted knock-out coupon rate.");
+}
+
 template <typename Engine, typename... Instruments>
 void bind_engine_analytics(nb::module_& module)
 {
@@ -505,8 +530,12 @@ void bind_analytics(nb::module_& module)
     bind_engine_analytics<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module);
     bind_engine_analytics<FiniteDifferencePhoenixEngine, PhoenixOption>(module);
     bind_engine_analytics<MonteCarloPhoenixEngine, PhoenixOption>(module);
-    bind_implied_coupon_pair<FiniteDifferenceSnowballEngine, SnowballOption>(module);
-    bind_implied_coupon_pair<MonteCarloSnowballEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceSnowballEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloSnowballEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module);
     bind_implied_coupon_pair<FiniteDifferencePhoenixEngine, PhoenixOption>(module);
     bind_implied_coupon_pair<MonteCarloPhoenixEngine, PhoenixOption>(module);
 }

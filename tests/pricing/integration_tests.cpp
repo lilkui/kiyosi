@@ -148,28 +148,4 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     CHECK(shared_result->has(kiyosi::risk_measure::vega));
 }
 
-TEST_CASE("Structured coupon replacement preserves the original note")
-{
-    const auto valuation = day(2025, 1, 1);
-    const auto expiry = day(2025, 7, 1);
-    const auto note = kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                    .maturity_coupon_rate = 0.05,
-                                                    .initial_price = 100.0,
-                                                    .knock_in_price = 60.0,
-                                                    .knock_out_prices = {110.0},
-                                                    .upper_strike = 100.0,
-                                                    .lower_strike = 60.0,
-                                                    .observation_dates = {expiry},
-                                                    .frequency = kiyosi::observation_frequency::at_expiry,
-                                                    .touch_status = kiyosi::barrier_touch_status::none,
-                                                    .principal_ratio = 1.0,
-                                                    .effective = valuation,
-                                                    .expiry = expiry});
-    REQUIRE(note);
-    const auto replaced = note->with_coupon_rate(0.08);
-    REQUIRE(replaced);
-    CHECK(note->maturity_coupon_rate() == 0.05);
-    CHECK(replaced->maturity_coupon_rate() == 0.08);
-}
-
 } // namespace

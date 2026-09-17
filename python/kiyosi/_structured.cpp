@@ -224,10 +224,7 @@ void bind_structured_instruments(nb::module_& module)
              "principal_ratio"_a = SnowballTerms{}.principal_ratio,
              "effective"_a, "expiry"_a, "Create a validated snowball option.")
         .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates)
-        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate)
-        .def("with_coupon_rate", [](const SnowballOption& option, PythonReal coupon) {
-            return unwrap(option.with_coupon_rate(real_number(coupon, "coupon")));
-        }, "coupon"_a);
+        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate);
     bind_knock_in_properties(snowball);
     bind_value_equality(snowball);
     bind_repr(snowball, "SnowballOption",
@@ -355,10 +352,7 @@ void bind_structured_instruments(nb::module_& module)
              "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
              "effective"_a, "expiry"_a, "Create a validated Phoenix option.")
         .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate)
-        .def_prop_ro("coupon_barriers", &PhoenixOption::coupon_barriers)
-        .def("with_coupon_rate", [](const PhoenixOption& option, PythonReal coupon) {
-            return unwrap(option.with_coupon_rate(real_number(coupon, "coupon")));
-        }, "coupon"_a);
+        .def_prop_ro("coupon_barriers", &PhoenixOption::coupon_barriers);
     bind_knock_in_properties(phoenix);
     bind_value_equality(phoenix);
     bind_repr(phoenix, "PhoenixOption",

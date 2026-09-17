@@ -8,6 +8,7 @@ from ._native import (
     ArithmeticAverageAsianEngine,
     BjerksundStenslandVanillaEngine,
     CrrVanillaEngine,
+    CouponQuoteConvention,
     FiniteDifferenceAccumulatorEngine,
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceBinarySnowballEngine,
@@ -110,18 +111,24 @@ class NumericalAnalyticsEngine:
         context,
         observed_price,
         *,
+        quote_convention=None,
         lower_bound=None,
         upper_bound=None,
         tolerance=None,
         max_iterations=None,
     ):
-        """Solve for the coupon rate matching the observed price."""
+        """Solve for the coupon rate matching the observed price.
+
+        Snowball instruments require an explicit quote_convention. Phoenix
+        instruments have one unambiguous coupon and require none.
+        """
         return _implied_coupon(
             self._engine,
             instrument,
             context,
             observed_price,
             **_specified(
+                quote_convention=quote_convention,
                 lower_bound=lower_bound,
                 upper_bound=upper_bound,
                 tolerance=tolerance,
@@ -137,6 +144,7 @@ __all__ = [
     "ArithmeticAverageAsianEngine",
     "BjerksundStenslandVanillaEngine",
     "CrrVanillaEngine",
+    "CouponQuoteConvention",
     "FiniteDifferenceAccumulatorEngine",
     "FiniteDifferenceBarrierEngine",
     "FiniteDifferenceBinarySnowballEngine",

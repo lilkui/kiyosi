@@ -33,7 +33,6 @@ public:
     double coupon_rate() const noexcept { return coupon_rate_; }
     const std::vector<double>& coupon_barriers() const noexcept { return coupon_barriers_; }
 
-    result<PhoenixOption> with_coupon_rate(double coupon) const;
     friend bool operator==(const PhoenixOption&, const PhoenixOption&) = default;
 
 private:
@@ -52,23 +51,6 @@ private:
 
     friend result<PhoenixOption> make_phoenix_option(PhoenixTerms);
 };
-
-inline result<PhoenixOption> PhoenixOption::with_coupon_rate(double coupon) const
-{
-    return make_phoenix_option(PhoenixTerms{.coupon_rate = coupon,
-                                            .initial_price = initial_price(),
-                                            .knock_in_price = knock_in_price(),
-                                            .knock_out_prices = knock_out_prices(),
-                                            .coupon_barriers = coupon_barriers(),
-                                            .upper_strike = upper_strike(),
-                                            .lower_strike = lower_strike(),
-                                            .observation_dates = observation_dates(),
-                                            .frequency = knock_in_frequency(),
-                                            .touch_status = touch_status(),
-                                            .principal_ratio = principal_ratio(),
-                                            .effective = effective(),
-                                            .expiry = expiry()});
-}
 
 [[nodiscard]] inline result<PhoenixOption> make_phoenix_option(PhoenixTerms terms)
 {

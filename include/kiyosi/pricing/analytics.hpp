@@ -48,9 +48,20 @@ public:
     [[nodiscard]] result<double> implied_coupon(
         const Option& option, const PricingContext& context, double observed_price,
         ImpliedCouponSettings settings = {}) const
-    requires requires(const Option& value, double coupon) { value.with_coupon_rate(coupon); }
+        requires requires(const Option& value, double coupon) { detail::replace_coupon(value, coupon); }
     {
         return kiyosi::implied_coupon(engine_, option, context, observed_price, settings);
+    }
+
+    template <typename Option>
+    [[nodiscard]] result<double> implied_coupon(
+        const Option& option, const PricingContext& context, double observed_price,
+        coupon_quote_convention convention, ImpliedCouponSettings settings = {}) const
+        requires requires(const Option& value, double coupon) {
+            detail::replace_coupon(value, coupon, coupon_quote_convention::fixed_maturity);
+        }
+    {
+        return kiyosi::implied_coupon(engine_, option, context, observed_price, convention, settings);
     }
 
     const Engine& engine() const noexcept { return engine_; }

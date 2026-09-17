@@ -56,6 +56,9 @@ void bind_enums(nb::module_& module)
         .value("EXPLICIT_EULER", finite_difference_scheme::explicit_euler)
         .value("IMPLICIT_EULER", finite_difference_scheme::implicit_euler)
         .value("CRANK_NICOLSON", finite_difference_scheme::crank_nicolson);
+    nb::enum_<coupon_quote_convention>(module, "CouponQuoteConvention")
+        .value("LINKED_MATURITY", coupon_quote_convention::linked_maturity)
+        .value("FIXED_MATURITY", coupon_quote_convention::fixed_maturity);
     nb::enum_<risk_measure>(module, "RiskMeasure")
         .value("PRICE", risk_measure::price)
         .value("DELTA", risk_measure::delta)

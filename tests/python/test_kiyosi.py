@@ -6,7 +6,26 @@ from pathlib import Path
 import kiyosi
 import kiyosi.market as market
 import kiyosi.pricing as pricing
-from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, ObservationMode, OptionType, PayoffType, RebateTiming, SettlementTiming, TouchOption, asset_no_touch_down, cash_binary_barrier_option, cash_one_touch_up, standard_snowball
+from kiyosi.instruments import (
+    Accumulator,
+    BarrierOption,
+    BarrierType,
+    CashOrNothingOption,
+    EuropeanOption,
+    GeometricAverageOption,
+    ObservationMode,
+    OptionType,
+    PayoffType,
+    RebateTiming,
+    SettlementTiming,
+    TouchOption,
+    asset_no_touch_down,
+    both_down_snowball,
+    cash_binary_barrier_option,
+    cash_one_touch_up,
+    dual_coupon_snowball,
+    standard_snowball,
+)
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
 from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine
 
@@ -77,6 +96,70 @@ class KiyosiPythonTests(unittest.TestCase):
                 representation = repr(value)
                 self.assertTrue(representation.startswith(prefix))
                 self.assertIn(field, representation)
+
+    def test_snowball_implied_coupon_uses_explicit_quote_convention(self):
+        terms = dict(
+            initial_price=100,
+            knock_in_price=70,
+            observation_dates=[date(2025, 7, 1), date(2026, 1, 1)],
+            effective=date(2025, 1, 1),
+            expiry=date(2026, 1, 1),
+        )
+        standard = standard_snowball(coupon_rate=0.10, knock_out_price=105, **terms)
+        both_down = both_down_snowball(
+            coupon_start=0.10,
+            coupon_step=0.01,
+            knock_out_start=110,
+            knock_out_step=5,
+            **terms,
+        )
+        dual = dual_coupon_snowball(
+            knock_out_coupon=0.10,
+            maturity_coupon=0.03,
+            knock_out_price=105,
+            **terms,
+        )
+        target_standard = standard_snowball(
+            coupon_rate=0.12, knock_out_price=105, **terms
+        )
+        target_both_down = both_down_snowball(
+            coupon_start=0.12,
+            coupon_step=0.01,
+            knock_out_start=110,
+            knock_out_step=5,
+            **terms,
+        )
+        target_dual = dual_coupon_snowball(
+            knock_out_coupon=0.12,
+            maturity_coupon=0.03,
+            knock_out_price=105,
+            **terms,
+        )
+
+        linked = pricing.CouponQuoteConvention.LINKED_MATURITY
+        fixed = pricing.CouponQuoteConvention.FIXED_MATURITY
+        engine = pricing.FiniteDifferenceSnowballEngine(asset_steps=40, time_steps=40)
+        analytics = NumericalAnalyticsEngine(engine)
+        observed_price = engine.price(target_standard, self.context).price
+        with self.assertRaises(TypeError):
+            analytics.implied_coupon(standard, self.context, observed_price)
+        self.assertFalse(hasattr(standard, "with_quoted_coupon_rate"))
+
+        cases = (
+            (standard, target_standard, linked),
+            (both_down, target_both_down, linked),
+            (dual, target_dual, fixed),
+        )
+        for instrument, target, convention in cases:
+            with self.subTest(instrument=instrument):
+                implied = analytics.implied_coupon(
+                    instrument,
+                    self.context,
+                    engine.price(target, self.context).price,
+                    quote_convention=convention,
+                    tolerance=1e-6,
+                )
+                self.assertAlmostEqual(implied, 0.12, places=5)
 
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BsmParameters.__doc__.lower())

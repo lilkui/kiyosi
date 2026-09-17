@@ -69,7 +69,6 @@ public:
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
 
-    result<SnowballOption> with_coupon_rate(double coupon) const;
     friend bool operator==(const SnowballOption&, const SnowballOption&) = default;
 
 private:
@@ -148,23 +147,6 @@ private:
                                               terms.initial_price, std::move(terms.knock_out_prices), terms.upper_strike,
                                               terms.lower_strike, std::move(terms.observation_dates), terms.touch_status,
                                               terms.principal_ratio, terms.effective, terms.expiry});
-}
-
-inline result<SnowballOption> SnowballOption::with_coupon_rate(double coupon) const
-{
-    return make_snowball_option({.knock_out_coupon_rates = knock_out_coupon_rates(),
-                                 .maturity_coupon_rate = coupon,
-                                 .initial_price = initial_price(),
-                                 .knock_in_price = knock_in_price(),
-                                 .knock_out_prices = knock_out_prices(),
-                                 .upper_strike = upper_strike(),
-                                 .lower_strike = lower_strike(),
-                                 .observation_dates = observation_dates(),
-                                 .frequency = knock_in_frequency(),
-                                 .touch_status = touch_status(),
-                                 .principal_ratio = principal_ratio(),
-                                 .effective = effective(),
-                                 .expiry = expiry()});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_snowball_option(SnowballTerms terms)

@@ -2,7 +2,6 @@
 #include <catch2/catch_approx.hpp>
 
 #include <chrono>
-#include <limits>
 #include <type_traits>
 #include <vector>
 
@@ -12,9 +11,27 @@
 
 namespace {
 using kiyosi::test::day;
-}
 
-TEST_CASE("Snowball factory rejects invalid schedules and supports signed coupon replacement")
+struct CouponSumEngine {
+    mutable std::vector<double> coupon_rates;
+    mutable double maturity_coupon{};
+    mutable double minimal_coupon{};
+
+    template <typename Option>
+    kiyosi::result<kiyosi::PricingResult> price(
+        const Option& option, const kiyosi::PricingContext&) const
+    {
+        coupon_rates = option.knock_out_coupon_rates();
+        maturity_coupon = option.maturity_coupon_rate();
+        if constexpr (requires { option.minimal_coupon_rate(); })
+            minimal_coupon = option.minimal_coupon_rate();
+        return kiyosi::PricingResult{{kiyosi::risk_measure::price,
+                                      coupon_rates.front() + maturity_coupon}};
+    }
+};
+} // namespace
+
+TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons")
 {
     static_assert(!std::is_constructible_v<kiyosi::BinarySnowballOption, std::vector<double>, double, double,
                                            std::vector<double>, double, double, std::vector<kiyosi::date>,
@@ -37,24 +54,20 @@ TEST_CASE("Snowball factory rejects invalid schedules and supports signed coupon
         .effective = effective,
         .expiry = expiry});
     REQUIRE(note);
-    const auto replaced = note->with_coupon_rate(-0.08);
-    REQUIRE(replaced);
-    CHECK(replaced->maturity_coupon_rate() == -0.08);
-    CHECK_FALSE(note->with_coupon_rate(std::numeric_limits<double>::infinity()));
     CHECK(kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-              .knock_out_coupon_rates = {0.1},
-              .maturity_coupon_rate = 0.05,
-              .initial_price = 100.0,
-              .knock_in_price = 60.0,
-              .knock_out_prices = {110.0},
-              .upper_strike = 100.0,
-              .lower_strike = 60.0,
-              .observation_dates = {expiry, effective},
-              .frequency = kiyosi::observation_frequency::daily,
-              .touch_status = kiyosi::barrier_touch_status::none,
-              .principal_ratio = 1.0,
-              .effective = effective,
-              .expiry = expiry})
+                                           .knock_out_coupon_rates = {0.1},
+                                           .maturity_coupon_rate = 0.05,
+                                           .initial_price = 100.0,
+                                           .knock_in_price = 60.0,
+                                           .knock_out_prices = {110.0},
+                                           .upper_strike = 100.0,
+                                           .lower_strike = 60.0,
+                                           .observation_dates = {expiry, effective},
+                                           .frequency = kiyosi::observation_frequency::daily,
+                                           .touch_status = kiyosi::barrier_touch_status::none,
+                                           .principal_ratio = 1.0,
+                                           .effective = effective,
+                                           .expiry = expiry})
               .error()
               .category == kiyosi::error_category::invalid_schedule);
 }
@@ -89,4 +102,85 @@ TEST_CASE("Named Snowball factories build DerivaSharp variants")
     CHECK(capped->lower_strike() == Catch::Approx(80.0));
     CHECK(european->knock_in_frequency() == kiyosi::observation_frequency::at_expiry);
     CHECK(dual->maturity_coupon_rate() == Catch::Approx(0.03));
+
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, effective);
+    const CouponSumEngine standard_engine;
+    const CouponSumEngine both_down_engine;
+    const CouponSumEngine dual_engine;
+    const auto standard_coupon = kiyosi::implied_coupon(
+        standard_engine, *standard, context, 0.24,
+        kiyosi::coupon_quote_convention::linked_maturity);
+    const auto both_down_coupon = kiyosi::implied_coupon(
+        both_down_engine, *both_down, context, 0.22,
+        kiyosi::coupon_quote_convention::linked_maturity);
+    const auto dual_coupon = kiyosi::implied_coupon(
+        dual_engine, *dual, context, 0.15,
+        kiyosi::coupon_quote_convention::fixed_maturity);
+    REQUIRE(standard_coupon);
+    REQUIRE(both_down_coupon);
+    REQUIRE(dual_coupon);
+    CHECK(*standard_coupon == Catch::Approx(0.12));
+    CHECK(*both_down_coupon == Catch::Approx(0.12));
+    CHECK(*dual_coupon == Catch::Approx(0.12));
+    CHECK(standard_engine.maturity_coupon == Catch::Approx(0.12));
+    CHECK(both_down_engine.coupon_rates[1] == Catch::Approx(0.11));
+    CHECK(both_down_engine.coupon_rates[2] == Catch::Approx(0.10));
+    CHECK(both_down_engine.maturity_coupon == Catch::Approx(0.10));
+    CHECK(dual_engine.coupon_rates[1] == Catch::Approx(0.12));
+    CHECK(dual_engine.maturity_coupon == Catch::Approx(0.03));
+}
+
+TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const std::vector<kiyosi::date> observation_dates{day(2025, 7, 1), expiry};
+    const auto binary = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.10, 0.09},
+                                                             .maturity_coupon_rate = 0.03,
+                                                             .initial_price = 100.0,
+                                                             .knock_out_prices = {105.0, 100.0},
+                                                             .upper_strike = 100.0,
+                                                             .lower_strike = 0.0,
+                                                             .observation_dates = observation_dates,
+                                                             .touch_status = kiyosi::barrier_touch_status::none,
+                                                             .principal_ratio = 1.0,
+                                                             .effective = effective,
+                                                             .expiry = expiry});
+    const auto ternary = kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.10, 0.09},
+                                                               .maturity_coupon_rate = 0.03,
+                                                               .minimal_coupon_rate = 0.01,
+                                                               .initial_price = 100.0,
+                                                               .knock_in_price = 70.0,
+                                                               .knock_out_prices = {105.0, 100.0},
+                                                               .upper_strike = 100.0,
+                                                               .lower_strike = 0.0,
+                                                               .observation_dates = observation_dates,
+                                                               .frequency = kiyosi::observation_frequency::daily,
+                                                               .touch_status = kiyosi::barrier_touch_status::none,
+                                                               .principal_ratio = 1.0,
+                                                               .effective = effective,
+                                                               .expiry = expiry});
+    REQUIRE(binary);
+    REQUIRE(ternary);
+
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, effective);
+    const CouponSumEngine binary_engine;
+    const CouponSumEngine ternary_engine;
+    const auto implied_binary = kiyosi::implied_coupon(
+        binary_engine, *binary, context, 0.15,
+        kiyosi::coupon_quote_convention::fixed_maturity);
+    const auto implied_ternary = kiyosi::implied_coupon(
+        ternary_engine, *ternary, context, 0.15,
+        kiyosi::coupon_quote_convention::fixed_maturity);
+    REQUIRE(implied_binary);
+    REQUIRE(implied_ternary);
+    CHECK(*implied_binary == Catch::Approx(0.12));
+    CHECK(*implied_ternary == Catch::Approx(0.12));
+    CHECK(binary_engine.coupon_rates[1] == Catch::Approx(0.11));
+    CHECK(binary_engine.maturity_coupon == Catch::Approx(0.03));
+    CHECK(ternary_engine.coupon_rates[1] == Catch::Approx(0.11));
+    CHECK(ternary_engine.maturity_coupon == Catch::Approx(0.03));
+    CHECK(ternary_engine.minimal_coupon == Catch::Approx(0.01));
 }
