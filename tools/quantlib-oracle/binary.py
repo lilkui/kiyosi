@@ -214,10 +214,10 @@ def metadata():
 def rows():
     for identifier, inputs in scenarios():
         row = g.contract_row(identifier, inputs, BUDGET, STABILITY)
-        row["instrument"], row["engine"] = (
-            "BinaryBarrierOption",
-            "AnalyticBinaryBarrierEngine",
+        row["instrument"] = (
+            "TouchOption" if inputs["option"] == "none" else "BinaryBarrierOption"
         )
+        row["engine"] = "AnalyticBinaryBarrierEngine"
         terms = row["inputs"]
         terms.update(
             metadata(),

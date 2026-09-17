@@ -39,6 +39,12 @@ void bind_enums(nb::module_& module)
     nb::enum_<rebate_timing>(module, "RebateTiming")
         .value("AT_HIT", rebate_timing::at_hit)
         .value("AT_EXPIRY", rebate_timing::at_expiry);
+    nb::enum_<settlement_timing>(module, "SettlementTiming")
+        .value("AT_HIT", settlement_timing::at_hit)
+        .value("AT_EXPIRY", settlement_timing::at_expiry);
+    nb::enum_<payoff_type>(module, "PayoffType")
+        .value("CASH", payoff_type::cash)
+        .value("ASSET", payoff_type::asset);
     nb::enum_<observation_frequency>(module, "ObservationFrequency")
         .value("DAILY", observation_frequency::daily)
         .value("AT_EXPIRY", observation_frequency::at_expiry);

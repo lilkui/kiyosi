@@ -1,8 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
-#include <optional>
-
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
@@ -35,17 +33,8 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
 
     const std::vector<kiyosi::date> observations{effective + std::chrono::days{30},
                                                  effective + std::chrono::days{60}};
-    const auto scheduled = *kiyosi::make_binary_barrier_option({.type = std::nullopt,
-                                                                .strike = 100.0,
-                                                                .effective = effective,
-                                                                .expiry = expiry,
-                                                                .barrier = 90.0,
-                                                                .barrier_kind = kiyosi::barrier_type::down_and_out,
-                                                                .payout = 10.0,
-                                                                .asset_settlement = false,
-                                                                .settlement_timing = kiyosi::rebate_timing::at_expiry,
-                                                                .observation = kiyosi::observation_mode::scheduled,
-                                                                .observations = observations});
+    const auto scheduled = *kiyosi::make_cash_no_touch_down(
+        effective, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled, observations);
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
     CHECK(scheduled.barrier_terms().monitors(kiyosi::start_of_day(observations.front())));

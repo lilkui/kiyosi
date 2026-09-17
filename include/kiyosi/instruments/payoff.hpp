@@ -3,6 +3,7 @@
 #include <cmath>
 #include <concepts>
 #include <type_traits>
+#include <variant>
 
 #include <kiyosi/core/error.hpp>
 
@@ -19,6 +20,9 @@ struct VanillaPayoff {
 struct AssetOrNothingPayoff {
     friend bool operator==(const AssetOrNothingPayoff&, const AssetOrNothingPayoff&) = default;
 };
+
+enum class payoff_type { cash,
+                         asset };
 
 class CashOrNothingPayoff;
 
@@ -43,6 +47,14 @@ private:
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "payout must be finite and positive"});
     return CashOrNothingPayoff{payout};
+}
+
+using BinaryPayoff = std::variant<CashOrNothingPayoff, AssetOrNothingPayoff>;
+
+[[nodiscard]] inline payoff_type payoff_kind(const BinaryPayoff& payoff) noexcept
+{
+    return std::holds_alternative<CashOrNothingPayoff>(payoff) ? payoff_type::cash
+                                                               : payoff_type::asset;
 }
 
 } // namespace kiyosi

@@ -24,6 +24,9 @@ enum class observation_mode { continuous,
 enum class rebate_timing { at_hit,
                            at_expiry };
 
+enum class settlement_timing { at_hit,
+                               at_expiry };
+
 [[nodiscard]] constexpr bool is_up_barrier(barrier_type kind) noexcept
 {
     return kind == barrier_type::up_and_in || kind == barrier_type::up_and_out;

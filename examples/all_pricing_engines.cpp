@@ -42,13 +42,14 @@ int main()
                                                        .expiry = expiry,
                                                        .barrier = 80.0,
                                                        .barrier_kind = kiyosi::barrier_type::down_and_out});
-    const auto binary_barrier = *kiyosi::make_binary_barrier_option({.type = kiyosi::option_type::call,
-                                                                     .strike = 100.0,
-                                                                     .effective = effective,
-                                                                     .expiry = expiry,
-                                                                     .barrier = 80.0,
-                                                                     .barrier_kind = kiyosi::barrier_type::down_and_out,
-                                                                     .payout = 10.0});
+    const auto binary_barrier = *kiyosi::make_cash_binary_barrier_option(
+        {.type = kiyosi::option_type::call,
+         .strike = 100.0,
+         .effective = effective,
+         .expiry = expiry,
+         .barrier = 80.0,
+         .barrier_kind = kiyosi::barrier_type::down_and_out},
+        10.0);
     const auto geometric_asian = *kiyosi::make_geometric_average_option(
         kiyosi::option_type::call, 100.0, effective, effective, expiry);
     const auto arithmetic_asian = *kiyosi::make_arithmetic_average_option(

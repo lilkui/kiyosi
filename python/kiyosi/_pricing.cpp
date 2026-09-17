@@ -414,6 +414,7 @@ void bind_engines(nb::module_& module)
     auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
         module, "AnalyticBinaryBarrierEngine");
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(analytic_binary);
+    bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(analytic_binary);
 
     auto geometric = bind_stateless_engine<GeometricAverageAsianEngine>(
         module, "GeometricAverageAsianEngine");
@@ -472,7 +473,7 @@ void bind_analytics(nb::module_& module)
                           EuropeanAssetOrNothingOption>(module);
     bind_engine_analytics<AnalyticBarrierEngine, BarrierOption>(module);
     bind_engine_analytics<FiniteDifferenceBarrierEngine, BarrierOption>(module);
-    bind_engine_analytics<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(module);
+    bind_engine_analytics<AnalyticBinaryBarrierEngine, BinaryBarrierOption, TouchOption>(module);
     bind_engine_analytics<GeometricAverageAsianEngine, GeometricAverageOption>(module);
     bind_engine_analytics<ArithmeticAverageAsianEngine, ArithmeticAverageOption>(module);
     bind_engine_analytics<FiniteDifferenceAccumulatorEngine, Accumulator>(module);

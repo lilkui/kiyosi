@@ -304,14 +304,16 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             const bool exercise_boundary = value.instrument == "AmericanOption" &&
                 (valuation - calendar_date({required_input("effective")}, index, row, "effective")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
-            const bool binary_expiry = value.instrument == "BinaryBarrierOption" && expiry == valuation;
+            const bool binary_product = value.instrument == "BinaryBarrierOption" ||
+                                        value.instrument == "TouchOption";
+            const bool binary_expiry = binary_product && expiry == valuation;
             const bool asian = value.instrument == "GeometricAverageOption" || value.instrument == "ArithmeticAverageOption";
             const bool asian_expiry = asian && expiry == valuation;
             index = 0;
             const bool asian_start = asian &&
                 (valuation - calendar_date({required_input("average_start")}, index, row, "average_start")).count() <= 2;
             index = 0;
-            const bool binary_boundary = value.instrument == "BinaryBarrierOption" &&
+            const bool binary_boundary = binary_product &&
                 number({required_input("spot")}, index, row, "spot") == [&] {
                     std::size_t position = 0;
                     return number({required_input("barrier")}, position, row, "barrier");

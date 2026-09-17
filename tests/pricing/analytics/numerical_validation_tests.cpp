@@ -237,60 +237,57 @@ TEST_CASE("Binary barrier expiry uses inclusive hits and strict strikes")
         {true, kiyosi::barrier_type::down_and_out, kiyosi::option_type::call, 99, 90, 100},
     };
     for (const auto& item : cases) {
-        const auto option = *kiyosi::make_binary_barrier_option({.type = item.type,
-                                                                 .strike = item.strike,
-                                                                 .effective = expiry,
-                                                                 .expiry = expiry,
-                                                                 .barrier = item.level,
-                                                                 .barrier_kind = item.barrier,
-                                                                 .payout = item.asset ? 0.0 : 10.0,
-                                                                 .asset_settlement = item.asset});
-        CHECK(risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(option, context(100.0, 0.04, 0.01, 0.3, expiry)),
-                         kiyosi::risk_measure::price) == item.expected);
+        const auto check = [&](const auto& option) {
+            CHECK(risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(
+                                 option, context(100.0, 0.04, 0.01, 0.3, expiry)),
+                             kiyosi::risk_measure::price) == item.expected);
+        };
+        if (item.type) {
+            const kiyosi::BinaryBarrierTerms terms{.type = *item.type,
+                                                   .strike = item.strike,
+                                                   .effective = expiry,
+                                                   .expiry = expiry,
+                                                   .barrier = item.level,
+                                                   .barrier_kind = item.barrier};
+            if (item.asset) check(*kiyosi::make_asset_binary_barrier_option(terms));
+            else check(*kiyosi::make_cash_binary_barrier_option(terms, 10.0));
+        } else if (item.asset) {
+            if (item.barrier == kiyosi::barrier_type::up_and_in)
+                check(*kiyosi::make_asset_one_touch_up(expiry, expiry, item.level));
+            else if (item.barrier == kiyosi::barrier_type::down_and_in)
+                check(*kiyosi::make_asset_one_touch_down(expiry, expiry, item.level));
+            else if (item.barrier == kiyosi::barrier_type::up_and_out)
+                check(*kiyosi::make_asset_no_touch_up(expiry, expiry, item.level));
+            else
+                check(*kiyosi::make_asset_no_touch_down(expiry, expiry, item.level));
+        } else {
+            if (item.barrier == kiyosi::barrier_type::up_and_in)
+                check(*kiyosi::make_cash_one_touch_up(expiry, expiry, item.level, 10.0));
+            else if (item.barrier == kiyosi::barrier_type::down_and_in)
+                check(*kiyosi::make_cash_one_touch_down(expiry, expiry, item.level, 10.0));
+            else if (item.barrier == kiyosi::barrier_type::up_and_out)
+                check(*kiyosi::make_cash_no_touch_up(expiry, expiry, item.level, 10.0));
+            else
+                check(*kiyosi::make_cash_no_touch_down(expiry, expiry, item.level, 10.0));
+        }
     }
 }
 
 TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK interval")
 {
-    const auto short_schedule = *kiyosi::make_binary_barrier_option({
-        .type = std::nullopt,
-        .strike = 100.0,
-        .effective = valuation,
-        .expiry = expiry,
-        .barrier = 90.0,
-        .barrier_kind = kiyosi::barrier_type::down_and_out,
-        .payout = 10.0,
-        .asset_settlement = false,
-        .settlement_timing = kiyosi::rebate_timing::at_expiry,
-        .observation = kiyosi::observation_mode::scheduled,
-        .observations = {valuation + std::chrono::days{30}, valuation + std::chrono::days{60}}});
-    const auto long_schedule = *kiyosi::make_binary_barrier_option({
-        .type = std::nullopt,
-        .strike = 100.0,
-        .effective = valuation,
-        .expiry = expiry,
-        .barrier = 90.0,
-        .barrier_kind = kiyosi::barrier_type::down_and_out,
-        .payout = 10.0,
-        .asset_settlement = false,
-        .settlement_timing = kiyosi::rebate_timing::at_expiry,
-        .observation = kiyosi::observation_mode::scheduled,
-        .observations = {valuation + std::chrono::days{179}, expiry}});
+    const auto short_schedule = *kiyosi::make_cash_no_touch_down(
+        valuation, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled,
+        {valuation + std::chrono::days{30}, valuation + std::chrono::days{60}});
+    const auto long_schedule = *kiyosi::make_cash_no_touch_down(
+        valuation, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled,
+        {valuation + std::chrono::days{179}, expiry});
     const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::risk_measure::price);
     const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::risk_measure::price);
     CHECK(std::abs(short_value - long_value) > 1e-4);
 
-    const auto weekend = *kiyosi::make_binary_barrier_option({.type = std::nullopt,
-                                                              .strike = 100.0,
-                                                              .effective = valuation,
-                                                              .expiry = expiry,
-                                                              .barrier = 90.0,
-                                                              .barrier_kind = kiyosi::barrier_type::down_and_out,
-                                                              .payout = 10.0,
-                                                              .asset_settlement = false,
-                                                              .settlement_timing = kiyosi::rebate_timing::at_expiry,
-                                                              .observation = kiyosi::observation_mode::scheduled,
-                                                              .observations = {day(2025, 1, 11)}});
+    const auto weekend = *kiyosi::make_cash_no_touch_down(
+        valuation, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled,
+        {day(2025, 1, 11)});
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
                                                       100.0, valuation,
                                                       kiyosi::weekdays_calendar());

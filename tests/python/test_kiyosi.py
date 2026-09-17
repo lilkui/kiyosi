@@ -6,9 +6,9 @@ from pathlib import Path
 import kiyosi
 import kiyosi.market as market
 import kiyosi.pricing as pricing
-from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, OptionType, RebateTiming, asset_no_touch_down, cash_one_touch_up, standard_snowball
+from kiyosi.instruments import Accumulator, BarrierOption, BarrierType, CashOrNothingOption, EuropeanOption, GeometricAverageOption, ObservationMode, OptionType, PayoffType, SettlementTiming, TouchOption, asset_no_touch_down, cash_binary_barrier_option, cash_one_touch_up, standard_snowball
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, numerical_analytics
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, numerical_analytics
 
 
 def parity_fields(value):
@@ -193,18 +193,37 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_touch_factories_require_only_payoff_relevant_terms(self):
         terms = dict(effective=date(2025, 1, 1), expiry=date(2026, 1, 1))
-        cash = cash_one_touch_up(**terms, barrier=130, payout=10, timing=RebateTiming.AT_HIT)
+        cash = cash_one_touch_up(
+            **terms, barrier=130, payout=10,
+            settlement_timing=SettlementTiming.AT_HIT,
+            observation=ObservationMode.SCHEDULED,
+            observations=[date(2025, 6, 2), terms["expiry"]])
         asset = asset_no_touch_down(**terms, barrier=70)
-        self.assertEqual(cash.barrier_kind, BarrierType.UP_AND_IN)
+        self.assertIsInstance(cash, TouchOption)
+        self.assertTrue(cash.is_one_touch)
+        self.assertTrue(cash.is_up)
         self.assertEqual(cash.payout, 10)
-        self.assertFalse(cash.asset_settlement)
-        self.assertEqual(cash.settlement_timing, RebateTiming.AT_HIT)
-        self.assertEqual(asset.barrier_kind, BarrierType.DOWN_AND_OUT)
-        self.assertTrue(asset.asset_settlement)
+        self.assertEqual(cash.payoff_type, PayoffType.CASH)
+        self.assertEqual(cash.settlement_timing, SettlementTiming.AT_HIT)
+        self.assertEqual(cash.observation_dates, [date(2025, 6, 2), terms["expiry"]])
+        self.assertFalse(asset.is_one_touch)
+        self.assertFalse(asset.is_up)
+        self.assertIsNone(asset.payout)
+        self.assertEqual(asset.payoff_type, PayoffType.ASSET)
         with self.assertRaises(TypeError):
             cash_one_touch_up(**terms, barrier=130, payout=10, strike=100)
         with self.assertRaises(TypeError):
             asset_no_touch_down(**terms, barrier=70, payout=10)
+
+        binary = cash_binary_barrier_option(
+            **terms, type=OptionType.CALL, strike=100, barrier=80,
+            barrier_kind=BarrierType.DOWN_AND_OUT, payout=10)
+        self.assertEqual(binary.type, OptionType.CALL)
+        self.assertEqual(binary.strike, 100)
+        self.assertEqual(binary.payoff_type, PayoffType.CASH)
+        engine = AnalyticBinaryBarrierEngine()
+        self.assertGreater(engine.price(cash, self.context).price, 0)
+        self.assertGreater(engine.price(binary, self.context).price, 0)
 
     def test_public_api_matches_shared_language_parity_cases(self):
         cases = parity_cases()

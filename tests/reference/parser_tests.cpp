@@ -205,7 +205,7 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         "MonteCarloAmericanEngine", "MonteCarloEuropeanEngine"};
     const std::set<std::string> required_instruments{
         "AmericanOption", "ArithmeticAverageOption", "BarrierOption",
-        "BinaryBarrierOption", "EuropeanAssetOrNothingOption",
+        "BinaryBarrierOption", "TouchOption", "EuropeanAssetOrNothingOption",
         "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAverageOption"};
     const std::set<std::string> required_pairs{
         "AmericanOption/BinomialAmericanEngine", "AmericanOption/FiniteDifferenceAmericanEngine",
@@ -213,7 +213,8 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         "AmericanOption/CrrEngine",
         "ArithmeticAverageOption/ArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
         "BarrierOption/FiniteDifferenceBarrierEngine",
-        "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
+        "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "TouchOption/AnalyticBinaryBarrierEngine",
+        "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
         "EuropeanAssetOrNothingOption/IntegralDigitalEngine", "EuropeanAssetOrNothingOption/FiniteDifferenceDigitalEngine",
         "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
         "EuropeanCashOrNothingOption/IntegralDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",

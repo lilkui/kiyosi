@@ -540,7 +540,7 @@ def validate_manifest(text):
         import digital
 
         is_asian = fields[1] in asian.INSTRUMENTS.values()
-        is_binary = fields[1] == "BinaryBarrierOption"
+        is_binary = fields[1] in {"BinaryBarrierOption", "TouchOption"}
         is_barrier = fields[1] == "BarrierOption"
         is_american = fields[1] == "AmericanOption"
         is_digital = fields[1] in digital.INSTRUMENTS.values()

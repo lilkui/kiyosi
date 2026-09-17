@@ -28,7 +28,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         const bool owned = inputs.contains("owner") && inputs.at("owner") == "QuantLib";
         REQUIRE(owned == fixture.case_id.starts_with("ql-"));
         REQUIRE(owned);
-        if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption") continue;
+        if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption" ||
+            fixture.instrument == "TouchOption") continue;
         if (fixture.instrument == "GeometricAverageOption" || fixture.instrument == "ArithmeticAverageOption") continue;
         if (fixture.engine == "BinomialAmericanEngine" || fixture.engine == "BinomialEuropeanEngine") continue;
         const bool american = fixture.instrument == "AmericanOption";

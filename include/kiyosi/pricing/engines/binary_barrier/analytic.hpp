@@ -10,6 +10,7 @@ namespace kiyosi {
 class KIYOSI_EXPORT AnalyticBinaryBarrierEngine {
 public:
     [[nodiscard]] result<PricingResult> price(const BinaryBarrierOption&, const PricingContext&) const;
+    [[nodiscard]] result<PricingResult> price(const TouchOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

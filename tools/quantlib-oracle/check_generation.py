@@ -80,8 +80,12 @@ def check_generation():
                 terms["averaging"] == "arithmetic"
                 and terms["valuation"] != terms["expiry"]
             )
-        binary_rows = [row for row in rows if row[1] == "BinaryBarrierOption"]
+        binary_rows = [
+            row for row in rows if row[1] in {"BinaryBarrierOption", "TouchOption"}
+        ]
         assert len(binary_rows) == 268
+        assert sum(row[1] == "BinaryBarrierOption" for row in binary_rows) == 160
+        assert sum(row[1] == "TouchOption" for row in binary_rows) == 108
         assert (
             sum(generate.attributes(row[4])["wrapper"] == "true" for row in binary_rows)
             == 140
