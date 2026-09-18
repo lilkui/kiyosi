@@ -79,7 +79,7 @@ public:
             rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
         if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); })) return false;
         std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
-        return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
+        return std::isfinite(next.front()) && std::isfinite(next.back());
     }
 
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
@@ -161,8 +161,8 @@ public:
             return false;
         std::copy(rhs.begin(), rhs.end(), first_next.begin() + 1);
         std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
-        return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
-               std::ranges::all_of(second_next, [](double value) { return std::isfinite(value); });
+        return std::isfinite(first_next.front()) && std::isfinite(first_next.back()) &&
+               std::isfinite(second_next.front()) && std::isfinite(second_next.back());
     }
 
 private:

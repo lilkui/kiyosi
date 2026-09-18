@@ -1,6 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <limits>
+#include <optional>
 #include <vector>
 
 #include "pricing/detail/fd_scheme.hpp"
@@ -37,5 +39,61 @@ TEST_CASE("Paired finite-difference advances match independent layers")
             expected_first.swap(next_expected_first);
             expected_second.swap(next_expected_second);
         }
+    }
+}
+
+TEST_CASE("Implicit finite-difference steps preserve finiteness failure guarantees")
+{
+    constexpr std::size_t size = 5;
+    constexpr double sentinel = -123.0;
+    const double infinity = std::numeric_limits<double>::infinity();
+
+    SECTION("invalid single-layer interiors are rejected before copying")
+    {
+        kiyosi::detail::FiniteDifferenceStep step{size};
+        const std::vector<double> old{1.0, 2.0, infinity, 4.0, 5.0};
+        std::vector<double> next(size, sentinel);
+
+        CHECK_FALSE(step.advance(old, next, 0.1, 0.03, 0.01, 0.2, 1.0, 0.0, 10.0));
+        CHECK(next[1] == sentinel);
+        CHECK(next[2] == sentinel);
+        CHECK(next[3] == sentinel);
+    }
+
+    SECTION("an invalid paired interior prevents either layer from being copied")
+    {
+        kiyosi::detail::FiniteDifferenceStep step{size};
+        const std::vector<double> first_old{1.0, 2.0, 3.0, 4.0, 5.0};
+        const std::vector<double> second_old{1.0, 2.0, infinity, 4.0, 5.0};
+        std::vector<double> first_next(size, sentinel);
+        std::vector<double> second_next(size, sentinel);
+        const kiyosi::detail::DiffusionParameters parameters{
+            .rate = 0.03, .dividend = 0.01, .volatility = 0.2, .theta = 1.0};
+
+        CHECK_FALSE(step.advance_pair(first_old, first_next, second_old, second_next, 0.1,
+                                      parameters, {0.0, 10.0}, {0.0, 10.0}));
+        for (std::size_t index = 1; index + 1 < size; ++index) {
+            CHECK(first_next[index] == sentinel);
+            CHECK(second_next[index] == sentinel);
+        }
+    }
+
+    SECTION("invalid boundaries are rejected after finite interiors are copied")
+    {
+        const auto check_boundaries = [&](double lower, double upper) {
+            kiyosi::detail::FiniteDifferenceStep step{size};
+            const std::vector<double> old(size, 1.0);
+            std::vector<double> next(size, sentinel);
+
+            CHECK_FALSE(step.advance(
+                old, next, 0.1, 0.03, 0.01, 0.2, 1.0, lower, upper,
+                [](int) -> std::optional<double> { return 7.0; }));
+            CHECK(next[1] == 7.0);
+            CHECK(next[2] == 7.0);
+            CHECK(next[3] == 7.0);
+        };
+
+        check_boundaries(infinity, 10.0);
+        check_boundaries(0.0, infinity);
     }
 }
