@@ -93,7 +93,7 @@ result<PricingResult> MonteCarloAccumulatorEngine::price(
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
 
-    std::mt19937_64 generator(settings_.seed.value_or(std::random_device{}()));
+    std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
     const auto inputs = prepare_simulation(option, context);
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)

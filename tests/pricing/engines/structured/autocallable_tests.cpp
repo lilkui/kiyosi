@@ -1,12 +1,20 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
+
+#include <array>
 #include <atomic>
 #include <chrono>
+#include <cmath>
+#include <cstdint>
+#include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <type_traits>
 #include <vector>
+
 #include <kiyosi/kiyosi.hpp>
+
 #include "support/common.hpp"
 
 namespace {
@@ -346,15 +354,24 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
                                                             .principal_ratio = 1.0,
                                                             .effective = valuation,
                                                             .expiry = expiry});
-    const kiyosi::StructuredMonteCarloSettings settings{32, 17};
-    const double legacy = legacy_binary_snowball_price(note, context, settings);
-    calls->store(0);
+    const std::array seeds{std::uint64_t{0}, std::numeric_limits<std::uint64_t>::max()};
+    for (const std::uint64_t seed : seeds) {
+        CAPTURE(seed);
+        const kiyosi::StructuredMonteCarloSettings settings{32, seed};
+        const double legacy = legacy_binary_snowball_price(note, context, settings);
+        calls->store(0);
 
-    const auto result = kiyosi::MonteCarloBinarySnowballEngine{settings}.price(note, context);
+        const auto result = kiyosi::MonteCarloBinarySnowballEngine{settings}.price(note, context);
 
-    REQUIRE(result);
-    CHECK(*result->require(kiyosi::risk_measure::price) == legacy);
-    CHECK(calls->load() == 7);
+        REQUIRE(result);
+        CHECK(*result->require(kiyosi::risk_measure::price) == legacy);
+        CHECK(calls->load() == 7);
+    }
+
+    const auto unseeded =
+        kiyosi::MonteCarloBinarySnowballEngine{{32, std::nullopt}}.price(note, context);
+    REQUIRE(unseeded);
+    CHECK(std::isfinite(*unseeded->require(kiyosi::risk_measure::price)));
 }
 
 TEST_CASE("Structured finite difference preserves future observation indices")
