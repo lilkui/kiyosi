@@ -1,8 +1,8 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
 #include <cmath>
+#include <optional>
 #include <random>
-#include <utility>
 #include <vector>
 
 #include "../../detail/calendar_dates.hpp"
@@ -19,19 +19,34 @@ struct SimulationStep {
     double discount;
 };
 
-struct SimulationInputs {
-    bool observe_valuation;
-    std::vector<SimulationStep> steps;
+struct InitialState {
+    double quantity;
+    std::optional<double> settlement;
 };
 
-SimulationInputs prepare_simulation(const Accumulator& option, const PricingContext& context)
+InitialState initial_state(const Accumulator& option, const PricingContext& context)
+{
+    const timestamp valuation = context.valuation_time();
+    const double value = context.asset_price();
+    double quantity = option.accumulated_quantity();
+    if (valuation == start_of_day(date_of(valuation)) &&
+        context.calendar().is_trading_day(date_of(valuation))) {
+        if (value >= option.knock_out())
+            return {quantity, quantity * (value - option.strike())};
+        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration()
+                                            : option.daily_quantity();
+    }
+    if (valuation == option.expiry()) return {quantity, quantity * (value - option.strike())};
+    return {quantity, std::nullopt};
+}
+
+std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
+                                               const PricingContext& context)
 {
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
     const double sigma = context.parameters().volatility();
     const timestamp valuation = context.valuation_time();
-    const bool observe_valuation = valuation == start_of_day(date_of(valuation)) &&
-                                   context.calendar().is_trading_day(date_of(valuation));
     const auto dates = trading_dates(context.calendar(), valuation, option.expiry());
     std::vector<SimulationStep> steps;
     steps.reserve(dates.size());
@@ -43,28 +58,19 @@ SimulationInputs prepare_simulation(const Accumulator& option, const PricingCont
                          std::exp(-rate * actual_365(valuation, current))});
         previous = current;
     }
-    return {observe_valuation, std::move(steps)};
+    return steps;
 }
 
 double path_payoff(const Accumulator& option, const PricingContext& context,
-                   const SimulationInputs& inputs, std::mt19937_64& generator)
+                   const std::vector<SimulationStep>& steps, double quantity,
+                   std::mt19937_64& generator)
 {
-    const timestamp valuation = context.valuation_time();
-
     double value = context.asset_price();
-    double quantity = option.accumulated_quantity();
     double terminal = value;
-
-    if (inputs.observe_valuation) {
-        if (value >= option.knock_out()) return quantity * (value - option.strike());
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration()
-                                            : option.daily_quantity();
-    }
-    if (valuation == option.expiry()) return quantity * (value - option.strike());
 
     std::normal_distribution<double> normal;
     double discount = 1.0;
-    for (const auto& step : inputs.steps) {
+    for (const auto& step : steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
         discount = step.discount;
         if (value >= option.knock_out()) {
@@ -93,16 +99,21 @@ result<PricingResult> MonteCarloAccumulatorEngine::price(
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
 
+    const auto make_result = [](double value) -> result<PricingResult> {
+        if (!std::isfinite(value))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "structured pricing produced a non-finite result"});
+        return make_pricing_result({{risk_measure::price, value}});
+    };
+    const auto initial = initial_state(option, context);
+    if (initial.settlement) return make_result(*initial.settlement);
+
+    const auto steps = prepare_simulation(option, context);
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
-    const auto inputs = prepare_simulation(option, context);
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)
-        sum += path_payoff(option, context, inputs, generator);
-    const double value = sum / static_cast<double>(settings_.path_count);
-    if (!std::isfinite(value))
-        return std::unexpected(Error{error_category::invalid_result,
-                                     "structured pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, value}});
+        sum += path_payoff(option, context, steps, initial.quantity, generator);
+    return make_result(sum / static_cast<double>(settings_.path_count));
 }
 
 } // namespace kiyosi

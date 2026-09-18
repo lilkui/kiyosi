@@ -133,6 +133,60 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
     CHECK(std::isfinite(*unseeded->require(kiyosi::risk_measure::price)));
 }
 
+TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulation")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 6);
+    const auto calls = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *kiyosi::make_trading_calendar(
+        [=](kiyosi::date) {
+            ++*calls;
+            return true;
+        },
+        365);
+    const auto context = [&](kiyosi::date date, double spot) {
+        return *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, date, calendar);
+    };
+    const auto make_option = [&](double accumulated_quantity) {
+        return *kiyosi::make_accumulator({.strike = 100.0,
+                                          .knock_out = 101.0,
+                                          .daily_quantity = 0.0,
+                                          .acceleration = 2.0,
+                                          .accumulated_quantity = accumulated_quantity,
+                                          .effective = valuation,
+                                          .expiry = expiry});
+    };
+
+    const double large_payoff = std::numeric_limits<double>::max() / 64.0;
+    const auto immediate = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+        make_option(large_payoff), context(valuation, 101.0));
+    REQUIRE(immediate);
+    CHECK(*immediate->require(kiyosi::risk_measure::price) == large_payoff);
+    CHECK(calls->load() == 1);
+
+    calls->store(0);
+    const double expiry_quantity = std::numeric_limits<double>::max() / 640.0;
+    const double expiry_payoff = expiry_quantity * -10.0;
+    const auto at_expiry = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+        make_option(expiry_quantity), context(expiry, 90.0));
+    REQUIRE(at_expiry);
+    CHECK(*at_expiry->require(kiyosi::risk_measure::price) == expiry_payoff);
+    CHECK(calls->load() == 1);
+
+    calls->store(0);
+    const auto invalid_settings = kiyosi::MonteCarloAccumulatorEngine{{0, 7}}.price(
+        make_option(1.0), context(valuation, 101.0));
+    REQUIRE_FALSE(invalid_settings);
+    CHECK(invalid_settings.error().category == kiyosi::error_category::invalid_parameter);
+    CHECK(calls->load() == 0);
+
+    const auto non_finite = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+        make_option(std::numeric_limits<double>::max()), context(valuation, 102.0));
+    REQUIRE_FALSE(non_finite);
+    CHECK(non_finite.error().category == kiyosi::error_category::invalid_result);
+}
+
 TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid")
 {
     const auto effective = day(2025, 1, 1);

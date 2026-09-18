@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 
 #include <cmath>
+#include <optional>
 #include <random>
 #include <utility>
 #include <vector>
@@ -29,8 +30,47 @@ struct SimulationInputs {
     double terminal_discount;
 };
 
+struct PathState {
+    double coupons{};
+    bool knocked_in{};
+    std::size_t observation_index{};
+};
+
+struct InitialState {
+    PathState path;
+    std::optional<double> settlement;
+};
+
 template <typename Note>
-SimulationInputs prepare_simulation(const Note& note, const PricingContext& context)
+InitialState initial_state(const Note& note, const PricingContext& context,
+                           const std::vector<std::size_t>& schedule)
+{
+    if (note.touch_status() == barrier_touch_status::up) return {{}, 0.0};
+
+    const timestamp valuation = context.valuation_time();
+    const double value = context.asset_price();
+    PathState state{.knocked_in = note.touch_status() == barrier_touch_status::down};
+    if (valuation == start_of_day(date_of(valuation)))
+        state.knocked_in = is_knocked_in(note, value, state.knocked_in, valuation == note.expiry());
+
+    if (!schedule.empty() && note.observation_dates()[schedule.front()] == valuation) {
+        const auto event = schedule.front();
+        const double coupon = observation_coupon(note, event, value);
+        if (value >= note.knock_out_prices()[event])
+            return {state, note.principal_ratio() + coupon};
+        if constexpr (carries_observation_coupon<Note>) state.coupons = coupon;
+        state.observation_index = 1;
+    }
+    if (valuation == note.expiry()) {
+        state.knocked_in = is_knocked_in(note, value, state.knocked_in, true);
+        return {state, state.coupons + terminal_settlement(note, value, state.knocked_in)};
+    }
+    return {state, std::nullopt};
+}
+
+template <typename Note>
+SimulationInputs prepare_simulation(const Note& note, const PricingContext& context,
+                                    std::vector<std::size_t> observation_schedule)
 {
     const double rate = context.parameters().risk_free_rate();
     const double dividend = context.parameters().dividend_yield();
@@ -48,53 +88,36 @@ SimulationInputs prepare_simulation(const Note& note, const PricingContext& cont
                          std::exp(-rate * actual_365(valuation, current))});
         previous = current;
     }
-    return {observation_schedule(note, valuation), std::move(steps),
+    return {std::move(observation_schedule), std::move(steps),
             std::exp(-rate * actual_365(valuation, note.expiry()))};
 }
 
 template <typename Note>
 double path_payoff(const Note& note, const PricingContext& context,
-                   const SimulationInputs& inputs, std::mt19937_64& generator)
+                   const SimulationInputs& inputs, PathState state,
+                   std::mt19937_64& generator)
 {
-    if (note.touch_status() == barrier_touch_status::up) return 0.0;
-
-    const timestamp valuation = context.valuation_time();
     const auto& dates = note.observation_dates();
     const auto& schedule = inputs.observation_schedule;
 
     double value = context.asset_price();
-    double coupons = 0.0;
-    bool knocked_in = note.touch_status() == barrier_touch_status::down;
-    if (valuation == start_of_day(date_of(valuation)))
-        knocked_in = is_knocked_in(note, value, knocked_in, valuation == note.expiry());
-
-    std::size_t index = 0;
-    if (!schedule.empty() && dates[schedule.front()] == valuation) {
-        const auto event = schedule.front();
-        const double coupon = observation_coupon(note, event, value);
-        if (value >= note.knock_out_prices()[event]) return note.principal_ratio() + coupon;
-        if constexpr (carries_observation_coupon<Note>) coupons = coupon;
-        index = 1;
-    }
-    if (valuation == note.expiry()) {
-        knocked_in = is_knocked_in(note, value, knocked_in, true);
-        return coupons + terminal_settlement(note, value, knocked_in);
-    }
-
     std::normal_distribution<double> normal;
     for (const auto& step : inputs.steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
-        knocked_in = is_knocked_in(note, value, knocked_in, false);
-        if (index >= schedule.size() || dates[schedule[index]] != step.current) continue;
-        const auto event = schedule[index];
+        state.knocked_in = is_knocked_in(note, value, state.knocked_in, false);
+        if (state.observation_index >= schedule.size() ||
+            dates[schedule[state.observation_index]] != step.current)
+            continue;
+        const auto event = schedule[state.observation_index];
         const double coupon = observation_coupon(note, event, value);
         if (value >= note.knock_out_prices()[event])
-            return (note.principal_ratio() + coupon) * step.discount + coupons;
-        if constexpr (carries_observation_coupon<Note>) coupons += coupon * step.discount;
-        ++index;
+            return (note.principal_ratio() + coupon) * step.discount + state.coupons;
+        if constexpr (carries_observation_coupon<Note>) state.coupons += coupon * step.discount;
+        ++state.observation_index;
     }
-    knocked_in = is_knocked_in(note, value, knocked_in, true);
-    return coupons + inputs.terminal_discount * terminal_settlement(note, value, knocked_in);
+    state.knocked_in = is_knocked_in(note, value, state.knocked_in, true);
+    return state.coupons +
+           inputs.terminal_discount * terminal_settlement(note, value, state.knocked_in);
 }
 
 } // namespace
@@ -114,16 +137,22 @@ result<PricingResult> MonteCarloStructuredEngine<Note>::price(
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
 
+    const auto make_result = [](double value) -> result<PricingResult> {
+        if (!std::isfinite(value))
+            return std::unexpected(Error{error_category::invalid_result,
+                                         "structured pricing produced a non-finite result"});
+        return make_pricing_result({{risk_measure::price, value}});
+    };
+    auto observation_indices = observation_schedule(note, context.valuation_time());
+    const auto initial = initial_state(note, context, observation_indices);
+    if (initial.settlement) return make_result(*initial.settlement);
+
+    const auto inputs = prepare_simulation(note, context, std::move(observation_indices));
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
-    const auto inputs = prepare_simulation(note, context);
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)
-        sum += path_payoff(note, context, inputs, generator);
-    const double value = sum / static_cast<double>(settings_.path_count);
-    if (!std::isfinite(value))
-        return std::unexpected(Error{error_category::invalid_result,
-                                     "structured pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, value}});
+        sum += path_payoff(note, context, inputs, initial.path, generator);
+    return make_result(sum / static_cast<double>(settings_.path_count));
 }
 
 template class MonteCarloStructuredEngine<PhoenixOption>;

@@ -328,6 +328,85 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     CHECK(monte_carlo_price(phoenix) == Catch::Approx(9.0));
 }
 
+TEST_CASE("Structured Monte Carlo settles deterministic states before simulation")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto valuation = day(2025, 7, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto calls = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *kiyosi::make_trading_calendar(
+        [=](kiyosi::date) {
+            ++*calls;
+            return true;
+        },
+        365);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), 100.0, valuation, calendar);
+    const auto make_note = [&](kiyosi::barrier_touch_status touch_status, double principal,
+                               double coupon = 0.0) {
+        return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {coupon, 0.0},
+                                                      .maturity_coupon_rate = 0.0,
+                                                      .initial_price = 100.0,
+                                                      .knock_out_prices = {100.0, 100.0},
+                                                      .upper_strike = 100.0,
+                                                      .lower_strike = 60.0,
+                                                      .observation_dates = {valuation, expiry},
+                                                      .touch_status = touch_status,
+                                                      .principal_ratio = principal,
+                                                      .effective = effective,
+                                                      .expiry = expiry});
+    };
+
+    const double large_payoff = std::numeric_limits<double>::max() / 64.0;
+    const auto immediate = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
+        make_note(kiyosi::barrier_touch_status::none, large_payoff), context);
+    REQUIRE(immediate);
+    CHECK(*immediate->require(kiyosi::risk_measure::price) == large_payoff);
+    CHECK(calls->load() == 2);
+
+    calls->store(0);
+    const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
+        make_note(kiyosi::barrier_touch_status::up, 1.0), context);
+    REQUIRE(touched);
+    CHECK(*touched->require(kiyosi::risk_measure::price) == 0.0);
+    CHECK(calls->load() == 2);
+
+    calls->store(0);
+    const auto expiry_context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), 90.0, expiry, calendar);
+    const auto expiry_note = *kiyosi::make_binary_snowball_option({
+        .knock_out_coupon_rates = {0.0},
+        .maturity_coupon_rate = 0.0,
+        .initial_price = 100.0,
+        .knock_out_prices = {100.0},
+        .upper_strike = 100.0,
+        .lower_strike = 60.0,
+        .observation_dates = {expiry},
+        .touch_status = kiyosi::barrier_touch_status::none,
+        .principal_ratio = large_payoff,
+        .effective = effective,
+        .expiry = expiry});
+    const auto at_expiry = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
+        expiry_note, expiry_context);
+    REQUIRE(at_expiry);
+    CHECK(*at_expiry->require(kiyosi::risk_measure::price) == large_payoff);
+    CHECK(calls->load() == 1);
+
+    calls->store(0);
+    const auto invalid_settings = kiyosi::MonteCarloBinarySnowballEngine{{0, 7}}.price(
+        make_note(kiyosi::barrier_touch_status::up, 1.0), context);
+    REQUIRE_FALSE(invalid_settings);
+    CHECK(invalid_settings.error().category == kiyosi::error_category::invalid_parameter);
+    CHECK(calls->load() == 2);
+
+    const auto non_finite = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
+        make_note(kiyosi::barrier_touch_status::none, std::numeric_limits<double>::max(),
+                  std::numeric_limits<double>::max()),
+        context);
+    REQUIRE_FALSE(non_finite);
+    CHECK(non_finite.error().category == kiyosi::error_category::invalid_result);
+}
+
 TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
 {
     const auto valuation = day(2025, 1, 1);
