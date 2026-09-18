@@ -27,7 +27,7 @@ from kiyosi.instruments import (
     standard_snowball,
 )
 from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule, monthly_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine, implied_coupon, implied_volatility
 
 
 def parity_fields(value):
@@ -159,7 +159,16 @@ class KiyosiPythonTests(unittest.TestCase):
                     quote_convention=convention,
                     tolerance=1e-6,
                 )
+                standalone = implied_coupon(
+                    engine,
+                    instrument,
+                    self.context,
+                    engine.price(target, self.context).price,
+                    quote_convention=convention,
+                    tolerance=1e-6,
+                )
                 self.assertAlmostEqual(implied, 0.12, places=5)
+                self.assertEqual(standalone, implied)
 
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BsmParameters.__doc__.lower())
@@ -173,6 +182,8 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("absolute", NumericalAnalyticsEngine.__doc__.lower())
         self.assertIn("boundary", NumericalAnalyticsEngine.__doc__.lower())
         self.assertIn("solve", NumericalAnalyticsEngine.implied_volatility.__doc__.lower())
+        self.assertIn("solve", implied_volatility.__doc__.lower())
+        self.assertIn("solve", implied_coupon.__doc__.lower())
         self.assertIn("start is excluded", fixed_interval_schedule.__doc__.lower())
         self.assertIn("duplicate", fixed_interval_schedule.__doc__.lower())
         self.assertIn("not guaranteed", monthly_schedule.__doc__.lower())
@@ -304,18 +315,32 @@ class KiyosiPythonTests(unittest.TestCase):
             analytics.engine = AnalyticVanillaEngine()
         self.assertIsNotNone(analytics.price(self.option, self.context).vega)
         observed_price = engine.price(self.option, self.context).price
+        standalone = implied_volatility(engine, self.option, self.context, observed_price)
         self.assertAlmostEqual(
             analytics.implied_volatility(self.option, self.context, observed_price),
             self.parameters.volatility,
         )
+        self.assertEqual(
+            standalone,
+            analytics.implied_volatility(self.option, self.context, observed_price),
+        )
+
+        categories = []
+        for solve in (
+            lambda: implied_volatility(engine, self.option, self.context, observed_price, lower_bound=0.5, upper_bound=0.1),
+            lambda: analytics.implied_volatility(self.option, self.context, observed_price, lower_bound=0.5, upper_bound=0.1),
+        ):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                solve()
+            categories.append(error.exception.category)
+        self.assertEqual(categories[0], categories[1])
 
     def test_numerical_analytics_forwards_explicit_shift_settings(self):
         analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
         with self.assertRaises(kiyosi.KiyosiError) as error:
             analytics.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
-        for name in ("numerical_analytics", "implied_volatility", "implied_coupon"):
-            self.assertFalse(hasattr(pricing, name))
+        self.assertFalse(hasattr(pricing, "numerical_analytics"))
 
     def test_numerical_analytics_retains_valid_boundary_results(self):
         engine = AnalyticVanillaEngine()

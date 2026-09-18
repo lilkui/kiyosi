@@ -1,4 +1,4 @@
-"""Pricing engines and cross-engine analytics."""
+"""Pricing engines, analytics, and implied-value solvers."""
 
 from ._native import (
     AnalyticBarrierEngine,
@@ -27,8 +27,8 @@ from ._native import (
     MonteCarloSnowballEngine,
     MonteCarloTernarySnowballEngine,
     MonteCarloVanillaEngine,
-    implied_coupon as _implied_coupon,
-    implied_volatility as _implied_volatility,
+    implied_coupon,
+    implied_volatility,
     numerical_analytics as _numerical_analytics,
 )
 
@@ -88,7 +88,7 @@ class NumericalAnalyticsEngine:
         max_iterations=None,
     ):
         """Solve for volatility matching the observed price."""
-        return _implied_volatility(
+        return implied_volatility(
             self._engine,
             instrument,
             context,
@@ -118,7 +118,7 @@ class NumericalAnalyticsEngine:
         Snowball instruments require an explicit quote_convention. Phoenix
         instruments have one unambiguous coupon and require none.
         """
-        return _implied_coupon(
+        return implied_coupon(
             self._engine,
             instrument,
             context,
@@ -160,4 +160,6 @@ __all__ = [
     "MonteCarloTernarySnowballEngine",
     "MonteCarloVanillaEngine",
     "NumericalAnalyticsEngine",
+    "implied_coupon",
+    "implied_volatility",
 ]
