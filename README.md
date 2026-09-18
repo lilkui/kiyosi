@@ -1,33 +1,31 @@
-[**English**](README.md) | [简体中文](README.zh-CN.md)
-
 # Kiyosi
 
-Kiyosi is an option pricing library with a C++23 core and Python bindings. It
-provides validated market and instrument types together with analytic,
-tree-based, finite-difference, integral, and Monte Carlo pricing engines.
+Kiyosi is a modern C++23 derivatives-pricing library with Python bindings, offering consistent APIs for vanilla, exotic, and structured products.
 
+[![PyPI](https://img.shields.io/pypi/v/kiyosi.svg)](https://pypi.org/project/kiyosi/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
 > [!IMPORTANT]
-> Kiyosi is alpha software. Its API may change without backward-compatibility
-> guarantees.
+> Kiyosi is alpha software. Its API may change without backward-compatibility guarantees.
 
 ## Features
 
 - Vanilla, digital, Asian, barrier, accumulator, snowball, and phoenix instruments
-- Analytic, binomial, finite-difference, integral, and Monte Carlo engines
+- Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines
 - Prices and Greeks through a consistent result type
-- Scenario grids, numerical analytics, and implied-value solvers
+- Numerical analytics, implied volatility, and implied coupon solvers
 - Trading calendars and observation schedule builders, including SSE holidays
-- Equivalent domain semantics across the Python and C++ APIs
+- A native C++ core exposed through a Python-first API
 
 ## Quick start with Python
 
-Python 3.11 or newer is required:
+Kiyosi requires Python 3.11 or newer:
 
 ```bash
 python -m pip install kiyosi
 ```
+
+PyPI provides prebuilt x64 wheels for Windows and Linux. On other platforms, installation builds from source and requires CMake 3.28 or newer, Ninja, and a C++23 compiler.
 
 Price a European call with the analytic Black-Scholes engine:
 
@@ -38,73 +36,78 @@ from kiyosi.instruments import EuropeanOption, OptionType
 from kiyosi.market import BsmParameters, PricingContext
 from kiyosi.pricing import AnalyticVanillaEngine
 
-parameters = BsmParameters(
-    risk_free_rate=0.05,
-    dividend_yield=0.02,
-    volatility=0.20,
-)
-context = PricingContext(
-    parameters=parameters,
-    asset_price=100.0,
-    valuation_time=date(2025, 1, 1),
-)
+valuation = date(2025, 1, 1)
 option = EuropeanOption(
     type=OptionType.CALL,
     strike=100.0,
-    effective=date(2025, 1, 1),
+    effective=valuation,
     expiry=date(2026, 1, 1),
+)
+context = PricingContext(
+    parameters=BsmParameters(
+        risk_free_rate=0.05,
+        dividend_yield=0.02,
+        volatility=0.20,
+    ),
+    asset_price=100.0,
+    valuation_time=valuation,
 )
 
 result = AnalyticVanillaEngine().price(option, context)
-print(result.price, result.delta, result["vega"])
+print(result.price)
 ```
 
 The Python API is organized into three modules:
 
 | Module | Contents |
 | --- | --- |
-| `kiyosi.instruments` | Validated derivative instruments and structured-product presets |
+| `kiyosi.instruments` | Derivative instruments and structured-product presets |
 | `kiyosi.market` | Model parameters, valuation contexts, calendars, and schedules |
 | `kiyosi.pricing` | Pricing engines, analytics, scenarios, and implied-value solvers |
 
-Domain validation failures raise `KiyosiError` with a stable `ErrorCategory`.
-Python conversion failures use the corresponding built-in exception, such as
-`TypeError` or `OverflowError`.
+## Pricing coverage
+
+| Instrument family | Available engines |
+| --- | --- |
+| European vanilla | Analytic, CRR binomial, finite difference, integral, Monte Carlo |
+| American vanilla | Bjerksund-Stensland, CRR binomial, finite difference, Monte Carlo |
+| Cash-or-nothing and asset-or-nothing digital | Analytic, finite difference, integral |
+| Barrier | Analytic, finite difference |
+| Binary barrier and touch | Analytic |
+| Geometric-average Asian | Closed form |
+| Arithmetic-average Asian | Turnbull-Wakeman approximation |
+| Accumulator | Finite difference, Monte Carlo |
+| Phoenix and snowball variants | Finite difference, Monte Carlo |
+
+### Model scope
+
+The current pricing models use a Black-Scholes-Merton market context with spot and flat risk-free rate, dividend yield, and volatility parameters. Volatility surfaces and rate curves are not part of the current API.
+
+## Validation
+
+Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used only by the [test-fixture tooling](tools/quantlib-oracle/) and is not a runtime dependency.
 
 ## C++ library
 
-Building the C++ core from source requires CMake 3.28 or newer, Ninja, and a
-C++23 compiler.
-
-Configure, build, and test with the preset for your platform:
+Building the C++ core requires CMake 3.28 or newer, Ninja, and a C++23 compiler. On Linux, configure, build, test, and install with:
 
 ```bash
 cmake --preset linux-release
 cmake --build --preset linux-release
 ctest --preset linux-release
+cmake --install out/build/linux-release
 ```
 
-Use `windows-release` on Windows after opening a Visual Studio Developer
-PowerShell. Other debug, CI, and sanitizer presets are listed in
-[`CMakePresets.json`](CMakePresets.json).
+On Windows, run the commands from a Visual Studio Developer PowerShell and replace `linux-release` with `windows-release`.
 
-Install the library and link its exported CMake target:
-
-```bash
-cmake --install out/build/linux-release --prefix out/install/kiyosi
-```
+After installation, consume the exported CMake target:
 
 ```cmake
 find_package(kiyosi CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE kiyosi::kiyosi)
 ```
 
-```cpp
-#include <kiyosi/kiyosi.hpp>
-```
-
-See [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp) for
-an end-to-end C++ example covering the available instrument and engine families.
+Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. See [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp) for a broader example covering the available instrument and engine families.
 
 ## License
 
