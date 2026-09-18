@@ -62,16 +62,6 @@ nb::tuple result_items(const PricingResult& result)
     return output;
 }
 
-nb::tuple real_tuple(const std::vector<double>& values)
-{
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(values.size()));
-    for (std::size_t index = 0; index < values.size(); ++index) {
-        nb::object value = nb::float_(values[index]);
-        PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
-    }
-    return output;
-}
-
 template <typename Engine, typename Instrument>
 void bind_engine_price(nb::class_<Engine>& binding)
 {
@@ -188,23 +178,6 @@ void bind_analytics_pair(nb::module_& module)
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
         "Compute price and numerical risk measures using core-owned shift defaults.");
-    module.def(
-        "scenario_grid",
-        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonRealSequence spots, PythonReal spot_shift, PythonReal volatility_shift,
-           PythonReal rate_shift, PythonInteger time_shift_days) {
-            const auto values = real_sequence(spots, "spots");
-            const auto settings = numerical_settings(
-                spot_shift, volatility_shift, rate_shift, time_shift_days);
-            nb::gil_scoped_release release;
-            return unwrap(kiyosi::scenario_grid(engine, instrument, context, values, settings));
-        },
-        "engine"_a, "instrument"_a, "context"_a, "spots"_a, nb::kw_only(),
-        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
-        "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
-        "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
-        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
-        "Evaluate price, delta, and gamma over the supplied spot grid.");
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -358,24 +331,6 @@ forward. Undefined or unsupported measures are None, never a zero sentinel.)doc"
                {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"},
                {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
                {"zomma", "zomma"}, {"rho", "rho"}});
-    auto scenario_result = nb::class_<ScenarioGridResult>(
-        module, "ScenarioGridResult",
-        "Immutable spot, price, delta, and gamma columns for a scenario grid.")
-        .def_prop_ro("spots", [](const ScenarioGridResult& result) {
-            return real_tuple(result.spots());
-        })
-        .def_prop_ro("prices", [](const ScenarioGridResult& result) {
-            return real_tuple(result.prices());
-        })
-        .def_prop_ro("deltas", [](const ScenarioGridResult& result) {
-            return real_tuple(result.deltas());
-        })
-        .def_prop_ro("gammas", [](const ScenarioGridResult& result) {
-            return real_tuple(result.gammas());
-        });
-    bind_repr(scenario_result, "ScenarioGridResult",
-              {{"spots", "spots"}, {"prices", "prices"},
-               {"deltas", "deltas"}, {"gammas", "gammas"}});
     nb::module_::import_("collections.abc").attr("Mapping").attr("register")(
         module.attr("PricingResult"));
 }

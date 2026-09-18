@@ -38,7 +38,6 @@
 #include <kiyosi/pricing/implied.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/scenario.hpp>
 
 #include <kiyosi/pricing/settings/binomial.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>

@@ -27,11 +27,9 @@ from ._native import (
     MonteCarloSnowballEngine,
     MonteCarloTernarySnowballEngine,
     MonteCarloVanillaEngine,
-    ScenarioGridResult,
     implied_coupon as _implied_coupon,
     implied_volatility as _implied_volatility,
     numerical_analytics as _numerical_analytics,
-    scenario_grid as _scenario_grid,
 )
 
 
@@ -72,12 +70,6 @@ class NumericalAnalyticsEngine:
         """Price an instrument and calculate numerical risk measures."""
         return _numerical_analytics(
             self._engine, instrument, context, **self._shift_settings
-        )
-
-    def scenario_grid(self, instrument, context, spots):
-        """Calculate price and spot risks at each supplied spot value."""
-        return _scenario_grid(
-            self._engine, instrument, context, spots, **self._shift_settings
         )
 
     def implied_volatility(
@@ -164,5 +156,4 @@ __all__ = [
     "MonteCarloTernarySnowballEngine",
     "MonteCarloVanillaEngine",
     "NumericalAnalyticsEngine",
-    "ScenarioGridResult",
 ]

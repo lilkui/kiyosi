@@ -185,32 +185,12 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
         kiyosi::option_type::call, 100.0, effective, day(2026, 1, 1));
     std::vector<kiyosi::timestamp> moments;
     const RecordingEngine engine{moments, noon};
-    SECTION("numerical analytics and scenarios")
+    SECTION("numerical analytics")
     {
         const auto analytics = kiyosi::numerical_analytics(engine, option, context);
         REQUIRE(analytics);
         CHECK(risk_value(*analytics, kiyosi::risk_measure::vega) == Catch::Approx(0.01));
         CHECK(risk_value(*analytics, kiyosi::risk_measure::theta) == Catch::Approx(1.0));
-        const auto scenarios = kiyosi::scenario_grid(engine, option, context, std::vector<double>{90.0, 110.0});
-        REQUIRE(scenarios);
-        CHECK(scenarios->spots() == std::vector<double>{90.0, 110.0});
-        CHECK(scenarios->prices() == std::vector<double>{0.2, 0.2});
-        CHECK(scenarios->spots().size() == scenarios->prices().size());
-        CHECK(scenarios->spots().size() == scenarios->deltas().size());
-        CHECK(scenarios->spots().size() == scenarios->gammas().size());
-
-        const auto empty = kiyosi::scenario_grid(
-            engine, option, context, std::vector<double>{});
-        REQUIRE(empty);
-        CHECK(empty->spots().empty());
-        CHECK(empty->prices().empty());
-        CHECK(empty->deltas().empty());
-        CHECK(empty->gammas().empty());
-
-        auto assigned = *empty;
-        assigned = *scenarios;
-        CHECK(assigned.spots() == scenarios->spots());
-        CHECK(assigned.prices() == scenarios->prices());
         REQUIRE_FALSE(moments.empty());
         for (const auto moment : moments) {
             CHECK(moment - kiyosi::start_of_day(kiyosi::date_of(moment)) == std::chrono::hours{12});

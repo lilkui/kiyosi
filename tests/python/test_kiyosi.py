@@ -283,32 +283,12 @@ class KiyosiPythonTests(unittest.TestCase):
             self.parameters.volatility,
         )
 
-    def test_scenario_grid_carries_its_spots_and_prices(self):
-        result = NumericalAnalyticsEngine(AnalyticVanillaEngine()).scenario_grid(
-            self.option, self.context, [90, 110]
-        )
-        self.assertEqual(result.spots, (90, 110))
-        columns = (result.spots, result.prices, result.deltas, result.gammas)
-        self.assertTrue(all(isinstance(column, tuple) for column in columns))
-        self.assertEqual({len(column) for column in columns}, {2})
-        self.assertFalse(hasattr(result, "values"))
-        with self.assertRaises(TypeError):
-            result.spots[0] = 95
-
-        empty = NumericalAnalyticsEngine(AnalyticVanillaEngine()).scenario_grid(
-            self.option, self.context, []
-        )
-        self.assertEqual(
-            (empty.spots, empty.prices, empty.deltas, empty.gammas),
-            ((), (), (), ()),
-        )
-
     def test_numerical_analytics_forwards_explicit_shift_settings(self):
         analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
         with self.assertRaises(kiyosi.KiyosiError) as error:
             analytics.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
-        for name in ("numerical_analytics", "scenario_grid", "implied_volatility", "implied_coupon"):
+        for name in ("numerical_analytics", "implied_volatility", "implied_coupon"):
             self.assertFalse(hasattr(pricing, name))
 
     def test_touch_factories_require_only_payoff_relevant_terms(self):
