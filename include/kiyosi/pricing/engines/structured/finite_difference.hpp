@@ -12,8 +12,8 @@ template <typename Note>
 [[nodiscard]] KIYOSI_EXPORT result<PricingResult> price_autocallable_finite_difference(
     const Note&, const PricingContext&, FiniteDifferenceSettings);
 
-/// Two-layer (knocked-in / not-knocked-in) backward induction with knock-out and coupon events
-/// anchored onto the time grid.
+/// One- or two-layer backward induction, depending on whether the note has knock-in state, with
+/// knock-out and coupon events anchored onto the time grid.
 template <typename Note>
 class KIYOSI_EXPORT FiniteDifferenceStructuredEngine {
 public:

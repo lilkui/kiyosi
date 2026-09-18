@@ -197,8 +197,8 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
                                              spot, expiry);
     };
-    const auto price = [&](const auto& note, double spot) {
-        const auto result = kiyosi::MonteCarloStructuredEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
+    const auto price = [&](const auto& engine, const auto& note, double spot) {
+        const auto result = engine.price(note, market(spot));
         REQUIRE(result);
         return *result->require(kiyosi::risk_measure::price);
     };
@@ -213,8 +213,12 @@ TEST_CASE("Binary snowball expiry settlement applies final observations")
                                                               .principal_ratio = 1.0,
                                                               .effective = effective,
                                                               .expiry = expiry});
-    CHECK(price(binary, 100.0) == Catch::Approx(1.10));
-    CHECK(price(binary, 90.0) == Catch::Approx(1.05));
+    const auto check = [&](const auto& engine) {
+        CHECK(price(engine, binary, 100.0) == Catch::Approx(1.10));
+        CHECK(price(engine, binary, 90.0) == Catch::Approx(1.05));
+    };
+    check(kiyosi::MonteCarloBinarySnowballEngine{{32, 7}});
+    check(kiyosi::FiniteDifferenceBinarySnowballEngine{});
 }
 
 TEST_CASE("Ternary snowball expiry settlement applies final observations")
@@ -480,6 +484,47 @@ TEST_CASE("Structured finite difference preserves future observation indices")
     REQUIRE(result);
     const double expected = 1.0 + 0.2 * *kiyosi::year_fraction(effective, future_observation);
     CHECK(*result->require(kiyosi::risk_measure::price) == Catch::Approx(expected).margin(1e-12));
+}
+
+TEST_CASE("Binary snowball finite difference has one continuation state")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const std::vector<kiyosi::date> observation_dates{
+        day(2025, 2, 3), day(2025, 6, 17), day(2025, 11, 5), expiry};
+    const auto note = [&](kiyosi::barrier_touch_status touch_status) {
+        return *kiyosi::make_binary_snowball_option({
+            .knock_out_coupon_rates = {0.02, 0.04, 0.06, 0.08},
+            .maturity_coupon_rate = 0.05,
+            .initial_price = 100.0,
+            .knock_out_prices = {112.0, 108.0, 104.0, 100.0},
+            .upper_strike = 100.0,
+            .lower_strike = 60.0,
+            .observation_dates = observation_dates,
+            .touch_status = touch_status,
+            .principal_ratio = 1.0,
+            .effective = effective,
+            .expiry = expiry});
+    };
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 97.0, effective);
+
+    for (const auto scheme : {kiyosi::finite_difference_scheme::explicit_euler,
+                              kiyosi::finite_difference_scheme::implicit_euler,
+                              kiyosi::finite_difference_scheme::crank_nicolson}) {
+        CAPTURE(scheme);
+        const kiyosi::FiniteDifferenceBinarySnowballEngine engine{{80, 512, scheme, 500.0}};
+        const auto untouched = engine.price(note(kiyosi::barrier_touch_status::none), context);
+        const auto down_touched = engine.price(note(kiyosi::barrier_touch_status::down), context);
+        const auto up_touched = engine.price(note(kiyosi::barrier_touch_status::up), context);
+
+        REQUIRE(untouched);
+        REQUIRE(down_touched);
+        REQUIRE(up_touched);
+        CHECK(*untouched->require(kiyosi::risk_measure::price) ==
+              *down_touched->require(kiyosi::risk_measure::price));
+        CHECK(*up_touched->require(kiyosi::risk_measure::price) == 0.0);
+    }
 }
 
 TEST_CASE("Structured finite difference enumerates dates only for daily monitoring")

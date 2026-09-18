@@ -136,21 +136,28 @@ result<PricingResult> price_autocallable_finite_difference(
 
     const std::size_t size = space->size();
     const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
-    std::vector<double> knocked_in(size), alive(size), next_knocked_in(size), next_alive(size);
+    std::vector<double> alive(size), next_alive(size);
+    std::vector<double> knocked_in, next_knocked_in;
+    if constexpr (monitors_knock_in) {
+        knocked_in.resize(size);
+        next_knocked_in.resize(size);
+    }
     const auto expiry_observation = event_index(maturity);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
         bool ki = note.touch_status() == barrier_touch_status::down;
         if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_price();
         if (expiry_observation && value >= note.knock_out_prices()[*expiry_observation]) {
-            knocked_in[index] = alive[index] =
-                note.principal_ratio() + observation_coupon(note, *expiry_observation, value);
+            alive[index] = note.principal_ratio() +
+                           observation_coupon(note, *expiry_observation, value);
+            if constexpr (monitors_knock_in) knocked_in[index] = alive[index];
         } else {
             const double coupon = expiry_observation && carries_observation_coupon<Note>
                                       ? observation_coupon(note, *expiry_observation, value)
                                       : 0.0;
-            knocked_in[index] = terminal_settlement(note, value, true) + coupon;
             alive[index] = terminal_settlement(note, value, ki) + coupon;
+            if constexpr (monitors_knock_in)
+                knocked_in[index] = terminal_settlement(note, value, true) + coupon;
         }
     }
 
@@ -159,7 +166,12 @@ result<PricingResult> price_autocallable_finite_difference(
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
-        if (!stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt))
+        bool advanced;
+        if constexpr (monitors_knock_in)
+            advanced = stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt);
+        else
+            advanced = stepper.advance(alive, next_alive, dt);
+        if (!advanced)
             return std::unexpected(Error{error_category::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);
@@ -170,27 +182,37 @@ result<PricingResult> price_autocallable_finite_difference(
             bool transitioned = false;
             if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_price();
             if (observation_index && value >= note.knock_out_prices()[*observation_index]) {
-                next_knocked_in[index] = next_alive[index] =
-                    note.principal_ratio() + observation_coupon(note, *observation_index, value);
+                next_alive[index] = note.principal_ratio() +
+                                    observation_coupon(note, *observation_index, value);
+                if constexpr (monitors_knock_in) next_knocked_in[index] = next_alive[index];
             } else if (observation_index) {
                 const double coupon = carries_observation_coupon<Note>
                                           ? observation_coupon(note, *observation_index, value)
                                           : 0.0;
-                const double continuation_in = next_knocked_in[index];
-                const double continuation_out = transitioned ? continuation_in : next_alive[index];
-                next_knocked_in[index] = continuation_in + coupon;
-                next_alive[index] = continuation_out + coupon;
+                if constexpr (monitors_knock_in) {
+                    const double continuation_in = next_knocked_in[index];
+                    const double continuation_out = transitioned ? continuation_in : next_alive[index];
+                    next_knocked_in[index] = continuation_in + coupon;
+                    next_alive[index] = continuation_out + coupon;
+                } else {
+                    next_alive[index] = next_alive[index] + coupon;
+                }
             } else if (transitioned) {
-                next_alive[index] = next_knocked_in[index];
+                if constexpr (monitors_knock_in) next_alive[index] = next_knocked_in[index];
             }
         }
-        knocked_in.swap(next_knocked_in);
         alive.swap(next_alive);
+        if constexpr (monitors_knock_in) knocked_in.swap(next_knocked_in);
     }
 
-    return make_pricing_result({{risk_measure::price,
-                                 space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in : alive,
-                                                    spot)}});
+    if constexpr (monitors_knock_in)
+        return make_pricing_result(
+            {{risk_measure::price,
+              space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in
+                                                                                    : alive,
+                                 spot)}});
+    else
+        return make_pricing_result({{risk_measure::price, space->interpolate(alive, spot)}});
 }
 
 template result<PricingResult> price_autocallable_finite_difference(
