@@ -41,7 +41,11 @@ class NumericalAnalyticsEngine:
     """Add numerical risk analytics to a pricing engine.
 
     Omitted settings use the defaults owned by the C++ core. Invalid settings
-    are rejected by the core when an operation is performed.
+    are rejected by the core when an operation is performed. Spot, volatility,
+    and rate shifts are absolute; time shifts are calendar days. Measures with
+    no supported stencil inside a model boundary are ``None`` without
+    discarding a valid price. Failures from feasible bumped valuations are
+    still raised.
     """
 
     def __init__(
@@ -67,7 +71,7 @@ class NumericalAnalyticsEngine:
         return self._engine
 
     def price(self, instrument, context):
-        """Price an instrument and calculate numerical risk measures."""
+        """Price an instrument and calculate every feasible numerical risk measure."""
         return _numerical_analytics(
             self._engine, instrument, context, **self._shift_settings
         )

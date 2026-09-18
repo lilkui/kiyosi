@@ -12,7 +12,9 @@
 namespace kiyosi {
 
 /// Wraps any price-only engine so it also reports bump-derived risk and implied quantities
-/// without the caller threading shift settings through each call.
+/// without the caller threading shift settings through each call. Infeasible boundary stencils
+/// leave their measures unavailable without discarding a valid price; other bump failures remain
+/// operation failures.
 /// Its thread-safety guarantees are those of the wrapped engine; built-in engines follow the
 /// library default.
 template <typename Engine>

@@ -177,7 +177,8 @@ void bind_analytics_pair(nb::module_& module)
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
-        "Compute price and numerical risk measures using core-owned shift defaults.");
+        "Compute price and every feasible numerical risk measure using absolute, core-owned "
+        "shift defaults; boundary-infeasible measures are unavailable.");
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,

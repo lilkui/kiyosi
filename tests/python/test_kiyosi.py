@@ -170,6 +170,8 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
+        self.assertIn("absolute", NumericalAnalyticsEngine.__doc__.lower())
+        self.assertIn("boundary", NumericalAnalyticsEngine.__doc__.lower())
         self.assertIn("solve", NumericalAnalyticsEngine.implied_volatility.__doc__.lower())
 
     def test_weekdays_calendar_is_the_explicit_default(self):
@@ -290,6 +292,40 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         for name in ("numerical_analytics", "implied_volatility", "implied_coupon"):
             self.assertFalse(hasattr(pricing, name))
+
+    def test_numerical_analytics_retains_valid_boundary_results(self):
+        engine = AnalyticVanillaEngine()
+        analytics = NumericalAnalyticsEngine(engine)
+
+        low_volatility = PricingContext(
+            parameters=BsmParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                volatility=0.00005,
+            ),
+            asset_price=100.0,
+            valuation_time=date(2025, 1, 1),
+        )
+        result = analytics.price(self.option, low_volatility)
+        self.assertAlmostEqual(result.price, engine.price(self.option, low_volatility).price)
+        self.assertIsNotNone(result.delta)
+        self.assertIsNotNone(result.rho)
+        self.assertIsNone(result.vega)
+        self.assertIsNone(result.vanna)
+        self.assertIsNone(result.zomma)
+
+        low_spot = PricingContext(
+            parameters=self.parameters,
+            asset_price=0.005,
+            valuation_time=date(2025, 1, 1),
+        )
+        result = analytics.price(self.option, low_spot)
+        self.assertAlmostEqual(result.price, engine.price(self.option, low_spot).price)
+        self.assertIsNotNone(result.vega)
+        self.assertIsNotNone(result.theta)
+        self.assertIsNotNone(result.rho)
+        for measure in ("delta", "gamma", "speed", "charm", "color", "vanna", "zomma"):
+            self.assertIsNone(getattr(result, measure))
 
     def test_touch_factories_require_only_payoff_relevant_terms(self):
         terms = dict(effective=date(2025, 1, 1), expiry=date(2026, 1, 1))

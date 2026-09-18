@@ -72,6 +72,19 @@ double gamma(kiyosi::option_type type, double spot, double rate, double dividend
                       kiyosi::risk_measure::gamma);
 }
 
+struct RejectingMixedBumpEngine {
+    kiyosi::result<kiyosi::PricingResult> price(
+        const kiyosi::EuropeanOption&, const kiyosi::PricingContext& market) const
+    {
+        if (market.asset_price() > 100.0 && market.parameters().volatility() > 0.3)
+            return std::unexpected(kiyosi::Error{
+                kiyosi::error_category::invalid_schedule, "feasible mixed bump rejected"});
+        return kiyosi::make_pricing_result(
+            {{kiyosi::risk_measure::price,
+              market.asset_price() + market.parameters().volatility()}});
+    }
+};
+
 TEST_CASE("Analytic Greeks agree with central finite differences")
 {
     const double spot_step = 0.01;
@@ -144,6 +157,74 @@ TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
         check_close(risk_value(numerical_result, measure), risk_value(analytic_result, measure),
                     2e-6, 2e-3);
     }
+}
+
+TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
+{
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const kiyosi::AnalyticVanillaEngine engine;
+
+    SECTION("low volatility")
+    {
+        const auto market = context(100.0, 0.05, 0.02, 0.00005);
+        const auto direct = *engine.price(option, market);
+        const auto result = kiyosi::numerical_analytics(engine, option, market);
+
+        REQUIRE(result);
+        check_close(risk_value(*result, kiyosi::risk_measure::price),
+                    risk_value(direct, kiyosi::risk_measure::price));
+        CHECK(result->has(kiyosi::risk_measure::delta));
+        CHECK(result->has(kiyosi::risk_measure::rho));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::vega));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::vanna));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::zomma));
+    }
+
+    SECTION("low spot")
+    {
+        const auto market = context(0.005);
+        const auto direct = *engine.price(option, market);
+        const auto result = kiyosi::numerical_analytics(engine, option, market);
+
+        REQUIRE(result);
+        check_close(risk_value(*result, kiyosi::risk_measure::price),
+                    risk_value(direct, kiyosi::risk_measure::price));
+        CHECK(result->has(kiyosi::risk_measure::vega));
+        CHECK(result->has(kiyosi::risk_measure::theta));
+        CHECK(result->has(kiyosi::risk_measure::rho));
+        for (const auto measure : {
+                 kiyosi::risk_measure::delta, kiyosi::risk_measure::gamma,
+                 kiyosi::risk_measure::speed, kiyosi::risk_measure::charm,
+                 kiyosi::risk_measure::color, kiyosi::risk_measure::vanna,
+                 kiyosi::risk_measure::zomma})
+            CHECK_FALSE(result->has(measure));
+    }
+
+    SECTION("no time direction")
+    {
+        const auto expiring = *kiyosi::make_european_option(
+            kiyosi::option_type::call, 100.0, valuation, valuation);
+        const auto result = kiyosi::numerical_analytics(engine, expiring, context());
+
+        REQUIRE(result);
+        CHECK(result->has(kiyosi::risk_measure::price));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::theta));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::charm));
+        CHECK_FALSE(result->has(kiyosi::risk_measure::color));
+    }
+}
+
+TEST_CASE("Numerical analytics preserve feasible bump failures")
+{
+    const auto option = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const auto result = kiyosi::numerical_analytics(
+        RejectingMixedBumpEngine{}, option, context());
+
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == kiyosi::error_category::invalid_schedule);
+    CHECK(result.error().message == "feasible mixed bump rejected");
 }
 
 TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
