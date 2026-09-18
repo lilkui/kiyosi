@@ -99,7 +99,7 @@ result<PricingResult> FiniteDifferenceAccumulatorEngine::price(
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
-        if (!stepper.advance(slope, next_slope, dt) || !stepper.advance(intercept, next_intercept, dt))
+        if (!stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt))
             return std::unexpected(Error{error_category::invalid_result,
                                          "finite-difference system is numerically unstable"});
         if (std::binary_search(trading_times.begin(), trading_times.end(), grid[step])) {

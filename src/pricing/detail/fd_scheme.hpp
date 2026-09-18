@@ -90,8 +90,84 @@ public:
                        [](int) -> std::optional<double> { return std::nullopt; });
     }
 
+    /// Advances two unconstrained layers that share the same finite-difference matrix.
+    bool advance_pair(
+        const std::vector<double>& first_old, std::vector<double>& first_next,
+        const std::vector<double>& second_old, std::vector<double>& second_next, double dt,
+        const DiffusionParameters& parameters,
+        Boundaries first_boundaries, Boundaries second_boundaries)
+    {
+        const auto [rate, dividend, volatility, theta] = parameters;
+        first_next.front() = first_boundaries.lower;
+        first_next.back() = first_boundaries.upper;
+        second_next.front() = second_boundaries.lower;
+        second_next.back() = second_boundaries.upper;
+        paired_rhs_.resize(rhs.size());
+        const int asset_steps = static_cast<int>(first_old.size()) - 1;
+        for (int index = 1; index < asset_steps; ++index) {
+            const double i = static_cast<double>(index);
+            const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
+            const double b = -volatility * volatility * i * i - rate;
+            const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
+            const auto position = static_cast<std::size_t>(index - 1);
+            rhs[position] = first_old[static_cast<std::size_t>(index)] +
+                            (1.0 - theta) * dt *
+                                (a * first_old[position] +
+                                 b * first_old[static_cast<std::size_t>(index)] +
+                                 c * first_old[static_cast<std::size_t>(index + 1)]);
+            paired_rhs_[position] = second_old[static_cast<std::size_t>(index)] +
+                                    (1.0 - theta) * dt *
+                                        (a * second_old[position] +
+                                         b * second_old[static_cast<std::size_t>(index)] +
+                                         c * second_old[static_cast<std::size_t>(index + 1)]);
+            if (index == 1) {
+                rhs[position] += theta * dt * a * first_next.front();
+                paired_rhs_[position] += theta * dt * a * second_next.front();
+            }
+            if (index == asset_steps - 1) {
+                rhs[position] += theta * dt * c * first_next.back();
+                paired_rhs_[position] += theta * dt * c * second_next.back();
+            }
+            lower[position] = -theta * dt * a;
+            diagonal[position] = 1.0 - theta * dt * b;
+            upper_diagonal[position] = -theta * dt * c;
+        }
+        if (theta == 0.0) {
+            std::copy(rhs.begin(), rhs.end(), first_next.begin() + 1);
+            std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
+            return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
+                   std::ranges::all_of(second_next,
+                                       [](double value) { return std::isfinite(value); });
+        }
+        for (std::size_t index = 1; index < diagonal.size(); ++index) {
+            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
+            const double factor = lower[index] / diagonal[index - 1];
+            diagonal[index] -= factor * upper_diagonal[index - 1];
+            rhs[index] -= factor * rhs[index - 1];
+            paired_rhs_[index] -= factor * paired_rhs_[index - 1];
+        }
+        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0)
+            return false;
+        rhs.back() /= diagonal.back();
+        paired_rhs_.back() /= diagonal.back();
+        for (std::size_t index = diagonal.size() - 1; index-- > 0;) {
+            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
+            paired_rhs_[index] =
+                (paired_rhs_[index] - upper_diagonal[index] * paired_rhs_[index + 1]) /
+                diagonal[index];
+        }
+        if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); }) ||
+            !std::ranges::all_of(paired_rhs_, [](double value) { return std::isfinite(value); }))
+            return false;
+        std::copy(rhs.begin(), rhs.end(), first_next.begin() + 1);
+        std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
+        return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
+               std::ranges::all_of(second_next, [](double value) { return std::isfinite(value); });
+    }
+
 private:
     std::vector<double> lower, diagonal, upper_diagonal, rhs;
+    std::vector<double> paired_rhs_;
 };
 
 /// Stepper for layers that grow without bound at the top of the grid, such as autocallable
@@ -104,16 +180,30 @@ public:
 
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt)
     {
-        const double slope = (old.back() - old[old.size() - 2]) / spacing_;
-        const double intercept = old.back() - slope * upper_;
-        const double high = slope * upper_ * std::exp(-parameters_.dividend * dt) +
-                            intercept * std::exp(-parameters_.rate * dt);
+        const Boundaries edges = boundary_values(old, dt);
         return step_.advance(old, next, dt, parameters_.rate, parameters_.dividend,
-                             parameters_.volatility, parameters_.theta,
-                             old.front() * std::exp(-parameters_.rate * dt), high);
+                             parameters_.volatility, parameters_.theta, edges.lower, edges.upper);
+    }
+
+    bool advance_pair(
+        const std::vector<double>& first_old, std::vector<double>& first_next,
+        const std::vector<double>& second_old, std::vector<double>& second_next, double dt)
+    {
+        return step_.advance_pair(
+            first_old, first_next, second_old, second_next, dt, parameters_,
+            boundary_values(first_old, dt), boundary_values(second_old, dt));
     }
 
 private:
+    Boundaries boundary_values(const std::vector<double>& old, double dt) const
+    {
+        const double slope = (old.back() - old[old.size() - 2]) / spacing_;
+        const double intercept = old.back() - slope * upper_;
+        return {old.front() * std::exp(-parameters_.rate * dt),
+                slope * upper_ * std::exp(-parameters_.dividend * dt) +
+                    intercept * std::exp(-parameters_.rate * dt)};
+    }
+
     FiniteDifferenceStep step_;
     double upper_;
     double spacing_;

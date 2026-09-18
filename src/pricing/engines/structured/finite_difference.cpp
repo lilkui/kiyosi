@@ -159,8 +159,7 @@ result<PricingResult> price_autocallable_finite_difference(
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
-        if (!stepper.advance(knocked_in, next_knocked_in, dt) ||
-            !stepper.advance(alive, next_alive, dt))
+        if (!stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt))
             return std::unexpected(Error{error_category::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);

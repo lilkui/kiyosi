@@ -15,6 +15,7 @@ add_executable(kiyosi_tests
     pricing/invariants_tests.cpp
     pricing/analytics/architecture_tests.cpp
     pricing/analytics/numerical_validation_tests.cpp
+    pricing/detail/fd_scheme_tests.cpp
     pricing/engines/accumulator/engine_tests.cpp
     pricing/engines/asian/reference_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
@@ -32,7 +33,7 @@ add_executable(kiyosi_tests
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
-target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 # Only set when FetchContent built Catch2 from source; an installed package ships Catch.cmake itself.
 if(catch2_SOURCE_DIR)
