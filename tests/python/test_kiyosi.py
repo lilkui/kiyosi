@@ -26,7 +26,7 @@ from kiyosi.instruments import (
     dual_coupon_snowball,
     standard_snowball,
 )
-from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule
+from kiyosi.market import BsmParameters, PricingContext, fixed_interval_schedule, monthly_schedule
 from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine
 
 
@@ -173,6 +173,30 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("absolute", NumericalAnalyticsEngine.__doc__.lower())
         self.assertIn("boundary", NumericalAnalyticsEngine.__doc__.lower())
         self.assertIn("solve", NumericalAnalyticsEngine.implied_volatility.__doc__.lower())
+        self.assertIn("start is excluded", fixed_interval_schedule.__doc__.lower())
+        self.assertIn("duplicate", fixed_interval_schedule.__doc__.lower())
+        self.assertIn("not guaranteed", monthly_schedule.__doc__.lower())
+        self.assertIn("clamped", monthly_schedule.__doc__.lower())
+
+    def test_schedule_builders_expose_bounded_following_behavior(self):
+        self.assertEqual(
+            fixed_interval_schedule(
+                start=date(2025, 1, 3), end=date(2025, 1, 7), interval_days=1
+            ).dates,
+            [date(2025, 1, 6), date(2025, 1, 7)],
+        )
+        self.assertEqual(
+            monthly_schedule(
+                start=date(2025, 1, 1), end=date(2025, 3, 1), lock_up_months=1
+            ).dates,
+            [date(2025, 2, 3)],
+        )
+        self.assertEqual(
+            monthly_schedule(
+                start=date(2025, 1, 31), end=date(2025, 4, 30), lock_up_months=1
+            ).dates,
+            [date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)],
+        )
 
     def test_weekdays_calendar_is_the_explicit_default(self):
         self.assertFalse(hasattr(market, "exchange_calendar"))

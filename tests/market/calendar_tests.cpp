@@ -121,6 +121,15 @@ TEST_CASE("Effective dates schedules and SSE calendar semantics")
     const auto monthly = kiyosi::make_monthly_schedule(day(2025, 1, 2), day(2025, 4, 2), 2);
     REQUIRE(monthly);
     CHECK(monthly->dates() == std::vector<kiyosi::date>{day(2025, 3, 3), day(2025, 4, 2)});
+    const auto weekend_end = kiyosi::make_monthly_schedule(
+        day(2025, 1, 1), day(2025, 3, 1), 1);
+    REQUIRE(weekend_end);
+    CHECK(weekend_end->dates() == std::vector<kiyosi::date>{day(2025, 2, 3)});
+    const auto month_end = kiyosi::make_monthly_schedule(
+        day(2025, 1, 31), day(2025, 4, 30), 1);
+    REQUIRE(month_end);
+    CHECK(month_end->dates() == std::vector<kiyosi::date>{
+                                    day(2025, 2, 28), day(2025, 3, 31), day(2025, 4, 30)});
     CHECK_FALSE(kiyosi::make_monthly_schedule(effective, expiry, 0));
 
     const auto sse = kiyosi::sse_calendar();

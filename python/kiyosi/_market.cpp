@@ -187,7 +187,12 @@ void bind_market(nb::module_& module)
         },
         nb::kw_only(), "start"_a, "end"_a, "interval_days"_a,
         "calendar"_a = weekdays_calendar(),
-        "Build dates at a fixed calendar-day interval, adjusted to trading days.");
+        "Build candidates at start + n * interval_days for positive n. start is excluded and "
+        "end is an inclusive bound. Candidates use following trading-day adjustment, duplicate "
+        "adjusted dates are removed, and generation stops rather than crossing end; end is not "
+        "guaranteed. With the weekdays calendar, 2025-01-03 through 2025-01-07 at a one-day "
+        "interval produces [2025-01-06, 2025-01-07]. Supply explicit observation_dates to an "
+        "instrument constructor for bespoke terminal dates.");
     module.def(
         "monthly_schedule",
         [](PythonDate start, PythonDate end, PythonInteger lock_up_months,
@@ -198,7 +203,13 @@ void bind_market(nb::module_& module)
         },
         nb::kw_only(), "start"_a, "end"_a, "lock_up_months"_a,
         "calendar"_a = weekdays_calendar(),
-        "Build a monthly observation schedule after the lock-up period.");
+        "Build monthly candidates beginning at start + lock_up_months. start is excluded and "
+        "end is an inclusive bound. The start day is clamped to each target month's last day, "
+        "then candidates use following trading-day adjustment. Generation stops rather than "
+        "crossing end, so end is not guaranteed. With the weekdays calendar, 2025-01-01 through "
+        "2025-03-01 with one lock-up month produces [2025-02-03]; the Saturday end candidate "
+        "would cross the bound. Supply explicit observation_dates to an instrument constructor "
+        "for bespoke terminal dates.");
 }
 
 } // namespace kiyosi::python_binding
