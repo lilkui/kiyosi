@@ -92,7 +92,7 @@ private:
 /// Authoritative domain validation for every autocallable product; optional features are
 /// detected structurally so each product only pays for the checks it needs.
 template <typename Note>
-[[nodiscard]] inline result<Note> validate_note(Note note)
+[[nodiscard]] inline result<void> validate_note(const Note& note)
 {
     if (!std::isfinite(note.initial_price()) || note.initial_price() <= 0.0 ||
         !std::isfinite(note.upper_strike()) || note.upper_strike() <= 0.0 ||
@@ -146,7 +146,15 @@ template <typename Note>
         if (!std::isfinite(note.minimal_coupon_rate()))
             return std::unexpected(Error{error_category::invalid_parameter, "minimal coupon is invalid"});
     }
-    return note;
+    return {};
+}
+
+template <typename Note>
+[[nodiscard]] inline result<Note> validated_note(Note note)
+{
+    auto valid = validate_note(note);
+    if (!valid) return std::unexpected(valid.error());
+    return std::move(note);
 }
 
 } // namespace kiyosi

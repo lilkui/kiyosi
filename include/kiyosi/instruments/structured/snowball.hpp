@@ -143,28 +143,28 @@ private:
 
 [[nodiscard]] inline result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms terms)
 {
-    return validate_note(BinarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
-                                              terms.initial_price, std::move(terms.knock_out_prices), terms.upper_strike,
-                                              terms.lower_strike, std::move(terms.observation_dates), terms.touch_status,
-                                              terms.principal_ratio, terms.effective, terms.expiry});
+    return validated_note(BinarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                               terms.initial_price, std::move(terms.knock_out_prices), terms.upper_strike,
+                                               terms.lower_strike, std::move(terms.observation_dates), terms.touch_status,
+                                               terms.principal_ratio, terms.effective, terms.expiry});
 }
 
 [[nodiscard]] inline result<SnowballOption> make_snowball_option(SnowballTerms terms)
 {
-    return validate_note(SnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
-                                        terms.initial_price, terms.knock_in_price,
-                                        std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
-                                        std::move(terms.observation_dates), terms.frequency, terms.touch_status,
-                                        terms.principal_ratio, terms.effective, terms.expiry});
+    return validated_note(SnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                         terms.initial_price, terms.knock_in_price,
+                                         std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
+                                         std::move(terms.observation_dates), terms.frequency, terms.touch_status,
+                                         terms.principal_ratio, terms.effective, terms.expiry});
 }
 
 [[nodiscard]] inline result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms terms)
 {
-    return validate_note(TernarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
-                                               terms.minimal_coupon_rate, terms.initial_price, terms.knock_in_price,
-                                               std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
-                                               std::move(terms.observation_dates), terms.frequency, terms.touch_status,
-                                               terms.principal_ratio, terms.effective, terms.expiry});
+    return validated_note(TernarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
+                                                terms.minimal_coupon_rate, terms.initial_price, terms.knock_in_price,
+                                                std::move(terms.knock_out_prices), terms.upper_strike, terms.lower_strike,
+                                                std::move(terms.observation_dates), terms.frequency, terms.touch_status,
+                                                terms.principal_ratio, terms.effective, terms.expiry});
 }
 
 } // namespace kiyosi

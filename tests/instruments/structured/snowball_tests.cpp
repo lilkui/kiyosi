@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -29,7 +30,112 @@ struct CouponSumEngine {
             {{kiyosi::risk_measure::price, coupon_rates.front() + maturity_coupon}});
     }
 };
+
+class CopyCountingNote {
+public:
+    CopyCountingNote(int& copies, kiyosi::date effective, kiyosi::date expiry)
+        : copies_(&copies), observation_dates_{expiry}, effective_(effective), expiry_(expiry)
+    {}
+
+    CopyCountingNote(const CopyCountingNote& other)
+        : copies_(other.copies_), knock_out_prices_(other.knock_out_prices_),
+          observation_dates_(other.observation_dates_), effective_(other.effective_),
+          expiry_(other.expiry_)
+    {
+        ++*copies_;
+    }
+
+    double initial_price() const noexcept { return 100.0; }
+    const std::vector<double>& knock_out_prices() const noexcept { return knock_out_prices_; }
+    double upper_strike() const noexcept { return 100.0; }
+    double lower_strike() const noexcept { return 60.0; }
+    const std::vector<kiyosi::date>& observation_dates() const noexcept { return observation_dates_; }
+    double principal_ratio() const noexcept { return 1.0; }
+    kiyosi::date effective() const noexcept { return effective_; }
+    kiyosi::date expiry() const noexcept { return expiry_; }
+    kiyosi::barrier_touch_status touch_status() const noexcept
+    {
+        return kiyosi::barrier_touch_status::none;
+    }
+
+private:
+    int* copies_;
+    std::vector<double> knock_out_prices_{110.0};
+    std::vector<kiyosi::date> observation_dates_;
+    kiyosi::date effective_;
+    kiyosi::date expiry_;
+};
 } // namespace
+
+TEST_CASE("Autocallable validation does not copy its input")
+{
+    int copies = 0;
+    const CopyCountingNote note{copies, day(2025, 1, 1), day(2026, 1, 1)};
+
+    REQUIRE(kiyosi::validate_note(note));
+    CHECK(copies == 0);
+}
+
+TEST_CASE("Autocallable factories preserve validation error categories")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto check = [](auto factory, auto terms) {
+        terms.initial_price = 0.0;
+        CHECK(factory(terms).error().category == kiyosi::error_category::invalid_parameter);
+        terms.initial_price = 100.0;
+        terms.observation_dates.clear();
+        CHECK(factory(std::move(terms)).error().category == kiyosi::error_category::invalid_schedule);
+    };
+
+    check(kiyosi::make_phoenix_option,
+          kiyosi::PhoenixTerms{.coupon_rate = 0.05,
+                               .initial_price = 100.0,
+                               .knock_in_price = 60.0,
+                               .knock_out_prices = {110.0},
+                               .coupon_barriers = {80.0},
+                               .upper_strike = 100.0,
+                               .lower_strike = 60.0,
+                               .observation_dates = {expiry},
+                               .frequency = kiyosi::observation_frequency::daily,
+                               .effective = effective,
+                               .expiry = expiry});
+    check(kiyosi::make_binary_snowball_option,
+          kiyosi::BinarySnowballTerms{.knock_out_coupon_rates = {0.05},
+                                      .maturity_coupon_rate = 0.05,
+                                      .initial_price = 100.0,
+                                      .knock_out_prices = {110.0},
+                                      .upper_strike = 100.0,
+                                      .lower_strike = 60.0,
+                                      .observation_dates = {expiry},
+                                      .effective = effective,
+                                      .expiry = expiry});
+    check(kiyosi::make_snowball_option,
+          kiyosi::SnowballTerms{.knock_out_coupon_rates = {0.05},
+                                .maturity_coupon_rate = 0.05,
+                                .initial_price = 100.0,
+                                .knock_in_price = 60.0,
+                                .knock_out_prices = {110.0},
+                                .upper_strike = 100.0,
+                                .lower_strike = 60.0,
+                                .observation_dates = {expiry},
+                                .frequency = kiyosi::observation_frequency::daily,
+                                .effective = effective,
+                                .expiry = expiry});
+    check(kiyosi::make_ternary_snowball_option,
+          kiyosi::TernarySnowballTerms{.knock_out_coupon_rates = {0.05},
+                                       .maturity_coupon_rate = 0.05,
+                                       .minimal_coupon_rate = 0.01,
+                                       .initial_price = 100.0,
+                                       .knock_in_price = 60.0,
+                                       .knock_out_prices = {110.0},
+                                       .upper_strike = 100.0,
+                                       .lower_strike = 60.0,
+                                       .observation_dates = {expiry},
+                                       .frequency = kiyosi::observation_frequency::daily,
+                                       .effective = effective,
+                                       .expiry = expiry});
+}
 
 TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons")
 {

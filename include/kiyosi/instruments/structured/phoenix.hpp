@@ -54,11 +54,11 @@ private:
 
 [[nodiscard]] inline result<PhoenixOption> make_phoenix_option(PhoenixTerms terms)
 {
-    return validate_note(PhoenixOption{terms.coupon_rate, terms.initial_price, terms.knock_in_price,
-                                       std::move(terms.knock_out_prices), std::move(terms.coupon_barriers),
-                                       terms.upper_strike, terms.lower_strike, std::move(terms.observation_dates),
-                                       terms.frequency, terms.touch_status, terms.principal_ratio,
-                                       terms.effective, terms.expiry});
+    return validated_note(PhoenixOption{terms.coupon_rate, terms.initial_price, terms.knock_in_price,
+                                        std::move(terms.knock_out_prices), std::move(terms.coupon_barriers),
+                                        terms.upper_strike, terms.lower_strike, std::move(terms.observation_dates),
+                                        terms.frequency, terms.touch_status, terms.principal_ratio,
+                                        terms.effective, terms.expiry});
 }
 
 } // namespace kiyosi
