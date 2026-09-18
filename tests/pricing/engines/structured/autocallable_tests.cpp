@@ -482,6 +482,94 @@ TEST_CASE("Structured finite difference preserves future observation indices")
     CHECK(*result->require(kiyosi::risk_measure::price) == Catch::Approx(expected).margin(1e-12));
 }
 
+TEST_CASE("Structured finite difference enumerates dates only for daily monitoring")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto first_observation = day(2025, 1, 4);
+    const auto expiry = day(2025, 1, 6);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.03, 0.0, 0.2);
+    const auto binary = *kiyosi::make_binary_snowball_option({
+        .knock_out_coupon_rates = {0.10, 0.20},
+        .maturity_coupon_rate = 0.02,
+        .initial_price = 100.0,
+        .knock_out_prices = {110.0, 110.0},
+        .upper_strike = 100.0,
+        .lower_strike = 60.0,
+        .observation_dates = {first_observation, expiry},
+        .touch_status = kiyosi::barrier_touch_status::none,
+        .principal_ratio = 1.0,
+        .effective = valuation,
+        .expiry = expiry});
+    const auto make_snowball = [&](kiyosi::observation_frequency frequency) {
+        return *kiyosi::make_snowball_option({
+            .knock_out_coupon_rates = {0.10, 0.20},
+            .maturity_coupon_rate = 0.02,
+            .initial_price = 100.0,
+            .knock_in_price = 75.0,
+            .knock_out_prices = {110.0, 110.0},
+            .upper_strike = 100.0,
+            .lower_strike = 60.0,
+            .observation_dates = {first_observation, expiry},
+            .frequency = frequency,
+            .touch_status = kiyosi::barrier_touch_status::none,
+            .principal_ratio = 1.0,
+            .effective = valuation,
+            .expiry = expiry});
+    };
+    const kiyosi::FiniteDifferenceSettings settings{40, 40};
+    const auto context = [&](kiyosi::TradingCalendar calendar) {
+        return *kiyosi::make_pricing_context(parameters, 100.0, valuation, calendar);
+    };
+
+    const auto calls = std::make_shared<std::atomic<int>>(0);
+    const auto sparse_calendar = *kiyosi::make_trading_calendar(
+        [=](kiyosi::date) {
+            ++*calls;
+            return true;
+        },
+        365);
+    const auto sparse_context = context(sparse_calendar);
+
+    const auto binary_result =
+        kiyosi::FiniteDifferenceBinarySnowballEngine{settings}.price(binary, sparse_context);
+    REQUIRE(binary_result);
+    CHECK(calls->load() == 2);
+
+    calls->store(0);
+    const auto expiry_only = make_snowball(kiyosi::observation_frequency::at_expiry);
+    const auto expiry_result =
+        kiyosi::FiniteDifferenceSnowballEngine{settings}.price(expiry_only, sparse_context);
+    REQUIRE(expiry_result);
+    CHECK(calls->load() == 2);
+
+    calls->store(0);
+    const auto daily_calendar = *kiyosi::make_trading_calendar(
+        [=](kiyosi::date) {
+            ++*calls;
+            return true;
+        },
+        365);
+    const auto daily_context = context(daily_calendar);
+    const auto daily_result = kiyosi::FiniteDifferenceSnowballEngine{settings}.price(
+        make_snowball(kiyosi::observation_frequency::daily), daily_context);
+    REQUIRE(daily_result);
+    CHECK(calls->load() == 8);
+
+    calls->store(0);
+    const auto invalid_calendar = *kiyosi::make_trading_calendar(
+        [=](kiyosi::date value) {
+            ++*calls;
+            return value != expiry;
+        },
+        365);
+    const auto invalid_context = context(invalid_calendar);
+    const auto invalid =
+        kiyosi::FiniteDifferenceBinarySnowballEngine{settings}.price(binary, invalid_context);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::error_category::invalid_date);
+    CHECK(calls->load() == 2);
+}
+
 TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
 {
     const auto effective = day(2025, 1, 1);

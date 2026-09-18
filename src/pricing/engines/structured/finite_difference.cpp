@@ -91,8 +91,6 @@ result<PricingResult> price_autocallable_finite_difference(
     const double maturity = actual_365(valuation, note.expiry());
     if (maturity == 0.0) return terminal_value(note, context);
 
-    const auto future_trading_dates =
-        trading_dates(context.calendar(), valuation, note.expiry(), true);
     std::vector<double> anchors{0.0, maturity};
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
@@ -109,6 +107,8 @@ result<PricingResult> price_autocallable_finite_difference(
         monitors_daily = note.knock_in_frequency() == observation_frequency::daily;
     std::vector<double> trading_times;
     if (monitors_daily) {
+        const auto future_trading_dates =
+            trading_dates(context.calendar(), valuation, note.expiry(), true);
         trading_times.reserve(future_trading_dates.size());
         for (const date value : future_trading_dates) {
             const double time = actual_365(valuation, value);
