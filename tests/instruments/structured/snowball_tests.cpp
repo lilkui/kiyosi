@@ -184,14 +184,69 @@ TEST_CASE("Named Snowball factories build DerivaSharp variants")
     const auto expiry = day(2026, 1, 1);
     const std::vector<kiyosi::date> observation_dates{day(2025, 4, 1), day(2025, 7, 1), expiry};
 
-    const auto standard = kiyosi::make_standard_snowball(0.1, 100.0, 70.0, 105.0, observation_dates, effective, expiry);
-    const auto step_down = kiyosi::make_step_down_snowball(0.1, 100.0, 70.0, 110.0, 5.0, observation_dates, effective, expiry);
-    const auto both_down = kiyosi::make_both_down_snowball(0.1, 0.01, 100.0, 70.0, 110.0, 5.0, observation_dates, effective, expiry);
-    const auto dual = kiyosi::make_dual_coupon_snowball(0.1, 0.03, 100.0, 70.0, 105.0, observation_dates, effective, expiry);
-    const auto parachute = kiyosi::make_parachute_snowball(0.1, 100.0, 70.0, 105.0, 90.0, observation_dates, effective, expiry);
-    const auto otm = kiyosi::make_otm_snowball(0.1, 100.0, 70.0, 105.0, 110.0, observation_dates, effective, expiry);
-    const auto capped = kiyosi::make_loss_capped_snowball(0.1, 100.0, 70.0, 105.0, 80.0, observation_dates, effective, expiry);
-    const auto european = kiyosi::make_european_snowball(0.1, 100.0, 70.0, 105.0, observation_dates, effective, expiry);
+    const auto standard = kiyosi::make_standard_snowball({.coupon_rate = 0.1,
+                                                          .initial_price = 100.0,
+                                                          .knock_in_price = 70.0,
+                                                          .knock_out_price = 105.0,
+                                                          .observation_dates = observation_dates,
+                                                          .effective = effective,
+                                                          .expiry = expiry});
+    const auto step_down = kiyosi::make_step_down_snowball({.coupon_rate = 0.1,
+                                                            .initial_price = 100.0,
+                                                            .knock_in_price = 70.0,
+                                                            .knock_out_start = 110.0,
+                                                            .knock_out_step = 5.0,
+                                                            .observation_dates = observation_dates,
+                                                            .effective = effective,
+                                                            .expiry = expiry});
+    const auto both_down = kiyosi::make_both_down_snowball({.coupon_start = 0.1,
+                                                            .coupon_step = 0.01,
+                                                            .initial_price = 100.0,
+                                                            .knock_in_price = 70.0,
+                                                            .knock_out_start = 110.0,
+                                                            .knock_out_step = 5.0,
+                                                            .observation_dates = observation_dates,
+                                                            .effective = effective,
+                                                            .expiry = expiry});
+    const auto dual = kiyosi::make_dual_coupon_snowball({.knock_out_coupon = 0.1,
+                                                         .maturity_coupon = 0.03,
+                                                         .initial_price = 100.0,
+                                                         .knock_in_price = 70.0,
+                                                         .knock_out_price = 105.0,
+                                                         .observation_dates = observation_dates,
+                                                         .effective = effective,
+                                                         .expiry = expiry});
+    const auto parachute = kiyosi::make_parachute_snowball({.coupon_rate = 0.1,
+                                                            .initial_price = 100.0,
+                                                            .knock_in_price = 70.0,
+                                                            .knock_out_price = 105.0,
+                                                            .final_knock_out_price = 90.0,
+                                                            .observation_dates = observation_dates,
+                                                            .effective = effective,
+                                                            .expiry = expiry});
+    const auto otm = kiyosi::make_otm_snowball({.coupon_rate = 0.1,
+                                                .initial_price = 100.0,
+                                                .knock_in_price = 70.0,
+                                                .knock_out_price = 105.0,
+                                                .upper_strike = 110.0,
+                                                .observation_dates = observation_dates,
+                                                .effective = effective,
+                                                .expiry = expiry});
+    const auto capped = kiyosi::make_loss_capped_snowball({.coupon_rate = 0.1,
+                                                           .initial_price = 100.0,
+                                                           .knock_in_price = 70.0,
+                                                           .knock_out_price = 105.0,
+                                                           .lower_strike = 80.0,
+                                                           .observation_dates = observation_dates,
+                                                           .effective = effective,
+                                                           .expiry = expiry});
+    const auto european = kiyosi::make_european_snowball({.coupon_rate = 0.1,
+                                                          .initial_price = 100.0,
+                                                          .knock_in_price = 70.0,
+                                                          .knock_out_price = 105.0,
+                                                          .observation_dates = observation_dates,
+                                                          .effective = effective,
+                                                          .expiry = expiry});
 
     REQUIRE(standard);
     REQUIRE(step_down);

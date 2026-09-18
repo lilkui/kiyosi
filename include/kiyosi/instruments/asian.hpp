@@ -106,6 +106,8 @@ template <typename Averaging>
 using GeometricAverageOption = AverageOption<GeometricAveraging>;
 using ArithmeticAverageOption = AverageOption<ArithmeticAveraging>;
 
+/// Date arguments are ordered `average_start`, `effective`, `expiry`; valid terms satisfy
+/// `effective <= average_start <= expiry`.
 template <typename Averaging>
 [[nodiscard]] inline result<AverageOption<Averaging>> make_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
@@ -117,6 +119,7 @@ template <typename Averaging>
     return detail::make_average_option<Averaging>(std::move(*terms));
 }
 
+/// Geometric-average option factory; date arguments follow make_average_option ordering.
 [[nodiscard]] inline result<GeometricAverageOption> make_geometric_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
     double realized_average = default_realized_average)
@@ -125,6 +128,7 @@ template <typename Averaging>
                                                    realized_average);
 }
 
+/// Arithmetic-average option factory; date arguments follow make_average_option ordering.
 [[nodiscard]] inline result<ArithmeticAverageOption> make_arithmetic_average_option(
     option_type type, double strike, date average_start, date effective, date expiry,
     double realized_average = default_realized_average)

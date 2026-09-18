@@ -50,10 +50,11 @@ int main()
          .barrier = 80.0,
          .barrier_kind = kiyosi::barrier_type::down_and_out},
         10.0);
+    const auto average_start = effective;
     const auto geometric_asian = *kiyosi::make_geometric_average_option(
-        kiyosi::option_type::call, 100.0, effective, effective, expiry);
+        kiyosi::option_type::call, 100.0, average_start, effective, expiry);
     const auto arithmetic_asian = *kiyosi::make_arithmetic_average_option(
-        kiyosi::option_type::call, 100.0, effective, effective, expiry);
+        kiyosi::option_type::call, 100.0, average_start, effective, expiry);
 
     const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
                                                         .knock_out = 110.0,
@@ -75,19 +76,15 @@ int main()
                                                        .principal_ratio = 1.0,
                                                        .effective = effective,
                                                        .expiry = expiry});
-    const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08},
-                                                         .maturity_coupon_rate = 0.05,
-                                                         .initial_price = 100.0,
-                                                         .knock_in_price = 80.0,
-                                                         .knock_out_prices = {110.0},
-                                                         .upper_strike = 100.0,
-                                                         .lower_strike = 60.0,
-                                                         .observation_dates = {expiry},
-                                                         .frequency = kiyosi::observation_frequency::daily,
-                                                         .touch_status = kiyosi::barrier_touch_status::none,
-                                                         .principal_ratio = 1.0,
-                                                         .effective = effective,
-                                                         .expiry = expiry});
+    const auto snowball = *kiyosi::make_both_down_snowball({.coupon_start = 0.08,
+                                                            .coupon_step = 0.01,
+                                                            .initial_price = 100.0,
+                                                            .knock_in_price = 80.0,
+                                                            .knock_out_start = 110.0,
+                                                            .knock_out_step = 5.0,
+                                                            .observation_dates = {expiry},
+                                                            .effective = effective,
+                                                            .expiry = expiry});
     const auto binary_snowball = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
                                                                        .maturity_coupon_rate = 0.05,
                                                                        .initial_price = 100.0,
