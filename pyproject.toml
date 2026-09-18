@@ -31,6 +31,7 @@ regex = "project\\(kiyosi VERSION (?P<value>[0-9.]+)"
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 wheel.packages = ["python/kiyosi"]
+sdist.exclude = ["wheelhouse"]
 cmake.args = [
     "-DKIYOSI_BUILD_PYTHON=ON",
     "-DKIYOSI_INSTALL=OFF",
