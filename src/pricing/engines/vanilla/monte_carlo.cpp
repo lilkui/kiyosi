@@ -5,7 +5,6 @@
 #include <cmath>
 #include <random>
 #include <ranges>
-#include <span>
 #include <vector>
 
 #include <kiyosi/core/day_count.hpp>
@@ -102,20 +101,11 @@ double payoff(option_type type, double spot, double strike)
     return std::max(sign * (spot - strike), 0.0);
 }
 
-bool fit_quadratic(std::span<const double> regression_spots,
-                   std::span<const double> regression_values, double strike,
-                   std::array<double, 3>& coefficients)
+using QuadraticRegressionMatrix = std::array<std::array<double, 4>, 3>;
+
+bool solve_quadratic(QuadraticRegressionMatrix matrix,
+                     std::array<double, 3>& coefficients)
 {
-    std::array<std::array<double, 4>, 3> matrix{};
-    for (std::size_t index = 0; index < regression_spots.size(); ++index) {
-        const double scaled = regression_spots[index] / strike;
-        const double basis[] = {1.0, scaled, scaled * scaled};
-        for (int row = 0; row < 3; ++row) {
-            for (int column = 0; column < 3; ++column)
-                matrix[row][column] += basis[row] * basis[column];
-            matrix[row][3] += basis[row] * regression_values[index];
-        }
-    }
     for (int column = 0; column < 3; ++column) {
         int pivot = column;
         for (int row = column + 1; row < 3; ++row)
@@ -178,25 +168,29 @@ result<PricingResult> MonteCarloVanillaEngine::price_american(
     const double discount = std::exp(-context.parameters().risk_free_rate() *
                                      *time / static_cast<double>(settings_.step_count - 1));
     std::vector<double> cash_flows(path_count);
-    std::vector<double> regression_spots;
-    std::vector<double> regression_values;
     const auto stride = static_cast<std::size_t>(settings_.step_count);
     for (std::size_t path = 0; path < path_count; ++path)
         cash_flows[path] = payoff(option.type(), (*paths)[path * stride + stride - 1], option.strike());
     for (int step = settings_.step_count - 2; step >= 1; --step) {
         for (double& value : cash_flows) value *= discount;
-        regression_spots.clear();
-        regression_values.clear();
+        QuadraticRegressionMatrix matrix{};
+        std::size_t sample_count = 0;
         for (std::size_t path = 0; path < path_count; ++path) {
             const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
             if (payoff(option.type(), spot, option.strike()) > 0.0) {
-                regression_spots.push_back(spot);
-                regression_values.push_back(cash_flows[path]);
+                ++sample_count;
+                const double scaled = spot / option.strike();
+                const double basis[] = {1.0, scaled, scaled * scaled};
+                for (int row = 0; row < 3; ++row) {
+                    for (int column = 0; column < 3; ++column)
+                        matrix[row][column] += basis[row] * basis[column];
+                    matrix[row][3] += basis[row] * cash_flows[path];
+                }
             }
         }
-        if (regression_spots.size() <= 2) continue;
+        if (sample_count <= 2) continue;
         std::array<double, 3> coefficients{};
-        if (!fit_quadratic(regression_spots, regression_values, option.strike(), coefficients)) continue;
+        if (!solve_quadratic(matrix, coefficients)) continue;
         for (std::size_t path = 0; path < path_count; ++path) {
             const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
             const double intrinsic = payoff(option.type(), spot, option.strike());

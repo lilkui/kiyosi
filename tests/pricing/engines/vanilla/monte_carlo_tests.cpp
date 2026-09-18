@@ -133,4 +133,24 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     CHECK_THAT(*result->require(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(50.0, 1e-10));
 }
 
+TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbacks")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(
+        0.0, 0.10, std::numeric_limits<double>::min());
+    const auto context = *kiyosi::make_pricing_context(parameters, 50.0, valuation);
+    const auto put = *kiyosi::make_american_option(
+        kiyosi::option_type::put, 100.0, valuation, expiry);
+
+    const auto sparse = kiyosi::MonteCarloVanillaEngine{1, 5, 42}.price(put, context);
+    const auto singular = kiyosi::MonteCarloVanillaEngine{4, 5, 42}.price(put, context);
+
+    REQUIRE(sparse);
+    REQUIRE(singular);
+    CHECK(*sparse->require(kiyosi::risk_measure::price) ==
+          *singular->require(kiyosi::risk_measure::price));
+    CHECK(*sparse->require(kiyosi::risk_measure::price) > 50.0);
+}
+
 } // namespace
