@@ -71,9 +71,12 @@ TEST_CASE("Finite-difference engines reject invalid grids")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, valuation, expiry);
-    CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{{2, 10, kiyosi::finite_difference_scheme::implicit_euler}}
-                    .price(call, context)
-                    .has_value());
+    const kiyosi::FiniteDifferenceVanillaEngine invalid_engine{
+        {0, 10, kiyosi::finite_difference_scheme::implicit_euler}};
+    CHECK(invalid_engine.settings().asset_steps == 0);
+    const auto invalid_grid = invalid_engine.price(call, context);
+    REQUIRE_FALSE(invalid_grid);
+    CHECK(invalid_grid.error().category == kiyosi::error_category::invalid_parameter);
     CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{{200, 200,
                                                        kiyosi::finite_difference_scheme::crank_nicolson, -1.0}}
                     .price(call, context)

@@ -87,7 +87,9 @@ template <typename Engine>
 nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char* name)
 {
     nb::class_<Engine> binding{
-        module, name, "Finite-difference pricing engine with immutable configuration."};
+        module, name,
+        "Finite-difference pricing engine with immutable configuration. Settings are "
+        "validated when price() is called."};
     binding
         .def(nb::new_([](PythonInteger asset_steps, PythonInteger time_steps,
                         finite_difference_scheme scheme, PythonReal upper_boundary) {
@@ -102,7 +104,7 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
              "time_steps"_a = FiniteDifferenceSettings{}.time_steps,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
              "upper_boundary"_a = nb::none(),
-             "Create a finite-difference engine with validated settings.")
+             "Store finite-difference settings; they are validated when price() is called.")
         .def_prop_ro("asset_steps", [](const Engine& engine) { return engine.settings().asset_steps; })
         .def_prop_ro("time_steps", [](const Engine& engine) { return engine.settings().time_steps; })
         .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; })
@@ -117,7 +119,9 @@ template <typename Engine>
 nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const char* name)
 {
     nb::class_<Engine> binding{
-        module, name, "Monte Carlo pricing engine with immutable configuration."};
+        module, name,
+        "Monte Carlo pricing engine with immutable configuration. Settings are validated "
+        "when price() is called."};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed) {
                  return Engine{StructuredMonteCarloSettings{
@@ -125,7 +129,7 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
              }),
              nb::kw_only(), "path_count"_a = StructuredMonteCarloSettings{}.path_count,
              "seed"_a = StructuredMonteCarloSettings{}.seed.value(),
-             "Create a Monte Carlo engine with validated settings.")
+             "Store Monte Carlo settings; they are validated when price() is called.")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; })
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; });
     bind_repr(binding, name, {{"path_count", "path_count"}, {"seed", "seed"}});
@@ -345,12 +349,14 @@ void bind_engines(nb::module_& module)
         module, "IntegralVanillaEngine");
     bind_engine_price<IntegralVanillaEngine, EuropeanOption>(integral_vanilla);
     auto crr = nb::class_<CrrVanillaEngine>(
-        module, "CrrVanillaEngine", "Cox-Ross-Rubinstein engine with immutable configuration.")
+        module, "CrrVanillaEngine",
+        "Cox-Ross-Rubinstein engine with immutable configuration. Settings are validated "
+        "when price() is called.")
         .def(nb::new_([](PythonInteger steps) {
                  return CrrVanillaEngine{integer(steps, "steps")};
              }),
              "steps"_a = BinomialSettings{}.steps,
-             "Create a Cox-Ross-Rubinstein engine with validated settings.")
+             "Store Cox-Ross-Rubinstein settings; they are validated when price() is called.")
         .def_prop_ro("steps", [](const CrrVanillaEngine& engine) {
             return engine.settings().steps;
         });
@@ -366,7 +372,8 @@ void bind_engines(nb::module_& module)
     bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
         module, "MonteCarloVanillaEngine",
-        "Monte Carlo vanilla engine with immutable configuration.")
+        "Monte Carlo vanilla engine with immutable configuration. Settings are validated "
+        "when price() is called.")
         .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                         PythonInteger seed) {
                  return MonteCarloVanillaEngine{MonteCarloSettings{
@@ -376,7 +383,7 @@ void bind_engines(nb::module_& module)
              nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
              "step_count"_a = MonteCarloSettings{}.step_count,
              "seed"_a = nb::none(),
-             "Create a Monte Carlo vanilla engine with validated settings.")
+             "Store Monte Carlo settings; they are validated when price() is called.")
         .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().path_count;
         })

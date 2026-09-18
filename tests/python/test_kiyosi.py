@@ -342,6 +342,25 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         self.assertFalse(hasattr(pricing, "numerical_analytics"))
 
+    def test_engine_settings_are_validated_when_pricing(self):
+        configured_engines = (
+            pricing.CrrVanillaEngine,
+            pricing.FiniteDifferenceVanillaEngine,
+            pricing.MonteCarloVanillaEngine,
+            pricing.MonteCarloSnowballEngine,
+        )
+        for engine_type in configured_engines:
+            with self.subTest(engine=engine_type.__name__):
+                self.assertIn("validated when price() is called", engine_type.__doc__)
+                self.assertIn("validated when price() is called", engine_type.__init__.__doc__)
+
+        engine = pricing.FiniteDifferenceVanillaEngine(asset_steps=0)
+        self.assertEqual(engine.asset_steps, 0)
+
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(self.option, self.context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
     def test_numerical_analytics_retains_valid_boundary_results(self):
         engine = AnalyticVanillaEngine()
         analytics = NumericalAnalyticsEngine(engine)
