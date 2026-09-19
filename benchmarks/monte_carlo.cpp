@@ -10,6 +10,11 @@ struct Scenario {
     kiyosi::PricingContext context;
 };
 
+struct AmericanScenario {
+    kiyosi::AmericanOption option;
+    kiyosi::PricingContext context;
+};
+
 const Scenario& monte_carlo_scenario()
 {
     static const auto value = [] {
@@ -20,6 +25,20 @@ const Scenario& monte_carlo_scenario()
                 kiyosi::option_type::call, 100.0, effective, expiry),
             *kiyosi::make_pricing_context(
                 *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+    }();
+    return value;
+}
+
+const AmericanScenario& american_monte_carlo_scenario()
+{
+    static const auto value = [] {
+        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
+        return AmericanScenario{
+            *kiyosi::make_american_option(
+                kiyosi::option_type::put, 100.0, effective, expiry),
+            *kiyosi::make_pricing_context(
+                *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective)};
     }();
     return value;
 }
@@ -45,10 +64,37 @@ void BM_MonteCarloEuropeanCpu(benchmark::State& state)
     benchmark_monte_carlo(state, kiyosi::monte_carlo_backend::cpu);
 }
 
+void benchmark_american_monte_carlo(
+    benchmark::State& state, kiyosi::monte_carlo_backend backend)
+{
+    const auto& [option, context] = american_monte_carlo_scenario();
+    const kiyosi::MonteCarloVanillaEngine engine{
+        kiyosi::MonteCarloSettings{1'000'000, 50, 42, backend}};
+    const auto warmup = engine.price(option, context);
+    if (!warmup) {
+        state.SkipWithError(warmup.error().message.c_str());
+        return;
+    }
+    for (auto _ : state) {
+        auto result = engine.price(option, context);
+        benchmark::DoNotOptimize(result);
+    }
+}
+
+void BM_MonteCarloAmericanCpu(benchmark::State& state)
+{
+    benchmark_american_monte_carlo(state, kiyosi::monte_carlo_backend::cpu);
+}
+
 #if KIYOSI_HAS_CUDA
 void BM_MonteCarloEuropeanCuda(benchmark::State& state)
 {
     benchmark_monte_carlo(state, kiyosi::monte_carlo_backend::cuda);
+}
+
+void BM_MonteCarloAmericanCuda(benchmark::State& state)
+{
+    benchmark_american_monte_carlo(state, kiyosi::monte_carlo_backend::cuda);
 }
 #endif
 
@@ -60,8 +106,20 @@ BENCHMARK(BM_MonteCarloEuropeanCpu)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
+BENCHMARK(BM_MonteCarloAmericanCpu)
+    ->UseRealTime()
+    ->Repetitions(5)
+    ->ReportAggregatesOnly(true)
+    ->Unit(benchmark::kMillisecond);
+
 #if KIYOSI_HAS_CUDA
 BENCHMARK(BM_MonteCarloEuropeanCuda)
+    ->UseRealTime()
+    ->Repetitions(5)
+    ->ReportAggregatesOnly(true)
+    ->Unit(benchmark::kMillisecond);
+
+BENCHMARK(BM_MonteCarloAmericanCuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)

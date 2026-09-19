@@ -353,7 +353,7 @@ class KiyosiPythonTests(unittest.TestCase):
             engine.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE)
 
-    def test_cuda_backend_rejects_american_options(self):
+    def test_american_cuda_backend_unavailable_is_deferred_and_categorized(self):
         option = AmericanOption(
             type=OptionType.PUT, strike=100.0,
             effective=date(2025, 1, 1), expiry=date(2026, 1, 1),
@@ -365,7 +365,36 @@ class KiyosiPythonTests(unittest.TestCase):
 
         with self.assertRaises(kiyosi.KiyosiError) as error:
             engine.price(option, self.context)
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE)
+
+    def test_american_cuda_validates_before_backend_and_prices_expiry(self):
+        option = AmericanOption(
+            type=OptionType.PUT, strike=100.0,
+            effective=date(2025, 1, 1), expiry=date(2026, 1, 1),
+        )
+        for path_count, step_count in ((0, 50), (20, 2)):
+            with self.subTest(path_count=path_count, step_count=step_count):
+                engine = pricing.MonteCarloVanillaEngine(
+                    path_count=path_count, step_count=step_count, seed=42,
+                    backend=pricing.MonteCarloBackend.CUDA,
+                )
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(option, self.context)
+                self.assertEqual(error.exception.category,
+                                 kiyosi.ErrorCategory.INVALID_PARAMETER)
+
+        expiry = date(2026, 1, 1)
+        expiry_option = AmericanOption(
+            type=OptionType.PUT, strike=100.0, effective=expiry, expiry=expiry,
+        )
+        expiry_context = PricingContext(
+            parameters=self.parameters, asset_price=90.0, valuation_time=expiry,
+        )
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=20, step_count=3, seed=42,
+            backend=pricing.MonteCarloBackend.CUDA,
+        )
+        self.assertEqual(engine.price(expiry_option, expiry_context).price, 10.0)
 
     def test_temporal_accessors_preserve_date_and_timestamp_semantics(self):
         average_start = date(2025, 2, 1)

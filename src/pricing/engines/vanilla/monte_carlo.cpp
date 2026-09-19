@@ -5,10 +5,11 @@
 #include <cmath>
 #include <new>
 #include <random>
-#include <ranges>
 #include <vector>
 
 #include <kiyosi/core/day_count.hpp>
+
+#include "monte_carlo_regression.hpp"
 
 #if KIYOSI_HAS_CUDA
 #include "monte_carlo_cuda.hpp"
@@ -65,7 +66,8 @@ result<SimulationParameters> simulation_parameters(
     const double sqrt_dt = std::sqrt(dt);
     const double drift = (context.parameters().risk_free_rate() -
                           context.parameters().dividend_yield() -
-                          0.5 * volatility * volatility) * dt;
+                          0.5 * volatility * volatility) *
+                         dt;
     const double diffusion = volatility * sqrt_dt;
     if (!std::isfinite(dt) || !std::isfinite(sqrt_dt) || !std::isfinite(drift) ||
         !std::isfinite(diffusion))
@@ -140,23 +142,8 @@ std::uint64_t random_seed()
            static_cast<std::uint64_t>(source());
 }
 
-result<double> cuda_payoff_sum(const EuropeanOption& option,
-                               SimulationParameters parameters,
-                               MonteCarloSettings settings)
+result<double> cuda_sum(detail::CudaPricingResult cuda_result)
 {
-    const int path_count = settings.path_count % 2 == 0
-                               ? settings.path_count
-                               : settings.path_count + 1;
-    const auto cuda_result = detail::cuda_european_price({
-        path_count,
-        settings.step_count,
-        settings.seed ? *settings.seed : random_seed(),
-        parameters.spot,
-        option.strike(),
-        parameters.drift,
-        parameters.diffusion,
-        option.type() == option_type::call ? 1 : -1,
-    });
     switch (cuda_result.status) {
     case detail::CudaPricingStatus::success:
         return cuda_result.payoff_sum;
@@ -175,34 +162,47 @@ result<double> cuda_payoff_sum(const EuropeanOption& option,
     return std::unexpected(Error{error_category::backend_failure,
                                  "CUDA Monte Carlo returned an unknown status"});
 }
-#endif
 
-using QuadraticRegressionMatrix = std::array<std::array<double, 4>, 3>;
-
-bool solve_quadratic(QuadraticRegressionMatrix matrix,
-                     std::array<double, 3>& coefficients)
+result<double> cuda_payoff_sum(const EuropeanOption& option,
+                               SimulationParameters parameters,
+                               MonteCarloSettings settings)
 {
-    for (int column = 0; column < 3; ++column) {
-        int pivot = column;
-        for (int row = column + 1; row < 3; ++row)
-            if (std::abs(matrix[row][column]) > std::abs(matrix[pivot][column])) pivot = row;
-        if (!std::isfinite(matrix[pivot][column]) ||
-            std::abs(matrix[pivot][column]) <= 1e-14 * std::max(1.0, std::abs(matrix[pivot][3])))
-            return false;
-        std::swap(matrix[column], matrix[pivot]);
-        for (int row = column + 1; row < 3; ++row) {
-            const double factor = matrix[row][column] / matrix[column][column];
-            for (int entry = column; entry <= 3; ++entry)
-                matrix[row][entry] -= factor * matrix[column][entry];
-        }
-    }
-    for (int row = 2; row >= 0; --row) {
-        double value = matrix[row][3];
-        for (int column = row + 1; column < 3; ++column) value -= matrix[row][column] * coefficients[column];
-        coefficients[row] = value / matrix[row][row];
-    }
-    return std::ranges::all_of(coefficients, [](double value) { return std::isfinite(value); });
+    const int path_count = settings.path_count % 2 == 0
+                               ? settings.path_count
+                               : settings.path_count + 1;
+    return cuda_sum(detail::cuda_european_price({
+        path_count,
+        settings.step_count,
+        settings.seed ? *settings.seed : random_seed(),
+        parameters.spot,
+        option.strike(),
+        parameters.drift,
+        parameters.diffusion,
+        option.type() == option_type::call ? 1 : -1,
+    }));
 }
+
+result<double> cuda_american_cash_flow_sum(const AmericanOption& option,
+                                           SimulationParameters parameters,
+                                           MonteCarloSettings settings,
+                                           double discount)
+{
+    const int path_count = settings.path_count % 2 == 0
+                               ? settings.path_count
+                               : settings.path_count + 1;
+    return cuda_sum(detail::cuda_american_price({
+        path_count,
+        settings.step_count,
+        settings.seed ? *settings.seed : random_seed(),
+        parameters.spot,
+        option.strike(),
+        parameters.drift,
+        parameters.diffusion,
+        discount,
+        option.type() == option_type::call ? 1 : -1,
+    }));
+}
+#endif
 
 } // namespace
 
@@ -247,9 +247,6 @@ result<PricingResult> MonteCarloVanillaEngine::price_european(
 result<PricingResult> MonteCarloVanillaEngine::price_american(
     const AmericanOption& option, const PricingContext& context) const
 {
-    if (settings_.backend == monte_carlo_backend::cuda)
-        return std::unexpected(Error{error_category::unsupported_operation,
-                                     "CUDA does not support American Monte Carlo pricing"});
     const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
@@ -261,49 +258,68 @@ result<PricingResult> MonteCarloVanillaEngine::price_american(
                                      "American Monte Carlo requires at least three grid points"});
     const auto parameters = simulation_parameters(context, *time, settings_);
     if (!parameters) return std::unexpected(parameters.error());
-    auto paths = simulate_paths(*parameters, settings_, PathRetention::full);
-    if (!paths) return std::unexpected(paths.error());
-    const auto path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
     const double discount = std::exp(-context.parameters().risk_free_rate() *
                                      *time / static_cast<double>(settings_.step_count - 1));
-    std::vector<double> cash_flows(path_count);
-    const auto stride = static_cast<std::size_t>(settings_.step_count);
-    for (std::size_t path = 0; path < path_count; ++path)
-        cash_flows[path] = payoff(option.type(), (*paths)[path * stride + stride - 1], option.strike());
-    for (int step = settings_.step_count - 2; step >= 1; --step) {
-        for (double& value : cash_flows) value *= discount;
-        QuadraticRegressionMatrix matrix{};
-        std::size_t sample_count = 0;
-        for (std::size_t path = 0; path < path_count; ++path) {
-            const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
-            if (payoff(option.type(), spot, option.strike()) > 0.0) {
-                ++sample_count;
-                const double scaled = spot / option.strike();
-                const double basis[] = {1.0, scaled, scaled * scaled};
-                for (int row = 0; row < 3; ++row) {
-                    for (int column = 0; column < 3; ++column)
-                        matrix[row][column] += basis[row] * basis[column];
-                    matrix[row][3] += basis[row] * cash_flows[path];
+    std::size_t path_count = static_cast<std::size_t>(
+        settings_.path_count % 2 == 0 ? settings_.path_count : settings_.path_count + 1);
+    double sum = 0.0;
+    if (settings_.backend == monte_carlo_backend::cuda) {
+#if KIYOSI_HAS_CUDA
+        const auto cuda_result =
+            cuda_american_cash_flow_sum(option, *parameters, settings_, discount);
+        if (!cuda_result) return std::unexpected(cuda_result.error());
+        sum = *cuda_result;
+#else
+        return std::unexpected(Error{error_category::backend_unavailable,
+                                     "CUDA support is not enabled in this build"});
+#endif
+    } else {
+        auto paths = simulate_paths(*parameters, settings_, PathRetention::full);
+        if (!paths) return std::unexpected(paths.error());
+        path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
+        std::vector<double> cash_flows(path_count);
+        const auto stride = static_cast<std::size_t>(settings_.step_count);
+        for (std::size_t path = 0; path < path_count; ++path)
+            cash_flows[path] = payoff(
+                option.type(), (*paths)[path * stride + stride - 1], option.strike());
+        for (int step = settings_.step_count - 2; step >= 1; --step) {
+            for (double& value : cash_flows)
+                value *= discount;
+            detail::QuadraticRegressionMatrix matrix{};
+            std::size_t sample_count = 0;
+            for (std::size_t path = 0; path < path_count; ++path) {
+                const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
+                if (payoff(option.type(), spot, option.strike()) > 0.0) {
+                    ++sample_count;
+                    const double scaled = spot / option.strike();
+                    const double basis[] = {1.0, scaled, scaled * scaled};
+                    for (int row = 0; row < 3; ++row) {
+                        for (int column = 0; column < 3; ++column)
+                            matrix[row][column] += basis[row] * basis[column];
+                        matrix[row][3] += basis[row] * cash_flows[path];
+                    }
                 }
             }
+            if (sample_count <= 2) continue;
+            std::array<double, 3> coefficients{};
+            if (!detail::solve_quadratic(matrix, coefficients)) continue;
+            for (std::size_t path = 0; path < path_count; ++path) {
+                const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
+                const double intrinsic = payoff(option.type(), spot, option.strike());
+                if (intrinsic <= 0.0) continue;
+                const double scaled = spot / option.strike();
+                const double continuation =
+                    coefficients[0] + scaled * (coefficients[1] + scaled * coefficients[2]);
+                if (std::isfinite(continuation) && intrinsic > continuation)
+                    cash_flows[path] = intrinsic;
+            }
         }
-        if (sample_count <= 2) continue;
-        std::array<double, 3> coefficients{};
-        if (!solve_quadratic(matrix, coefficients)) continue;
-        for (std::size_t path = 0; path < path_count; ++path) {
-            const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
-            const double intrinsic = payoff(option.type(), spot, option.strike());
-            if (intrinsic <= 0.0) continue;
-            const double scaled = spot / option.strike();
-            const double continuation = coefficients[0] + scaled * (coefficients[1] + scaled * coefficients[2]);
-            if (std::isfinite(continuation) && intrinsic > continuation) cash_flows[path] = intrinsic;
-        }
+        for (double cash_flow : cash_flows)
+            sum += cash_flow;
     }
-    double sum = 0.0;
-    for (double value : cash_flows) sum += value;
     const double continuation = sum / static_cast<double>(path_count) * discount;
     const double value = std::max(continuation,
-        payoff(option.type(), context.asset_price(), option.strike()));
+                                  payoff(option.type(), context.asset_price(), option.strike()));
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return make_pricing_result({{risk_measure::price, value}});
