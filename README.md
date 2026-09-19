@@ -11,7 +11,7 @@ Kiyosi is a modern C++23 derivatives-pricing library with Python bindings, offer
 ## Features
 
 - Vanilla, digital, Asian, barrier, accumulator, snowball, and phoenix instruments
-- Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines
+- Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines with CPU and CUDA backends
 - Prices and Greeks through a consistent result type
 - Numerical analytics, implied volatility, and implied coupon solvers
 - Trading calendars and observation schedule builders, including SSE holidays
@@ -25,7 +25,7 @@ Kiyosi requires Python 3.11 or newer:
 python -m pip install kiyosi
 ```
 
-PyPI provides prebuilt x64 wheels for Windows and Linux. On other platforms, installation builds from source and requires CMake 3.28 or newer, Ninja, and a C++23 compiler.
+PyPI provides prebuilt x64 wheels for Windows and Linux, including CUDA acceleration for Monte Carlo engines. CPU remains the default; using CUDA requires a compatible NVIDIA GPU and driver. On other platforms, installation builds from source and requires CMake 3.28 or newer, Ninja, and a C++23 compiler.
 
 Price a European call with the analytic Black-Scholes engine:
 
@@ -64,6 +64,15 @@ The Python API is organized into three modules:
 | `kiyosi.instruments` | Derivative instruments and structured-product presets |
 | `kiyosi.market` | Model parameters, valuation contexts, calendars, and schedules |
 | `kiyosi.pricing` | Pricing engines, analytics, scenarios, and implied-value solvers |
+
+Select the CUDA backend on any Monte Carlo engine:
+
+```python
+from kiyosi.pricing import MonteCarloBackend, MonteCarloVanillaEngine
+
+engine = MonteCarloVanillaEngine(backend=MonteCarloBackend.CUDA)
+result = engine.price(option, context)
+```
 
 ## Pricing coverage
 
