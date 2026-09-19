@@ -48,7 +48,7 @@ environment = { CMAKE_ARGS = "-DKIYOSI_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES
 test-sources = ["tests"]
 test-command = [
     "python -m unittest discover -s tests/python -p test_kiyosi.py",
-    "python -c \"import importlib.util, subprocess; path = importlib.util.find_spec('kiyosi._native').origin; cubins = subprocess.check_output(['cuobjdump', '--list-elf', path], text=True); assert all(f'sm_{arch}' in cubins for arch in (75, 80, 86, 89, 90, 100, 120)), cubins; ptx = subprocess.check_output(['cuobjdump', '--list-ptx', path], text=True); assert any(target in ptx for target in ('compute_120', 'sm_120')), ptx\"",
+    "python -c \"import importlib.util, shutil, subprocess; path = importlib.util.find_spec('kiyosi._native').origin; cuobjdump = shutil.which('cuobjdump') or '/usr/local/cuda/bin/cuobjdump'; cubins = subprocess.check_output([cuobjdump, '--list-elf', path], text=True); assert all(f'sm_{arch}' in cubins for arch in (75, 80, 86, 89, 90, 100, 120)), cubins; ptx = subprocess.check_output([cuobjdump, '--list-ptx', path], text=True); assert any(target in ptx for target in ('compute_120', 'sm_120')), ptx\"",
 ]
 
 [tool.cibuildwheel.linux]
