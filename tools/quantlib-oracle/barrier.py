@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from functools import lru_cache
 from types import SimpleNamespace
 
-import generate as g
+import oracle as g
 
 ql = g.ql
 KINDS = {
@@ -124,6 +124,10 @@ def price(items):
     )
 
 
+def measure(inputs, name, scale=1, price_only=False):
+    return g.measure(inputs, name, scale, True, option_factory=option, spot_bump=0.03)
+
+
 def scenarios():
     for direction in ("call", "put"):
         for kind in KINDS:
@@ -138,22 +142,22 @@ def scenarios():
                     (150 if kind.startswith("up") else 50, 365),
                     (110, 1),
                 ):
-                    inputs = dict(
-                        option=direction,
-                        strike=100,
-                        spot=spot,
-                        rate=0.04,
-                        dividend=0.01,
-                        volatility=0.3,
-                        effective="2024-12-30",
-                        valuation="2025-01-06",
-                        expiry=(date(2025, 1, 6) + timedelta(days=days)).isoformat(),
-                        barrier_kind=kind,
-                        barrier=140 if kind.startswith("up") else 60,
-                        rebate=10,
-                        settlement=settlement,
-                        monitoring="continuous",
-                    )
+                    inputs = {
+                        "option": direction,
+                        "strike": 100,
+                        "spot": spot,
+                        "rate": 0.04,
+                        "dividend": 0.01,
+                        "volatility": 0.3,
+                        "effective": "2024-12-30",
+                        "valuation": "2025-01-06",
+                        "expiry": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
+                        "barrier_kind": kind,
+                        "barrier": 140 if kind.startswith("up") else 60,
+                        "rebate": 10,
+                        "settlement": settlement,
+                        "monitoring": "continuous",
+                    }
                     yield (
                         f"ql-barrier-{direction}-{kind.replace('_', '-')}-{settlement.replace('_', '-')}-{spot}-{days}d",
                         inputs,
@@ -174,9 +178,10 @@ def metadata():
 
 def rows():
     for identifier, inputs in scenarios():
+        reference = g.reference(inputs, STABILITY, measure_fn=measure)
         for engine in ENGINES:
             budget = ANALYTIC if engine == ENGINES[0] else FD
-            row = g.contract_row(identifier, inputs, budget, STABILITY)
+            row = g.reference_row(identifier, inputs, reference, budget, budget)
             row["case_id"] += "-" + engine.lower()
             row["instrument"], row["engine"] = "BarrierOption", engine
             terms = row["inputs"]
@@ -278,8 +283,6 @@ def check_bindings():
                 "settlement": "at_expiry" if at_expiry else "at_hit",
                 "monitoring": "continuous",
             }
-            rebate = g.measure(inputs, "price") - g.measure(
-                dict(inputs, rebate=0), "price"
-            )
+            rebate = measure(inputs, "price") - measure(dict(inputs, rebate=0), "price")
             assert abs(rebate - touch.NPV()) < 1e-11
     print("QuantLib continuous barrier binding and rebate decomposition checks passed")

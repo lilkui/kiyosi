@@ -7,7 +7,7 @@ from datetime import date
 from functools import lru_cache
 from importlib.metadata import version
 
-import generate as g
+import oracle as g
 import QuantLib as ql
 
 GRIDS = ((800, 800), (1600, 1600), (3200, 3200))
@@ -25,7 +25,6 @@ STABILITY = {
     "rho": 0.001,
 }
 ENGINES = {
-    "BinomialAmericanEngine": {"steps"},
     "CrrEngine": {"steps"},
     "FiniteDifferenceAmericanEngine": {
         "asset_steps",
@@ -53,7 +52,7 @@ def exclusions(inputs):
 def native(encoded, grid):
     inputs = json.loads(encoded)
     option = g.vanilla_option(inputs, grid)
-    result = dict(price=option.NPV(), delta=option.delta(), gamma=option.gamma())
+    result = {"price": option.NPV(), "delta": option.delta(), "gamma": option.gamma()}
     g.require(
         all(math.isfinite(v) for v in result.values()), "non-finite American result"
     )
@@ -228,8 +227,6 @@ def rows():
                     "tolerances": {
                         name: profile["tolerances"][name] for name in outputs
                     },
-                    "validation": "-",
-                    "convergence": "-",
                     "monte_carlo": mc,
                 }
             )

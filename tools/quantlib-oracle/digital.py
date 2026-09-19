@@ -4,7 +4,7 @@ import json
 import math
 from datetime import date, timedelta
 
-import generate as g
+import oracle as g
 
 INSTRUMENTS = {
     "cash": "EuropeanCashOrNothingOption",
@@ -126,17 +126,18 @@ def scenarios(config):
 def rows():
     config = configuration()
     for identifier, inputs in scenarios(config):
+        g.validate_inputs(
+            {key: value for key, value in inputs.items() if key in g.INPUTS}
+        )
+        reference = g.reference(inputs, STABILITY)
         for profile in config["profiles"]:
-            scenario = {
-                "case_id": identifier,
-                "inputs": inputs,
-                "tolerances": profile["tolerances"],
-                "numerical_tolerances": profile["numerical_tolerances"],
-            }
-            g.validate_inputs(
-                {key: value for key, value in inputs.items() if key in g.INPUTS}
+            row = g.reference_row(
+                identifier,
+                inputs,
+                reference,
+                profile["tolerances"],
+                profile["numerical_tolerances"],
             )
-            row = g.reference_row(scenario, STABILITY)
             row["case_id"] += "-" + profile["engine"].lower()
             row["instrument"], row["engine"] = (
                 INSTRUMENTS[inputs["payoff"]],

@@ -47,7 +47,7 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
 TEST_CASE("American reference fixtures reject unknown measures and exercise boundary omissions")
 {
     const auto original = fixture_text();
-    const auto start = original.find("ql-american-call-exercise-start-binomialamericanengine\t");
+    const auto start = original.find("ql-american-call-exercise-start-crrengine\t");
     REQUIRE(start != std::string::npos);
     const auto end = original.find('\n', start);
     const auto row = original.substr(start, end - start);
@@ -165,7 +165,7 @@ TEST_CASE("Reference fixture tolerances are inclusive and mismatch reports are u
 TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical metadata")
 {
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
-    REQUIRE(cases.size() == 692);
+    REQUIRE(cases.size() == 664);
     std::vector<std::string> names;
     names.reserve(cases.size());
     for (const auto& value : cases) {
@@ -197,8 +197,8 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
     const std::set<std::string> required_engines{
         "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
-        "AnalyticEuropeanEngine", "ArithmeticAverageAsianEngine", "BinomialAmericanEngine",
-        "BinomialEuropeanEngine", "BjerksundStenslandAmericanEngine", "CrrEngine",
+        "AnalyticEuropeanEngine", "ArithmeticAverageAsianEngine",
+        "BjerksundStenslandAmericanEngine", "CrrEngine",
         "FiniteDifferenceAmericanEngine", "FiniteDifferenceBarrierEngine",
         "FiniteDifferenceDigitalEngine", "FiniteDifferenceEuropeanEngine",
         "GeometricAverageAsianEngine", "IntegralDigitalEngine", "IntegralEuropeanEngine",
@@ -208,7 +208,7 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         "BinaryBarrierOption", "TouchOption", "EuropeanAssetOrNothingOption",
         "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAverageOption"};
     const std::set<std::string> required_pairs{
-        "AmericanOption/BinomialAmericanEngine", "AmericanOption/FiniteDifferenceAmericanEngine",
+        "AmericanOption/FiniteDifferenceAmericanEngine",
         "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
         "AmericanOption/CrrEngine",
         "ArithmeticAverageOption/ArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
@@ -218,7 +218,7 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         "EuropeanAssetOrNothingOption/IntegralDigitalEngine", "EuropeanAssetOrNothingOption/FiniteDifferenceDigitalEngine",
         "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
         "EuropeanCashOrNothingOption/IntegralDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
-        "EuropeanOption/BinomialEuropeanEngine", "EuropeanOption/CrrEngine",
+        "EuropeanOption/CrrEngine",
         "EuropeanOption/FiniteDifferenceEuropeanEngine", "EuropeanOption/IntegralEuropeanEngine",
         "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAverageOption/GeometricAverageAsianEngine"};
     std::set<std::string> actual_engines;
@@ -234,10 +234,8 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         has_settlement |= value.inputs.contains("settlement");
         has_monitoring |= value.inputs.contains("monitoring");
         has_calendar |= value.inputs.contains("calendar");
-        if (value.engine.find("MonteCarlo") != std::string::npos && !value.validation.has_value())
+        if (value.engine.find("MonteCarlo") != std::string::npos)
             REQUIRE(value.monte_carlo.has_value());
-        REQUIRE_FALSE(value.validation.has_value());
-        REQUIRE_FALSE(value.convergence.has_value());
         REQUIRE(value.outputs.contains("price"));
     }
     CHECK(actual_engines == required_engines);
@@ -251,16 +249,16 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
 TEST_CASE("Pricing reference manifest rejects incomplete output tolerances")
 {
     std::istringstream input{
-        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
-        "broken\tOption\tEngine\tcall\tspot=100;source_revision=test;source_symbol=test;convention=Actual/365,BSM;reference_kind=analytic;tolerance=0.1\tprice=1;delta=2\tprice=0.1\t-\t-\t-\n"};
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
+        "broken\tOption\tEngine\tcall\tspot=100;source_revision=test;source_symbol=test;convention=Actual/365,BSM;reference_kind=analytic;tolerance=0.1\tprice=1;delta=2\tprice=0.1\t-\n"};
     CHECK_THROWS_WITH(kiyosi::test::parse_reference_cases(input), Catch::Matchers::ContainsSubstring("matching keys"));
 }
 
 TEST_CASE("Pricing reference manifest requires complete reference provenance")
 {
     std::istringstream input{
-        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tvalidation\tconvergence\tmonte_carlo\n"
-        "broken\tEuropeanOption\tAnalyticEuropeanEngine\tcall\tspot=100\tprice=1\tprice=0.1\t-\t-\t-\n"};
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
+        "broken\tEuropeanOption\tAnalyticEuropeanEngine\tcall\tspot=100\tprice=1\tprice=0.1\t-\n"};
     CHECK_THROWS_WITH(kiyosi::test::parse_reference_cases(input),
                       Catch::Matchers::ContainsSubstring("source_revision"));
 }

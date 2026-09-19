@@ -6,7 +6,7 @@ from functools import lru_cache
 from types import SimpleNamespace
 
 import barrier
-import generate as g
+import oracle as g
 
 ql = g.ql
 SOURCE = "QuantLib.AnalyticBinaryBarrierEngine+QuantLib.AnalyticDigitalAmericanEngine+QuantLib.AnalyticEuropeanEngine"
@@ -149,6 +149,12 @@ def make_contract(inputs):
     )
 
 
+def measure(inputs, name, scale=1, price_only=False):
+    return g.measure(
+        inputs, name, scale, price_only, option_factory=option, spot_bump=0.02
+    )
+
+
 def scenarios():
     for asset in (False, True):
         for kind in barrier.KINDS:
@@ -213,7 +219,10 @@ def metadata():
 
 def rows():
     for identifier, inputs in scenarios():
-        row = g.contract_row(identifier, inputs, BUDGET, STABILITY)
+        reference = g.reference(
+            inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
+        )
+        row = g.reference_row(identifier, inputs, reference, BUDGET, BUDGET)
         row["instrument"] = (
             "TouchOption" if inputs["option"] == "none" else "BinaryBarrierOption"
         )
@@ -317,13 +326,13 @@ def check_bindings():
                     "monitoring": "continuous",
                     "settlement": "at_expiry" if deferred else "at_hit",
                 }
-                assert abs(g.measure(inputs, "price") - contract.NPV()) < 1e-11
+                assert abs(measure(inputs, "price") - contract.NPV()) < 1e-11
                 if not deferred:
                     for name, unit in (("delta", 1), ("gamma", 1), ("rho", 100)):
                         direct = getattr(contract, name)() / unit
-                        assert abs(g.measure(inputs, name) - direct) < 1e-12
+                        assert abs(measure(inputs, name) - direct) < 1e-12
                         assert (
-                            abs(g.measure(inputs, name, price_only=True) - direct)
+                            abs(measure(inputs, name, price_only=True) - direct)
                             < STABILITY[name]
                         )
                 else:
@@ -354,9 +363,9 @@ def check_bindings():
                             )
                             / unit
                         )
-                        assert abs(g.measure(touched, name) - direct) < 1e-12
+                        assert abs(measure(touched, name) - direct) < 1e-12
                         assert (
-                            abs(g.measure(touched, name, price_only=True) - direct)
+                            abs(measure(touched, name, price_only=True) - direct)
                             < STABILITY[name]
                         )
     print("QuantLib binary barrier and American digital binding checks passed")

@@ -85,7 +85,7 @@ The current pricing models use a Black-Scholes-Merton market context with spot a
 
 ## Validation
 
-Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used only by the [test-fixture tooling](tools/quantlib-oracle/) and is not a runtime dependency.
+Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md) and [SSE calendar maintenance script](tools/calendar_data.py); it is not a build or runtime dependency of the C++ core.
 
 ## C++ library
 

@@ -25,18 +25,6 @@ namespace kiyosi::test {
 
 using FixtureAttributes = std::map<std::string, std::string>;
 
-struct ValidationExpectation {
-    std::string category;
-    std::string message;
-};
-
-struct ConvergenceMetadata {
-    std::string parameter;
-    std::vector<double> resolutions;
-    double reference = 0.0;
-    double tolerance = 0.0;
-};
-
 struct MonteCarloMetadata {
     std::uint64_t seed = 0;
     std::size_t paths = 0;
@@ -61,8 +49,6 @@ struct ReferenceCase {
     ReferenceProvenance provenance;
     std::map<std::string, double> outputs;
     std::map<std::string, double> tolerances;
-    std::optional<ValidationExpectation> validation;
-    std::optional<ConvergenceMetadata> convergence;
     std::optional<MonteCarloMetadata> monte_carlo;
 };
 
@@ -192,32 +178,13 @@ inline std::map<std::string, double> numeric_attributes(std::string_view text, s
     return result;
 }
 
-inline std::vector<double> resolutions(std::string_view text, std::size_t row)
-{
-    std::vector<double> result;
-    for (const auto& value : split(text, ',')) {
-        std::size_t parsed = 0;
-        double number = 0.0;
-        try {
-            number = std::stod(value, &parsed);
-        } catch (const std::exception&) {
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid convergence resolution");
-        }
-        if (parsed != value.size() || !std::isfinite(number) || number <= 0.0)
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": convergence resolutions must be positive");
-        result.push_back(number);
-    }
-    if (result.empty()) throw FixtureParseError("fixture row " + std::to_string(row) + ": convergence requires resolutions");
-    return result;
-}
-
 } // namespace detail
 
 inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, char delimiter = '\0')
 {
     using namespace detail;
     constexpr std::array columns{"case_id", "instrument", "engine", "variant", "inputs", "outputs",
-                                 "tolerances", "validation", "convergence", "monte_carlo"};
+                                 "tolerances", "monte_carlo"};
     std::string line;
     std::size_t row = 0;
     std::vector<ReferenceCase> cases;
@@ -352,28 +319,6 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
         }
         if (!fields[7].empty() && fields[7] != "-") {
             const auto parts = split(fields[7], '|');
-            if (parts.size() != 2 || parts[0].empty() || parts[1].empty())
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": validation must be category|message");
-            value.validation = ValidationExpectation{parts[0], parts[1]};
-        }
-        if (!fields[8].empty() && fields[8] != "-") {
-            const auto parts = split(fields[8], '|');
-            if (parts.size() != 4 || parts[0].empty())
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": convergence must be parameter|resolutions|reference|tolerance");
-            try {
-                std::size_t parsed = 0;
-                const auto reference = std::stod(parts[2], &parsed);
-                if (parsed != parts[2].size() || !std::isfinite(reference)) throw std::invalid_argument("reference");
-                const auto tolerance = std::stod(parts[3], &parsed);
-                if (parsed != parts[3].size() || !std::isfinite(tolerance) || tolerance < 0.0)
-                    throw std::invalid_argument("tolerance");
-                value.convergence = ConvergenceMetadata{parts[0], resolutions(parts[1], row), reference, tolerance};
-            } catch (const std::exception&) {
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid convergence metadata");
-            }
-        }
-        if (!fields[9].empty() && fields[9] != "-") {
-            const auto parts = split(fields[9], '|');
             if (parts.size() != 4)
                 throw FixtureParseError("fixture row " + std::to_string(row) + ": Monte Carlo must be seed|paths|steps|tolerance");
             std::size_t seed = 0, paths = 0, steps = 0, parsed = 0;

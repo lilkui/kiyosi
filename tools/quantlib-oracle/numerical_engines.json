@@ -1,12 +1,6 @@
 {
   "profiles": [
     {
-      "engine": "BinomialEuropeanEngine",
-      "settings": {
-        "steps": 800
-      }
-    },
-    {
       "engine": "CrrEngine",
       "settings": {
         "steps": 800

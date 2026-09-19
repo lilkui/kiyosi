@@ -31,7 +31,6 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption" ||
             fixture.instrument == "TouchOption") continue;
         if (fixture.instrument == "GeometricAverageOption" || fixture.instrument == "ArithmeticAverageOption") continue;
-        if (fixture.engine == "BinomialAmericanEngine" || fixture.engine == "BinomialEuropeanEngine") continue;
         const bool american = fixture.instrument == "AmericanOption";
         const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
         if (digital) ++digital_rows[fixture.engine];
@@ -40,8 +39,6 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                                                                                 : "ql-european-"));
 
         REQUIRE(fixture.outputs.contains("price"));
-        REQUIRE_FALSE(fixture.validation.has_value());
-        REQUIRE_FALSE(fixture.convergence.has_value());
         REQUIRE(fixture.monte_carlo.has_value() == (fixture.engine == "MonteCarloEuropeanEngine" || fixture.engine == "MonteCarloAmericanEngine"));
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
         REQUIRE(fixture.provenance.reference_kind == (american ? "discretized" : "analytic"));

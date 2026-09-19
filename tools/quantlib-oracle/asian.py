@@ -4,7 +4,7 @@ import math
 from datetime import date, timedelta
 from types import SimpleNamespace
 
-import generate as g
+import oracle as g
 
 ql = g.ql
 INSTRUMENTS = {
@@ -94,6 +94,19 @@ def option(inputs):
     return contract
 
 
+def measure(inputs, name, scale=1, price_only=False):
+    return g.measure(
+        inputs,
+        name,
+        scale,
+        price_only,
+        option_factory=option,
+        spot_bump=0.02,
+        earliest_valuation=date.fromisoformat(inputs["average_start"])
+        + timedelta(days=1),
+    )
+
+
 def scenarios():
     for kind in INSTRUMENTS:
         for direction in ("call", "put"):
@@ -168,7 +181,10 @@ def metadata(inputs):
 
 def rows():
     for identifier, inputs in scenarios():
-        row = g.contract_row(identifier, inputs, BUDGET, STABILITY)
+        reference = g.reference(
+            inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
+        )
+        row = g.reference_row(identifier, inputs, reference, BUDGET, BUDGET)
         row["instrument"], row["engine"] = (
             INSTRUMENTS[inputs["averaging"]],
             ENGINES[inputs["averaging"]],
@@ -242,9 +258,7 @@ def check_bindings():
     geometric = next(inputs for _, inputs in scenarios())
     for name in ("delta", "gamma", "vega", "rho"):
         assert (
-            abs(
-                g.measure(geometric, name) - g.measure(geometric, name, price_only=True)
-            )
+            abs(measure(geometric, name) - measure(geometric, name, price_only=True))
             <= STABILITY[name]
         )
     # A native geometric theta rolls the averaging period: it is not a fixed-start theta.
