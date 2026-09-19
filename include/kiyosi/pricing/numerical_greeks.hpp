@@ -15,30 +15,30 @@ namespace kiyosi {
 namespace detail {
 
 template <typename Engine, typename Option>
-[[nodiscard]] result<double> numerical_value(
+[[nodiscard]] Result<double> numerical_value(
     const Engine& engine, const Option& option, const PricingContext& context)
 {
     auto priced = engine.price(option, context);
     if (!priced) return std::unexpected(priced.error());
-    const auto value = priced->get(risk_measure::price);
+    const auto value = priced->get(RiskMeasure::price);
     if (!value) return std::unexpected(value.error());
     if (!*value || !std::isfinite(**value))
-        return std::unexpected(Error{error_category::invalid_result, "pricing produced no finite price"});
+        return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
     return **value;
 }
 
-[[nodiscard]] inline result<PricingContext> shifted_context(
-    const PricingContext& context, double spot, double volatility, double rate, timestamp valuation)
+[[nodiscard]] inline Result<PricingContext> shifted_context(
+    const PricingContext& context, double spot, double volatility, double rate, Timestamp valuation)
 {
-    auto parameters = make_bsm_parameters(rate, context.parameters().dividend_yield(), volatility);
+    auto parameters = make_bsm_parameters(rate, context.model_parameters().dividend_yield(), volatility);
     if (!parameters) return std::unexpected(parameters.error());
     return make_pricing_context(*parameters, spot, valuation, context.calendar());
 }
 
 template <typename Engine, typename Option>
-[[nodiscard]] result<double> shifted_value(
+[[nodiscard]] Result<double> shifted_value(
     const Engine& engine, const Option& option, const PricingContext& context, double spot,
-    double volatility, double rate, timestamp valuation)
+    double volatility, double rate, Timestamp valuation)
 {
     auto shifted = shifted_context(context, spot, volatility, rate, valuation);
     if (!shifted) return std::unexpected(shifted.error());
@@ -54,7 +54,7 @@ template <typename Engine, typename Option>
 /// independent measures are retained. A failure while pricing any feasible bumped state fails the
 /// whole operation.
 template <typename Engine, typename Option>
-[[nodiscard]] result<PricingResult> numerical_analytics(
+[[nodiscard]] Result<PricingResult> calculate_numerical_analytics(
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
@@ -62,12 +62,12 @@ template <typename Engine, typename Option>
         !std::isfinite(settings.volatility_shift) || settings.volatility_shift <= 0.0 ||
         !std::isfinite(settings.rate_shift) || settings.rate_shift <= 0.0 ||
         settings.time_shift_days <= 0)
-        return std::unexpected(Error{error_category::invalid_parameter, "numerical shifts are invalid"});
+        return std::unexpected(Error{ErrorCategory::invalid_parameter, "numerical shifts are invalid"});
 
-    const double spot = context.asset_price();
-    const double volatility = context.parameters().volatility();
-    const double rate = context.parameters().risk_free_rate();
-    const timestamp today = context.valuation_time();
+    const double spot = context.spot_price();
+    const double volatility = context.model_parameters().volatility();
+    const double rate = context.model_parameters().risk_free_rate();
+    const Timestamp today = context.valuation_time();
     const auto p0 = detail::numerical_value(engine, option, context);
     if (!p0) return std::unexpected(p0.error());
     const double h = settings.spot_shift;
@@ -151,10 +151,10 @@ template <typename Engine, typename Option>
         rho = (*r_up - *r_down) / rate_scale;
     }
 
-    timestamp before = today - std::chrono::days{settings.time_shift_days};
-    timestamp after = today + std::chrono::days{settings.time_shift_days};
-    if constexpr (requires { option.effective(); }) before = std::max(before, start_of_day(option.effective()));
-    if constexpr (requires { option.expiry(); }) after = std::min(after, start_of_day(option.expiry()));
+    Timestamp before = today - std::chrono::days{settings.time_shift_days};
+    Timestamp after = today + std::chrono::days{settings.time_shift_days};
+    if constexpr (requires { option.effective_date(); }) before = std::max(before, start_of_day(option.effective_date()));
+    if constexpr (requires { option.expiry_date(); }) after = std::min(after, start_of_day(option.expiry_date()));
     const double before_days = std::chrono::duration<double, std::ratio<86400>>{today - before}.count();
     const double after_days = std::chrono::duration<double, std::ratio<86400>>{after - today}.count();
     std::optional<double> theta;
@@ -196,15 +196,15 @@ template <typename Engine, typename Option>
     }
 
     auto output = make_pricing_result(
-        {{risk_measure::price, *p0}, {risk_measure::delta, delta},
-         {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
-         {risk_measure::theta, theta}, {risk_measure::charm, charm},
-         {risk_measure::color, color}, {risk_measure::vega, vega},
-         {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
-         {risk_measure::rho, rho}});
+        {{RiskMeasure::price, *p0}, {RiskMeasure::delta, delta},
+         {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed},
+         {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm},
+         {RiskMeasure::color, color}, {RiskMeasure::vega, vega},
+         {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma},
+         {RiskMeasure::rho, rho}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
-        return std::unexpected(Error{error_category::invalid_result,
+        return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "numerical analytics are non-finite"});
     return output;
 }

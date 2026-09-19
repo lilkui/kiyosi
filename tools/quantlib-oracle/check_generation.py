@@ -78,12 +78,12 @@ def check_generation():
             terms = g.attributes(row[4])
             assert terms["source_symbol"] == (
                 "QuantLib.PlainVanillaPayoff"
-                if terms["valuation"] == terms["expiry"]
+                if terms["valuation"] == terms["expiry_date"]
                 else asian.SOURCES[terms["averaging"]]
             )
             assert (terms["reference_kind"] == "approximate") == (
                 terms["averaging"] == "arithmetic"
-                and terms["valuation"] != terms["expiry"]
+                and terms["valuation"] != terms["expiry_date"]
             )
         binary_rows = [
             row for row in rows if row[1] in {"BinaryBarrierOption", "TouchOption"}
@@ -173,7 +173,7 @@ def check_generation():
             ("option", "unknown"),
             ("spot", 0),
             ("rate", float("nan")),
-            ("expiry", "2025-01-06"),
+            ("expiry_date", "2025-01-06"),
         ):
             case = deepcopy(scenarios)
             case[0]["inputs"][field] = value
@@ -317,7 +317,7 @@ def check_generation():
                 fallback,
             )
     for identifier, market in digital.scenarios(digital.configuration()):
-        if market["expiry"] == "2025-01-07":
+        if market["expiry_date"] == "2025-01-07":
             continue
         for name in ("speed", "charm", "color", "vanna", "zomma"):
             direct = g.measure(market, name)
@@ -328,7 +328,7 @@ def check_generation():
                 direct,
                 fallback,
             )
-    # AnalyticEuropeanEngine prices pre-expiry; at expiry QuantLib marks the instrument
+    # AnalyticEuropeanEngine prices pre-expiry_date; at expiry_date QuantLib marks the instrument
     # expired, so verify strict strike settlement directly through its payoff bindings.
     for direction, cash, asset in (
         (g.ql.Option.Call, [0, 0, 10], [0, 0, 101]),

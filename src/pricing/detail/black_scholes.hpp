@@ -11,9 +11,9 @@
 
 namespace kiyosi::detail {
 
-inline result<PricingResult> price_only_result(double value)
+inline Result<PricingResult> price_only_result(double value)
 {
-    return make_pricing_result({{risk_measure::price, value}});
+    return make_pricing_result({{RiskMeasure::price, value}});
 }
 
 enum class risk_measure_output {
@@ -23,30 +23,30 @@ enum class risk_measure_output {
 
 /// Black-Scholes-Merton valuation of a European vanilla with the full analytic Greek set.
 /// The volatility is supplied separately so solvers can reprice without rebuilding the context.
-inline result<PricingResult> price_at_volatility(
+inline Result<PricingResult> price_at_volatility(
     const EuropeanOption& option, const PricingContext& context, double volatility,
     risk_measure_output requested_output = risk_measure_output::all)
 {
-    const auto valid_expiry = validate_life(context.valuation_time(), option.effective(), option.expiry());
+    const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
 
-    const double spot = context.asset_price();
+    const double spot = context.spot_price();
     const double strike = option.strike();
-    const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double year_fraction = actual_365(context.valuation_time(), option.expiry());
+    const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
+    const double year_fraction = actual_365(context.valuation_time(), option.expiry_date());
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
         if (requested_output == risk_measure_output::price_only) return price_only_result(value);
-        return make_pricing_result({{risk_measure::price, value}});
+        return make_pricing_result({{RiskMeasure::price, value}});
     }
 
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
     const double sqrt_time = std::sqrt(year_fraction);
     const double volatility_time = volatility * sqrt_time;
     if (!std::isfinite(volatility_time)) {
-        return std::unexpected(Error{error_category::invalid_result,
+        return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced an unstable volatility limit"});
     }
     if (volatility_time < 1e-10) {
@@ -55,12 +55,12 @@ inline result<PricingResult> price_at_volatility(
         const double intrinsic = sign * (forward - strike);
         const double value = discount * std::max(intrinsic, 0.0);
         if (!std::isfinite(value))
-            return std::unexpected(Error{error_category::invalid_result,
+            return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "analytic pricing produced a non-finite result"});
         if (requested_output == risk_measure_output::price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
         return make_pricing_result(
-            {{risk_measure::price, value}, {risk_measure::delta, delta}});
+            {{RiskMeasure::price, value}, {RiskMeasure::delta, delta}});
     }
 
     const double d1 = (std::log(spot / strike) +
@@ -75,7 +75,7 @@ inline result<PricingResult> price_at_volatility(
     const double value = sign * (spot * dividend_discount_factor * cumulative_d1 -
                                  strike * rate_discount_factor * cumulative_d2);
     if (!std::isfinite(value))
-        return std::unexpected(Error{error_category::invalid_result,
+        return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     if (requested_output == risk_measure_output::price_only) return price_only_result(value);
 
@@ -113,15 +113,15 @@ inline result<PricingResult> price_at_volatility(
     const double rho =
         sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_point;
     auto output = make_pricing_result(
-        {{risk_measure::price, value}, {risk_measure::delta, delta},
-         {risk_measure::gamma, gamma}, {risk_measure::speed, speed},
-         {risk_measure::theta, theta}, {risk_measure::charm, charm},
-         {risk_measure::color, color}, {risk_measure::vega, vega},
-         {risk_measure::vanna, vanna}, {risk_measure::zomma, zomma},
-         {risk_measure::rho, rho}});
+        {{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
+         {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed},
+         {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm},
+         {RiskMeasure::color, color}, {RiskMeasure::vega, vega},
+         {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma},
+         {RiskMeasure::rho, rho}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite()) {
-        return std::unexpected(Error{error_category::invalid_result,
+        return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});
     }
     return output;

@@ -44,7 +44,7 @@ namespace {
 template <typename Engine, typename Option>
 concept can_price = requires(
     const Engine& engine, const Option& option, const kiyosi::PricingContext& context) {
-    { engine.price(option, context) } -> std::same_as<kiyosi::result<kiyosi::PricingResult>>;
+    { engine.price(option, context) } -> std::same_as<kiyosi::Result<kiyosi::PricingResult>>;
 };
 
 template <typename Engine, typename Option, typename Settings>
@@ -57,33 +57,33 @@ concept can_price_with_settings = requires(
 
 static_assert(kiyosi::default_realized_average == 0.0);
 static_assert(kiyosi::BarrierOptionTerms{}.rebate == 0.0);
-static_assert(kiyosi::BarrierOptionTerms{}.rebate_timing == kiyosi::rebate_timing::at_expiry);
-static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::observation_mode::continuous);
-static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::observation_mode::continuous);
-static_assert(kiyosi::settlement_timing::at_expiry != kiyosi::settlement_timing::at_hit);
+static_assert(kiyosi::BarrierOptionTerms{}.rebate_timing == kiyosi::RebateTiming::at_expiry);
+static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
+static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
+static_assert(kiyosi::SettlementTiming::at_expiry != kiyosi::SettlementTiming::at_hit);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
-static_assert(kiyosi::SnowballTerms{}.touch_status == kiyosi::barrier_touch_status::none);
+static_assert(kiyosi::SnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
 static_assert(kiyosi::SnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::BinarySnowballTerms{}.touch_status == kiyosi::barrier_touch_status::none);
+static_assert(kiyosi::BinarySnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
 static_assert(kiyosi::BinarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::TernarySnowballTerms{}.touch_status == kiyosi::barrier_touch_status::none);
+static_assert(kiyosi::TernarySnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
 static_assert(kiyosi::TernarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::PhoenixTerms{}.touch_status == kiyosi::barrier_touch_status::none);
+static_assert(kiyosi::PhoenixTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
 static_assert(kiyosi::PhoenixTerms{}.principal_ratio == 1.0);
 
-static_assert(kiyosi::FiniteDifferenceSettings{}.asset_steps == 200);
-static_assert(kiyosi::FiniteDifferenceSettings{}.time_steps == 200);
+static_assert(kiyosi::FiniteDifferenceSettings{}.asset_step_count == 200);
+static_assert(kiyosi::FiniteDifferenceSettings{}.time_step_count == 200);
 static_assert(kiyosi::FiniteDifferenceSettings{}.scheme ==
-              kiyosi::finite_difference_scheme::crank_nicolson);
-static_assert(kiyosi::StructuredMonteCarloSettings{}.path_count == 20'000);
-static_assert(kiyosi::StructuredMonteCarloSettings{}.seed == 1);
-static_assert(kiyosi::StructuredMonteCarloSettings{}.backend ==
-              kiyosi::monte_carlo_backend::cpu);
+              kiyosi::FiniteDifferenceScheme::crank_nicolson);
+static_assert(kiyosi::TradingDayMonteCarloSettings{}.path_count == 20'000);
+static_assert(kiyosi::TradingDayMonteCarloSettings{}.seed == 1);
+static_assert(kiyosi::TradingDayMonteCarloSettings{}.backend ==
+              kiyosi::MonteCarloBackend::cpu);
 static_assert(kiyosi::MonteCarloSettings{}.path_count == 100'000);
 static_assert(kiyosi::MonteCarloSettings{}.step_count == 50);
 static_assert(!kiyosi::MonteCarloSettings{}.seed);
-static_assert(kiyosi::MonteCarloSettings{}.backend == kiyosi::monte_carlo_backend::cpu);
-static_assert(kiyosi::monte_carlo_backend::cpu != kiyosi::monte_carlo_backend::cuda);
+static_assert(kiyosi::MonteCarloSettings{}.backend == kiyosi::MonteCarloBackend::cpu);
+static_assert(kiyosi::MonteCarloBackend::cpu != kiyosi::MonteCarloBackend::cuda);
 static_assert(kiyosi::NumericalShiftSettings{}.spot_shift == 1e-2);
 static_assert(kiyosi::NumericalShiftSettings{}.volatility_shift == 1e-4);
 static_assert(kiyosi::NumericalShiftSettings{}.rate_shift == 1e-4);
@@ -96,7 +96,7 @@ static_assert(kiyosi::ImpliedCouponSettings{}.lower_bound == 0.0);
 static_assert(kiyosi::ImpliedCouponSettings{}.upper_bound == 2.0);
 static_assert(kiyosi::ImpliedCouponSettings{}.tolerance == 1e-8);
 static_assert(kiyosi::ImpliedCouponSettings{}.max_iterations == 100);
-static_assert(kiyosi::BinomialSettings{}.steps == 256);
+static_assert(kiyosi::BinomialSettings{}.step_count == 256);
 
 static_assert(std::equality_comparable<kiyosi::PhoenixOption>);
 static_assert(std::equality_comparable<kiyosi::SnowballOption>);
@@ -106,8 +106,8 @@ static_assert(std::equality_comparable<kiyosi::TernarySnowballOption>);
 static_assert(can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanCashOrNothingOption>);
-static_assert(can_price<kiyosi::IntegralVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::IntegralVanillaEngine, kiyosi::AmericanOption>);
+static_assert(can_price<kiyosi::QuadratureVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!can_price<kiyosi::QuadratureVanillaEngine, kiyosi::AmericanOption>);
 static_assert(can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::EuropeanOption>);
 
@@ -122,8 +122,8 @@ static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanC
 static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
 static_assert(!can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::AmericanOption>);
-static_assert(can_price<kiyosi::CrrVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(can_price<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::AmericanOption>);
+static_assert(can_price<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
 static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
@@ -137,6 +137,6 @@ static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
 static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
                                        kiyosi::AmericanOption,
                                        kiyosi::FiniteDifferenceSettings>);
-static_assert(!can_price_with_settings<kiyosi::CrrVanillaEngine,
+static_assert(!can_price_with_settings<kiyosi::CoxRossRubinsteinVanillaEngine,
                                        kiyosi::AmericanOption,
                                        kiyosi::BinomialSettings>);

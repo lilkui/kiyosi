@@ -20,10 +20,10 @@ NUMERICAL_ENGINES = {
     "CrrEngine": {"steps"},
     "IntegralEuropeanEngine": set(),
     "FiniteDifferenceEuropeanEngine": {
-        "asset_steps",
-        "time_steps",
+        "asset_step_count",
+        "time_step_count",
         "scheme",
-        "upper_boundary",
+        "asset_upper_boundary",
     },
     "MonteCarloEuropeanEngine": {"seed", "paths", "steps"},
 }
@@ -82,7 +82,7 @@ def numerical_row(scenario, profile, reference):
     inputs.update(profile["shifts"])
     inputs["wrapper"] = str(
         scenario["inputs"]["spot"] == 100
-        and scenario["inputs"]["expiry"] == "2026-01-06"
+        and scenario["inputs"]["expiry_date"] == "2026-01-06"
     ).lower()
     inputs["tolerance_rationale"] = (
         "engine-specific discretization or sampling budget, see GENERATION.md"

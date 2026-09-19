@@ -289,7 +289,7 @@ __global__ void simulate_structured_paths(
             request.program, spot, state.knocked_in, false);
         if (!step.event.active) continue;
         const double coupon = program_observation_coupon(step.event, spot);
-        if (spot >= step.event.knock_out_price) {
+        if (spot >= step.event.knock_out_level) {
             const double payoff =
                 (request.program.principal_ratio + coupon) * step.simulation.discount +
                 state.coupons;

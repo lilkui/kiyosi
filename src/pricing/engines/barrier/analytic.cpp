@@ -13,11 +13,11 @@ using namespace detail;
 
 namespace {
 
-result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
+Result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
                                 std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{risk_measure::price, value}, {risk_measure::delta, delta},
-                                {risk_measure::gamma, gamma}});
+    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
+                                {RiskMeasure::gamma, gamma}});
 }
 
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
@@ -41,54 +41,54 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 
 } // namespace
 
-result<PricingResult> AnalyticBarrierEngine::price(
+Result<PricingResult> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
 {
-    const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
+    const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation_mode() == observation_mode::scheduled) {
-        auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective(),
-                                                option.expiry(), context.calendar());
+    if (option.observation_mode() == ObservationMode::scheduled) {
+        auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective_date(),
+                                                option.expiry_date(), context.calendar());
         if (!schedule_valid)
-            return std::unexpected(Error{error_category::invalid_schedule, schedule_valid.error().message});
+            return std::unexpected(Error{ErrorCategory::invalid_schedule, schedule_valid.error().message});
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
     const auto vanilla = price_at_volatility(
-        *make_european_option(option.type(), option.strike(), option.effective(), option.expiry()), context,
-        context.parameters().volatility(), risk_measure_output::price_only);
+        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
+        context.model_parameters().volatility(), risk_measure_output::price_only);
     if (!vanilla) return std::unexpected(vanilla.error());
-    const double t = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price();
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double sigma = context.parameters().volatility();
+    const double t = actual_365(context.valuation_time(), option.expiry_date());
+    const double spot = context.spot_price();
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double sigma = context.model_parameters().volatility();
     const auto& terms = option.barrier_terms();
-    double barrier = terms.barrier();
+    double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool touched = terms.monitors(context.valuation_time()) && terms.breaches(spot);
-    if (option.observation_mode() == observation_mode::scheduled) {
+    const bool touched = terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(spot);
+    if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
-                            std::sqrt(terms.observation_interval()));
+                            std::sqrt(terms.mean_observation_year_fraction()));
     }
     if (touched) {
-        const double touched_value = *vanilla->require(risk_measure::price);
+        const double touched_value = *vanilla->require(RiskMeasure::price);
         return zero_tail(knock_in
             ? touched_value
-            : option.rebate() * (option.rebate_timing() == rebate_timing::at_hit ? 1.0 : std::exp(-rate * t)));
+            : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit ? 1.0 : std::exp(-rate * t)));
     }
-    if (option.rebate_timing() == rebate_timing::at_hit) {
+    if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
         const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
                                                           drift, variance, t, rate);
         if (!std::isfinite(hit_discount))
-            return std::unexpected(Error{error_category::invalid_result,
+            return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
     }
     if (t == 0.0) {
-        return knock_in ? zero_tail(touched ? *vanilla->require(risk_measure::price) : option.rebate())
-                        : zero_tail(touched ? option.rebate() : *vanilla->require(risk_measure::price));
+        return knock_in ? zero_tail(touched ? *vanilla->require(RiskMeasure::price) : option.rebate())
+                        : zero_tail(touched ? option.rebate() : *vanilla->require(RiskMeasure::price));
     }
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
@@ -110,15 +110,15 @@ result<PricingResult> AnalyticBarrierEngine::price(
                 phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
             option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) -
                 std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
-            option.rebate() * (option.rebate_timing() == rebate_timing::at_hit
+            option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
                 ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
                    std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
                 : discount) };
     };
-    const bool call = option.type() == option_type::call;
+    const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;
     const auto f = factors(eta, call ? 1.0 : -1.0);
-    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == rebate_timing::at_hit ? values[5] : option.rebate() * discount - values[4]; };
+    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == RebateTiming::at_hit ? values[5] : option.rebate() * discount - values[4]; };
     double value = 0.0;
     if (call) {
         if (knock_in) value = upper ? (x > barrier ? f[0] + f[4] : f[1] - f[2] + f[3] + f[4]) : (x > barrier ? f[2] + f[4] : f[0] - f[1] + f[3] + f[4]);
@@ -128,7 +128,7 @@ result<PricingResult> AnalyticBarrierEngine::price(
         else value = upper ? (x > barrier ? f[1] - f[3] + rebate(f) : f[0] - f[2] + rebate(f)) : (x > barrier ? f[0] - f[1] + f[2] - f[3] + rebate(f) : rebate(f));
     }
     if (!std::isfinite(value))
-        return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
+        return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     auto output = zero_tail(value);
     return output;
 }

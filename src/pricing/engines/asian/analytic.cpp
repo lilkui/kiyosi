@@ -8,41 +8,41 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-double payoff(option_type type, double value, double strike)
+double payoff(OptionType type, double value, double strike)
 {
-    return std::max((type == option_type::call ? 1.0 : -1.0) * (value - strike), 0.0);
+    return std::max((type == OptionType::call ? 1.0 : -1.0) * (value - strike), 0.0);
 }
-result<double> time_to_expiry(const PricingContext& context, date effective, date expiry)
+Result<double> time_to_expiry(const PricingContext& context, Date effective_date, Date expiry_date)
 {
-    auto valid = validate_life(context.valuation_time(), effective, expiry);
+    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    return actual_365(context.valuation_time(), expiry);
+    return actual_365(context.valuation_time(), expiry_date);
 }
 } // namespace
 
-result<PricingResult> GeometricAverageAsianEngine::price(
-    const GeometricAverageOption& option, const PricingContext& context) const
+Result<PricingResult> AnalyticGeometricAverageAsianEngine::price(
+    const GeometricAveragePriceOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
+    auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
-    const double spot = context.asset_price();
+    const double spot = context.spot_price();
     const double strike = option.strike();
-    const double sign = option.type() == option_type::call ? 1.0 : -1.0;
+    const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     if (tau == 0.0)
         return make_pricing_result(
-            {{risk_measure::price,
-              payoff(option.type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
+            {{RiskMeasure::price,
+              payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
                      strike)}});
-    const double sigma = context.parameters().volatility();
-    const double rate = context.parameters().risk_free_rate();
-    const double carry = rate - context.parameters().dividend_yield();
+    const double sigma = context.model_parameters().volatility();
+    const double rate = context.model_parameters().risk_free_rate();
+    const double carry = rate - context.model_parameters().dividend_yield();
     const double adjusted_sigma = sigma / std::sqrt(3.0);
     if (adjusted_sigma < 1e-12)
         return make_pricing_result(
-            {{risk_measure::price,
+            {{RiskMeasure::price,
               std::exp(-rate * tau) *
-                  payoff(option.type(), spot * std::exp(carry * tau), strike)}});
+                  payoff(option.option_type(), spot * std::exp(carry * tau), strike)}});
     const double adjusted_carry = 0.5 * (carry - sigma * sigma / 6.0);
     const double root = std::sqrt(tau);
     const double d1 = (std::log(spot / strike) + (adjusted_carry + 0.5 * adjusted_sigma * adjusted_sigma) * tau) /
@@ -50,32 +50,32 @@ result<PricingResult> GeometricAverageAsianEngine::price(
     const double d2 = d1 - adjusted_sigma * root;
     const double value = sign * (spot * std::exp((adjusted_carry - rate) * tau) * normal_cdf(sign * d1) -
                                  strike * std::exp(-rate * tau) * normal_cdf(sign * d2));
-    if (!std::isfinite(value)) return std::unexpected(Error{error_category::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, std::max(value, 0.0)}});
+    if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
+    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }
 
-result<PricingResult> ArithmeticAverageAsianEngine::price(
-    const ArithmeticAverageOption& option, const PricingContext& context) const
+Result<PricingResult> TurnbullWakemanArithmeticAverageAsianEngine::price(
+    const ArithmeticAveragePriceOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.effective(), option.expiry());
+    auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
-    const double spot = context.asset_price();
+    const double spot = context.spot_price();
     const double strike = option.strike();
-    const double sign = option.type() == option_type::call ? 1.0 : -1.0;
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
+    const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
     const double carry = rate - dividend;
-    const double sigma = context.parameters().volatility();
+    const double sigma = context.model_parameters().volatility();
     if (tau == 0.0)
         return make_pricing_result(
-            {{risk_measure::price,
-              payoff(option.type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
+            {{RiskMeasure::price,
+              payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
                      strike)}});
-    const double average_period = actual_365(option.average_start(), option.expiry());
+    const double average_period = actual_365(option.averaging_start_date(), option.expiry_date());
     if (average_period <= 0.0)
         return make_pricing_result(
-            {{risk_measure::price, payoff(option.type(), spot, strike)}});
+            {{RiskMeasure::price, payoff(option.option_type(), spot, strike)}});
     const double t1 = std::max(0.0, tau - average_period);
     const double remaining = average_period - tau;
     const double m1 = std::abs(carry) < 1e-12
@@ -88,10 +88,10 @@ result<PricingResult> ArithmeticAverageAsianEngine::price(
         scale = tau / average_period;
         if (adjusted_strike < 0.0) {
             if (sign < 0.0)
-                return make_pricing_result({{risk_measure::price, 0.0}});
+                return make_pricing_result({{RiskMeasure::price, 0.0}});
             const double expected = option.realized_average() * remaining / average_period + spot * m1 * tau / average_period;
             return make_pricing_result(
-                {{risk_measure::price,
+                {{RiskMeasure::price,
                   std::max(expected - strike, 0.0) * std::exp(-rate * tau)}});
         }
     }
@@ -114,14 +114,14 @@ result<PricingResult> ArithmeticAverageAsianEngine::price(
     if (root < 1e-12) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
         return make_pricing_result(
-            {{risk_measure::price,
+            {{RiskMeasure::price,
               scale * std::exp(-rate * tau) *
-                  payoff(option.type(), forward, adjusted_strike)}});
+                  payoff(option.option_type(), forward, adjusted_strike)}});
     }
     const double d1 = (std::log(spot / adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
     const double value = scale * sign * (spot * std::exp((b_a - rate) * tau) * normal_cdf(sign * d1) - adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2));
-    if (!std::isfinite(value)) return std::unexpected(Error{error_category::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, std::max(value, 0.0)}});
+    if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
+    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }
 } // namespace kiyosi

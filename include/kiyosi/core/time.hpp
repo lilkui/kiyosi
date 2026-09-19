@@ -7,42 +7,42 @@
 
 namespace kiyosi {
 
-using date = std::chrono::sys_days;
-// Intraday moments use UTC-like sys_time; date-based contracts remain midnight anchored.
-using timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
+using Date = std::chrono::sys_days;
+// Intraday moments use UTC-like sys_time; Date-based contracts remain midnight anchored.
+using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 
-/// Returns whether value is within the inclusive civil-date range supported by std::chrono::year.
-[[nodiscard]] KIYOSI_EXPORT bool is_valid_date(date value) noexcept;
+/// Returns whether value is within the inclusive civil-Date range supported by std::chrono::year.
+[[nodiscard]] KIYOSI_EXPORT bool is_valid_date(Date value) noexcept;
 
-[[nodiscard]] inline timestamp start_of_day(date value) noexcept
+[[nodiscard]] inline Timestamp start_of_day(Date value) noexcept
 {
-    return timestamp{value.time_since_epoch()};
+    return Timestamp{value.time_since_epoch()};
 }
 
-[[nodiscard]] inline date date_of(timestamp value) noexcept
+[[nodiscard]] inline Date date_of(Timestamp value) noexcept
 {
-    return date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
+    return Date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
 }
 
-[[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(date valuation_date, date expiry);
-[[nodiscard]] KIYOSI_EXPORT result<void> validate_expiry(timestamp valuation_time, date expiry);
+[[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Date valuation_date, Date expiry_date);
+[[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Timestamp valuation_time, Date expiry_date);
 
-[[nodiscard]] inline result<void> validate_life(date valuation_date, date effective, date expiry)
+[[nodiscard]] inline Result<void> validate_valuation_within_instrument_life(Date valuation_date, Date effective_date, Date expiry_date)
 {
-    if (!is_valid_date(valuation_date) || !is_valid_date(effective) || !is_valid_date(expiry))
-        return std::unexpected(Error{error_category::invalid_date, "life dates must be valid calendar dates"});
-    if (effective > expiry)
-        return std::unexpected(Error{error_category::invalid_expiry, "effective date must not follow expiry"});
-    if (valuation_date < effective || valuation_date > expiry)
-        return std::unexpected(Error{error_category::invalid_expiry, "valuation date must be within the instrument life"});
+    if (!is_valid_date(valuation_date) || !is_valid_date(effective_date) || !is_valid_date(expiry_date))
+        return std::unexpected(Error{ErrorCategory::invalid_date, "life dates must be valid calendar dates"});
+    if (effective_date > expiry_date)
+        return std::unexpected(Error{ErrorCategory::invalid_expiry, "effective date must not follow expiry_date"});
+    if (valuation_date < effective_date || valuation_date > expiry_date)
+        return std::unexpected(Error{ErrorCategory::invalid_expiry, "valuation date must be within the instrument life"});
     return {};
 }
 
-[[nodiscard]] inline result<void> validate_life(timestamp valuation_time, date effective, date expiry)
+[[nodiscard]] inline Result<void> validate_valuation_within_instrument_life(Timestamp valuation_time, Date effective_date, Date expiry_date)
 {
-    auto valid = validate_life(date_of(valuation_time), effective, expiry);
+    auto valid = validate_valuation_within_instrument_life(date_of(valuation_time), effective_date, expiry_date);
     if (!valid) return valid;
-    return validate_expiry(valuation_time, expiry);
+    return validate_valuation_not_after_expiry(valuation_time, expiry_date);
 }
 
 } // namespace kiyosi

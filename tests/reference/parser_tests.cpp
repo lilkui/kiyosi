@@ -19,15 +19,15 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
     for (const auto identifier : {"ql-european-call-100-1d\t",
                                   "ql-digital-cash-call-100-1d-analyticdigitalengine\t",
                                   "ql-digital-asset-put-100-1d-analyticdigitalengine\t",
-                                  "ql-barrier-call-up-and-out-at-expiry-110-1d-analyticbarrierengine\t",
-                                  "ql-binary-cash-call-up-and-in-at-expiry-110-100-1d\t"}) {
+                                  "ql-barrier-call-up-and-out-at-expiry_date-110-1d-analyticbarrierengine\t",
+                                  "ql-binary-cash-call-up-and-in-at-expiry_date-110-100-1d\t"}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
         const auto row = original.substr(start, end - start);
         for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
-                 {"unavailable_theta=whole-day stability stencil touches expiry;", ""},
-                 {"unavailable_theta=whole-day stability stencil touches expiry", "unavailable_theta=unknown"},
+                 {"unavailable_theta=whole-day stability stencil touches expiry_date;", ""},
+                 {"unavailable_theta=whole-day stability stencil touches expiry_date", "unavailable_theta=unknown"},
                  {"unit_vega=price/volatility-pp", "unit_vega=price/volatility"},
                  {"uncertainty_price=0", "uncertainty_price=nan"},
                  {"uncertainty_price=0", "uncertainty_price=10"},
@@ -70,7 +70,7 @@ TEST_CASE("American reference fixtures reject unknown measures and exercise boun
 TEST_CASE("Asian fixtures reject missing boundary declarations and unknown measures")
 {
     const auto original = fixture_text();
-    for (const auto& identifier : {"ql-asian-geometric-call-100-365d-0elapsed", "ql-asian-arithmetic-call-expiry-100"}) {
+    for (const auto& identifier : {"ql-asian-geometric-call-100-365d-0elapsed", "ql-asian-arithmetic-call-expiry_date-100"}) {
         const auto start = original.find(std::string{identifier} + '\t');
         REQUIRE(start != std::string::npos);
         const auto row = original.substr(start, original.find('\n', start) - start);
@@ -97,8 +97,8 @@ TEST_CASE("Binary boundary declarations reject missing or invented sensitivities
 {
     const auto original = fixture_text();
     for (const auto& [identifier, reason] : std::array{
-             std::pair{"ql-binary-cash-none-up-and-in-at-expiry-130-100-365d\t", "spot equals barrier: hit-state boundary"},
-             std::pair{"ql-binary-cash-call-up-and-in-at-expiry-100-100-0d\t", "terminal payoff: no smooth sensitivities"}}) {
+             std::pair{"ql-binary-cash-none-up-and-in-at-expiry_date-130-100-365d\t", "spot equals barrier: hit-state boundary"},
+             std::pair{"ql-binary-cash-call-up-and-in-at-expiry_date-100-100-0d\t", "terminal payoff: no smooth sensitivities"}}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
@@ -197,30 +197,30 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
     const std::set<std::string> required_engines{
         "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
-        "AnalyticEuropeanEngine", "ArithmeticAverageAsianEngine",
+        "AnalyticEuropeanEngine", "TurnbullWakemanArithmeticAverageAsianEngine",
         "BjerksundStenslandAmericanEngine", "CrrEngine",
         "FiniteDifferenceAmericanEngine", "FiniteDifferenceBarrierEngine",
         "FiniteDifferenceDigitalEngine", "FiniteDifferenceEuropeanEngine",
-        "GeometricAverageAsianEngine", "IntegralDigitalEngine", "IntegralEuropeanEngine",
+        "AnalyticGeometricAverageAsianEngine", "QuadratureDigitalEngine", "IntegralEuropeanEngine",
         "MonteCarloAmericanEngine", "MonteCarloEuropeanEngine"};
     const std::set<std::string> required_instruments{
-        "AmericanOption", "ArithmeticAverageOption", "BarrierOption",
+        "AmericanOption", "ArithmeticAveragePriceOption", "BarrierOption",
         "BinaryBarrierOption", "TouchOption", "EuropeanAssetOrNothingOption",
-        "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAverageOption"};
+        "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAveragePriceOption"};
     const std::set<std::string> required_pairs{
         "AmericanOption/FiniteDifferenceAmericanEngine",
         "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
         "AmericanOption/CrrEngine",
-        "ArithmeticAverageOption/ArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
+        "ArithmeticAveragePriceOption/TurnbullWakemanArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
         "BarrierOption/FiniteDifferenceBarrierEngine",
         "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "TouchOption/AnalyticBinaryBarrierEngine",
         "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
-        "EuropeanAssetOrNothingOption/IntegralDigitalEngine", "EuropeanAssetOrNothingOption/FiniteDifferenceDigitalEngine",
+        "EuropeanAssetOrNothingOption/QuadratureDigitalEngine", "EuropeanAssetOrNothingOption/FiniteDifferenceDigitalEngine",
         "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
-        "EuropeanCashOrNothingOption/IntegralDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
+        "EuropeanCashOrNothingOption/QuadratureDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
         "EuropeanOption/CrrEngine",
         "EuropeanOption/FiniteDifferenceEuropeanEngine", "EuropeanOption/IntegralEuropeanEngine",
-        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAverageOption/GeometricAverageAsianEngine"};
+        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAveragePriceOption/AnalyticGeometricAverageAsianEngine"};
     std::set<std::string> actual_engines;
     std::set<std::string> actual_instruments;
     std::set<std::string> actual_pairs;

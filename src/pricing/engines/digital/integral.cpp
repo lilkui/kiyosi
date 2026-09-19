@@ -9,27 +9,27 @@ namespace kiyosi {
 using namespace detail;
 
 namespace {
-result<PricingResult> price_digital_integral(option_type type, double strike, double payout, bool asset,
-                                             date effective, date expiry, const PricingContext& context)
+Result<PricingResult> price_digital_integral(OptionType type, double strike, double payout, bool asset,
+                                             Date effective_date, Date expiry_date, const PricingContext& context)
 {
-    const auto valid = validate_life(context.valuation_time(), effective, expiry);
+    const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    const double time = actual_365(context.valuation_time(), expiry);
-    const double spot = context.asset_price();
-    const double sign = type == option_type::call ? 1.0 : -1.0;
+    const double time = actual_365(context.valuation_time(), expiry_date);
+    const double spot = context.spot_price();
+    const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0)
         return make_pricing_result(
-            {{risk_measure::price,
+            {{RiskMeasure::price,
               sign * (spot - strike) > 0.0 ? (asset ? spot : payout) : 0.0}});
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double volatility = context.parameters().volatility();
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double volatility = context.model_parameters().volatility();
     const double root = std::sqrt(time);
     const double drift = (rate - dividend - 0.5 * volatility * volatility) * time;
     const double threshold = (std::log(strike / spot) - drift) / (volatility * root);
     const double lower = sign > 0.0 ? std::max(threshold, -12.0) : -12.0;
     const double upper = sign > 0.0 ? 12.0 : std::min(threshold, 12.0);
-    if (lower >= upper) return make_pricing_result({{risk_measure::price, 0.0}});
+    if (lower >= upper) return make_pricing_result({{RiskMeasure::price, 0.0}});
     constexpr int panels = 2048;
     const double step = (upper - lower) / panels;
     auto integrand = [&](double z) {
@@ -40,18 +40,18 @@ result<PricingResult> price_digital_integral(option_type type, double strike, do
     double sum = integrand(lower) + integrand(upper);
     for (int index = 1; index < panels; ++index) sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);
     const double value = std::exp(-rate * time) * sum * step / 3.0;
-    if (!std::isfinite(value)) return std::unexpected(Error{error_category::invalid_result, "integral pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, value}});
+    if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
+    return make_pricing_result({{RiskMeasure::price, value}});
 }
 }
 
-result<PricingResult> IntegralDigitalEngine::price(const EuropeanCashOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price(const EuropeanCashOrNothingOption& option, const PricingContext& context) const
 {
-    return price_digital_integral(option.type(), option.strike(), option.payout(), false, option.effective(), option.expiry(), context);
+    return price_digital_integral(option.option_type(), option.strike(), option.payout(), false, option.effective_date(), option.expiry_date(), context);
 }
-result<PricingResult> IntegralDigitalEngine::price(const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price(const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
 {
-    return price_digital_integral(option.type(), option.strike(), 1.0, true, option.effective(), option.expiry(), context);
+    return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
 }
 
 } // namespace kiyosi

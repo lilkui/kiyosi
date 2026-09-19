@@ -172,7 +172,7 @@ namespace kiyosi {
 TradingCalendar sse_calendar()
 {
     return detail::make_calendar(
-        [](date value) {
+        [](Date value) {
             const auto weekday = std::chrono::weekday{value};
             if (weekday == std::chrono::Saturday || weekday == std::chrono::Sunday) return false;
             const auto parts = std::chrono::year_month_day{value};

@@ -1,7 +1,7 @@
 """Market snapshots, calendars, and observation schedules."""
 
 from ._native import (
-    BsmParameters,
+    BlackScholesMertonParameters,
     ObservationSchedule,
     PricingContext,
     TradingCalendar,
@@ -13,7 +13,7 @@ from ._native import (
 )
 
 __all__ = [
-    "BsmParameters",
+    "BlackScholesMertonParameters",
     "ObservationSchedule",
     "PricingContext",
     "TradingCalendar",

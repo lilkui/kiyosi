@@ -7,16 +7,16 @@ namespace kiyosi {
 using EuropeanOption = ExerciseBasedOption<VanillaPayoff, EuropeanExercise>;
 using AmericanOption = ExerciseBasedOption<VanillaPayoff, AmericanExercise>;
 
-[[nodiscard]] inline result<EuropeanOption> make_european_option(
-    option_type type, double strike, date effective, date expiry)
+[[nodiscard]] inline Result<EuropeanOption> make_european_option(
+    OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
-    return detail::make_option(type, strike, effective, expiry, VanillaPayoff{}, EuropeanExercise{});
+    return detail::make_option(option_type, strike, effective_date, expiry_date, VanillaPayoff{}, EuropeanExercise{});
 }
 
-[[nodiscard]] inline result<AmericanOption> make_american_option(
-    option_type type, double strike, date effective, date expiry)
+[[nodiscard]] inline Result<AmericanOption> make_american_option(
+    OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
-    return detail::make_option(type, strike, effective, expiry, VanillaPayoff{}, AmericanExercise{});
+    return detail::make_option(option_type, strike, effective_date, expiry_date, VanillaPayoff{}, AmericanExercise{});
 }
 
 } // namespace kiyosi

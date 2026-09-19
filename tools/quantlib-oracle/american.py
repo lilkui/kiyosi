@@ -27,23 +27,23 @@ STABILITY = {
 ENGINES = {
     "CrrEngine": {"steps"},
     "FiniteDifferenceAmericanEngine": {
-        "asset_steps",
-        "time_steps",
+        "asset_step_count",
+        "time_step_count",
         "scheme",
-        "upper_boundary",
+        "asset_upper_boundary",
     },
     "BjerksundStenslandAmericanEngine": set(),
     "MonteCarloAmericanEngine": {"seed", "paths", "steps"},
 }
-EXPIRY_REASON = "whole-day stability stencil touches expiry"
+EXPIRY_REASON = "whole-day stability stencil touches expiry_date"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
 
 
 def exclusions(inputs):
     valuation = date.fromisoformat(inputs["valuation"])
-    if (date.fromisoformat(inputs["expiry"]) - valuation).days <= 2:
+    if (date.fromisoformat(inputs["expiry_date"]) - valuation).days <= 2:
         return dict.fromkeys(g.TIME_MEASURES, EXPIRY_REASON)
-    if (valuation - date.fromisoformat(inputs["effective"])).days < 2:
+    if (valuation - date.fromisoformat(inputs["effective_date"])).days < 2:
         return dict.fromkeys(g.TIME_MEASURES, EXERCISE_REASON)
     return {}
 
@@ -135,7 +135,7 @@ def provenance(inputs):
         reference_kind="discretized",
         reference_classification="convergence-verified-contract",
         quantlib=version("QuantLib"),
-        exercise="AmericanExercise(effective,expiry,payoffAtExpiry=false)",
+        exercise="AmericanExercise(effective_date,expiry_date,payoffAtExpiry=false)",
         reference_grids="800x800,1600x1600,3200x3200 time-by-space",
         reference_scheme="Douglas with 2 damping steps, localVol=false, continuous dividend yield",
         numerical_settings="spot 0.5/1,volatility 0.002/0.004,rate 0.001/0.002,time 1/2 calendar days",

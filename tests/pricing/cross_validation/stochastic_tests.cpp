@@ -17,29 +17,29 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
-const auto effective = day(2025, 1, 6);
-const auto expiry = effective + std::chrono::days{91};
+const auto effective_date = day(2025, 1, 6);
+const auto expiry_date = effective_date + std::chrono::days{91};
 
 struct Scenario {
     const char* name;
     double spot = 100.0;
     double volatility = 0.25;
-    observation_frequency frequency = observation_frequency::daily;
-    barrier_touch_status history = barrier_touch_status::none;
+    KnockInObservationMode knock_in_observation_mode = KnockInObservationMode::every_trading_day;
+    BarrierTouchStatus history = BarrierTouchStatus::none;
     double accumulated_quantity = 3.0;
 };
 
 template <typename T>
-T checked(result<T> value)
+T checked(Result<T> value)
 {
     INFO((value ? "valid result" : value.error().message));
     REQUIRE(value.has_value());
     return *value;
 }
 
-double price(result<PricingResult> value)
+double price(Result<PricingResult> value)
 {
-    const double amount = checked(checked(std::move(value)).require(risk_measure::price));
+    const double amount = checked(checked(std::move(value)).require(RiskMeasure::price));
     REQUIRE(std::isfinite(amount));
     return amount;
 }
@@ -51,17 +51,17 @@ double fd_price(const Instrument& instrument, const PricingContext& market,
     if constexpr (std::is_same_v<Instrument, Accumulator>)
         return price(FiniteDifferenceAccumulatorEngine{settings}.price(instrument, market));
     else
-        return price(FiniteDifferenceStructuredEngine<Instrument>{settings}.price(instrument, market));
+        return price(FiniteDifferenceAutocallableEngine<Instrument>{settings}.price(instrument, market));
 }
 
 template <typename Instrument>
 double mc_price(const Instrument& instrument, const PricingContext& market,
-                StructuredMonteCarloSettings settings)
+                TradingDayMonteCarloSettings settings)
 {
     if constexpr (std::is_same_v<Instrument, Accumulator>)
         return price(MonteCarloAccumulatorEngine{settings}.price(instrument, market));
     else
-        return price(MonteCarloStructuredEngine<Instrument>{settings}.price(instrument, market));
+        return price(MonteCarloAutocallableEngine<Instrument>{settings}.price(instrument, market));
 }
 
 template <typename Instrument>
@@ -70,18 +70,18 @@ void compare(const Instrument& instrument, const PricingContext& market,
 {
     // Separate fixed budgets prevent noisy MC or unstable FD from excusing disagreement.
     const int fine_steps = extended ? 1600 : 1200;
-    const int time_steps = extended ? 1600 : 960;
+    const int time_step_count = extended ? 1600 : 960;
     // Daily KO confines accumulator continuation. A denser domain resolves the
     // current-day jump near 110 within the engine's 2000-node limit.
     const double upper = extended && std::is_same_v<Instrument, Accumulator> ? 128.0 : 300.0;
-    constexpr auto scheme = finite_difference_scheme::crank_nicolson;
-    CAPTURE(fine_steps, time_steps, upper);
-    const double coarse = fd_price(instrument, market, {fine_steps / 4, time_steps / 4, scheme, upper});
-    const double medium = fd_price(instrument, market, {fine_steps / 2, time_steps / 2, scheme, upper});
-    const double fine = fd_price(instrument, market, {fine_steps, time_steps, scheme, upper});
+    constexpr auto scheme = FiniteDifferenceScheme::crank_nicolson;
+    CAPTURE(fine_steps, time_step_count, upper);
+    const double coarse = fd_price(instrument, market, {fine_steps / 4, time_step_count / 4, scheme, upper});
+    const double medium = fd_price(instrument, market, {fine_steps / 2, time_step_count / 2, scheme, upper});
+    const double fine = fd_price(instrument, market, {fine_steps, time_step_count, scheme, upper});
     // Preserve spatial spacing when widening the domain, isolating truncation error.
     const double wide = fd_price(instrument, market,
-                                 {extended ? 2000 : 1800, time_steps, scheme, upper * (extended ? 1.25 : 1.5)});
+                                 {extended ? 2000 : 1800, time_step_count, scheme, upper * (extended ? 1.25 : 1.5)});
     const double grid_change = std::abs(fine - medium);
     const double domain_change = std::abs(wide - fine);
     CAPTURE(coarse, medium, fine, wide, grid_change, domain_change, fd_budget, mc_budget);
@@ -116,37 +116,37 @@ template <typename Terms>
 Terms note_terms(const Scenario& scenario)
 {
     Terms terms;
-    terms.initial_price = 100.0;
-    terms.knock_out_prices = {112.0, 108.0, 104.0};
+    terms.initial_spot = 100.0;
+    terms.knock_out_levels = {112.0, 108.0, 104.0};
     terms.upper_strike = 100.0;
     terms.lower_strike = 60.0;
-    terms.observation_dates = {effective + std::chrono::days{30},
-                               effective + std::chrono::days{60}, expiry};
+    terms.observation_dates = {effective_date + std::chrono::days{30},
+                               effective_date + std::chrono::days{60}, expiry_date};
     terms.touch_status = scenario.history;
-    terms.effective = effective;
-    terms.expiry = expiry;
-    if constexpr (requires { terms.knock_in_price; }) {
-        terms.knock_in_price = 80.0;
-        terms.frequency = scenario.frequency;
+    terms.effective_date = effective_date;
+    terms.expiry_date = expiry_date;
+    if constexpr (requires { terms.knock_in_level; }) {
+        terms.knock_in_level = 80.0;
+        terms.knock_in_observation_mode = scenario.knock_in_observation_mode;
     }
     if constexpr (requires { terms.knock_out_coupon_rates; }) {
         terms.knock_out_coupon_rates = {0.12, 0.10, 0.08};
         terms.maturity_coupon_rate = 0.06;
     }
-    if constexpr (requires { terms.minimal_coupon_rate; }) terms.minimal_coupon_rate = 0.01;
+    if constexpr (requires { terms.minimum_coupon_rate; }) terms.minimum_coupon_rate = 0.01;
     if constexpr (requires { terms.coupon_rate; }) {
         terms.coupon_rate = 0.0025; // 0.25 native price units per qualifying observation.
-        terms.coupon_barriers = {90.0, 90.0, 90.0};
+        terms.coupon_barrier_levels = {90.0, 90.0, 90.0};
     }
     return terms;
 }
 
 void check_scenario(const Scenario& scenario, bool extended)
 {
-    CAPTURE(scenario.name, scenario.spot, scenario.volatility, scenario.frequency,
+    CAPTURE(scenario.name, scenario.spot, scenario.volatility, scenario.knock_in_observation_mode,
             scenario.history, scenario.accumulated_quantity);
     const auto market = checked(make_pricing_context(
-        checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, effective));
+        checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, effective_date));
     // Native price units: normalized snowballs, Phoenix cash coupons, accumulator quantity*price.
     DYNAMIC_SECTION(scenario.name << ": snowball")
     {
@@ -171,12 +171,12 @@ void check_scenario(const Scenario& scenario, bool extended)
     DYNAMIC_SECTION(scenario.name << ": accumulator")
     {
         const auto instrument = checked(make_accumulator({.strike = 100.0,
-                                                          .knock_out = 110.0,
+                                                          .knock_out_level = 110.0,
                                                           .daily_quantity = 1.0,
-                                                          .acceleration = 2.0,
+                                                          .acceleration_factor = 2.0,
                                                           .accumulated_quantity = scenario.accumulated_quantity,
-                                                          .effective = effective,
-                                                          .expiry = expiry}));
+                                                          .effective_date = effective_date,
+                                                          .expiry_date = expiry_date}));
         compare(instrument, market, 2.0, extended ? 4.0 : 8.0, extended);
     }
 }
@@ -194,9 +194,9 @@ TEST_CASE("FD-MC extended prices agree near barriers and with historical state",
              Scenario{"near knock-in", 80.1},
              Scenario{"near coupon barrier", 90.1},
              Scenario{"near knock-out", 109.9},
-             Scenario{"expiry-only knock-in", 100.0, 0.35, observation_frequency::at_expiry},
+             Scenario{"expiry_date-only knock-in", 100.0, 0.35, KnockInObservationMode::at_expiry},
              Scenario{"historical knock-in and accumulated quantity", 95.0, 0.25,
-                      observation_frequency::daily, barrier_touch_status::down, 30.0}}) {
+                      KnockInObservationMode::every_trading_day, BarrierTouchStatus::down, 30.0}}) {
         check_scenario(scenario, true);
     }
 }

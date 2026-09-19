@@ -10,11 +10,11 @@ namespace kiyosi {
 class KIYOSI_EXPORT FiniteDifferenceBarrierEngine {
 public:
     explicit FiniteDifferenceBarrierEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    FiniteDifferenceBarrierEngine(int asset_steps, int time_steps,
-                                  finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_steps, time_steps, scheme} {}
+    FiniteDifferenceBarrierEngine(int asset_step_count, int time_step_count,
+                                  FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
+        : settings_{asset_step_count, time_step_count, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const BarrierOption& option, const PricingContext& context) const;
+    [[nodiscard]] Result<PricingResult> price(const BarrierOption& option, const PricingContext& context) const;
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:

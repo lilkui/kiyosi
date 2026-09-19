@@ -17,16 +17,16 @@ EXPIRY_REASON = "terminal payoff: no smooth sensitivities"
 
 
 def exclusions(inputs):
-    if inputs["valuation"] == inputs["expiry"]:
+    if inputs["valuation"] == inputs["expiry_date"]:
         return dict.fromkeys(g.MEASURES[1:], EXPIRY_REASON)
     if float(inputs["spot"]) == float(inputs["barrier"]):
         return dict.fromkeys(g.MEASURES[1:], BOUNDARY_REASON)
     days = (
-        date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
+        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
     ).days
     return dict.fromkeys(
         g.TIME_MEASURES if days <= 2 else (),
-        "whole-day stability stencil touches expiry",
+        "whole-day stability stencil touches expiry_date",
     )
 
 
@@ -48,7 +48,7 @@ def price(items):
 
 
 def make_contract(inputs):
-    kind, direction = inputs["barrier_kind"], inputs["option"]
+    kind, direction = inputs["BarrierType"], inputs["option"]
     g.require(
         kind in barrier.KINDS and direction in {"call", "put", "none"},
         "unknown binary contract",
@@ -72,8 +72,8 @@ def make_contract(inputs):
         not asset or not at_hit or inputs["payout"] == inputs["barrier"],
         "asset hit payment must equal barrier",
     )
-    valuation, expiry = (
-        ql.DateParser.parseISO(inputs[key]) for key in ("valuation", "expiry")
+    valuation, expiry_date = (
+        ql.DateParser.parseISO(inputs[key]) for key in ("valuation", "expiry_date")
     )
     ql.Settings.instance().evaluationDate = valuation
     hit = (
@@ -86,7 +86,7 @@ def make_contract(inputs):
         flow = ql.SimpleCashFlow(amount, valuation)
         return SimpleNamespace(NPV=flow.amount)
 
-    if valuation == expiry:
+    if valuation == expiry_date:
         g.require(not at_hit, "terminal hit payment requires a hitting history")
         if knock_in != hit:
             return cash(0)
@@ -110,7 +110,7 @@ def make_contract(inputs):
             ql.Option.Call if up else ql.Option.Put, inputs["barrier"], inputs["payout"]
         )
         contract = ql.VanillaOption(
-            payoff, ql.AmericanExercise(valuation, expiry, False)
+            payoff, ql.AmericanExercise(valuation, expiry_date, False)
         )
         contract.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
         return contract
@@ -122,7 +122,7 @@ def make_contract(inputs):
             else ql.CashOrNothingPayoff(side, inputs["strike"], inputs["payout"])
         )
         if hit:
-            contract = ql.VanillaOption(payoff, ql.EuropeanExercise(expiry))
+            contract = ql.VanillaOption(payoff, ql.EuropeanExercise(expiry_date))
             engine = ql.AnalyticEuropeanEngine(process)
         else:
             contract = ql.BarrierOption(
@@ -130,7 +130,7 @@ def make_contract(inputs):
                 inputs["barrier"],
                 0,
                 payoff,
-                ql.AmericanExercise(valuation, expiry, True),
+                ql.AmericanExercise(valuation, expiry_date, True),
             )
             engine = ql.AnalyticBinaryBarrierEngine(process)
         contract.setPricingEngine(engine)
@@ -186,12 +186,12 @@ def scenarios():
                             "rate": 0.04,
                             "dividend": 0.01,
                             "volatility": 0.3,
-                            "effective": "2024-12-30",
+                            "effective_date": "2024-12-30",
                             "valuation": "2025-01-06",
-                            "expiry": (
+                            "expiry_date": (
                                 date(2025, 1, 6) + timedelta(days=days)
                             ).isoformat(),
-                            "barrier_kind": kind,
+                            "BarrierType": kind,
                             "barrier": 100 if days == 0 and spot == strike else level,
                             "payout": level if asset and settlement == "at_hit" else 10,
                             "asset_settlement": str(asset).lower(),
@@ -210,7 +210,7 @@ def metadata():
         "source_symbol": SOURCE,
         "reference_kind": "analytic",
         "convention": g.CONVENTION,
-        "decomposition": "expiry: binary American deferred,unconditional: call+put,hit: cash American digital (asset pays H),already-hit: European or immediate cash",
+        "decomposition": "expiry_date: binary American deferred,unconditional: call+put,hit: cash American digital (asset pays H),already-hit: European or immediate cash",
         "measure_sources": "native American digital or European Greeks where supplied,otherwise central QuantLib price differences",
         "numerical_settings": "central prices: spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
         "tolerance_rationale": "analytic roundoff and finite-stencil truncation, see GENERATION.md",
@@ -240,7 +240,7 @@ def rows():
 
 
 def check_bindings():
-    valuation, expiry = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     ql.Settings.instance().evaluationDate = valuation
     curve = lambda rate: ql.YieldTermStructureHandle(
         ql.FlatForward(valuation, rate, ql.Actual365Fixed())
@@ -259,16 +259,16 @@ def check_bindings():
             ql.AssetOrNothingPayoff(ql.Option.Call, 130),
         ):
             for exercise, error in (
-                (ql.EuropeanExercise(expiry), "non-American exercise given"),
+                (ql.EuropeanExercise(expiry_date), "non-American exercise given"),
                 (
-                    ql.AmericanExercise(valuation, expiry, False),
-                    "payoff must be at expiry"
+                    ql.AmericanExercise(valuation, expiry_date, False),
+                    "payoff must be at expiry_date"
                     if engine == ql.AnalyticBinaryBarrierEngine
                     else None,
                 ),
-                (ql.AmericanExercise(valuation, expiry, True), None),
+                (ql.AmericanExercise(valuation, expiry_date, True), None),
                 (
-                    ql.AmericanExercise(valuation + 1, expiry, True),
+                    ql.AmericanExercise(valuation + 1, expiry_date, True),
                     "American option with window exercise not handled yet",
                 ),
             ):
@@ -306,7 +306,7 @@ def check_bindings():
                     else ql.CashOrNothingPayoff(side, level, payout)
                 )
                 contract = ql.VanillaOption(
-                    payoff, ql.AmericanExercise(valuation, expiry, deferred)
+                    payoff, ql.AmericanExercise(valuation, expiry_date, deferred)
                 )
                 contract.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
                 inputs = {
@@ -317,10 +317,10 @@ def check_bindings():
                     "dividend": 0.01,
                     "volatility": 0.3,
                     "valuation": "2025-01-06",
-                    "expiry": "2026-01-06",
-                    "effective": "2024-12-30",
+                    "expiry_date": "2026-01-06",
+                    "effective_date": "2024-12-30",
                     "barrier": level,
-                    "barrier_kind": kind,
+                    "BarrierType": kind,
                     "payout": payout,
                     "asset_settlement": str(asset).lower(),
                     "monitoring": "continuous",

@@ -12,7 +12,7 @@ INSTRUMENTS = {
 }
 ENGINES = {
     "AnalyticDigitalEngine",
-    "IntegralDigitalEngine",
+    "QuadratureDigitalEngine",
     "FiniteDifferenceDigitalEngine",
 }
 # Whole-day time stencils see greater curvature for digital asset payouts.
@@ -38,7 +38,7 @@ def configuration():
         "invalid digital configuration",
     )
     g.require(
-        set(config["inputs"]) == g.INPUTS - {"option", "spot", "expiry"},
+        set(config["inputs"]) == g.INPUTS - {"option", "spot", "expiry_date"},
         "invalid digital market",
     )
     g.require(
@@ -68,7 +68,7 @@ def configuration():
         )
         settings = profile["settings"]
         expected = (
-            {"asset_steps", "time_steps", "scheme", "upper_boundary"}
+            {"asset_step_count", "time_step_count", "scheme", "asset_upper_boundary"}
             if profile["engine"] == "FiniteDifferenceDigitalEngine"
             else set()
         )
@@ -79,7 +79,7 @@ def configuration():
         )
         g.require(
             set(profile["boundary_settings"])
-            == ({"asset_steps"} if expected else set()),
+            == ({"asset_step_count"} if expected else set()),
             "invalid digital boundary settings",
         )
         g.require(
@@ -108,7 +108,7 @@ def scenarios(config):
                     config["inputs"],
                     option=direction,
                     spot=spot,
-                    expiry=(
+                    expiry_date=(
                         date.fromisoformat(config["inputs"]["valuation"])
                         + timedelta(days=days)
                     ).isoformat(),
@@ -146,9 +146,9 @@ def rows():
             metadata = row["inputs"]
             metadata.update(profile["settings"])
             metadata.update(profile["shifts"])
-            # Boundary prices/native Greeks remain checked; no wrapper time stencil touches expiry.
+            # Boundary prices/native Greeks remain checked; no wrapper time stencil touches expiry_date.
             smooth = (
-                date.fromisoformat(inputs["expiry"])
+                date.fromisoformat(inputs["expiry_date"])
                 - date.fromisoformat(inputs["valuation"])
             ).days > 2
             if not smooth:
@@ -158,12 +158,12 @@ def rows():
                 and (
                     profile["engine"] != "FiniteDifferenceDigitalEngine"
                     or inputs["spot"] == 100
-                    and inputs["expiry"] == "2026-01-06"
+                    and inputs["expiry_date"] == "2026-01-06"
                 )
             ).lower()
             metadata.update(
                 payoff_condition="strict ITM, zero at strike",
-                settlement="expiry",
+                settlement="expiry_date",
                 tolerance_rationale="digital quadrature or grid and bump truncation, see GENERATION.md",
             )
             yield g.serialize_row(row)

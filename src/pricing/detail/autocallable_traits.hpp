@@ -22,16 +22,16 @@ struct autocallable_traits<PhoenixOption> {
 
     static AutocallableProgram program(const PhoenixOption& note)
     {
-        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
-                note.lower_strike(), note.knock_in_price(), 0.0, 0.0,
+        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_level(), 0.0, 0.0,
                 AutocallableTerminalKind::downside_if_knocked_in, true,
-                note.knock_in_frequency() == observation_frequency::daily, true};
+                note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, true};
     }
 
     static AutocallableEvent event(const PhoenixOption& note, std::size_t index)
     {
-        return {note.knock_out_prices()[index], note.initial_price() * note.coupon_rate(),
-                note.coupon_barriers()[index], true, true};
+        return {note.knock_out_levels()[index], note.initial_spot() * note.coupon_rate(),
+                note.coupon_barrier_levels()[index], true, true};
     }
 };
 
@@ -41,18 +41,18 @@ struct autocallable_traits<SnowballOption> {
 
     static AutocallableProgram program(const SnowballOption& note)
     {
-        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
-                note.lower_strike(), note.knock_in_price(),
-                note.maturity_coupon_rate() * actual_365(note.effective(), note.expiry()), 0.0,
+        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_level(),
+                note.maturity_coupon_rate() * actual_365(note.effective_date(), note.expiry_date()), 0.0,
                 AutocallableTerminalKind::downside_if_knocked_in, true,
-                note.knock_in_frequency() == observation_frequency::daily, false};
+                note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
     }
 
     static AutocallableEvent event(const SnowballOption& note, std::size_t index)
     {
-        return {note.knock_out_prices()[index],
+        return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective(), note.observation_dates()[index]),
+                    actual_365(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
@@ -63,18 +63,18 @@ struct autocallable_traits<TernarySnowballOption> {
 
     static AutocallableProgram program(const TernarySnowballOption& note)
     {
-        const double term = actual_365(note.effective(), note.expiry());
-        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
-                note.lower_strike(), note.knock_in_price(), note.maturity_coupon_rate() * term,
-                note.minimal_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
-                note.knock_in_frequency() == observation_frequency::daily, false};
+        const double term = actual_365(note.effective_date(), note.expiry_date());
+        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_level(), note.maturity_coupon_rate() * term,
+                note.minimum_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
+                note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
     }
 
     static AutocallableEvent event(const TernarySnowballOption& note, std::size_t index)
     {
-        return {note.knock_out_prices()[index],
+        return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective(), note.observation_dates()[index]),
+                    actual_365(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
@@ -86,17 +86,17 @@ struct autocallable_traits<BinarySnowballOption> {
     static AutocallableProgram program(const BinarySnowballOption& note)
     {
         const double coupon =
-            note.maturity_coupon_rate() * actual_365(note.effective(), note.expiry());
-        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
+            note.maturity_coupon_rate() * actual_365(note.effective_date(), note.expiry_date());
+        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
                 note.lower_strike(), 0.0, coupon, coupon,
                 AutocallableTerminalKind::fixed, false, false, false};
     }
 
     static AutocallableEvent event(const BinarySnowballOption& note, std::size_t index)
     {
-        return {note.knock_out_prices()[index],
+        return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective(), note.observation_dates()[index]),
+                    actual_365(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
@@ -130,7 +130,7 @@ inline constexpr bool carries_observation_coupon = autocallable_traits<Note>::ca
 
 /// Indices of the observation dates still ahead of `valuation`.
 template <typename Note>
-std::vector<std::size_t> observation_schedule(const Note& note, timestamp valuation)
+std::vector<std::size_t> observation_schedule(const Note& note, Timestamp valuation)
 {
     std::vector<std::size_t> schedule;
     const auto& dates = note.observation_dates();
@@ -140,9 +140,9 @@ std::vector<std::size_t> observation_schedule(const Note& note, timestamp valuat
 }
 
 template <typename Note>
-bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool expiry)
+bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool expiry_date)
 {
-    return program_knocked_in(autocallable_program(note), spot, knocked_in, expiry);
+    return program_knocked_in(autocallable_program(note), spot, knocked_in, expiry_date);
 }
 
 } // namespace kiyosi::detail

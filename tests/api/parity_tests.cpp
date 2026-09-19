@@ -52,14 +52,14 @@ std::vector<ParityCase> parity_cases()
     return result;
 }
 
-kiyosi::date parse_date(const std::string& value)
+kiyosi::Date parse_date(const std::string& value)
 {
-    return kiyosi::date{std::chrono::year{std::stoi(value.substr(0, 4))} /
+    return kiyosi::Date{std::chrono::year{std::stoi(value.substr(0, 4))} /
                         std::chrono::month{static_cast<unsigned>(std::stoul(value.substr(5, 2)))} /
                         std::chrono::day{static_cast<unsigned>(std::stoul(value.substr(8, 2)))}};
 }
 
-kiyosi::timestamp parse_timestamp(const std::string& value)
+kiyosi::Timestamp parse_timestamp(const std::string& value)
 {
     return kiyosi::start_of_day(parse_date(value)) +
            std::chrono::hours{std::stoi(value.substr(11, 2))} +
@@ -68,13 +68,13 @@ kiyosi::timestamp parse_timestamp(const std::string& value)
            std::chrono::microseconds{std::stoi(value.substr(20, 6))};
 }
 
-kiyosi::option_type option_type(const Fields& values)
+kiyosi::OptionType OptionType(const Fields& values)
 {
     REQUIRE(values.at("type") == "call");
-    return kiyosi::option_type::call;
+    return kiyosi::OptionType::call;
 }
 
-kiyosi::BsmParameters parameters(const Fields& values)
+kiyosi::BlackScholesMertonParameters parameters(const Fields& values)
 {
     const auto result = kiyosi::make_bsm_parameters(
         std::stod(values.at("risk_free_rate")), std::stod(values.at("dividend_yield")),
@@ -94,34 +94,34 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
         DYNAMIC_SECTION(test.id) {
             if (test.kind == "construction") {
                 const auto option = kiyosi::make_european_option(
-                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
-                    parse_date(test.inputs.at("effective")), parse_date(test.inputs.at("expiry")));
+                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 REQUIRE(option);
-                CHECK(option->type() == option_type(test.expected));
+                CHECK(option->option_type() == OptionType(test.expected));
                 CHECK(option->strike() == std::stod(test.expected.at("strike")));
-                CHECK(option->effective() == parse_date(test.expected.at("effective")));
-                CHECK(option->expiry() == parse_date(test.expected.at("expiry")));
+                CHECK(option->effective_date() == parse_date(test.expected.at("effective_date")));
+                CHECK(option->expiry_date() == parse_date(test.expected.at("expiry_date")));
             } else if (test.kind == "defaults") {
                 const auto settings = kiyosi::FiniteDifferenceVanillaEngine{}.settings();
-                CHECK(settings.asset_steps == std::stoi(test.expected.at("asset_steps")));
-                CHECK(settings.time_steps == std::stoi(test.expected.at("time_steps")));
+                CHECK(settings.asset_step_count == std::stoi(test.expected.at("asset_step_count")));
+                CHECK(settings.time_step_count == std::stoi(test.expected.at("time_step_count")));
                 REQUIRE(test.expected.at("scheme") == "crank_nicolson");
-                CHECK(settings.scheme == kiyosi::finite_difference_scheme::crank_nicolson);
-                REQUIRE(test.expected.at("upper_boundary") == "none");
-                CHECK_FALSE(settings.upper_boundary);
+                CHECK(settings.scheme == kiyosi::FiniteDifferenceScheme::crank_nicolson);
+                REQUIRE(test.expected.at("asset_upper_boundary") == "none");
+                CHECK_FALSE(settings.asset_upper_boundary);
             } else if (test.kind == "pricing") {
                 const auto option = kiyosi::make_european_option(
-                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
-                    parse_date(test.inputs.at("effective")), parse_date(test.inputs.at("expiry")));
+                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 const auto context = kiyosi::make_pricing_context(
-                    parameters(test.inputs), std::stod(test.inputs.at("asset_price")),
+                    parameters(test.inputs), std::stod(test.inputs.at("spot_price")),
                     parse_date(test.inputs.at("valuation_date")));
                 REQUIRE(option);
                 REQUIRE(context);
                 const auto result = kiyosi::AnalyticVanillaEngine{}.price(*option, *context);
                 REQUIRE(result);
-                REQUIRE(result->require(kiyosi::risk_measure::price));
-                CHECK_THAT(*result->require(kiyosi::risk_measure::price), Catch::Matchers::WithinAbs(
+                REQUIRE(result->require(kiyosi::RiskMeasure::price));
+                CHECK_THAT(*result->require(kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(
                     std::stod(test.expected.at("price")), std::stod(test.tolerance)));
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
@@ -130,19 +130,19 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     std::stod(test.inputs.at("volatility")));
                 REQUIRE(test.expected.at("category") == "invalid_volatility");
                 REQUIRE_FALSE(result);
-                CHECK(result.error().category == kiyosi::error_category::invalid_volatility);
+                CHECK(result.error().category == kiyosi::ErrorCategory::invalid_volatility);
             } else if (test.kind == "date_round_trip") {
                 const auto option = kiyosi::make_geometric_average_option(
-                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
-                    parse_date(test.inputs.at("average_start")),
-                    parse_date(test.inputs.at("effective")), parse_date(test.inputs.at("expiry")));
+                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    parse_date(test.inputs.at("averaging_start_date")),
+                    parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 REQUIRE(option);
-                CHECK(option->average_start() == parse_date(test.expected.at("average_start")));
-                CHECK(option->effective() == parse_date(test.expected.at("effective")));
-                CHECK(option->expiry() == parse_date(test.expected.at("expiry")));
+                CHECK(option->averaging_start_date() == parse_date(test.expected.at("averaging_start_date")));
+                CHECK(option->effective_date() == parse_date(test.expected.at("effective_date")));
+                CHECK(option->expiry_date() == parse_date(test.expected.at("expiry_date")));
             } else if (test.kind == "timestamp_round_trip") {
                 const auto context = kiyosi::make_pricing_context(
-                    parameters(test.inputs), std::stod(test.inputs.at("asset_price")),
+                    parameters(test.inputs), std::stod(test.inputs.at("spot_price")),
                     parse_timestamp(test.inputs.at("valuation_time")));
                 REQUIRE(context);
                 CHECK(context->valuation_time() == parse_timestamp(test.expected.at("valuation_time")));

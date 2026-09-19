@@ -6,38 +6,38 @@
 #include "support/common.hpp"
 
 namespace {
-kiyosi::date standard_expiry()
+kiyosi::Date standard_expiry()
 {
-    return kiyosi::date{std::chrono::year{2026} / 1 / 6};
+    return kiyosi::Date{std::chrono::year{2026} / 1 / 6};
 }
 } // namespace
 
 TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
 {
-    const auto expiry = standard_expiry();
-    const auto effective = expiry - std::chrono::days{365};
-    const auto up_out = *kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+    const auto expiry_date = standard_expiry();
+    const auto effective_date = expiry_date - std::chrono::days{365};
+    const auto up_out = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
                                                       .strike = 100.0,
-                                                      .effective = effective,
-                                                      .expiry = expiry,
-                                                      .barrier = 120.0,
-                                                      .barrier_kind = kiyosi::barrier_type::up_and_out});
+                                                      .effective_date = effective_date,
+                                                      .expiry_date = expiry_date,
+                                                      .barrier_level = 120.0,
+                                                      .barrier_type = kiyosi::BarrierType::up_and_out});
     const auto& terms = up_out.barrier_terms();
     CHECK(terms.is_up());
     CHECK_FALSE(terms.is_knock_in());
     CHECK(terms.is_continuous());
-    CHECK(terms.breaches(120.0));
-    CHECK_FALSE(terms.breaches(119.9));
-    CHECK(terms.monitors(kiyosi::start_of_day(effective)));
-    CHECK(terms.observation_interval() == 0.0);
+    CHECK(terms.is_breached_by(120.0));
+    CHECK_FALSE(terms.is_breached_by(119.9));
+    CHECK(terms.is_monitored_at(kiyosi::start_of_day(effective_date)));
+    CHECK(terms.mean_observation_year_fraction() == 0.0);
 
-    const std::vector<kiyosi::date> observation_dates{effective + std::chrono::days{30},
-                                                 effective + std::chrono::days{60}};
+    const std::vector<kiyosi::Date> observation_dates{effective_date + std::chrono::days{30},
+                                                 effective_date + std::chrono::days{60}};
     const auto scheduled = *kiyosi::make_cash_no_touch_down(
-        effective, expiry, 90.0, 10.0, kiyosi::observation_mode::scheduled, observation_dates);
+        effective_date, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled, observation_dates);
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
-    CHECK(scheduled.barrier_terms().monitors(kiyosi::start_of_day(observation_dates.front())));
-    CHECK_FALSE(scheduled.barrier_terms().monitors(kiyosi::start_of_day(effective)));
-    CHECK(scheduled.barrier_terms().observation_interval() > 0.0);
+    CHECK(scheduled.barrier_terms().is_monitored_at(kiyosi::start_of_day(observation_dates.front())));
+    CHECK_FALSE(scheduled.barrier_terms().is_monitored_at(kiyosi::start_of_day(effective_date)));
+    CHECK(scheduled.barrier_terms().mean_observation_year_fraction() > 0.0);
 }

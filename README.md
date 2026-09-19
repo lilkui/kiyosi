@@ -33,23 +33,23 @@ Price a European call with the analytic Black-Scholes engine:
 from datetime import date
 
 from kiyosi.instruments import EuropeanOption, OptionType
-from kiyosi.market import BsmParameters, PricingContext
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import AnalyticVanillaEngine
 
 valuation = date(2025, 1, 1)
 option = EuropeanOption(
-    type=OptionType.CALL,
+    option_type=OptionType.CALL,
     strike=100.0,
-    effective=valuation,
-    expiry=date(2026, 1, 1),
+    effective_date=valuation,
+    expiry_date=date(2026, 1, 1),
 )
 context = PricingContext(
-    parameters=BsmParameters(
+    model_parameters=BlackScholesMertonParameters(
         risk_free_rate=0.05,
         dividend_yield=0.02,
         volatility=0.20,
     ),
-    asset_price=100.0,
+    spot_price=100.0,
     valuation_time=valuation,
 )
 

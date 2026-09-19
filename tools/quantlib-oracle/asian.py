@@ -8,12 +8,12 @@ import oracle as g
 
 ql = g.ql
 INSTRUMENTS = {
-    "geometric": "GeometricAverageOption",
-    "arithmetic": "ArithmeticAverageOption",
+    "geometric": "GeometricAveragePriceOption",
+    "arithmetic": "ArithmeticAveragePriceOption",
 }
 ENGINES = {
-    "geometric": "GeometricAverageAsianEngine",
-    "arithmetic": "ArithmeticAverageAsianEngine",
+    "geometric": "AnalyticGeometricAverageAsianEngine",
+    "arithmetic": "TurnbullWakemanArithmeticAverageAsianEngine",
 }
 SOURCES = {
     "geometric": "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine",
@@ -38,19 +38,19 @@ EXPIRY_REASON = "terminal average payoff: no smooth sensitivities"
 
 
 def exclusions(inputs):
-    if inputs["valuation"] == inputs["expiry"]:
+    if inputs["valuation"] == inputs["expiry_date"]:
         return dict.fromkeys(g.MEASURES[1:], EXPIRY_REASON)
     if (
         date.fromisoformat(inputs["valuation"])
-        - date.fromisoformat(inputs["average_start"])
+        - date.fromisoformat(inputs["averaging_start_date"])
     ).days <= 2:
         return dict.fromkeys(g.MEASURES[1:], START_REASON)
     days = (
-        date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
+        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
     ).days
     return dict.fromkeys(
         g.TIME_MEASURES if days <= 2 else (),
-        "whole-day stability stencil touches expiry",
+        "whole-day stability stencil touches expiry_date",
     )
 
 
@@ -61,17 +61,17 @@ def option(inputs):
         "unknown Asian contract",
     )
     g.require(inputs["monitoring"] == "continuous", "unknown Asian monitoring")
-    valuation, start, expiry = (
+    valuation, start, expiry_date = (
         ql.DateParser.parseISO(inputs[key])
-        for key in ("valuation", "average_start", "expiry")
+        for key in ("valuation", "averaging_start_date", "expiry_date")
     )
     ql.Settings.instance().evaluationDate = valuation
     payoff = ql.PlainVanillaPayoff(
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put,
         inputs["strike"],
     )
-    if valuation == expiry:
-        # Instrument NPV is zero on expiry; evaluate its contractual payoff instead.
+    if valuation == expiry_date:
+        # Instrument NPV is zero on expiry_date; evaluate its contractual payoff instead.
         return SimpleNamespace(NPV=lambda: payoff(inputs["realized_average"]))
     process = g.market_process(inputs)
     if kind == "geometric":
@@ -80,12 +80,12 @@ def option(inputs):
             "unmatched geometric averaging period",
         )
         contract = ql.ContinuousAveragingAsianOption(
-            ql.Average.Geometric, payoff, ql.EuropeanExercise(expiry)
+            ql.Average.Geometric, payoff, ql.EuropeanExercise(expiry_date)
         )
         engine = ql.AnalyticContinuousGeometricAveragePriceAsianEngine(process)
     else:
         contract = ql.ContinuousAveragingAsianOption(
-            ql.Average.Arithmetic, start, payoff, ql.EuropeanExercise(expiry)
+            ql.Average.Arithmetic, start, payoff, ql.EuropeanExercise(expiry_date)
         )
         engine = ql.ContinuousArithmeticAsianLevyEngine(
             process, ql.QuoteHandle(ql.SimpleQuote(inputs["realized_average"]))
@@ -102,7 +102,7 @@ def measure(inputs, name, scale=1, price_only=False):
         price_only,
         option_factory=option,
         spot_bump=0.02,
-        earliest_valuation=date.fromisoformat(inputs["average_start"])
+        earliest_valuation=date.fromisoformat(inputs["averaging_start_date"])
         + timedelta(days=1),
     )
 
@@ -119,10 +119,10 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective": "2024-09-01",
+                        "effective_date": "2024-09-01",
                         "valuation": "2025-01-06",
-                        "expiry": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
-                        "average_start": (
+                        "expiry_date": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
+                        "averaging_start_date": (
                             date(2025, 1, 6) - timedelta(days=elapsed)
                         ).isoformat(),
                         "realized_average": 101 if elapsed else 0,
@@ -143,20 +143,20 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective": "2024-09-01",
+                        "effective_date": "2024-09-01",
                         "valuation": "2026-01-06",
-                        "expiry": "2026-01-06",
-                        "average_start": "2025-01-06",
+                        "expiry_date": "2026-01-06",
+                        "averaging_start_date": "2025-01-06",
                         "realized_average": average,
                         "averaging": kind,
                         "monitoring": "continuous",
                         "calendar": "null",
                     }
-                    yield f"ql-asian-{kind}-{direction}-expiry-{average}", inputs
+                    yield f"ql-asian-{kind}-{direction}-expiry_date-{average}", inputs
 
 
 def metadata(inputs):
-    terminal = inputs["valuation"] == inputs["expiry"]
+    terminal = inputs["valuation"] == inputs["expiry_date"]
     approximate = inputs["averaging"] == "arithmetic" and not terminal
     return {
         "source_revision": f"QuantLib-{ql.__version__}",
@@ -173,8 +173,8 @@ def metadata(inputs):
         else "QuantLib contractual price",
         "numerical_settings": "spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days,contract dates and running average fixed",
         "tolerance_rationale": "same moment approximation: roundoff and stencil budgets only, no bound on true arithmetic value error",
-        "averaging_semantics": "continuous time average over average_start to expiry,realized_average is elapsed-period average",
-        "settlement": "expiry",
+        "averaging_semantics": "continuous time average over averaging_start_date to expiry_date,realized_average is elapsed-period average",
+        "settlement": "expiry_date",
         "date_roll": "none",
     }
 
@@ -202,7 +202,7 @@ def rows():
 
 
 def check_bindings():
-    valuation, expiry = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     ql.Settings.instance().evaluationDate = valuation
     curve = lambda rate: ql.YieldTermStructureHandle(
         ql.FlatForward(valuation, rate, ql.Actual365Fixed())
@@ -216,7 +216,7 @@ def check_bindings():
         ),
     )
     payoff = ql.PlainVanillaPayoff(ql.Option.Call, 100)
-    exercise = ql.EuropeanExercise(expiry)
+    exercise = ql.EuropeanExercise(expiry_date)
     for kind in INSTRUMENTS:
         engine = (
             ql.AnalyticContinuousGeometricAveragePriceAsianEngine(process)

@@ -5,13 +5,13 @@
 
 namespace kiyosi {
 
-enum class error_category : unsigned char {
+enum class ErrorCategory : unsigned char {
     invalid_option = 1,
     invalid_strike = 2,
     invalid_volatility = 3,
-    invalid_rate = 4,
-    invalid_dividend = 5,
-    invalid_asset_price = 6,
+    invalid_risk_free_rate = 4,
+    invalid_dividend_yield = 5,
+    invalid_spot_price = 6,
     invalid_date = 7,
     invalid_expiry = 8,
     invalid_result = 9,
@@ -28,13 +28,13 @@ enum class error_category : unsigned char {
 };
 
 struct Error {
-    error_category category;
+    ErrorCategory category;
     std::string message;
 
     friend bool operator==(const Error&, const Error&) = default;
 };
 
 template <typename T>
-using result = std::expected<T, Error>;
+using Result = std::expected<T, Error>;
 
 } // namespace kiyosi

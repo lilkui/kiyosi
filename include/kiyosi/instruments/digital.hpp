@@ -9,18 +9,18 @@ namespace kiyosi {
 using EuropeanCashOrNothingOption = ExerciseBasedOption<CashOrNothingPayoff, EuropeanExercise>;
 using EuropeanAssetOrNothingOption = ExerciseBasedOption<AssetOrNothingPayoff, EuropeanExercise>;
 
-[[nodiscard]] inline result<EuropeanCashOrNothingOption> make_cash_or_nothing_option(
-    option_type type, double strike, double payout, date effective, date expiry)
+[[nodiscard]] inline Result<EuropeanCashOrNothingOption> make_cash_or_nothing_option(
+    OptionType option_type, double strike, double payout, Date effective_date, Date expiry_date)
 {
     auto payoff = detail::make_cash_or_nothing_payoff(payout);
     if (!payoff) return std::unexpected(payoff.error());
-    return detail::make_option(type, strike, effective, expiry, std::move(*payoff), EuropeanExercise{});
+    return detail::make_option(option_type, strike, effective_date, expiry_date, std::move(*payoff), EuropeanExercise{});
 }
 
-[[nodiscard]] inline result<EuropeanAssetOrNothingOption> make_asset_or_nothing_option(
-    option_type type, double strike, date effective, date expiry)
+[[nodiscard]] inline Result<EuropeanAssetOrNothingOption> make_asset_or_nothing_option(
+    OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
-    return detail::make_option(type, strike, effective, expiry, AssetOrNothingPayoff{},
+    return detail::make_option(option_type, strike, effective_date, expiry_date, AssetOrNothingPayoff{},
                                EuropeanExercise{});
 }
 

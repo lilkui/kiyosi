@@ -7,12 +7,12 @@
 
 namespace kiyosi::test {
 
-inline kiyosi::date day(int year, unsigned month, unsigned day_number)
+inline kiyosi::Date day(int year, unsigned month, unsigned day_number)
 {
-    return kiyosi::date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
+    return kiyosi::Date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
 }
 
-inline double risk_value(const kiyosi::PricingResult& result, kiyosi::risk_measure measure)
+inline double risk_value(const kiyosi::PricingResult& result, kiyosi::RiskMeasure measure)
 {
     return *result.require(measure);
 }

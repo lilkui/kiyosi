@@ -17,12 +17,12 @@ inline constexpr double solver_minimum_derivative_step = 1e-6;
 inline constexpr double bgk_beta = 0.5825971579390107;
 
 /// Day-count shim for call sites that have already validated their dates.
-inline double actual_365(date start, date end) noexcept
+inline double actual_365(Date start, Date end) noexcept
 {
     return *year_fraction(start, end);
 }
 
-inline double actual_365(timestamp start, timestamp end) noexcept
+inline double actual_365(Timestamp start, Timestamp end) noexcept
 {
     return *year_fraction(start, end);
 }

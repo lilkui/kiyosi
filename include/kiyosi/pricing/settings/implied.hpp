@@ -3,9 +3,9 @@
 namespace kiyosi {
 
 /// Determines whether a Snowball maturity coupon moves with its quoted knock-out coupon.
-enum class coupon_quote_convention {
-    linked_maturity,
-    fixed_maturity,
+enum class CouponQuoteConvention {
+    shift_maturity_coupon,
+    preserve_maturity_coupon,
 };
 
 /// Bracketing bounds and convergence controls for the implied-volatility solver.

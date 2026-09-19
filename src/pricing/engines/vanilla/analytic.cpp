@@ -5,10 +5,10 @@
 namespace kiyosi {
 using namespace detail;
 
-result<PricingResult> AnalyticVanillaEngine::price_impl(
+Result<PricingResult> AnalyticVanillaEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context) const
 {
-    return price_at_volatility(option, context, context.parameters().volatility());
+    return price_at_volatility(option, context, context.model_parameters().volatility());
 }
 
 } // namespace kiyosi

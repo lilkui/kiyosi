@@ -17,13 +17,13 @@ public:
     explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
     MonteCarloVanillaEngine(
         int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed,
-        monte_carlo_backend backend = MonteCarloSettings{}.backend)
+        MonteCarloBackend backend = MonteCarloSettings{}.backend)
         : settings_{path_count, step_count, seed, backend} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&
                  (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
-    [[nodiscard]] result<PricingResult> price(
+    [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
         if constexpr (std::same_as<Exercise, EuropeanExercise>) return price_european(option, context);
@@ -33,8 +33,8 @@ public:
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] result<PricingResult> price_european(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price_american(const AmericanOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price_european(const EuropeanOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price_american(const AmericanOption&, const PricingContext&) const;
     MonteCarloSettings settings_;
 };
 

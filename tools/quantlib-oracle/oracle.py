@@ -21,8 +21,8 @@ HEADER = [
 INPUTS = {
     "option",
     "strike",
-    "effective",
-    "expiry",
+    "effective_date",
+    "expiry_date",
     "valuation",
     "spot",
     "rate",
@@ -110,14 +110,14 @@ def validate_inputs(inputs):
     )
     dates = {
         key: date.fromisoformat(inputs[key])
-        for key in ("effective", "valuation", "expiry")
+        for key in ("effective_date", "valuation", "expiry_date")
     }
     require(
         all(dates[key].isoformat() == inputs[key] for key in dates),
         "dates must be YYYY-MM-DD",
     )
     require(
-        dates["effective"] <= dates["valuation"] < dates["expiry"],
+        dates["effective_date"] <= dates["valuation"] < dates["expiry_date"],
         "invalid date ordering",
     )
 
@@ -155,7 +155,7 @@ def market_process(inputs):
 
 def vanilla_option(inputs, american_grid=None):
     process = market_process(inputs)
-    expiry = ql.DateParser.parseISO(inputs["expiry"])
+    expiry_date = ql.DateParser.parseISO(inputs["expiry_date"])
     direction = ql.Option.Call if inputs["option"] == "call" else ql.Option.Put
     kind = inputs.get("payoff", "vanilla")
     require(kind in {"vanilla", "cash", "asset"}, "unknown payoff")
@@ -168,9 +168,9 @@ def vanilla_option(inputs, american_grid=None):
     )
     option = ql.VanillaOption(
         payoff,
-        ql.EuropeanExercise(expiry)
+        ql.EuropeanExercise(expiry_date)
         if american_grid is None
-        else ql.AmericanExercise(ql.DateParser.parseISO(inputs["effective"]), expiry),
+        else ql.AmericanExercise(ql.DateParser.parseISO(inputs["effective_date"]), expiry_date),
     )
     option.setPricingEngine(
         ql.AnalyticEuropeanEngine(process)
@@ -231,7 +231,7 @@ def measure(
         if (
             field == "spot"
             and (
-                date.fromisoformat(inputs["expiry"])
+                date.fromisoformat(inputs["expiry_date"])
                 - date.fromisoformat(inputs["valuation"])
             ).days
             > 2
@@ -249,13 +249,13 @@ def measure(
                 )
             require(
                 date.fromisoformat(inputs["valuation"]) + timedelta(days=h)
-                < date.fromisoformat(inputs["expiry"]),
-                "time stencil touches expiry",
+                < date.fromisoformat(inputs["expiry_date"]),
+                "time stencil touches expiry_date",
             )
             require(
                 date.fromisoformat(inputs["valuation"]) - timedelta(days=h)
-                >= date.fromisoformat(inputs["effective"]),
-                "time stencil precedes effective date",
+                >= date.fromisoformat(inputs["effective_date"]),
+                "time stencil precedes effective_date date",
             )
         options = {
             "option_factory": option_factory,
@@ -275,10 +275,10 @@ def measure(
 
 def exclusions(inputs):
     days = (
-        date.fromisoformat(inputs["expiry"]) - date.fromisoformat(inputs["valuation"])
+        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
     ).days
     return dict.fromkeys(
-        TIME_MEASURES if days <= 2 else (), "whole-day stability stencil touches expiry"
+        TIME_MEASURES if days <= 2 else (), "whole-day stability stencil touches expiry_date"
     )
 
 
@@ -323,7 +323,7 @@ def reference_row(identifier, inputs, reference, tolerances, numerical_tolerance
         reference_kind="analytic",
         reference_classification="independent-analytic",
         quantlib=version("QuantLib"),
-        numerical_settings="central differences: spot 0.01/0.02 (0.001/0.002 within 2 days of expiry),volatility and rate 0.0001/0.0002,time 1/2 calendar days",
+        numerical_settings="central differences: spot 0.01/0.02 (0.001/0.002 within 2 days of expiry_date),volatility and rate 0.0001/0.0002,time 1/2 calendar days",
         measure_sources="price/delta/gamma/theta/vega/rho native with price fallback,others central delta/gamma differences with price fallback",
         reference_uncertainty="per-measure maximum bump discrepancy, not a rigorous bound",
         tolerance=tolerances["price"],

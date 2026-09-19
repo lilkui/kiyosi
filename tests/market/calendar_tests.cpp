@@ -17,25 +17,25 @@ using kiyosi::test::day;
 TEST_CASE("Dates, calendars, and observation schedules are value-safe")
 {
     const auto valuation = day(2025, 1, 1);
-    const auto expiry = valuation + std::chrono::days{10};
-    REQUIRE(expiry > valuation);
-    REQUIRE(kiyosi::all_days_calendar().is_trading_day(expiry));
+    const auto expiry_date = valuation + std::chrono::days{10};
+    REQUIRE(expiry_date > valuation);
+    REQUIRE(kiyosi::all_days_calendar().is_trading_day(expiry_date));
     REQUIRE_FALSE(kiyosi::weekdays_calendar().is_trading_day(day(2025, 1, 4)));
 
     auto custom = kiyosi::make_trading_calendar(
-        [](kiyosi::date value) { return value == day(2025, 1, 2) || value == day(2025, 1, 3); }, 2);
+        [](kiyosi::Date value) { return value == day(2025, 1, 2) || value == day(2025, 1, 3); }, 2);
     REQUIRE(custom.has_value());
     const auto copied_calendar = *custom;
     REQUIRE(copied_calendar.is_trading_day(day(2025, 1, 2)));
     REQUIRE(copied_calendar.annual_trading_days() == 2);
 
-    const std::vector<kiyosi::date> observation_dates{day(2025, 1, 2), day(2025, 1, 3)};
-    REQUIRE(kiyosi::validate_observation_dates(observation_dates, valuation, expiry, copied_calendar).has_value());
+    const std::vector<kiyosi::Date> observation_dates{day(2025, 1, 2), day(2025, 1, 3)};
+    REQUIRE(kiyosi::validate_observation_dates(observation_dates, valuation, expiry_date, copied_calendar).has_value());
     REQUIRE_FALSE(kiyosi::validate_observation_dates(
-                      std::vector<kiyosi::date>{day(2025, 1, 4)}, valuation, expiry, copied_calendar)
+                      std::vector<kiyosi::Date>{day(2025, 1, 4)}, valuation, expiry_date, copied_calendar)
                       .has_value());
     REQUIRE_FALSE(kiyosi::validate_observation_dates(
-                      std::vector<kiyosi::date>{day(2025, 1, 2), day(2025, 1, 2)}, valuation, expiry, copied_calendar)
+                      std::vector<kiyosi::Date>{day(2025, 1, 2), day(2025, 1, 2)}, valuation, expiry_date, copied_calendar)
                       .has_value());
 
     auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
@@ -73,17 +73,17 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
 
     const auto reversed = kiyosi::weekdays_calendar().trading_days_between(end, start);
     REQUIRE_FALSE(reversed.has_value());
-    CHECK(reversed.error().category == kiyosi::error_category::invalid_expiry);
+    CHECK(reversed.error().category == kiyosi::ErrorCategory::invalid_expiry);
     const auto reversed_fraction = kiyosi::weekdays_calendar().trading_year_fraction(end, start);
     REQUIRE_FALSE(reversed_fraction.has_value());
-    CHECK(reversed_fraction.error().category == kiyosi::error_category::invalid_expiry);
+    CHECK(reversed_fraction.error().category == kiyosi::ErrorCategory::invalid_expiry);
 
-    const auto invalid = kiyosi::weekdays_calendar().trading_days_between(kiyosi::date::max(), end);
+    const auto invalid = kiyosi::weekdays_calendar().trading_days_between(kiyosi::Date::max(), end);
     REQUIRE_FALSE(invalid.has_value());
-    CHECK(invalid.error().category == kiyosi::error_category::invalid_date);
+    CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
 
-    const auto first_supported = kiyosi::date{std::chrono::year::min() / std::chrono::January / 1};
-    const auto last_supported = kiyosi::date{std::chrono::year::max() / std::chrono::December / 31};
+    const auto first_supported = kiyosi::Date{std::chrono::year::min() / std::chrono::January / 1};
+    const auto last_supported = kiyosi::Date{std::chrono::year::max() / std::chrono::December / 31};
     CHECK(kiyosi::is_valid_date(first_supported));
     CHECK(kiyosi::is_valid_date(last_supported));
     CHECK_FALSE(kiyosi::is_valid_date(first_supported - std::chrono::days{1}));
@@ -92,52 +92,52 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     const auto schedule = kiyosi::make_fixed_interval_schedule(
         start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::weekdays_calendar());
     REQUIRE(schedule.has_value());
-    const auto barrier = kiyosi::make_barrier_option({.type = kiyosi::option_type::call,
+    const auto barrier = kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
                                                       .strike = 100.0,
-                                                      .effective = start,
-                                                      .expiry = end,
-                                                      .barrier = 90.0,
-                                                      .barrier_kind = kiyosi::barrier_type::down_and_out,
+                                                      .effective_date = start,
+                                                      .expiry_date = end,
+                                                      .barrier_level = 90.0,
+                                                      .barrier_type = kiyosi::BarrierType::down_and_out,
                                                       .rebate = 0.0,
-                                                      .rebate_timing = kiyosi::rebate_timing::at_expiry,
-                                                      .observation_mode = kiyosi::observation_mode::scheduled,
+                                                      .rebate_timing = kiyosi::RebateTiming::at_expiry,
+                                                      .observation_mode = kiyosi::ObservationMode::scheduled,
                                                       .observation_dates = schedule->dates()});
     REQUIRE(barrier.has_value());
-    CHECK(barrier->schedule() == *schedule);
+    CHECK(barrier->observation_schedule() == *schedule);
 }
 
-TEST_CASE("Effective dates schedules and SSE calendar semantics")
+TEST_CASE("Effective dates, schedules, and SSE calendar semantics")
 {
-    const auto effective = day(2025, 1, 3);
-    const auto expiry = day(2025, 2, 3);
+    const auto effective_date = day(2025, 1, 3);
+    const auto expiry_date = day(2025, 2, 3);
     const auto option = kiyosi::make_european_option(
-        kiyosi::option_type::call, 100.0, effective, expiry);
+        kiyosi::OptionType::call, 100.0, effective_date, expiry_date);
     REQUIRE(option);
-    CHECK(option->effective() == effective);
+    CHECK(option->effective_date() == effective_date);
     CHECK_FALSE(kiyosi::make_european_option(
-        kiyosi::option_type::call, 100.0, expiry, effective));
+        kiyosi::OptionType::call, 100.0, expiry_date, effective_date));
 
     const auto fixed = kiyosi::make_fixed_interval_schedule(
-        effective, day(2025, 1, 7), std::chrono::days{1});
+        effective_date, day(2025, 1, 7), std::chrono::days{1});
     REQUIRE(fixed);
-    CHECK(fixed->dates() == std::vector<kiyosi::date>{day(2025, 1, 6), day(2025, 1, 7)});
+    CHECK(fixed->dates() == std::vector<kiyosi::Date>{day(2025, 1, 6), day(2025, 1, 7)});
     CHECK(kiyosi::make_fixed_interval_schedule(
-              effective, day(2025, 1, 5), std::chrono::days{10})
+              effective_date, day(2025, 1, 5), std::chrono::days{10})
               ->empty());
 
     const auto monthly = kiyosi::make_monthly_schedule(day(2025, 1, 2), day(2025, 4, 2), 2);
     REQUIRE(monthly);
-    CHECK(monthly->dates() == std::vector<kiyosi::date>{day(2025, 3, 3), day(2025, 4, 2)});
+    CHECK(monthly->dates() == std::vector<kiyosi::Date>{day(2025, 3, 3), day(2025, 4, 2)});
     const auto weekend_end = kiyosi::make_monthly_schedule(
         day(2025, 1, 1), day(2025, 3, 1), 1);
     REQUIRE(weekend_end);
-    CHECK(weekend_end->dates() == std::vector<kiyosi::date>{day(2025, 2, 3)});
+    CHECK(weekend_end->dates() == std::vector<kiyosi::Date>{day(2025, 2, 3)});
     const auto month_end = kiyosi::make_monthly_schedule(
         day(2025, 1, 31), day(2025, 4, 30), 1);
     REQUIRE(month_end);
-    CHECK(month_end->dates() == std::vector<kiyosi::date>{
+    CHECK(month_end->dates() == std::vector<kiyosi::Date>{
                                     day(2025, 2, 28), day(2025, 3, 31), day(2025, 4, 30)});
-    CHECK_FALSE(kiyosi::make_monthly_schedule(effective, expiry, 0));
+    CHECK_FALSE(kiyosi::make_monthly_schedule(effective_date, expiry_date, 0));
 
     const auto sse = kiyosi::sse_calendar();
     CHECK(sse.annual_trading_days() == 243);

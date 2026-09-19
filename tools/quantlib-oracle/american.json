@@ -9,9 +9,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2025-02-05"
+        "expiry_date": "2025-02-05"
       },
       "wrapper": false
     },
@@ -24,9 +24,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2026-01-06"
+        "expiry_date": "2026-01-06"
       },
       "wrapper": true
     },
@@ -39,9 +39,9 @@
         "rate": 0.04,
         "dividend": 0.08,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2027-01-06"
+        "expiry_date": "2027-01-06"
       },
       "wrapper": false
     },
@@ -54,9 +54,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2025-02-05"
+        "expiry_date": "2025-02-05"
       },
       "wrapper": false
     },
@@ -69,9 +69,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2026-01-06"
+        "expiry_date": "2026-01-06"
       },
       "wrapper": true
     },
@@ -84,9 +84,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2027-01-06"
+        "expiry_date": "2027-01-06"
       },
       "wrapper": false
     },
@@ -99,9 +99,9 @@
         "rate": 0.04,
         "dividend": 0.1,
         "volatility": 0.1,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2026-01-06"
+        "expiry_date": "2026-01-06"
       },
       "wrapper": false
     },
@@ -114,9 +114,9 @@
         "rate": 0.1,
         "dividend": 0,
         "volatility": 0.1,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2026-01-06"
+        "expiry_date": "2026-01-06"
       },
       "wrapper": false
     },
@@ -129,9 +129,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2024-12-30",
+        "effective_date": "2024-12-30",
         "valuation": "2025-01-06",
-        "expiry": "2025-01-07"
+        "expiry_date": "2025-01-07"
       },
       "wrapper": false
     },
@@ -144,9 +144,9 @@
         "rate": 0.04,
         "dividend": 0.01,
         "volatility": 0.3,
-        "effective": "2025-01-06",
+        "effective_date": "2025-01-06",
         "valuation": "2025-01-06",
-        "expiry": "2026-01-06"
+        "expiry_date": "2026-01-06"
       },
       "wrapper": false
     }
@@ -161,10 +161,10 @@
     {
       "engine": "FiniteDifferenceAmericanEngine",
       "settings": {
-        "asset_steps": 400,
-        "time_steps": 800,
+        "asset_step_count": 400,
+        "time_step_count": 800,
         "scheme": "crank_nicolson",
-        "upper_boundary": 400
+        "asset_upper_boundary": 400
       },
       "tolerances": {
         "price": 0.03

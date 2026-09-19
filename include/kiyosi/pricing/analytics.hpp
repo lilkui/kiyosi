@@ -24,13 +24,13 @@ public:
         : engine_(std::move(engine)), settings_(settings) {}
 
     template <typename Option>
-    [[nodiscard]] result<PricingResult> price(const Option& option, const PricingContext& context) const
+    [[nodiscard]] Result<PricingResult> price(const Option& option, const PricingContext& context) const
     {
-        return numerical_analytics(engine_, option, context, settings_);
+        return calculate_numerical_analytics(engine_, option, context, settings_);
     }
 
     template <typename Option>
-    [[nodiscard]] result<double> implied_volatility(
+    [[nodiscard]] Result<double> implied_volatility(
         const Option& option, const PricingContext& context, double observed_price,
         ImpliedVolatilitySettings settings = {}) const
     {
@@ -38,7 +38,7 @@ public:
     }
 
     template <typename Option>
-    [[nodiscard]] result<double> implied_coupon(
+    [[nodiscard]] Result<double> implied_coupon(
         const Option& option, const PricingContext& context, double observed_price,
         ImpliedCouponSettings settings = {}) const
         requires requires(const Option& value, double coupon) { detail::replace_coupon(value, coupon); }
@@ -47,11 +47,11 @@ public:
     }
 
     template <typename Option>
-    [[nodiscard]] result<double> implied_coupon(
+    [[nodiscard]] Result<double> implied_coupon(
         const Option& option, const PricingContext& context, double observed_price,
-        coupon_quote_convention convention, ImpliedCouponSettings settings = {}) const
+        CouponQuoteConvention convention, ImpliedCouponSettings settings = {}) const
         requires requires(const Option& value, double coupon) {
-            detail::replace_coupon(value, coupon, coupon_quote_convention::fixed_maturity);
+            detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
         }
     {
         return kiyosi::implied_coupon(engine_, option, context, observed_price, convention, settings);

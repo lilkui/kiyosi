@@ -13,24 +13,24 @@ namespace kiyosi {
 
 /// Steps the trading calendar path by path, applying knock-in, knock-out, and coupon events.
 template <typename Note>
-class KIYOSI_EXPORT MonteCarloStructuredEngine {
+class KIYOSI_EXPORT MonteCarloAutocallableEngine {
 public:
-    explicit MonteCarloStructuredEngine(StructuredMonteCarloSettings settings = {}) : settings_(settings) {}
-    explicit MonteCarloStructuredEngine(
-        int path_count, std::optional<std::uint64_t> seed = StructuredMonteCarloSettings{}.seed,
-        monte_carlo_backend backend = StructuredMonteCarloSettings{}.backend)
+    explicit MonteCarloAutocallableEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
+    explicit MonteCarloAutocallableEngine(
+        int path_count, std::optional<std::uint64_t> seed = TradingDayMonteCarloSettings{}.seed,
+        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend)
         : settings_{path_count, seed, backend} {}
 
-    [[nodiscard]] result<PricingResult> price(const Note&, const PricingContext&) const;
-    StructuredMonteCarloSettings settings() const noexcept { return settings_; }
+    [[nodiscard]] Result<PricingResult> price(const Note&, const PricingContext&) const;
+    TradingDayMonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    StructuredMonteCarloSettings settings_;
+    TradingDayMonteCarloSettings settings_;
 };
 
-using MonteCarloPhoenixEngine = MonteCarloStructuredEngine<PhoenixOption>;
-using MonteCarloSnowballEngine = MonteCarloStructuredEngine<SnowballOption>;
-using MonteCarloBinarySnowballEngine = MonteCarloStructuredEngine<BinarySnowballOption>;
-using MonteCarloTernarySnowballEngine = MonteCarloStructuredEngine<TernarySnowballOption>;
+using MonteCarloPhoenixEngine = MonteCarloAutocallableEngine<PhoenixOption>;
+using MonteCarloSnowballEngine = MonteCarloAutocallableEngine<SnowballOption>;
+using MonteCarloBinarySnowballEngine = MonteCarloAutocallableEngine<BinarySnowballOption>;
+using MonteCarloTernarySnowballEngine = MonteCarloAutocallableEngine<TernarySnowballOption>;
 
 } // namespace kiyosi

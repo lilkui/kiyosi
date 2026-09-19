@@ -11,124 +11,124 @@
 
 namespace kiyosi {
 
-enum class barrier_type {
+enum class BarrierType {
     up_and_in,
     up_and_out,
     down_and_in,
     down_and_out,
 };
 
-enum class observation_mode { continuous,
+enum class ObservationMode { continuous,
                               scheduled };
 
-enum class rebate_timing { at_hit,
+enum class RebateTiming { at_hit,
                            at_expiry };
 
-enum class settlement_timing { at_hit,
+enum class SettlementTiming { at_hit,
                                at_expiry };
 
-[[nodiscard]] constexpr bool is_up_barrier(barrier_type kind) noexcept
+[[nodiscard]] constexpr bool is_up_barrier(BarrierType kind) noexcept
 {
-    return kind == barrier_type::up_and_in || kind == barrier_type::up_and_out;
+    return kind == BarrierType::up_and_in || kind == BarrierType::up_and_out;
 }
 
-[[nodiscard]] constexpr bool is_knock_in_barrier(barrier_type kind) noexcept
+[[nodiscard]] constexpr bool is_knock_in_barrier(BarrierType kind) noexcept
 {
-    return kind == barrier_type::up_and_in || kind == barrier_type::down_and_in;
+    return kind == BarrierType::up_and_in || kind == BarrierType::down_and_in;
 }
 
 class BarrierTerms;
 
 namespace detail {
-[[nodiscard]] result<BarrierTerms> make_barrier_terms(
-    double, barrier_type, observation_mode, std::vector<date>, date, date);
+[[nodiscard]] Result<BarrierTerms> make_barrier_terms(
+    double, BarrierType, ObservationMode, std::vector<Date>, Date, Date);
 }
 
 /// Trigger level, knock direction, and monitoring schedule shared by every barrier contract.
 class BarrierTerms {
 public:
-    double barrier() const noexcept { return barrier_; }
-    barrier_type kind() const noexcept { return kind_; }
-    kiyosi::observation_mode observation_mode() const noexcept { return observation_mode_; }
-    const ObservationSchedule& schedule() const noexcept { return observation_dates_; }
-    const std::vector<date>& observation_dates() const noexcept { return observation_dates_.dates(); }
-    date effective() const noexcept { return effective_; }
-    date expiry() const noexcept { return expiry_; }
+    double barrier_level() const noexcept { return barrier_level_; }
+    BarrierType barrier_type() const noexcept { return barrier_type_; }
+    kiyosi::ObservationMode observation_mode() const noexcept { return observation_mode_; }
+    const ObservationSchedule& observation_schedule() const noexcept { return observation_dates_; }
+    const std::vector<Date>& observation_dates() const noexcept { return observation_dates_.dates(); }
+    Date effective_date() const noexcept { return effective_date_; }
+    Date expiry_date() const noexcept { return expiry_date_; }
 
-    bool is_up() const noexcept { return is_up_barrier(kind_); }
-    bool is_knock_in() const noexcept { return is_knock_in_barrier(kind_); }
-    bool is_continuous() const noexcept { return observation_mode_ == observation_mode::continuous; }
+    bool is_up() const noexcept { return is_up_barrier(barrier_type_); }
+    bool is_knock_in() const noexcept { return is_knock_in_barrier(barrier_type_); }
+    bool is_continuous() const noexcept { return observation_mode_ == ObservationMode::continuous; }
 
     /// Mean spacing between monitoring dates, used for the BGK discrete-barrier shift.
-    double observation_interval() const noexcept
+    double mean_observation_year_fraction() const noexcept
     {
         return is_continuous() || observation_dates_.empty()
                    ? 0.0
-                   : *year_fraction(effective_, observation_dates_.dates().back()) /
+                   : *year_fraction(effective_date_, observation_dates_.dates().back()) /
                          static_cast<double>(observation_dates_.size());
     }
 
     /// True when the barrier is being monitored at `moment`.
-    bool monitors(timestamp moment) const noexcept
+    bool is_monitored_at(Timestamp moment) const noexcept
     {
         if (is_continuous()) return true;
-        for (const date event : observation_dates_.dates())
+        for (const Date event : observation_dates_.dates())
             if (event == moment) return true;
         return false;
     }
 
     /// True when `spot` sits on the knocked side of the barrier.
-    bool breaches(double spot) const noexcept
+    bool is_breached_by(double spot) const noexcept
     {
-        return is_up() ? spot >= barrier_ : spot <= barrier_;
+        return is_up() ? spot >= barrier_level_ : spot <= barrier_level_;
     }
 
     friend bool operator==(const BarrierTerms&, const BarrierTerms&) = default;
 
 private:
-    BarrierTerms(double barrier, barrier_type kind, kiyosi::observation_mode observation_mode,
-                 ObservationSchedule observation_dates, date effective, date expiry)
-        : barrier_(barrier), kind_(kind), observation_mode_(observation_mode),
-          observation_dates_(std::move(observation_dates)), effective_(effective), expiry_(expiry) {}
+    BarrierTerms(double barrier_level, BarrierType barrier_type, kiyosi::ObservationMode observation_mode,
+                 ObservationSchedule observation_dates, Date effective_date, Date expiry_date)
+        : barrier_level_(barrier_level), barrier_type_(barrier_type), observation_mode_(observation_mode),
+          observation_dates_(std::move(observation_dates)), effective_date_(effective_date), expiry_date_(expiry_date) {}
 
-    double barrier_;
-    barrier_type kind_;
-    kiyosi::observation_mode observation_mode_;
+    double barrier_level_;
+    BarrierType barrier_type_;
+    kiyosi::ObservationMode observation_mode_;
     ObservationSchedule observation_dates_;
-    date effective_;
-    date expiry_;
+    Date effective_date_;
+    Date expiry_date_;
 
-    friend result<BarrierTerms> detail::make_barrier_terms(
-        double, barrier_type, kiyosi::observation_mode, std::vector<date>, date, date);
+    friend Result<BarrierTerms> detail::make_barrier_terms(
+        double, BarrierType, kiyosi::ObservationMode, std::vector<Date>, Date, Date);
 };
 
-[[nodiscard]] inline result<BarrierTerms> detail::make_barrier_terms(
-    double barrier, barrier_type kind, kiyosi::observation_mode observation_mode,
-    std::vector<date> observation_dates,
-    date effective, date expiry)
+[[nodiscard]] inline Result<BarrierTerms> detail::make_barrier_terms(
+    double barrier_level, BarrierType barrier_type, kiyosi::ObservationMode observation_mode,
+    std::vector<Date> observation_dates,
+    Date effective_date, Date expiry_date)
 {
-    if (!std::isfinite(barrier) || barrier <= 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
+    if (!std::isfinite(barrier_level) || barrier_level <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
-    if (!is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry)
-        return std::unexpected(Error{error_category::invalid_schedule, "barrier life dates are invalid"});
-    if (kind != barrier_type::up_and_in && kind != barrier_type::up_and_out &&
-        kind != barrier_type::down_and_in && kind != barrier_type::down_and_out)
-        return std::unexpected(Error{error_category::invalid_option, "invalid barrier type"});
-    if (observation_mode != kiyosi::observation_mode::continuous &&
-        observation_mode != kiyosi::observation_mode::scheduled)
-        return std::unexpected(Error{error_category::invalid_schedule, "invalid observation mode"});
-    if (observation_mode == kiyosi::observation_mode::continuous && !observation_dates.empty())
-        return std::unexpected(Error{error_category::invalid_schedule,
+    if (!is_valid_date(effective_date) || !is_valid_date(expiry_date) || effective_date > expiry_date)
+        return std::unexpected(Error{ErrorCategory::invalid_schedule, "barrier life dates are invalid"});
+    if (barrier_type != BarrierType::up_and_in && barrier_type != BarrierType::up_and_out &&
+        barrier_type != BarrierType::down_and_in && barrier_type != BarrierType::down_and_out)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid barrier type"});
+    if (observation_mode != kiyosi::ObservationMode::continuous &&
+        observation_mode != kiyosi::ObservationMode::scheduled)
+        return std::unexpected(Error{ErrorCategory::invalid_schedule, "invalid observation mode"});
+    if (observation_mode == kiyosi::ObservationMode::continuous && !observation_dates.empty())
+        return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                      "continuous barriers cannot have observation dates"});
-    if (observation_mode == kiyosi::observation_mode::scheduled && observation_dates.empty())
-        return std::unexpected(Error{error_category::invalid_schedule,
+    if (observation_mode == kiyosi::ObservationMode::scheduled && observation_dates.empty())
+        return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                      "scheduled barriers require observation dates"});
-    auto schedule = detail::make_date_schedule(std::move(observation_dates), effective, expiry);
+    auto schedule = detail::make_date_schedule(std::move(observation_dates), effective_date, expiry_date);
     if (!schedule)
-        return std::unexpected(Error{error_category::invalid_schedule,
-                                     "observation dates must be ordered and not exceed expiry"});
-    return BarrierTerms{barrier, kind, observation_mode, std::move(*schedule), effective, expiry};
+        return std::unexpected(Error{ErrorCategory::invalid_schedule,
+                                     "observation dates must be ordered and not exceed expiry_date"});
+    return BarrierTerms{barrier_level, barrier_type, observation_mode, std::move(*schedule), effective_date, expiry_date};
 }
 
 } // namespace kiyosi

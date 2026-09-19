@@ -5,9 +5,9 @@ from ._native import (
     AnalyticBinaryBarrierEngine,
     AnalyticDigitalEngine,
     AnalyticVanillaEngine,
-    ArithmeticAverageAsianEngine,
+    TurnbullWakemanArithmeticAverageAsianEngine,
     BjerksundStenslandVanillaEngine,
-    CrrVanillaEngine,
+    CoxRossRubinsteinVanillaEngine,
     CouponQuoteConvention,
     FiniteDifferenceAccumulatorEngine,
     FiniteDifferenceBarrierEngine,
@@ -18,9 +18,9 @@ from ._native import (
     FiniteDifferenceSnowballEngine,
     FiniteDifferenceTernarySnowballEngine,
     FiniteDifferenceVanillaEngine,
-    GeometricAverageAsianEngine,
-    IntegralDigitalEngine,
-    IntegralVanillaEngine,
+    AnalyticGeometricAverageAsianEngine,
+    QuadratureDigitalEngine,
+    QuadratureVanillaEngine,
     MonteCarloAccumulatorEngine,
     MonteCarloBackend,
     MonteCarloBinarySnowballEngine,
@@ -30,7 +30,7 @@ from ._native import (
     MonteCarloVanillaEngine,
     implied_coupon,
     implied_volatility,
-    numerical_analytics as _numerical_analytics,
+    calculate_numerical_analytics,
 )
 
 
@@ -73,7 +73,7 @@ class NumericalAnalyticsEngine:
 
     def price(self, instrument, context):
         """Price an instrument and calculate every feasible numerical risk measure."""
-        return _numerical_analytics(
+        return calculate_numerical_analytics(
             self._engine, instrument, context, **self._shift_settings
         )
 
@@ -138,9 +138,9 @@ __all__ = [
     "AnalyticBinaryBarrierEngine",
     "AnalyticDigitalEngine",
     "AnalyticVanillaEngine",
-    "ArithmeticAverageAsianEngine",
+    "TurnbullWakemanArithmeticAverageAsianEngine",
     "BjerksundStenslandVanillaEngine",
-    "CrrVanillaEngine",
+    "CoxRossRubinsteinVanillaEngine",
     "CouponQuoteConvention",
     "FiniteDifferenceAccumulatorEngine",
     "FiniteDifferenceBarrierEngine",
@@ -151,9 +151,9 @@ __all__ = [
     "FiniteDifferenceSnowballEngine",
     "FiniteDifferenceTernarySnowballEngine",
     "FiniteDifferenceVanillaEngine",
-    "GeometricAverageAsianEngine",
-    "IntegralDigitalEngine",
-    "IntegralVanillaEngine",
+    "AnalyticGeometricAverageAsianEngine",
+    "QuadratureDigitalEngine",
+    "QuadratureVanillaEngine",
     "MonteCarloAccumulatorEngine",
     "MonteCarloBackend",
     "MonteCarloBinarySnowballEngine",
@@ -162,6 +162,7 @@ __all__ = [
     "MonteCarloTernarySnowballEngine",
     "MonteCarloVanillaEngine",
     "NumericalAnalyticsEngine",
+    "calculate_numerical_analytics",
     "implied_coupon",
     "implied_volatility",
 ]

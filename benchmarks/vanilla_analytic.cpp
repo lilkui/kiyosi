@@ -13,12 +13,12 @@ struct Scenario {
 const Scenario& scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
         return Scenario{
-            *kiyosi::make_european_option(kiyosi::option_type::call, 100.0, effective, expiry),
+            *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective_date, expiry_date),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date)};
     }();
     return value;
 }

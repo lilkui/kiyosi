@@ -9,7 +9,7 @@ namespace kiyosi {
 /// Closed-form Reiner-Rubinstein barrier valuation with a BGK shift for scheduled monitoring.
 class KIYOSI_EXPORT AnalyticBarrierEngine {
 public:
-    [[nodiscard]] result<PricingResult> price(const BarrierOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const BarrierOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

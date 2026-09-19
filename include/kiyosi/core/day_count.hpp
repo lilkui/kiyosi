@@ -5,13 +5,13 @@
 
 namespace kiyosi {
 
-enum class day_count_convention : unsigned char {
+enum class DayCountConvention : unsigned char {
     actual_365_fixed,
 };
 
-[[nodiscard]] KIYOSI_EXPORT result<double> year_fraction(
-    date start, date end, day_count_convention convention = day_count_convention::actual_365_fixed);
-[[nodiscard]] KIYOSI_EXPORT result<double> year_fraction(
-    timestamp start, timestamp end, day_count_convention convention = day_count_convention::actual_365_fixed);
+[[nodiscard]] KIYOSI_EXPORT Result<double> year_fraction(
+    Date start, Date end, DayCountConvention convention = DayCountConvention::actual_365_fixed);
+[[nodiscard]] KIYOSI_EXPORT Result<double> year_fraction(
+    Timestamp start, Timestamp end, DayCountConvention convention = DayCountConvention::actual_365_fixed);
 
 } // namespace kiyosi

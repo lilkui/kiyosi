@@ -28,7 +28,7 @@ using FixtureAttributes = std::map<std::string, std::string>;
 struct MonteCarloMetadata {
     std::uint64_t seed = 0;
     std::size_t paths = 0;
-    std::size_t steps = 0;
+    std::size_t step_count = 0;
     double tolerance = 0.0;
 };
 
@@ -100,7 +100,7 @@ inline double number(const std::vector<std::string>& fields, std::size_t& index,
     return value;
 }
 
-inline date calendar_date(const std::vector<std::string>& fields, std::size_t& index,
+inline Date calendar_date(const std::vector<std::string>& fields, std::size_t& index,
                           std::size_t row, std::string_view name)
 {
     const auto text = field(fields, index++, row, name);
@@ -116,11 +116,11 @@ inline date calendar_date(const std::vector<std::string>& fields, std::size_t& i
         const auto month = static_cast<unsigned>(std::stoul(text.substr(5, 2), &month_length));
         const auto day_number = static_cast<unsigned>(std::stoul(text.substr(8, 2), &day_length));
         if (year_length != 4 || month_length != 2 || day_length != 2) {
-            throw std::invalid_argument("date component");
+            throw std::invalid_argument("Date component");
         }
-        const date value{std::chrono::year{year} / std::chrono::month{month} /
+        const Date value{std::chrono::year{year} / std::chrono::month{month} /
                          std::chrono::day{day_number}};
-        if (!is_valid_date(value)) throw std::invalid_argument("date");
+        if (!is_valid_date(value)) throw std::invalid_argument("Date");
         return value;
     } catch (const std::exception&) {
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
@@ -263,22 +263,22 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                 {"color", "gamma/day"}, {"vega", "price/volatility-pp"},
                 {"vanna", "delta/volatility-pp"}, {"zomma", "gamma/volatility-pp"}, {"rho", "price/rate-pp"}};
             std::size_t index = 0;
-            const auto expiry = calendar_date({required_input("expiry")}, index, row, "expiry");
+            const auto expiry_date = calendar_date({required_input("expiry_date")}, index, row, "expiry_date");
             index = 0;
             const auto valuation = calendar_date({required_input("valuation")}, index, row, "valuation");
-            const bool expiry_boundary = (expiry - valuation).count() <= 2;
+            const bool expiry_boundary = (expiry_date - valuation).count() <= 2;
             index = 0;
             const bool exercise_boundary = value.instrument == "AmericanOption" &&
-                (valuation - calendar_date({required_input("effective")}, index, row, "effective")).count() < 2;
+                (valuation - calendar_date({required_input("effective_date")}, index, row, "effective_date")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
             const bool binary_product = value.instrument == "BinaryBarrierOption" ||
                                         value.instrument == "TouchOption";
-            const bool binary_expiry = binary_product && expiry == valuation;
-            const bool asian = value.instrument == "GeometricAverageOption" || value.instrument == "ArithmeticAverageOption";
-            const bool asian_expiry = asian && expiry == valuation;
+            const bool binary_expiry = binary_product && expiry_date == valuation;
+            const bool asian = value.instrument == "GeometricAveragePriceOption" || value.instrument == "ArithmeticAveragePriceOption";
+            const bool asian_expiry = asian && expiry_date == valuation;
             index = 0;
             const bool asian_start = asian &&
-                (valuation - calendar_date({required_input("average_start")}, index, row, "average_start")).count() <= 2;
+                (valuation - calendar_date({required_input("averaging_start_date")}, index, row, "averaging_start_date")).count() <= 2;
             index = 0;
             const bool binary_boundary = binary_product &&
                 number({required_input("spot")}, index, row, "spot") == [&] {
@@ -298,7 +298,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                         "averaging-start boundary: price only, no smooth time stencil" : binary_expiry ?
                         "terminal payoff: no smooth sensitivities" : binary_boundary ?
                         "spot equals barrier: hit-state boundary" : expiry_boundary ?
-                        "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"))
+                        "whole-day stability stencil touches expiry_date" : "whole-day stability stencil precedes exercise window"))
                         throw invalid();
                     continue;
                 }

@@ -25,7 +25,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         REQUIRE(fixture.engine == "AnalyticBinaryBarrierEngine");
         REQUIRE(fixture.provenance.source_symbol == "QuantLib.AnalyticBinaryBarrierEngine+QuantLib.AnalyticDigitalAmericanEngine+QuantLib.AnalyticEuropeanEngine");
         REQUIRE(inputs.at("monitoring") == "continuous");
-        REQUIRE(barrier_kinds.contains(inputs.at("barrier_kind")));
+        REQUIRE(barrier_kinds.contains(inputs.at("BarrierType")));
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put" ||
                  inputs.at("option") == "none"));
         REQUIRE((inputs.at("asset_settlement") == "true" ||
@@ -42,7 +42,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         REQUIRE(context);
         const kiyosi::AnalyticBinaryBarrierEngine engine;
         const bool boundary = number("spot") == number("barrier") ||
-                              (date("expiry") - date("valuation")).count() <= 2;
+                              (date("expiry_date") - date("valuation")).count() <= 2;
         const auto check = [&](const auto& option) {
             const auto native = engine.price(option, *context);
             check_price(fixture, native);
@@ -77,13 +77,13 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         if (inputs.at("option") != "none") {
             REQUIRE(fixture.instrument == "BinaryBarrierOption");
             const kiyosi::BinaryBarrierTerms terms{
-                .type = inputs.at("option") == "call" ? kiyosi::option_type::call
-                                                       : kiyosi::option_type::put,
+                .option_type = inputs.at("option") == "call" ? kiyosi::OptionType::call
+                                                       : kiyosi::OptionType::put,
                 .strike = number("strike"),
-                .effective = date("effective"),
-                .expiry = date("expiry"),
-                .barrier = number("barrier"),
-                .barrier_kind = barrier_kinds.at(inputs.at("barrier_kind"))};
+                .effective_date = date("effective_date"),
+                .expiry_date = date("expiry_date"),
+                .barrier_level = number("barrier"),
+                .barrier_type = barrier_kinds.at(inputs.at("BarrierType"))};
             if (asset) {
                 const auto option = kiyosi::make_asset_binary_barrier_option(terms);
                 REQUIRE(option);
@@ -99,34 +99,34 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         }
 
         REQUIRE(fixture.instrument == "TouchOption");
-        const auto effective = date("effective");
-        const auto expiry = date("expiry");
+        const auto effective_date = date("effective_date");
+        const auto expiry_date = date("expiry_date");
         const double barrier = number("barrier");
-        const bool up = inputs.at("barrier_kind").starts_with("up");
-        const bool one_touch = inputs.at("barrier_kind").ends_with("in");
-        const auto settlement_timing = inputs.at("settlement") == "at_hit"
-                                           ? kiyosi::settlement_timing::at_hit
-                                           : kiyosi::settlement_timing::at_expiry;
+        const bool up = inputs.at("BarrierType").starts_with("up");
+        const bool one_touch = inputs.at("BarrierType").ends_with("in");
+        const auto SettlementTiming = inputs.at("settlement") == "at_hit"
+                                           ? kiyosi::SettlementTiming::at_hit
+                                           : kiyosi::SettlementTiming::at_expiry;
         if (asset) {
             const auto option = one_touch
                 ? (up ? kiyosi::make_asset_one_touch_up(
-                            effective, expiry, barrier, settlement_timing)
+                            effective_date, expiry_date, barrier, SettlementTiming)
                       : kiyosi::make_asset_one_touch_down(
-                            effective, expiry, barrier, settlement_timing))
-                : (up ? kiyosi::make_asset_no_touch_up(effective, expiry, barrier)
-                      : kiyosi::make_asset_no_touch_down(effective, expiry, barrier));
+                            effective_date, expiry_date, barrier, SettlementTiming))
+                : (up ? kiyosi::make_asset_no_touch_up(effective_date, expiry_date, barrier)
+                      : kiyosi::make_asset_no_touch_down(effective_date, expiry_date, barrier));
             REQUIRE(option);
             check(*option);
         } else {
             const auto option = one_touch
                 ? (up ? kiyosi::make_cash_one_touch_up(
-                            effective, expiry, barrier, number("payout"), settlement_timing)
+                            effective_date, expiry_date, barrier, number("payout"), SettlementTiming)
                       : kiyosi::make_cash_one_touch_down(
-                            effective, expiry, barrier, number("payout"), settlement_timing))
+                            effective_date, expiry_date, barrier, number("payout"), SettlementTiming))
                 : (up ? kiyosi::make_cash_no_touch_up(
-                            effective, expiry, barrier, number("payout"))
+                            effective_date, expiry_date, barrier, number("payout"))
                       : kiyosi::make_cash_no_touch_down(
-                            effective, expiry, barrier, number("payout")));
+                            effective_date, expiry_date, barrier, number("payout")));
             REQUIRE(option);
             check(*option);
         }

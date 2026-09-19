@@ -15,10 +15,10 @@ enum class AutocallableTerminalKind : unsigned char {
 
 struct AutocallableProgram {
     double principal_ratio;
-    double initial_price;
+    double initial_spot;
     double upper_strike;
     double lower_strike;
-    double knock_in_price;
+    double knock_in_level;
     double intact_terminal_coupon;
     double knocked_in_terminal_coupon;
     AutocallableTerminalKind terminal_kind;
@@ -28,7 +28,7 @@ struct AutocallableProgram {
 };
 
 struct AutocallableEvent {
-    double knock_out_price;
+    double knock_out_level;
     double coupon;
     double coupon_barrier;
     bool conditional_coupon;
@@ -41,10 +41,10 @@ struct AutocallablePathState {
 };
 
 KIYOSI_HOST_DEVICE inline bool program_knocked_in(
-    const AutocallableProgram& program, double spot, bool knocked_in, bool expiry)
+    const AutocallableProgram& program, double spot, bool knocked_in, bool expiry_date)
 {
-    if (program.has_knock_in && (program.daily_knock_in || expiry))
-        return knocked_in || spot < program.knock_in_price;
+    if (program.has_knock_in && (program.daily_knock_in || expiry_date))
+        return knocked_in || spot < program.knock_in_level;
     return knocked_in;
 }
 
@@ -63,7 +63,7 @@ KIYOSI_HOST_DEVICE inline double program_terminal_settlement(
                                    ? program.lower_strike
                                    : (spot > program.upper_strike ? program.upper_strike : spot);
         return program.principal_ratio +
-               (bounded - program.upper_strike) / program.initial_price;
+               (bounded - program.upper_strike) / program.initial_spot;
     }
     return program.principal_ratio +
            (knocked_in ? program.knocked_in_terminal_coupon

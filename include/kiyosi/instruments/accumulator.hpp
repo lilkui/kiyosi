@@ -11,71 +11,71 @@ class Accumulator;
 
 struct AccumulatorTerms {
     double strike{};
-    double knock_out{};
+    double knock_out_level{};
     double daily_quantity{};
-    double acceleration{};
+    double acceleration_factor{};
     double accumulated_quantity{};
-    date effective{};
-    date expiry{};
+    Date effective_date{};
+    Date expiry_date{};
 };
 
-[[nodiscard]] result<Accumulator> make_accumulator(AccumulatorTerms);
+[[nodiscard]] Result<Accumulator> make_accumulator(AccumulatorTerms);
 
 /// Forward accrual that buys a fixed daily quantity, accelerating below strike and
 /// terminating once spot reaches the knock-out level.
 class Accumulator {
 public:
     double strike() const noexcept { return strike_; }
-    double knock_out() const noexcept { return knock_out_; }
+    double knock_out_level() const noexcept { return knock_out_level_; }
     double daily_quantity() const noexcept { return daily_quantity_; }
-    double acceleration() const noexcept { return acceleration_; }
+    double acceleration_factor() const noexcept { return acceleration_factor_; }
     double accumulated_quantity() const noexcept { return accumulated_quantity_; }
-    date effective() const noexcept { return effective_; }
-    date expiry() const noexcept { return expiry_; }
+    Date effective_date() const noexcept { return effective_date_; }
+    Date expiry_date() const noexcept { return expiry_date_; }
     friend bool operator==(const Accumulator&, const Accumulator&) = default;
 
 private:
-    Accumulator(double strike, double knock_out, double daily_quantity, double acceleration,
-                double accumulated_quantity, date effective, date expiry)
-        : strike_(strike), knock_out_(knock_out), daily_quantity_(daily_quantity),
-          acceleration_(acceleration), accumulated_quantity_(accumulated_quantity),
-          effective_(effective), expiry_(expiry) {}
+    Accumulator(double strike, double knock_out_level, double daily_quantity, double acceleration_factor,
+                double accumulated_quantity, Date effective_date, Date expiry_date)
+        : strike_(strike), knock_out_level_(knock_out_level), daily_quantity_(daily_quantity),
+          acceleration_factor_(acceleration_factor), accumulated_quantity_(accumulated_quantity),
+          effective_date_(effective_date), expiry_date_(expiry_date) {}
 
-    double strike_, knock_out_, daily_quantity_, acceleration_, accumulated_quantity_;
-    date effective_, expiry_;
+    double strike_, knock_out_level_, daily_quantity_, acceleration_factor_, accumulated_quantity_;
+    Date effective_date_, expiry_date_;
 
-    friend result<Accumulator> make_accumulator(AccumulatorTerms);
+    friend Result<Accumulator> make_accumulator(AccumulatorTerms);
 };
 
-[[nodiscard]] inline result<Accumulator> make_accumulator(AccumulatorTerms terms)
+[[nodiscard]] inline Result<Accumulator> make_accumulator(AccumulatorTerms terms)
 {
-    const auto [strike, knock_out, daily_quantity, acceleration, accumulated_quantity, effective, expiry] = terms;
+    const auto [strike, knock_out_level, daily_quantity, acceleration_factor, accumulated_quantity, effective_date, expiry_date] = terms;
     if (!std::isfinite(strike) || strike <= 0.0)
         return std::unexpected(
-            Error{error_category::invalid_strike, "strike must be finite and positive"});
-    if (!std::isfinite(knock_out) || knock_out <= 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "knock-out price must be finite and positive"});
+            Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    if (!std::isfinite(knock_out_level) || knock_out_level <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "knock-out level must be finite and positive"});
     if (!std::isfinite(daily_quantity) || daily_quantity < 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "daily quantity must be finite and non-negative"});
-    if (!std::isfinite(acceleration) || acceleration < 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
-                                     "acceleration must be finite and non-negative"});
+    if (!std::isfinite(acceleration_factor) || acceleration_factor < 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "acceleration factor must be finite and non-negative"});
     if (!std::isfinite(accumulated_quantity) || accumulated_quantity < 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "accumulated quantity must be finite and non-negative"});
-    if (!is_valid_date(effective))
+    if (!is_valid_date(effective_date))
         return std::unexpected(
-            Error{error_category::invalid_date, "effective must be a valid calendar date"});
-    if (!is_valid_date(expiry))
+            Error{ErrorCategory::invalid_date, "effective date must be a valid calendar date"});
+    if (!is_valid_date(expiry_date))
         return std::unexpected(
-            Error{error_category::invalid_date, "expiry must be a valid calendar date"});
-    if (effective > expiry)
-        return std::unexpected(Error{error_category::invalid_expiry,
-                                     "expiry must not precede effective"});
-    return Accumulator{strike, knock_out, daily_quantity, acceleration, accumulated_quantity,
-                       effective, expiry};
+            Error{ErrorCategory::invalid_date, "expiry date must be a valid calendar date"});
+    if (effective_date > expiry_date)
+        return std::unexpected(Error{ErrorCategory::invalid_expiry,
+                                     "expiry date must not precede the effective date"});
+    return Accumulator{strike, knock_out_level, daily_quantity, acceleration_factor, accumulated_quantity,
+                       effective_date, expiry_date};
 }
 
 } // namespace kiyosi

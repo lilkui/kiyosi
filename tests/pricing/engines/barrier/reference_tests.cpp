@@ -27,19 +27,19 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         REQUIRE(inputs.at("monitoring") == "continuous");
         const auto number = [&](const std::string& key) { return fixture_number(fixture, key); };
         const auto date = [&](const std::string& key) { return fixture_date(fixture, key); };
-        REQUIRE(barrier_kinds.contains(inputs.at("barrier_kind")));
+        REQUIRE(barrier_kinds.contains(inputs.at("BarrierType")));
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
         REQUIRE((inputs.at("settlement") == "at_hit" || inputs.at("settlement") == "at_expiry"));
         const auto option = kiyosi::make_barrier_option({
-            .type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put,
+            .option_type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put,
             .strike = number("strike"),
-            .effective = date("effective"),
-            .expiry = date("expiry"),
-            .barrier = number("barrier"),
-            .barrier_kind = barrier_kinds.at(inputs.at("barrier_kind")),
+            .effective_date = date("effective_date"),
+            .expiry_date = date("expiry_date"),
+            .barrier_level = number("barrier"),
+            .barrier_type = barrier_kinds.at(inputs.at("BarrierType")),
             .rebate = number("rebate"),
-            .rebate_timing = inputs.at("settlement") == "at_hit" ? kiyosi::rebate_timing::at_hit
-                                                                   : kiyosi::rebate_timing::at_expiry});
+            .rebate_timing = inputs.at("settlement") == "at_hit" ? kiyosi::RebateTiming::at_hit
+                                                                   : kiyosi::RebateTiming::at_expiry});
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
@@ -52,7 +52,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
                 REQUIRE(native->has(measure) == (name == "price"));
             ++generated[fixture.engine];
             REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
-            const bool boundary = (date("expiry") - date("valuation")).count() <= 2;
+            const bool boundary = (date("expiry_date") - date("valuation")).count() <= 2;
             if (boundary) REQUIRE(inputs.at("wrapper") == "false");
             for (const auto& [name, value] : fixture.outputs)
                 REQUIRE(measures.contains(name));
@@ -79,8 +79,8 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             REQUIRE(fixture.engine == "FiniteDifferenceBarrierEngine");
             REQUIRE(inputs.at("scheme") == "crank_nicolson");
             check(kiyosi::FiniteDifferenceBarrierEngine{
-                {static_cast<int>(number("asset_steps")), static_cast<int>(number("time_steps")),
-                 kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
+                {static_cast<int>(number("asset_step_count")), static_cast<int>(number("time_step_count")),
+                 kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")}});
         }
     }
     REQUIRE(generated.size() == 2);

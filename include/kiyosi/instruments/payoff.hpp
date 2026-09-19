@@ -21,13 +21,13 @@ struct AssetOrNothingPayoff {
     friend bool operator==(const AssetOrNothingPayoff&, const AssetOrNothingPayoff&) = default;
 };
 
-enum class payoff_type { cash,
+enum class PayoffType { cash,
                          asset };
 
 class CashOrNothingPayoff;
 
 namespace detail {
-[[nodiscard]] result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
+[[nodiscard]] Result<CashOrNothingPayoff> make_cash_or_nothing_payoff(double);
 }
 
 class CashOrNothingPayoff {
@@ -38,23 +38,23 @@ public:
 private:
     explicit CashOrNothingPayoff(double payout) : payout_(payout) {}
     double payout_;
-    friend result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
+    friend Result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
 };
 
-[[nodiscard]] inline result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
+[[nodiscard]] inline Result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
 {
     if (!std::isfinite(payout) || payout <= 0.0)
-        return std::unexpected(Error{error_category::invalid_parameter,
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "payout must be finite and positive"});
     return CashOrNothingPayoff{payout};
 }
 
 using BinaryPayoff = std::variant<CashOrNothingPayoff, AssetOrNothingPayoff>;
 
-[[nodiscard]] inline payoff_type payoff_kind(const BinaryPayoff& payoff) noexcept
+[[nodiscard]] inline PayoffType payoff_type(const BinaryPayoff& payoff) noexcept
 {
-    return std::holds_alternative<CashOrNothingPayoff>(payoff) ? payoff_type::cash
-                                                               : payoff_type::asset;
+    return std::holds_alternative<CashOrNothingPayoff>(payoff) ? PayoffType::cash
+                                                               : PayoffType::asset;
 }
 
 } // namespace kiyosi

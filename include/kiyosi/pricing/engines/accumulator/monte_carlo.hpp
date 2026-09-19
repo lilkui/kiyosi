@@ -13,17 +13,17 @@ namespace kiyosi {
 /// Simulates the trading-day accrual, terminating each path at the knock-out level.
 class KIYOSI_EXPORT MonteCarloAccumulatorEngine {
 public:
-    explicit MonteCarloAccumulatorEngine(StructuredMonteCarloSettings settings = {}) : settings_(settings) {}
+    explicit MonteCarloAccumulatorEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
     explicit MonteCarloAccumulatorEngine(
-        int path_count, std::optional<std::uint64_t> seed = StructuredMonteCarloSettings{}.seed,
-        monte_carlo_backend backend = StructuredMonteCarloSettings{}.backend)
+        int path_count, std::optional<std::uint64_t> seed = TradingDayMonteCarloSettings{}.seed,
+        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend)
         : settings_{path_count, seed, backend} {}
 
-    [[nodiscard]] result<PricingResult> price(const Accumulator&, const PricingContext&) const;
-    StructuredMonteCarloSettings settings() const noexcept { return settings_; }
+    [[nodiscard]] Result<PricingResult> price(const Accumulator&, const PricingContext&) const;
+    TradingDayMonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    StructuredMonteCarloSettings settings_;
+    TradingDayMonteCarloSettings settings_;
 };
 
 } // namespace kiyosi

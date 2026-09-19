@@ -16,8 +16,8 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
     std::size_t generated = 0;
     std::size_t wrapped = 0;
     for (const auto& fixture : kiyosi::test::load_reference_cases(kiyosi::test::fixture_path())) {
-        if (fixture.instrument != "GeometricAverageOption" &&
-            fixture.instrument != "ArithmeticAverageOption")
+        if (fixture.instrument != "GeometricAveragePriceOption" &&
+            fixture.instrument != "ArithmeticAveragePriceOption")
             continue;
         const auto& inputs = fixture.inputs;
         INFO("case=" << fixture.case_id);
@@ -25,26 +25,26 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         REQUIRE(fixture.case_id.starts_with("ql-asian-"));
         const auto number = [&](const std::string& key) { return fixture_number(fixture, key); };
         const auto date = [&](const std::string& key) { return fixture_date(fixture, key); };
-        const bool geometric = fixture.instrument == "GeometricAverageOption";
+        const bool geometric = fixture.instrument == "GeometricAveragePriceOption";
         REQUIRE(inputs.at("averaging") == (geometric ? "geometric" : "arithmetic"));
         REQUIRE(inputs.at("monitoring") == "continuous");
-        REQUIRE(inputs.at("settlement") == "expiry");
+        REQUIRE(inputs.at("settlement") == "expiry_date");
         REQUIRE(inputs.at("date_roll") == "none");
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
         REQUIRE((inputs.at("calendar") == "null" || inputs.at("calendar") == "sse"));
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
-        const auto type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
-        REQUIRE(date("effective") <= date("valuation"));
-        REQUIRE(date("average_start") <= date("valuation"));
-        REQUIRE(date("valuation") <= date("expiry"));
-        const bool terminal = date("valuation") == date("expiry");
+        const auto type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put;
+        REQUIRE(date("effective_date") <= date("valuation"));
+        REQUIRE(date("averaging_start_date") <= date("valuation"));
+        REQUIRE(date("valuation") <= date("expiry_date"));
+        const bool terminal = date("valuation") == date("expiry_date");
         REQUIRE(fixture.provenance.source_symbol ==
                 (terminal ? "QuantLib.PlainVanillaPayoff"
                  : geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine"
                              : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
         REQUIRE(fixture.provenance.reference_kind == (!geometric && !terminal ? "approximate" : "analytic"));
         if (geometric) {
-            REQUIRE(date("average_start") == date("valuation"));
+            REQUIRE(date("averaging_start_date") == date("valuation"));
             REQUIRE(number("realized_average") == 0);
         }
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
@@ -60,8 +60,8 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             for (const auto& [name, measure] : measures)
                 REQUIRE(native->has(measure) == (name == "price"));
             ++generated;
-            const bool smooth = !terminal && (date("valuation") - date("average_start")).count() > 2 &&
-                                (date("expiry") - date("valuation")).count() > 2;
+            const bool smooth = !terminal && (date("valuation") - date("averaging_start_date")).count() > 2 &&
+                                (date("expiry_date") - date("valuation")).count() > 2;
             REQUIRE(inputs.at("wrapper") == (smooth ? "true" : "false"));
             if (!smooth) {
                 REQUIRE(fixture.outputs.size() == 1);
@@ -86,17 +86,17 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             }
         };
         if (geometric) {
-            REQUIRE(fixture.engine == "GeometricAverageAsianEngine");
-            check(kiyosi::make_geometric_average_option(type, number("strike"), date("average_start"),
-                                                        date("effective"), date("expiry"),
+            REQUIRE(fixture.engine == "AnalyticGeometricAverageAsianEngine");
+            check(kiyosi::make_geometric_average_option(type, number("strike"), date("averaging_start_date"),
+                                                        date("effective_date"), date("expiry_date"),
                                                         number("realized_average")),
-                  kiyosi::GeometricAverageAsianEngine{});
+                  kiyosi::AnalyticGeometricAverageAsianEngine{});
         } else {
-            REQUIRE(fixture.engine == "ArithmeticAverageAsianEngine");
-            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("average_start"),
-                                                         date("effective"), date("expiry"),
+            REQUIRE(fixture.engine == "TurnbullWakemanArithmeticAverageAsianEngine");
+            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("averaging_start_date"),
+                                                         date("effective_date"), date("expiry_date"),
                                                          number("realized_average")),
-                  kiyosi::ArithmeticAverageAsianEngine{});
+                  kiyosi::TurnbullWakemanArithmeticAverageAsianEngine{});
         }
     }
     CHECK(generated == 24);

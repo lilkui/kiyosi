@@ -10,32 +10,32 @@ using namespace detail;
 
 namespace {
 
-result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
+Result<PricingResult> zero_tail(double value, std::optional<double> delta = std::nullopt,
                                 std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{risk_measure::price, value}, {risk_measure::delta, delta},
-                                {risk_measure::gamma, gamma}});
+    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
+                                {RiskMeasure::gamma, gamma}});
 }
 
-result<PricingResult> digital_price(double strike, option_type type, double payout,
-                                    bool asset, date effective, date expiry, const PricingContext& context)
+Result<PricingResult> digital_price(double strike, OptionType type, double payout,
+                                    bool asset, Date effective_date, Date expiry_date, const PricingContext& context)
 {
-    const auto valid = validate_life(context.valuation_time(), effective, expiry);
+    const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    const double spot = context.asset_price();
-    const double t = actual_365(context.valuation_time(), expiry);
-    const double sign = type == option_type::call ? 1.0 : -1.0;
+    const double spot = context.spot_price();
+    const double t = actual_365(context.valuation_time(), expiry_date);
+    const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
         auto output = zero_tail(exercised ? (asset ? spot : payout) : 0.0);
         return output;
     }
-    const double sigma = context.parameters().volatility();
+    const double sigma = context.model_parameters().volatility();
     const double root_t = std::sqrt(t);
-    const double rate_df = std::exp(-context.parameters().risk_free_rate() * t);
-    const double div_df = std::exp(-context.parameters().dividend_yield() * t);
+    const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);
+    const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
     const double d1 = (std::log(spot / strike) +
-                       (context.parameters().risk_free_rate() - context.parameters().dividend_yield() +
+                       (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield() +
                         0.5 * sigma * sigma) *
                            t) /
                       (sigma * root_t);
@@ -58,17 +58,17 @@ result<PricingResult> digital_price(double strike, option_type type, double payo
     auto output = zero_tail(value, delta, gamma);
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
-        return std::unexpected(Error{error_category::invalid_result, "analytic pricing produced a non-finite result"});
+        return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     return output;
 }
 
 }
 
-result<PricingResult> AnalyticDigitalEngine::price_impl(
-    option_type type, double strike, double payout, bool asset, date effective, date expiry,
+Result<PricingResult> AnalyticDigitalEngine::price_impl(
+    OptionType type, double strike, double payout, bool asset, Date effective_date, Date expiry_date,
     const PricingContext& context) const
 {
-    return digital_price(strike, type, payout, asset, effective, expiry, context);
+    return digital_price(strike, type, payout, asset, effective_date, expiry_date, context);
 }
 
 } // namespace kiyosi

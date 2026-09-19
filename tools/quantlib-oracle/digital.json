@@ -1,7 +1,7 @@
 {
   "inputs": {
     "strike": 100,
-    "effective": "2024-12-30",
+    "effective_date": "2024-12-30",
     "valuation": "2025-01-06",
     "rate": 0.04,
     "dividend": 0.01,
@@ -15,17 +15,17 @@
       "boundary_settings": {}
     },
     {
-      "engine": "IntegralDigitalEngine",
+      "engine": "QuadratureDigitalEngine",
       "settings": {},
       "boundary_settings": {}
     },
     {
       "engine": "FiniteDifferenceDigitalEngine",
       "settings": {
-        "asset_steps": 1602,
-        "time_steps": 1600,
+        "asset_step_count": 1602,
+        "time_step_count": 1600,
         "scheme": "crank_nicolson",
-        "upper_boundary": 400
+        "asset_upper_boundary": 400
       },
       "shifts": {
         "spot_shift": 2,
@@ -59,7 +59,7 @@
         "rho": 0.02
       },
       "boundary_settings": {
-        "asset_steps": 9602
+        "asset_step_count": 9602
       }
     }
   ],

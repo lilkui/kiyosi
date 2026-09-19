@@ -30,13 +30,13 @@ struct StructuredScenario {
 const Scenario& monte_carlo_scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
         return Scenario{
             *kiyosi::make_european_option(
-                kiyosi::option_type::call, 100.0, effective, expiry),
+                kiyosi::OptionType::call, 100.0, effective_date, expiry_date),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date)};
     }();
     return value;
 }
@@ -44,18 +44,18 @@ const Scenario& monte_carlo_scenario()
 const AmericanScenario& american_monte_carlo_scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
         return AmericanScenario{
             *kiyosi::make_american_option(
-                kiyosi::option_type::put, 100.0, effective, expiry),
+                kiyosi::OptionType::put, 100.0, effective_date, expiry_date),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date)};
     }();
     return value;
 }
 
-void benchmark_monte_carlo(benchmark::State& state, kiyosi::monte_carlo_backend backend)
+void benchmark_monte_carlo(benchmark::State& state, kiyosi::MonteCarloBackend backend)
 {
     const auto& [option, context] = monte_carlo_scenario();
     const kiyosi::MonteCarloVanillaEngine engine{
@@ -73,11 +73,11 @@ void benchmark_monte_carlo(benchmark::State& state, kiyosi::monte_carlo_backend 
 
 void BM_MonteCarloEuropeanCpu(benchmark::State& state)
 {
-    benchmark_monte_carlo(state, kiyosi::monte_carlo_backend::cpu);
+    benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
 
 void benchmark_american_monte_carlo(
-    benchmark::State& state, kiyosi::monte_carlo_backend backend)
+    benchmark::State& state, kiyosi::MonteCarloBackend backend)
 {
     const auto& [option, context] = american_monte_carlo_scenario();
     const kiyosi::MonteCarloVanillaEngine engine{
@@ -95,24 +95,24 @@ void benchmark_american_monte_carlo(
 
 void BM_MonteCarloAmericanCpu(benchmark::State& state)
 {
-    benchmark_american_monte_carlo(state, kiyosi::monte_carlo_backend::cpu);
+    benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
 
 const AccumulatorScenario& accumulator_scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
         return AccumulatorScenario{
             *kiyosi::make_accumulator({.strike = 100.0,
-                                       .knock_out = 115.0,
+                                       .knock_out_level = 115.0,
                                        .daily_quantity = 1.0,
-                                       .acceleration = 2.0,
+                                       .acceleration_factor = 2.0,
                                        .accumulated_quantity = 0.0,
-                                       .effective = effective,
-                                       .expiry = expiry}),
+                                       .effective_date = effective_date,
+                                       .expiry_date = expiry_date}),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date)};
     }();
     return value;
 }
@@ -120,28 +120,28 @@ const AccumulatorScenario& accumulator_scenario()
 const StructuredScenario<kiyosi::PhoenixOption>& phoenix_scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
-        const std::vector<kiyosi::date> observations{
-            kiyosi::date{std::chrono::year{2025} / 4 / 1},
-            kiyosi::date{std::chrono::year{2025} / 7 / 1},
-            kiyosi::date{std::chrono::year{2025} / 10 / 1}, expiry};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
+        const std::vector<kiyosi::Date> observations{
+            kiyosi::Date{std::chrono::year{2025} / 4 / 1},
+            kiyosi::Date{std::chrono::year{2025} / 7 / 1},
+            kiyosi::Date{std::chrono::year{2025} / 10 / 1}, expiry_date};
         return StructuredScenario<kiyosi::PhoenixOption>{
             *kiyosi::make_phoenix_option({.coupon_rate = 0.002,
-                                          .initial_price = 100.0,
-                                          .knock_in_price = 75.0,
-                                          .knock_out_prices = {110.0, 108.0, 106.0, 104.0},
-                                          .coupon_barriers = {90.0, 90.0, 90.0, 90.0},
+                                          .initial_spot = 100.0,
+                                          .knock_in_level = 75.0,
+                                          .knock_out_levels = {110.0, 108.0, 106.0, 104.0},
+                                          .coupon_barrier_levels = {90.0, 90.0, 90.0, 90.0},
                                           .upper_strike = 100.0,
                                           .lower_strike = 60.0,
                                           .observation_dates = observations,
-                                          .frequency = kiyosi::observation_frequency::daily,
-                                          .touch_status = kiyosi::barrier_touch_status::none,
+                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+                                          .touch_status = kiyosi::BarrierTouchStatus::none,
                                           .principal_ratio = 1.0,
-                                          .effective = effective,
-                                          .expiry = expiry}),
+                                          .effective_date = effective_date,
+                                          .expiry_date = expiry_date}),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date)};
     }();
     return value;
 }
@@ -149,34 +149,34 @@ const StructuredScenario<kiyosi::PhoenixOption>& phoenix_scenario()
 const StructuredScenario<kiyosi::SnowballOption>& snowball_scenario()
 {
     static const auto value = [] {
-        const kiyosi::date effective{std::chrono::year{2025} / 1 / 1};
-        const kiyosi::date expiry{std::chrono::year{2026} / 1 / 1};
-        const std::vector<kiyosi::date> observations{
-            kiyosi::date{std::chrono::year{2025} / 4 / 1},
-            kiyosi::date{std::chrono::year{2025} / 7 / 1},
-            kiyosi::date{std::chrono::year{2025} / 10 / 1}, expiry};
+        const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
+        const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
+        const std::vector<kiyosi::Date> observations{
+            kiyosi::Date{std::chrono::year{2025} / 4 / 1},
+            kiyosi::Date{std::chrono::year{2025} / 7 / 1},
+            kiyosi::Date{std::chrono::year{2025} / 10 / 1}, expiry_date};
         return StructuredScenario<kiyosi::SnowballOption>{
             *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08, 0.08},
                                            .maturity_coupon_rate = 0.06,
-                                           .initial_price = 100.0,
-                                           .knock_in_price = 75.0,
-                                           .knock_out_prices = {110.0, 108.0, 106.0, 104.0},
+                                           .initial_spot = 100.0,
+                                           .knock_in_level = 75.0,
+                                           .knock_out_levels = {110.0, 108.0, 106.0, 104.0},
                                            .upper_strike = 100.0,
                                            .lower_strike = 60.0,
                                            .observation_dates = observations,
-                                           .frequency = kiyosi::observation_frequency::daily,
-                                           .touch_status = kiyosi::barrier_touch_status::none,
+                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+                                           .touch_status = kiyosi::BarrierTouchStatus::none,
                                            .principal_ratio = 1.0,
-                                           .effective = effective,
-                                           .expiry = expiry}),
+                                           .effective_date = effective_date,
+                                           .expiry_date = expiry_date}),
             *kiyosi::make_pricing_context(
-                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective)};
+                *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date)};
     }();
     return value;
 }
 
 void benchmark_accumulator_monte_carlo(
-    benchmark::State& state, kiyosi::monte_carlo_backend backend)
+    benchmark::State& state, kiyosi::MonteCarloBackend backend)
 {
     const auto& [option, context] = accumulator_scenario();
     const kiyosi::MonteCarloAccumulatorEngine engine{{250'000, 42, backend}};
@@ -194,7 +194,7 @@ void benchmark_accumulator_monte_carlo(
 template <typename Note, typename Engine>
 void benchmark_structured_monte_carlo(
     benchmark::State& state, const StructuredScenario<Note>& scenario,
-    kiyosi::monte_carlo_backend backend)
+    kiyosi::MonteCarloBackend backend)
 {
     const Engine engine{{250'000, 42, backend}};
     const auto warmup = engine.price(scenario.note, scenario.context);
@@ -210,47 +210,47 @@ void benchmark_structured_monte_carlo(
 
 void BM_MonteCarloAccumulatorCpu(benchmark::State& state)
 {
-    benchmark_accumulator_monte_carlo(state, kiyosi::monte_carlo_backend::cpu);
+    benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
 
 void BM_MonteCarloPhoenixCpu(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
-        state, phoenix_scenario(), kiyosi::monte_carlo_backend::cpu);
+        state, phoenix_scenario(), kiyosi::MonteCarloBackend::cpu);
 }
 
 void BM_MonteCarloSnowballCpu(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
-        state, snowball_scenario(), kiyosi::monte_carlo_backend::cpu);
+        state, snowball_scenario(), kiyosi::MonteCarloBackend::cpu);
 }
 
 #if KIYOSI_HAS_CUDA
 void BM_MonteCarloEuropeanCuda(benchmark::State& state)
 {
-    benchmark_monte_carlo(state, kiyosi::monte_carlo_backend::cuda);
+    benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
 void BM_MonteCarloAmericanCuda(benchmark::State& state)
 {
-    benchmark_american_monte_carlo(state, kiyosi::monte_carlo_backend::cuda);
+    benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
 void BM_MonteCarloAccumulatorCuda(benchmark::State& state)
 {
-    benchmark_accumulator_monte_carlo(state, kiyosi::monte_carlo_backend::cuda);
+    benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
 void BM_MonteCarloPhoenixCuda(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
-        state, phoenix_scenario(), kiyosi::monte_carlo_backend::cuda);
+        state, phoenix_scenario(), kiyosi::MonteCarloBackend::cuda);
 }
 
 void BM_MonteCarloSnowballCuda(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
-        state, snowball_scenario(), kiyosi::monte_carlo_backend::cuda);
+        state, snowball_scenario(), kiyosi::MonteCarloBackend::cuda);
 }
 #endif
 

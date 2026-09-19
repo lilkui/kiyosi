@@ -12,11 +12,11 @@ namespace kiyosi {
 class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine {
 public:
     explicit FiniteDifferenceAccumulatorEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    FiniteDifferenceAccumulatorEngine(int asset_steps, int time_steps,
-                                      finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_steps, time_steps, scheme} {}
+    FiniteDifferenceAccumulatorEngine(int asset_step_count, int time_step_count,
+                                      FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
+        : settings_{asset_step_count, time_step_count, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const Accumulator&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const Accumulator&, const PricingContext&) const;
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:

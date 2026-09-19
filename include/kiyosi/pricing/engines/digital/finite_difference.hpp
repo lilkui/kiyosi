@@ -12,15 +12,15 @@ namespace kiyosi {
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
     explicit FiniteDifferenceDigitalEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    FiniteDifferenceDigitalEngine(int asset_steps, int time_steps,
-                                  finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_steps, time_steps, scheme} {}
+    FiniteDifferenceDigitalEngine(int asset_step_count, int time_step_count,
+                                  FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
+        : settings_{asset_step_count, time_step_count, scheme} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires (std::same_as<Payoff, CashOrNothingPayoff> ||
                   std::same_as<Payoff, AssetOrNothingPayoff>) &&
                  std::same_as<Exercise, EuropeanExercise>
-    [[nodiscard]] result<PricingResult> price(
+    [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
         if constexpr (std::same_as<Payoff, CashOrNothingPayoff>)
@@ -32,9 +32,9 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] result<PricingResult> price_cash_or_nothing(
+    [[nodiscard]] Result<PricingResult> price_cash_or_nothing(
         const EuropeanCashOrNothingOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price_asset_or_nothing(
+    [[nodiscard]] Result<PricingResult> price_asset_or_nothing(
         const EuropeanAssetOrNothingOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };

@@ -17,12 +17,12 @@ class ExerciseBasedOption;
 namespace detail {
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
+[[nodiscard]] Result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
     OptionTerms, Payoff, Exercise);
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] result<ExerciseBasedOption<Payoff, Exercise>> make_option(
-    option_type, double, date, date, Payoff, Exercise);
+[[nodiscard]] Result<ExerciseBasedOption<Payoff, Exercise>> make_option(
+    OptionType, double, Date, Date, Payoff, Exercise);
 
 } // namespace detail
 
@@ -30,10 +30,10 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption {
 public:
-    option_type type() const noexcept { return terms_.type(); }
+    OptionType option_type() const noexcept { return terms_.option_type(); }
     double strike() const noexcept { return terms_.strike(); }
-    date effective() const noexcept { return terms_.effective(); }
-    date expiry() const noexcept { return terms_.expiry(); }
+    Date effective_date() const noexcept { return terms_.effective_date(); }
+    Date expiry_date() const noexcept { return terms_.expiry_date(); }
     const OptionTerms& terms() const noexcept { return terms_; }
     const Payoff& payoff() const noexcept { return payoff_; }
     const Exercise& exercise() const noexcept { return exercise_; }
@@ -55,12 +55,12 @@ private:
     Exercise exercise_;
 
     template <OptionPayoff OtherPayoff, OptionExercise OtherExercise>
-    friend result<ExerciseBasedOption<OtherPayoff, OtherExercise>> detail::make_exercise_based_option(
+    friend Result<ExerciseBasedOption<OtherPayoff, OtherExercise>> detail::make_exercise_based_option(
         OptionTerms, OtherPayoff, OtherExercise);
 };
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> detail::make_exercise_based_option(
+[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, Exercise>> detail::make_exercise_based_option(
     OptionTerms terms, Payoff payoff, Exercise exercise)
 {
     return ExerciseBasedOption<Payoff, Exercise>{std::move(terms), std::move(payoff), std::move(exercise)};
@@ -69,14 +69,14 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 namespace detail {
 
 template <OptionPayoff Payoff>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, EuropeanExercise>> make_european_option(
+[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, EuropeanExercise>> make_european_option(
     OptionTerms terms, Payoff payoff)
 {
     return detail::make_exercise_based_option(std::move(terms), std::move(payoff), EuropeanExercise{});
 }
 
 template <OptionPayoff Payoff>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, AmericanExercise>> make_american_option(
+[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, AmericanExercise>> make_american_option(
     OptionTerms terms, Payoff payoff)
 {
     return detail::make_exercise_based_option(std::move(terms), std::move(payoff), AmericanExercise{});
@@ -85,20 +85,20 @@ template <OptionPayoff Payoff>
 } // namespace detail
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<ExerciseBasedOption<Payoff, Exercise>> detail::make_option(
-    option_type type, double strike, date effective, date expiry, Payoff payoff, Exercise exercise)
+[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, Exercise>> detail::make_option(
+    OptionType option_type, double strike, Date effective_date, Date expiry_date, Payoff payoff, Exercise exercise)
 {
-    auto terms = detail::make_option_terms(type, strike, effective, expiry);
+    auto terms = detail::make_option_terms(option_type, strike, effective_date, expiry_date);
     if (!terms) return std::unexpected(terms.error());
     return detail::make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
 }
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline result<void> validate_observation_dates(
-    std::span<const date> observation_dates, date valuation_date,
+[[nodiscard]] inline Result<void> validate_observation_dates(
+    std::span<const Date> observation_dates, Date valuation_date,
     const ExerciseBasedOption<Payoff, Exercise>& option, const TradingCalendar& calendar)
 {
-    return validate_observation_dates(observation_dates, valuation_date, option.expiry(), calendar);
+    return validate_observation_dates(observation_dates, valuation_date, option.expiry_date(), calendar);
 }
 
 } // namespace kiyosi

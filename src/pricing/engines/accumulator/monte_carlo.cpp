@@ -24,32 +24,32 @@ struct InitialState {
 
 InitialState initial_state(const Accumulator& option, const PricingContext& context)
 {
-    const timestamp valuation = context.valuation_time();
-    const double value = context.asset_price();
+    const Timestamp valuation = context.valuation_time();
+    const double value = context.spot_price();
     double quantity = option.accumulated_quantity();
     if (valuation == start_of_day(date_of(valuation)) &&
         context.calendar().is_trading_day(date_of(valuation))) {
-        if (value >= option.knock_out())
+        if (value >= option.knock_out_level())
             return {quantity, quantity * (value - option.strike())};
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration()
+        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
     }
-    if (valuation == option.expiry()) return {quantity, quantity * (value - option.strike())};
+    if (valuation == option.expiry_date()) return {quantity, quantity * (value - option.strike())};
     return {quantity, std::nullopt};
 }
 
 std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
                                                const PricingContext& context)
 {
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double sigma = context.parameters().volatility();
-    const timestamp valuation = context.valuation_time();
-    const auto dates = trading_dates(context.calendar(), valuation, option.expiry());
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double sigma = context.model_parameters().volatility();
+    const Timestamp valuation = context.valuation_time();
+    const auto dates = trading_dates(context.calendar(), valuation, option.expiry_date());
     std::vector<SimulationStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
-    for (const date current : dates) {
+    for (const Date current : dates) {
         const double dt = actual_365(previous, current);
         steps.push_back({(rate - dividend - 0.5 * sigma * sigma) * dt,
                          sigma * std::sqrt(dt),
@@ -63,7 +63,7 @@ double path_payoff(const Accumulator& option, const PricingContext& context,
                    const std::vector<SimulationStep>& steps, double quantity,
                    std::mt19937_64& generator)
 {
-    double value = context.asset_price();
+    double value = context.spot_price();
     double terminal = value;
 
     std::normal_distribution<double> normal;
@@ -71,11 +71,11 @@ double path_payoff(const Accumulator& option, const PricingContext& context,
     for (const auto& step : steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
         discount = step.discount;
-        if (value >= option.knock_out()) {
+        if (value >= option.knock_out_level()) {
             terminal = value;
             break;
         }
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration()
+        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
         terminal = value;
     }
@@ -90,65 +90,65 @@ std::uint64_t random_seed()
            static_cast<std::uint64_t>(source());
 }
 
-result<double> cuda_sum(detail::CudaPricingResult cuda_result)
+Result<double> cuda_sum(detail::CudaPricingResult cuda_result)
 {
     switch (cuda_result.status) {
     case detail::CudaPricingStatus::success:
         return cuda_result.payoff_sum;
     case detail::CudaPricingStatus::unavailable:
-        return std::unexpected(Error{error_category::backend_unavailable, cuda_result.message});
+        return std::unexpected(Error{ErrorCategory::backend_unavailable, cuda_result.message});
     case detail::CudaPricingStatus::failure:
-        return std::unexpected(Error{error_category::backend_failure, cuda_result.message});
+        return std::unexpected(Error{ErrorCategory::backend_failure, cuda_result.message});
     case detail::CudaPricingStatus::out_of_memory:
         throw std::bad_alloc{};
     case detail::CudaPricingStatus::invalid_result:
-        return std::unexpected(Error{error_category::invalid_result, cuda_result.message});
+        return std::unexpected(Error{ErrorCategory::invalid_result, cuda_result.message});
     }
-    return std::unexpected(Error{error_category::backend_failure,
+    return std::unexpected(Error{ErrorCategory::backend_failure,
                                  "CUDA Monte Carlo returned an unknown status"});
 }
 #endif
 
 } // namespace
 
-result<PricingResult> MonteCarloAccumulatorEngine::price(
+Result<PricingResult> MonteCarloAccumulatorEngine::price(
     const Accumulator& option, const PricingContext& context) const
 {
-    auto contract = make_accumulator({option.strike(), option.knock_out(), option.daily_quantity(),
-                                      option.acceleration(), option.accumulated_quantity(),
-                                      option.effective(), option.expiry()});
+    auto contract = make_accumulator({option.strike(), option.knock_out_level(), option.daily_quantity(),
+                                      option.acceleration_factor(), option.accumulated_quantity(),
+                                      option.effective_date(), option.expiry_date()});
     if (!contract) return std::unexpected(contract.error());
-    auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
+    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     if (settings_.path_count <= 0 || settings_.path_count > 10'000'000)
-        return std::unexpected(Error{error_category::invalid_parameter,
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
-    if (settings_.backend != monte_carlo_backend::cpu &&
-        settings_.backend != monte_carlo_backend::cuda)
-        return std::unexpected(Error{error_category::invalid_parameter,
+    if (settings_.backend != MonteCarloBackend::cpu &&
+        settings_.backend != MonteCarloBackend::cuda)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo backend is invalid"});
 
-    const auto make_result = [](double value) -> result<PricingResult> {
+    const auto make_result = [](double value) -> Result<PricingResult> {
         if (!std::isfinite(value))
-            return std::unexpected(Error{error_category::invalid_result,
+            return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "structured pricing produced a non-finite result"});
-        return make_pricing_result({{risk_measure::price, value}});
+        return make_pricing_result({{RiskMeasure::price, value}});
     };
     const auto initial = initial_state(option, context);
     if (initial.settlement) return make_result(*initial.settlement);
 
     const auto steps = prepare_simulation(option, context);
-    if (settings_.backend == monte_carlo_backend::cuda) {
+    if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto sum = cuda_sum(detail::cuda_accumulator_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
-             context.asset_price(), option.strike(), option.knock_out(),
-             option.daily_quantity(), option.acceleration(), initial.quantity},
+             context.spot_price(), option.strike(), option.knock_out_level(),
+             option.daily_quantity(), option.acceleration_factor(), initial.quantity},
             steps.data(), steps.size()));
         if (!sum) return std::unexpected(sum.error());
         return make_result(*sum / static_cast<double>(settings_.path_count));
 #else
-        return std::unexpected(Error{error_category::backend_unavailable,
+        return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
 #endif
     }

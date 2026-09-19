@@ -60,7 +60,7 @@ using PythonValuationTime = nb::typed<nb::handle, PythonValuationTimeAnnotation>
 using PythonRealSequence = nb::typed<nb::handle, nb::typed<nb::iterable, double>>;
 using PythonDateSequence =
     nb::typed<nb::handle, nb::typed<nb::iterable, PythonDateAnnotation>>;
-using PythonOptionType = nb::typed<nb::object, option_type>;
+using PythonOptionType = nb::typed<nb::object, OptionType>;
 using PythonDateObject = nb::typed<nb::object, PythonDateAnnotation>;
 using PythonTimestampObject = nb::typed<nb::object, PythonTimestampAnnotation>;
 using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
@@ -105,20 +105,20 @@ public:
     explicit DomainException(Error error)
         : std::runtime_error(std::move(error.message)), category_(error.category) {}
 
-    error_category category() const noexcept { return category_; }
+    ErrorCategory category() const noexcept { return category_; }
 
 private:
-    error_category category_;
+    ErrorCategory category_;
 };
 
 template <typename T>
-T unwrap(result<T> value)
+T unwrap(Result<T> value)
 {
     if (!value) throw DomainException{std::move(value.error())};
     return std::move(*value);
 }
 
-inline void unwrap(result<void> value)
+inline void unwrap(Result<void> value)
 {
     if (!value) throw DomainException{std::move(value.error())};
 }
@@ -167,7 +167,7 @@ inline std::optional<std::uint64_t> optional_seed(nb::handle value)
     return static_cast<std::uint64_t>(converted);
 }
 
-inline date calendar_date(nb::handle value, std::string_view field)
+inline Date calendar_date(nb::handle value, std::string_view field)
 {
     const nb::object datetime_module = nb::module_::import_("datetime");
     const nb::object date_type = datetime_module.attr("date");
@@ -177,12 +177,12 @@ inline date calendar_date(nb::handle value, std::string_view field)
     if (is_date < 0 || is_datetime < 0) throw nb::python_error();
     if (is_date == 0 || is_datetime != 0) type_error(field, "a datetime.date");
     const nb::object object = nb::borrow<nb::object>(value);
-    return date{std::chrono::year{nb::cast<int>(object.attr("year"))} /
+    return Date{std::chrono::year{nb::cast<int>(object.attr("year"))} /
                 std::chrono::month{nb::cast<unsigned>(object.attr("month"))} /
                 std::chrono::day{nb::cast<unsigned>(object.attr("day"))}};
 }
 
-inline PythonDateObject python_date(date value)
+inline PythonDateObject python_date(Date value)
 {
     const auto parts = std::chrono::year_month_day{value};
     const nb::object datetime = nb::module_::import_("datetime");
@@ -191,9 +191,9 @@ inline PythonDateObject python_date(date value)
         static_cast<unsigned>(parts.day()))};
 }
 
-inline PythonTimestampObject python_timestamp(timestamp value)
+inline PythonTimestampObject python_timestamp(Timestamp value)
 {
-    const date day = std::chrono::floor<std::chrono::days>(value);
+    const Date day = std::chrono::floor<std::chrono::days>(value);
     const std::chrono::hh_mm_ss time{
         std::chrono::floor<std::chrono::microseconds>(value - day)};
     const auto parts = std::chrono::year_month_day{day};
@@ -205,7 +205,7 @@ inline PythonTimestampObject python_timestamp(timestamp value)
         datetime.attr("timezone").attr("utc"))};
 }
 
-inline timestamp valuation_time(nb::handle value)
+inline Timestamp valuation_time(nb::handle value)
 {
     const nb::object datetime_module = nb::module_::import_("datetime");
     const nb::object datetime_type = datetime_module.attr("datetime");
@@ -215,9 +215,9 @@ inline timestamp valuation_time(nb::handle value)
 
     const nb::object object = nb::borrow<nb::object>(value);
     if (object.attr("utcoffset")().is_none())
-        type_error("valuation_time", "a date or timezone-aware datetime");
+        type_error("valuation_time", "a Date or timezone-aware datetime");
     const nb::object utc = object.attr("astimezone")(datetime_module.attr("timezone").attr("utc"));
-    const date day{std::chrono::year{nb::cast<int>(utc.attr("year"))} /
+    const Date day{std::chrono::year{nb::cast<int>(utc.attr("year"))} /
                    std::chrono::month{nb::cast<unsigned>(utc.attr("month"))} /
                    std::chrono::day{nb::cast<unsigned>(utc.attr("day"))}};
     return start_of_day(day) + std::chrono::hours{nb::cast<int>(utc.attr("hour"))} +
@@ -226,11 +226,11 @@ inline timestamp valuation_time(nb::handle value)
            std::chrono::microseconds{nb::cast<int>(utc.attr("microsecond"))};
 }
 
-inline std::vector<date> date_sequence(nb::handle values, std::string_view field)
+inline std::vector<Date> date_sequence(nb::handle values, std::string_view field)
 {
     const nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(values.ptr()));
     if (!iterator.is_valid()) type_error(field, "an iterable of datetime.date values");
-    std::vector<date> output;
+    std::vector<Date> output;
     while (PyObject* item = PyIter_Next(iterator.ptr())) {
         const nb::object owned = nb::steal<nb::object>(item);
         output.push_back(calendar_date(owned, field));

@@ -9,20 +9,20 @@
 namespace kiyosi {
 
 template <typename Note>
-[[nodiscard]] KIYOSI_EXPORT result<PricingResult> price_autocallable_finite_difference(
+[[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_autocallable_finite_difference(
     const Note&, const PricingContext&, FiniteDifferenceSettings);
 
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
 template <typename Note>
-class KIYOSI_EXPORT FiniteDifferenceStructuredEngine {
+class KIYOSI_EXPORT FiniteDifferenceAutocallableEngine {
 public:
-    explicit FiniteDifferenceStructuredEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    FiniteDifferenceStructuredEngine(int asset_steps, int time_steps,
-                                     finite_difference_scheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_steps, time_steps, scheme} {}
+    explicit FiniteDifferenceAutocallableEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
+    FiniteDifferenceAutocallableEngine(int asset_step_count, int time_step_count,
+                                     FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
+        : settings_{asset_step_count, time_step_count, scheme} {}
 
-    [[nodiscard]] result<PricingResult> price(const Note& note, const PricingContext& context) const
+    [[nodiscard]] Result<PricingResult> price(const Note& note, const PricingContext& context) const
     {
         return price_autocallable_finite_difference(note, context, settings_);
     }
@@ -33,9 +33,9 @@ private:
     FiniteDifferenceSettings settings_;
 };
 
-using FiniteDifferencePhoenixEngine = FiniteDifferenceStructuredEngine<PhoenixOption>;
-using FiniteDifferenceSnowballEngine = FiniteDifferenceStructuredEngine<SnowballOption>;
-using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceStructuredEngine<BinarySnowballOption>;
-using FiniteDifferenceTernarySnowballEngine = FiniteDifferenceStructuredEngine<TernarySnowballOption>;
+using FiniteDifferencePhoenixEngine = FiniteDifferenceAutocallableEngine<PhoenixOption>;
+using FiniteDifferenceSnowballEngine = FiniteDifferenceAutocallableEngine<SnowballOption>;
+using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceAutocallableEngine<BinarySnowballOption>;
+using FiniteDifferenceTernarySnowballEngine = FiniteDifferenceAutocallableEngine<TernarySnowballOption>;
 
 } // namespace kiyosi

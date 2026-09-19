@@ -7,15 +7,15 @@
 namespace kiyosi {
 
 /// Closed-form geometric average-rate option under lognormal spot.
-class KIYOSI_EXPORT GeometricAverageAsianEngine {
+class KIYOSI_EXPORT AnalyticGeometricAverageAsianEngine {
 public:
-    [[nodiscard]] result<PricingResult> price(const GeometricAverageOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const GeometricAveragePriceOption&, const PricingContext&) const;
 };
 
 /// Turnbull-Wakeman moment-matched approximation for arithmetic averaging.
-class KIYOSI_EXPORT ArithmeticAverageAsianEngine {
+class KIYOSI_EXPORT TurnbullWakemanArithmeticAverageAsianEngine {
 public:
-    [[nodiscard]] result<PricingResult> price(const ArithmeticAverageOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const ArithmeticAveragePriceOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

@@ -13,14 +13,14 @@ class KIYOSI_EXPORT BjerksundStenslandVanillaEngine {
 public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
-    [[nodiscard]] result<PricingResult> price(
+    [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
         return price_impl(option, context);
     }
 
 private:
-    [[nodiscard]] result<PricingResult> price_impl(
+    [[nodiscard]] Result<PricingResult> price_impl(
         const AmericanOption&, const PricingContext&) const;
 };
 

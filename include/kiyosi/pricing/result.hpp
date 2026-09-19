@@ -22,7 +22,7 @@ namespace kiyosi {
 /// - theta, charm, and color are price, delta, and gamma changes per calendar day as valuation
 ///   time moves forward.
 /// Undefined or unsupported measures are unavailable (`std::nullopt`), never represented by zero.
-enum class risk_measure : std::uint8_t {
+enum class RiskMeasure : std::uint8_t {
     price,
     delta,
     gamma,
@@ -36,9 +36,9 @@ enum class risk_measure : std::uint8_t {
     rho,
 };
 
-inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_measure::rho) + 1;
+inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(RiskMeasure::rho) + 1;
 
-[[nodiscard]] constexpr std::optional<std::size_t> risk_measure_index(risk_measure measure) noexcept
+[[nodiscard]] constexpr std::optional<std::size_t> risk_measure_index(RiskMeasure measure) noexcept
 {
     const auto index = static_cast<std::size_t>(measure);
     return index < risk_measure_count ? std::optional{index} : std::nullopt;
@@ -46,36 +46,36 @@ inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(risk_
 
 class PricingResult {
 public:
-    using values_type = std::array<std::optional<double>, risk_measure_count>;
+    using MeasureValues = std::array<std::optional<double>, risk_measure_count>;
 
     PricingResult() = default;
 
     /// Reports whether the measure is available; a stored zero is available.
-    [[nodiscard]] bool has(risk_measure measure) const noexcept
+    [[nodiscard]] bool has(RiskMeasure measure) const noexcept
     {
         const auto index = risk_measure_index(measure);
         return index && values_[*index].has_value();
     }
 
-    [[nodiscard]] result<std::optional<double>> get(risk_measure measure) const
+    [[nodiscard]] Result<std::optional<double>> get(RiskMeasure measure) const
     {
         const auto index = risk_measure_index(measure);
         if (!index)
-            return std::unexpected(Error{error_category::invalid_parameter,
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                          "unknown risk measure"});
         return values_[*index];
     }
 
-    [[nodiscard]] result<double> require(risk_measure measure) const
+    [[nodiscard]] Result<double> require(RiskMeasure measure) const
     {
         const auto value = get(measure);
         if (!value) return std::unexpected(value.error());
         if (*value) return **value;
-        return std::unexpected(Error{error_category::invalid_result,
+        return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "requested risk measure is unavailable"});
     }
 
-    [[nodiscard]] const values_type& values_view() const noexcept { return values_; }
+    [[nodiscard]] const MeasureValues& values_view() const noexcept { return values_; }
 
     [[nodiscard]] bool all_finite() const noexcept
     {
@@ -85,22 +85,22 @@ public:
     }
 
 private:
-    friend result<PricingResult> make_pricing_result(
-        std::initializer_list<std::pair<risk_measure, std::optional<double>>>);
+    friend Result<PricingResult> make_pricing_result(
+        std::initializer_list<std::pair<RiskMeasure, std::optional<double>>>);
 
-    values_type values_{};
+    MeasureValues values_{};
 };
 
 /// Builds a result from runtime risk-measure entries.
 /// Unknown measures are rejected with `invalid_parameter`.
-[[nodiscard]] inline result<PricingResult> make_pricing_result(
-    std::initializer_list<std::pair<risk_measure, std::optional<double>>> entries)
+[[nodiscard]] inline Result<PricingResult> make_pricing_result(
+    std::initializer_list<std::pair<RiskMeasure, std::optional<double>>> entries)
 {
     PricingResult output;
     for (const auto& [measure, value] : entries) {
         const auto index = risk_measure_index(measure);
         if (!index)
-            return std::unexpected(Error{error_category::invalid_parameter,
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                          "unknown risk measure"});
         output.values_[*index] = value;
     }

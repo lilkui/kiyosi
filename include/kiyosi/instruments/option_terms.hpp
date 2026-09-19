@@ -7,44 +7,44 @@
 
 namespace kiyosi {
 
-enum class option_type { call,
+enum class OptionType { call,
                          put };
 
 class OptionTerms;
 
 namespace detail {
-[[nodiscard]] result<OptionTerms> make_option_terms(option_type, double, date, date);
+[[nodiscard]] Result<OptionTerms> make_option_terms(OptionType, double, Date, Date);
 }
 
-/// Contractual essentials shared by every strike-and-life option: type, strike, and life dates.
+/// Contractual essentials shared by every strike-and-life option: option_type, strike, and life dates.
 class OptionTerms {
 public:
-    option_type type() const noexcept { return type_; }
+    OptionType option_type() const noexcept { return option_type_; }
     double strike() const noexcept { return strike_; }
-    date effective() const noexcept { return effective_; }
-    date expiry() const noexcept { return expiry_; }
+    Date effective_date() const noexcept { return effective_date_; }
+    Date expiry_date() const noexcept { return expiry_date_; }
     friend bool operator==(const OptionTerms&, const OptionTerms&) = default;
 
 private:
-    OptionTerms(option_type type, double strike, date effective, date expiry)
-        : type_(type), strike_(strike), effective_(effective), expiry_(expiry) {}
-    option_type type_;
+    OptionTerms(OptionType option_type, double strike, Date effective_date, Date expiry_date)
+        : option_type_(option_type), strike_(strike), effective_date_(effective_date), expiry_date_(expiry_date) {}
+    OptionType option_type_;
     double strike_;
-    date effective_;
-    date expiry_;
-    friend result<OptionTerms> detail::make_option_terms(option_type, double, date, date);
+    Date effective_date_;
+    Date expiry_date_;
+    friend Result<OptionTerms> detail::make_option_terms(OptionType, double, Date, Date);
 };
 
-[[nodiscard]] inline result<OptionTerms> detail::make_option_terms(
-    option_type type, double strike, date effective, date expiry)
+[[nodiscard]] inline Result<OptionTerms> detail::make_option_terms(
+    OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
-    if (type != option_type::call && type != option_type::put)
-        return std::unexpected(Error{error_category::invalid_option, "option type must be call or put"});
+    if (option_type != OptionType::call && option_type != OptionType::put)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0)
-        return std::unexpected(Error{error_category::invalid_strike, "strike must be finite and positive"});
-    if (!is_valid_date(effective) || !is_valid_date(expiry) || effective > expiry)
-        return std::unexpected(Error{error_category::invalid_schedule, "option life dates are invalid"});
-    return OptionTerms{type, strike, effective, expiry};
+        return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    if (!is_valid_date(effective_date) || !is_valid_date(expiry_date) || effective_date > expiry_date)
+        return std::unexpected(Error{ErrorCategory::invalid_schedule, "option life dates are invalid"});
+    return OptionTerms{option_type, strike, effective_date, expiry_date};
 }
 
 } // namespace kiyosi

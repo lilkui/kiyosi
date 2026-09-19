@@ -8,7 +8,7 @@
 #include "pricing/detail/fd_scheme.hpp"
 #include "pricing/detail/fd_grid.hpp"
 
-TEST_CASE("Finite-difference grids preserve exact expiry without replaying terminal events", "[cross-validation]")
+TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying terminal events", "[cross-validation]")
 {
     const double maturity = 91.0 / 365.0;
     for (const int steps : {400, 800, 1600}) {
@@ -25,7 +25,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
     constexpr std::size_t size = 7;
     constexpr double upper = 240.0;
     constexpr double spacing = upper / static_cast<double>(size - 1);
-    const std::array time_steps{0.17, 0.03, 0.11};
+    const std::array time_step_count{0.17, 0.03, 0.11};
 
     for (const double theta : {0.0, 1.0, 0.5}) {
         CAPTURE(theta);
@@ -41,7 +41,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
         std::vector<double> next_first(size), next_second(size);
         std::vector<double> next_expected_first(size), next_expected_second(size);
 
-        for (const double dt : time_steps) {
+        for (const double dt : time_step_count) {
             REQUIRE(paired.advance_pair(first, next_first, second, next_second, dt));
             REQUIRE(first_independent.advance(expected_first, next_expected_first, dt));
             REQUIRE(second_independent.advance(expected_second, next_expected_second, dt));

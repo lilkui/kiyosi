@@ -8,30 +8,30 @@ namespace kiyosi::python_binding {
 
 namespace {
 
-inline constexpr std::array<std::pair<const char*, risk_measure>, risk_measure_count> risk_measures{{
-    {"price", risk_measure::price}, {"delta", risk_measure::delta},
-    {"gamma", risk_measure::gamma}, {"speed", risk_measure::speed},
-    {"theta", risk_measure::theta}, {"charm", risk_measure::charm},
-    {"color", risk_measure::color}, {"vega", risk_measure::vega},
-    {"vanna", risk_measure::vanna}, {"zomma", risk_measure::zomma},
-    {"rho", risk_measure::rho},
+inline constexpr std::array<std::pair<const char*, RiskMeasure>, risk_measure_count> risk_measures{{
+    {"price", RiskMeasure::price}, {"delta", RiskMeasure::delta},
+    {"gamma", RiskMeasure::gamma}, {"speed", RiskMeasure::speed},
+    {"theta", RiskMeasure::theta}, {"charm", RiskMeasure::charm},
+    {"color", RiskMeasure::color}, {"vega", RiskMeasure::vega},
+    {"vanna", RiskMeasure::vanna}, {"zomma", RiskMeasure::zomma},
+    {"rho", RiskMeasure::rho},
 }};
 
-std::optional<risk_measure> measure_named(std::string_view name)
+std::optional<RiskMeasure> measure_named(std::string_view name)
 {
     for (const auto& [candidate, measure] : risk_measures)
         if (name == candidate) return measure;
     return std::nullopt;
 }
 
-monte_carlo_backend monte_carlo_backend_value(nb::handle value)
+MonteCarloBackend monte_carlo_backend_value(nb::handle value)
 {
-    if (!nb::isinstance<monte_carlo_backend>(value))
+    if (!nb::isinstance<MonteCarloBackend>(value))
         type_error("backend", "a MonteCarloBackend");
-    return nb::cast<monte_carlo_backend>(value);
+    return nb::cast<MonteCarloBackend>(value);
 }
 
-PythonOptionalReal optional_value(const PricingResult& result, risk_measure measure)
+PythonOptionalReal optional_value(const PricingResult& result, RiskMeasure measure)
 {
     const auto value = result.get(measure);
     if (value && *value) return PythonOptionalReal{nb::float_(**value)};
@@ -98,27 +98,27 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
         "Finite-difference pricing engine with immutable configuration. Settings are "
         "validated when price() is called."};
     binding
-        .def(nb::new_([](PythonInteger asset_steps, PythonInteger time_steps,
-                        finite_difference_scheme scheme, PythonReal upper_boundary) {
+        .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
+                        FiniteDifferenceScheme scheme, PythonReal asset_upper_boundary) {
                  std::optional<double> boundary;
-                 if (!upper_boundary.is_none())
-                     boundary = real_number(upper_boundary, "upper_boundary");
+                 if (!asset_upper_boundary.is_none())
+                     boundary = real_number(asset_upper_boundary, "asset_upper_boundary");
                  return Engine{FiniteDifferenceSettings{
-                     integer(asset_steps, "asset_steps"), integer(time_steps, "time_steps"),
+                     integer(asset_step_count, "asset_step_count"), integer(time_step_count, "time_step_count"),
                      scheme, boundary}};
              }),
-             nb::kw_only(), "asset_steps"_a = FiniteDifferenceSettings{}.asset_steps,
-             "time_steps"_a = FiniteDifferenceSettings{}.time_steps,
+             nb::kw_only(), "asset_step_count"_a = FiniteDifferenceSettings{}.asset_step_count,
+             "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
-             "upper_boundary"_a = nb::none(),
+             "asset_upper_boundary"_a = nb::none(),
              "Store finite-difference settings; they are validated when price() is called.")
-        .def_prop_ro("asset_steps", [](const Engine& engine) { return engine.settings().asset_steps; })
-        .def_prop_ro("time_steps", [](const Engine& engine) { return engine.settings().time_steps; })
+        .def_prop_ro("asset_step_count", [](const Engine& engine) { return engine.settings().asset_step_count; })
+        .def_prop_ro("time_step_count", [](const Engine& engine) { return engine.settings().time_step_count; })
         .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; })
-        .def_prop_ro("upper_boundary", [](const Engine& engine) { return engine.settings().upper_boundary; });
+        .def_prop_ro("asset_upper_boundary", [](const Engine& engine) { return engine.settings().asset_upper_boundary; });
     bind_repr(binding, name,
-              {{"asset_steps", "asset_steps"}, {"time_steps", "time_steps"},
-               {"scheme", "scheme"}, {"upper_boundary", "upper_boundary"}});
+              {{"asset_step_count", "asset_step_count"}, {"time_step_count", "time_step_count"},
+               {"scheme", "scheme"}, {"asset_upper_boundary", "asset_upper_boundary"}});
     return binding;
 }
 
@@ -131,13 +131,13 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
         "when price() is called."};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed, nb::handle backend) {
-                 return Engine{StructuredMonteCarloSettings{
+                 return Engine{TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
                      monte_carlo_backend_value(backend)}};
              }),
-             nb::kw_only(), "path_count"_a = StructuredMonteCarloSettings{}.path_count,
-             "seed"_a = StructuredMonteCarloSettings{}.seed.value(),
-             "backend"_a = StructuredMonteCarloSettings{}.backend,
+             nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
+             "seed"_a = TradingDayMonteCarloSettings{}.seed.value(),
+             "backend"_a = TradingDayMonteCarloSettings{}.backend,
              "Store Monte Carlo settings; they are validated when price() is called.")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; })
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; })
@@ -178,14 +178,14 @@ template <typename Engine, typename Instrument>
 void bind_analytics_pair(nb::module_& module)
 {
     module.def(
-        "numerical_analytics",
+        "calculate_numerical_analytics",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
            PythonInteger time_shift_days) {
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
-            return unwrap(kiyosi::numerical_analytics(engine, instrument, context, settings));
+            return unwrap(kiyosi::calculate_numerical_analytics(engine, instrument, context, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
@@ -243,7 +243,7 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
     module.def(
         "implied_coupon",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonReal observed_price, coupon_quote_convention quote_convention,
+           PythonReal observed_price, CouponQuoteConvention quote_convention,
            PythonReal lower_bound, PythonReal upper_bound, PythonReal tolerance,
            PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
@@ -306,41 +306,41 @@ forward. Undefined or unsupported measures are None, never a zero sentinel.)doc"
              "Return optional risk-measure values in stable order.")
         .def("items", [](const PricingResult& result) { return result_items(result); },
              "Return name-value pairs in stable order.")
-        .def("require", [](const PricingResult& result, risk_measure measure) {
+        .def("require", [](const PricingResult& result, RiskMeasure measure) {
             return unwrap(result.require(measure));
         }, "measure"_a, "Return a required measure or raise KiyosiError when unavailable.")
         .def_prop_ro("price", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::price);
+            return optional_value(result, RiskMeasure::price);
         })
         .def_prop_ro("delta", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::delta);
+            return optional_value(result, RiskMeasure::delta);
         })
         .def_prop_ro("gamma", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::gamma);
+            return optional_value(result, RiskMeasure::gamma);
         })
         .def_prop_ro("speed", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::speed);
+            return optional_value(result, RiskMeasure::speed);
         })
         .def_prop_ro("theta", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::theta);
+            return optional_value(result, RiskMeasure::theta);
         })
         .def_prop_ro("charm", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::charm);
+            return optional_value(result, RiskMeasure::charm);
         })
         .def_prop_ro("color", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::color);
+            return optional_value(result, RiskMeasure::color);
         })
         .def_prop_ro("vega", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::vega);
+            return optional_value(result, RiskMeasure::vega);
         })
         .def_prop_ro("vanna", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::vanna);
+            return optional_value(result, RiskMeasure::vanna);
         })
         .def_prop_ro("zomma", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::zomma);
+            return optional_value(result, RiskMeasure::zomma);
         })
         .def_prop_ro("rho", [](const PricingResult& result) {
-            return optional_value(result, risk_measure::rho);
+            return optional_value(result, RiskMeasure::rho);
         });
     bind_repr(pricing_result, "PricingResult",
               {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"},
@@ -356,24 +356,24 @@ void bind_engines(nb::module_& module)
     auto analytic_vanilla = bind_stateless_engine<AnalyticVanillaEngine>(
         module, "AnalyticVanillaEngine");
     bind_engine_price<AnalyticVanillaEngine, EuropeanOption>(analytic_vanilla);
-    auto integral_vanilla = bind_stateless_engine<IntegralVanillaEngine>(
-        module, "IntegralVanillaEngine");
-    bind_engine_price<IntegralVanillaEngine, EuropeanOption>(integral_vanilla);
-    auto crr = nb::class_<CrrVanillaEngine>(
-        module, "CrrVanillaEngine",
+    auto integral_vanilla = bind_stateless_engine<QuadratureVanillaEngine>(
+        module, "QuadratureVanillaEngine");
+    bind_engine_price<QuadratureVanillaEngine, EuropeanOption>(integral_vanilla);
+    auto crr = nb::class_<CoxRossRubinsteinVanillaEngine>(
+        module, "CoxRossRubinsteinVanillaEngine",
         "Cox-Ross-Rubinstein engine with immutable configuration. Settings are validated "
         "when price() is called.")
-        .def(nb::new_([](PythonInteger steps) {
-                 return CrrVanillaEngine{integer(steps, "steps")};
+        .def(nb::new_([](PythonInteger step_count) {
+                 return CoxRossRubinsteinVanillaEngine{integer(step_count, "step_count")};
              }),
-             "steps"_a = BinomialSettings{}.steps,
+             "step_count"_a = BinomialSettings{}.step_count,
              "Store Cox-Ross-Rubinstein settings; they are validated when price() is called.")
-        .def_prop_ro("steps", [](const CrrVanillaEngine& engine) {
-            return engine.settings().steps;
+        .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) {
+            return engine.settings().step_count;
         });
-    bind_repr(crr, "CrrVanillaEngine", {{"steps", "steps"}});
-    bind_engine_price<CrrVanillaEngine, EuropeanOption>(crr);
-    bind_engine_price<CrrVanillaEngine, AmericanOption>(crr);
+    bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {{"step_count", "step_count"}});
+    bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(crr);
+    bind_engine_price<CoxRossRubinsteinVanillaEngine, AmericanOption>(crr);
     auto bjerksund = bind_stateless_engine<BjerksundStenslandVanillaEngine>(
         module, "BjerksundStenslandVanillaEngine");
     bind_engine_price<BjerksundStenslandVanillaEngine, AmericanOption>(bjerksund);
@@ -418,10 +418,10 @@ void bind_engines(nb::module_& module)
         module, "AnalyticDigitalEngine");
     bind_engine_price<AnalyticDigitalEngine, EuropeanCashOrNothingOption>(analytic_digital);
     bind_engine_price<AnalyticDigitalEngine, EuropeanAssetOrNothingOption>(analytic_digital);
-    auto integral_digital = bind_stateless_engine<IntegralDigitalEngine>(
-        module, "IntegralDigitalEngine");
-    bind_engine_price<IntegralDigitalEngine, EuropeanCashOrNothingOption>(integral_digital);
-    bind_engine_price<IntegralDigitalEngine, EuropeanAssetOrNothingOption>(integral_digital);
+    auto integral_digital = bind_stateless_engine<QuadratureDigitalEngine>(
+        module, "QuadratureDigitalEngine");
+    bind_engine_price<QuadratureDigitalEngine, EuropeanCashOrNothingOption>(integral_digital);
+    bind_engine_price<QuadratureDigitalEngine, EuropeanAssetOrNothingOption>(integral_digital);
     auto finite_digital = bind_finite_difference_engine<FiniteDifferenceDigitalEngine>(
         module, "FiniteDifferenceDigitalEngine");
     bind_engine_price<FiniteDifferenceDigitalEngine, EuropeanCashOrNothingOption>(finite_digital);
@@ -438,12 +438,12 @@ void bind_engines(nb::module_& module)
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(analytic_binary);
     bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(analytic_binary);
 
-    auto geometric = bind_stateless_engine<GeometricAverageAsianEngine>(
-        module, "GeometricAverageAsianEngine");
-    bind_engine_price<GeometricAverageAsianEngine, GeometricAverageOption>(geometric);
-    auto arithmetic = bind_stateless_engine<ArithmeticAverageAsianEngine>(
-        module, "ArithmeticAverageAsianEngine");
-    bind_engine_price<ArithmeticAverageAsianEngine, ArithmeticAverageOption>(arithmetic);
+    auto geometric = bind_stateless_engine<AnalyticGeometricAverageAsianEngine>(
+        module, "AnalyticGeometricAverageAsianEngine");
+    bind_engine_price<AnalyticGeometricAverageAsianEngine, GeometricAveragePriceOption>(geometric);
+    auto arithmetic = bind_stateless_engine<TurnbullWakemanArithmeticAverageAsianEngine>(
+        module, "TurnbullWakemanArithmeticAverageAsianEngine");
+    bind_engine_price<TurnbullWakemanArithmeticAverageAsianEngine, ArithmeticAveragePriceOption>(arithmetic);
 
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
         module, "FiniteDifferenceAccumulatorEngine");
@@ -482,22 +482,22 @@ void bind_engines(nb::module_& module)
 void bind_analytics(nb::module_& module)
 {
     bind_engine_analytics<AnalyticVanillaEngine, EuropeanOption>(module);
-    bind_engine_analytics<IntegralVanillaEngine, EuropeanOption>(module);
-    bind_engine_analytics<CrrVanillaEngine, EuropeanOption, AmericanOption>(module);
+    bind_engine_analytics<QuadratureVanillaEngine, EuropeanOption>(module);
+    bind_engine_analytics<CoxRossRubinsteinVanillaEngine, EuropeanOption, AmericanOption>(module);
     bind_engine_analytics<BjerksundStenslandVanillaEngine, AmericanOption>(module);
     bind_engine_analytics<FiniteDifferenceVanillaEngine, EuropeanOption, AmericanOption>(module);
     bind_engine_analytics<MonteCarloVanillaEngine, EuropeanOption, AmericanOption>(module);
     bind_engine_analytics<AnalyticDigitalEngine, EuropeanCashOrNothingOption,
                           EuropeanAssetOrNothingOption>(module);
-    bind_engine_analytics<IntegralDigitalEngine, EuropeanCashOrNothingOption,
+    bind_engine_analytics<QuadratureDigitalEngine, EuropeanCashOrNothingOption,
                           EuropeanAssetOrNothingOption>(module);
     bind_engine_analytics<FiniteDifferenceDigitalEngine, EuropeanCashOrNothingOption,
                           EuropeanAssetOrNothingOption>(module);
     bind_engine_analytics<AnalyticBarrierEngine, BarrierOption>(module);
     bind_engine_analytics<FiniteDifferenceBarrierEngine, BarrierOption>(module);
     bind_engine_analytics<AnalyticBinaryBarrierEngine, BinaryBarrierOption, TouchOption>(module);
-    bind_engine_analytics<GeometricAverageAsianEngine, GeometricAverageOption>(module);
-    bind_engine_analytics<ArithmeticAverageAsianEngine, ArithmeticAverageOption>(module);
+    bind_engine_analytics<AnalyticGeometricAverageAsianEngine, GeometricAveragePriceOption>(module);
+    bind_engine_analytics<TurnbullWakemanArithmeticAverageAsianEngine, ArithmeticAveragePriceOption>(module);
     bind_engine_analytics<FiniteDifferenceAccumulatorEngine, Accumulator>(module);
     bind_engine_analytics<MonteCarloAccumulatorEngine, Accumulator>(module);
     bind_engine_analytics<FiniteDifferenceSnowballEngine, SnowballOption>(module);

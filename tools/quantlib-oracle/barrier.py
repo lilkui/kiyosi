@@ -56,7 +56,7 @@ def option(inputs):
 @lru_cache(maxsize=32768)
 def price(items):
     inputs = dict(items)
-    kind = inputs["barrier_kind"]
+    kind = inputs["BarrierType"]
     g.require(
         kind in KINDS and inputs["settlement"] in {"at_hit", "at_expiry"},
         "unknown barrier terms",
@@ -71,7 +71,7 @@ def price(items):
         "knock-in cannot rebate at hit",
     )
     valuation = ql.DateParser.parseISO(inputs["valuation"])
-    expiry = ql.DateParser.parseISO(inputs["expiry"])
+    expiry_date = ql.DateParser.parseISO(inputs["expiry_date"])
     ql.Settings.instance().evaluationDate = valuation
     process = g.market_process(inputs)
     rates = process.riskFreeRate()
@@ -79,11 +79,11 @@ def price(items):
         ql.Option.Call if inputs["option"] == "call" else ql.Option.Put,
         inputs["strike"],
     )
-    exercise = ql.EuropeanExercise(expiry)
+    exercise = ql.EuropeanExercise(expiry_date)
 
-    def barrier_value(barrier_kind, rebate):
+    def barrier_value(BarrierType, rebate):
         contract = ql.BarrierOption(
-            KINDS[barrier_kind], inputs["barrier"], rebate, payoff, exercise
+            KINDS[BarrierType], inputs["barrier"], rebate, payoff, exercise
         )
         contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
         return contract.NPV()
@@ -93,7 +93,7 @@ def price(items):
             0,
             ql.NullCalendar(),
             inputs["rebate"],
-            expiry,
+            expiry_date,
             ql.Unadjusted,
             100,
             valuation,
@@ -134,7 +134,7 @@ def scenarios():
             for settlement in (
                 ("at_expiry",) if kind.endswith("_in") else ("at_hit", "at_expiry")
             ):
-                # Compact paired matrix, plus a strictly already-hit state and expiry boundary.
+                # Compact paired matrix, plus a strictly already-hit state and expiry_date boundary.
                 for spot, days in (
                     (80, 30),
                     (100, 365),
@@ -149,10 +149,10 @@ def scenarios():
                         "rate": 0.04,
                         "dividend": 0.01,
                         "volatility": 0.3,
-                        "effective": "2024-12-30",
+                        "effective_date": "2024-12-30",
                         "valuation": "2025-01-06",
-                        "expiry": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
-                        "barrier_kind": kind,
+                        "expiry_date": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
+                        "BarrierType": kind,
                         "barrier": 140 if kind.startswith("up") else 60,
                         "rebate": 10,
                         "settlement": settlement,
@@ -170,7 +170,7 @@ def metadata():
         "source_symbol": SOURCE,
         "reference_kind": "analytic",
         "convention": g.CONVENTION,
-        "decomposition": "KI or KO-hit direct,KO-expiry=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
+        "decomposition": "KI or KO-hit direct,KO-expiry_date=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
         "measure_sources": "central differences of QuantLib portfolio prices, no native Greeks",
         "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation, see GENERATION.md",
     }
@@ -196,14 +196,14 @@ def rows():
                 time_shift_days=1,
             )
             terms["wrapper"] = str(
-                inputs["expiry"] != "2025-01-07"
+                inputs["expiry_date"] != "2025-01-07"
                 and (engine == ENGINES[0] or inputs["spot"] == 100)
             ).lower()
             if engine == ENGINES[1]:
                 terms.update(
-                    asset_steps=1600,
-                    time_steps=1600,
-                    upper_boundary=400,
+                    asset_step_count=1600,
+                    time_step_count=1600,
+                    asset_upper_boundary=400,
                     scheme="crank_nicolson",
                 )
             yield g.serialize_row(row)
@@ -211,7 +211,7 @@ def rows():
 
 def check_bindings():
     """Probe the pinned binding, including actual engine restrictions."""
-    valuation, expiry = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
+    valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     ql.Settings.instance().evaluationDate = valuation
     curve = lambda value: ql.YieldTermStructureHandle(
         ql.FlatForward(valuation, value, ql.Actual365Fixed())
@@ -228,12 +228,12 @@ def check_bindings():
     for payoff, exercise, error in (
         (
             ql.CashOrNothingPayoff(ql.Option.Call, 100, 10),
-            ql.EuropeanExercise(expiry),
+            ql.EuropeanExercise(expiry_date),
             "non-plain payoff given",
         ),
         (
             vanilla,
-            ql.AmericanExercise(valuation, expiry),
+            ql.AmericanExercise(valuation, expiry_date),
             "only european style option are supported",
         ),
     ):
@@ -246,7 +246,7 @@ def check_bindings():
         else:
             raise AssertionError("unexpected analytic barrier binding support")
     contract = ql.BarrierOption(
-        ql.Barrier.UpOut, 140, 10, vanilla, ql.EuropeanExercise(expiry)
+        ql.Barrier.UpOut, 140, 10, vanilla, ql.EuropeanExercise(expiry_date)
     )
     contract.setPricingEngine(ql.AnalyticBarrierEngine(process))
     assert math.isfinite(contract.NPV())
@@ -262,7 +262,7 @@ def check_bindings():
         for at_expiry in (False, True):
             touch = ql.VanillaOption(
                 ql.CashOrNothingPayoff(direction, level, 10),
-                ql.AmericanExercise(valuation, expiry, at_expiry),
+                ql.AmericanExercise(valuation, expiry_date, at_expiry),
             )
             touch.setPricingEngine(ql.AnalyticDigitalAmericanEngine(process))
             inputs = {
@@ -272,10 +272,10 @@ def check_bindings():
                 "rate": 0.04,
                 "dividend": 0.01,
                 "volatility": 0.3,
-                "effective": "2024-12-30",
+                "effective_date": "2024-12-30",
                 "valuation": "2025-01-06",
-                "expiry": "2026-01-06",
-                "barrier_kind": "up_and_out"
+                "expiry_date": "2026-01-06",
+                "BarrierType": "up_and_out"
                 if direction == ql.Option.Call
                 else "down_and_out",
                 "barrier": level,

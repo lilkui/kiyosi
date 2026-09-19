@@ -30,7 +30,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(owned);
         if (fixture.instrument == "BarrierOption" || fixture.instrument == "BinaryBarrierOption" ||
             fixture.instrument == "TouchOption") continue;
-        if (fixture.instrument == "GeometricAverageOption" || fixture.instrument == "ArithmeticAverageOption") continue;
+        if (fixture.instrument == "GeometricAveragePriceOption" || fixture.instrument == "ArithmeticAveragePriceOption") continue;
         const bool american = fixture.instrument == "AmericanOption";
         const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
         if (digital) ++digital_rows[fixture.engine];
@@ -48,8 +48,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         const auto date = [&](const std::string& key) { return fixture_date(fixture, key); };
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
         REQUIRE(fixture.variant == inputs.at("option"));
-        REQUIRE(date("effective") <= date("valuation"));
-        REQUIRE(date("valuation") < date("expiry"));
+        REQUIRE(date("effective_date") <= date("valuation"));
+        REQUIRE(date("valuation") < date("expiry_date"));
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
         const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
@@ -58,8 +58,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             const auto check_engine = [&](const auto& engine) {
                 const auto native = engine.price(option, *context);
                 check_price(fixture, native);
-                const bool expiry_boundary = (date("expiry") - date("valuation")).count() <= 2;
-                const bool exercise_boundary = american && (date("valuation") - date("effective")).count() < 2;
+                const bool expiry_boundary = (date("expiry_date") - date("valuation")).count() <= 2;
+                const bool exercise_boundary = american && (date("valuation") - date("effective_date")).count() < 2;
                 const bool boundary = expiry_boundary || exercise_boundary;
                 const bool analytic = fixture.engine == "AnalyticEuropeanEngine";
                 if (!analytic) REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
@@ -81,7 +81,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     REQUIRE(inputs.contains("unavailable_" + name) == unavailable);
                     REQUIRE(fixture.outputs.contains(name) != unavailable);
                     if (unavailable) {
-                        REQUIRE(inputs.at("unavailable_" + name) == (expiry_boundary ? "whole-day stability stencil touches expiry" : "whole-day stability stencil precedes exercise window"));
+                        REQUIRE(inputs.at("unavailable_" + name) == (expiry_boundary ? "whole-day stability stencil touches expiry_date" : "whole-day stability stencil precedes exercise window"));
                         continue;
                     }
                     ++available;
@@ -111,13 +111,13 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             if constexpr (digital_contract) {
                 REQUIRE(inputs.at("payoff") == (std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ? "cash" : "asset"));
                 REQUIRE(inputs.at("payoff_condition") == "strict ITM, zero at strike");
-                REQUIRE(inputs.at("settlement") == "expiry");
+                REQUIRE(inputs.at("settlement") == "expiry_date");
                 if (fixture.engine == "AnalyticDigitalEngine") check_engine(kiyosi::AnalyticDigitalEngine{});
-                else if (fixture.engine == "IntegralDigitalEngine") check_engine(kiyosi::IntegralDigitalEngine{});
+                else if (fixture.engine == "QuadratureDigitalEngine") check_engine(kiyosi::QuadratureDigitalEngine{});
                 else if (fixture.engine == "FiniteDifferenceDigitalEngine") {
                     REQUIRE(inputs.at("scheme") == "crank_nicolson");
-                    check_engine(kiyosi::FiniteDifferenceDigitalEngine{{static_cast<int>(number("asset_steps")),
-                                                                        static_cast<int>(number("time_steps")), kiyosi::finite_difference_scheme::crank_nicolson, number("upper_boundary")}});
+                    check_engine(kiyosi::FiniteDifferenceDigitalEngine{{static_cast<int>(number("asset_step_count")),
+                                                                        static_cast<int>(number("time_step_count")), kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")}});
                 } else FAIL("Unknown digital engine: " << fixture.engine);
             } else {
                 if (fixture.engine == "AnalyticEuropeanEngine") {
@@ -136,45 +136,45 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandVanillaEngine{});
                     else FAIL("BjerksundStenslandAmericanEngine requires an American contract");
                 } else if (fixture.engine == "CrrEngine") {
-                    check_engine(kiyosi::CrrVanillaEngine{static_cast<int>(number("steps"))});
+                    check_engine(kiyosi::CoxRossRubinsteinVanillaEngine{static_cast<int>(number("steps"))});
                 } else if (fixture.engine == "IntegralEuropeanEngine") {
-                    if constexpr (!american_contract) check_engine(kiyosi::IntegralVanillaEngine{});
+                    if constexpr (!american_contract) check_engine(kiyosi::QuadratureVanillaEngine{});
                     else FAIL("IntegralEuropeanEngine requires a European contract");
                 } else if (fixture.engine == (american ? "FiniteDifferenceAmericanEngine" : "FiniteDifferenceEuropeanEngine")) {
-                    const std::map<std::string, kiyosi::finite_difference_scheme> schemes{
-                        {"explicit_euler", kiyosi::finite_difference_scheme::explicit_euler},
-                        {"implicit_euler", kiyosi::finite_difference_scheme::implicit_euler},
-                        {"crank_nicolson", kiyosi::finite_difference_scheme::crank_nicolson}};
+                    const std::map<std::string, kiyosi::FiniteDifferenceScheme> schemes{
+                        {"explicit_euler", kiyosi::FiniteDifferenceScheme::explicit_euler},
+                        {"implicit_euler", kiyosi::FiniteDifferenceScheme::implicit_euler},
+                        {"crank_nicolson", kiyosi::FiniteDifferenceScheme::crank_nicolson}};
                     REQUIRE(schemes.contains(inputs.at("scheme")));
-                    check_engine(FiniteDifference{{static_cast<int>(number("asset_steps")),
-                                                   static_cast<int>(number("time_steps")), schemes.at(inputs.at("scheme")), number("upper_boundary")}});
+                    check_engine(FiniteDifference{{static_cast<int>(number("asset_step_count")),
+                                                   static_cast<int>(number("time_step_count")), schemes.at(inputs.at("scheme")), number("asset_upper_boundary")}});
                 } else if (fixture.engine == (american ? "MonteCarloAmericanEngine" : "MonteCarloEuropeanEngine")) {
                     const auto& mc = *fixture.monte_carlo;
                     REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
                     REQUIRE(number("seed") == mc.seed);
                     REQUIRE(number("paths") == mc.paths);
-                    REQUIRE(number("steps") == mc.steps);
-                    check_engine(MonteCarlo{static_cast<int>(mc.paths), static_cast<int>(mc.steps), mc.seed});
+                    REQUIRE(number("steps") == mc.step_count);
+                    check_engine(MonteCarlo{static_cast<int>(mc.paths), static_cast<int>(mc.step_count), mc.seed});
                 } else {
                     FAIL("Unknown generated engine: " << fixture.engine);
                 }
             }
         };
-        const auto type = inputs.at("option") == "call" ? kiyosi::option_type::call : kiyosi::option_type::put;
+        const auto type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put;
         if (fixture.instrument == "EuropeanCashOrNothingOption") {
-            const auto option = kiyosi::make_cash_or_nothing_option(type, number("strike"), number("payout"), date("effective"), date("expiry"));
+            const auto option = kiyosi::make_cash_or_nothing_option(type, number("strike"), number("payout"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);
         } else if (fixture.instrument == "EuropeanAssetOrNothingOption") {
-            const auto option = kiyosi::make_asset_or_nothing_option(type, number("strike"), date("effective"), date("expiry"));
+            const auto option = kiyosi::make_asset_or_nothing_option(type, number("strike"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);
         } else if (american) {
-            const auto option = kiyosi::make_american_option(type, number("strike"), date("effective"), date("expiry"));
+            const auto option = kiyosi::make_american_option(type, number("strike"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);
         } else {
-            const auto option = kiyosi::make_european_option(type, number("strike"), date("effective"), date("expiry"));
+            const auto option = kiyosi::make_european_option(type, number("strike"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);
         }

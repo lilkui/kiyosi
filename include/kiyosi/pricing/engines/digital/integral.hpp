@@ -7,10 +7,10 @@
 namespace kiyosi {
 
 /// Simpson quadrature over the terminal lognormal density.
-class KIYOSI_EXPORT IntegralDigitalEngine {
+class KIYOSI_EXPORT QuadratureDigitalEngine {
 public:
-    [[nodiscard]] result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;
-    [[nodiscard]] result<PricingResult> price(const EuropeanAssetOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const EuropeanAssetOrNothingOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

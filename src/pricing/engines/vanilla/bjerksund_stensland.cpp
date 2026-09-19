@@ -122,22 +122,22 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
 }
 }
 
-result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const AmericanOption& option, const PricingContext& context) const
+Result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const AmericanOption& option, const PricingContext& context) const
 {
-    const auto valid = validate_life(context.valuation_time(), option.effective(), option.expiry());
+    const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    const double time = actual_365(context.valuation_time(), option.expiry());
-    const double spot = context.asset_price();
+    const double time = actual_365(context.valuation_time(), option.expiry_date());
+    const double spot = context.spot_price();
     const double strike = option.strike();
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double volatility = context.parameters().volatility();
-    const double value = option.type() == option_type::call
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double volatility = context.model_parameters().volatility();
+    const double value = option.option_type() == OptionType::call
                              ? bjerksund_call(spot, strike, time, rate, dividend, volatility)
                              : bjerksund_call(strike, spot, time, dividend, rate, volatility);
     if (!std::isfinite(value))
-        return std::unexpected(Error{error_category::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
-    return make_pricing_result({{risk_measure::price, std::max(value, 0.0)}});
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
+    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }
 
 } // namespace kiyosi

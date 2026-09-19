@@ -5,7 +5,7 @@
 
 namespace kiyosi {
 
-enum class monte_carlo_backend : unsigned char {
+enum class MonteCarloBackend : unsigned char {
     cpu,
     cuda,
 };
@@ -16,15 +16,15 @@ struct MonteCarloSettings {
     int path_count = 100'000;
     int step_count = 50;
     std::optional<std::uint64_t> seed;
-    monte_carlo_backend backend = monte_carlo_backend::cpu;
+    MonteCarloBackend backend = MonteCarloBackend::cpu;
 };
 
 /// Structured products step the trading calendar directly, so no step count is needed; settings
 /// are validated when price() is called.
-struct StructuredMonteCarloSettings {
+struct TradingDayMonteCarloSettings {
     int path_count = 20'000;
     std::optional<std::uint64_t> seed = 1;
-    monte_carlo_backend backend = monte_carlo_backend::cpu;
+    MonteCarloBackend backend = MonteCarloBackend::cpu;
 };
 
 } // namespace kiyosi

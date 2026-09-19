@@ -35,13 +35,13 @@ public:
     template <typename Constraint>
     bool advance(
         const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
-        double dividend, double volatility, double theta, double lower_boundary, double upper_boundary,
+        double dividend, double volatility, double theta, double lower_boundary, double asset_upper_boundary,
         Constraint constraint)
     {
         next.front() = lower_boundary;
-        next.back() = upper_boundary;
-        const int asset_steps = static_cast<int>(old.size()) - 1;
-        for (int index = 1; index < asset_steps; ++index) {
+        next.back() = asset_upper_boundary;
+        const int asset_step_count = static_cast<int>(old.size()) - 1;
+        for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
             const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
             const double b = -volatility * volatility * i * i - rate;
@@ -58,7 +58,7 @@ public:
                                 (a * old[position] + b * old[static_cast<std::size_t>(index)] +
                                  c * old[static_cast<std::size_t>(index + 1)]);
             if (index == 1) rhs[position] += theta * dt * a * next.front();
-            if (index == asset_steps - 1) rhs[position] += theta * dt * c * next.back();
+            if (index == asset_step_count - 1) rhs[position] += theta * dt * c * next.back();
             lower[position] = -theta * dt * a;
             diagonal[position] = 1.0 - theta * dt * b;
             upper_diagonal[position] = -theta * dt * c;
@@ -84,9 +84,9 @@ public:
 
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
                  double dividend, double volatility, double theta, double lower_boundary,
-                 double upper_boundary)
+                 double asset_upper_boundary)
     {
-        return advance(old, next, dt, rate, dividend, volatility, theta, lower_boundary, upper_boundary,
+        return advance(old, next, dt, rate, dividend, volatility, theta, lower_boundary, asset_upper_boundary,
                        [](int) -> std::optional<double> { return std::nullopt; });
     }
 
@@ -103,8 +103,8 @@ public:
         second_next.front() = second_boundaries.lower;
         second_next.back() = second_boundaries.upper;
         paired_rhs_.resize(rhs.size());
-        const int asset_steps = static_cast<int>(first_old.size()) - 1;
-        for (int index = 1; index < asset_steps; ++index) {
+        const int asset_step_count = static_cast<int>(first_old.size()) - 1;
+        for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
             const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
             const double b = -volatility * volatility * i * i - rate;
@@ -124,7 +124,7 @@ public:
                 rhs[position] += theta * dt * a * first_next.front();
                 paired_rhs_[position] += theta * dt * a * second_next.front();
             }
-            if (index == asset_steps - 1) {
+            if (index == asset_step_count - 1) {
                 rhs[position] += theta * dt * c * first_next.back();
                 paired_rhs_[position] += theta * dt * c * second_next.back();
             }
@@ -210,11 +210,11 @@ private:
     DiffusionParameters parameters_;
 };
 
-/// Marches one value layer from expiry back to valuation; `tau` is the time remaining to expiry.
+/// Marches one value layer from expiry_date back to valuation; `tau` is the time remaining to expiry_date.
 template <typename BoundaryValues,
           typename Event = decltype([](std::vector<double>&, double, double) {}),
           typename Constraint = decltype([](int, double) { return std::optional<double>{}; })>
-[[nodiscard]] inline result<void> march_backward(
+[[nodiscard]] inline Result<void> march_backward(
     std::span<const double> grid, const DiffusionParameters& parameters, std::vector<double>& layer,
     BoundaryValues boundaries, Event event = {}, Constraint constraint = {})
 {
@@ -228,7 +228,7 @@ template <typename BoundaryValues,
         if (!stepper.advance(layer, next, dt, parameters.rate, parameters.dividend,
                              parameters.volatility, parameters.theta, edges.lower, edges.upper,
                              [&](int index) { return constraint(index, tau); }))
-            return std::unexpected(Error{error_category::invalid_result,
+            return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         event(next, tau, grid[step]);
         layer.swap(next);

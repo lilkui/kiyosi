@@ -27,101 +27,101 @@ struct ObservationEvent {
 template <typename Note>
 double highest_relevant_level(const Note& note, double spot)
 {
-    double relevant = std::max({spot, note.initial_price(), note.upper_strike(), note.lower_strike()});
-    for (const double level : note.knock_out_prices()) relevant = std::max(relevant, level);
-    if constexpr (requires { note.knock_in_price(); })
-        relevant = std::max(relevant, note.knock_in_price());
-    if constexpr (requires { note.coupon_barriers(); })
-        for (const double level : note.coupon_barriers()) relevant = std::max(relevant, level);
+    double relevant = std::max({spot, note.initial_spot(), note.upper_strike(), note.lower_strike()});
+    for (const double level : note.knock_out_levels()) relevant = std::max(relevant, level);
+    if constexpr (requires { note.knock_in_level(); })
+        relevant = std::max(relevant, note.knock_in_level());
+    if constexpr (requires { note.coupon_barrier_levels(); })
+        for (const double level : note.coupon_barrier_levels()) relevant = std::max(relevant, level);
     return relevant;
 }
 
 template <typename Note>
-result<PricingResult> terminal_value(const Note& note, const PricingContext& context)
+Result<PricingResult> terminal_value(const Note& note, const PricingContext& context)
 {
-    const double spot = context.asset_price();
+    const double spot = context.spot_price();
     const bool knocked_in =
-        is_knocked_in(note, spot, note.touch_status() == barrier_touch_status::down, true);
+        is_knocked_in(note, spot, note.touch_status() == BarrierTouchStatus::down, true);
     const auto& dates = note.observation_dates();
     std::size_t index = 0;
-    while (index < dates.size() && dates[index] < note.expiry()) ++index;
-    const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry();
-    if (observed_at_expiry && spot >= note.knock_out_prices()[index])
+    while (index < dates.size() && dates[index] < note.expiry_date()) ++index;
+    const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry_date();
+    if (observed_at_expiry && spot >= note.knock_out_levels()[index])
         return make_pricing_result(
-            {{risk_measure::price,
+            {{RiskMeasure::price,
               note.principal_ratio() + observation_coupon(note, index, spot)}});
     const double coupon = observed_at_expiry && carries_observation_coupon<Note>
                               ? observation_coupon(note, index, spot)
                               : 0.0;
     return make_pricing_result(
-        {{risk_measure::price, terminal_settlement(note, spot, knocked_in) + coupon}});
+        {{RiskMeasure::price, terminal_settlement(note, spot, knocked_in) + coupon}});
 }
 
 } // namespace
 
 template <typename Note>
-result<PricingResult> price_autocallable_finite_difference(
+Result<PricingResult> price_autocallable_finite_difference(
     const Note& note, const PricingContext& context, FiniteDifferenceSettings settings)
 {
-    auto valid = validate_life(context.valuation_time(), note.effective(), note.expiry());
+    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     auto settings_valid = validate_finite_difference_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings.asset_steps > 2000 || settings.time_steps > 2000)
-        return std::unexpected(Error{error_category::invalid_parameter,
+    if (settings.asset_step_count > 2000 || settings.time_step_count > 2000)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference grid dimensions are out of range"});
-    auto contract = validate_note(note);
+    auto contract = validate_autocallable_note(note);
     if (!contract) return std::unexpected(contract.error());
-    auto schedule = validate_observation_dates(note.observation_dates(), note.effective(),
-                                               note.expiry(), context.calendar());
+    auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
+                                               note.expiry_date(), context.calendar());
     if (!schedule) return std::unexpected(schedule.error());
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
-    if (note.touch_status() == barrier_touch_status::up && !settings.upper_boundary)
-        return make_pricing_result({{risk_measure::price, 0.0}});
+    if (note.touch_status() == BarrierTouchStatus::up && !settings.asset_upper_boundary)
+        return make_pricing_result({{RiskMeasure::price, 0.0}});
 
-    const double spot = context.asset_price();
+    const double spot = context.spot_price();
     const double relevant = highest_relevant_level(note, spot);
     const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
-    if (note.touch_status() == barrier_touch_status::up)
-        return make_pricing_result({{risk_measure::price, 0.0}});
+    if (note.touch_status() == BarrierTouchStatus::up)
+        return make_pricing_result({{RiskMeasure::price, 0.0}});
 
-    const timestamp valuation = context.valuation_time();
-    const double maturity = actual_365(valuation, note.expiry());
+    const Timestamp valuation = context.valuation_time();
+    const double maturity = actual_365(valuation, note.expiry_date());
     if (maturity == 0.0) return terminal_value(note, context);
 
     std::vector<double> anchors{0.0, maturity};
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-        const date value = note.observation_dates()[index];
+        const Date value = note.observation_dates()[index];
         if (value < valuation) continue;
         const double time = actual_365(valuation, value);
         observation_events.push_back({time, index});
         if (time > 0.0 && time < maturity) anchors.push_back(time);
     }
-    constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_frequency(); };
+    constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
     bool monitors_daily = false;
     if constexpr (monitors_knock_in)
-        monitors_daily = note.knock_in_frequency() == observation_frequency::daily;
+        monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
     std::vector<double> trading_times;
     if (monitors_daily) {
         const auto future_trading_dates =
-            trading_dates(context.calendar(), valuation, note.expiry(), true);
+            trading_dates(context.calendar(), valuation, note.expiry_date(), true);
         trading_times.reserve(future_trading_dates.size());
-        for (const date value : future_trading_dates) {
+        for (const Date value : future_trading_dates) {
             const double time = actual_365(valuation, value);
             trading_times.push_back(time);
             if (time > 0.0 && time < maturity) anchors.push_back(time);
         }
     }
 
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double sigma = context.parameters().volatility();
-    const auto grid = finite_difference_grid(maturity, settings.time_steps, std::move(anchors));
-    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, settings.asset_steps);
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double sigma = context.model_parameters().volatility();
+    const auto grid = finite_difference_grid(maturity, settings.time_step_count, std::move(anchors));
+    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 
@@ -145,9 +145,9 @@ result<PricingResult> price_autocallable_finite_difference(
     const auto expiry_observation = event_index(maturity);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        bool ki = note.touch_status() == barrier_touch_status::down;
-        if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_price();
-        if (expiry_observation && value >= note.knock_out_prices()[*expiry_observation]) {
+        bool ki = note.touch_status() == BarrierTouchStatus::down;
+        if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
+        if (expiry_observation && value >= note.knock_out_levels()[*expiry_observation]) {
             alive[index] = note.principal_ratio() +
                            observation_coupon(note, *expiry_observation, value);
             if constexpr (monitors_knock_in) knocked_in[index] = alive[index];
@@ -172,7 +172,7 @@ result<PricingResult> price_autocallable_finite_difference(
         else
             advanced = stepper.advance(alive, next_alive, dt);
         if (!advanced)
-            return std::unexpected(Error{error_category::invalid_result,
+            return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);
         const bool daily = monitors_daily &&
@@ -180,8 +180,8 @@ result<PricingResult> price_autocallable_finite_difference(
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false;
-            if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_price();
-            if (observation_index && value >= note.knock_out_prices()[*observation_index]) {
+            if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_level();
+            if (observation_index && value >= note.knock_out_levels()[*observation_index]) {
                 next_alive[index] = note.principal_ratio() +
                                     observation_coupon(note, *observation_index, value);
                 if constexpr (monitors_knock_in) next_knocked_in[index] = next_alive[index];
@@ -207,21 +207,21 @@ result<PricingResult> price_autocallable_finite_difference(
 
     if constexpr (monitors_knock_in)
         return make_pricing_result(
-            {{risk_measure::price,
-              space->interpolate(note.touch_status() == barrier_touch_status::down ? knocked_in
+            {{RiskMeasure::price,
+              space->interpolate(note.touch_status() == BarrierTouchStatus::down ? knocked_in
                                                                                     : alive,
                                  spot)}});
     else
-        return make_pricing_result({{risk_measure::price, space->interpolate(alive, spot)}});
+        return make_pricing_result({{RiskMeasure::price, space->interpolate(alive, spot)}});
 }
 
-template result<PricingResult> price_autocallable_finite_difference(
+template Result<PricingResult> price_autocallable_finite_difference(
     const PhoenixOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_autocallable_finite_difference(
+template Result<PricingResult> price_autocallable_finite_difference(
     const SnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_autocallable_finite_difference(
+template Result<PricingResult> price_autocallable_finite_difference(
     const BinarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template result<PricingResult> price_autocallable_finite_difference(
+template Result<PricingResult> price_autocallable_finite_difference(
     const TernarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
 
 } // namespace kiyosi

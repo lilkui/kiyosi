@@ -15,20 +15,20 @@ public:
         requires (std::same_as<Payoff, CashOrNothingPayoff> ||
                   std::same_as<Payoff, AssetOrNothingPayoff>) &&
                  std::same_as<Exercise, EuropeanExercise>
-    [[nodiscard]] result<PricingResult> price(
+    [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
         if constexpr (std::same_as<Payoff, AssetOrNothingPayoff>)
-            return price_impl(option.type(), option.strike(), 1.0, true, option.effective(),
-                              option.expiry(), context);
+            return price_impl(option.option_type(), option.strike(), 1.0, true, option.effective_date(),
+                              option.expiry_date(), context);
         else
-            return price_impl(option.type(), option.strike(), option.payout(), false,
-                              option.effective(), option.expiry(), context);
+            return price_impl(option.option_type(), option.strike(), option.payout(), false,
+                              option.effective_date(), option.expiry_date(), context);
     }
 
 private:
-    [[nodiscard]] result<PricingResult> price_impl(
-        option_type, double, double, bool, date, date, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price_impl(
+        OptionType, double, double, bool, Date, Date, const PricingContext&) const;
 };
 
 } // namespace kiyosi

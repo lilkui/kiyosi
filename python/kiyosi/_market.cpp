@@ -8,81 +8,81 @@ namespace kiyosi::python_binding {
 
 void bind_enums(nb::module_& module)
 {
-    nb::enum_<error_category>(module, "ErrorCategory")
-        .value("INVALID_OPTION", error_category::invalid_option)
-        .value("INVALID_STRIKE", error_category::invalid_strike)
-        .value("INVALID_VOLATILITY", error_category::invalid_volatility)
-        .value("INVALID_RATE", error_category::invalid_rate)
-        .value("INVALID_DIVIDEND", error_category::invalid_dividend)
-        .value("INVALID_ASSET_PRICE", error_category::invalid_asset_price)
-        .value("INVALID_DATE", error_category::invalid_date)
-        .value("INVALID_EXPIRY", error_category::invalid_expiry)
-        .value("INVALID_RESULT", error_category::invalid_result)
-        .value("INVALID_SCHEDULE", error_category::invalid_schedule)
-        .value("INVALID_CALENDAR", error_category::invalid_calendar)
-        .value("INVALID_PARAMETER", error_category::invalid_parameter)
-        .value("UNBRACKETED_VOLATILITY", error_category::unbracketed_volatility)
-        .value("SOLVER_NON_CONVERGENCE", error_category::solver_non_convergence)
-        .value("SOLVER_NON_FINITE", error_category::solver_non_finite)
-        .value("UNBRACKETED_COUPON", error_category::unbracketed_coupon)
-        .value("BACKEND_UNAVAILABLE", error_category::backend_unavailable)
-        .value("BACKEND_FAILURE", error_category::backend_failure)
-        .value("UNSUPPORTED_OPERATION", error_category::unsupported_operation);
-    nb::enum_<option_type>(module, "OptionType")
-        .value("CALL", option_type::call)
-        .value("PUT", option_type::put);
-    nb::enum_<barrier_type>(module, "BarrierType")
-        .value("UP_AND_IN", barrier_type::up_and_in)
-        .value("UP_AND_OUT", barrier_type::up_and_out)
-        .value("DOWN_AND_IN", barrier_type::down_and_in)
-        .value("DOWN_AND_OUT", barrier_type::down_and_out);
-    nb::enum_<observation_mode>(module, "ObservationMode")
-        .value("CONTINUOUS", observation_mode::continuous)
-        .value("SCHEDULED", observation_mode::scheduled);
-    nb::enum_<rebate_timing>(module, "RebateTiming")
-        .value("AT_HIT", rebate_timing::at_hit)
-        .value("AT_EXPIRY", rebate_timing::at_expiry);
-    nb::enum_<settlement_timing>(module, "SettlementTiming")
-        .value("AT_HIT", settlement_timing::at_hit)
-        .value("AT_EXPIRY", settlement_timing::at_expiry);
-    nb::enum_<payoff_type>(module, "PayoffType")
-        .value("CASH", payoff_type::cash)
-        .value("ASSET", payoff_type::asset);
-    nb::enum_<observation_frequency>(module, "ObservationFrequency")
-        .value("DAILY", observation_frequency::daily)
-        .value("AT_EXPIRY", observation_frequency::at_expiry);
-    nb::enum_<barrier_touch_status>(module, "BarrierTouchStatus")
-        .value("NONE", barrier_touch_status::none)
-        .value("UP", barrier_touch_status::up)
-        .value("DOWN", barrier_touch_status::down);
-    nb::enum_<finite_difference_scheme>(module, "FiniteDifferenceScheme")
-        .value("EXPLICIT_EULER", finite_difference_scheme::explicit_euler)
-        .value("IMPLICIT_EULER", finite_difference_scheme::implicit_euler)
-        .value("CRANK_NICOLSON", finite_difference_scheme::crank_nicolson);
-    nb::enum_<monte_carlo_backend>(module, "MonteCarloBackend")
-        .value("CPU", monte_carlo_backend::cpu)
-        .value("CUDA", monte_carlo_backend::cuda);
-    nb::enum_<coupon_quote_convention>(module, "CouponQuoteConvention")
-        .value("LINKED_MATURITY", coupon_quote_convention::linked_maturity)
-        .value("FIXED_MATURITY", coupon_quote_convention::fixed_maturity);
-    nb::enum_<risk_measure>(module, "RiskMeasure")
-        .value("PRICE", risk_measure::price)
-        .value("DELTA", risk_measure::delta)
-        .value("GAMMA", risk_measure::gamma)
-        .value("SPEED", risk_measure::speed)
-        .value("THETA", risk_measure::theta)
-        .value("CHARM", risk_measure::charm)
-        .value("COLOR", risk_measure::color)
-        .value("VEGA", risk_measure::vega)
-        .value("VANNA", risk_measure::vanna)
-        .value("ZOMMA", risk_measure::zomma)
-        .value("RHO", risk_measure::rho);
+    nb::enum_<ErrorCategory>(module, "ErrorCategory")
+        .value("INVALID_OPTION", ErrorCategory::invalid_option)
+        .value("INVALID_STRIKE", ErrorCategory::invalid_strike)
+        .value("INVALID_VOLATILITY", ErrorCategory::invalid_volatility)
+        .value("INVALID_RISK_FREE_RATE", ErrorCategory::invalid_risk_free_rate)
+        .value("INVALID_DIVIDEND_YIELD", ErrorCategory::invalid_dividend_yield)
+        .value("INVALID_SPOT_PRICE", ErrorCategory::invalid_spot_price)
+        .value("INVALID_DATE", ErrorCategory::invalid_date)
+        .value("INVALID_EXPIRY", ErrorCategory::invalid_expiry)
+        .value("INVALID_RESULT", ErrorCategory::invalid_result)
+        .value("INVALID_SCHEDULE", ErrorCategory::invalid_schedule)
+        .value("INVALID_CALENDAR", ErrorCategory::invalid_calendar)
+        .value("INVALID_PARAMETER", ErrorCategory::invalid_parameter)
+        .value("UNBRACKETED_VOLATILITY", ErrorCategory::unbracketed_volatility)
+        .value("SOLVER_NON_CONVERGENCE", ErrorCategory::solver_non_convergence)
+        .value("SOLVER_NON_FINITE", ErrorCategory::solver_non_finite)
+        .value("UNBRACKETED_COUPON", ErrorCategory::unbracketed_coupon)
+        .value("BACKEND_UNAVAILABLE", ErrorCategory::backend_unavailable)
+        .value("BACKEND_FAILURE", ErrorCategory::backend_failure)
+        .value("UNSUPPORTED_OPERATION", ErrorCategory::unsupported_operation);
+    nb::enum_<OptionType>(module, "OptionType")
+        .value("CALL", OptionType::call)
+        .value("PUT", OptionType::put);
+    nb::enum_<BarrierType>(module, "BarrierType")
+        .value("UP_AND_IN", BarrierType::up_and_in)
+        .value("UP_AND_OUT", BarrierType::up_and_out)
+        .value("DOWN_AND_IN", BarrierType::down_and_in)
+        .value("DOWN_AND_OUT", BarrierType::down_and_out);
+    nb::enum_<ObservationMode>(module, "ObservationMode")
+        .value("CONTINUOUS", ObservationMode::continuous)
+        .value("SCHEDULED", ObservationMode::scheduled);
+    nb::enum_<RebateTiming>(module, "RebateTiming")
+        .value("AT_HIT", RebateTiming::at_hit)
+        .value("AT_EXPIRY", RebateTiming::at_expiry);
+    nb::enum_<SettlementTiming>(module, "SettlementTiming")
+        .value("AT_HIT", SettlementTiming::at_hit)
+        .value("AT_EXPIRY", SettlementTiming::at_expiry);
+    nb::enum_<PayoffType>(module, "PayoffType")
+        .value("CASH", PayoffType::cash)
+        .value("ASSET", PayoffType::asset);
+    nb::enum_<KnockInObservationMode>(module, "KnockInObservationMode")
+        .value("EVERY_TRADING_DAY", KnockInObservationMode::every_trading_day)
+        .value("AT_EXPIRY", KnockInObservationMode::at_expiry);
+    nb::enum_<BarrierTouchStatus>(module, "BarrierTouchStatus")
+        .value("NONE", BarrierTouchStatus::none)
+        .value("UP", BarrierTouchStatus::up)
+        .value("DOWN", BarrierTouchStatus::down);
+    nb::enum_<FiniteDifferenceScheme>(module, "FiniteDifferenceScheme")
+        .value("EXPLICIT_EULER", FiniteDifferenceScheme::explicit_euler)
+        .value("IMPLICIT_EULER", FiniteDifferenceScheme::implicit_euler)
+        .value("CRANK_NICOLSON", FiniteDifferenceScheme::crank_nicolson);
+    nb::enum_<MonteCarloBackend>(module, "MonteCarloBackend")
+        .value("CPU", MonteCarloBackend::cpu)
+        .value("CUDA", MonteCarloBackend::cuda);
+    nb::enum_<CouponQuoteConvention>(module, "CouponQuoteConvention")
+        .value("SHIFT_MATURITY_COUPON", CouponQuoteConvention::shift_maturity_coupon)
+        .value("PRESERVE_MATURITY_COUPON", CouponQuoteConvention::preserve_maturity_coupon);
+    nb::enum_<RiskMeasure>(module, "RiskMeasure")
+        .value("PRICE", RiskMeasure::price)
+        .value("DELTA", RiskMeasure::delta)
+        .value("GAMMA", RiskMeasure::gamma)
+        .value("SPEED", RiskMeasure::speed)
+        .value("THETA", RiskMeasure::theta)
+        .value("CHARM", RiskMeasure::charm)
+        .value("COLOR", RiskMeasure::color)
+        .value("VEGA", RiskMeasure::vega)
+        .value("VANNA", RiskMeasure::vanna)
+        .value("ZOMMA", RiskMeasure::zomma)
+        .value("RHO", RiskMeasure::rho);
 }
 
 void bind_market(nb::module_& module)
 {
-    auto parameters = nb::class_<BsmParameters>(
-        module, "BsmParameters", "Validated Black-Scholes-Merton market parameters.")
+    auto parameters = nb::class_<BlackScholesMertonParameters>(
+        module, "BlackScholesMertonParameters", "Validated Black-Scholes-Merton market parameters.")
         .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
                         PythonReal volatility) {
                  return unwrap(make_bsm_parameters(
@@ -92,11 +92,11 @@ void bind_market(nb::module_& module)
              }),
              nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a,
              "Create validated continuously compounded rates and volatility.")
-        .def_prop_ro("risk_free_rate", &BsmParameters::risk_free_rate)
-        .def_prop_ro("dividend_yield", &BsmParameters::dividend_yield)
-        .def_prop_ro("volatility", &BsmParameters::volatility);
+        .def_prop_ro("risk_free_rate", &BlackScholesMertonParameters::risk_free_rate)
+        .def_prop_ro("dividend_yield", &BlackScholesMertonParameters::dividend_yield)
+        .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility);
     bind_value_equality(parameters);
-    bind_repr(parameters, "BsmParameters",
+    bind_repr(parameters, "BlackScholesMertonParameters",
               {{"risk_free_rate", "risk_free_rate"},
                {"dividend_yield", "dividend_yield"},
                {"volatility", "volatility"}});
@@ -138,12 +138,12 @@ void bind_market(nb::module_& module)
         })
         .def("__iter__", [](const ObservationSchedule& schedule) {
             PythonDateList output;
-            for (const date value : schedule.dates()) output.append(python_date(value));
+            for (const Date value : schedule.dates()) output.append(python_date(value));
             return PythonDateIterator{output.attr("__iter__")()};
         })
         .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
             PythonDateList output;
-            for (const date value : schedule.dates()) output.append(python_date(value));
+            for (const Date value : schedule.dates()) output.append(python_date(value));
             return output;
         });
     bind_value_equality(schedule);
@@ -151,19 +151,19 @@ void bind_market(nb::module_& module)
 
     auto context = nb::class_<PricingContext>(
         module, "PricingContext", "Validated market state for a valuation instant.")
-        .def(nb::new_([](const BsmParameters& parameters, PythonReal asset_price,
+        .def(nb::new_([](const BlackScholesMertonParameters& parameters, PythonReal spot_price,
                         PythonValuationTime time, const TradingCalendar& calendar) {
                  return unwrap(make_pricing_context(
-                     parameters, real_number(asset_price, "asset_price"),
+                     parameters, real_number(spot_price, "spot_price"),
                      valuation_time(time), calendar));
              }),
-             nb::kw_only(), "parameters"_a, "asset_price"_a, "valuation_time"_a,
+             nb::kw_only(), "model_parameters"_a, "spot_price"_a, "valuation_time"_a,
              "calendar"_a = weekdays_calendar(),
              "Create a pricing context; dates denote midnight UTC and use the weekdays calendar by default.")
-        .def_prop_ro("parameters", &PricingContext::parameters,
+        .def_prop_ro("model_parameters", &PricingContext::model_parameters,
                      nb::rv_policy::reference_internal,
                      "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
-        .def_prop_ro("asset_price", &PricingContext::asset_price)
+        .def_prop_ro("spot_price", &PricingContext::spot_price)
         .def_prop_ro("valuation_date", [](const PricingContext& context) {
             return python_date(context.valuation_date());
         })
@@ -174,7 +174,7 @@ void bind_market(nb::module_& module)
                      nb::rv_policy::reference_internal,
                      "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
     bind_repr(context, "PricingContext",
-              {{"parameters", "parameters"}, {"asset_price", "asset_price"},
+              {{"model_parameters", "model_parameters"}, {"spot_price", "spot_price"},
                {"valuation_time", "valuation_time"}, {"calendar", "calendar"}});
 
     module.def("all_days_calendar", &all_days_calendar,
