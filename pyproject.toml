@@ -39,3 +39,17 @@ cmake.args = [
     "-DKIYOSI_BUILD_BENCHMARKS=OFF",
     "-DBUILD_TESTING=OFF",
 ]
+
+[tool.cibuildwheel]
+build = "cp3{11,12,13,14}-*"
+skip = "*-musllinux_*"
+archs = ["auto64"]
+environment = { CMAKE_ARGS = "-DKIYOSI_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75-real;80-real;86-real;89-real;90-real;100-real;120-real;120-virtual" }
+test-sources = ["tests"]
+test-command = [
+    "python -m unittest discover -s tests/python -p test_kiyosi.py",
+    "python -c \"import importlib.util, subprocess; path = importlib.util.find_spec('kiyosi._native').origin; cubins = subprocess.check_output(['cuobjdump', '--list-elf', path], text=True); assert all(f'sm_{arch}' in cubins for arch in (75, 80, 86, 89, 90, 100, 120)), cubins; ptx = subprocess.check_output(['cuobjdump', '--list-ptx', path], text=True); assert any(target in ptx for target in ('compute_120', 'sm_120')), ptx\"",
+]
+
+[tool.cibuildwheel.linux]
+manylinux-x86_64-image = "quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda12_9@sha256:48722ca4ea6d167f99e9dc4fe7a4cc50ebc3b3320d480fc2ad780f99b145200b"

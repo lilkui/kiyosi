@@ -1,6 +1,18 @@
-name: Publish to PyPI
+name: Build and publish distributions
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/publish.yml
+      - pyproject.toml
+      - CMakeLists.txt
+      - cmake/**
+      - include/**
+      - src/**
+      - python/**
+      - tests/python/**
+      - tests/fixtures/**
+  workflow_dispatch:
   release:
     types: [published]
 
@@ -13,22 +25,46 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-2022]
 
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           persist-credentials: false
+
+      - name: Verify release tag
+        if: github.event_name == 'release'
+        run: >-
+          python -c "import os, pathlib, re; text = pathlib.Path('CMakeLists.txt').read_text();
+          version = re.search(r'project\(kiyosi VERSION ([0-9.]+)', text).group(1);
+          tag = os.environ['GITHUB_REF_NAME'];
+          assert tag == f'v{version}', f'release tag {tag!r} does not match package version {version!r}'"
+
+      - name: Install CUDA Toolkit
+        if: runner.os == 'Windows'
+        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d
+        with:
+          cuda: '12.9.2'
+          method: network
+          sub-packages: '["nvcc", "cudart", "cuobjdump", "curand_dev", "visual_studio_integration"]'
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.2.0
-        env:
-          CIBW_BUILD: cp311-* cp312-* cp313-* cp314-*
 
       - name: Build source distribution
         if: runner.os == 'Linux'
         run: pipx run build --sdist --outdir wheelhouse
+
+      - name: Check distribution sizes
+        run: >-
+          python -c "from pathlib import Path; from zipfile import ZipFile;
+          oversized = [(path.name, path.stat().st_size) for path in Path('wheelhouse').iterdir()
+          if path.stat().st_size >= 100 * 1024 * 1024];
+          assert not oversized, f'distributions exceed PyPI size limit: {oversized}';
+          bundled = [(wheel.name, member) for wheel in Path('wheelhouse').glob('*.whl')
+          for member in ZipFile(wheel).namelist() if 'cudart' in member.lower()];
+          assert not bundled, f'wheels contain shared CUDA runtimes instead of static linkage: {bundled}'"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -38,8 +74,9 @@ jobs:
 
   publish:
     name: Publish distributions to PyPI
+    if: github.event_name == 'release'
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: pypi
       url: https://pypi.org/project/kiyosi/
