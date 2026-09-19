@@ -6,6 +6,19 @@
 #include <vector>
 
 #include "pricing/detail/fd_scheme.hpp"
+#include "pricing/detail/fd_grid.hpp"
+
+TEST_CASE("Finite-difference grids preserve exact expiry without replaying terminal events", "[cross-validation]")
+{
+    const double maturity = 91.0 / 365.0;
+    for (const int steps : {400, 800, 1600}) {
+        CAPTURE(steps);
+        const auto grid = kiyosi::detail::finite_difference_grid(maturity, steps, {0.0, maturity});
+        CHECK(grid.front() == 0.0);
+        CHECK(grid.back() == maturity);
+        CHECK(grid.size() == static_cast<std::size_t>(steps + 1));
+    }
+}
 
 TEST_CASE("Paired finite-difference advances match independent layers")
 {

@@ -13,9 +13,11 @@ from kiyosi.instruments import (
     CashOrNothingOption,
     EuropeanOption,
     GeometricAverageOption,
+    ObservationFrequency,
     ObservationMode,
     OptionType,
     PayoffType,
+    PhoenixOption,
     RebateTiming,
     SettlementTiming,
     TouchOption,
@@ -252,6 +254,47 @@ class KiyosiPythonTests(unittest.TestCase):
             Accumulator(**{**terms, "effective": terms["expiry"], "expiry": terms["effective"]})
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_EXPIRY)
         self.assertEqual(str(error.exception), "expiry must not precede effective")
+
+    def test_accumulator_knock_out_settles_existing_quantity(self):
+        effective = date(2025, 1, 1)
+        option = Accumulator(
+            strike=100, knock_out=110, daily_quantity=1, acceleration=2,
+            accumulated_quantity=3, effective=effective, expiry=date(2025, 1, 6),
+        )
+        context = PricingContext(
+            parameters=BsmParameters(risk_free_rate=0.05, dividend_yield=0.05, volatility=0.2),
+            asset_price=110, valuation_time=effective, calendar=market.all_days_calendar(),
+        )
+        engines = (
+            pricing.FiniteDifferenceAccumulatorEngine(asset_steps=400, upper_boundary=400),
+            pricing.MonteCarloAccumulatorEngine(path_count=64, seed=73),
+        )
+        for engine in engines:
+            with self.subTest(engine=type(engine).__name__):
+                self.assertAlmostEqual(engine.price(option, context).price, 30.0, delta=1e-6)
+
+    def test_phoenix_terminal_coupon_is_paid_once(self):
+        effective = date(2025, 1, 6)
+        expiry = effective + timedelta(days=91)
+        option = PhoenixOption(
+            coupon_rate=0.0025, initial_price=100, knock_in_price=80,
+            knock_out_prices=[120], coupon_barriers=[90], upper_strike=100,
+            lower_strike=60, observation_dates=[expiry],
+            frequency=ObservationFrequency.DAILY, effective=effective, expiry=expiry,
+        )
+        context = PricingContext(
+            parameters=BsmParameters(risk_free_rate=0, dividend_yield=0, volatility=1e-8),
+            asset_price=100, valuation_time=effective, calendar=market.all_days_calendar(),
+        )
+        engines = (
+            pricing.FiniteDifferencePhoenixEngine(
+                asset_steps=400, time_steps=1600, upper_boundary=400,
+            ),
+            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+        )
+        for engine in engines:
+            with self.subTest(engine=type(engine).__name__):
+                self.assertAlmostEqual(engine.price(option, context).price, 1.25, delta=1e-6)
 
     def test_numeric_and_date_boundaries_are_checked(self):
         with self.assertRaises(TypeError):

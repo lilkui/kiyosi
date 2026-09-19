@@ -13,6 +13,8 @@ add_executable(kiyosi_tests
     market/context_tests.cpp
     pricing/integration_tests.cpp
     pricing/invariants_tests.cpp
+    pricing/cross_validation/stochastic_tests.cpp
+    pricing/cross_validation/known_payoff_tests.cpp
     pricing/analytics/architecture_tests.cpp
     pricing/analytics/numerical_validation_tests.cpp
     pricing/detail/fd_scheme_tests.cpp
@@ -40,7 +42,14 @@ if(catch2_SOURCE_DIR)
     list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")
 endif()
 include(Catch)
+option(KIYOSI_EXTENDED_VALIDATION "Include expensive FD-MC validation in CTest" OFF)
+if(KIYOSI_EXTENDED_VALIDATION)
+    set(kiyosi_test_spec TEST_SPEC "*")
+else()
+    set(kiyosi_test_spec TEST_SPEC "~[extended]")
+endif()
 catch_discover_tests(kiyosi_tests
+    ${kiyosi_test_spec}
     DISCOVERY_MODE PRE_TEST
     DL_PATHS $<TARGET_FILE_DIR:kiyosi>
 )

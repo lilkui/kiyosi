@@ -106,8 +106,10 @@ result<PricingResult> FiniteDifferenceAccumulatorEngine::price(
             for (std::size_t index = 0; index < size; ++index) {
                 const double asset = space->spacing * static_cast<double>(index);
                 if (asset >= option.knock_out()) {
-                    next_intercept[index] += next_slope[index] * option.accumulated_quantity();
-                    next_slope[index] = 0.0;
+                    // Knock-out settles every unit accumulated up to this event immediately.
+                    // The affine value is quantity * (asset - strike), with no future purchases.
+                    next_slope[index] = asset - option.strike();
+                    next_intercept[index] = 0.0;
                 } else {
                     next_intercept[index] +=
                         next_slope[index] * (asset < option.strike()
