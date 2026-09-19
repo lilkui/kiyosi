@@ -24,6 +24,13 @@ std::optional<risk_measure> measure_named(std::string_view name)
     return std::nullopt;
 }
 
+monte_carlo_backend monte_carlo_backend_value(nb::handle value)
+{
+    if (!nb::isinstance<monte_carlo_backend>(value))
+        type_error("backend", "a MonteCarloBackend");
+    return nb::cast<monte_carlo_backend>(value);
+}
+
 PythonOptionalReal optional_value(const PricingResult& result, risk_measure measure)
 {
     const auto value = result.get(measure);
@@ -375,14 +382,15 @@ void bind_engines(nb::module_& module)
         "Monte Carlo vanilla engine with immutable configuration. Settings are validated "
         "when price() is called.")
         .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                        PythonInteger seed) {
+                        PythonInteger seed, nb::handle backend) {
                  return MonteCarloVanillaEngine{MonteCarloSettings{
                      integer(path_count, "path_count"), integer(step_count, "step_count"),
-                     optional_seed(seed)}};
+                     optional_seed(seed), monte_carlo_backend_value(backend)}};
              }),
              nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
              "step_count"_a = MonteCarloSettings{}.step_count,
              "seed"_a = nb::none(),
+             "backend"_a = MonteCarloSettings{}.backend,
              "Store Monte Carlo settings; they are validated when price() is called.")
         .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().path_count;
@@ -392,10 +400,13 @@ void bind_engines(nb::module_& module)
         })
         .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) {
             return engine.settings().seed;
+        })
+        .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) {
+            return engine.settings().backend;
         });
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
               {{"path_count", "path_count"}, {"step_count", "step_count"},
-               {"seed", "seed"}});
+               {"seed", "seed"}, {"backend", "backend"}});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(monte_carlo_vanilla);
 

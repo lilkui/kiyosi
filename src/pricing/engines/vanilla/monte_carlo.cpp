@@ -3,11 +3,16 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <new>
 #include <random>
 #include <ranges>
 #include <vector>
 
 #include <kiyosi/core/day_count.hpp>
+
+#if KIYOSI_HAS_CUDA
+#include "monte_carlo_cuda.hpp"
+#endif
 
 namespace kiyosi {
 namespace {
@@ -17,6 +22,13 @@ constexpr int maximum_step_count = 10'000;
 
 enum class PathRetention { full,
                            terminal };
+
+struct SimulationParameters {
+    double spot;
+    double rate;
+    double drift;
+    double diffusion;
+};
 
 result<double> simulation_time(const PricingContext& context, date effective, date expiry)
 {
@@ -28,8 +40,7 @@ result<double> simulation_time(const PricingContext& context, date effective, da
     return *time;
 }
 
-result<std::vector<double>> simulate_paths(
-    const PricingContext& context, double time, MonteCarloSettings settings, PathRetention retention)
+result<void> validate_settings(MonteCarloSettings settings)
 {
     if (settings.path_count <= 0 || settings.path_count > maximum_path_count)
         return std::unexpected(Error{error_category::invalid_parameter,
@@ -37,6 +48,36 @@ result<std::vector<double>> simulate_paths(
     if (settings.step_count < 2 || settings.step_count > maximum_step_count)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "Monte Carlo step count is out of range"});
+    if (settings.backend != monte_carlo_backend::cpu &&
+        settings.backend != monte_carlo_backend::cuda)
+        return std::unexpected(Error{error_category::invalid_parameter,
+                                     "Monte Carlo backend is invalid"});
+    return {};
+}
+
+result<SimulationParameters> simulation_parameters(
+    const PricingContext& context, double time, MonteCarloSettings settings)
+{
+    const auto valid = validate_settings(settings);
+    if (!valid) return std::unexpected(valid.error());
+    const double volatility = context.parameters().volatility();
+    const double dt = time / static_cast<double>(settings.step_count - 1);
+    const double sqrt_dt = std::sqrt(dt);
+    const double drift = (context.parameters().risk_free_rate() -
+                          context.parameters().dividend_yield() -
+                          0.5 * volatility * volatility) * dt;
+    const double diffusion = volatility * sqrt_dt;
+    if (!std::isfinite(dt) || !std::isfinite(sqrt_dt) || !std::isfinite(drift) ||
+        !std::isfinite(diffusion))
+        return std::unexpected(Error{error_category::invalid_result,
+                                     "Monte Carlo simulation parameters are non-finite"});
+    return SimulationParameters{context.asset_price(), context.parameters().risk_free_rate(),
+                                drift, diffusion};
+}
+
+result<std::vector<double>> simulate_paths(
+    SimulationParameters parameters, MonteCarloSettings settings, PathRetention retention)
+{
 
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
     const auto stride = retention == PathRetention::full
@@ -44,16 +85,6 @@ result<std::vector<double>> simulate_paths(
                             : std::size_t{1};
     const auto size = static_cast<std::size_t>(path_count) * stride;
     std::vector<double> paths(size);
-    const double spot = context.asset_price();
-    const double rate = context.parameters().risk_free_rate();
-    const double dividend = context.parameters().dividend_yield();
-    const double volatility = context.parameters().volatility();
-    const double dt = time / static_cast<double>(settings.step_count - 1);
-    const double sqrt_dt = std::sqrt(dt);
-    const double drift = (rate - dividend - 0.5 * volatility * volatility) * dt;
-    if (!std::isfinite(dt) || !std::isfinite(sqrt_dt) || !std::isfinite(drift))
-        return std::unexpected(Error{error_category::invalid_result,
-                                     "Monte Carlo simulation parameters are non-finite"});
 
     std::mt19937_64 generator;
     if (settings.seed) {
@@ -69,15 +100,15 @@ result<std::vector<double>> simulate_paths(
         const auto positive = static_cast<std::size_t>(path) * stride;
         const auto negative = static_cast<std::size_t>(path + half_count) * stride;
         if (retention == PathRetention::full) {
-            paths[positive] = spot;
-            paths[negative] = spot;
+            paths[positive] = parameters.spot;
+            paths[negative] = parameters.spot;
         }
-        double positive_spot = spot;
-        double negative_spot = spot;
+        double positive_spot = parameters.spot;
+        double negative_spot = parameters.spot;
         for (int step = 1; step < settings.step_count; ++step) {
             const double normal_draw = normal(generator);
-            positive_spot *= std::exp(drift + volatility * sqrt_dt * normal_draw);
-            negative_spot *= std::exp(drift - volatility * sqrt_dt * normal_draw);
+            positive_spot *= std::exp(parameters.drift + parameters.diffusion * normal_draw);
+            negative_spot *= std::exp(parameters.drift - parameters.diffusion * normal_draw);
             if (!std::isfinite(positive_spot) || positive_spot <= 0.0 ||
                 !std::isfinite(negative_spot) || negative_spot <= 0.0)
                 return std::unexpected(Error{error_category::invalid_result,
@@ -100,6 +131,51 @@ double payoff(option_type type, double spot, double strike)
     const double sign = type == option_type::call ? 1.0 : -1.0;
     return std::max(sign * (spot - strike), 0.0);
 }
+
+#if KIYOSI_HAS_CUDA
+std::uint64_t random_seed()
+{
+    std::random_device source;
+    return (static_cast<std::uint64_t>(source()) << 32U) ^
+           static_cast<std::uint64_t>(source());
+}
+
+result<double> cuda_payoff_sum(const EuropeanOption& option,
+                               SimulationParameters parameters,
+                               MonteCarloSettings settings)
+{
+    const int path_count = settings.path_count % 2 == 0
+                               ? settings.path_count
+                               : settings.path_count + 1;
+    const auto cuda_result = detail::cuda_european_price({
+        path_count,
+        settings.step_count,
+        settings.seed ? *settings.seed : random_seed(),
+        parameters.spot,
+        option.strike(),
+        parameters.drift,
+        parameters.diffusion,
+        option.type() == option_type::call ? 1 : -1,
+    });
+    switch (cuda_result.status) {
+    case detail::CudaPricingStatus::success:
+        return cuda_result.payoff_sum;
+    case detail::CudaPricingStatus::unavailable:
+        return std::unexpected(Error{error_category::backend_unavailable,
+                                     cuda_result.message});
+    case detail::CudaPricingStatus::failure:
+        return std::unexpected(Error{error_category::backend_failure,
+                                     cuda_result.message});
+    case detail::CudaPricingStatus::out_of_memory:
+        throw std::bad_alloc{};
+    case detail::CudaPricingStatus::invalid_result:
+        return std::unexpected(Error{error_category::invalid_result,
+                                     cuda_result.message});
+    }
+    return std::unexpected(Error{error_category::backend_failure,
+                                 "CUDA Monte Carlo returned an unknown status"});
+}
+#endif
 
 using QuadraticRegressionMatrix = std::array<std::array<double, 4>, 3>;
 
@@ -139,12 +215,30 @@ result<PricingResult> MonteCarloVanillaEngine::price_european(
         return make_pricing_result(
             {{risk_measure::price,
               payoff(option.type(), context.asset_price(), option.strike())}});
-    auto paths = simulate_paths(context, *time, settings_, PathRetention::terminal);
-    if (!paths) return std::unexpected(paths.error());
+    const auto parameters = simulation_parameters(context, *time, settings_);
+    if (!parameters) return std::unexpected(parameters.error());
     double sum = 0.0;
-    for (double terminal_spot : *paths)
-        sum += payoff(option.type(), terminal_spot, option.strike());
-    const double value = sum / static_cast<double>(paths->size()) * std::exp(-context.parameters().risk_free_rate() * *time);
+    std::size_t path_count = 0;
+    if (settings_.backend == monte_carlo_backend::cuda) {
+#if KIYOSI_HAS_CUDA
+        const auto cuda_sum = cuda_payoff_sum(option, *parameters, settings_);
+        if (!cuda_sum) return std::unexpected(cuda_sum.error());
+        sum = *cuda_sum;
+        path_count = static_cast<std::size_t>(
+            settings_.path_count % 2 == 0 ? settings_.path_count : settings_.path_count + 1);
+#else
+        return std::unexpected(Error{error_category::backend_unavailable,
+                                     "CUDA support is not enabled in this build"});
+#endif
+    } else {
+        auto paths = simulate_paths(*parameters, settings_, PathRetention::terminal);
+        if (!paths) return std::unexpected(paths.error());
+        for (double terminal_spot : *paths)
+            sum += payoff(option.type(), terminal_spot, option.strike());
+        path_count = paths->size();
+    }
+    const double value = sum / static_cast<double>(path_count) *
+                         std::exp(-parameters->rate * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{error_category::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return make_pricing_result({{risk_measure::price, value}});
@@ -153,6 +247,9 @@ result<PricingResult> MonteCarloVanillaEngine::price_european(
 result<PricingResult> MonteCarloVanillaEngine::price_american(
     const AmericanOption& option, const PricingContext& context) const
 {
+    if (settings_.backend == monte_carlo_backend::cuda)
+        return std::unexpected(Error{error_category::unsupported_operation,
+                                     "CUDA does not support American Monte Carlo pricing"});
     const auto time = simulation_time(context, option.effective(), option.expiry());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
@@ -162,7 +259,9 @@ result<PricingResult> MonteCarloVanillaEngine::price_american(
     if (settings_.step_count < 3)
         return std::unexpected(Error{error_category::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
-    auto paths = simulate_paths(context, *time, settings_, PathRetention::full);
+    const auto parameters = simulation_parameters(context, *time, settings_);
+    if (!parameters) return std::unexpected(parameters.error());
+    auto paths = simulate_paths(*parameters, settings_, PathRetention::full);
     if (!paths) return std::unexpected(paths.error());
     const auto path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
     const double discount = std::exp(-context.parameters().risk_free_rate() *

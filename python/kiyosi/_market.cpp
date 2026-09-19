@@ -24,7 +24,10 @@ void bind_enums(nb::module_& module)
         .value("UNBRACKETED_VOLATILITY", error_category::unbracketed_volatility)
         .value("SOLVER_NON_CONVERGENCE", error_category::solver_non_convergence)
         .value("SOLVER_NON_FINITE", error_category::solver_non_finite)
-        .value("UNBRACKETED_COUPON", error_category::unbracketed_coupon);
+        .value("UNBRACKETED_COUPON", error_category::unbracketed_coupon)
+        .value("BACKEND_UNAVAILABLE", error_category::backend_unavailable)
+        .value("BACKEND_FAILURE", error_category::backend_failure)
+        .value("UNSUPPORTED_OPERATION", error_category::unsupported_operation);
     nb::enum_<option_type>(module, "OptionType")
         .value("CALL", option_type::call)
         .value("PUT", option_type::put);
@@ -56,6 +59,9 @@ void bind_enums(nb::module_& module)
         .value("EXPLICIT_EULER", finite_difference_scheme::explicit_euler)
         .value("IMPLICIT_EULER", finite_difference_scheme::implicit_euler)
         .value("CRANK_NICOLSON", finite_difference_scheme::crank_nicolson);
+    nb::enum_<monte_carlo_backend>(module, "MonteCarloBackend")
+        .value("CPU", monte_carlo_backend::cpu)
+        .value("CUDA", monte_carlo_backend::cuda);
     nb::enum_<coupon_quote_convention>(module, "CouponQuoteConvention")
         .value("LINKED_MATURITY", coupon_quote_convention::linked_maturity)
         .value("FIXED_MATURITY", coupon_quote_convention::fixed_maturity);

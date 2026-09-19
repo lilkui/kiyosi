@@ -22,6 +22,9 @@ enum class error_category : unsigned char {
     solver_non_convergence = 14,
     solver_non_finite = 15,
     unbracketed_coupon = 16,
+    backend_unavailable = 17,
+    backend_failure = 18,
+    unsupported_operation = 19,
 };
 
 struct Error {

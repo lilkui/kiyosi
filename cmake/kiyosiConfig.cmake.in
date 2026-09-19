@@ -1,5 +1,10 @@
 @PACKAGE_INIT@
 
+if(@KIYOSI_ENABLE_CUDA@)
+    include(CMakeFindDependencyMacro)
+    find_dependency(CUDAToolkit)
+endif()
+
 include("${CMAKE_CURRENT_LIST_DIR}/kiyosiTargets.cmake")
 
 check_required_components(kiyosi)

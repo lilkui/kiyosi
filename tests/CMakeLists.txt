@@ -36,7 +36,10 @@ add_executable(kiyosi_tests
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
 target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src")
-target_compile_definitions(kiyosi_tests PRIVATE KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+target_compile_definitions(kiyosi_tests PRIVATE
+    KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
+    KIYOSI_HAS_CUDA=$<BOOL:${KIYOSI_ENABLE_CUDA}>
+)
 # Only set when FetchContent built Catch2 from source; an installed package ships Catch.cmake itself.
 if(catch2_SOURCE_DIR)
     list(APPEND CMAKE_MODULE_PATH "${catch2_SOURCE_DIR}/extras")

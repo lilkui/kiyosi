@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <array>
 #include <chrono>
+#include <future>
 #include <limits>
 #include <random>
 #include <string>
@@ -152,5 +153,189 @@ TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbac
           *singular->require(kiyosi::risk_measure::price));
     CHECK(*sparse->require(kiyosi::risk_measure::price) > 50.0);
 }
+
+TEST_CASE("Monte Carlo defaults to CPU and preserves explicit CPU pricing")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const kiyosi::MonteCarloVanillaEngine implicit_cpu{20'000, 50, 42};
+    const kiyosi::MonteCarloVanillaEngine explicit_cpu{
+        20'000, 50, 42, kiyosi::monte_carlo_backend::cpu};
+
+    CHECK(implicit_cpu.settings().backend == kiyosi::monte_carlo_backend::cpu);
+    const auto implicit_result = implicit_cpu.price(call, context);
+    const auto explicit_result = explicit_cpu.price(call, context);
+    REQUIRE(implicit_result);
+    REQUIRE(explicit_result);
+    CHECK(*implicit_result->require(kiyosi::risk_measure::price) ==
+          *explicit_result->require(kiyosi::risk_measure::price));
+
+    auto invalid_settings = implicit_cpu.settings();
+    invalid_settings.backend = static_cast<kiyosi::monte_carlo_backend>(255);
+    const auto invalid = kiyosi::MonteCarloVanillaEngine{invalid_settings}.price(call, context);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::error_category::invalid_parameter);
+}
+
+#if !KIYOSI_HAS_CUDA
+TEST_CASE("CUDA selection is deferred and unavailable builds do not fall back")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const kiyosi::MonteCarloVanillaEngine engine{
+        20'000, 50, 42, kiyosi::monte_carlo_backend::cuda};
+
+    CHECK(engine.settings().backend == kiyosi::monte_carlo_backend::cuda);
+    const auto result = engine.price(call, context);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == kiyosi::error_category::backend_unavailable);
+}
+#endif
+
+TEST_CASE("CUDA rejects American Monte Carlo without CPU fallback")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto put = *kiyosi::make_american_option(
+        kiyosi::option_type::put, 100.0, valuation, expiry);
+    const kiyosi::MonteCarloVanillaEngine engine{
+        20'000, 50, 42, kiyosi::monte_carlo_backend::cuda};
+
+    const auto result = engine.price(put, context);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == kiyosi::error_category::unsupported_operation);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA European Monte Carlo is seeded and deterministic", "[cuda]")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const kiyosi::MonteCarloVanillaEngine engine{
+        100'000, 50, 42, kiyosi::monte_carlo_backend::cuda};
+
+    const auto first = engine.price(call, context);
+    const auto second = engine.price(call, context);
+    const auto different_seed = kiyosi::MonteCarloVanillaEngine{
+        100'000, 50, 43, kiyosi::monte_carlo_backend::cuda}.price(call, context);
+    const auto repeated_different_seed = kiyosi::MonteCarloVanillaEngine{
+        100'000, 50, 43, kiyosi::monte_carlo_backend::cuda}.price(call, context);
+    const auto different_path_count = kiyosi::MonteCarloVanillaEngine{
+        10'000, 50, 42, kiyosi::monte_carlo_backend::cuda}.price(call, context);
+    REQUIRE(first);
+    REQUIRE(second);
+    REQUIRE(different_seed);
+    REQUIRE(repeated_different_seed);
+    REQUIRE(different_path_count);
+    CHECK(*first->require(kiyosi::risk_measure::price) ==
+          *second->require(kiyosi::risk_measure::price));
+    CHECK(*different_seed->require(kiyosi::risk_measure::price) ==
+          *repeated_different_seed->require(kiyosi::risk_measure::price));
+    CHECK(*first->require(kiyosi::risk_measure::price) !=
+          *different_seed->require(kiyosi::risk_measure::price));
+    CHECK(*first->require(kiyosi::risk_measure::price) !=
+          *different_path_count->require(kiyosi::risk_measure::price));
+    CHECK(*first->require(kiyosi::risk_measure::price) >= 0.0);
+    CHECK_FALSE(first->has(kiyosi::risk_measure::delta));
+}
+
+TEST_CASE("CUDA European Monte Carlo agrees with CPU and analytic prices", "[cuda]")
+{
+    struct Case {
+        kiyosi::option_type type;
+        double strike;
+    };
+    constexpr std::array cases{
+        Case{kiyosi::option_type::call, 90.0},
+        Case{kiyosi::option_type::call, 100.0},
+        Case{kiyosi::option_type::call, 110.0},
+        Case{kiyosi::option_type::put, 100.0},
+    };
+    constexpr double tolerance = 0.35;
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+
+    for (const auto test : cases) {
+        CAPTURE(test.type, test.strike);
+        const auto option = *kiyosi::make_european_option(
+            test.type, test.strike, valuation, expiry);
+        const auto cpu = kiyosi::MonteCarloVanillaEngine{
+            100'000, 50, 42, kiyosi::monte_carlo_backend::cpu}.price(option, context);
+        const auto cuda = kiyosi::MonteCarloVanillaEngine{
+            100'000, 50, 42, kiyosi::monte_carlo_backend::cuda}.price(option, context);
+        const auto analytic = kiyosi::AnalyticVanillaEngine{}.price(option, context);
+        REQUIRE(cpu);
+        REQUIRE(cuda);
+        REQUIRE(analytic);
+        const double cuda_price = *cuda->require(kiyosi::risk_measure::price);
+        CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
+                                   *cpu->require(kiyosi::risk_measure::price), tolerance));
+        CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
+                                   *analytic->require(kiyosi::risk_measure::price), tolerance));
+    }
+}
+
+TEST_CASE("CUDA European Monte Carlo rounds odd path counts for antithetic pairs", "[cuda]")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+
+    for (const int step_count : {2, 7, 50}) {
+        CAPTURE(step_count);
+        const auto odd = kiyosi::MonteCarloVanillaEngine{
+            9'999, step_count, 42, kiyosi::monte_carlo_backend::cuda}.price(call, context);
+        const auto even = kiyosi::MonteCarloVanillaEngine{
+            10'000, step_count, 42, kiyosi::monte_carlo_backend::cuda}.price(call, context);
+        REQUIRE(odd);
+        REQUIRE(even);
+        CHECK(*odd->require(kiyosi::risk_measure::price) ==
+              *even->require(kiyosi::risk_measure::price));
+    }
+}
+
+TEST_CASE("CUDA Monte Carlo supports concurrent const pricing", "[cuda]")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = valuation + std::chrono::days{365};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::option_type::call, 100.0, valuation, expiry);
+    const kiyosi::MonteCarloVanillaEngine engine{
+        20'000, 50, 42, kiyosi::monte_carlo_backend::cuda};
+    const auto baseline = engine.price(call, context);
+    REQUIRE(baseline);
+
+    std::array<std::future<kiyosi::result<kiyosi::PricingResult>>, 4> results;
+    for (auto& result : results)
+        result = std::async(std::launch::async, [&] { return engine.price(call, context); });
+    for (auto& pending : results) {
+        const auto result = pending.get();
+        REQUIRE(result);
+        CHECK(*result->require(kiyosi::risk_measure::price) ==
+              *baseline->require(kiyosi::risk_measure::price));
+    }
+}
+#endif
 
 } // namespace

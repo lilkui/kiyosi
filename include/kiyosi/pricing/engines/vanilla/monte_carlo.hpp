@@ -16,8 +16,9 @@ class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
     explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
     MonteCarloVanillaEngine(
-        int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed)
-        : settings_{path_count, step_count, seed} {}
+        int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed,
+        monte_carlo_backend backend = MonteCarloSettings{}.backend)
+        : settings_{path_count, step_count, seed, backend} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&

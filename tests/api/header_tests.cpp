@@ -80,6 +80,8 @@ static_assert(kiyosi::StructuredMonteCarloSettings{}.seed == 1);
 static_assert(kiyosi::MonteCarloSettings{}.path_count == 100'000);
 static_assert(kiyosi::MonteCarloSettings{}.step_count == 50);
 static_assert(!kiyosi::MonteCarloSettings{}.seed);
+static_assert(kiyosi::MonteCarloSettings{}.backend == kiyosi::monte_carlo_backend::cpu);
+static_assert(kiyosi::monte_carlo_backend::cpu != kiyosi::monte_carlo_backend::cuda);
 static_assert(kiyosi::NumericalShiftSettings{}.spot_shift == 1e-2);
 static_assert(kiyosi::NumericalShiftSettings{}.volatility_shift == 1e-4);
 static_assert(kiyosi::NumericalShiftSettings{}.rate_shift == 1e-4);

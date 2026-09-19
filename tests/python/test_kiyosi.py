@@ -8,6 +8,7 @@ import kiyosi.market as market
 import kiyosi.pricing as pricing
 from kiyosi.instruments import (
     Accumulator,
+    AmericanOption,
     BarrierOption,
     BarrierType,
     CashOrNothingOption,
@@ -321,6 +322,50 @@ class KiyosiPythonTests(unittest.TestCase):
             PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1))
         aware = PricingContext(parameters=self.parameters, asset_price=100, valuation_time=datetime(2025, 1, 1, 8, tzinfo=timezone.utc))
         self.assertIsNotNone(AnalyticVanillaEngine().price(self.option, aware).price)
+
+    def test_monte_carlo_backend_defaults_and_round_trips(self):
+        default = pricing.MonteCarloVanillaEngine()
+        cuda = pricing.MonteCarloVanillaEngine(backend=pricing.MonteCarloBackend.CUDA)
+
+        self.assertEqual(default.backend, pricing.MonteCarloBackend.CPU)
+        self.assertEqual(cuda.backend, pricing.MonteCarloBackend.CUDA)
+        self.assertEqual(
+            repr(cuda),
+            "MonteCarloVanillaEngine(path_count=100000, step_count=50, "
+            "seed=None, backend=MonteCarloBackend.CUDA)",
+        )
+        self.assertNotEqual(kiyosi.ErrorCategory.BACKEND_UNAVAILABLE,
+                            kiyosi.ErrorCategory.BACKEND_FAILURE)
+        self.assertNotEqual(kiyosi.ErrorCategory.BACKEND_FAILURE,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+        for value in ("cuda", True):
+            with self.subTest(value=value), self.assertRaises(TypeError):
+                pricing.MonteCarloVanillaEngine(backend=value)
+
+    def test_cuda_backend_unavailable_is_deferred_and_categorized(self):
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=20, step_count=2, seed=42,
+            backend=pricing.MonteCarloBackend.CUDA,
+        )
+        self.assertEqual(engine.backend, pricing.MonteCarloBackend.CUDA)
+
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(self.option, self.context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE)
+
+    def test_cuda_backend_rejects_american_options(self):
+        option = AmericanOption(
+            type=OptionType.PUT, strike=100.0,
+            effective=date(2025, 1, 1), expiry=date(2026, 1, 1),
+        )
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=20, step_count=3, seed=42,
+            backend=pricing.MonteCarloBackend.CUDA,
+        )
+
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(option, self.context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
 
     def test_temporal_accessors_preserve_date_and_timestamp_semantics(self):
         average_start = date(2025, 2, 1)

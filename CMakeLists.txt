@@ -15,12 +15,26 @@ option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSa
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" ${PROJECT_IS_TOP_LEVEL})
+option(KIYOSI_ENABLE_CUDA "Build the optional CUDA Monte Carlo backend" OFF)
+
+if(KIYOSI_ENABLE_CUDA)
+    include(CheckLanguage)
+    check_language(CUDA)
+    if(NOT CMAKE_CUDA_COMPILER)
+        message(FATAL_ERROR "KIYOSI_ENABLE_CUDA requires a CUDA compiler")
+    endif()
+    enable_language(CUDA)
+    find_package(CUDAToolkit REQUIRED)
+endif()
 
 add_library(kiyosi_warnings INTERFACE)
 add_library(kiyosi::warnings ALIAS kiyosi_warnings)
 if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
     # /utf-8 stops MSVC from decoding non-ASCII sources with the machine's ANSI code page.
-    target_compile_options(kiyosi_warnings INTERFACE /W4 /permissive- /utf-8 /Zc:__cplusplus)
+    target_compile_options(kiyosi_warnings INTERFACE
+        "$<$<COMPILE_LANGUAGE:CXX>:/W4;/permissive-;/utf-8;/Zc:__cplusplus>"
+        "$<$<COMPILE_LANGUAGE:CUDA>:-Xcompiler=/utf-8>"
+    )
 else()
     target_compile_options(kiyosi_warnings INTERFACE
         "$<$<COMPILE_LANG_AND_ID:CXX,GNU,Clang,AppleClang,Intel,IntelLLVM>:-Wall;-Wextra;-Wpedantic>"
@@ -81,6 +95,12 @@ configure_file(
     @ONLY
 )
 target_compile_features(kiyosi PUBLIC cxx_std_23)
+target_compile_definitions(kiyosi PRIVATE KIYOSI_HAS_CUDA=$<BOOL:${KIYOSI_ENABLE_CUDA}>)
+if(KIYOSI_ENABLE_CUDA)
+    target_compile_features(kiyosi PRIVATE cuda_std_17)
+    target_link_libraries(kiyosi PRIVATE CUDA::cudart)
+    set_property(TARGET kiyosi PROPERTY CUDA_RUNTIME_LIBRARY Shared)
+endif()
 if(NOT BUILD_SHARED_LIBS)
     target_compile_definitions(kiyosi PUBLIC KIYOSI_STATIC_DEFINE)
 endif()
@@ -168,6 +188,9 @@ target_sources(kiyosi
             "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
             "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
 )
+if(KIYOSI_ENABLE_CUDA)
+    target_sources(kiyosi PRIVATE src/pricing/engines/vanilla/monte_carlo_cuda.cu)
+endif()
 set_target_properties(kiyosi PROPERTIES
     CXX_EXTENSIONS OFF
     CXX_SCAN_FOR_MODULES OFF
