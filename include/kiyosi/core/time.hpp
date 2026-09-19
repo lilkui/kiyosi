@@ -11,6 +11,7 @@ using date = std::chrono::sys_days;
 // Intraday moments use UTC-like sys_time; date-based contracts remain midnight anchored.
 using timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 
+/// Returns whether value is within the inclusive civil-date range supported by std::chrono::year.
 [[nodiscard]] KIYOSI_EXPORT bool is_valid_date(date value) noexcept;
 
 [[nodiscard]] inline timestamp start_of_day(date value) noexcept

@@ -185,7 +185,7 @@ def rows():
                 "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days"
             )
             terms.update(
-                spot_shift=0.01 if engine == ENGINES[0] else 2,
+                spot_shift=0.03 if engine == ENGINES[0] else 2,
                 volatility_shift=0.0001 if engine == ENGINES[0] else 0.002,
                 rate_shift=0.0001 if engine == ENGINES[0] else 0.001,
                 time_shift_days=1,
