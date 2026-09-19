@@ -12,7 +12,7 @@
 #include "monte_carlo_regression.hpp"
 
 #if KIYOSI_HAS_CUDA
-#include "monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda.hpp"
 #endif
 
 namespace kiyosi {

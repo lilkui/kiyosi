@@ -97,7 +97,7 @@ configure_file(
 target_compile_features(kiyosi PUBLIC cxx_std_23)
 target_compile_definitions(kiyosi PRIVATE KIYOSI_HAS_CUDA=$<BOOL:${KIYOSI_ENABLE_CUDA}>)
 if(KIYOSI_ENABLE_CUDA)
-    target_compile_features(kiyosi PRIVATE cuda_std_17)
+    target_compile_features(kiyosi PRIVATE cuda_std_20)
     target_link_libraries(kiyosi PRIVATE CUDA::cudart_static)
     set_property(TARGET kiyosi PROPERTY CUDA_RUNTIME_LIBRARY Static)
 endif()
@@ -189,7 +189,7 @@ target_sources(kiyosi
             "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
 )
 if(KIYOSI_ENABLE_CUDA)
-    target_sources(kiyosi PRIVATE src/pricing/engines/vanilla/monte_carlo_cuda.cu)
+    target_sources(kiyosi PRIVATE src/pricing/engines/monte_carlo_cuda.cu)
 endif()
 set_target_properties(kiyosi PROPERTIES
     CXX_EXTENSIONS OFF

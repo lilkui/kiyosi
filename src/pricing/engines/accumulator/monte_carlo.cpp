@@ -8,7 +8,7 @@
 
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
-#include "../vanilla/monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -144,7 +144,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), option.strike(), option.knock_out_level(),
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
-            steps.data(), steps.size()));
+            steps));
         if (!sum) return std::unexpected(sum.error());
         return make_result(*sum / static_cast<double>(settings_.path_count));
 #else

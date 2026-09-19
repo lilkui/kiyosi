@@ -2,8 +2,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
-#include "../../detail/autocallable_program.hpp"
+#include "../detail/autocallable_program.hpp"
 
 namespace kiyosi::detail {
 
@@ -78,8 +79,8 @@ struct CudaPricingResult {
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request);
 [[nodiscard]] CudaPricingResult cuda_american_price(CudaAmericanRequest request);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
-    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count);
+    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps);
 [[nodiscard]] CudaPricingResult cuda_structured_price(
-    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count);
+    CudaStructuredRequest request, std::span<const CudaStructuredStep> steps);
 
 } // namespace kiyosi::detail

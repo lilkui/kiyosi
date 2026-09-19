@@ -13,7 +13,7 @@
 #include "../../detail/autocallable_traits.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
-#include "../vanilla/monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -188,7 +188,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price(
         const auto sum = cuda_sum(cuda_structured_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), inputs.terminal_discount, program, initial.path},
-            inputs.step_count.data(), inputs.step_count.size()));
+            inputs.step_count));
         if (!sum) return std::unexpected(sum.error());
         return make_result(*sum / static_cast<double>(settings_.path_count));
 #else

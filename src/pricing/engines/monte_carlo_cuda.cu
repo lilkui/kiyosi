@@ -1,9 +1,10 @@
 #include "monte_carlo_cuda.hpp"
-#include "monte_carlo_regression.hpp"
+#include "vanilla/monte_carlo_regression.hpp"
 
 #include <cmath>
 #include <cstddef>
 #include <memory>
+#include <type_traits>
 
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -313,14 +314,14 @@ __global__ void simulate_structured_paths(
 }
 
 template <typename Step>
-CudaPricingResult upload_steps(DeviceMemory& memory, const Step* steps, std::size_t step_count)
+    requires std::is_trivially_copyable_v<Step>
+CudaPricingResult upload_steps(DeviceMemory& memory, std::span<const Step> steps)
 {
-    if (step_count == 0) return {CudaPricingStatus::success, 0.0, nullptr};
-    auto result = allocate(memory, step_count * sizeof(Step));
+    if (steps.empty()) return {CudaPricingStatus::success, 0.0, nullptr};
+    auto result = allocate(memory, steps.size_bytes());
     if (result.status != CudaPricingStatus::success) return result;
     const cudaError_t status = cudaMemcpy(
-        memory.get(), steps, step_count * sizeof(Step),
-        cudaMemcpyHostToDevice);
+        memory.get(), steps.data(), steps.size_bytes(), cudaMemcpyHostToDevice);
     return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
                                  : error_result(status);
 }
@@ -513,13 +514,13 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
 }
 
 CudaPricingResult cuda_accumulator_price(
-    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count)
+    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps)
 {
     const auto device = select_device_zero();
     if (device.status != CudaPricingStatus::success) return device;
 
     DeviceMemory device_steps;
-    auto result = upload_steps(device_steps, steps, step_count);
+    auto result = upload_steps(device_steps, steps);
     if (result.status != CudaPricingStatus::success) return result;
     DeviceMemory payoffs;
     DeviceMemory invalid;
@@ -530,7 +531,7 @@ CudaPricingResult cuda_accumulator_price(
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
     simulate_accumulator_paths<<<block_count, threads_per_block>>>(
-        request, static_cast<const CudaSimulationStep*>(device_steps.get()), step_count,
+        request, static_cast<const CudaSimulationStep*>(device_steps.get()), steps.size(),
         static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
@@ -538,13 +539,13 @@ CudaPricingResult cuda_accumulator_price(
 }
 
 CudaPricingResult cuda_structured_price(
-    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count)
+    CudaStructuredRequest request, std::span<const CudaStructuredStep> steps)
 {
     const auto device = select_device_zero();
     if (device.status != CudaPricingStatus::success) return device;
 
     DeviceMemory device_steps;
-    auto result = upload_steps(device_steps, steps, step_count);
+    auto result = upload_steps(device_steps, steps);
     if (result.status != CudaPricingStatus::success) return result;
     DeviceMemory payoffs;
     DeviceMemory invalid;
@@ -555,7 +556,7 @@ CudaPricingResult cuda_structured_price(
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
     simulate_structured_paths<<<block_count, threads_per_block>>>(
-        request, static_cast<const CudaStructuredStep*>(device_steps.get()), step_count,
+        request, static_cast<const CudaStructuredStep*>(device_steps.get()), steps.size(),
         static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
