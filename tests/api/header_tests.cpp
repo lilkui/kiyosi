@@ -77,6 +77,8 @@ static_assert(kiyosi::FiniteDifferenceSettings{}.scheme ==
               kiyosi::finite_difference_scheme::crank_nicolson);
 static_assert(kiyosi::StructuredMonteCarloSettings{}.path_count == 20'000);
 static_assert(kiyosi::StructuredMonteCarloSettings{}.seed == 1);
+static_assert(kiyosi::StructuredMonteCarloSettings{}.backend ==
+              kiyosi::monte_carlo_backend::cpu);
 static_assert(kiyosi::MonteCarloSettings{}.path_count == 100'000);
 static_assert(kiyosi::MonteCarloSettings{}.step_count == 50);
 static_assert(!kiyosi::MonteCarloSettings{}.seed);

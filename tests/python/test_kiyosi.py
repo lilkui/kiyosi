@@ -342,6 +342,26 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(value=value), self.assertRaises(TypeError):
                 pricing.MonteCarloVanillaEngine(backend=value)
 
+        for engine_type in (
+            pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloPhoenixEngine,
+            pricing.MonteCarloSnowballEngine,
+            pricing.MonteCarloBinarySnowballEngine,
+            pricing.MonteCarloTernarySnowballEngine,
+        ):
+            with self.subTest(engine=engine_type.__name__):
+                default = engine_type()
+                cuda = engine_type(backend=pricing.MonteCarloBackend.CUDA)
+                self.assertEqual(default.backend, pricing.MonteCarloBackend.CPU)
+                self.assertEqual(cuda.backend, pricing.MonteCarloBackend.CUDA)
+                self.assertEqual(
+                    repr(cuda),
+                    f"{engine_type.__name__}(path_count=20000, seed=1, "
+                    "backend=MonteCarloBackend.CUDA)",
+                )
+                with self.assertRaises(TypeError):
+                    engine_type(backend="cuda")
+
     def test_cuda_backend_unavailable_is_deferred_and_categorized(self):
         engine = pricing.MonteCarloVanillaEngine(
             path_count=20, step_count=2, seed=42,

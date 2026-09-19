@@ -1,6 +1,5 @@
 #pragma once
 
-#include <algorithm>
 #include <cstddef>
 #include <vector>
 
@@ -8,6 +7,7 @@
 #include <kiyosi/instruments/structured/snowball.hpp>
 
 #include "math.hpp"
+#include "autocallable_program.hpp"
 
 namespace kiyosi::detail {
 
@@ -20,17 +20,18 @@ template <>
 struct autocallable_traits<PhoenixOption> {
     static constexpr bool carries_observation_coupon = true;
 
-    static double terminal_settlement(const PhoenixOption& note, double spot, bool knocked_in)
+    static AutocallableProgram program(const PhoenixOption& note)
     {
-        const double loss =
-            std::clamp(spot - note.upper_strike(), note.lower_strike() - note.upper_strike(), 0.0) /
-            note.initial_price();
-        return note.principal_ratio() + (knocked_in ? loss : 0.0);
+        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_price(), 0.0, 0.0,
+                AutocallableTerminalKind::downside_if_knocked_in, true,
+                note.knock_in_frequency() == observation_frequency::daily, true};
     }
 
-    static double observation_coupon(const PhoenixOption& note, std::size_t index, double spot)
+    static AutocallableEvent event(const PhoenixOption& note, std::size_t index)
     {
-        return spot >= note.coupon_barriers()[index] ? note.initial_price() * note.coupon_rate() : 0.0;
+        return {note.knock_out_prices()[index], note.initial_price() * note.coupon_rate(),
+                note.coupon_barriers()[index], true, true};
     }
 };
 
@@ -38,21 +39,21 @@ template <>
 struct autocallable_traits<SnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
-    static double terminal_settlement(const SnowballOption& note, double spot, bool knocked_in)
+    static AutocallableProgram program(const SnowballOption& note)
     {
-        const double loss =
-            std::clamp(spot - note.upper_strike(), note.lower_strike() - note.upper_strike(), 0.0) /
-            note.initial_price();
-        const double coupon = knocked_in ? loss
-                                         : note.maturity_coupon_rate() *
-                                               actual_365(note.effective(), note.expiry());
-        return note.principal_ratio() + coupon;
+        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_price(),
+                note.maturity_coupon_rate() * actual_365(note.effective(), note.expiry()), 0.0,
+                AutocallableTerminalKind::downside_if_knocked_in, true,
+                note.knock_in_frequency() == observation_frequency::daily, false};
     }
 
-    static double observation_coupon(const SnowballOption& note, std::size_t index, double)
+    static AutocallableEvent event(const SnowballOption& note, std::size_t index)
     {
-        return note.knock_out_coupon_rates()[index] *
-               actual_365(note.effective(), note.observation_dates()[index]);
+        return {note.knock_out_prices()[index],
+                note.knock_out_coupon_rates()[index] *
+                    actual_365(note.effective(), note.observation_dates()[index]),
+                0.0, false, true};
     }
 };
 
@@ -60,16 +61,21 @@ template <>
 struct autocallable_traits<TernarySnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
-    static double terminal_settlement(const TernarySnowballOption& note, double, bool knocked_in)
+    static AutocallableProgram program(const TernarySnowballOption& note)
     {
-        const double rate = knocked_in ? note.minimal_coupon_rate() : note.maturity_coupon_rate();
-        return note.principal_ratio() + rate * actual_365(note.effective(), note.expiry());
+        const double term = actual_365(note.effective(), note.expiry());
+        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
+                note.lower_strike(), note.knock_in_price(), note.maturity_coupon_rate() * term,
+                note.minimal_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
+                note.knock_in_frequency() == observation_frequency::daily, false};
     }
 
-    static double observation_coupon(const TernarySnowballOption& note, std::size_t index, double)
+    static AutocallableEvent event(const TernarySnowballOption& note, std::size_t index)
     {
-        return note.knock_out_coupon_rates()[index] *
-               actual_365(note.effective(), note.observation_dates()[index]);
+        return {note.knock_out_prices()[index],
+                note.knock_out_coupon_rates()[index] *
+                    actual_365(note.effective(), note.observation_dates()[index]),
+                0.0, false, true};
     }
 };
 
@@ -77,29 +83,46 @@ template <>
 struct autocallable_traits<BinarySnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
-    static double terminal_settlement(const BinarySnowballOption& note, double, bool)
+    static AutocallableProgram program(const BinarySnowballOption& note)
     {
-        return note.principal_ratio() +
-               note.maturity_coupon_rate() * actual_365(note.effective(), note.expiry());
+        const double coupon =
+            note.maturity_coupon_rate() * actual_365(note.effective(), note.expiry());
+        return {note.principal_ratio(), note.initial_price(), note.upper_strike(),
+                note.lower_strike(), 0.0, coupon, coupon,
+                AutocallableTerminalKind::fixed, false, false, false};
     }
 
-    static double observation_coupon(const BinarySnowballOption& note, std::size_t index, double)
+    static AutocallableEvent event(const BinarySnowballOption& note, std::size_t index)
     {
-        return note.knock_out_coupon_rates()[index] *
-               actual_365(note.effective(), note.observation_dates()[index]);
+        return {note.knock_out_prices()[index],
+                note.knock_out_coupon_rates()[index] *
+                    actual_365(note.effective(), note.observation_dates()[index]),
+                0.0, false, true};
     }
 };
 
 template <typename Note>
+AutocallableProgram autocallable_program(const Note& note)
+{
+    return autocallable_traits<Note>::program(note);
+}
+
+template <typename Note>
+AutocallableEvent autocallable_event(const Note& note, std::size_t index)
+{
+    return autocallable_traits<Note>::event(note, index);
+}
+
+template <typename Note>
 double terminal_settlement(const Note& note, double spot, bool knocked_in)
 {
-    return autocallable_traits<Note>::terminal_settlement(note, spot, knocked_in);
+    return program_terminal_settlement(autocallable_program(note), spot, knocked_in);
 }
 
 template <typename Note>
 double observation_coupon(const Note& note, std::size_t index, double spot)
 {
-    return autocallable_traits<Note>::observation_coupon(note, index, spot);
+    return program_observation_coupon(autocallable_event(note, index), spot);
 }
 
 template <typename Note>
@@ -119,11 +142,7 @@ std::vector<std::size_t> observation_schedule(const Note& note, timestamp valuat
 template <typename Note>
 bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool expiry)
 {
-    if constexpr (requires { note.knock_in_price(); }) {
-        if (note.knock_in_frequency() == observation_frequency::daily || expiry)
-            return knocked_in || spot < note.knock_in_price();
-    }
-    return knocked_in;
+    return program_knocked_in(autocallable_program(note), spot, knocked_in, expiry);
 }
 
 } // namespace kiyosi::detail

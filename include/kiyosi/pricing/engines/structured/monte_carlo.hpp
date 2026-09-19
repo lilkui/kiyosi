@@ -17,8 +17,9 @@ class KIYOSI_EXPORT MonteCarloStructuredEngine {
 public:
     explicit MonteCarloStructuredEngine(StructuredMonteCarloSettings settings = {}) : settings_(settings) {}
     explicit MonteCarloStructuredEngine(
-        int path_count, std::optional<std::uint64_t> seed = StructuredMonteCarloSettings{}.seed)
-        : settings_{path_count, seed} {}
+        int path_count, std::optional<std::uint64_t> seed = StructuredMonteCarloSettings{}.seed,
+        monte_carlo_backend backend = StructuredMonteCarloSettings{}.backend)
+        : settings_{path_count, seed, backend} {}
 
     [[nodiscard]] result<PricingResult> price(const Note&, const PricingContext&) const;
     StructuredMonteCarloSettings settings() const noexcept { return settings_; }

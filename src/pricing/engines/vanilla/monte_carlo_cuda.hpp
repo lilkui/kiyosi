@@ -1,6 +1,9 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
+
+#include "../../detail/autocallable_program.hpp"
 
 namespace kiyosi::detail {
 
@@ -35,6 +38,37 @@ struct CudaAmericanRequest {
     int payoff_sign;
 };
 
+struct CudaSimulationStep {
+    double drift;
+    double diffusion;
+    double discount;
+};
+
+struct CudaStructuredStep {
+    CudaSimulationStep simulation;
+    AutocallableEvent event;
+};
+
+struct CudaAccumulatorRequest {
+    int path_count;
+    std::uint64_t seed;
+    double spot;
+    double strike;
+    double knock_out;
+    double daily_quantity;
+    double acceleration;
+    double initial_quantity;
+};
+
+struct CudaStructuredRequest {
+    int path_count;
+    std::uint64_t seed;
+    double spot;
+    double terminal_discount;
+    AutocallableProgram program;
+    AutocallablePathState initial_state;
+};
+
 struct CudaPricingResult {
     CudaPricingStatus status;
     double payoff_sum;
@@ -43,5 +77,9 @@ struct CudaPricingResult {
 
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request);
 [[nodiscard]] CudaPricingResult cuda_american_price(CudaAmericanRequest request);
+[[nodiscard]] CudaPricingResult cuda_accumulator_price(
+    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count);
+[[nodiscard]] CudaPricingResult cuda_structured_price(
+    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count);
 
 } // namespace kiyosi::detail

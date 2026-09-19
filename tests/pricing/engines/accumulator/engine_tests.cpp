@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <future>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -186,6 +187,81 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
     REQUIRE_FALSE(non_finite);
     CHECK(non_finite.error().category == kiyosi::error_category::invalid_result);
 }
+
+TEST_CASE("Accumulator CUDA selection validates and preserves deterministic settlements")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 6);
+    const auto option = *kiyosi::make_accumulator({.strike = 100.0,
+                                                   .knock_out = 110.0,
+                                                   .daily_quantity = 1.0,
+                                                   .acceleration = 2.0,
+                                                   .accumulated_quantity = 3.0,
+                                                   .effective = valuation,
+                                                   .expiry = expiry});
+    const auto context = [&](double spot) {
+        return *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), spot, valuation,
+            kiyosi::all_days_calendar());
+    };
+    const kiyosi::MonteCarloAccumulatorEngine cuda{{64, 7,
+                                                    kiyosi::monte_carlo_backend::cuda}};
+    CHECK(cuda.settings().backend == kiyosi::monte_carlo_backend::cuda);
+
+    const auto settled = cuda.price(option, context(110.0));
+    REQUIRE(settled);
+    CHECK(*settled->require(kiyosi::risk_measure::price) == 30.0);
+
+    const auto invalid = kiyosi::MonteCarloAccumulatorEngine{
+        {0, 7, kiyosi::monte_carlo_backend::cuda}}
+                             .price(option, context(100.0));
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::error_category::invalid_parameter);
+
+    const auto invalid_backend =
+        kiyosi::MonteCarloAccumulatorEngine{
+            {64, 7, static_cast<kiyosi::monte_carlo_backend>(255)}}
+            .price(option, context(110.0));
+    REQUIRE_FALSE(invalid_backend);
+    CHECK(invalid_backend.error().category == kiyosi::error_category::invalid_parameter);
+
+#if !KIYOSI_HAS_CUDA
+    const auto unavailable = cuda.price(option, context(100.0));
+    REQUIRE_FALSE(unavailable);
+    CHECK(unavailable.error().category == kiyosi::error_category::backend_unavailable);
+#endif
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("Accumulator CUDA Monte Carlo preserves accrual and seeded execution")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 4);
+    const auto option = *kiyosi::make_accumulator({.strike = 100.0,
+                                                   .knock_out = 200.0,
+                                                   .daily_quantity = 1.0,
+                                                   .acceleration = 2.0,
+                                                   .accumulated_quantity = 3.0,
+                                                   .effective = effective,
+                                                   .expiry = expiry});
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), 90.0, effective,
+        kiyosi::all_days_calendar());
+    const kiyosi::MonteCarloAccumulatorEngine engine{
+        {32'768, 73, kiyosi::monte_carlo_backend::cuda}};
+
+    auto first_future = std::async(std::launch::async, [&] { return engine.price(option, context); });
+    auto second_future = std::async(std::launch::async, [&] { return engine.price(option, context); });
+    const auto first = first_future.get();
+    const auto second = second_future.get();
+
+    REQUIRE(first);
+    REQUIRE(second);
+    const double first_price = *first->require(kiyosi::risk_measure::price);
+    CHECK(first_price == *second->require(kiyosi::risk_measure::price));
+    CHECK(first_price == Catch::Approx(-110.0).margin(1e-5));
+}
+#endif
 
 TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid")
 {

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <future>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -456,6 +457,248 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
     REQUIRE(unseeded);
     CHECK(std::isfinite(*unseeded->require(kiyosi::risk_measure::price)));
 }
+
+TEST_CASE("Structured CUDA selection validates and preserves deterministic settlements")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 6);
+    const auto make_note = [&](kiyosi::barrier_touch_status touch_status) {
+        return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
+                                                     .maturity_coupon_rate = 0.05,
+                                                     .initial_price = 100.0,
+                                                     .knock_out_prices = {110.0},
+                                                     .upper_strike = 100.0,
+                                                     .lower_strike = 60.0,
+                                                     .observation_dates = {expiry},
+                                                     .touch_status = touch_status,
+                                                     .principal_ratio = 1.0,
+                                                     .effective = effective,
+                                                     .expiry = expiry});
+    };
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), 100.0, effective,
+        kiyosi::all_days_calendar());
+    const kiyosi::MonteCarloBinarySnowballEngine cuda{
+        {64, 7, kiyosi::monte_carlo_backend::cuda}};
+    CHECK(cuda.settings().backend == kiyosi::monte_carlo_backend::cuda);
+
+    const auto settled = cuda.price(make_note(kiyosi::barrier_touch_status::up), context);
+    REQUIRE(settled);
+    CHECK(*settled->require(kiyosi::risk_measure::price) == 0.0);
+
+    const auto invalid = kiyosi::MonteCarloBinarySnowballEngine{
+        {0, 7, kiyosi::monte_carlo_backend::cuda}}
+                             .price(make_note(kiyosi::barrier_touch_status::none), context);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::error_category::invalid_parameter);
+
+    const auto invalid_backend = kiyosi::MonteCarloBinarySnowballEngine{
+        {64, 7, static_cast<kiyosi::monte_carlo_backend>(255)}}
+                                     .price(make_note(kiyosi::barrier_touch_status::up), context);
+    REQUIRE_FALSE(invalid_backend);
+    CHECK(invalid_backend.error().category == kiyosi::error_category::invalid_parameter);
+
+#if !KIYOSI_HAS_CUDA
+    const auto unavailable =
+        cuda.price(make_note(kiyosi::barrier_touch_status::none), context);
+    REQUIRE_FALSE(unavailable);
+    CHECK(unavailable.error().category == kiyosi::error_category::backend_unavailable);
+#endif
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2025, 4, 1);
+    const std::vector<kiyosi::date> observations{
+        day(2025, 2, 1), day(2025, 3, 1), expiry};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), 100.0, effective,
+        kiyosi::all_days_calendar());
+    const kiyosi::StructuredMonteCarloSettings cpu_settings{
+        32'768, 73, kiyosi::monte_carlo_backend::cpu};
+    const kiyosi::StructuredMonteCarloSettings cuda_settings{
+        32'768, 73, kiyosi::monte_carlo_backend::cuda};
+    const auto check = [&](const auto& note, const auto& cpu_engine, const auto& cuda_engine) {
+        const auto cpu = cpu_engine.price(note, context);
+        auto first_future = std::async(
+            std::launch::async, [&] { return cuda_engine.price(note, context); });
+        auto second_future = std::async(
+            std::launch::async, [&] { return cuda_engine.price(note, context); });
+        const auto first = first_future.get();
+        const auto second = second_future.get();
+        REQUIRE(cpu);
+        REQUIRE(first);
+        REQUIRE(second);
+        const double cuda_price = *first->require(kiyosi::risk_measure::price);
+        CHECK(cuda_price == *second->require(kiyosi::risk_measure::price));
+        CHECK(cuda_price == Catch::Approx(*cpu->require(kiyosi::risk_measure::price))
+                                .margin(0.04));
+    };
+
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.002,
+                                                       .initial_price = 100.0,
+                                                       .knock_in_price = 80.0,
+                                                       .knock_out_prices = {110.0, 108.0, 105.0},
+                                                       .coupon_barriers = {95.0, 95.0, 95.0},
+                                                       .upper_strike = 100.0,
+                                                       .lower_strike = 60.0,
+                                                       .observation_dates = observations,
+                                                       .frequency = kiyosi::observation_frequency::daily,
+                                                       .touch_status = kiyosi::barrier_touch_status::none,
+                                                       .principal_ratio = 1.0,
+                                                       .effective = effective,
+                                                       .expiry = expiry});
+    check(phoenix, kiyosi::MonteCarloPhoenixEngine{cpu_settings},
+          kiyosi::MonteCarloPhoenixEngine{cuda_settings});
+
+    const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08},
+                                                         .maturity_coupon_rate = 0.06,
+                                                         .initial_price = 100.0,
+                                                         .knock_in_price = 80.0,
+                                                         .knock_out_prices = {110.0, 108.0, 105.0},
+                                                         .upper_strike = 100.0,
+                                                         .lower_strike = 60.0,
+                                                         .observation_dates = observations,
+                                                         .frequency = kiyosi::observation_frequency::daily,
+                                                         .touch_status = kiyosi::barrier_touch_status::none,
+                                                         .principal_ratio = 1.0,
+                                                         .effective = effective,
+                                                         .expiry = expiry});
+    check(snowball, kiyosi::MonteCarloSnowballEngine{cpu_settings},
+          kiyosi::MonteCarloSnowballEngine{cuda_settings});
+
+    const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08},
+                                                              .maturity_coupon_rate = 0.06,
+                                                              .initial_price = 100.0,
+                                                              .knock_out_prices = {110.0, 108.0, 105.0},
+                                                              .upper_strike = 100.0,
+                                                              .lower_strike = 60.0,
+                                                              .observation_dates = observations,
+                                                              .touch_status = kiyosi::barrier_touch_status::none,
+                                                              .principal_ratio = 1.0,
+                                                              .effective = effective,
+                                                              .expiry = expiry});
+    check(binary, kiyosi::MonteCarloBinarySnowballEngine{cpu_settings},
+          kiyosi::MonteCarloBinarySnowballEngine{cuda_settings});
+
+    const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08},
+                                                                .maturity_coupon_rate = 0.06,
+                                                                .minimal_coupon_rate = 0.01,
+                                                                .initial_price = 100.0,
+                                                                .knock_in_price = 80.0,
+                                                                .knock_out_prices = {110.0, 108.0, 105.0},
+                                                                .upper_strike = 100.0,
+                                                                .lower_strike = 60.0,
+                                                                .observation_dates = observations,
+                                                                .frequency = kiyosi::observation_frequency::at_expiry,
+                                                                .touch_status = kiyosi::barrier_touch_status::none,
+                                                                .principal_ratio = 1.0,
+                                                                .effective = effective,
+                                                                .expiry = expiry});
+    check(ternary, kiyosi::MonteCarloTernarySnowballEngine{cpu_settings},
+          kiyosi::MonteCarloTernarySnowballEngine{cuda_settings});
+
+    const auto different_seed = kiyosi::MonteCarloPhoenixEngine{
+        {32'768, 74, kiyosi::monte_carlo_backend::cuda}}
+                                    .price(phoenix, context);
+    const auto original_seed =
+        kiyosi::MonteCarloPhoenixEngine{cuda_settings}.price(phoenix, context);
+    REQUIRE(different_seed);
+    REQUIRE(original_seed);
+    CHECK(*different_seed->require(kiyosi::risk_measure::price) !=
+          *original_seed->require(kiyosi::risk_measure::price));
+}
+
+TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch state")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 4);
+    const auto context = [&](double spot) {
+        return *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), spot, effective,
+            kiyosi::all_days_calendar());
+    };
+    const kiyosi::StructuredMonteCarloSettings settings{
+        4'096, 73, kiyosi::monte_carlo_backend::cuda};
+
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.01,
+                                                       .initial_price = 100.0,
+                                                       .knock_in_price = 50.0,
+                                                       .knock_out_prices = {200.0, 200.0, 200.0},
+                                                       .coupon_barriers = {90.0, 90.0, 90.0},
+                                                       .upper_strike = 100.0,
+                                                       .lower_strike = 60.0,
+                                                       .observation_dates = {day(2025, 1, 2), day(2025, 1, 3), expiry},
+                                                       .frequency = kiyosi::observation_frequency::daily,
+                                                       .touch_status = kiyosi::barrier_touch_status::none,
+                                                       .principal_ratio = 1.0,
+                                                       .effective = effective,
+                                                       .expiry = expiry});
+    const auto phoenix_result =
+        kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0));
+    REQUIRE(phoenix_result);
+    CHECK(*phoenix_result->require(kiyosi::risk_measure::price) ==
+          Catch::Approx(4.0).margin(1e-10));
+
+    const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08},
+                                                         .maturity_coupon_rate = 0.06,
+                                                         .initial_price = 100.0,
+                                                         .knock_in_price = 80.0,
+                                                         .knock_out_prices = {200.0},
+                                                         .upper_strike = 100.0,
+                                                         .lower_strike = 60.0,
+                                                         .observation_dates = {expiry},
+                                                         .frequency = kiyosi::observation_frequency::daily,
+                                                         .touch_status = kiyosi::barrier_touch_status::down,
+                                                         .principal_ratio = 1.0,
+                                                         .effective = effective,
+                                                         .expiry = expiry});
+    const auto snowball_result =
+        kiyosi::MonteCarloSnowballEngine{settings}.price(snowball, context(70.0));
+    REQUIRE(snowball_result);
+    CHECK(*snowball_result->require(kiyosi::risk_measure::price) ==
+          Catch::Approx(0.7).margin(1e-8));
+
+    const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.08},
+                                                                .maturity_coupon_rate = 0.06,
+                                                                .minimal_coupon_rate = 0.01,
+                                                                .initial_price = 100.0,
+                                                                .knock_in_price = 80.0,
+                                                                .knock_out_prices = {200.0},
+                                                                .upper_strike = 100.0,
+                                                                .lower_strike = 60.0,
+                                                                .observation_dates = {expiry},
+                                                                .frequency = kiyosi::observation_frequency::daily,
+                                                                .touch_status = kiyosi::barrier_touch_status::down,
+                                                                .principal_ratio = 1.0,
+                                                                .effective = effective,
+                                                                .expiry = expiry});
+    const auto ternary_result =
+        kiyosi::MonteCarloTernarySnowballEngine{settings}.price(ternary, context(100.0));
+    REQUIRE(ternary_result);
+    CHECK(*ternary_result->require(kiyosi::risk_measure::price) ==
+          Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-12));
+
+    const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
+                                                              .maturity_coupon_rate = 0.06,
+                                                              .initial_price = 100.0,
+                                                              .knock_out_prices = {200.0},
+                                                              .upper_strike = 100.0,
+                                                              .lower_strike = 60.0,
+                                                              .observation_dates = {expiry},
+                                                              .touch_status = kiyosi::barrier_touch_status::down,
+                                                              .principal_ratio = 1.0,
+                                                              .effective = effective,
+                                                              .expiry = expiry});
+    const auto binary_result =
+        kiyosi::MonteCarloBinarySnowballEngine{settings}.price(binary, context(100.0));
+    REQUIRE(binary_result);
+    CHECK(*binary_result->require(kiyosi::risk_measure::price) ==
+          Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).margin(1e-12));
+}
+#endif
 
 TEST_CASE("Structured finite difference preserves future observation indices")
 {

@@ -130,16 +130,20 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
         "Monte Carlo pricing engine with immutable configuration. Settings are validated "
         "when price() is called."};
     binding
-        .def(nb::new_([](PythonInteger path_count, PythonInteger seed) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, nb::handle backend) {
                  return Engine{StructuredMonteCarloSettings{
-                     integer(path_count, "path_count"), optional_seed(seed)}};
+                     integer(path_count, "path_count"), optional_seed(seed),
+                     monte_carlo_backend_value(backend)}};
              }),
              nb::kw_only(), "path_count"_a = StructuredMonteCarloSettings{}.path_count,
              "seed"_a = StructuredMonteCarloSettings{}.seed.value(),
+             "backend"_a = StructuredMonteCarloSettings{}.backend,
              "Store Monte Carlo settings; they are validated when price() is called.")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; })
-        .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; });
-    bind_repr(binding, name, {{"path_count", "path_count"}, {"seed", "seed"}});
+        .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; })
+        .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; });
+    bind_repr(binding, name,
+              {{"path_count", "path_count"}, {"seed", "seed"}, {"backend", "backend"}});
     return binding;
 }
 

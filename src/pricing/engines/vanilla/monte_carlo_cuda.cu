@@ -230,6 +230,141 @@ __global__ void reduce_payoffs(const double* payoffs, int count, double* total)
     if (thread == 0) *total = sums[0];
 }
 
+__global__ void simulate_accumulator_paths(
+    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count,
+    double* payoffs, int* invalid)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (path >= request.path_count) return;
+
+    curandStatePhilox4_32_10_t generator;
+    curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
+    double spot = request.spot;
+    double quantity = request.initial_quantity;
+    double discount = 1.0;
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        spot *= exp(step.drift + step.diffusion * curand_normal_double(&generator));
+        if (!isfinite(spot) || spot <= 0.0) {
+            atomicExch(invalid, 1);
+            payoffs[path] = 0.0;
+            return;
+        }
+        discount = step.discount;
+        if (spot >= request.knock_out) break;
+        quantity += spot < request.strike
+                        ? request.daily_quantity * request.acceleration
+                        : request.daily_quantity;
+    }
+    const double payoff = quantity * (spot - request.strike) * discount;
+    if (!isfinite(payoff)) {
+        atomicExch(invalid, 1);
+        payoffs[path] = 0.0;
+        return;
+    }
+    payoffs[path] = payoff;
+}
+
+__global__ void simulate_structured_paths(
+    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count,
+    double* payoffs, int* invalid)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (path >= request.path_count) return;
+
+    curandStatePhilox4_32_10_t generator;
+    curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
+    double spot = request.spot;
+    auto state = request.initial_state;
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        spot *= exp(step.simulation.drift +
+                    step.simulation.diffusion * curand_normal_double(&generator));
+        if (!isfinite(spot) || spot <= 0.0) {
+            atomicExch(invalid, 1);
+            payoffs[path] = 0.0;
+            return;
+        }
+        state.knocked_in = program_knocked_in(
+            request.program, spot, state.knocked_in, false);
+        if (!step.event.active) continue;
+        const double coupon = program_observation_coupon(step.event, spot);
+        if (spot >= step.event.knock_out_price) {
+            const double payoff =
+                (request.program.principal_ratio + coupon) * step.simulation.discount +
+                state.coupons;
+            if (!isfinite(payoff)) atomicExch(invalid, 1);
+            payoffs[path] = isfinite(payoff) ? payoff : 0.0;
+            return;
+        }
+        if (request.program.carries_observation_coupon)
+            state.coupons += coupon * step.simulation.discount;
+    }
+    state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, true);
+    const double payoff = state.coupons +
+                          request.terminal_discount * program_terminal_settlement(
+                                                          request.program, spot, state.knocked_in);
+    if (!isfinite(payoff)) {
+        atomicExch(invalid, 1);
+        payoffs[path] = 0.0;
+        return;
+    }
+    payoffs[path] = payoff;
+}
+
+template <typename Step>
+CudaPricingResult upload_steps(DeviceMemory& memory, const Step* steps, std::size_t step_count)
+{
+    if (step_count == 0) return {CudaPricingStatus::success, 0.0, nullptr};
+    auto result = allocate(memory, step_count * sizeof(Step));
+    if (result.status != CudaPricingStatus::success) return result;
+    const cudaError_t status = cudaMemcpy(
+        memory.get(), steps, step_count * sizeof(Step),
+        cudaMemcpyHostToDevice);
+    return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
+                                 : error_result(status);
+}
+
+CudaPricingResult finish_path_simulation(
+    DeviceMemory& payoffs, DeviceMemory& invalid, DeviceMemory& total, int path_count)
+{
+    reduce_payoffs<<<1, threads_per_block>>>(
+        static_cast<const double*>(payoffs.get()), path_count,
+        static_cast<double*>(total.get()));
+    cudaError_t status = cudaGetLastError();
+    if (status != cudaSuccess) return error_result(status);
+
+    int invalid_result = 0;
+    status = cudaMemcpy(&invalid_result, invalid.get(), sizeof(int), cudaMemcpyDeviceToHost);
+    if (status != cudaSuccess) return error_result(status);
+    if (invalid_result != 0)
+        return {CudaPricingStatus::invalid_result, 0.0,
+                "CUDA Monte Carlo simulation produced a non-finite path"};
+
+    double payoff_sum = 0.0;
+    status = cudaMemcpy(&payoff_sum, total.get(), sizeof(double), cudaMemcpyDeviceToHost);
+    if (status != cudaSuccess) return error_result(status);
+    if (!std::isfinite(payoff_sum))
+        return {CudaPricingStatus::invalid_result, 0.0,
+                "CUDA Monte Carlo reduction produced a non-finite result"};
+    return {CudaPricingStatus::success, payoff_sum, nullptr};
+}
+
+CudaPricingResult allocate_path_outputs(
+    int path_count, DeviceMemory& payoffs, DeviceMemory& invalid, DeviceMemory& total)
+{
+    auto result = allocate(
+        payoffs, static_cast<std::size_t>(path_count) * sizeof(double));
+    if (result.status != CudaPricingStatus::success) return result;
+    result = allocate(invalid, sizeof(int));
+    if (result.status != CudaPricingStatus::success) return result;
+    result = allocate(total, sizeof(double));
+    if (result.status != CudaPricingStatus::success) return result;
+    const cudaError_t status = cudaMemset(invalid.get(), 0, sizeof(int));
+    return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
+                                 : error_result(status);
+}
+
 } // namespace
 
 CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
@@ -375,6 +510,56 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo reduction produced a non-finite result"};
     return {CudaPricingStatus::success, payoff_sum, nullptr};
+}
+
+CudaPricingResult cuda_accumulator_price(
+    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count)
+{
+    const auto device = select_device_zero();
+    if (device.status != CudaPricingStatus::success) return device;
+
+    DeviceMemory device_steps;
+    auto result = upload_steps(device_steps, steps, step_count);
+    if (result.status != CudaPricingStatus::success) return result;
+    DeviceMemory payoffs;
+    DeviceMemory invalid;
+    DeviceMemory total;
+    result = allocate_path_outputs(request.path_count, payoffs, invalid, total);
+    if (result.status != CudaPricingStatus::success) return result;
+
+    const int block_count =
+        (request.path_count + threads_per_block - 1) / threads_per_block;
+    simulate_accumulator_paths<<<block_count, threads_per_block>>>(
+        request, static_cast<const CudaSimulationStep*>(device_steps.get()), step_count,
+        static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
+    const cudaError_t status = cudaGetLastError();
+    if (status != cudaSuccess) return error_result(status);
+    return finish_path_simulation(payoffs, invalid, total, request.path_count);
+}
+
+CudaPricingResult cuda_structured_price(
+    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count)
+{
+    const auto device = select_device_zero();
+    if (device.status != CudaPricingStatus::success) return device;
+
+    DeviceMemory device_steps;
+    auto result = upload_steps(device_steps, steps, step_count);
+    if (result.status != CudaPricingStatus::success) return result;
+    DeviceMemory payoffs;
+    DeviceMemory invalid;
+    DeviceMemory total;
+    result = allocate_path_outputs(request.path_count, payoffs, invalid, total);
+    if (result.status != CudaPricingStatus::success) return result;
+
+    const int block_count =
+        (request.path_count + threads_per_block - 1) / threads_per_block;
+    simulate_structured_paths<<<block_count, threads_per_block>>>(
+        request, static_cast<const CudaStructuredStep*>(device_steps.get()), step_count,
+        static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
+    const cudaError_t status = cudaGetLastError();
+    if (status != cudaSuccess) return error_result(status);
+    return finish_path_simulation(payoffs, invalid, total, request.path_count);
 }
 
 } // namespace kiyosi::detail

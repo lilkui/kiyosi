@@ -24,6 +24,7 @@ struct MonteCarloSettings {
 struct StructuredMonteCarloSettings {
     int path_count = 20'000;
     std::optional<std::uint64_t> seed = 1;
+    monte_carlo_backend backend = monte_carlo_backend::cpu;
 };
 
 } // namespace kiyosi
