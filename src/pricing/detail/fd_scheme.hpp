@@ -54,9 +54,9 @@ public:
                 continue;
             }
             rhs_[position] = old[static_cast<std::size_t>(index)] +
-                            (1.0 - theta) * dt *
-                                (a * old[position] + b * old[static_cast<std::size_t>(index)] +
-                                 c * old[static_cast<std::size_t>(index + 1)]);
+                             (1.0 - theta) * dt *
+                                 (a * old[position] + b * old[static_cast<std::size_t>(index)] +
+                                  c * old[static_cast<std::size_t>(index + 1)]);
             if (index == 1) rhs_[position] += theta * dt * a * next.front();
             if (index == asset_step_count - 1) rhs_[position] += theta * dt * c * next.back();
             lower_[position] = -theta * dt * a;
@@ -111,10 +111,10 @@ public:
             const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
             const auto position = static_cast<std::size_t>(index - 1);
             rhs_[position] = first_old[static_cast<std::size_t>(index)] +
-                            (1.0 - theta) * dt *
-                                (a * first_old[position] +
-                                 b * first_old[static_cast<std::size_t>(index)] +
-                                 c * first_old[static_cast<std::size_t>(index + 1)]);
+                             (1.0 - theta) * dt *
+                                 (a * first_old[position] +
+                                  b * first_old[static_cast<std::size_t>(index)] +
+                                  c * first_old[static_cast<std::size_t>(index + 1)]);
             paired_rhs_[position] = second_old[static_cast<std::size_t>(index)] +
                                     (1.0 - theta) * dt *
                                         (a * second_old[position] +

@@ -38,12 +38,13 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
         return (asset ? terminal : payout) * normal_pdf(z);
     };
     double sum = integrand(lower) + integrand(upper);
-    for (int index = 1; index < panels; ++index) sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);
+    for (int index = 1; index < panels; ++index)
+        sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);
     const double value = std::exp(-rate * time) * sum * step / 3.0;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result({{RiskMeasure::price, value}});
 }
-}
+} // namespace
 
 Result<PricingResult> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {

@@ -21,7 +21,7 @@ struct BarrierOptionTerms {
     double rebate{};
     kiyosi::RebateTiming rebate_timing{kiyosi::RebateTiming::at_expiry};
     kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous};
-    std::vector<Date> observation_dates;
+    std::vector<Date> observation_dates{};
 };
 
 [[nodiscard]] Result<BarrierOption> make_barrier_option(BarrierOptionTerms);

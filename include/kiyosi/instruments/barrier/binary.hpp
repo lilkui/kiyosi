@@ -21,7 +21,7 @@ struct BinaryBarrierTerms {
     double barrier_level{};
     BarrierType barrier_type{};
     kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous};
-    std::vector<Date> observation_dates;
+    std::vector<Date> observation_dates{};
 };
 
 [[nodiscard]] Result<BinaryBarrierOption> make_cash_binary_barrier_option(
@@ -75,7 +75,7 @@ namespace detail {
     auto option = make_option_terms(terms.option_type, terms.strike, terms.effective_date, terms.expiry_date);
     if (!option) return std::unexpected(option.error());
     auto barrier_terms = make_barrier_terms(terms.barrier_level, terms.barrier_type, terms.observation_mode,
-                                      std::move(terms.observation_dates), terms.effective_date, terms.expiry_date);
+                                            std::move(terms.observation_dates), terms.effective_date, terms.expiry_date);
     if (!barrier_terms) return std::unexpected(barrier_terms.error());
     return std::pair{std::move(*option), std::move(*barrier_terms)};
 }

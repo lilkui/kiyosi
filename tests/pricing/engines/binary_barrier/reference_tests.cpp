@@ -78,7 +78,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
             REQUIRE(fixture.instrument == "BinaryBarrierOption");
             const kiyosi::BinaryBarrierTerms terms{
                 .option_type = inputs.at("option") == "call" ? kiyosi::OptionType::call
-                                                       : kiyosi::OptionType::put,
+                                                             : kiyosi::OptionType::put,
                 .strike = number("strike"),
                 .effective_date = date("effective_date"),
                 .expiry_date = date("expiry_date"),
@@ -109,24 +109,24 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                                            : kiyosi::SettlementTiming::at_expiry;
         if (asset) {
             const auto option = one_touch
-                ? (up ? kiyosi::make_asset_one_touch_up(
-                            effective_date, expiry_date, barrier, settlement_timing)
-                      : kiyosi::make_asset_one_touch_down(
-                            effective_date, expiry_date, barrier, settlement_timing))
-                : (up ? kiyosi::make_asset_no_touch_up(effective_date, expiry_date, barrier)
-                      : kiyosi::make_asset_no_touch_down(effective_date, expiry_date, barrier));
+                                    ? (up ? kiyosi::make_asset_one_touch_up(
+                                                effective_date, expiry_date, barrier, settlement_timing)
+                                          : kiyosi::make_asset_one_touch_down(
+                                                effective_date, expiry_date, barrier, settlement_timing))
+                                    : (up ? kiyosi::make_asset_no_touch_up(effective_date, expiry_date, barrier)
+                                          : kiyosi::make_asset_no_touch_down(effective_date, expiry_date, barrier));
             REQUIRE(option);
             check(*option);
         } else {
             const auto option = one_touch
-                ? (up ? kiyosi::make_cash_one_touch_up(
-                            effective_date, expiry_date, barrier, number("payout"), settlement_timing)
-                      : kiyosi::make_cash_one_touch_down(
-                            effective_date, expiry_date, barrier, number("payout"), settlement_timing))
-                : (up ? kiyosi::make_cash_no_touch_up(
-                            effective_date, expiry_date, barrier, number("payout"))
-                      : kiyosi::make_cash_no_touch_down(
-                            effective_date, expiry_date, barrier, number("payout")));
+                                    ? (up ? kiyosi::make_cash_one_touch_up(
+                                                effective_date, expiry_date, barrier, number("payout"), settlement_timing)
+                                          : kiyosi::make_cash_one_touch_down(
+                                                effective_date, expiry_date, barrier, number("payout"), settlement_timing))
+                                    : (up ? kiyosi::make_cash_no_touch_up(
+                                                effective_date, expiry_date, barrier, number("payout"))
+                                          : kiyosi::make_cash_no_touch_down(
+                                                effective_date, expiry_date, barrier, number("payout")));
             REQUIRE(option);
             check(*option);
         }

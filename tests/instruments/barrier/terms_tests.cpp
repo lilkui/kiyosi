@@ -32,7 +32,7 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     CHECK(terms.mean_observation_year_fraction() == 0.0);
 
     const std::vector<kiyosi::Date> observation_dates{effective_date + std::chrono::days{30},
-                                                 effective_date + std::chrono::days{60}};
+                                                      effective_date + std::chrono::days{60}};
     const auto scheduled = *kiyosi::make_cash_no_touch_down(
         effective_date, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled, observation_dates);
     CHECK_FALSE(scheduled.barrier_terms().is_up());

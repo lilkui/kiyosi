@@ -264,7 +264,7 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
                                      ? kiyosi::BarrierType::up_and_out
                                  : kind == kiyosi::BarrierType::up_and_out  ? kiyosi::BarrierType::up_and_in
                                  : kind == kiyosi::BarrierType::down_and_in ? kiyosi::BarrierType::down_and_out
-                                                                             : kiyosi::BarrierType::down_and_in;
+                                                                            : kiyosi::BarrierType::down_and_in;
         const auto paired = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
                                                           .strike = 100.0,
                                                           .effective_date = valuation,
@@ -465,7 +465,7 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
                                                        .barrier_level = 90.0,
                                                        .barrier_type = kiyosi::BarrierType::down_and_out});
 
-    for (const auto [rate, volatility] : {
+    for (const auto& [rate, volatility] : {
              std::tuple{0.75, 0.125}, std::tuple{0.0, 0.25}, std::tuple{-3.0, 0.5}}) {
         const auto market = context(100.0, rate, 0.01, volatility);
         const auto stable = kiyosi::FiniteDifferenceSettings{4, 100, kiyosi::FiniteDifferenceScheme::explicit_euler};

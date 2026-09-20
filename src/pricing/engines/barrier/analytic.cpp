@@ -14,10 +14,9 @@ using namespace detail;
 namespace {
 
 Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
-                                std::optional<double> gamma = std::nullopt)
+                                                    std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
-                                {RiskMeasure::gamma, gamma}});
+    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}});
 }
 
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
@@ -48,7 +47,7 @@ Result<PricingResult> AnalyticBarrierEngine::price(
     if (!valid) return std::unexpected(valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {
         auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective_date(),
-                                                option.expiry_date(), context.calendar());
+                                                         option.expiry_date(), context.calendar());
         if (!schedule_valid)
             return std::unexpected(Error{ErrorCategory::invalid_schedule, schedule_valid.error().message});
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
@@ -74,14 +73,14 @@ Result<PricingResult> AnalyticBarrierEngine::price(
     if (touched) {
         const double touched_value = *vanilla->require(RiskMeasure::price);
         return make_price_delta_gamma_result(knock_in
-            ? touched_value
-            : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit ? 1.0 : std::exp(-rate * t)));
+                                                 ? touched_value
+                                                 : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit ? 1.0 : std::exp(-rate * t)));
     }
     if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
         const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
-                                                          drift, variance, t, rate);
+                                                         drift, variance, t, rate);
         if (!std::isfinite(hit_discount))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
@@ -108,12 +107,11 @@ Result<PricingResult> AnalyticBarrierEngine::price(
                 phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y1 - eta * root_time),
             phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y2) -
                 phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
-            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) -
-                std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
+            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
             option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
-                ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
-                   std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
-                : discount) };
+                                   ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
+                                      std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
+                                   : discount)};
     };
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;

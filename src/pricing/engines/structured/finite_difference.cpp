@@ -28,11 +28,13 @@ template <typename Note>
 double highest_relevant_level(const Note& note, double spot)
 {
     double relevant = std::max({spot, note.initial_spot(), note.upper_strike(), note.lower_strike()});
-    for (const double level : note.knock_out_levels()) relevant = std::max(relevant, level);
+    for (const double level : note.knock_out_levels())
+        relevant = std::max(relevant, level);
     if constexpr (requires { note.knock_in_level(); })
         relevant = std::max(relevant, note.knock_in_level());
     if constexpr (requires { note.coupon_barrier_levels(); })
-        for (const double level : note.coupon_barrier_levels()) relevant = std::max(relevant, level);
+        for (const double level : note.coupon_barrier_levels())
+            relevant = std::max(relevant, level);
     return relevant;
 }
 
@@ -44,7 +46,8 @@ Result<PricingResult> terminal_value(const Note& note, const PricingContext& con
         is_knocked_in(note, spot, note.barrier_state() == AutocallableBarrierState::knocked_in, true);
     const auto& dates = note.observation_dates();
     std::size_t index = 0;
-    while (index < dates.size() && dates[index] < note.expiry_date()) ++index;
+    while (index < dates.size() && dates[index] < note.expiry_date())
+        ++index;
     const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry_date();
     if (observed_at_expiry && spot >= note.knock_out_levels()[index])
         return make_pricing_result(
@@ -209,7 +212,7 @@ Result<PricingResult> price_autocallable_finite_difference(
         return make_pricing_result(
             {{RiskMeasure::price,
               space->interpolate(note.barrier_state() == AutocallableBarrierState::knocked_in ? knocked_in
-                                                                                    : alive,
+                                                                                              : alive,
                                  spot)}});
     else
         return make_pricing_result({{RiskMeasure::price, space->interpolate(alive, spot)}});

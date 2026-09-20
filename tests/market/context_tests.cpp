@@ -34,7 +34,8 @@ TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
             kiyosi::ErrorCategory::invalid_spot_price);
     REQUIRE_FALSE(kiyosi::make_pricing_context(*valid, -1.0, valuation).has_value());
     REQUIRE_FALSE(kiyosi::make_pricing_context(
-        *valid, std::numeric_limits<double>::quiet_NaN(), valuation).has_value());
+                      *valid, std::numeric_limits<double>::quiet_NaN(), valuation)
+                      .has_value());
 }
 
 TEST_CASE("Pricing context and result preserve their values")
@@ -93,4 +94,4 @@ TEST_CASE("Pricing result rejects unknown risk measures")
     STATIC_REQUIRE_FALSE(noexcept(result->get(unknown)));
 }
 
-}
+} // namespace

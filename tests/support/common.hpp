@@ -17,4 +17,4 @@ inline double risk_value(const kiyosi::PricingResult& result, kiyosi::RiskMeasur
     return *result.require(measure);
 }
 
-}
+} // namespace kiyosi::test

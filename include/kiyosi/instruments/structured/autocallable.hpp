@@ -73,9 +73,9 @@ public:
 
 private:
     KnockInAutocallableNote(double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,
-                       double upper_strike, double lower_strike, std::vector<Date> observation_dates,
-                       KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
-                       double principal_ratio, Date effective_date, Date expiry_date)
+                            double upper_strike, double lower_strike, std::vector<Date> observation_dates,
+                            KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                            double principal_ratio, Date effective_date, Date expiry_date)
         : note_(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
                 std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}

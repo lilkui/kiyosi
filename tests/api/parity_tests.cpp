@@ -45,7 +45,8 @@ std::vector<ParityCase> parity_cases()
     while (std::getline(stream, line)) {
         std::istringstream row{line};
         std::vector<std::string> columns;
-        for (std::string column; std::getline(row, column, '\t');) columns.push_back(column);
+        for (std::string column; std::getline(row, column, '\t');)
+            columns.push_back(column);
         REQUIRE(columns.size() == 5);
         result.push_back({columns[0], columns[1], fields(columns[2]), fields(columns[3]), columns[4]});
     }
@@ -91,7 +92,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
     REQUIRE(cases.size() == 7);
 
     for (const auto& test : cases) {
-        DYNAMIC_SECTION(test.id) {
+        DYNAMIC_SECTION(test.id)
+        {
             if (test.kind == "construction") {
                 const auto option = kiyosi::make_european_option(
                     option_type(test.inputs), std::stod(test.inputs.at("strike")),
@@ -122,7 +124,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 REQUIRE(result);
                 REQUIRE(result->require(kiyosi::RiskMeasure::price));
                 CHECK_THAT(*result->require(kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(
-                    std::stod(test.expected.at("price")), std::stod(test.tolerance)));
+                                                                             std::stod(test.expected.at("price")), std::stod(test.tolerance)));
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
                     std::stod(test.inputs.at("risk_free_rate")),

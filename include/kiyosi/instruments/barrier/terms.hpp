@@ -19,13 +19,13 @@ enum class BarrierType {
 };
 
 enum class ObservationMode { continuous,
-                              scheduled };
+                             scheduled };
 
 enum class RebateTiming { at_hit,
-                           at_expiry };
+                          at_expiry };
 
 enum class SettlementTiming { at_hit,
-                               at_expiry };
+                              at_expiry };
 
 [[nodiscard]] constexpr bool is_up_barrier(BarrierType kind) noexcept
 {

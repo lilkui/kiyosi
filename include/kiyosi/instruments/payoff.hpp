@@ -22,7 +22,7 @@ struct AssetOrNothingPayoff {
 };
 
 enum class PayoffType { cash,
-                         asset };
+                        asset };
 
 class CashOrNothingPayoff;
 

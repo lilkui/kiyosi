@@ -22,8 +22,6 @@ TEST_CASE("Finite-difference European engines track analytic prices")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto american_call = *kiyosi::make_american_option(
-        kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto analytic = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const kiyosi::FiniteDifferenceSettings settings{200, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson};
     const auto european = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(call, context);

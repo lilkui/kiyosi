@@ -14,7 +14,7 @@ class TradingCalendar;
 namespace detail {
 // Unchecked construction shared by the venue calendars under kiyosi/market/calendars.
 [[nodiscard]] TradingCalendar make_calendar(std::function<bool(Date)>, int);
-}
+} // namespace detail
 
 /// Calendar queries follow the library thread-safety default. Predicates supplied to
 /// make_trading_calendar must return the same answer for a Date throughout each operation; callers

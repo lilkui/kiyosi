@@ -18,7 +18,7 @@ struct FiniteDifferenceSettings {
     int asset_step_count = 200;
     int time_step_count = 200;
     FiniteDifferenceScheme scheme = FiniteDifferenceScheme::crank_nicolson;
-    std::optional<double> asset_upper_boundary;
+    std::optional<double> asset_upper_boundary{};
 };
 
 [[nodiscard]] inline Result<void> validate_finite_difference_settings(

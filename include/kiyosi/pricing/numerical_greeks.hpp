@@ -196,12 +196,7 @@ template <typename Engine, typename Option>
     }
 
     auto output = make_pricing_result(
-        {{RiskMeasure::price, *p0}, {RiskMeasure::delta, delta},
-         {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed},
-         {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm},
-         {RiskMeasure::color, color}, {RiskMeasure::vega, vega},
-         {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma},
-         {RiskMeasure::rho, rho}});
+        {{RiskMeasure::price, *p0}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed}, {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm}, {RiskMeasure::color, color}, {RiskMeasure::vega, vega}, {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma}, {RiskMeasure::rho, rho}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result,

@@ -67,7 +67,8 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
 
     std::vector<double> old(space->size());
-    for (int index = 0; index <= asset_step_count; ++index) old[static_cast<std::size_t>(index)] = terminal(spacing * index);
+    for (int index = 0; index <= asset_step_count; ++index)
+        old[static_cast<std::size_t>(index)] = terminal(spacing * index);
 
     const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta},
                                         old, boundary);
@@ -83,7 +84,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     return output;
 }
 
-}
+} // namespace
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
     const CashOrNothingOption& option, const PricingContext& context) const

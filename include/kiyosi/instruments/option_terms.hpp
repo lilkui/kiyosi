@@ -8,7 +8,7 @@
 namespace kiyosi {
 
 enum class OptionType { call,
-                         put };
+                        put };
 
 class OptionTerms;
 

@@ -14,7 +14,7 @@ inline std::vector<Date> trading_dates(
 {
     std::vector<Date> dates;
     auto first = include_start && start == start_of_day(date_of(start)) ? date_of(start)
-                                                                       : date_of(start) + std::chrono::days{1};
+                                                                        : date_of(start) + std::chrono::days{1};
     for (auto value = first; value <= end; value += std::chrono::days{1})
         if (calendar.is_trading_day(value)) dates.push_back(value);
     return dates;

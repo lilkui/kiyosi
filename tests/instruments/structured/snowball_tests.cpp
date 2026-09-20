@@ -35,7 +35,8 @@ class CopyCountingNote {
 public:
     CopyCountingNote(int& copies, kiyosi::Date effective_date, kiyosi::Date expiry_date)
         : copies_(&copies), observation_dates_{expiry_date}, effective_(effective_date), expiry_(expiry_date)
-    {}
+    {
+    }
 
     CopyCountingNote(const CopyCountingNote& other)
         : copies_(other.copies_), knock_out_prices_(other.knock_out_prices_),

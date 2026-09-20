@@ -17,9 +17,9 @@ public:
         : settings_{asset_step_count, time_step_count, scheme} {}
 
     template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires (std::same_as<Payoff, CashOrNothingPayoff> ||
-                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
-                 std::same_as<Exercise, EuropeanExercise>
+        requires(std::same_as<Payoff, CashOrNothingPayoff> ||
+                 std::same_as<Payoff, AssetOrNothingPayoff>) &&
+                std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {

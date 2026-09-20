@@ -11,10 +11,9 @@ using namespace detail;
 namespace {
 
 Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
-                                std::optional<double> gamma = std::nullopt)
+                                                    std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
-                                {RiskMeasure::gamma, gamma}});
+    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}});
 }
 
 Result<PricingResult> digital_price(double strike, OptionType type, double payout,
@@ -62,7 +61,7 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     return output;
 }
 
-}
+} // namespace
 
 Result<PricingResult> AnalyticDigitalEngine::price_impl(
     OptionType type, double strike, double payout, bool asset_settlement, Date effective_date, Date expiry_date,

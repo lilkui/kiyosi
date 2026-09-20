@@ -81,4 +81,4 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);
 }
 
-}
+} // namespace

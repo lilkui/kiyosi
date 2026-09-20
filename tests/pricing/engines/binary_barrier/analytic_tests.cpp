@@ -19,7 +19,7 @@ TEST_CASE("Binary barriers expose observation intervals")
     const auto valuation = day(2025, 1, 6);
     const auto expiry_date = valuation + std::chrono::days{365};
     const auto observation_dates = std::vector<kiyosi::Date>{valuation + std::chrono::days{30},
-                                                        valuation + std::chrono::days{180}};
+                                                             valuation + std::chrono::days{180}};
     const auto binary = kiyosi::make_cash_binary_barrier_option(
         {.option_type = kiyosi::OptionType::call,
          .strike = 100.0,

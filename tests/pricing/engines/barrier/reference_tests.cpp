@@ -30,16 +30,15 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         REQUIRE(barrier_kinds.contains(inputs.at("BarrierType")));
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
         REQUIRE((inputs.at("settlement") == "at_hit" || inputs.at("settlement") == "at_expiry"));
-        const auto option = kiyosi::make_barrier_option({
-            .option_type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put,
-            .strike = number("strike"),
-            .effective_date = date("effective_date"),
-            .expiry_date = date("expiry_date"),
-            .barrier_level = number("barrier"),
-            .barrier_type = barrier_kinds.at(inputs.at("BarrierType")),
-            .rebate = number("rebate"),
-            .rebate_timing = inputs.at("settlement") == "at_hit" ? kiyosi::RebateTiming::at_hit
-                                                                   : kiyosi::RebateTiming::at_expiry});
+        const auto option = kiyosi::make_barrier_option({.option_type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put,
+                                                         .strike = number("strike"),
+                                                         .effective_date = date("effective_date"),
+                                                         .expiry_date = date("expiry_date"),
+                                                         .barrier_level = number("barrier"),
+                                                         .barrier_type = barrier_kinds.at(inputs.at("BarrierType")),
+                                                         .rebate = number("rebate"),
+                                                         .rebate_timing = inputs.at("settlement") == "at_hit" ? kiyosi::RebateTiming::at_hit
+                                                                                                              : kiyosi::RebateTiming::at_expiry});
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());

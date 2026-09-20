@@ -66,7 +66,7 @@ double legacy_accumulator_price(const kiyosi::Accumulator& option,
         sum += path_payoff(generator);
     return sum / static_cast<double>(settings.path_count);
 }
-}
+} // namespace
 
 TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
 {

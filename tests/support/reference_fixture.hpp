@@ -157,7 +157,7 @@ inline FixtureAttributes attributes(std::string_view text, std::size_t row, std:
 }
 
 inline std::map<std::string, double> numeric_attributes(std::string_view text, std::size_t row,
-                                                         std::string_view name)
+                                                        std::string_view name)
 {
     std::map<std::string, double> result;
     for (const auto& [key, value] : attributes(text, row, name)) {
@@ -252,16 +252,14 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             if (!value.tolerances.contains(output.first))
                 throw FixtureParseError("fixture row " + std::to_string(row) +
                                         ": outputs and tolerances must have matching keys");
-        for (const auto& [name, tolerance] : value.tolerances) check_tolerance(tolerance, row, name + " tolerance");
+        for (const auto& [name, tolerance] : value.tolerances)
+            check_tolerance(tolerance, row, name + " tolerance");
         if (value.inputs.contains("owner") && value.inputs.at("owner") == "QuantLib") {
             const auto invalid = [&] {
                 return FixtureParseError("fixture row " + std::to_string(row) + ": invalid Greek declaration");
             };
             const std::map<std::string, std::string> units{
-                {"price", "price"}, {"delta", "price/spot"}, {"gamma", "price/spot^2"},
-                {"speed", "price/spot^3"}, {"theta", "price/day"}, {"charm", "delta/day"},
-                {"color", "gamma/day"}, {"vega", "price/volatility-pp"},
-                {"vanna", "delta/volatility-pp"}, {"zomma", "gamma/volatility-pp"}, {"rho", "price/rate-pp"}};
+                {"price", "price"}, {"delta", "price/spot"}, {"gamma", "price/spot^2"}, {"speed", "price/spot^3"}, {"theta", "price/day"}, {"charm", "delta/day"}, {"color", "gamma/day"}, {"vega", "price/volatility-pp"}, {"vanna", "delta/volatility-pp"}, {"zomma", "gamma/volatility-pp"}, {"rho", "price/rate-pp"}};
             std::size_t index = 0;
             const auto expiry_date = calendar_date({required_input("expiry_date")}, index, row, "expiry_date");
             index = 0;
@@ -269,7 +267,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             const bool expiry_boundary = (expiry_date - valuation).count() <= 2;
             index = 0;
             const bool exercise_boundary = value.instrument == "AmericanOption" &&
-                (valuation - calendar_date({required_input("effective_date")}, index, row, "effective_date")).count() < 2;
+                                           (valuation - calendar_date({required_input("effective_date")}, index, row, "effective_date")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
             const bool binary_product = value.instrument == "BinaryBarrierOption" ||
                                         value.instrument == "TouchOption";
@@ -278,27 +276,26 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             const bool asian_expiry = asian && expiry_date == valuation;
             index = 0;
             const bool asian_start = asian &&
-                (valuation - calendar_date({required_input("averaging_start_date")}, index, row, "averaging_start_date")).count() <= 2;
+                                     (valuation - calendar_date({required_input("averaging_start_date")}, index, row, "averaging_start_date")).count() <= 2;
             index = 0;
             const bool binary_boundary = binary_product &&
-                number({required_input("spot")}, index, row, "spot") == [&] {
-                    std::size_t position = 0;
-                    return number({required_input("barrier")}, position, row, "barrier");
-                }();
+                                         number({required_input("spot")}, index, row, "spot") == [&] {
+                                             std::size_t position = 0;
+                                             return number({required_input("barrier")}, position, row, "barrier");
+                                         }();
             std::size_t available = 0;
             for (const auto& [name, unit] : units) {
                 const bool unavailable = ((binary_boundary || binary_expiry || asian_expiry || asian_start) && name != "price") ||
-                    (boundary && (name == "theta" || name == "charm" || name == "color"));
+                                         (boundary && (name == "theta" || name == "charm" || name == "color"));
                 if (required_input("unit_" + name) != unit ||
                     value.inputs.contains("unavailable_" + name) != unavailable ||
                     value.outputs.contains(name) == unavailable) throw invalid();
                 if (unavailable) {
-                    if (required_input("unavailable_" + name) != (asian_expiry ?
-                        "terminal average payoff: no smooth sensitivities" : asian_start ?
-                        "averaging-start boundary: price only, no smooth time stencil" : binary_expiry ?
-                        "terminal payoff: no smooth sensitivities" : binary_boundary ?
-                        "spot equals barrier: hit-state boundary" : expiry_boundary ?
-                        "whole-day stability stencil touches expiry_date" : "whole-day stability stencil precedes exercise window"))
+                    if (required_input("unavailable_" + name) != (asian_expiry ? "terminal average payoff: no smooth sensitivities" : asian_start   ? "averaging-start boundary: price only, no smooth time stencil"
+                                                                                                                                  : binary_expiry   ? "terminal payoff: no smooth sensitivities"
+                                                                                                                                  : binary_boundary ? "spot equals barrier: hit-state boundary"
+                                                                                                                                  : expiry_boundary ? "whole-day stability stencil touches expiry_date"
+                                                                                                                                                    : "whole-day stability stencil precedes exercise window"))
                         throw invalid();
                     continue;
                 }
@@ -323,9 +320,12 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
                 throw FixtureParseError("fixture row " + std::to_string(row) + ": Monte Carlo must be seed|paths|steps|tolerance");
             std::size_t seed = 0, paths = 0, steps = 0, parsed = 0;
             try {
-                seed = std::stoull(parts[0], &parsed); if (parsed != parts[0].size()) throw std::invalid_argument("seed");
-                paths = std::stoull(parts[1], &parsed); if (parsed != parts[1].size()) throw std::invalid_argument("paths");
-                steps = std::stoull(parts[2], &parsed); if (parsed != parts[2].size()) throw std::invalid_argument("steps");
+                seed = std::stoull(parts[0], &parsed);
+                if (parsed != parts[0].size()) throw std::invalid_argument("seed");
+                paths = std::stoull(parts[1], &parsed);
+                if (parsed != parts[1].size()) throw std::invalid_argument("paths");
+                steps = std::stoull(parts[2], &parsed);
+                if (parsed != parts[2].size()) throw std::invalid_argument("steps");
                 const auto tolerance = std::stod(parts[3], &parsed);
                 if (paths == 0 || steps == 0 || parsed != parts[3].size() || !std::isfinite(tolerance) || tolerance < 0.0)
                     throw std::invalid_argument("tolerance");

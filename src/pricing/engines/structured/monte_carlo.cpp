@@ -28,7 +28,7 @@ struct SimulationInputs {
 struct InitialState {
     AutocallablePathState path{};
     std::size_t next_observation{};
-    std::optional<double> settlement;
+    std::optional<double> settlement{};
 };
 
 template <typename Note>

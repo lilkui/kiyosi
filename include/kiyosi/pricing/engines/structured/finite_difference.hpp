@@ -19,7 +19,7 @@ class KIYOSI_EXPORT FiniteDifferenceAutocallableEngine {
 public:
     explicit FiniteDifferenceAutocallableEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
     FiniteDifferenceAutocallableEngine(int asset_step_count, int time_step_count,
-                                     FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
+                                       FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_step_count, time_step_count, scheme} {}
 
     [[nodiscard]] Result<PricingResult> price(const Note& note, const PricingContext& context) const

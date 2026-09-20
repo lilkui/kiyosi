@@ -28,9 +28,11 @@ double phi(double spot, double time, double gamma, double boundary, double strik
     const double lambda = -rate + gamma * (rate - dividend) + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * (rate - dividend) / variance + 2.0 * gamma - 1.0;
     const double first = -(std::log(spot / boundary) +
-                           (rate - dividend + (gamma - 0.5) * variance) * time) / root;
+                           (rate - dividend + (gamma - 0.5) * variance) * time) /
+                         root;
     const double second = -(std::log(strike_boundary * strike_boundary / (spot * boundary)) +
-                            (rate - dividend + (gamma - 0.5) * variance) * time) / root;
+                            (rate - dividend + (gamma - 0.5) * variance) * time) /
+                          root;
     return std::exp(lambda * time) * std::pow(spot, gamma) *
            (normal_cdf(first) - std::pow(strike_boundary / spot, kappa) * normal_cdf(second));
 }
@@ -67,15 +69,19 @@ double ksi(double spot, double time, double gamma, double boundary, double outer
     const double drift = carry + (gamma - 0.5) * variance;
     const double e1 = (std::log(spot / inner_boundary) + drift * split_time) / split_root;
     const double e2 = (std::log(outer_boundary * outer_boundary / (spot * inner_boundary)) +
-                       drift * split_time) / split_root;
+                       drift * split_time) /
+                      split_root;
     const double e3 = (std::log(spot / inner_boundary) - drift * split_time) / split_root;
     const double e4 = (std::log(outer_boundary * outer_boundary / (spot * inner_boundary)) -
-                       drift * split_time) / split_root;
+                       drift * split_time) /
+                      split_root;
     const double f1 = (std::log(spot / boundary) + drift * time) / root;
     const double f2 = (std::log(outer_boundary * outer_boundary / (spot * boundary)) + drift * time) / root;
     const double f3 = (std::log(inner_boundary * inner_boundary / (spot * boundary)) + drift * time) / root;
     const double f4 = (std::log(spot * inner_boundary * inner_boundary /
-                              (boundary * outer_boundary * outer_boundary)) + drift * time) / root;
+                                (boundary * outer_boundary * outer_boundary)) +
+                       drift * time) /
+                      root;
     const double correlation = std::sqrt(split_time / time);
     const double lambda = -rate + gamma * carry + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * carry / variance + 2.0 * gamma - 1.0;
@@ -120,7 +126,7 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
            strike * ksi(spot, time, 0.0, inner, outer, inner, split_time, rate, carry, volatility) +
            strike * ksi(spot, time, 0.0, strike, outer, inner, split_time, rate, carry, volatility);
 }
-}
+} // namespace
 
 Result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const AmericanOption& option, const PricingContext& context) const
 {

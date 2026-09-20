@@ -39,7 +39,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         REQUIRE(date("valuation") <= date("expiry_date"));
         const bool terminal = date("valuation") == date("expiry_date");
         REQUIRE(fixture.provenance.source_symbol ==
-                (terminal ? "QuantLib.PlainVanillaPayoff"
+                (terminal    ? "QuantLib.PlainVanillaPayoff"
                  : geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine"
                              : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
         REQUIRE(fixture.provenance.reference_kind == (!geometric && !terminal ? "approximate" : "analytic"));

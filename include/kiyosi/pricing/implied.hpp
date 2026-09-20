@@ -119,18 +119,17 @@ inline Result<BinarySnowballOption> replace_coupon(
     const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
     if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_binary_snowball_option({
-        .knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-        .maturity_coupon_rate = *maturity_coupon_rate,
-        .initial_spot = option.initial_spot(),
-        .knock_out_levels = option.knock_out_levels(),
-        .upper_strike = option.upper_strike(),
-        .lower_strike = option.lower_strike(),
-        .observation_dates = option.observation_dates(),
-        .barrier_state = option.barrier_state(),
-        .principal_ratio = option.principal_ratio(),
-        .effective_date = option.effective_date(),
-        .expiry_date = option.expiry_date()});
+    return make_binary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
+                                        .maturity_coupon_rate = *maturity_coupon_rate,
+                                        .initial_spot = option.initial_spot(),
+                                        .knock_out_levels = option.knock_out_levels(),
+                                        .upper_strike = option.upper_strike(),
+                                        .lower_strike = option.lower_strike(),
+                                        .observation_dates = option.observation_dates(),
+                                        .barrier_state = option.barrier_state(),
+                                        .principal_ratio = option.principal_ratio(),
+                                        .effective_date = option.effective_date(),
+                                        .expiry_date = option.expiry_date()});
 }
 
 inline Result<TernarySnowballOption> replace_coupon(
@@ -140,21 +139,20 @@ inline Result<TernarySnowballOption> replace_coupon(
     const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
     if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_ternary_snowball_option({
-        .knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-        .maturity_coupon_rate = *maturity_coupon_rate,
-        .minimum_coupon_rate = option.minimum_coupon_rate(),
-        .initial_spot = option.initial_spot(),
-        .knock_in_level = option.knock_in_level(),
-        .knock_out_levels = option.knock_out_levels(),
-        .upper_strike = option.upper_strike(),
-        .lower_strike = option.lower_strike(),
-        .observation_dates = option.observation_dates(),
-        .knock_in_observation_mode = option.knock_in_observation_mode(),
-        .barrier_state = option.barrier_state(),
-        .principal_ratio = option.principal_ratio(),
-        .effective_date = option.effective_date(),
-        .expiry_date = option.expiry_date()});
+    return make_ternary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
+                                         .maturity_coupon_rate = *maturity_coupon_rate,
+                                         .minimum_coupon_rate = option.minimum_coupon_rate(),
+                                         .initial_spot = option.initial_spot(),
+                                         .knock_in_level = option.knock_in_level(),
+                                         .knock_out_levels = option.knock_out_levels(),
+                                         .upper_strike = option.upper_strike(),
+                                         .lower_strike = option.lower_strike(),
+                                         .observation_dates = option.observation_dates(),
+                                         .knock_in_observation_mode = option.knock_in_observation_mode(),
+                                         .barrier_state = option.barrier_state(),
+                                         .principal_ratio = option.principal_ratio(),
+                                         .effective_date = option.effective_date(),
+                                         .expiry_date = option.expiry_date()});
 }
 
 inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)

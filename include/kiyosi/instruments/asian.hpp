@@ -29,7 +29,7 @@ public:
 
 private:
     AveragePriceOptionTerms(OptionType option_type, double strike, Date averaging_start_date, double realized_average,
-                     Date effective_date, Date expiry_date)
+                            Date effective_date, Date expiry_date)
         : option_type_(option_type), strike_(strike), averaging_start_date_(averaging_start_date),
           realized_average_(realized_average), effective_date_(effective_date), expiry_date_(expiry_date) {}
     OptionType option_type_;

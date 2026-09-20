@@ -12,9 +12,9 @@ namespace kiyosi {
 class KIYOSI_EXPORT AnalyticDigitalEngine {
 public:
     template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires (std::same_as<Payoff, CashOrNothingPayoff> ||
-                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
-                 std::same_as<Exercise, EuropeanExercise>
+        requires(std::same_as<Payoff, CashOrNothingPayoff> ||
+                 std::same_as<Payoff, AssetOrNothingPayoff>) &&
+                std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {

@@ -15,12 +15,7 @@
 namespace kiyosi::test {
 
 inline const std::map<std::string, kiyosi::RiskMeasure> measures{
-    {"price", kiyosi::RiskMeasure::price}, {"delta", kiyosi::RiskMeasure::delta},
-    {"gamma", kiyosi::RiskMeasure::gamma}, {"speed", kiyosi::RiskMeasure::speed},
-    {"theta", kiyosi::RiskMeasure::theta}, {"charm", kiyosi::RiskMeasure::charm},
-    {"color", kiyosi::RiskMeasure::color}, {"vega", kiyosi::RiskMeasure::vega},
-    {"vanna", kiyosi::RiskMeasure::vanna}, {"zomma", kiyosi::RiskMeasure::zomma},
-    {"rho", kiyosi::RiskMeasure::rho}};
+    {"price", kiyosi::RiskMeasure::price}, {"delta", kiyosi::RiskMeasure::delta}, {"gamma", kiyosi::RiskMeasure::gamma}, {"speed", kiyosi::RiskMeasure::speed}, {"theta", kiyosi::RiskMeasure::theta}, {"charm", kiyosi::RiskMeasure::charm}, {"color", kiyosi::RiskMeasure::color}, {"vega", kiyosi::RiskMeasure::vega}, {"vanna", kiyosi::RiskMeasure::vanna}, {"zomma", kiyosi::RiskMeasure::zomma}, {"rho", kiyosi::RiskMeasure::rho}};
 
 inline std::filesystem::path fixture_path()
 {

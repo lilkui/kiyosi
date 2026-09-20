@@ -63,8 +63,8 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective_date, expiry_date);
     const auto put = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, effective_date, expiry_date);
     const std::vector<kiyosi::Date> observation_dates{effective_date + std::chrono::days{90},
-                                                 effective_date + std::chrono::days{181},
-                                                 effective_date + std::chrono::days{273}, expiry_date};
+                                                      effective_date + std::chrono::days{181},
+                                                      effective_date + std::chrono::days{273}, expiry_date};
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.02,
@@ -94,30 +94,30 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
     const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = coupons,
-                                                               .maturity_coupon_rate = 0.08,
-                                                               .initial_spot = 100.0,
-                                                               .knock_out_levels = knock_outs,
-                                                               .upper_strike = 100.0,
-                                                               .lower_strike = 60.0,
-                                                               .observation_dates = observation_dates,
-                                                               .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                               .principal_ratio = 1.0,
-                                                               .effective_date = effective_date,
-                                                               .expiry_date = expiry_date});
+                                                              .maturity_coupon_rate = 0.08,
+                                                              .initial_spot = 100.0,
+                                                              .knock_out_levels = knock_outs,
+                                                              .upper_strike = 100.0,
+                                                              .lower_strike = 60.0,
+                                                              .observation_dates = observation_dates,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                                              .principal_ratio = 1.0,
+                                                              .effective_date = effective_date,
+                                                              .expiry_date = expiry_date});
     const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = coupons,
-                                                                 .maturity_coupon_rate = 0.08,
-                                                                 .minimum_coupon_rate = 0.02,
-                                                                 .initial_spot = 100.0,
-                                                                 .knock_in_level = 75.0,
-                                                                 .knock_out_levels = knock_outs,
-                                                                 .upper_strike = 100.0,
-                                                                 .lower_strike = 60.0,
-                                                                 .observation_dates = observation_dates,
-                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                 .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                                 .principal_ratio = 1.0,
-                                                                 .effective_date = effective_date,
-                                                                 .expiry_date = expiry_date});
+                                                                .maturity_coupon_rate = 0.08,
+                                                                .minimum_coupon_rate = 0.02,
+                                                                .initial_spot = 100.0,
+                                                                .knock_in_level = 75.0,
+                                                                .knock_out_levels = knock_outs,
+                                                                .upper_strike = 100.0,
+                                                                .lower_strike = 60.0,
+                                                                .observation_dates = observation_dates,
+                                                                .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                                                .principal_ratio = 1.0,
+                                                                .effective_date = effective_date,
+                                                                .expiry_date = expiry_date});
     const auto require_repeatable = [&](const auto& instrument, const auto& engine) {
         const auto first = engine.price(instrument, context);
         const auto second = engine.price(instrument, context);

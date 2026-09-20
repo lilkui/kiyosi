@@ -31,7 +31,7 @@ inline std::vector<double> make_finite_difference_time_grid(double maturity, int
 {
     return scheme == FiniteDifferenceScheme::explicit_euler   ? 0.0
            : scheme == FiniteDifferenceScheme::implicit_euler ? 1.0
-                                                                : 0.5;
+                                                              : 0.5;
 }
 
 /// Rejects explicit-Euler grids whose largest step breaks positivity of the update at the top node.

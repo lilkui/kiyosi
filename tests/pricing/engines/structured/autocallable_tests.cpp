@@ -350,16 +350,16 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
     const auto make_note = [&](kiyosi::AutocallableBarrierState barrier_state, double principal,
                                double coupon = 0.0) {
         return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {coupon, 0.0},
-                                                      .maturity_coupon_rate = 0.0,
-                                                      .initial_spot = 100.0,
-                                                      .knock_out_levels = {100.0, 100.0},
-                                                      .upper_strike = 100.0,
-                                                      .lower_strike = 60.0,
-                                                      .observation_dates = {valuation, expiry_date},
-                                                      .barrier_state = barrier_state,
-                                                      .principal_ratio = principal,
-                                                      .effective_date = effective_date,
-                                                      .expiry_date = expiry_date});
+                                                     .maturity_coupon_rate = 0.0,
+                                                     .initial_spot = 100.0,
+                                                     .knock_out_levels = {100.0, 100.0},
+                                                     .upper_strike = 100.0,
+                                                     .lower_strike = 60.0,
+                                                     .observation_dates = {valuation, expiry_date},
+                                                     .barrier_state = barrier_state,
+                                                     .principal_ratio = principal,
+                                                     .effective_date = effective_date,
+                                                     .expiry_date = expiry_date});
     };
 
     const double large_payoff = std::numeric_limits<double>::max() / 64.0;
@@ -379,18 +379,17 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
     calls->store(0);
     const auto expiry_context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), 90.0, expiry_date, calendar);
-    const auto expiry_note = *kiyosi::make_binary_snowball_option({
-        .knock_out_coupon_rates = {0.0},
-        .maturity_coupon_rate = 0.0,
-        .initial_spot = 100.0,
-        .knock_out_levels = {100.0},
-        .upper_strike = 100.0,
-        .lower_strike = 60.0,
-        .observation_dates = {expiry_date},
-        .barrier_state = kiyosi::AutocallableBarrierState::none,
-        .principal_ratio = large_payoff,
-        .effective_date = effective_date,
-        .expiry_date = expiry_date});
+    const auto expiry_note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.0},
+                                                                   .maturity_coupon_rate = 0.0,
+                                                                   .initial_spot = 100.0,
+                                                                   .knock_out_levels = {100.0},
+                                                                   .upper_strike = 100.0,
+                                                                   .lower_strike = 60.0,
+                                                                   .observation_dates = {expiry_date},
+                                                                   .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                                                   .principal_ratio = large_payoff,
+                                                                   .effective_date = effective_date,
+                                                                   .expiry_date = expiry_date});
     const auto at_expiry = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
@@ -736,18 +735,17 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
     const std::vector<kiyosi::Date> observation_dates{
         day(2025, 2, 3), day(2025, 6, 17), day(2025, 11, 5), expiry_date};
     const auto note = [&](kiyosi::AutocallableBarrierState barrier_state) {
-        return *kiyosi::make_binary_snowball_option({
-            .knock_out_coupon_rates = {0.02, 0.04, 0.06, 0.08},
-            .maturity_coupon_rate = 0.05,
-            .initial_spot = 100.0,
-            .knock_out_levels = {112.0, 108.0, 104.0, 100.0},
-            .upper_strike = 100.0,
-            .lower_strike = 60.0,
-            .observation_dates = observation_dates,
-            .barrier_state = barrier_state,
-            .principal_ratio = 1.0,
-            .effective_date = effective_date,
-            .expiry_date = expiry_date});
+        return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.02, 0.04, 0.06, 0.08},
+                                                     .maturity_coupon_rate = 0.05,
+                                                     .initial_spot = 100.0,
+                                                     .knock_out_levels = {112.0, 108.0, 104.0, 100.0},
+                                                     .upper_strike = 100.0,
+                                                     .lower_strike = 60.0,
+                                                     .observation_dates = observation_dates,
+                                                     .barrier_state = barrier_state,
+                                                     .principal_ratio = 1.0,
+                                                     .effective_date = effective_date,
+                                                     .expiry_date = expiry_date});
     };
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 97.0, effective_date);
@@ -776,33 +774,31 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     const auto first_observation = day(2025, 1, 4);
     const auto expiry_date = day(2025, 1, 6);
     const auto parameters = *kiyosi::make_bsm_parameters(0.03, 0.0, 0.2);
-    const auto binary = *kiyosi::make_binary_snowball_option({
-        .knock_out_coupon_rates = {0.10, 0.20},
-        .maturity_coupon_rate = 0.02,
-        .initial_spot = 100.0,
-        .knock_out_levels = {110.0, 110.0},
-        .upper_strike = 100.0,
-        .lower_strike = 60.0,
-        .observation_dates = {first_observation, expiry_date},
-        .barrier_state = kiyosi::AutocallableBarrierState::none,
-        .principal_ratio = 1.0,
-        .effective_date = valuation,
-        .expiry_date = expiry_date});
+    const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.10, 0.20},
+                                                              .maturity_coupon_rate = 0.02,
+                                                              .initial_spot = 100.0,
+                                                              .knock_out_levels = {110.0, 110.0},
+                                                              .upper_strike = 100.0,
+                                                              .lower_strike = 60.0,
+                                                              .observation_dates = {first_observation, expiry_date},
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                                              .principal_ratio = 1.0,
+                                                              .effective_date = valuation,
+                                                              .expiry_date = expiry_date});
     const auto make_snowball = [&](kiyosi::KnockInObservationMode knock_in_observation_mode) {
-        return *kiyosi::make_snowball_option({
-            .knock_out_coupon_rates = {0.10, 0.20},
-            .maturity_coupon_rate = 0.02,
-            .initial_spot = 100.0,
-            .knock_in_level = 75.0,
-            .knock_out_levels = {110.0, 110.0},
-            .upper_strike = 100.0,
-            .lower_strike = 60.0,
-            .observation_dates = {first_observation, expiry_date},
-            .knock_in_observation_mode = knock_in_observation_mode,
-            .barrier_state = kiyosi::AutocallableBarrierState::none,
-            .principal_ratio = 1.0,
-            .effective_date = valuation,
-            .expiry_date = expiry_date});
+        return *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.10, 0.20},
+                                              .maturity_coupon_rate = 0.02,
+                                              .initial_spot = 100.0,
+                                              .knock_in_level = 75.0,
+                                              .knock_out_levels = {110.0, 110.0},
+                                              .upper_strike = 100.0,
+                                              .lower_strike = 60.0,
+                                              .observation_dates = {first_observation, expiry_date},
+                                              .knock_in_observation_mode = knock_in_observation_mode,
+                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                              .principal_ratio = 1.0,
+                                              .effective_date = valuation,
+                                              .expiry_date = expiry_date});
     };
     const kiyosi::FiniteDifferenceSettings settings{40, 40};
     const auto context = [&](kiyosi::TradingCalendar calendar) {
@@ -863,7 +859,7 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -888,7 +884,7 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -914,7 +910,7 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -938,7 +934,7 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -965,7 +961,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -990,7 +986,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                 day(2025, 10, 1), expiry_date};
+                                                      day(2025, 10, 1), expiry_date};
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
@@ -1011,4 +1007,4 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
                     .price(phoenix, context));
 }
 
-}
+} // namespace

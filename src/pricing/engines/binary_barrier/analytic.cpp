@@ -10,7 +10,9 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-struct BinaryBarrierFormulaTerms { double a1, b1, a2, b2, a3, b3, a4, b4, a5; };
+struct BinaryBarrierFormulaTerms {
+    double a1, b1, a2, b2, a3, b3, a4, b4, a5;
+};
 
 struct BinaryBarrierContractView {
     const BarrierTerms& barrier_terms;
@@ -112,7 +114,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     }
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
-                                   : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
+                                          : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
     const auto formula_terms = common(down ? 1.0 : -1.0, phi);
     double value = 0.0;
     if (!option.option_type) {
