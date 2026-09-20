@@ -78,6 +78,16 @@
             }
         },
         {
+            "name": "linux-quality",
+            "displayName": "Linux quality checks",
+            "inherits": "linux-debug",
+            "cacheVariables": {
+                "CMAKE_COMPILE_WARNING_AS_ERROR": true,
+                "KIYOSI_ENABLE_CLANG_FORMAT": true,
+                "KIYOSI_ENABLE_CLANG_TIDY": true
+            }
+        },
+        {
             "name": "windows-ci",
             "displayName": "Windows x64 Release (warnings as errors)",
             "inherits": "windows-release",
@@ -122,6 +132,14 @@
         {
             "name": "linux-sanitizers",
             "configurePreset": "linux-sanitizers"
+        },
+        {
+            "name": "linux-quality",
+            "configurePreset": "linux-quality",
+            "targets": [
+                "all",
+                "kiyosi-format-check"
+            ]
         }
     ],
     "testPresets": [
