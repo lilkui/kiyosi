@@ -62,13 +62,13 @@ static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::Observati
 static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
 static_assert(kiyosi::SettlementTiming::at_expiry != kiyosi::SettlementTiming::at_hit);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
-static_assert(kiyosi::SnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
+static_assert(kiyosi::SnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
 static_assert(kiyosi::SnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::BinarySnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
+static_assert(kiyosi::BinarySnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
 static_assert(kiyosi::BinarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::TernarySnowballTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
+static_assert(kiyosi::TernarySnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
 static_assert(kiyosi::TernarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::PhoenixTerms{}.touch_status == kiyosi::BarrierTouchStatus::none);
+static_assert(kiyosi::PhoenixTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
 static_assert(kiyosi::PhoenixTerms{}.principal_ratio == 1.0);
 
 static_assert(kiyosi::FiniteDifferenceSettings{}.asset_step_count == 200);
@@ -105,21 +105,21 @@ static_assert(std::equality_comparable<kiyosi::TernarySnowballOption>);
 
 static_assert(can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanCashOrNothingOption>);
+static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::CashOrNothingOption>);
 static_assert(can_price<kiyosi::QuadratureVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(!can_price<kiyosi::QuadratureVanillaEngine, kiyosi::AmericanOption>);
 static_assert(can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::AmericanOption>);
 static_assert(!can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
-static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
+static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::CashOrNothingOption>);
+static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::AssetOrNothingOption>);
 static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::EuropeanOption>);
 static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::AmericanOption>);
 
-static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanCashOrNothingOption>);
-static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanAssetOrNothingOption>);
+static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::CashOrNothingOption>);
+static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::AssetOrNothingOption>);
 static_assert(!can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanOption>);
 
 static_assert(can_price<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::AmericanOption>);

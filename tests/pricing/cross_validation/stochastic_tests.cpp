@@ -25,7 +25,7 @@ struct Scenario {
     double spot = 100.0;
     double volatility = 0.25;
     KnockInObservationMode knock_in_observation_mode = KnockInObservationMode::every_trading_day;
-    BarrierTouchStatus history = BarrierTouchStatus::none;
+    AutocallableBarrierState history = AutocallableBarrierState::none;
     double accumulated_quantity = 3.0;
 };
 
@@ -122,7 +122,7 @@ Terms note_terms(const Scenario& scenario)
     terms.lower_strike = 60.0;
     terms.observation_dates = {effective_date + std::chrono::days{30},
                                effective_date + std::chrono::days{60}, expiry_date};
-    terms.touch_status = scenario.history;
+    terms.barrier_state = scenario.history;
     terms.effective_date = effective_date;
     terms.expiry_date = expiry_date;
     if constexpr (requires { terms.knock_in_level; }) {
@@ -196,7 +196,7 @@ TEST_CASE("FD-MC extended prices agree near barriers and with historical state",
              Scenario{"near knock-out", 109.9},
              Scenario{"expiry_date-only knock-in", 100.0, 0.35, KnockInObservationMode::at_expiry},
              Scenario{"historical knock-in and accumulated quantity", 95.0, 0.25,
-                      KnockInObservationMode::every_trading_day, BarrierTouchStatus::down, 30.0}}) {
+                      KnockInObservationMode::every_trading_day, AutocallableBarrierState::knocked_in, 30.0}}) {
         check_scenario(scenario, true);
     }
 }

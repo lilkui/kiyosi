@@ -84,7 +84,7 @@ void bind_instruments(nb::module_& module)
              "Create a validated American option.");
     bind_common_option_properties(american, "AmericanOption");
 
-    auto cash = nb::class_<EuropeanCashOrNothingOption>(
+    auto cash = nb::class_<CashOrNothingOption>(
         module, "CashOrNothingOption", "Immutable validated cash-or-nothing option.")
         .def(nb::new_([](OptionType type, PythonReal strike, PythonReal payout,
                         PythonDate effective_date, PythonDate expiry_date) {
@@ -94,10 +94,10 @@ void bind_instruments(nb::module_& module)
              }),
              nb::kw_only(), "option_type"_a, "strike"_a, "payout"_a, "effective_date"_a,
              "expiry_date"_a, "Create a validated cash-or-nothing option.")
-        .def_prop_ro("payout", &EuropeanCashOrNothingOption::payout);
+        .def_prop_ro("payout", &CashOrNothingOption::payout);
     bind_common_option_properties(cash, "CashOrNothingOption", {{"payout", "payout"}});
 
-    auto asset = nb::class_<EuropeanAssetOrNothingOption>(
+    auto asset = nb::class_<AssetOrNothingOption>(
         module, "AssetOrNothingOption", "Immutable validated asset-or-nothing option.")
         .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
                         PythonDate expiry_date) {

@@ -178,14 +178,14 @@ template <typename Engine, typename Instrument>
 void bind_analytics_pair(nb::module_& module)
 {
     module.def(
-        "calculate_numerical_analytics",
+        "calculate_numerical_risk_measures",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
            PythonInteger time_shift_days) {
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
-            return unwrap(kiyosi::calculate_numerical_analytics(engine, instrument, context, settings));
+            return unwrap(kiyosi::calculate_numerical_risk_measures(engine, instrument, context, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
@@ -416,16 +416,16 @@ void bind_engines(nb::module_& module)
 
     auto analytic_digital = bind_stateless_engine<AnalyticDigitalEngine>(
         module, "AnalyticDigitalEngine");
-    bind_engine_price<AnalyticDigitalEngine, EuropeanCashOrNothingOption>(analytic_digital);
-    bind_engine_price<AnalyticDigitalEngine, EuropeanAssetOrNothingOption>(analytic_digital);
+    bind_engine_price<AnalyticDigitalEngine, CashOrNothingOption>(analytic_digital);
+    bind_engine_price<AnalyticDigitalEngine, AssetOrNothingOption>(analytic_digital);
     auto integral_digital = bind_stateless_engine<QuadratureDigitalEngine>(
         module, "QuadratureDigitalEngine");
-    bind_engine_price<QuadratureDigitalEngine, EuropeanCashOrNothingOption>(integral_digital);
-    bind_engine_price<QuadratureDigitalEngine, EuropeanAssetOrNothingOption>(integral_digital);
+    bind_engine_price<QuadratureDigitalEngine, CashOrNothingOption>(integral_digital);
+    bind_engine_price<QuadratureDigitalEngine, AssetOrNothingOption>(integral_digital);
     auto finite_digital = bind_finite_difference_engine<FiniteDifferenceDigitalEngine>(
         module, "FiniteDifferenceDigitalEngine");
-    bind_engine_price<FiniteDifferenceDigitalEngine, EuropeanCashOrNothingOption>(finite_digital);
-    bind_engine_price<FiniteDifferenceDigitalEngine, EuropeanAssetOrNothingOption>(finite_digital);
+    bind_engine_price<FiniteDifferenceDigitalEngine, CashOrNothingOption>(finite_digital);
+    bind_engine_price<FiniteDifferenceDigitalEngine, AssetOrNothingOption>(finite_digital);
 
     auto analytic_barrier = bind_stateless_engine<AnalyticBarrierEngine>(
         module, "AnalyticBarrierEngine");
@@ -438,12 +438,12 @@ void bind_engines(nb::module_& module)
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(analytic_binary);
     bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(analytic_binary);
 
-    auto geometric = bind_stateless_engine<AnalyticGeometricAverageAsianEngine>(
-        module, "AnalyticGeometricAverageAsianEngine");
-    bind_engine_price<AnalyticGeometricAverageAsianEngine, GeometricAveragePriceOption>(geometric);
-    auto arithmetic = bind_stateless_engine<TurnbullWakemanArithmeticAverageAsianEngine>(
-        module, "TurnbullWakemanArithmeticAverageAsianEngine");
-    bind_engine_price<TurnbullWakemanArithmeticAverageAsianEngine, ArithmeticAveragePriceOption>(arithmetic);
+    auto geometric = bind_stateless_engine<AnalyticGeometricAveragePriceEngine>(
+        module, "AnalyticGeometricAveragePriceEngine");
+    bind_engine_price<AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption>(geometric);
+    auto arithmetic = bind_stateless_engine<TurnbullWakemanArithmeticAveragePriceEngine>(
+        module, "TurnbullWakemanArithmeticAveragePriceEngine");
+    bind_engine_price<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(arithmetic);
 
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
         module, "FiniteDifferenceAccumulatorEngine");
@@ -487,17 +487,17 @@ void bind_analytics(nb::module_& module)
     bind_engine_analytics<BjerksundStenslandVanillaEngine, AmericanOption>(module);
     bind_engine_analytics<FiniteDifferenceVanillaEngine, EuropeanOption, AmericanOption>(module);
     bind_engine_analytics<MonteCarloVanillaEngine, EuropeanOption, AmericanOption>(module);
-    bind_engine_analytics<AnalyticDigitalEngine, EuropeanCashOrNothingOption,
-                          EuropeanAssetOrNothingOption>(module);
-    bind_engine_analytics<QuadratureDigitalEngine, EuropeanCashOrNothingOption,
-                          EuropeanAssetOrNothingOption>(module);
-    bind_engine_analytics<FiniteDifferenceDigitalEngine, EuropeanCashOrNothingOption,
-                          EuropeanAssetOrNothingOption>(module);
+    bind_engine_analytics<AnalyticDigitalEngine, CashOrNothingOption,
+                          AssetOrNothingOption>(module);
+    bind_engine_analytics<QuadratureDigitalEngine, CashOrNothingOption,
+                          AssetOrNothingOption>(module);
+    bind_engine_analytics<FiniteDifferenceDigitalEngine, CashOrNothingOption,
+                          AssetOrNothingOption>(module);
     bind_engine_analytics<AnalyticBarrierEngine, BarrierOption>(module);
     bind_engine_analytics<FiniteDifferenceBarrierEngine, BarrierOption>(module);
     bind_engine_analytics<AnalyticBinaryBarrierEngine, BinaryBarrierOption, TouchOption>(module);
-    bind_engine_analytics<AnalyticGeometricAverageAsianEngine, GeometricAveragePriceOption>(module);
-    bind_engine_analytics<TurnbullWakemanArithmeticAverageAsianEngine, ArithmeticAveragePriceOption>(module);
+    bind_engine_analytics<AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption>(module);
+    bind_engine_analytics<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(module);
     bind_engine_analytics<FiniteDifferenceAccumulatorEngine, Accumulator>(module);
     bind_engine_analytics<MonteCarloAccumulatorEngine, Accumulator>(module);
     bind_engine_analytics<FiniteDifferenceSnowballEngine, SnowballOption>(module);

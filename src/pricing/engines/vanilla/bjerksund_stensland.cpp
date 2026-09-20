@@ -126,7 +126,7 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const American
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    const double time = actual_365(context.valuation_time(), option.expiry_date());
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double rate = context.model_parameters().risk_free_rate();

@@ -20,9 +20,9 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective_date(), option.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
-    const double maturity = actual_365(context.valuation_time(), option.expiry_date());
+    const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
-    if (maturity == 0.0) return std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
+    if (time_to_expiry == 0.0) return std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
     const int asset_step_count = settings.asset_step_count;
@@ -36,11 +36,11 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     if (option.observation_mode() == ObservationMode::scheduled) {
         for (auto value : option.observation_dates()) {
             if (value < context.valuation_time()) continue;
-            const double event_time = actual_365(context.valuation_time(), value);
-            if (event_time >= 0.0 && event_time <= maturity) observation_times.push_back(event_time);
+            const double event_time = actual_365_fixed_year_fraction(context.valuation_time(), value);
+            if (event_time >= 0.0 && event_time <= time_to_expiry) observation_times.push_back(event_time);
         }
     }
-    const auto grid = finite_difference_grid(maturity, time_step_count, observation_times);
+    const auto grid = make_finite_difference_time_grid(time_to_expiry, time_step_count, observation_times);
     if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_step_count);
         !stable)
         return std::unexpected(stable.error());
@@ -51,7 +51,7 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     auto rebate_value = [&](double tau) { return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
     std::vector<double> old(space->size());
     for (int index = 0; index <= asset_step_count; ++index) old[index] = payoff(spacing * index);
-    if (active(maturity)) for (int index = 0; index <= asset_step_count; ++index) if (knocked(spacing * index)) old[index] = option.rebate();
+    if (active(time_to_expiry)) for (int index = 0; index <= asset_step_count; ++index) if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
         Boundaries edges{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
                          option.option_type() == OptionType::call ? upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau) : 0.0};
@@ -93,11 +93,11 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& 
     const auto& terms = option.barrier_terms();
     const bool knock_in = terms.is_knock_in();
     const bool touched = terms.is_breached_by(context.spot_price());
-    const bool observed_now = terms.is_monitored_at(context.valuation_time());
-    const double t = actual_365(context.valuation_time(), option.expiry_date());
+    const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
+    const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const auto vanilla_price = [&]() -> Result<double> {
         auto vanilla = price_at_volatility(*make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),
-                                           context, context.model_parameters().volatility(), risk_measure_output::price_only);
+                                           context, context.model_parameters().volatility(), RiskMeasureOutput::price_only);
         if (!vanilla) return std::unexpected(vanilla.error());
         return *vanilla->require(RiskMeasure::price);
     };

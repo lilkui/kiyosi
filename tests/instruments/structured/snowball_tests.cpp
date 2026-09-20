@@ -15,7 +15,7 @@ using kiyosi::test::day;
 
 struct CouponSumEngine {
     mutable std::vector<double> coupon_rates;
-    mutable double maturity_coupon{};
+    mutable double maturity_coupon_rate{};
     mutable double minimal_coupon{};
 
     template <typename Option>
@@ -23,11 +23,11 @@ struct CouponSumEngine {
         const Option& option, const kiyosi::PricingContext&) const
     {
         coupon_rates = option.knock_out_coupon_rates();
-        maturity_coupon = option.maturity_coupon_rate();
+        maturity_coupon_rate = option.maturity_coupon_rate();
         if constexpr (requires { option.minimum_coupon_rate(); })
             minimal_coupon = option.minimum_coupon_rate();
         return kiyosi::make_pricing_result(
-            {{kiyosi::RiskMeasure::price, coupon_rates.front() + maturity_coupon}});
+            {{kiyosi::RiskMeasure::price, coupon_rates.front() + maturity_coupon_rate}});
     }
 };
 
@@ -53,9 +53,9 @@ public:
     double principal_ratio() const noexcept { return 1.0; }
     kiyosi::Date effective_date() const noexcept { return effective_; }
     kiyosi::Date expiry_date() const noexcept { return expiry_; }
-    kiyosi::BarrierTouchStatus touch_status() const noexcept
+    kiyosi::AutocallableBarrierState barrier_state() const noexcept
     {
-        return kiyosi::BarrierTouchStatus::none;
+        return kiyosi::AutocallableBarrierState::none;
     }
 
 private:
@@ -141,7 +141,7 @@ TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons
 {
     static_assert(!std::is_constructible_v<kiyosi::BinarySnowballOption, std::vector<double>, double, double,
                                            std::vector<double>, double, double, std::vector<kiyosi::Date>,
-                                           kiyosi::BarrierTouchStatus, double, kiyosi::Date, kiyosi::Date>);
+                                           kiyosi::AutocallableBarrierState, double, kiyosi::Date, kiyosi::Date>);
 
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
@@ -155,7 +155,7 @@ TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons
         .lower_strike = 60.0,
         .observation_dates = {expiry_date},
         .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-        .touch_status = kiyosi::BarrierTouchStatus::none,
+        .barrier_state = kiyosi::AutocallableBarrierState::none,
         .principal_ratio = 1.0,
         .effective_date = effective_date,
         .expiry_date = expiry_date});
@@ -170,7 +170,7 @@ TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons
                                            .lower_strike = 60.0,
                                            .observation_dates = {expiry_date, effective_date},
                                            .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                           .touch_status = kiyosi::BarrierTouchStatus::none,
+                                           .barrier_state = kiyosi::AutocallableBarrierState::none,
                                            .principal_ratio = 1.0,
                                            .effective_date = effective_date,
                                            .expiry_date = expiry_date})
@@ -199,8 +199,8 @@ TEST_CASE("Named Snowball factories build DerivaSharp variants")
                                                             .observation_dates = observation_dates,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
-    const auto both_down = kiyosi::make_both_down_snowball({.coupon_start = 0.1,
-                                                            .coupon_step = 0.01,
+    const auto both_down = kiyosi::make_both_down_snowball({.initial_coupon_rate = 0.1,
+                                                            .coupon_rate_decrement = 0.01,
                                                             .initial_spot = 100.0,
                                                             .knock_in_level = 70.0,
                                                             .initial_knock_out_level = 110.0,
@@ -208,8 +208,8 @@ TEST_CASE("Named Snowball factories build DerivaSharp variants")
                                                             .observation_dates = observation_dates,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
-    const auto dual = kiyosi::make_dual_coupon_snowball({.knock_out_coupon = 0.1,
-                                                         .maturity_coupon = 0.03,
+    const auto dual = kiyosi::make_dual_coupon_snowball({.knock_out_coupon_rate = 0.1,
+                                                         .maturity_coupon_rate = 0.03,
                                                          .initial_spot = 100.0,
                                                          .knock_in_level = 70.0,
                                                          .knock_out_level = 105.0,
@@ -284,12 +284,12 @@ TEST_CASE("Named Snowball factories build DerivaSharp variants")
     CHECK(*standard_coupon == Catch::Approx(0.12));
     CHECK(*both_down_coupon == Catch::Approx(0.12));
     CHECK(*dual_coupon == Catch::Approx(0.12));
-    CHECK(standard_engine.maturity_coupon == Catch::Approx(0.12));
+    CHECK(standard_engine.maturity_coupon_rate == Catch::Approx(0.12));
     CHECK(both_down_engine.coupon_rates[1] == Catch::Approx(0.11));
     CHECK(both_down_engine.coupon_rates[2] == Catch::Approx(0.10));
-    CHECK(both_down_engine.maturity_coupon == Catch::Approx(0.10));
+    CHECK(both_down_engine.maturity_coupon_rate == Catch::Approx(0.10));
     CHECK(dual_engine.coupon_rates[1] == Catch::Approx(0.12));
-    CHECK(dual_engine.maturity_coupon == Catch::Approx(0.03));
+    CHECK(dual_engine.maturity_coupon_rate == Catch::Approx(0.03));
 }
 
 TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
@@ -304,7 +304,7 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
                                                              .upper_strike = 100.0,
                                                              .lower_strike = 0.0,
                                                              .observation_dates = observation_dates,
-                                                             .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                             .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                              .principal_ratio = 1.0,
                                                              .effective_date = effective_date,
                                                              .expiry_date = expiry_date});
@@ -318,7 +318,7 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
                                                                .lower_strike = 0.0,
                                                                .observation_dates = observation_dates,
                                                                .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                               .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                               .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                .principal_ratio = 1.0,
                                                                .effective_date = effective_date,
                                                                .expiry_date = expiry_date});
@@ -340,8 +340,8 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
     CHECK(*implied_binary == Catch::Approx(0.12));
     CHECK(*implied_ternary == Catch::Approx(0.12));
     CHECK(binary_engine.coupon_rates[1] == Catch::Approx(0.11));
-    CHECK(binary_engine.maturity_coupon == Catch::Approx(0.03));
+    CHECK(binary_engine.maturity_coupon_rate == Catch::Approx(0.03));
     CHECK(ternary_engine.coupon_rates[1] == Catch::Approx(0.11));
-    CHECK(ternary_engine.maturity_coupon == Catch::Approx(0.03));
+    CHECK(ternary_engine.maturity_coupon_rate == Catch::Approx(0.03));
     CHECK(ternary_engine.minimal_coupon == Catch::Approx(0.01));
 }

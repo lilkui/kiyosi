@@ -27,7 +27,7 @@ double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                                     kiyosi::TradingDayMonteCarloSettings settings)
 {
     const auto path_payoff = [&](std::mt19937_64& generator) {
-        if (note.touch_status() == kiyosi::BarrierTouchStatus::up) return 0.0;
+        if (note.barrier_state() == kiyosi::AutocallableBarrierState::knocked_out) return 0.0;
 
         const double rate = context.model_parameters().risk_free_rate();
         const double dividend = context.model_parameters().dividend_yield();
@@ -123,7 +123,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
                                                        .lower_strike = 60.0,
                                                        .observation_dates = {expiry_date},
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -138,7 +138,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
                                                           .lower_strike = 60.0,
                                                           .observation_dates = {expiry_date},
                                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                          .touch_status = kiyosi::BarrierTouchStatus::up,
+                                                          .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
                                                           .principal_ratio = 1.0,
                                                           .effective_date = effective_date,
                                                           .expiry_date = expiry_date});
@@ -167,7 +167,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
                                                          .lower_strike = 60.0,
                                                          .observation_dates = {expiry_date},
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -183,7 +183,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
                                                               .lower_strike = 60.0,
                                                               .observation_dates = {expiry_date},
                                                               .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                              .touch_status = kiyosi::BarrierTouchStatus::down,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -210,7 +210,7 @@ TEST_CASE("Binary snowball expiry_date settlement applies final observations")
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = {expiry_date},
-                                                              .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -245,7 +245,7 @@ TEST_CASE("Ternary snowball expiry_date settlement applies final observations")
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = {expiry_date},
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -274,7 +274,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
                                                             .observation_dates = {effective_date, valuation, expiry_date},
-                                                            .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                             .principal_ratio = 1.0,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
@@ -295,7 +295,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                          .lower_strike = 60.0,
                                                          .observation_dates = {effective_date, valuation, expiry_date},
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -311,7 +311,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = {effective_date, valuation, expiry_date},
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -326,7 +326,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                        .lower_strike = 60.0,
                                                        .observation_dates = {effective_date, valuation, expiry_date},
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -347,7 +347,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         365);
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), 100.0, valuation, calendar);
-    const auto make_note = [&](kiyosi::BarrierTouchStatus touch_status, double principal,
+    const auto make_note = [&](kiyosi::AutocallableBarrierState barrier_state, double principal,
                                double coupon = 0.0) {
         return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {coupon, 0.0},
                                                       .maturity_coupon_rate = 0.0,
@@ -356,7 +356,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
                                                       .upper_strike = 100.0,
                                                       .lower_strike = 60.0,
                                                       .observation_dates = {valuation, expiry_date},
-                                                      .touch_status = touch_status,
+                                                      .barrier_state = barrier_state,
                                                       .principal_ratio = principal,
                                                       .effective_date = effective_date,
                                                       .expiry_date = expiry_date});
@@ -364,14 +364,14 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
 
     const double large_payoff = std::numeric_limits<double>::max() / 64.0;
     const auto immediate = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
-        make_note(kiyosi::BarrierTouchStatus::none, large_payoff), context);
+        make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
     CHECK(*immediate->require(kiyosi::RiskMeasure::price) == large_payoff);
     CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
-        make_note(kiyosi::BarrierTouchStatus::up, 1.0), context);
+        make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
     REQUIRE(touched);
     CHECK(*touched->require(kiyosi::RiskMeasure::price) == 0.0);
     CHECK(calls->load() == 2);
@@ -387,7 +387,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         .upper_strike = 100.0,
         .lower_strike = 60.0,
         .observation_dates = {expiry_date},
-        .touch_status = kiyosi::BarrierTouchStatus::none,
+        .barrier_state = kiyosi::AutocallableBarrierState::none,
         .principal_ratio = large_payoff,
         .effective_date = effective_date,
         .expiry_date = expiry_date});
@@ -399,13 +399,13 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
 
     calls->store(0);
     const auto invalid_settings = kiyosi::MonteCarloBinarySnowballEngine{{0, 7}}.price(
-        make_note(kiyosi::BarrierTouchStatus::up, 1.0), context);
+        make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
     REQUIRE_FALSE(invalid_settings);
     CHECK(invalid_settings.error().category == kiyosi::ErrorCategory::invalid_parameter);
     CHECK(calls->load() == 2);
 
     const auto non_finite = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
-        make_note(kiyosi::BarrierTouchStatus::none, std::numeric_limits<double>::max(),
+        make_note(kiyosi::AutocallableBarrierState::none, std::numeric_limits<double>::max(),
                   std::numeric_limits<double>::max()),
         context);
     REQUIRE_FALSE(non_finite);
@@ -434,7 +434,7 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
                                                             .observation_dates = {first_observation, expiry_date},
-                                                            .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                             .principal_ratio = 1.0,
                                                             .effective_date = valuation,
                                                             .expiry_date = expiry_date});
@@ -462,7 +462,7 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 1, 6);
-    const auto make_note = [&](kiyosi::BarrierTouchStatus touch_status) {
+    const auto make_note = [&](kiyosi::AutocallableBarrierState barrier_state) {
         return *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
                                                      .maturity_coupon_rate = 0.05,
                                                      .initial_spot = 100.0,
@@ -470,7 +470,7 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
                                                      .upper_strike = 100.0,
                                                      .lower_strike = 60.0,
                                                      .observation_dates = {expiry_date},
-                                                     .touch_status = touch_status,
+                                                     .barrier_state = barrier_state,
                                                      .principal_ratio = 1.0,
                                                      .effective_date = effective_date,
                                                      .expiry_date = expiry_date});
@@ -482,25 +482,25 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
         {64, 7, kiyosi::MonteCarloBackend::cuda}};
     CHECK(cuda.settings().backend == kiyosi::MonteCarloBackend::cuda);
 
-    const auto settled = cuda.price(make_note(kiyosi::BarrierTouchStatus::up), context);
+    const auto settled = cuda.price(make_note(kiyosi::AutocallableBarrierState::knocked_out), context);
     REQUIRE(settled);
     CHECK(*settled->require(kiyosi::RiskMeasure::price) == 0.0);
 
     const auto invalid = kiyosi::MonteCarloBinarySnowballEngine{
         {0, 7, kiyosi::MonteCarloBackend::cuda}}
-                             .price(make_note(kiyosi::BarrierTouchStatus::none), context);
+                             .price(make_note(kiyosi::AutocallableBarrierState::none), context);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
     const auto invalid_backend = kiyosi::MonteCarloBinarySnowballEngine{
         {64, 7, static_cast<kiyosi::MonteCarloBackend>(255)}}
-                                     .price(make_note(kiyosi::BarrierTouchStatus::up), context);
+                                     .price(make_note(kiyosi::AutocallableBarrierState::knocked_out), context);
     REQUIRE_FALSE(invalid_backend);
     CHECK(invalid_backend.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
 #if !KIYOSI_HAS_CUDA
     const auto unavailable =
-        cuda.price(make_note(kiyosi::BarrierTouchStatus::none), context);
+        cuda.price(make_note(kiyosi::AutocallableBarrierState::none), context);
     REQUIRE_FALSE(unavailable);
     CHECK(unavailable.error().category == kiyosi::ErrorCategory::backend_unavailable);
 #endif
@@ -546,7 +546,7 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
                                                        .lower_strike = 60.0,
                                                        .observation_dates = observations,
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -562,7 +562,7 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
                                                          .lower_strike = 60.0,
                                                          .observation_dates = observations,
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -576,7 +576,7 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = observations,
-                                                              .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -593,7 +593,7 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = observations,
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -632,7 +632,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                        .lower_strike = 60.0,
                                                        .observation_dates = {day(2025, 1, 2), day(2025, 1, 3), expiry_date},
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -651,7 +651,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                          .lower_strike = 60.0,
                                                          .observation_dates = {expiry_date},
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::down,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -671,7 +671,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = {expiry_date},
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::down,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -688,7 +688,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = {expiry_date},
-                                                              .touch_status = kiyosi::BarrierTouchStatus::down,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -713,7 +713,7 @@ TEST_CASE("Structured finite difference preserves future observation indices")
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
                                                             .observation_dates = {valuation_date, future_observation, expiry_date},
-                                                            .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                             .principal_ratio = 1.0,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
@@ -735,7 +735,7 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{
         day(2025, 2, 3), day(2025, 6, 17), day(2025, 11, 5), expiry_date};
-    const auto note = [&](kiyosi::BarrierTouchStatus touch_status) {
+    const auto note = [&](kiyosi::AutocallableBarrierState barrier_state) {
         return *kiyosi::make_binary_snowball_option({
             .knock_out_coupon_rates = {0.02, 0.04, 0.06, 0.08},
             .maturity_coupon_rate = 0.05,
@@ -744,7 +744,7 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
             .upper_strike = 100.0,
             .lower_strike = 60.0,
             .observation_dates = observation_dates,
-            .touch_status = touch_status,
+            .barrier_state = barrier_state,
             .principal_ratio = 1.0,
             .effective_date = effective_date,
             .expiry_date = expiry_date});
@@ -757,9 +757,9 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
                               kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
         CAPTURE(scheme);
         const kiyosi::FiniteDifferenceBinarySnowballEngine engine{{80, 512, scheme, 500.0}};
-        const auto untouched = engine.price(note(kiyosi::BarrierTouchStatus::none), context);
-        const auto down_touched = engine.price(note(kiyosi::BarrierTouchStatus::down), context);
-        const auto up_touched = engine.price(note(kiyosi::BarrierTouchStatus::up), context);
+        const auto untouched = engine.price(note(kiyosi::AutocallableBarrierState::none), context);
+        const auto down_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_in), context);
+        const auto up_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_out), context);
 
         REQUIRE(untouched);
         REQUIRE(down_touched);
@@ -784,7 +784,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
         .upper_strike = 100.0,
         .lower_strike = 60.0,
         .observation_dates = {first_observation, expiry_date},
-        .touch_status = kiyosi::BarrierTouchStatus::none,
+        .barrier_state = kiyosi::AutocallableBarrierState::none,
         .principal_ratio = 1.0,
         .effective_date = valuation,
         .expiry_date = expiry_date});
@@ -799,7 +799,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
             .lower_strike = 60.0,
             .observation_dates = {first_observation, expiry_date},
             .knock_in_observation_mode = knock_in_observation_mode,
-            .touch_status = kiyosi::BarrierTouchStatus::none,
+            .barrier_state = kiyosi::AutocallableBarrierState::none,
             .principal_ratio = 1.0,
             .effective_date = valuation,
             .expiry_date = expiry_date});
@@ -876,7 +876,7 @@ TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
                                                        .lower_strike = 60.0,
                                                        .observation_dates = observation_dates,
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -902,7 +902,7 @@ TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
                                                          .lower_strike = 60.0,
                                                          .observation_dates = observation_dates,
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -926,7 +926,7 @@ TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM 
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = observation_dates,
-                                                              .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -953,7 +953,7 @@ TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = observation_dates,
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -977,7 +977,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = observation_dates,
-                                                              .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -1003,7 +1003,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
                                                        .lower_strike = 60.0,
                                                        .observation_dates = observation_dates,
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});

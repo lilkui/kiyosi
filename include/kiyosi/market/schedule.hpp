@@ -20,14 +20,14 @@ namespace detail {
 [[nodiscard]] inline Result<void> validate_date_schedule(
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end)
 {
-    if (!is_valid_date(instrument_start) || !is_valid_date(instrument_end) || instrument_end < instrument_start)
+    if (!is_supported_date(instrument_start) || !is_supported_date(instrument_end) || instrument_end < instrument_start)
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "instrument life must be a valid ordered Date range"});
     for (std::size_t index = 0; index < observation_dates.size(); ++index) {
         if (index > 0 && observation_dates[index] <= observation_dates[index - 1])
             return std::unexpected(Error{ErrorCategory::invalid_date,
                                          "observation dates must be strictly ordered"});
-        if (!is_valid_date(observation_dates[index]) || observation_dates[index] < instrument_start ||
+        if (!is_supported_date(observation_dates[index]) || observation_dates[index] < instrument_start ||
             observation_dates[index] > instrument_end)
             return std::unexpected(Error{ErrorCategory::invalid_date,
                                          "observation Date must be within the instrument life"});
@@ -38,8 +38,8 @@ namespace detail {
 [[nodiscard]] inline Result<void> validate_observation_date(
     Date observation_date, Date instrument_start, Date instrument_end, const TradingCalendar& calendar)
 {
-    if (!is_valid_date(observation_date) || !is_valid_date(instrument_start) ||
-        !is_valid_date(instrument_end) || instrument_end < instrument_start ||
+    if (!is_supported_date(observation_date) || !is_supported_date(instrument_start) ||
+        !is_supported_date(instrument_end) || instrument_end < instrument_start ||
         observation_date < instrument_start || instrument_end < observation_date) {
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "observation Date must be within the instrument life"});
@@ -55,7 +55,7 @@ namespace detail {
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end,
     const TradingCalendar& calendar)
 {
-    if (!is_valid_date(instrument_start) || !is_valid_date(instrument_end) || instrument_end < instrument_start) {
+    if (!is_supported_date(instrument_start) || !is_supported_date(instrument_end) || instrument_end < instrument_start) {
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "instrument life must be a valid ordered Date range"});
     }

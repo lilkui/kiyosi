@@ -197,30 +197,30 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
     const std::set<std::string> required_engines{
         "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
-        "AnalyticEuropeanEngine", "TurnbullWakemanArithmeticAverageAsianEngine",
+        "AnalyticEuropeanEngine", "TurnbullWakemanArithmeticAveragePriceEngine",
         "BjerksundStenslandAmericanEngine", "CrrEngine",
         "FiniteDifferenceAmericanEngine", "FiniteDifferenceBarrierEngine",
         "FiniteDifferenceDigitalEngine", "FiniteDifferenceEuropeanEngine",
-        "AnalyticGeometricAverageAsianEngine", "QuadratureDigitalEngine", "IntegralEuropeanEngine",
+        "AnalyticGeometricAveragePriceEngine", "QuadratureDigitalEngine", "IntegralEuropeanEngine",
         "MonteCarloAmericanEngine", "MonteCarloEuropeanEngine"};
     const std::set<std::string> required_instruments{
         "AmericanOption", "ArithmeticAveragePriceOption", "BarrierOption",
-        "BinaryBarrierOption", "TouchOption", "EuropeanAssetOrNothingOption",
-        "EuropeanCashOrNothingOption", "EuropeanOption", "GeometricAveragePriceOption"};
+        "BinaryBarrierOption", "TouchOption", "AssetOrNothingOption",
+        "CashOrNothingOption", "EuropeanOption", "GeometricAveragePriceOption"};
     const std::set<std::string> required_pairs{
         "AmericanOption/FiniteDifferenceAmericanEngine",
         "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
         "AmericanOption/CrrEngine",
-        "ArithmeticAveragePriceOption/TurnbullWakemanArithmeticAverageAsianEngine", "BarrierOption/AnalyticBarrierEngine",
+        "ArithmeticAveragePriceOption/TurnbullWakemanArithmeticAveragePriceEngine", "BarrierOption/AnalyticBarrierEngine",
         "BarrierOption/FiniteDifferenceBarrierEngine",
         "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "TouchOption/AnalyticBinaryBarrierEngine",
-        "EuropeanAssetOrNothingOption/AnalyticDigitalEngine",
-        "EuropeanAssetOrNothingOption/QuadratureDigitalEngine", "EuropeanAssetOrNothingOption/FiniteDifferenceDigitalEngine",
-        "EuropeanCashOrNothingOption/AnalyticDigitalEngine", "EuropeanCashOrNothingOption/FiniteDifferenceDigitalEngine",
-        "EuropeanCashOrNothingOption/QuadratureDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
+        "AssetOrNothingOption/AnalyticDigitalEngine",
+        "AssetOrNothingOption/QuadratureDigitalEngine", "AssetOrNothingOption/FiniteDifferenceDigitalEngine",
+        "CashOrNothingOption/AnalyticDigitalEngine", "CashOrNothingOption/FiniteDifferenceDigitalEngine",
+        "CashOrNothingOption/QuadratureDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
         "EuropeanOption/CrrEngine",
         "EuropeanOption/FiniteDifferenceEuropeanEngine", "EuropeanOption/IntegralEuropeanEngine",
-        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAveragePriceOption/AnalyticGeometricAverageAsianEngine"};
+        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAveragePriceOption/AnalyticGeometricAveragePriceEngine"};
     std::set<std::string> actual_engines;
     std::set<std::string> actual_instruments;
     std::set<std::string> actual_pairs;

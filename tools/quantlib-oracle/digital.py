@@ -7,8 +7,8 @@ from datetime import date, timedelta
 import oracle as g
 
 INSTRUMENTS = {
-    "cash": "EuropeanCashOrNothingOption",
-    "asset": "EuropeanAssetOrNothingOption",
+    "cash": "CashOrNothingOption",
+    "asset": "AssetOrNothingOption",
 }
 ENGINES = {
     "AnalyticDigitalEngine",

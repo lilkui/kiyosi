@@ -5,7 +5,7 @@ from ._native import (
     AnalyticBinaryBarrierEngine,
     AnalyticDigitalEngine,
     AnalyticVanillaEngine,
-    TurnbullWakemanArithmeticAverageAsianEngine,
+    TurnbullWakemanArithmeticAveragePriceEngine,
     BjerksundStenslandVanillaEngine,
     CoxRossRubinsteinVanillaEngine,
     CouponQuoteConvention,
@@ -18,7 +18,7 @@ from ._native import (
     FiniteDifferenceSnowballEngine,
     FiniteDifferenceTernarySnowballEngine,
     FiniteDifferenceVanillaEngine,
-    AnalyticGeometricAverageAsianEngine,
+    AnalyticGeometricAveragePriceEngine,
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     MonteCarloAccumulatorEngine,
@@ -30,7 +30,7 @@ from ._native import (
     MonteCarloVanillaEngine,
     implied_coupon,
     implied_volatility,
-    calculate_numerical_analytics,
+    calculate_numerical_risk_measures,
 )
 
 
@@ -73,7 +73,7 @@ class NumericalAnalyticsEngine:
 
     def price(self, instrument, context):
         """Price an instrument and calculate every feasible numerical risk measure."""
-        return calculate_numerical_analytics(
+        return calculate_numerical_risk_measures(
             self._engine, instrument, context, **self._shift_settings
         )
 
@@ -138,7 +138,7 @@ __all__ = [
     "AnalyticBinaryBarrierEngine",
     "AnalyticDigitalEngine",
     "AnalyticVanillaEngine",
-    "TurnbullWakemanArithmeticAverageAsianEngine",
+    "TurnbullWakemanArithmeticAveragePriceEngine",
     "BjerksundStenslandVanillaEngine",
     "CoxRossRubinsteinVanillaEngine",
     "CouponQuoteConvention",
@@ -151,7 +151,7 @@ __all__ = [
     "FiniteDifferenceSnowballEngine",
     "FiniteDifferenceTernarySnowballEngine",
     "FiniteDifferenceVanillaEngine",
-    "AnalyticGeometricAverageAsianEngine",
+    "AnalyticGeometricAveragePriceEngine",
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
     "MonteCarloAccumulatorEngine",
@@ -162,7 +162,7 @@ __all__ = [
     "MonteCarloTernarySnowballEngine",
     "MonteCarloVanillaEngine",
     "NumericalAnalyticsEngine",
-    "calculate_numerical_analytics",
+    "calculate_numerical_risk_measures",
     "implied_coupon",
     "implied_volatility",
 ]

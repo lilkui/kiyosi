@@ -105,7 +105,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     auto asian = kiyosi::make_geometric_average_option(
         kiyosi::OptionType::call, 100.0, valuation, valuation, expiry_date);
     REQUIRE(asian.has_value());
-    auto asian_result = kiyosi::AnalyticGeometricAverageAsianEngine{}.price(*asian, *context);
+    auto asian_result = kiyosi::AnalyticGeometricAveragePriceEngine{}.price(*asian, *context);
     REQUIRE(asian_result.has_value());
     REQUIRE(asian_result->has(kiyosi::RiskMeasure::price));
     REQUIRE(*asian_result->require(kiyosi::RiskMeasure::price) > 0.0);
@@ -117,7 +117,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
                                                      .upper_strike = 100.0,
                                                      .lower_strike = 60.0,
                                                      .observation_dates = {expiry_date},
-                                                     .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                     .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                      .principal_ratio = 1.0,
                                                      .effective_date = valuation,
                                                      .expiry_date = expiry_date});
@@ -138,7 +138,7 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     auto option = kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     REQUIRE(option.has_value());
-    auto analytics = kiyosi::calculate_numerical_analytics(kiyosi::CoxRossRubinsteinVanillaEngine{64}, *option, *context);
+    auto analytics = kiyosi::calculate_numerical_risk_measures(kiyosi::CoxRossRubinsteinVanillaEngine{64}, *option, *context);
     REQUIRE(analytics.has_value());
     CHECK(analytics->has(kiyosi::RiskMeasure::speed));
     CHECK(analytics->has(kiyosi::RiskMeasure::rho));

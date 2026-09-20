@@ -86,17 +86,17 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             }
         };
         if (geometric) {
-            REQUIRE(fixture.engine == "AnalyticGeometricAverageAsianEngine");
+            REQUIRE(fixture.engine == "AnalyticGeometricAveragePriceEngine");
             check(kiyosi::make_geometric_average_option(type, number("strike"), date("averaging_start_date"),
                                                         date("effective_date"), date("expiry_date"),
                                                         number("realized_average")),
-                  kiyosi::AnalyticGeometricAverageAsianEngine{});
+                  kiyosi::AnalyticGeometricAveragePriceEngine{});
         } else {
-            REQUIRE(fixture.engine == "TurnbullWakemanArithmeticAverageAsianEngine");
+            REQUIRE(fixture.engine == "TurnbullWakemanArithmeticAveragePriceEngine");
             check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("averaging_start_date"),
                                                          date("effective_date"), date("expiry_date"),
                                                          number("realized_average")),
-                  kiyosi::TurnbullWakemanArithmeticAverageAsianEngine{});
+                  kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{});
         }
     }
     CHECK(generated == 24);

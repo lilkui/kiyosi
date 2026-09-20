@@ -14,7 +14,7 @@
 namespace kiyosi::detail {
 
 /// Uniform time grid merged with the supplied event times, deduplicated and sorted.
-inline std::vector<double> finite_difference_grid(double maturity, int steps, std::vector<double> events = {})
+inline std::vector<double> make_finite_difference_time_grid(double maturity, int steps, std::vector<double> events = {})
 {
     // Preserve exact endpoints: rounding maturity * steps / steps can add a node
     // beyond expiry_date and cause event-driven engines to apply terminal cashflows twice.

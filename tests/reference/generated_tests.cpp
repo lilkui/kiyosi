@@ -32,7 +32,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             fixture.instrument == "TouchOption") continue;
         if (fixture.instrument == "GeometricAveragePriceOption" || fixture.instrument == "ArithmeticAveragePriceOption") continue;
         const bool american = fixture.instrument == "AmericanOption";
-        const bool digital = fixture.instrument == "EuropeanCashOrNothingOption" || fixture.instrument == "EuropeanAssetOrNothingOption";
+        const bool digital = fixture.instrument == "CashOrNothingOption" || fixture.instrument == "AssetOrNothingOption";
         if (digital) ++digital_rows[fixture.engine];
         REQUIRE((american || digital || fixture.instrument == "EuropeanOption"));
         REQUIRE(fixture.case_id.starts_with(american ? "ql-american-" : digital ? "ql-digital-"
@@ -106,10 +106,10 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
             using FiniteDifference = kiyosi::FiniteDifferenceVanillaEngine;
             using MonteCarlo = kiyosi::MonteCarloVanillaEngine;
-            constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ||
-                                              std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanAssetOrNothingOption>;
+            constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::CashOrNothingOption> ||
+                                              std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AssetOrNothingOption>;
             if constexpr (digital_contract) {
-                REQUIRE(inputs.at("payoff") == (std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::EuropeanCashOrNothingOption> ? "cash" : "asset"));
+                REQUIRE(inputs.at("payoff") == (std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::CashOrNothingOption> ? "cash" : "asset"));
                 REQUIRE(inputs.at("payoff_condition") == "strict ITM, zero at strike");
                 REQUIRE(inputs.at("settlement") == "expiry_date");
                 if (fixture.engine == "AnalyticDigitalEngine") check_engine(kiyosi::AnalyticDigitalEngine{});
@@ -161,11 +161,11 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             }
         };
         const auto type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put;
-        if (fixture.instrument == "EuropeanCashOrNothingOption") {
+        if (fixture.instrument == "CashOrNothingOption") {
             const auto option = kiyosi::make_cash_or_nothing_option(type, number("strike"), number("payout"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);
-        } else if (fixture.instrument == "EuropeanAssetOrNothingOption") {
+        } else if (fixture.instrument == "AssetOrNothingOption") {
             const auto option = kiyosi::make_asset_or_nothing_option(type, number("strike"), date("effective_date"), date("expiry_date"));
             REQUIRE(option.has_value());
             check_contract(*option);

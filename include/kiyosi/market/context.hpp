@@ -45,7 +45,7 @@ private:
         return std::unexpected(Error{ErrorCategory::invalid_spot_price,
                                      "spot price must be finite and positive"});
     }
-    if (!is_valid_date(date_of(valuation_time))) {
+    if (!is_supported_date(date_of(valuation_time))) {
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "valuation time must contain a valid calendar date"});
     }
@@ -61,7 +61,7 @@ private:
 [[nodiscard]] inline Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters model_parameters, double spot_price, Date valuation_date, TradingCalendar calendar)
 {
-    if (!is_valid_date(valuation_date)) {
+    if (!is_supported_date(valuation_date)) {
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "valuation date must be a valid calendar date"});
     }

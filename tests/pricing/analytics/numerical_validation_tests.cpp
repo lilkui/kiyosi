@@ -149,7 +149,7 @@ TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
     const auto market = context();
     const kiyosi::AnalyticVanillaEngine engine;
     const auto analytic_result = *engine.price(option, market);
-    const auto numerical_result = *kiyosi::calculate_numerical_analytics(engine, option, market);
+    const auto numerical_result = *kiyosi::calculate_numerical_risk_measures(engine, option, market);
 
     for (std::size_t index = 0; index < kiyosi::risk_measure_count; ++index) {
         const auto measure = static_cast<kiyosi::RiskMeasure>(index);
@@ -169,7 +169,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto market = context(100.0, 0.05, 0.02, 0.00005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_analytics(engine, option, market);
+        const auto result = kiyosi::calculate_numerical_risk_measures(engine, option, market);
 
         REQUIRE(result);
         check_close(risk_value(*result, kiyosi::RiskMeasure::price),
@@ -185,7 +185,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto market = context(0.005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_analytics(engine, option, market);
+        const auto result = kiyosi::calculate_numerical_risk_measures(engine, option, market);
 
         REQUIRE(result);
         check_close(risk_value(*result, kiyosi::RiskMeasure::price),
@@ -205,7 +205,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto expiring = *kiyosi::make_european_option(
             kiyosi::OptionType::call, 100.0, valuation, valuation);
-        const auto result = kiyosi::calculate_numerical_analytics(engine, expiring, context());
+        const auto result = kiyosi::calculate_numerical_risk_measures(engine, expiring, context());
 
         REQUIRE(result);
         CHECK(result->has(kiyosi::RiskMeasure::price));
@@ -219,7 +219,7 @@ TEST_CASE("Numerical analytics preserve feasible bump failures")
 {
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::calculate_numerical_analytics(
+    const auto result = kiyosi::calculate_numerical_risk_measures(
         RejectingMixedBumpEngine{}, option, context());
 
     REQUIRE_FALSE(result);

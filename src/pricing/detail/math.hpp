@@ -7,7 +7,7 @@
 
 namespace kiyosi::detail {
 
-inline constexpr double percentage_point = 100.0;
+inline constexpr double percentage_points_per_unit = 100.0;
 inline constexpr double inverse_sqrt_two = 0.70710678118654752440;
 inline constexpr double inverse_sqrt_two_pi = 0.39894228040143267794;
 inline constexpr double solver_derivative_step_fraction = 1e-3;
@@ -17,12 +17,12 @@ inline constexpr double solver_minimum_derivative_step = 1e-6;
 inline constexpr double bgk_beta = 0.5825971579390107;
 
 /// Day-count shim for call sites that have already validated their dates.
-inline double actual_365(Date start, Date end) noexcept
+inline double actual_365_fixed_year_fraction(Date start, Date end) noexcept
 {
     return *year_fraction(start, end);
 }
 
-inline double actual_365(Timestamp start, Timestamp end) noexcept
+inline double actual_365_fixed_year_fraction(Timestamp start, Timestamp end) noexcept
 {
     return *year_fraction(start, end);
 }

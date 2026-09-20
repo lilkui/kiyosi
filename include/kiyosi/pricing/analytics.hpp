@@ -26,7 +26,7 @@ public:
     template <typename Option>
     [[nodiscard]] Result<PricingResult> price(const Option& option, const PricingContext& context) const
     {
-        return calculate_numerical_analytics(engine_, option, context, settings_);
+        return calculate_numerical_risk_measures(engine_, option, context, settings_);
     }
 
     template <typename Option>

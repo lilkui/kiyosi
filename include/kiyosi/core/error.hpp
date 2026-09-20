@@ -13,7 +13,7 @@ enum class ErrorCategory : unsigned char {
     invalid_dividend_yield = 5,
     invalid_spot_price = 6,
     invalid_date = 7,
-    invalid_expiry = 8,
+    invalid_time_range = 8,
     invalid_result = 9,
     invalid_schedule = 10,
     invalid_calendar = 11,

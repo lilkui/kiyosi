@@ -28,7 +28,7 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     CHECK(terms.is_continuous());
     CHECK(terms.is_breached_by(120.0));
     CHECK_FALSE(terms.is_breached_by(119.9));
-    CHECK(terms.is_monitored_at(kiyosi::start_of_day(effective_date)));
+    CHECK(terms.is_monitored_on(effective_date));
     CHECK(terms.mean_observation_year_fraction() == 0.0);
 
     const std::vector<kiyosi::Date> observation_dates{effective_date + std::chrono::days{30},
@@ -37,7 +37,7 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
         effective_date, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled, observation_dates);
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
-    CHECK(scheduled.barrier_terms().is_monitored_at(kiyosi::start_of_day(observation_dates.front())));
-    CHECK_FALSE(scheduled.barrier_terms().is_monitored_at(kiyosi::start_of_day(effective_date)));
+    CHECK(scheduled.barrier_terms().is_monitored_on(observation_dates.front()));
+    CHECK_FALSE(scheduled.barrier_terms().is_monitored_on(effective_date));
     CHECK(scheduled.barrier_terms().mean_observation_year_fraction() > 0.0);
 }

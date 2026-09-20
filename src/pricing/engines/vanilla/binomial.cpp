@@ -26,7 +26,7 @@ Result<PricingResult> price_binomial(
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-    const double time = actual_365(context.valuation_time(), option.expiry_date());
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (time == 0.0) {
         return make_pricing_result(
             {{RiskMeasure::price, std::max(sign * (spot - strike), 0.0)}});

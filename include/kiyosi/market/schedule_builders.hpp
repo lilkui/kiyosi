@@ -42,7 +42,7 @@ namespace detail {
 [[nodiscard]] inline Result<ObservationSchedule> make_fixed_interval_schedule(
     Date start, Date end, std::chrono::days interval, const TradingCalendar& calendar = weekdays_calendar())
 {
-    if (!is_valid_date(start) || !is_valid_date(end) || end < start || interval <= std::chrono::days{0})
+    if (!is_supported_date(start) || !is_supported_date(end) || end < start || interval <= std::chrono::days{0})
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "fixed schedule terms are invalid"});
     std::vector<Date> dates;
     for (auto target = start + interval; target <= end; target += interval) {
@@ -63,7 +63,7 @@ namespace detail {
 [[nodiscard]] inline Result<ObservationSchedule> make_monthly_schedule(
     Date start, Date end, int lock_up_months, const TradingCalendar& calendar = weekdays_calendar())
 {
-    if (!is_valid_date(start) || !is_valid_date(end) || end < start || lock_up_months <= 0)
+    if (!is_supported_date(start) || !is_supported_date(end) || end < start || lock_up_months <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "monthly schedule terms are invalid"});
     std::vector<Date> dates;
     for (int month = lock_up_months;; ++month) {

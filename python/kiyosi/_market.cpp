@@ -16,7 +16,7 @@ void bind_enums(nb::module_& module)
         .value("INVALID_DIVIDEND_YIELD", ErrorCategory::invalid_dividend_yield)
         .value("INVALID_SPOT_PRICE", ErrorCategory::invalid_spot_price)
         .value("INVALID_DATE", ErrorCategory::invalid_date)
-        .value("INVALID_EXPIRY", ErrorCategory::invalid_expiry)
+        .value("INVALID_TIME_RANGE", ErrorCategory::invalid_time_range)
         .value("INVALID_RESULT", ErrorCategory::invalid_result)
         .value("INVALID_SCHEDULE", ErrorCategory::invalid_schedule)
         .value("INVALID_CALENDAR", ErrorCategory::invalid_calendar)
@@ -51,10 +51,10 @@ void bind_enums(nb::module_& module)
     nb::enum_<KnockInObservationMode>(module, "KnockInObservationMode")
         .value("EVERY_TRADING_DAY", KnockInObservationMode::every_trading_day)
         .value("AT_EXPIRY", KnockInObservationMode::at_expiry);
-    nb::enum_<BarrierTouchStatus>(module, "BarrierTouchStatus")
-        .value("NONE", BarrierTouchStatus::none)
-        .value("UP", BarrierTouchStatus::up)
-        .value("DOWN", BarrierTouchStatus::down);
+    nb::enum_<AutocallableBarrierState>(module, "AutocallableBarrierState")
+        .value("NONE", AutocallableBarrierState::none)
+        .value("KNOCKED_OUT", AutocallableBarrierState::knocked_out)
+        .value("KNOCKED_IN", AutocallableBarrierState::knocked_in);
     nb::enum_<FiniteDifferenceScheme>(module, "FiniteDifferenceScheme")
         .value("EXPLICIT_EULER", FiniteDifferenceScheme::explicit_euler)
         .value("IMPLICIT_EULER", FiniteDifferenceScheme::implicit_euler)
@@ -122,10 +122,10 @@ void bind_market(nb::module_& module)
                      calendar_date(start, "start"), calendar_date(end, "end")));
              },
              "start"_a, "end"_a,
-             "Return trading days in [start, end) divided by annual_trading_days.")
-        .def_prop_ro("annual_trading_days", &TradingCalendar::annual_trading_days);
+             "Return trading days in [start, end) divided by trading_days_per_year.")
+        .def_prop_ro("trading_days_per_year", &TradingCalendar::trading_days_per_year);
     bind_repr(calendar, "TradingCalendar",
-              {{"annual_trading_days", "annual_trading_days"}});
+              {{"trading_days_per_year", "trading_days_per_year"}});
 
     auto schedule = nb::class_<ObservationSchedule>(
         module, "ObservationSchedule", "Immutable ordered observation dates.")

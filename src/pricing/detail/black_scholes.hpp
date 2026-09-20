@@ -16,7 +16,7 @@ inline Result<PricingResult> price_only_result(double value)
     return make_pricing_result({{RiskMeasure::price, value}});
 }
 
-enum class risk_measure_output {
+enum class RiskMeasureOutput {
     all,
     price_only,
 };
@@ -25,7 +25,7 @@ enum class risk_measure_output {
 /// The volatility is supplied separately so solvers can reprice without rebuilding the context.
 inline Result<PricingResult> price_at_volatility(
     const EuropeanOption& option, const PricingContext& context, double volatility,
-    risk_measure_output requested_output = risk_measure_output::all)
+    RiskMeasureOutput requested_output = RiskMeasureOutput::all)
 {
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
@@ -33,11 +33,11 @@ inline Result<PricingResult> price_at_volatility(
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-    const double year_fraction = actual_365(context.valuation_time(), option.expiry_date());
+    const double year_fraction = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
-        if (requested_output == risk_measure_output::price_only) return price_only_result(value);
+        if (requested_output == RiskMeasureOutput::price_only) return price_only_result(value);
         return make_pricing_result({{RiskMeasure::price, value}});
     }
 
@@ -57,7 +57,7 @@ inline Result<PricingResult> price_at_volatility(
         if (!std::isfinite(value))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "analytic pricing produced a non-finite result"});
-        if (requested_output == risk_measure_output::price_only) return price_only_result(value);
+        if (requested_output == RiskMeasureOutput::price_only) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
         return make_pricing_result(
             {{RiskMeasure::price, value}, {RiskMeasure::delta, delta}});
@@ -77,7 +77,7 @@ inline Result<PricingResult> price_at_volatility(
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});
-    if (requested_output == risk_measure_output::price_only) return price_only_result(value);
+    if (requested_output == RiskMeasureOutput::price_only) return price_only_result(value);
 
     const double delta = sign * dividend_discount_factor * cumulative_d1;
     const double density_d1 = normal_pdf(d1);
@@ -104,14 +104,14 @@ inline Result<PricingResult> price_at_volatility(
                 (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
                  (1.0 - d1 * d2) / (2.0 * year_fraction)) /
                 365.0;
-        vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_point;
-        vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_point);
-        zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_point);
+        vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_points_per_unit;
+        vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_points_per_unit);
+        zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_points_per_unit);
     } else {
         theta = carry / 365.0;
     }
     const double rho =
-        sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_point;
+        sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_points_per_unit;
     auto output = make_pricing_result(
         {{RiskMeasure::price, value}, {RiskMeasure::delta, delta},
          {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed},

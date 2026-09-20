@@ -144,9 +144,9 @@ TEST_CASE("Analytic European engine reports invalid expiry_date")
     const kiyosi::AnalyticVanillaEngine engine;
 
     const auto stale_context = *kiyosi::make_pricing_context(parameters, 100.0, expiry_date + std::chrono::days{1});
-    const auto invalid_expiry = engine.price(option, stale_context);
-    REQUIRE_FALSE(invalid_expiry.has_value());
-    CHECK(invalid_expiry.error().category == kiyosi::ErrorCategory::invalid_expiry);
+    const auto invalid_time_range = engine.price(option, stale_context);
+    REQUIRE_FALSE(invalid_time_range.has_value());
+    CHECK(invalid_time_range.error().category == kiyosi::ErrorCategory::invalid_time_range);
 }
 
 TEST_CASE("Analytic European engine reports non-finite pricing and solver results")

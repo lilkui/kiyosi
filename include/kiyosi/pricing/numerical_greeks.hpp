@@ -54,7 +54,7 @@ template <typename Engine, typename Option>
 /// independent measures are retained. A failure while pricing any feasible bumped state fails the
 /// whole operation.
 template <typename Engine, typename Option>
-[[nodiscard]] Result<PricingResult> calculate_numerical_analytics(
+[[nodiscard]] Result<PricingResult> calculate_numerical_risk_measures(
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
@@ -67,7 +67,7 @@ template <typename Engine, typename Option>
     const double spot = context.spot_price();
     const double volatility = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
-    const Timestamp today = context.valuation_time();
+    const Timestamp valuation_time = context.valuation_time();
     const auto p0 = detail::numerical_value(engine, option, context);
     if (!p0) return std::unexpected(p0.error());
     const double h = settings.spot_shift;
@@ -77,10 +77,10 @@ template <typename Engine, typename Option>
     std::optional<double> speed;
     if (spot_stencil_available) {
         const auto p_up = detail::shifted_value(
-            engine, option, context, spot + h, volatility, rate, today);
+            engine, option, context, spot + h, volatility, rate, valuation_time);
         if (!p_up) return std::unexpected(p_up.error());
         const auto p_down = detail::shifted_value(
-            engine, option, context, spot - h, volatility, rate, today);
+            engine, option, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
         delta = (*p_up - *p_down) / (2.0 * h);
         gamma = (*p_up - 2.0 * *p0 + *p_down) / (h * h);
@@ -88,10 +88,10 @@ template <typename Engine, typename Option>
         const double two_h = 2.0 * h;
         if (std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h)) {
             const auto p_up2 = detail::shifted_value(
-                engine, option, context, spot + two_h, volatility, rate, today);
+                engine, option, context, spot + two_h, volatility, rate, valuation_time);
             if (!p_up2) return std::unexpected(p_up2.error());
             const auto p_down2 = detail::shifted_value(
-                engine, option, context, spot - two_h, volatility, rate, today);
+                engine, option, context, spot - two_h, volatility, rate, valuation_time);
             if (!p_down2) return std::unexpected(p_down2.error());
             speed = (*p_up2 - 2.0 * *p_up + 2.0 * *p_down - *p_down2) /
                     (2.0 * h * h * h);
@@ -109,25 +109,25 @@ template <typename Engine, typename Option>
         const double volatility_high = volatility + settings.volatility_shift;
         const double volatility_low = volatility - settings.volatility_shift;
         const auto v_up = detail::shifted_value(
-            engine, option, context, spot, volatility_high, rate, today);
+            engine, option, context, spot, volatility_high, rate, valuation_time);
         if (!v_up) return std::unexpected(v_up.error());
         const auto v_down = detail::shifted_value(
-            engine, option, context, spot, volatility_low, rate, today);
+            engine, option, context, spot, volatility_low, rate, valuation_time);
         if (!v_down) return std::unexpected(v_down.error());
         vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
         if (spot_stencil_available) {
             const auto d_up = detail::shifted_value(
-                engine, option, context, spot + h, volatility_high, rate, today);
+                engine, option, context, spot + h, volatility_high, rate, valuation_time);
             if (!d_up) return std::unexpected(d_up.error());
             const auto d_down = detail::shifted_value(
-                engine, option, context, spot - h, volatility_high, rate, today);
+                engine, option, context, spot - h, volatility_high, rate, valuation_time);
             if (!d_down) return std::unexpected(d_down.error());
             const auto d_up_low = detail::shifted_value(
-                engine, option, context, spot + h, volatility_low, rate, today);
+                engine, option, context, spot + h, volatility_low, rate, valuation_time);
             if (!d_up_low) return std::unexpected(d_up_low.error());
             const auto d_down_low = detail::shifted_value(
-                engine, option, context, spot - h, volatility_low, rate, today);
+                engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                     (4.0 * h * vol_scale);
@@ -143,20 +143,20 @@ template <typename Engine, typename Option>
     if (std::isfinite(rate + settings.rate_shift) &&
         std::isfinite(rate - settings.rate_shift) && std::isfinite(rate_scale)) {
         const auto r_up = detail::shifted_value(
-            engine, option, context, spot, volatility, rate + settings.rate_shift, today);
+            engine, option, context, spot, volatility, rate + settings.rate_shift, valuation_time);
         if (!r_up) return std::unexpected(r_up.error());
         const auto r_down = detail::shifted_value(
-            engine, option, context, spot, volatility, rate - settings.rate_shift, today);
+            engine, option, context, spot, volatility, rate - settings.rate_shift, valuation_time);
         if (!r_down) return std::unexpected(r_down.error());
         rho = (*r_up - *r_down) / rate_scale;
     }
 
-    Timestamp before = today - std::chrono::days{settings.time_shift_days};
-    Timestamp after = today + std::chrono::days{settings.time_shift_days};
+    Timestamp before = valuation_time - std::chrono::days{settings.time_shift_days};
+    Timestamp after = valuation_time + std::chrono::days{settings.time_shift_days};
     if constexpr (requires { option.effective_date(); }) before = std::max(before, start_of_day(option.effective_date()));
     if constexpr (requires { option.expiry_date(); }) after = std::min(after, start_of_day(option.expiry_date()));
-    const double before_days = std::chrono::duration<double, std::ratio<86400>>{today - before}.count();
-    const double after_days = std::chrono::duration<double, std::ratio<86400>>{after - today}.count();
+    const double before_days = std::chrono::duration<double, std::ratio<86400>>{valuation_time - before}.count();
+    const double after_days = std::chrono::duration<double, std::ratio<86400>>{after - valuation_time}.count();
     std::optional<double> theta;
     std::optional<double> charm;
     std::optional<double> color;

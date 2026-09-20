@@ -68,24 +68,24 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price(
     const auto space = make_spatial_grid(settings_, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
 
-    const double maturity = actual_365(context.valuation_time(), option.expiry_date());
-    if (maturity == 0.0) return terminal_value(option, context);
+    const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
+    if (time_to_expiry == 0.0) return terminal_value(option, context);
 
     const auto future_trading_dates =
         trading_dates(context.calendar(), context.valuation_time(), option.expiry_date(), true);
     std::vector<double> trading_times;
-    std::vector<double> anchors{0.0, maturity};
+    std::vector<double> anchors{0.0, time_to_expiry};
     trading_times.reserve(future_trading_dates.size());
     for (const Date value : future_trading_dates) {
-        const double time = actual_365(context.valuation_time(), value);
+        const double time = actual_365_fixed_year_fraction(context.valuation_time(), value);
         trading_times.push_back(time);
-        if (time > 0.0 && time < maturity) anchors.push_back(time);
+        if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
     }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = finite_difference_grid(maturity, settings_.time_step_count, std::move(anchors));
+    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, std::move(anchors));
     if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());

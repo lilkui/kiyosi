@@ -36,14 +36,14 @@ InitialState initial_state(const Note& note, const PricingContext& context,
                            const AutocallableProgram& program,
                            const std::vector<std::size_t>& schedule)
 {
-    if (note.touch_status() == BarrierTouchStatus::up)
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return {.settlement = 0.0};
 
     const Timestamp valuation = context.valuation_time();
     const double value = context.spot_price();
     InitialState initial{
         .path = {.coupons = 0.0,
-                 .knocked_in = note.touch_status() == BarrierTouchStatus::down}};
+                 .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in}};
     if (valuation == start_of_day(date_of(valuation)))
         initial.path.knocked_in = program_knocked_in(
             program, value, initial.path.knocked_in, valuation == note.expiry_date());
@@ -71,7 +71,7 @@ InitialState initial_state(const Note& note, const PricingContext& context,
 template <typename Note>
 SimulationInputs prepare_simulation(
     const Note& note, const PricingContext& context,
-    const std::vector<std::size_t>& observation_schedule, std::size_t next_observation)
+    const std::vector<std::size_t>& remaining_observation_indices, std::size_t next_observation)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
@@ -82,21 +82,21 @@ SimulationInputs prepare_simulation(
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
-        const double dt = actual_365(previous, current);
+        const double dt = actual_365_fixed_year_fraction(previous, current);
         AutocallableEvent event{};
-        if (next_observation < observation_schedule.size() &&
-            note.observation_dates()[observation_schedule[next_observation]] == current) {
-            event = autocallable_event(note, observation_schedule[next_observation]);
+        if (next_observation < remaining_observation_indices.size() &&
+            note.observation_dates()[remaining_observation_indices[next_observation]] == current) {
+            event = autocallable_event(note, remaining_observation_indices[next_observation]);
             ++next_observation;
         }
         steps.push_back({{(rate - dividend - 0.5 * sigma * sigma) * dt,
                           sigma * std::sqrt(dt),
-                          std::exp(-rate * actual_365(valuation, current))},
+                          std::exp(-rate * actual_365_fixed_year_fraction(valuation, current))},
                          event});
         previous = current;
     }
     return {std::move(steps),
-            std::exp(-rate * actual_365(valuation, note.expiry_date()))};
+            std::exp(-rate * actual_365_fixed_year_fraction(valuation, note.expiry_date()))};
 }
 
 double path_payoff(double initial_spot, const AutocallableProgram& program,
@@ -155,8 +155,8 @@ template <typename Note>
 Result<PricingResult> MonteCarloAutocallableEngine<Note>::price(
     const Note& note, const PricingContext& context) const
 {
-    auto contract = validate_autocallable_note(note);
-    if (!contract) return std::unexpected(contract.error());
+    auto note_validation = validate_autocallable_note(note);
+    if (!note_validation) return std::unexpected(note_validation.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
@@ -177,7 +177,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price(
         return make_pricing_result({{RiskMeasure::price, value}});
     };
     const auto program = autocallable_program(note);
-    const auto observation_indices = observation_schedule(note, context.valuation_time());
+    const auto observation_indices = remaining_observation_indices(note, context.valuation_time());
     const auto initial = initial_state(note, context, program, observation_indices);
     if (initial.settlement) return make_result(*initial.settlement);
 

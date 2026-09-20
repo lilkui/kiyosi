@@ -76,7 +76,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                        .lower_strike = 60.0,
                                                        .observation_dates = observation_dates,
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -89,7 +89,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                          .lower_strike = 60.0,
                                                          .observation_dates = observation_dates,
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -100,7 +100,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                                .upper_strike = 100.0,
                                                                .lower_strike = 60.0,
                                                                .observation_dates = observation_dates,
-                                                               .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                               .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                .principal_ratio = 1.0,
                                                                .effective_date = effective_date,
                                                                .expiry_date = expiry_date});
@@ -114,7 +114,7 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
                                                                  .lower_strike = 60.0,
                                                                  .observation_dates = observation_dates,
                                                                  .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                 .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                 .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                  .principal_ratio = 1.0,
                                                                  .effective_date = effective_date,
                                                                  .expiry_date = expiry_date});

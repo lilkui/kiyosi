@@ -16,11 +16,11 @@ Result<double> time_to_expiry(const PricingContext& context, Date effective_date
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    return actual_365(context.valuation_time(), expiry_date);
+    return actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
 }
 } // namespace
 
-Result<PricingResult> AnalyticGeometricAverageAsianEngine::price(
+Result<PricingResult> AnalyticGeometricAveragePriceEngine::price(
     const GeometricAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
@@ -54,7 +54,7 @@ Result<PricingResult> AnalyticGeometricAverageAsianEngine::price(
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }
 
-Result<PricingResult> TurnbullWakemanArithmeticAverageAsianEngine::price(
+Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price(
     const ArithmeticAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
@@ -72,7 +72,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAverageAsianEngine::price(
             {{RiskMeasure::price,
               payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
                      strike)}});
-    const double average_period = actual_365(option.averaging_start_date(), option.expiry_date());
+    const double average_period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
     if (average_period <= 0.0)
         return make_pricing_result(
             {{RiskMeasure::price, payoff(option.option_type(), spot, strike)}});

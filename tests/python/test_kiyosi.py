@@ -88,7 +88,7 @@ class KiyosiPythonTests(unittest.TestCase):
             (self.parameters, "BlackScholesMertonParameters(", "volatility=0.2"),
             (self.option, "EuropeanOption(", "strike=100.0"),
             (schedule, "ObservationSchedule(", "dates=["),
-            (market.weekdays_calendar(), "TradingCalendar(", "annual_trading_days=252"),
+            (market.weekdays_calendar(), "TradingCalendar(", "trading_days_per_year=252"),
             (self.context, "PricingContext(", "spot_price=100.0"),
             (note, "SnowballOption(", "knock_out_coupon_rates=[0.1]"),
             (pricing.FiniteDifferenceVanillaEngine(), "FiniteDifferenceVanillaEngine(", "asset_step_count="),
@@ -110,15 +110,15 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         standard = standard_snowball(coupon_rate=0.10, knock_out_level=105, **terms)
         both_down = both_down_snowball(
-            coupon_start=0.10,
-            coupon_step=0.01,
+            initial_coupon_rate=0.10,
+            coupon_rate_decrement=0.01,
             initial_knock_out_level=110,
             knock_out_level_decrement=5,
             **terms,
         )
         dual = dual_coupon_snowball(
-            knock_out_coupon=0.10,
-            maturity_coupon=0.03,
+            knock_out_coupon_rate=0.10,
+            maturity_coupon_rate=0.03,
             knock_out_level=105,
             **terms,
         )
@@ -126,15 +126,15 @@ class KiyosiPythonTests(unittest.TestCase):
             coupon_rate=0.12, knock_out_level=105, **terms
         )
         target_both_down = both_down_snowball(
-            coupon_start=0.12,
-            coupon_step=0.01,
+            initial_coupon_rate=0.12,
+            coupon_rate_decrement=0.01,
             initial_knock_out_level=110,
             knock_out_level_decrement=5,
             **terms,
         )
         target_dual = dual_coupon_snowball(
-            knock_out_coupon=0.12,
-            maturity_coupon=0.03,
+            knock_out_coupon_rate=0.12,
+            maturity_coupon_rate=0.03,
             knock_out_level=105,
             **terms,
         )
@@ -215,14 +215,14 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_weekdays_calendar_is_the_explicit_default(self):
         self.assertFalse(hasattr(market, "exchange_calendar"))
         calendar = market.weekdays_calendar()
-        self.assertEqual(calendar.annual_trading_days, 252)
+        self.assertEqual(calendar.trading_days_per_year, 252)
         self.assertFalse(calendar.is_trading_day(date(2025, 1, 4)))
         self.assertFalse(self.context.calendar.is_trading_day(date(2025, 1, 4)))
         self.assertEqual(calendar.trading_days_between(date(2025, 1, 4), date(2025, 1, 6)), 0)
         for operation in (calendar.trading_days_between, calendar.trading_year_fraction):
             with self.subTest(operation=operation.__name__), self.assertRaises(kiyosi.KiyosiError) as error:
                 operation(date(2025, 1, 6), date(2025, 1, 4))
-            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_EXPIRY)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.invalid_time_range)
 
     def test_native_domain_errors_expose_categories(self):
         with self.assertRaises(kiyosi.KiyosiError) as error:
@@ -253,7 +253,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
         with self.assertRaises(kiyosi.KiyosiError) as error:
             Accumulator(**{**terms, "effective_date": terms["expiry_date"], "expiry_date": terms["effective_date"]})
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_EXPIRY)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.invalid_time_range)
         self.assertEqual(str(error.exception), "expiry date must not precede the effective date")
 
     def test_accumulator_knock_out_settles_existing_quantity(self):
@@ -472,12 +472,12 @@ class KiyosiPythonTests(unittest.TestCase):
             categories.append(error.exception.category)
         self.assertEqual(categories[0], categories[1])
 
-    def test_calculate_numerical_analytics_forwards_explicit_shift_settings(self):
+    def test_calculate_numerical_risk_measures_forwards_explicit_shift_settings(self):
         analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
         with self.assertRaises(kiyosi.KiyosiError) as error:
             analytics.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
-        self.assertTrue(hasattr(pricing, "calculate_numerical_analytics"))
+        self.assertTrue(hasattr(pricing, "calculate_numerical_risk_measures"))
 
     def test_engine_settings_are_validated_when_pricing(self):
         configured_engines = (
@@ -498,7 +498,7 @@ class KiyosiPythonTests(unittest.TestCase):
             engine.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
-    def test_calculate_numerical_analytics_retains_valid_boundary_results(self):
+    def test_calculate_numerical_risk_measures_retains_valid_boundary_results(self):
         engine = AnalyticVanillaEngine()
         analytics = NumericalAnalyticsEngine(engine)
 

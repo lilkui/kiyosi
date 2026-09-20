@@ -33,9 +33,9 @@ public:
 
 private:
     [[nodiscard]] Result<PricingResult> price_cash_or_nothing(
-        const EuropeanCashOrNothingOption&, const PricingContext&) const;
+        const CashOrNothingOption&, const PricingContext&) const;
     [[nodiscard]] Result<PricingResult> price_asset_or_nothing(
-        const EuropeanAssetOrNothingOption&, const PricingContext&) const;
+        const AssetOrNothingOption&, const PricingContext&) const;
     FiniteDifferenceSettings settings_;
 };
 

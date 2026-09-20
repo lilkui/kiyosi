@@ -68,12 +68,12 @@ public:
                          static_cast<double>(observation_dates_.size());
     }
 
-    /// True when the barrier is being monitored at `moment`.
-    bool is_monitored_at(Timestamp moment) const noexcept
+    /// True when the barrier is being monitored on `date`.
+    bool is_monitored_on(Date date) const noexcept
     {
         if (is_continuous()) return true;
         for (const Date event : observation_dates_.dates())
-            if (event == moment) return true;
+            if (event == date) return true;
         return false;
     }
 
@@ -110,7 +110,7 @@ private:
     if (!std::isfinite(barrier_level) || barrier_level <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
-    if (!is_valid_date(effective_date) || !is_valid_date(expiry_date) || effective_date > expiry_date)
+    if (!is_supported_date(effective_date) || !is_supported_date(expiry_date) || effective_date > expiry_date)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "barrier life dates are invalid"});
     if (barrier_type != BarrierType::up_and_in && barrier_type != BarrierType::up_and_out &&
         barrier_type != BarrierType::down_and_in && barrier_type != BarrierType::down_and_out)

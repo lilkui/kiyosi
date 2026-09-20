@@ -13,9 +13,9 @@ namespace kiyosi {
 enum class KnockInObservationMode { every_trading_day,
                                     at_expiry };
 
-enum class BarrierTouchStatus { none,
-                                  up,
-                                  down };
+enum class AutocallableBarrierState { none,
+                                      knocked_out,
+                                      knocked_in };
 
 /// Principal, knock-out ladder, and settlement strikes shared by every autocallable structure.
 class AutocallableNote {
@@ -28,15 +28,15 @@ public:
     double principal_ratio() const noexcept { return terms_.principal_ratio; }
     Date effective_date() const noexcept { return terms_.effective_date; }
     Date expiry_date() const noexcept { return terms_.expiry_date; }
-    BarrierTouchStatus touch_status() const noexcept { return terms_.touch_status; }
+    AutocallableBarrierState barrier_state() const noexcept { return terms_.barrier_state; }
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
 
 private:
     AutocallableNote(double initial_spot, std::vector<double> knock_out_levels, double upper_strike,
                      double lower_strike, std::vector<Date> observation_dates, double principal_ratio,
-                     BarrierTouchStatus touch_status, Date effective_date, Date expiry_date)
+                     AutocallableBarrierState barrier_state, Date effective_date, Date expiry_date)
         : terms_{initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
-                 std::move(observation_dates), principal_ratio, touch_status, effective_date, expiry_date} {}
+                 std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date} {}
 
     struct Terms {
         double initial_spot;
@@ -45,7 +45,7 @@ private:
         double lower_strike;
         std::vector<Date> observation_dates;
         double principal_ratio;
-        BarrierTouchStatus touch_status;
+        AutocallableBarrierState barrier_state;
         Date effective_date;
         Date expiry_date;
         friend bool operator==(const Terms&, const Terms&) = default;
@@ -66,7 +66,7 @@ public:
     double principal_ratio() const noexcept { return note_.principal_ratio(); }
     Date effective_date() const noexcept { return note_.effective_date(); }
     Date expiry_date() const noexcept { return note_.expiry_date(); }
-    BarrierTouchStatus touch_status() const noexcept { return note_.touch_status(); }
+    AutocallableBarrierState barrier_state() const noexcept { return note_.barrier_state(); }
     double knock_in_level() const noexcept { return knock_in_level_; }
     KnockInObservationMode knock_in_observation_mode() const noexcept { return knock_in_observation_mode_; }
     friend bool operator==(const KnockInAutocallableNote&, const KnockInAutocallableNote&) = default;
@@ -74,10 +74,10 @@ public:
 private:
     KnockInAutocallableNote(double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,
                        double upper_strike, double lower_strike, std::vector<Date> observation_dates,
-                       KnockInObservationMode knock_in_observation_mode, BarrierTouchStatus touch_status,
+                       KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
                        double principal_ratio, Date effective_date, Date expiry_date)
         : note_(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
-                std::move(observation_dates), principal_ratio, touch_status, effective_date, expiry_date),
+                std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}
 
     AutocallableNote note_;
@@ -110,9 +110,9 @@ template <typename Note>
         if (!std::isfinite(note.knock_out_levels()[index]) || note.knock_out_levels()[index] <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-out levels are invalid"});
     }
-    if (note.touch_status() != BarrierTouchStatus::none &&
-        note.touch_status() != BarrierTouchStatus::up &&
-        note.touch_status() != BarrierTouchStatus::down)
+    if (note.barrier_state() != AutocallableBarrierState::none &&
+        note.barrier_state() != AutocallableBarrierState::knocked_out &&
+        note.barrier_state() != AutocallableBarrierState::knocked_in)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "autocallable touch status is invalid"});
     if constexpr (requires { note.knock_in_level(); }) {

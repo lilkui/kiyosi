@@ -65,14 +65,14 @@ private:
     if (!std::isfinite(accumulated_quantity) || accumulated_quantity < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "accumulated quantity must be finite and non-negative"});
-    if (!is_valid_date(effective_date))
+    if (!is_supported_date(effective_date))
         return std::unexpected(
             Error{ErrorCategory::invalid_date, "effective date must be a valid calendar date"});
-    if (!is_valid_date(expiry_date))
+    if (!is_supported_date(expiry_date))
         return std::unexpected(
             Error{ErrorCategory::invalid_date, "expiry date must be a valid calendar date"});
     if (effective_date > expiry_date)
-        return std::unexpected(Error{ErrorCategory::invalid_expiry,
+        return std::unexpected(Error{ErrorCategory::invalid_time_range,
                                      "expiry date must not precede the effective date"});
     return Accumulator{strike, knock_out_level, daily_quantity, acceleration_factor, accumulated_quantity,
                        effective_date, expiry_date};

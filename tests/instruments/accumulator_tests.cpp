@@ -54,7 +54,7 @@ TEST_CASE("Accumulator factory rejects invalid contracts")
     invalid.effective_date = expiry_date;
     invalid.expiry_date = effective_date;
     CHECK((kiyosi::make_accumulator(invalid).error() ==
-           kiyosi::Error{kiyosi::ErrorCategory::invalid_expiry,
+           kiyosi::Error{kiyosi::ErrorCategory::invalid_time_range,
                          "expiry date must not precede the effective date"}));
 }
 

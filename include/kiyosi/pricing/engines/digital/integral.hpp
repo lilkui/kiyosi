@@ -9,8 +9,8 @@ namespace kiyosi {
 /// Simpson quadrature over the terminal lognormal density.
 class KIYOSI_EXPORT QuadratureDigitalEngine {
 public:
-    [[nodiscard]] Result<PricingResult> price(const EuropeanCashOrNothingOption&, const PricingContext&) const;
-    [[nodiscard]] Result<PricingResult> price(const EuropeanAssetOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const CashOrNothingOption&, const PricingContext&) const;
+    [[nodiscard]] Result<PricingResult> price(const AssetOrNothingOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

@@ -55,8 +55,8 @@ public:
     friend bool operator==(const BinaryBarrierOption&, const BinaryBarrierOption&) = default;
 
 private:
-    BinaryBarrierOption(OptionTerms terms, BinaryPayoff payoff, BarrierTerms barrier_level)
-        : terms_(std::move(terms)), payoff_(std::move(payoff)), barrier_(std::move(barrier_level)) {}
+    BinaryBarrierOption(OptionTerms terms, BinaryPayoff payoff, BarrierTerms barrier_terms)
+        : terms_(std::move(terms)), payoff_(std::move(payoff)), barrier_(std::move(barrier_terms)) {}
 
     OptionTerms terms_;
     BinaryPayoff payoff_;
@@ -74,10 +74,10 @@ namespace detail {
 {
     auto option = make_option_terms(terms.option_type, terms.strike, terms.effective_date, terms.expiry_date);
     if (!option) return std::unexpected(option.error());
-    auto barrier_level = make_barrier_terms(terms.barrier_level, terms.barrier_type, terms.observation_mode,
+    auto barrier_terms = make_barrier_terms(terms.barrier_level, terms.barrier_type, terms.observation_mode,
                                       std::move(terms.observation_dates), terms.effective_date, terms.expiry_date);
-    if (!barrier_level) return std::unexpected(barrier_level.error());
-    return std::pair{std::move(*option), std::move(*barrier_level)};
+    if (!barrier_terms) return std::unexpected(barrier_terms.error());
+    return std::pair{std::move(*option), std::move(*barrier_terms)};
 }
 
 } // namespace detail
@@ -124,9 +124,9 @@ public:
 
 private:
     TouchOption(BinaryPayoff payoff, kiyosi::SettlementTiming settlement_timing,
-                BarrierTerms barrier_level)
+                BarrierTerms barrier_terms)
         : payoff_(std::move(payoff)), settlement_timing_(settlement_timing),
-          barrier_(std::move(barrier_level))
+          barrier_(std::move(barrier_terms))
     {
     }
 

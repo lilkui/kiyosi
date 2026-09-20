@@ -13,7 +13,7 @@ TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying 
     const double maturity = 91.0 / 365.0;
     for (const int steps : {400, 800, 1600}) {
         CAPTURE(steps);
-        const auto grid = kiyosi::detail::finite_difference_grid(maturity, steps, {0.0, maturity});
+        const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps, {0.0, maturity});
         CHECK(grid.front() == 0.0);
         CHECK(grid.back() == maturity);
         CHECK(grid.size() == static_cast<std::size_t>(steps + 1));

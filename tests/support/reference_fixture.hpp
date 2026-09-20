@@ -120,7 +120,7 @@ inline Date calendar_date(const std::vector<std::string>& fields, std::size_t& i
         }
         const Date value{std::chrono::year{year} / std::chrono::month{month} /
                          std::chrono::day{day_number}};
-        if (!is_valid_date(value)) throw std::invalid_argument("Date");
+        if (!is_supported_date(value)) throw std::invalid_argument("Date");
         return value;
     } catch (const std::exception&) {
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +

@@ -12,7 +12,7 @@ using Date = std::chrono::sys_days;
 using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 
 /// Returns whether value is within the inclusive civil-Date range supported by std::chrono::year.
-[[nodiscard]] KIYOSI_EXPORT bool is_valid_date(Date value) noexcept;
+[[nodiscard]] KIYOSI_EXPORT bool is_supported_date(Date value) noexcept;
 
 [[nodiscard]] inline Timestamp start_of_day(Date value) noexcept
 {
@@ -29,12 +29,12 @@ using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 
 [[nodiscard]] inline Result<void> validate_valuation_within_instrument_life(Date valuation_date, Date effective_date, Date expiry_date)
 {
-    if (!is_valid_date(valuation_date) || !is_valid_date(effective_date) || !is_valid_date(expiry_date))
+    if (!is_supported_date(valuation_date) || !is_supported_date(effective_date) || !is_supported_date(expiry_date))
         return std::unexpected(Error{ErrorCategory::invalid_date, "life dates must be valid calendar dates"});
     if (effective_date > expiry_date)
-        return std::unexpected(Error{ErrorCategory::invalid_expiry, "effective date must not follow expiry_date"});
+        return std::unexpected(Error{ErrorCategory::invalid_time_range, "effective date must not follow expiry_date"});
     if (valuation_date < effective_date || valuation_date > expiry_date)
-        return std::unexpected(Error{ErrorCategory::invalid_expiry, "valuation date must be within the instrument life"});
+        return std::unexpected(Error{ErrorCategory::invalid_time_range, "valuation date must be within the instrument life"});
     return {};
 }
 

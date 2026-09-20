@@ -67,13 +67,13 @@ template <typename Engine, typename Option>
 namespace detail {
 
 inline Result<double> shifted_maturity_coupon(
-    double maturity_coupon, double shift, CouponQuoteConvention convention)
+    double maturity_coupon_rate, double shift, CouponQuoteConvention convention)
 {
     switch (convention) {
     case CouponQuoteConvention::shift_maturity_coupon:
-        return maturity_coupon + shift;
+        return maturity_coupon_rate + shift;
     case CouponQuoteConvention::preserve_maturity_coupon:
-        return maturity_coupon;
+        return maturity_coupon_rate;
     }
     return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                  "coupon quote convention is invalid"});
@@ -93,12 +93,12 @@ inline Result<SnowballOption> replace_coupon(
     const SnowballOption& option, double coupon, CouponQuoteConvention convention)
 {
     const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon = shifted_maturity_coupon(
+    const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon) return std::unexpected(maturity_coupon.error());
+    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
     return make_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(
                                      option.knock_out_coupon_rates(), coupon),
-                                 .maturity_coupon_rate = *maturity_coupon,
+                                 .maturity_coupon_rate = *maturity_coupon_rate,
                                  .initial_spot = option.initial_spot(),
                                  .knock_in_level = option.knock_in_level(),
                                  .knock_out_levels = option.knock_out_levels(),
@@ -106,7 +106,7 @@ inline Result<SnowballOption> replace_coupon(
                                  .lower_strike = option.lower_strike(),
                                  .observation_dates = option.observation_dates(),
                                  .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                 .touch_status = option.touch_status(),
+                                 .barrier_state = option.barrier_state(),
                                  .principal_ratio = option.principal_ratio(),
                                  .effective_date = option.effective_date(),
                                  .expiry_date = option.expiry_date()});
@@ -116,18 +116,18 @@ inline Result<BinarySnowballOption> replace_coupon(
     const BinarySnowballOption& option, double coupon, CouponQuoteConvention convention)
 {
     const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon = shifted_maturity_coupon(
+    const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon) return std::unexpected(maturity_coupon.error());
+    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
     return make_binary_snowball_option({
         .knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-        .maturity_coupon_rate = *maturity_coupon,
+        .maturity_coupon_rate = *maturity_coupon_rate,
         .initial_spot = option.initial_spot(),
         .knock_out_levels = option.knock_out_levels(),
         .upper_strike = option.upper_strike(),
         .lower_strike = option.lower_strike(),
         .observation_dates = option.observation_dates(),
-        .touch_status = option.touch_status(),
+        .barrier_state = option.barrier_state(),
         .principal_ratio = option.principal_ratio(),
         .effective_date = option.effective_date(),
         .expiry_date = option.expiry_date()});
@@ -137,12 +137,12 @@ inline Result<TernarySnowballOption> replace_coupon(
     const TernarySnowballOption& option, double coupon, CouponQuoteConvention convention)
 {
     const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon = shifted_maturity_coupon(
+    const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon) return std::unexpected(maturity_coupon.error());
+    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
     return make_ternary_snowball_option({
         .knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-        .maturity_coupon_rate = *maturity_coupon,
+        .maturity_coupon_rate = *maturity_coupon_rate,
         .minimum_coupon_rate = option.minimum_coupon_rate(),
         .initial_spot = option.initial_spot(),
         .knock_in_level = option.knock_in_level(),
@@ -151,7 +151,7 @@ inline Result<TernarySnowballOption> replace_coupon(
         .lower_strike = option.lower_strike(),
         .observation_dates = option.observation_dates(),
         .knock_in_observation_mode = option.knock_in_observation_mode(),
-        .touch_status = option.touch_status(),
+        .barrier_state = option.barrier_state(),
         .principal_ratio = option.principal_ratio(),
         .effective_date = option.effective_date(),
         .expiry_date = option.expiry_date()});
@@ -168,7 +168,7 @@ inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double 
                                 .lower_strike = option.lower_strike(),
                                 .observation_dates = option.observation_dates(),
                                 .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                .touch_status = option.touch_status(),
+                                .barrier_state = option.barrier_state(),
                                 .principal_ratio = option.principal_ratio(),
                                 .effective_date = option.effective_date(),
                                 .expiry_date = option.expiry_date()});

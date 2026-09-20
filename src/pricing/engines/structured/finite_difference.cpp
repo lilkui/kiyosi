@@ -41,7 +41,7 @@ Result<PricingResult> terminal_value(const Note& note, const PricingContext& con
 {
     const double spot = context.spot_price();
     const bool knocked_in =
-        is_knocked_in(note, spot, note.touch_status() == BarrierTouchStatus::down, true);
+        is_knocked_in(note, spot, note.barrier_state() == AutocallableBarrierState::knocked_in, true);
     const auto& dates = note.observation_dates();
     std::size_t index = 0;
     while (index < dates.size() && dates[index] < note.expiry_date()) ++index;
@@ -70,36 +70,36 @@ Result<PricingResult> price_autocallable_finite_difference(
     if (settings.asset_step_count > 2000 || settings.time_step_count > 2000)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference grid dimensions are out of range"});
-    auto contract = validate_autocallable_note(note);
-    if (!contract) return std::unexpected(contract.error());
+    auto note_validation = validate_autocallable_note(note);
+    if (!note_validation) return std::unexpected(note_validation.error());
     auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
                                                note.expiry_date(), context.calendar());
     if (!schedule) return std::unexpected(schedule.error());
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
-    if (note.touch_status() == BarrierTouchStatus::up && !settings.asset_upper_boundary)
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings.asset_upper_boundary)
         return make_pricing_result({{RiskMeasure::price, 0.0}});
 
     const double spot = context.spot_price();
     const double relevant = highest_relevant_level(note, spot);
     const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
-    if (note.touch_status() == BarrierTouchStatus::up)
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return make_pricing_result({{RiskMeasure::price, 0.0}});
 
     const Timestamp valuation = context.valuation_time();
-    const double maturity = actual_365(valuation, note.expiry_date());
-    if (maturity == 0.0) return terminal_value(note, context);
+    const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
+    if (time_to_expiry == 0.0) return terminal_value(note, context);
 
-    std::vector<double> anchors{0.0, maturity};
+    std::vector<double> anchors{0.0, time_to_expiry};
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
         const Date value = note.observation_dates()[index];
         if (value < valuation) continue;
-        const double time = actual_365(valuation, value);
+        const double time = actual_365_fixed_year_fraction(valuation, value);
         observation_events.push_back({time, index});
-        if (time > 0.0 && time < maturity) anchors.push_back(time);
+        if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
     bool monitors_daily = false;
@@ -111,16 +111,16 @@ Result<PricingResult> price_autocallable_finite_difference(
             trading_dates(context.calendar(), valuation, note.expiry_date(), true);
         trading_times.reserve(future_trading_dates.size());
         for (const Date value : future_trading_dates) {
-            const double time = actual_365(valuation, value);
+            const double time = actual_365_fixed_year_fraction(valuation, value);
             trading_times.push_back(time);
-            if (time > 0.0 && time < maturity) anchors.push_back(time);
+            if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
         }
     }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = finite_difference_grid(maturity, settings.time_step_count, std::move(anchors));
+    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings.time_step_count, std::move(anchors));
     if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
@@ -142,10 +142,10 @@ Result<PricingResult> price_autocallable_finite_difference(
         knocked_in.resize(size);
         next_knocked_in.resize(size);
     }
-    const auto expiry_observation = event_index(maturity);
+    const auto expiry_observation = event_index(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        bool ki = note.touch_status() == BarrierTouchStatus::down;
+        bool ki = note.barrier_state() == AutocallableBarrierState::knocked_in;
         if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
         if (expiry_observation && value >= note.knock_out_levels()[*expiry_observation]) {
             alive[index] = note.principal_ratio() +
@@ -208,7 +208,7 @@ Result<PricingResult> price_autocallable_finite_difference(
     if constexpr (monitors_knock_in)
         return make_pricing_result(
             {{RiskMeasure::price,
-              space->interpolate(note.touch_status() == BarrierTouchStatus::down ? knocked_in
+              space->interpolate(note.barrier_state() == AutocallableBarrierState::knocked_in ? knocked_in
                                                                                     : alive,
                                  spot)}});
     else

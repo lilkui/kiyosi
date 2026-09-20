@@ -23,7 +23,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     if (settings.asset_step_count > 10'000 || settings.time_step_count > 100'000)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "finite-difference grid dimensions are out of range"});
 
-    const double time = actual_365(context.valuation_time(), option.expiry_date());
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
@@ -45,7 +45,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     if (!space) return std::unexpected(space.error());
     const double spacing = space->spacing;
     const int time_step_count = settings.time_step_count;
-    const auto grid = finite_difference_grid(time, time_step_count);
+    const auto grid = make_finite_difference_time_grid(time, time_step_count);
     if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_step_count);
         !stable)
         return std::unexpected(stable.error());
@@ -86,12 +86,12 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
-    const EuropeanCashOrNothingOption& option, const PricingContext& context) const
+    const CashOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_fd(option, context, settings_, false);
 }
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_asset_or_nothing(
-    const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
+    const AssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_fd(option, context, settings_, true);
 }

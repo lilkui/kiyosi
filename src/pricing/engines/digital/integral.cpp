@@ -14,7 +14,7 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    const double time = actual_365(context.valuation_time(), expiry_date);
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
     const double spot = context.spot_price();
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0)
@@ -45,11 +45,11 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
 }
 }
 
-Result<PricingResult> QuadratureDigitalEngine::price(const EuropeanCashOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), option.payout(), false, option.effective_date(), option.expiry_date(), context);
 }
-Result<PricingResult> QuadratureDigitalEngine::price(const EuropeanAssetOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
 }

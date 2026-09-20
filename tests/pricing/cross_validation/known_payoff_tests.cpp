@@ -11,7 +11,7 @@
 #include "support/common.hpp"
 
 namespace {
-using kiyosi::BarrierTouchStatus;
+using kiyosi::AutocallableBarrierState;
 using kiyosi::test::day;
 
 const auto effective_date = day(2025, 1, 1);
@@ -63,24 +63,24 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
     }
 }
 
-auto snowball(BarrierTouchStatus status)
+auto snowball(AutocallableBarrierState status)
 {
-    return kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .touch_status = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 
-auto ternary(BarrierTouchStatus status)
+auto ternary(AutocallableBarrierState status)
 {
-    return kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .touch_status = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 
-auto binary(BarrierTouchStatus status)
+auto binary(AutocallableBarrierState status)
 {
-    return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .touch_status = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 
-auto phoenix(BarrierTouchStatus status)
+auto phoenix(AutocallableBarrierState status)
 {
-    return kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .touch_status = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 } // namespace
 
@@ -99,9 +99,9 @@ TEST_CASE("FD-MC snowball families match independent expiry_date payoffs", "[cro
         Case{80.0, 1.12, 1.12, 1.12}, Case{81.0, 1.12, 1.12, 1.12},
         Case{119.0, 1.12, 1.12, 1.12}, Case{120.0, 1.20, 1.20, 1.20},
         Case{121.0, 1.20, 1.20, 1.20}};
-    const auto standard = snowball(BarrierTouchStatus::none);
-    const auto three_way = ternary(BarrierTouchStatus::none);
-    const auto two_way = binary(BarrierTouchStatus::none);
+    const auto standard = snowball(AutocallableBarrierState::none);
+    const auto three_way = ternary(AutocallableBarrierState::none);
+    const auto two_way = binary(AutocallableBarrierState::none);
     REQUIRE(standard);
     REQUIRE(three_way);
     REQUIRE(two_way);
@@ -125,7 +125,7 @@ TEST_CASE("FD-MC snowball families match independent expiry_date payoffs", "[cro
 
 TEST_CASE("FD-MC phoenix matches independent coupon and loss boundaries", "[cross-validation]")
 {
-    const auto note = phoenix(BarrierTouchStatus::none);
+    const auto note = phoenix(AutocallableBarrierState::none);
     REQUIRE(note);
     // The contract's coupon is 100 * 0.08 = 8, not 0.08 principal units.
     for (const auto [spot, expected] : std::array{
@@ -141,9 +141,9 @@ TEST_CASE("FD-MC phoenix matches independent coupon and loss boundaries", "[cros
 TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishes notes",
           "[cross-validation]")
 {
-    const auto standard = snowball(BarrierTouchStatus::down);
-    const auto three_way = ternary(BarrierTouchStatus::down);
-    const auto bird = phoenix(BarrierTouchStatus::down);
+    const auto standard = snowball(AutocallableBarrierState::knocked_in);
+    const auto three_way = ternary(AutocallableBarrierState::knocked_in);
+    const auto bird = phoenix(AutocallableBarrierState::knocked_in);
     REQUIRE(standard);
     REQUIRE(three_way);
     REQUIRE(bird);
@@ -161,10 +161,10 @@ TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishe
         check_known_price(*result, market(100.0, effective_date), 0.0);
         check_known_price(*result, market(120.0, expiry_date), 0.0);
     };
-    check_extinguished(snowball(BarrierTouchStatus::up));
-    check_extinguished(ternary(BarrierTouchStatus::up));
-    check_extinguished(binary(BarrierTouchStatus::up));
-    check_extinguished(phoenix(BarrierTouchStatus::up));
+    check_extinguished(snowball(AutocallableBarrierState::knocked_out));
+    check_extinguished(ternary(AutocallableBarrierState::knocked_out));
+    check_extinguished(binary(AutocallableBarrierState::knocked_out));
+    check_extinguished(phoenix(AutocallableBarrierState::knocked_out));
 }
 
 TEST_CASE("FD-MC accumulator matches independent expiry_date quantity accounting", "[cross-validation]")
@@ -190,10 +190,10 @@ TEST_CASE("FD-MC pre-expiry_date prices approach independently known constant-pa
         REQUIRE(note);
         check_known_price(*note, context, expected, 1e-6);
     };
-    check(snowball(BarrierTouchStatus::none), 1.12);
-    check(ternary(BarrierTouchStatus::none), 1.12);
-    check(binary(BarrierTouchStatus::none), 1.12);
-    check(phoenix(BarrierTouchStatus::none), 9.0);
+    check(snowball(AutocallableBarrierState::none), 1.12);
+    check(ternary(AutocallableBarrierState::none), 1.12);
+    check(binary(AutocallableBarrierState::none), 1.12);
+    check(phoenix(AutocallableBarrierState::none), 9.0);
 
     const auto option = kiyosi::make_accumulator(
         {100.0, 110.0, 1.0, 2.0, 3.0, effective_date, day(2025, 1, 6)});

@@ -72,12 +72,12 @@ int main()
                                                        .lower_strike = 60.0,
                                                        .observation_dates = {expiry_date},
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
-    const auto snowball = *kiyosi::make_both_down_snowball({.coupon_start = 0.08,
-                                                            .coupon_step = 0.01,
+    const auto snowball = *kiyosi::make_both_down_snowball({.initial_coupon_rate = 0.08,
+                                                            .coupon_rate_decrement = 0.01,
                                                             .initial_spot = 100.0,
                                                             .knock_in_level = 80.0,
                                                             .initial_knock_out_level = 110.0,
@@ -92,7 +92,7 @@ int main()
                                                                        .upper_strike = 100.0,
                                                                        .lower_strike = 60.0,
                                                                        .observation_dates = {expiry_date},
-                                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                        .principal_ratio = 1.0,
                                                                        .effective_date = effective_date,
                                                                        .expiry_date = expiry_date});
@@ -106,7 +106,7 @@ int main()
                                                                          .lower_strike = 60.0,
                                                                          .observation_dates = {expiry_date},
                                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                          .principal_ratio = 1.0,
                                                                          .effective_date = effective_date,
                                                                          .expiry_date = expiry_date});
@@ -127,18 +127,18 @@ int main()
     price("AmericanOption", "FiniteDifferenceVanillaEngine", kiyosi::FiniteDifferenceVanillaEngine{80, 80}.price(american, context));
     price("AmericanOption", "MonteCarloVanillaEngine", kiyosi::MonteCarloVanillaEngine{5'000, 20, 42}.price(american, context));
 
-    price("EuropeanCashOrNothingOption", "AnalyticDigitalEngine", kiyosi::AnalyticDigitalEngine{}.price(cash_digital, context));
-    price("EuropeanCashOrNothingOption", "FiniteDifferenceDigitalEngine", kiyosi::FiniteDifferenceDigitalEngine{80, 80}.price(cash_digital, context));
-    price("EuropeanCashOrNothingOption", "QuadratureDigitalEngine", kiyosi::QuadratureDigitalEngine{}.price(cash_digital, context));
-    price("EuropeanAssetOrNothingOption", "AnalyticDigitalEngine", kiyosi::AnalyticDigitalEngine{}.price(asset_digital, context));
-    price("EuropeanAssetOrNothingOption", "FiniteDifferenceDigitalEngine", kiyosi::FiniteDifferenceDigitalEngine{80, 80}.price(asset_digital, context));
-    price("EuropeanAssetOrNothingOption", "QuadratureDigitalEngine", kiyosi::QuadratureDigitalEngine{}.price(asset_digital, context));
+    price("CashOrNothingOption", "AnalyticDigitalEngine", kiyosi::AnalyticDigitalEngine{}.price(cash_digital, context));
+    price("CashOrNothingOption", "FiniteDifferenceDigitalEngine", kiyosi::FiniteDifferenceDigitalEngine{80, 80}.price(cash_digital, context));
+    price("CashOrNothingOption", "QuadratureDigitalEngine", kiyosi::QuadratureDigitalEngine{}.price(cash_digital, context));
+    price("AssetOrNothingOption", "AnalyticDigitalEngine", kiyosi::AnalyticDigitalEngine{}.price(asset_digital, context));
+    price("AssetOrNothingOption", "FiniteDifferenceDigitalEngine", kiyosi::FiniteDifferenceDigitalEngine{80, 80}.price(asset_digital, context));
+    price("AssetOrNothingOption", "QuadratureDigitalEngine", kiyosi::QuadratureDigitalEngine{}.price(asset_digital, context));
 
     price("BarrierOption", "AnalyticBarrierEngine", kiyosi::AnalyticBarrierEngine{}.price(barrier, context));
     price("BarrierOption", "FiniteDifferenceBarrierEngine", kiyosi::FiniteDifferenceBarrierEngine{80, 80}.price(barrier, context));
     price("BinaryBarrierOption", "AnalyticBinaryBarrierEngine", kiyosi::AnalyticBinaryBarrierEngine{}.price(binary_barrier, context));
-    price("GeometricAveragePriceOption", "AnalyticGeometricAverageAsianEngine", kiyosi::AnalyticGeometricAverageAsianEngine{}.price(geometric_asian, context));
-    price("ArithmeticAveragePriceOption", "TurnbullWakemanArithmeticAverageAsianEngine", kiyosi::TurnbullWakemanArithmeticAverageAsianEngine{}.price(arithmetic_asian, context));
+    price("GeometricAveragePriceOption", "AnalyticGeometricAveragePriceEngine", kiyosi::AnalyticGeometricAveragePriceEngine{}.price(geometric_asian, context));
+    price("ArithmeticAveragePriceOption", "TurnbullWakemanArithmeticAveragePriceEngine", kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{}.price(arithmetic_asian, context));
 
     price("Accumulator", "FiniteDifferenceAccumulatorEngine", kiyosi::FiniteDifferenceAccumulatorEngine{80, 80}.price(accumulator, context));
     price("Accumulator", "MonteCarloAccumulatorEngine", kiyosi::MonteCarloAccumulatorEngine{2'000, 42}.price(accumulator, context));

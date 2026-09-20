@@ -27,7 +27,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
         for (const auto delay : {std::chrono::seconds{1}, std::chrono::seconds{43200}}) {
             const auto expired = engine.price(option, market(midnight + delay));
             REQUIRE_FALSE(expired);
-            CHECK(expired.error().category == kiyosi::ErrorCategory::invalid_expiry);
+            CHECK(expired.error().category == kiyosi::ErrorCategory::invalid_time_range);
         }
     };
     const auto european = *kiyosi::make_european_option(
@@ -65,8 +65,8 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
          .barrier_type = kiyosi::BarrierType::down_and_out},
         7.0);
     check(kiyosi::AnalyticBinaryBarrierEngine{}, binary, 7.0);
-    check(kiyosi::AnalyticGeometricAverageAsianEngine{}, *kiyosi::make_geometric_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
-    check(kiyosi::TurnbullWakemanArithmeticAverageAsianEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
+    check(kiyosi::AnalyticGeometricAveragePriceEngine{}, *kiyosi::make_geometric_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
+    check(kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
     const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
                                                             .maturity_coupon_rate = 0.05,
                                                             .initial_spot = 100.0,
@@ -74,7 +74,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
                                                             .observation_dates = {expiry_date},
-                                                            .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                             .principal_ratio = 1.0,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
@@ -98,7 +98,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                          .lower_strike = 60.0,
                                                          .observation_dates = {expiry_date},
                                                          .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                         .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                          .principal_ratio = 1.0,
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
@@ -114,7 +114,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                                 .lower_strike = 60.0,
                                                                 .observation_dates = {expiry_date},
                                                                 .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                                .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                                 .principal_ratio = 1.0,
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
@@ -129,7 +129,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                        .lower_strike = 60.0,
                                                        .observation_dates = {expiry_date},
                                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                       .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
@@ -187,7 +187,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     const RecordingEngine engine{moments, noon};
     SECTION("numerical analytics")
     {
-        const auto analytics = kiyosi::calculate_numerical_analytics(engine, option, context);
+        const auto analytics = kiyosi::calculate_numerical_risk_measures(engine, option, context);
         REQUIRE(analytics);
         CHECK(risk_value(*analytics, kiyosi::RiskMeasure::vega) == Catch::Approx(0.01));
         CHECK(risk_value(*analytics, kiyosi::RiskMeasure::theta) == Catch::Approx(1.0));
@@ -220,7 +220,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
                                                             .upper_strike = 100.0,
                                                             .lower_strike = 60.0,
                                                             .observation_dates = {observation_date, expiry_date},
-                                                            .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                             .principal_ratio = 1.0,
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
@@ -256,7 +256,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
                                                              .lower_strike = 60.0,
                                                              .observation_dates = {expiry_date},
                                                              .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                             .touch_status = kiyosi::BarrierTouchStatus::none,
+                                                             .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                              .principal_ratio = 1.0,
                                                              .effective_date = effective_date,
                                                              .expiry_date = expiry_date});

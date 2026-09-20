@@ -10,9 +10,9 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-struct Factors { double a1, b1, a2, b2, a3, b3, a4, b4, a5; };
+struct BinaryBarrierFormulaTerms { double a1, b1, a2, b2, a3, b3, a4, b4, a5; };
 
-struct Contract {
+struct BinaryBarrierContractView {
     const BarrierTerms& barrier_terms;
     std::optional<OptionType> option_type;
     double strike;
@@ -21,7 +21,7 @@ struct Contract {
     kiyosi::SettlementTiming settlement_timing;
 };
 
-Contract contract(const BinaryBarrierOption& option)
+BinaryBarrierContractView make_contract_view(const BinaryBarrierOption& option)
 {
     const bool asset = option.payoff_type() == PayoffType::asset;
     const auto* cash = std::get_if<CashOrNothingPayoff>(&option.payoff());
@@ -29,7 +29,7 @@ Contract contract(const BinaryBarrierOption& option)
             cash ? cash->payout() : option.barrier_level(), asset, SettlementTiming::at_expiry};
 }
 
-Contract contract(const TouchOption& option)
+BinaryBarrierContractView make_contract_view(const TouchOption& option)
 {
     const bool asset = option.payoff_type() == PayoffType::asset;
     const auto* cash = std::get_if<CashOrNothingPayoff>(&option.payoff());
@@ -37,7 +37,7 @@ Contract contract(const TouchOption& option)
             cash ? cash->payout() : option.barrier_level(), asset, option.settlement_timing()};
 }
 
-double vanilla_digital(const Contract& option, const PricingContext& context, double time)
+double vanilla_digital(const BinaryBarrierContractView& option, const PricingContext& context, double time)
 {
     const double spot = context.spot_price(), rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
@@ -50,7 +50,7 @@ double vanilla_digital(const Contract& option, const PricingContext& context, do
                                    : option.payout * std::exp(-rate * time) * normal_cdf(sign * d2);
 }
 
-double terminal_payoff(const Contract& option, double spot, bool observed)
+double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool observed)
 {
     const auto& terms = option.barrier_terms;
     const bool in_money = !option.option_type || (*option.option_type == OptionType::call ? spot > option.strike : spot < option.strike);
@@ -58,7 +58,7 @@ double terminal_payoff(const Contract& option, double spot, bool observed)
     return terms.is_knock_in() == hit && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
 }
 
-Result<PricingResult> price_contract(const Contract& option, const PricingContext& context)
+Result<PricingResult> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
 {
     const auto& terms = option.barrier_terms;
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), terms.effective_date(), terms.expiry_date());
@@ -67,11 +67,11 @@ Result<PricingResult> price_contract(const Contract& option, const PricingContex
         auto schedule = validate_observation_dates(terms.observation_dates(), terms.effective_date(), terms.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(Error{ErrorCategory::invalid_schedule, schedule.error().message});
     }
-    const double time = actual_365(context.valuation_time(), terms.expiry_date());
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), terms.expiry_date());
     const double spot = context.spot_price();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool observed_now = terms.is_monitored_at(context.valuation_time());
+    const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
     const bool touched = observed_now && terms.is_breached_by(spot);
     if (time == 0.0)
         return make_pricing_result(
@@ -99,7 +99,7 @@ Result<PricingResult> price_contract(const Contract& option, const PricingContex
     const double z = std::log(barrier / spot) / volatility_time + lambda * volatility_time;
     const auto common = [&](double eta, double phi) {
         const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time), ratio = barrier / spot;
-        return Factors{
+        return BinaryBarrierFormulaTerms{
             spot * dividend_discount * normal_cdf(phi * x1), option.payout * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
             spot * dividend_discount * normal_cdf(phi * x2), option.payout * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
             spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y1), option.payout * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y1 - eta * volatility_time),
@@ -107,38 +107,38 @@ Result<PricingResult> price_contract(const Contract& option, const PricingContex
             option.payout * (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) + std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2 * eta * lambda * volatility_time))};
     };
     if (option.settlement_timing == SettlementTiming::at_hit) {
-        const auto factors = common(upper ? -1.0 : 1.0, 0.0);
-        return make_pricing_result({{RiskMeasure::price, factors.a5}});
+        const auto formula_terms = common(upper ? -1.0 : 1.0, 0.0);
+        return make_pricing_result({{RiskMeasure::price, formula_terms.a5}});
     }
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
                                    : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
-    const auto factors = common(down ? 1.0 : -1.0, phi);
+    const auto formula_terms = common(down ? 1.0 : -1.0, phi);
     double value = 0.0;
     if (!option.option_type) {
         value = option.asset_settlement
-                    ? (knock_in ? factors.a2 + factors.a4 : factors.a2 - factors.a4)
-                    : (knock_in ? factors.b2 + factors.b4 : factors.b2 - factors.b4);
+                    ? (knock_in ? formula_terms.a2 + formula_terms.a4 : formula_terms.a2 - formula_terms.a4)
+                    : (knock_in ? formula_terms.b2 + formula_terms.b4 : formula_terms.b2 - formula_terms.b4);
     } else if (knock_in && !option.asset_settlement) {
-        if (call) value = down ? (option.strike > barrier ? factors.b3 : factors.b1 - factors.b2 + factors.b4)
-                               : (option.strike > barrier ? factors.b1 : factors.b2 - factors.b3 + factors.b4);
-        else value = down ? (option.strike > barrier ? factors.b2 - factors.b3 + factors.b4 : factors.b1)
-                          : (option.strike > barrier ? factors.b1 - factors.b2 + factors.b4 : factors.b3);
+        if (call) value = down ? (option.strike > barrier ? formula_terms.b3 : formula_terms.b1 - formula_terms.b2 + formula_terms.b4)
+                               : (option.strike > barrier ? formula_terms.b1 : formula_terms.b2 - formula_terms.b3 + formula_terms.b4);
+        else value = down ? (option.strike > barrier ? formula_terms.b2 - formula_terms.b3 + formula_terms.b4 : formula_terms.b1)
+                          : (option.strike > barrier ? formula_terms.b1 - formula_terms.b2 + formula_terms.b4 : formula_terms.b3);
     } else if (knock_in) {
-        if (call) value = down ? (option.strike > barrier ? factors.a3 : factors.a1 - factors.a2 + factors.a4)
-                               : (option.strike > barrier ? factors.a1 : factors.a2 - factors.a3 + factors.a4);
-        else value = down ? (option.strike > barrier ? factors.a2 - factors.a3 + factors.a4 : factors.a1)
-                          : (option.strike > barrier ? factors.a1 - factors.a2 + factors.a4 : factors.a3);
+        if (call) value = down ? (option.strike > barrier ? formula_terms.a3 : formula_terms.a1 - formula_terms.a2 + formula_terms.a4)
+                               : (option.strike > barrier ? formula_terms.a1 : formula_terms.a2 - formula_terms.a3 + formula_terms.a4);
+        else value = down ? (option.strike > barrier ? formula_terms.a2 - formula_terms.a3 + formula_terms.a4 : formula_terms.a1)
+                          : (option.strike > barrier ? formula_terms.a1 - formula_terms.a2 + formula_terms.a4 : formula_terms.a3);
     } else if (!option.asset_settlement) {
-        if (call) value = down ? (option.strike > barrier ? factors.b1 - factors.b3 : factors.b2 - factors.b4)
-                               : (option.strike > barrier ? 0.0 : factors.b1 - factors.b2 + factors.b3 - factors.b4);
-        else value = down ? (option.strike > barrier ? factors.b1 - factors.b2 + factors.b3 - factors.b4 : 0.0)
-                          : (option.strike > barrier ? factors.b2 - factors.b4 : factors.b1 - factors.b3);
+        if (call) value = down ? (option.strike > barrier ? formula_terms.b1 - formula_terms.b3 : formula_terms.b2 - formula_terms.b4)
+                               : (option.strike > barrier ? 0.0 : formula_terms.b1 - formula_terms.b2 + formula_terms.b3 - formula_terms.b4);
+        else value = down ? (option.strike > barrier ? formula_terms.b1 - formula_terms.b2 + formula_terms.b3 - formula_terms.b4 : 0.0)
+                          : (option.strike > barrier ? formula_terms.b2 - formula_terms.b4 : formula_terms.b1 - formula_terms.b3);
     } else {
-        if (call) value = down ? (option.strike > barrier ? factors.a1 - factors.a3 : factors.a2 - factors.a4)
-                               : (option.strike > barrier ? 0.0 : factors.a1 - factors.a2 + factors.a3 - factors.a4);
-        else value = down ? (option.strike > barrier ? factors.a1 - factors.a2 + factors.a3 - factors.a4 : 0.0)
-                          : (option.strike > barrier ? factors.a2 - factors.a4 : factors.a1 - factors.a3);
+        if (call) value = down ? (option.strike > barrier ? formula_terms.a1 - formula_terms.a3 : formula_terms.a2 - formula_terms.a4)
+                               : (option.strike > barrier ? 0.0 : formula_terms.a1 - formula_terms.a2 + formula_terms.a3 - formula_terms.a4);
+        else value = down ? (option.strike > barrier ? formula_terms.a1 - formula_terms.a2 + formula_terms.a3 - formula_terms.a4 : 0.0)
+                          : (option.strike > barrier ? formula_terms.a2 - formula_terms.a4 : formula_terms.a1 - formula_terms.a3);
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
@@ -148,12 +148,12 @@ Result<PricingResult> price_contract(const Contract& option, const PricingContex
 Result<PricingResult> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
-    return price_contract(contract(option), context);
+    return price_contract(make_contract_view(option), context);
 }
 
 Result<PricingResult> AnalyticBinaryBarrierEngine::price(
     const TouchOption& option, const PricingContext& context) const
 {
-    return price_contract(contract(option), context);
+    return price_contract(make_contract_view(option), context);
 }
 } // namespace kiyosi

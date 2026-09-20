@@ -12,7 +12,7 @@ Result<PricingResult> QuadratureVanillaEngine::price_impl(const EuropeanOption& 
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    const double tau = actual_365(context.valuation_time(), option.expiry_date());
+    const double tau = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;

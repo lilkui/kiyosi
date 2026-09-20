@@ -12,8 +12,8 @@ INSTRUMENTS = {
     "arithmetic": "ArithmeticAveragePriceOption",
 }
 ENGINES = {
-    "geometric": "AnalyticGeometricAverageAsianEngine",
-    "arithmetic": "TurnbullWakemanArithmeticAverageAsianEngine",
+    "geometric": "AnalyticGeometricAveragePriceEngine",
+    "arithmetic": "TurnbullWakemanArithmeticAveragePriceEngine",
 }
 SOURCES = {
     "geometric": "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine",

@@ -18,7 +18,7 @@ struct StandardSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -36,7 +36,7 @@ struct StandardSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
@@ -52,7 +52,7 @@ struct StepDownSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -73,16 +73,16 @@ struct StepDownSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
 }
 
 struct BothDownSnowballTerms {
-    double coupon_start{};
+    double initial_coupon_rate{};
     /// Absolute decimal-rate decrement applied at each observation (0.01 is one percentage point).
-    double coupon_step{};
+    double coupon_rate_decrement{};
     double initial_spot{};
     double knock_in_level{};
     double initial_knock_out_level{};
@@ -91,7 +91,7 @@ struct BothDownSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -103,12 +103,12 @@ struct BothDownSnowballTerms {
     coupons.reserve(terms.observation_dates.size());
     knock_out_levels.reserve(terms.observation_dates.size());
     for (std::size_t index = 0; index < terms.observation_dates.size(); ++index) {
-        coupons.push_back(terms.coupon_start - static_cast<double>(index) * terms.coupon_step);
+        coupons.push_back(terms.initial_coupon_rate - static_cast<double>(index) * terms.coupon_rate_decrement);
         knock_out_levels.push_back(terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement);
     }
-    const double maturity_coupon = coupons.empty() ? 0.0 : coupons.back();
+    const double maturity_coupon_rate = coupons.empty() ? 0.0 : coupons.back();
     return make_snowball_option({.knock_out_coupon_rates = std::move(coupons),
-                                 .maturity_coupon_rate = maturity_coupon,
+                                 .maturity_coupon_rate = maturity_coupon_rate,
                                  .initial_spot = terms.initial_spot,
                                  .knock_in_level = terms.knock_in_level,
                                  .knock_out_levels = std::move(knock_out_levels),
@@ -116,22 +116,22 @@ struct BothDownSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
 }
 
 struct DualCouponSnowballTerms {
-    double knock_out_coupon{};
-    double maturity_coupon{};
+    double knock_out_coupon_rate{};
+    double maturity_coupon_rate{};
     double initial_spot{};
     double knock_in_level{};
     double knock_out_level{};
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -139,8 +139,8 @@ struct DualCouponSnowballTerms {
     DualCouponSnowballTerms terms)
 {
     return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_coupon),
-                                 .maturity_coupon_rate = terms.maturity_coupon,
+                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_coupon_rate),
+                                 .maturity_coupon_rate = terms.maturity_coupon_rate,
                                  .initial_spot = terms.initial_spot,
                                  .knock_in_level = terms.knock_in_level,
                                  .knock_out_levels =
@@ -149,7 +149,7 @@ struct DualCouponSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
@@ -164,7 +164,7 @@ struct ParachuteSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -183,13 +183,13 @@ struct ParachuteSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
 }
 
-struct OutOfTheMoneySnowballTerms {
+struct OtmSnowballTerms {
     double coupon_rate{};
     double initial_spot{};
     double knock_in_level{};
@@ -198,12 +198,12 @@ struct OutOfTheMoneySnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
 [[nodiscard]] inline Result<SnowballOption> make_otm_snowball(
-    OutOfTheMoneySnowballTerms terms)
+    OtmSnowballTerms terms)
 {
     return make_snowball_option({.knock_out_coupon_rates =
                                      std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
@@ -216,7 +216,7 @@ struct OutOfTheMoneySnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
@@ -231,7 +231,7 @@ struct LossCappedSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -249,7 +249,7 @@ struct LossCappedSnowballTerms {
                                  .lower_strike = terms.lower_strike,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});
@@ -263,7 +263,7 @@ struct EuropeanSnowballTerms {
     std::vector<Date> observation_dates;
     Date effective_date{};
     Date expiry_date{};
-    BarrierTouchStatus touch_status{SnowballTerms{}.touch_status};
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
     double principal_ratio{SnowballTerms{}.principal_ratio};
 };
 
@@ -281,7 +281,7 @@ struct EuropeanSnowballTerms {
                                  .lower_strike = 0.0,
                                  .observation_dates = std::move(terms.observation_dates),
                                  .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-                                 .touch_status = terms.touch_status,
+                                 .barrier_state = terms.barrier_state,
                                  .principal_ratio = terms.principal_ratio,
                                  .effective_date = terms.effective_date,
                                  .expiry_date = terms.expiry_date});

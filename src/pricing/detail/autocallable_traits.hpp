@@ -14,10 +14,10 @@ namespace kiyosi::detail {
 /// Per-product settlement and coupon rules; every autocallable engine drives the shared
 /// backward induction through this trait so the products stay free of pricing logic.
 template <typename Note>
-struct autocallable_traits;
+struct AutocallableTraits;
 
 template <>
-struct autocallable_traits<PhoenixOption> {
+struct AutocallableTraits<PhoenixOption> {
     static constexpr bool carries_observation_coupon = true;
 
     static AutocallableProgram program(const PhoenixOption& note)
@@ -36,14 +36,14 @@ struct autocallable_traits<PhoenixOption> {
 };
 
 template <>
-struct autocallable_traits<SnowballOption> {
+struct AutocallableTraits<SnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
     static AutocallableProgram program(const SnowballOption& note)
     {
         return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
                 note.lower_strike(), note.knock_in_level(),
-                note.maturity_coupon_rate() * actual_365(note.effective_date(), note.expiry_date()), 0.0,
+                note.maturity_coupon_rate() * actual_365_fixed_year_fraction(note.effective_date(), note.expiry_date()), 0.0,
                 AutocallableTerminalKind::downside_if_knocked_in, true,
                 note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
     }
@@ -52,18 +52,18 @@ struct autocallable_traits<SnowballOption> {
     {
         return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective_date(), note.observation_dates()[index]),
+                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
 
 template <>
-struct autocallable_traits<TernarySnowballOption> {
+struct AutocallableTraits<TernarySnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
     static AutocallableProgram program(const TernarySnowballOption& note)
     {
-        const double term = actual_365(note.effective_date(), note.expiry_date());
+        const double term = actual_365_fixed_year_fraction(note.effective_date(), note.expiry_date());
         return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
                 note.lower_strike(), note.knock_in_level(), note.maturity_coupon_rate() * term,
                 note.minimum_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
@@ -74,19 +74,19 @@ struct autocallable_traits<TernarySnowballOption> {
     {
         return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective_date(), note.observation_dates()[index]),
+                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
 
 template <>
-struct autocallable_traits<BinarySnowballOption> {
+struct AutocallableTraits<BinarySnowballOption> {
     static constexpr bool carries_observation_coupon = false;
 
     static AutocallableProgram program(const BinarySnowballOption& note)
     {
         const double coupon =
-            note.maturity_coupon_rate() * actual_365(note.effective_date(), note.expiry_date());
+            note.maturity_coupon_rate() * actual_365_fixed_year_fraction(note.effective_date(), note.expiry_date());
         return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
                 note.lower_strike(), 0.0, coupon, coupon,
                 AutocallableTerminalKind::fixed, false, false, false};
@@ -96,7 +96,7 @@ struct autocallable_traits<BinarySnowballOption> {
     {
         return {note.knock_out_levels()[index],
                 note.knock_out_coupon_rates()[index] *
-                    actual_365(note.effective_date(), note.observation_dates()[index]),
+                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
                 0.0, false, true};
     }
 };
@@ -104,13 +104,13 @@ struct autocallable_traits<BinarySnowballOption> {
 template <typename Note>
 AutocallableProgram autocallable_program(const Note& note)
 {
-    return autocallable_traits<Note>::program(note);
+    return AutocallableTraits<Note>::program(note);
 }
 
 template <typename Note>
 AutocallableEvent autocallable_event(const Note& note, std::size_t index)
 {
-    return autocallable_traits<Note>::event(note, index);
+    return AutocallableTraits<Note>::event(note, index);
 }
 
 template <typename Note>
@@ -126,11 +126,11 @@ double observation_coupon(const Note& note, std::size_t index, double spot)
 }
 
 template <typename Note>
-inline constexpr bool carries_observation_coupon = autocallable_traits<Note>::carries_observation_coupon;
+inline constexpr bool carries_observation_coupon = AutocallableTraits<Note>::carries_observation_coupon;
 
 /// Indices of the observation dates still ahead of `valuation`.
 template <typename Note>
-std::vector<std::size_t> observation_schedule(const Note& note, Timestamp valuation)
+std::vector<std::size_t> remaining_observation_indices(const Note& note, Timestamp valuation)
 {
     std::vector<std::size_t> schedule;
     const auto& dates = note.observation_dates();
@@ -140,9 +140,9 @@ std::vector<std::size_t> observation_schedule(const Note& note, Timestamp valuat
 }
 
 template <typename Note>
-bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool expiry_date)
+bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool at_expiry)
 {
-    return program_knocked_in(autocallable_program(note), spot, knocked_in, expiry_date);
+    return program_knocked_in(autocallable_program(note), spot, knocked_in, at_expiry);
 }
 
 } // namespace kiyosi::detail

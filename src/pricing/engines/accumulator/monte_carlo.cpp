@@ -50,10 +50,10 @@ std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
-        const double dt = actual_365(previous, current);
+        const double dt = actual_365_fixed_year_fraction(previous, current);
         steps.push_back({(rate - dividend - 0.5 * sigma * sigma) * dt,
                          sigma * std::sqrt(dt),
-                         std::exp(-rate * actual_365(valuation, current))});
+                         std::exp(-rate * actual_365_fixed_year_fraction(valuation, current))});
         previous = current;
     }
     return steps;

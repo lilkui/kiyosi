@@ -26,18 +26,18 @@ public:
 
     [[nodiscard]] bool is_trading_day(Date value) const
     {
-        return is_valid_date(value) && predicate_ && predicate_(value);
+        return is_supported_date(value) && predicate_ && predicate_(value);
     }
 
-    int annual_trading_days() const noexcept { return annual_trading_days_; }
+    int trading_days_per_year() const noexcept { return trading_days_per_year_; }
 
     [[nodiscard]] Result<int> trading_days_between(Date start, Date end) const
     {
-        if (!is_valid_date(start) || !is_valid_date(end))
+        if (!is_supported_date(start) || !is_supported_date(end))
             return std::unexpected(Error{ErrorCategory::invalid_date,
                                          "calendar range dates must be valid"});
         if (end < start)
-            return std::unexpected(Error{ErrorCategory::invalid_expiry,
+            return std::unexpected(Error{ErrorCategory::invalid_time_range,
                                          "calendar range end must not precede start"});
         int count = 0;
         for (auto value = start; value < end; value += std::chrono::days{1})
@@ -50,37 +50,37 @@ public:
         const auto days = trading_days_between(start, end);
         if (!days) return std::unexpected(days.error());
         return static_cast<double>(*days) /
-               static_cast<double>(annual_trading_days_);
+               static_cast<double>(trading_days_per_year_);
     }
 
 private:
-    TradingCalendar(TradingDayPredicate predicate, int annual_trading_days)
-        : predicate_(std::move(predicate)), annual_trading_days_(annual_trading_days) {}
+    TradingCalendar(TradingDayPredicate predicate, int trading_days_per_year)
+        : predicate_(std::move(predicate)), trading_days_per_year_(trading_days_per_year) {}
 
     friend TradingCalendar detail::make_calendar(TradingDayPredicate, int);
 
     TradingDayPredicate predicate_;
-    int annual_trading_days_;
+    int trading_days_per_year_;
 };
 
 [[nodiscard]] inline TradingCalendar detail::make_calendar(
-    TradingCalendar::TradingDayPredicate predicate, int annual_trading_days)
+    TradingCalendar::TradingDayPredicate predicate, int trading_days_per_year)
 {
-    return TradingCalendar{std::move(predicate), annual_trading_days};
+    return TradingCalendar{std::move(predicate), trading_days_per_year};
 }
 
 [[nodiscard]] inline Result<TradingCalendar> make_trading_calendar(
-    TradingCalendar::TradingDayPredicate predicate, int annual_trading_days)
+    TradingCalendar::TradingDayPredicate predicate, int trading_days_per_year)
 {
     if (!predicate) {
         return std::unexpected(Error{ErrorCategory::invalid_calendar,
                                      "trading calendar requires a day predicate"});
     }
-    if (annual_trading_days <= 0) {
+    if (trading_days_per_year <= 0) {
         return std::unexpected(Error{ErrorCategory::invalid_calendar,
                                      "annual trading-day count must be positive"});
     }
-    return detail::make_calendar(std::move(predicate), annual_trading_days);
+    return detail::make_calendar(std::move(predicate), trading_days_per_year);
 }
 
 [[nodiscard]] inline TradingCalendar all_days_calendar()
