@@ -23,7 +23,7 @@ const Scenario& scenario()
     return value;
 }
 
-void BM_AnalyticEuropeanPrice(benchmark::State& state)
+void bm_analytic_european_price(benchmark::State& state)
 {
     const auto& [option, context] = scenario();
     const kiyosi::AnalyticVanillaEngine engine;
@@ -35,4 +35,4 @@ void BM_AnalyticEuropeanPrice(benchmark::State& state)
 
 } // namespace
 
-BENCHMARK(BM_AnalyticEuropeanPrice);
+BENCHMARK(bm_analytic_european_price);

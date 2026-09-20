@@ -71,7 +71,7 @@ void benchmark_monte_carlo(benchmark::State& state, kiyosi::MonteCarloBackend ba
     }
 }
 
-void BM_MonteCarloEuropeanCpu(benchmark::State& state)
+void bm_monte_carlo_european_cpu(benchmark::State& state)
 {
     benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
@@ -93,7 +93,7 @@ void benchmark_american_monte_carlo(
     }
 }
 
-void BM_MonteCarloAmericanCpu(benchmark::State& state)
+void bm_monte_carlo_american_cpu(benchmark::State& state)
 {
     benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
@@ -208,46 +208,46 @@ void benchmark_structured_monte_carlo(
     }
 }
 
-void BM_MonteCarloAccumulatorCpu(benchmark::State& state)
+void bm_monte_carlo_accumulator_cpu(benchmark::State& state)
 {
     benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
 
-void BM_MonteCarloPhoenixCpu(benchmark::State& state)
+void bm_monte_carlo_phoenix_cpu(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
         state, phoenix_scenario(), kiyosi::MonteCarloBackend::cpu);
 }
 
-void BM_MonteCarloSnowballCpu(benchmark::State& state)
+void bm_monte_carlo_snowball_cpu(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
         state, snowball_scenario(), kiyosi::MonteCarloBackend::cpu);
 }
 
 #if KIYOSI_HAS_CUDA
-void BM_MonteCarloEuropeanCuda(benchmark::State& state)
+void bm_monte_carlo_european_cuda(benchmark::State& state)
 {
     benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
-void BM_MonteCarloAmericanCuda(benchmark::State& state)
+void bm_monte_carlo_american_cuda(benchmark::State& state)
 {
     benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
-void BM_MonteCarloAccumulatorCuda(benchmark::State& state)
+void bm_monte_carlo_accumulator_cuda(benchmark::State& state)
 {
     benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
 }
 
-void BM_MonteCarloPhoenixCuda(benchmark::State& state)
+void bm_monte_carlo_phoenix_cuda(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
         state, phoenix_scenario(), kiyosi::MonteCarloBackend::cuda);
 }
 
-void BM_MonteCarloSnowballCuda(benchmark::State& state)
+void bm_monte_carlo_snowball_cuda(benchmark::State& state)
 {
     benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
         state, snowball_scenario(), kiyosi::MonteCarloBackend::cuda);
@@ -256,62 +256,62 @@ void BM_MonteCarloSnowballCuda(benchmark::State& state)
 
 } // namespace
 
-BENCHMARK(BM_MonteCarloEuropeanCpu)
+BENCHMARK(bm_monte_carlo_european_cpu)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloAmericanCpu)
+BENCHMARK(bm_monte_carlo_american_cpu)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloAccumulatorCpu)
+BENCHMARK(bm_monte_carlo_accumulator_cpu)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloPhoenixCpu)
+BENCHMARK(bm_monte_carlo_phoenix_cpu)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloSnowballCpu)
+BENCHMARK(bm_monte_carlo_snowball_cpu)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
 #if KIYOSI_HAS_CUDA
-BENCHMARK(BM_MonteCarloEuropeanCuda)
+BENCHMARK(bm_monte_carlo_european_cuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloAmericanCuda)
+BENCHMARK(bm_monte_carlo_american_cuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloAccumulatorCuda)
+BENCHMARK(bm_monte_carlo_accumulator_cuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloPhoenixCuda)
+BENCHMARK(bm_monte_carlo_phoenix_cuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)
     ->Unit(benchmark::kMillisecond);
 
-BENCHMARK(BM_MonteCarloSnowballCuda)
+BENCHMARK(bm_monte_carlo_snowball_cuda)
     ->UseRealTime()
     ->Repetitions(5)
     ->ReportAggregatesOnly(true)

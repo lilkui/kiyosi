@@ -28,7 +28,7 @@ struct Boundaries {
 class FiniteDifferenceStep {
 public:
     explicit FiniteDifferenceStep(std::size_t size)
-        : lower(size - 2), diagonal(size - 2), upper_diagonal(size - 2), rhs(size - 2) {}
+        : lower_(size - 2), diagonal_(size - 2), upper_diagonal_(size - 2), rhs_(size - 2) {}
 
     /// `constraint` pins a node to a fixed value, which barrier and autocallable engines use to
     /// overwrite knocked-out regions in place.
@@ -48,37 +48,37 @@ public:
             const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
             const auto position = static_cast<std::size_t>(index - 1);
             if (const auto fixed = constraint(index)) {
-                lower[position] = upper_diagonal[position] = 0.0;
-                diagonal[position] = 1.0;
-                rhs[position] = *fixed;
+                lower_[position] = upper_diagonal_[position] = 0.0;
+                diagonal_[position] = 1.0;
+                rhs_[position] = *fixed;
                 continue;
             }
-            rhs[position] = old[static_cast<std::size_t>(index)] +
+            rhs_[position] = old[static_cast<std::size_t>(index)] +
                             (1.0 - theta) * dt *
                                 (a * old[position] + b * old[static_cast<std::size_t>(index)] +
                                  c * old[static_cast<std::size_t>(index + 1)]);
-            if (index == 1) rhs[position] += theta * dt * a * next.front();
-            if (index == asset_step_count - 1) rhs[position] += theta * dt * c * next.back();
-            lower[position] = -theta * dt * a;
-            diagonal[position] = 1.0 - theta * dt * b;
-            upper_diagonal[position] = -theta * dt * c;
+            if (index == 1) rhs_[position] += theta * dt * a * next.front();
+            if (index == asset_step_count - 1) rhs_[position] += theta * dt * c * next.back();
+            lower_[position] = -theta * dt * a;
+            diagonal_[position] = 1.0 - theta * dt * b;
+            upper_diagonal_[position] = -theta * dt * c;
         }
         if (theta == 0.0) {
-            std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
+            std::copy(rhs_.begin(), rhs_.end(), next.begin() + 1);
             return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
         }
-        for (std::size_t index = 1; index < diagonal.size(); ++index) {
-            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
-            const double factor = lower[index] / diagonal[index - 1];
-            diagonal[index] -= factor * upper_diagonal[index - 1];
-            rhs[index] -= factor * rhs[index - 1];
+        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
+            if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
+            const double factor = lower_[index] / diagonal_[index - 1];
+            diagonal_[index] -= factor * upper_diagonal_[index - 1];
+            rhs_[index] -= factor * rhs_[index - 1];
         }
-        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0) return false;
-        rhs.back() /= diagonal.back();
-        for (std::size_t index = diagonal.size() - 1; index-- > 0;)
-            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
-        if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); })) return false;
-        std::copy(rhs.begin(), rhs.end(), next.begin() + 1);
+        if (diagonal_.empty() || !std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
+        rhs_.back() /= diagonal_.back();
+        for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
+            rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
+        if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); })) return false;
+        std::copy(rhs_.begin(), rhs_.end(), next.begin() + 1);
         return std::isfinite(next.front()) && std::isfinite(next.back());
     }
 
@@ -102,7 +102,7 @@ public:
         first_next.back() = first_boundaries.upper;
         second_next.front() = second_boundaries.lower;
         second_next.back() = second_boundaries.upper;
-        paired_rhs_.resize(rhs.size());
+        paired_rhs_.resize(rhs_.size());
         const int asset_step_count = static_cast<int>(first_old.size()) - 1;
         for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
@@ -110,7 +110,7 @@ public:
             const double b = -volatility * volatility * i * i - rate;
             const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
             const auto position = static_cast<std::size_t>(index - 1);
-            rhs[position] = first_old[static_cast<std::size_t>(index)] +
+            rhs_[position] = first_old[static_cast<std::size_t>(index)] +
                             (1.0 - theta) * dt *
                                 (a * first_old[position] +
                                  b * first_old[static_cast<std::size_t>(index)] +
@@ -121,52 +121,52 @@ public:
                                          b * second_old[static_cast<std::size_t>(index)] +
                                          c * second_old[static_cast<std::size_t>(index + 1)]);
             if (index == 1) {
-                rhs[position] += theta * dt * a * first_next.front();
+                rhs_[position] += theta * dt * a * first_next.front();
                 paired_rhs_[position] += theta * dt * a * second_next.front();
             }
             if (index == asset_step_count - 1) {
-                rhs[position] += theta * dt * c * first_next.back();
+                rhs_[position] += theta * dt * c * first_next.back();
                 paired_rhs_[position] += theta * dt * c * second_next.back();
             }
-            lower[position] = -theta * dt * a;
-            diagonal[position] = 1.0 - theta * dt * b;
-            upper_diagonal[position] = -theta * dt * c;
+            lower_[position] = -theta * dt * a;
+            diagonal_[position] = 1.0 - theta * dt * b;
+            upper_diagonal_[position] = -theta * dt * c;
         }
         if (theta == 0.0) {
-            std::copy(rhs.begin(), rhs.end(), first_next.begin() + 1);
+            std::copy(rhs_.begin(), rhs_.end(), first_next.begin() + 1);
             std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
             return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
                    std::ranges::all_of(second_next,
                                        [](double value) { return std::isfinite(value); });
         }
-        for (std::size_t index = 1; index < diagonal.size(); ++index) {
-            if (!std::isfinite(diagonal[index - 1]) || diagonal[index - 1] == 0.0) return false;
-            const double factor = lower[index] / diagonal[index - 1];
-            diagonal[index] -= factor * upper_diagonal[index - 1];
-            rhs[index] -= factor * rhs[index - 1];
+        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
+            if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
+            const double factor = lower_[index] / diagonal_[index - 1];
+            diagonal_[index] -= factor * upper_diagonal_[index - 1];
+            rhs_[index] -= factor * rhs_[index - 1];
             paired_rhs_[index] -= factor * paired_rhs_[index - 1];
         }
-        if (diagonal.empty() || !std::isfinite(diagonal.back()) || diagonal.back() == 0.0)
+        if (diagonal_.empty() || !std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0)
             return false;
-        rhs.back() /= diagonal.back();
-        paired_rhs_.back() /= diagonal.back();
-        for (std::size_t index = diagonal.size() - 1; index-- > 0;) {
-            rhs[index] = (rhs[index] - upper_diagonal[index] * rhs[index + 1]) / diagonal[index];
+        rhs_.back() /= diagonal_.back();
+        paired_rhs_.back() /= diagonal_.back();
+        for (std::size_t index = diagonal_.size() - 1; index-- > 0;) {
+            rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
             paired_rhs_[index] =
-                (paired_rhs_[index] - upper_diagonal[index] * paired_rhs_[index + 1]) /
-                diagonal[index];
+                (paired_rhs_[index] - upper_diagonal_[index] * paired_rhs_[index + 1]) /
+                diagonal_[index];
         }
-        if (!std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); }) ||
+        if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); }) ||
             !std::ranges::all_of(paired_rhs_, [](double value) { return std::isfinite(value); }))
             return false;
-        std::copy(rhs.begin(), rhs.end(), first_next.begin() + 1);
+        std::copy(rhs_.begin(), rhs_.end(), first_next.begin() + 1);
         std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
         return std::isfinite(first_next.front()) && std::isfinite(first_next.back()) &&
                std::isfinite(second_next.front()) && std::isfinite(second_next.back());
     }
 
 private:
-    std::vector<double> lower, diagonal, upper_diagonal, rhs;
+    std::vector<double> lower_, diagonal_, upper_diagonal_, rhs_;
     std::vector<double> paired_rhs_;
 };
 

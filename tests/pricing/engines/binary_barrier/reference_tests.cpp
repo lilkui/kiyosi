@@ -104,15 +104,15 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         const double barrier = number("barrier");
         const bool up = inputs.at("BarrierType").starts_with("up");
         const bool one_touch = inputs.at("BarrierType").ends_with("in");
-        const auto SettlementTiming = inputs.at("settlement") == "at_hit"
+        const auto settlement_timing = inputs.at("settlement") == "at_hit"
                                            ? kiyosi::SettlementTiming::at_hit
                                            : kiyosi::SettlementTiming::at_expiry;
         if (asset) {
             const auto option = one_touch
                 ? (up ? kiyosi::make_asset_one_touch_up(
-                            effective_date, expiry_date, barrier, SettlementTiming)
+                            effective_date, expiry_date, barrier, settlement_timing)
                       : kiyosi::make_asset_one_touch_down(
-                            effective_date, expiry_date, barrier, SettlementTiming))
+                            effective_date, expiry_date, barrier, settlement_timing))
                 : (up ? kiyosi::make_asset_no_touch_up(effective_date, expiry_date, barrier)
                       : kiyosi::make_asset_no_touch_down(effective_date, expiry_date, barrier));
             REQUIRE(option);
@@ -120,9 +120,9 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         } else {
             const auto option = one_touch
                 ? (up ? kiyosi::make_cash_one_touch_up(
-                            effective_date, expiry_date, barrier, number("payout"), SettlementTiming)
+                            effective_date, expiry_date, barrier, number("payout"), settlement_timing)
                       : kiyosi::make_cash_one_touch_down(
-                            effective_date, expiry_date, barrier, number("payout"), SettlementTiming))
+                            effective_date, expiry_date, barrier, number("payout"), settlement_timing))
                 : (up ? kiyosi::make_cash_no_touch_up(
                             effective_date, expiry_date, barrier, number("payout"))
                       : kiyosi::make_cash_no_touch_down(

@@ -145,9 +145,9 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
             return true;
         },
         365);
-    const auto context = [&](kiyosi::Date Date, double spot) {
+    const auto context = [&](kiyosi::Date date, double spot) {
         return *kiyosi::make_pricing_context(
-            *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, Date, calendar);
+            *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, date, calendar);
     };
     const auto make_option = [&](double accumulated_quantity) {
         return *kiyosi::make_accumulator({.strike = 100.0,

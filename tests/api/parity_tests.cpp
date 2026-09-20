@@ -68,7 +68,7 @@ kiyosi::Timestamp parse_timestamp(const std::string& value)
            std::chrono::microseconds{std::stoi(value.substr(20, 6))};
 }
 
-kiyosi::OptionType OptionType(const Fields& values)
+kiyosi::OptionType option_type(const Fields& values)
 {
     REQUIRE(values.at("type") == "call");
     return kiyosi::OptionType::call;
@@ -94,10 +94,10 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
         DYNAMIC_SECTION(test.id) {
             if (test.kind == "construction") {
                 const auto option = kiyosi::make_european_option(
-                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
                     parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 REQUIRE(option);
-                CHECK(option->option_type() == OptionType(test.expected));
+                CHECK(option->option_type() == option_type(test.expected));
                 CHECK(option->strike() == std::stod(test.expected.at("strike")));
                 CHECK(option->effective_date() == parse_date(test.expected.at("effective_date")));
                 CHECK(option->expiry_date() == parse_date(test.expected.at("expiry_date")));
@@ -111,7 +111,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 CHECK_FALSE(settings.asset_upper_boundary);
             } else if (test.kind == "pricing") {
                 const auto option = kiyosi::make_european_option(
-                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
                     parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 const auto context = kiyosi::make_pricing_context(
                     parameters(test.inputs), std::stod(test.inputs.at("spot_price")),
@@ -133,7 +133,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 CHECK(result.error().category == kiyosi::ErrorCategory::invalid_volatility);
             } else if (test.kind == "date_round_trip") {
                 const auto option = kiyosi::make_geometric_average_option(
-                    OptionType(test.inputs), std::stod(test.inputs.at("strike")),
+                    option_type(test.inputs), std::stod(test.inputs.at("strike")),
                     parse_date(test.inputs.at("averaging_start_date")),
                     parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
                 REQUIRE(option);

@@ -299,7 +299,7 @@ TEST_CASE("Analytic prices are monotone and bounded")
 
 TEST_CASE("Binary barrier expiry_date uses inclusive hits and strict strikes")
 {
-    struct expiry_case {
+    struct ExpiryCase {
         bool asset;
         kiyosi::BarrierType barrier;
         std::optional<kiyosi::OptionType> type;
@@ -307,8 +307,8 @@ TEST_CASE("Binary barrier expiry_date uses inclusive hits and strict strikes")
         double level;
         double expected;
     };
-    const std::array<expiry_case, 8> cases{
-        expiry_case{false, kiyosi::BarrierType::up_and_in, kiyosi::OptionType::call, 100, 100, 0},
+    const std::array<ExpiryCase, 8> cases{
+        ExpiryCase{false, kiyosi::BarrierType::up_and_in, kiyosi::OptionType::call, 100, 100, 0},
         {false, kiyosi::BarrierType::down_and_in, kiyosi::OptionType::put, 101, 100, 10},
         {true, kiyosi::BarrierType::up_and_in, {}, 100, 100, 100},
         {true, kiyosi::BarrierType::down_and_in, kiyosi::OptionType::put, 101, 100, 100},
