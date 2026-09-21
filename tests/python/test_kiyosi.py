@@ -222,7 +222,7 @@ class KiyosiPythonTests(unittest.TestCase):
         for operation in (calendar.trading_days_between, calendar.trading_year_fraction):
             with self.subTest(operation=operation.__name__), self.assertRaises(kiyosi.KiyosiError) as error:
                 operation(date(2025, 1, 6), date(2025, 1, 4))
-            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.invalid_time_range)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
 
     def test_native_domain_errors_expose_categories(self):
         with self.assertRaises(kiyosi.KiyosiError) as error:
@@ -253,7 +253,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
         with self.assertRaises(kiyosi.KiyosiError) as error:
             Accumulator(**{**terms, "effective_date": terms["expiry_date"], "expiry_date": terms["effective_date"]})
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.invalid_time_range)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
         self.assertEqual(str(error.exception), "expiry date must not precede the effective date")
 
     def test_accumulator_knock_out_settles_existing_quantity(self):
