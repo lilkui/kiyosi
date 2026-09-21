@@ -29,7 +29,7 @@ Write commit messages adhering to the Conventional Commits specification.
 
 ### Issue tracker
 
-Issues live as markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+Issues live in GitHub Issues for this repository. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
