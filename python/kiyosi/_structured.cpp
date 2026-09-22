@@ -9,27 +9,37 @@ namespace {
 template <typename Note>
 void bind_note_properties(nb::class_<Note>& binding)
 {
-    binding.def_prop_ro("initial_spot", &Note::initial_spot)
-        .def_prop_ro("knock_out_levels", &Note::knock_out_levels)
-        .def_prop_ro("upper_strike", &Note::upper_strike)
-        .def_prop_ro("lower_strike", &Note::lower_strike)
+    binding.def_prop_ro("initial_spot", &Note::initial_spot,
+                        "Reference spot used to define relative terms.")
+        .def_prop_ro("knock_out_levels", &Note::knock_out_levels,
+                     "Knock-out level for each observation date.")
+        .def_prop_ro("upper_strike", &Note::upper_strike,
+                     "Upper terminal participation strike.")
+        .def_prop_ro("lower_strike", &Note::lower_strike,
+                     "Lower terminal participation strike.")
         .def_prop_ro("observation_dates", [](const Note& note) {
             PythonDateList output;
             for (const Date value : note.observation_dates()) output.append(python_date(value));
             return output;
-        })
-        .def_prop_ro("principal_ratio", &Note::principal_ratio)
-        .def_prop_ro("barrier_state", &Note::barrier_state)
-        .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); })
-        .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); });
+        }, "Copy of the ordered observation dates.")
+        .def_prop_ro("principal_ratio", &Note::principal_ratio,
+                     "Principal scaling applied to the payoff.")
+        .def_prop_ro("barrier_state", &Note::barrier_state,
+                     "Barrier history known at valuation time.")
+        .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); },
+                     "First date on which the note is effective.")
+        .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); },
+                     "Note expiry date.");
 }
 
 template <typename Note>
 void bind_knock_in_properties(nb::class_<Note>& binding)
 {
     bind_note_properties(binding);
-    binding.def_prop_ro("knock_in_level", &Note::knock_in_level)
-        .def_prop_ro("knock_in_observation_mode", &Note::knock_in_observation_mode);
+    binding.def_prop_ro("knock_in_level", &Note::knock_in_level,
+                        "Lower knock-in barrier level.")
+        .def_prop_ro("knock_in_observation_mode", &Note::knock_in_observation_mode,
+                     "Trading-day or expiry-only knock-in observation rule.");
 }
 
 template <typename Terms, typename Factory>
@@ -56,7 +66,41 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         "knock_out_level"_a, "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a validated snowball preset.");
+        R"doc(Create a standard or European snowball preset.
+
+The called factory determines whether the knock-in barrier is observed every
+trading day or only at expiry.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate used for knock-out and maturity coupons.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_level : float
+    Knock-out level applied to every observation.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
 }
 
 void bind_presets(nb::module_& module)
@@ -85,7 +129,40 @@ void bind_presets(nb::module_& module)
         "initial_knock_out_level"_a, "knock_out_level_decrement"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a snowball with linearly decreasing knock-out barriers.");
+        R"doc(Create a snowball with linearly decreasing knock-out barriers.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+initial_knock_out_level : float
+    Knock-out level at the first observation.
+knock_out_level_decrement : float
+    Amount subtracted from each successive knock-out level.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
     module.def(
         "both_down_snowball",
         [](PythonReal initial_coupon_rate, PythonReal coupon_rate_decrement, PythonReal initial_spot,
@@ -110,7 +187,42 @@ void bind_presets(nb::module_& module)
         "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a snowball with decreasing coupons and knock-out barriers.");
+        R"doc(Create a snowball with decreasing coupons and knock-out barriers.
+
+Parameters
+----------
+initial_coupon_rate : float
+    Annualized coupon rate at the first observation.
+coupon_rate_decrement : float
+    Amount subtracted from each successive coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+initial_knock_out_level : float
+    Knock-out level at the first observation.
+knock_out_level_decrement : float
+    Amount subtracted from each successive knock-out level.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
     module.def(
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon_rate, PythonReal maturity_coupon_rate,
@@ -134,7 +246,40 @@ void bind_presets(nb::module_& module)
         "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a snowball with separate knock-out and maturity coupons.");
+        R"doc(Create a snowball with separate knock-out and maturity coupons.
+
+Parameters
+----------
+knock_out_coupon_rate : float
+    Annualized coupon rate paid after knock-out.
+maturity_coupon_rate : float
+    Annualized coupon rate paid at maturity when applicable.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_level : float
+    Knock-out level applied to every observation.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
     module.def(
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -157,7 +302,40 @@ void bind_presets(nb::module_& module)
         "knock_out_level"_a, "final_knock_out_level"_a, "observation_dates"_a,
         "effective_date"_a, "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a snowball with a distinct final knock-out barrier.");
+        R"doc(Create a snowball with a distinct final knock-out barrier.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_level : float
+    Knock-out level before the final observation.
+final_knock_out_level : float
+    Knock-out level at the final observation.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
     module.def(
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -180,7 +358,40 @@ void bind_presets(nb::module_& module)
         "knock_out_level"_a, "upper_strike"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create an out-of-the-money snowball preset.");
+        R"doc(Create a snowball with a custom upper terminal strike.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_level : float
+    Knock-out level applied to every observation.
+upper_strike : float
+    Upper terminal participation strike.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable out-of-the-money snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
     module.def(
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -203,7 +414,40 @@ void bind_presets(nb::module_& module)
         "knock_out_level"_a, "lower_strike"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        "Create a loss-capped snowball preset.");
+        R"doc(Create a snowball with a lower loss-capping strike.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_level : float
+    Knock-out level applied to every observation.
+lower_strike : float
+    Lower terminal strike that caps downside loss.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+
+Returns
+-------
+SnowballOption
+    Validated immutable loss-capped snowball option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc");
 }
 
 } // namespace
@@ -211,7 +455,32 @@ void bind_presets(nb::module_& module)
 void bind_structured_instruments(nb::module_& module)
 {
     auto snowball = nb::class_<SnowballOption>(
-        module, "SnowballOption", "Immutable validated snowball option.")
+        module, "SnowballOption", R"doc(Immutable validated snowball option.
+
+Attributes
+----------
+knock_out_coupon_rates : list[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+initial_spot : float
+    Reference spot used to define relative terms.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : list[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal participation strikes.
+observation_dates : list[datetime.date]
+    Ordered knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState
+    Barrier history known at valuation time.
+principal_ratio : float
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_spot,
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
@@ -236,9 +505,43 @@ void bind_structured_instruments(nb::module_& module)
              "upper_strike"_a, "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
              "barrier_state"_a = SnowballTerms{}.barrier_state,
              "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a, "Create a validated snowball option.")
-        .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates)
-        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate);
+             "effective_date"_a, "expiry_date"_a, R"doc(Create a validated snowball option.
+
+Parameters
+----------
+knock_out_coupon_rates : iterable[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : iterable[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal participation strikes.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+
+Raises
+------
+TypeError
+    If an argument or sequence element has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc")
+        .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates,
+                     "Annualized coupon rate for each observation date.")
+        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate,
+                     "Annualized coupon rate used at maturity when applicable.");
     bind_knock_in_properties(snowball);
     bind_value_equality(snowball);
     bind_repr(snowball, "SnowballOption",
@@ -253,7 +556,28 @@ void bind_structured_instruments(nb::module_& module)
                {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
 
     auto binary = nb::class_<BinarySnowballOption>(
-        module, "BinarySnowballOption", "Immutable validated binary snowball option.")
+        module, "BinarySnowballOption", R"doc(Immutable validated binary snowball option.
+
+Attributes
+----------
+knock_out_coupon_rates : list[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+initial_spot : float
+    Reference spot used to define relative terms.
+knock_out_levels : list[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal binary payoff thresholds.
+observation_dates : list[datetime.date]
+    Ordered knock-out observation dates.
+barrier_state : AutocallableBarrierState
+    Barrier history known at valuation time.
+principal_ratio : float
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_spot,
                         PythonRealSequence knock_out_levels, PythonReal upper_strike,
@@ -277,9 +601,39 @@ void bind_structured_instruments(nb::module_& module)
              "barrier_state"_a = BinarySnowballTerms{}.barrier_state,
              "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
              "effective_date"_a, "expiry_date"_a,
-             "Create a validated binary snowball option.")
-        .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates)
-        .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate);
+             R"doc(Create a validated binary snowball option.
+
+Parameters
+----------
+knock_out_coupon_rates : iterable[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+initial_spot : float
+    Positive reference spot.
+knock_out_levels : iterable[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal binary payoff thresholds.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+
+Raises
+------
+TypeError
+    If an argument or sequence element has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc")
+        .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates,
+                     "Annualized coupon rate for each observation date.")
+        .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate,
+                     "Annualized coupon rate used at maturity when applicable.");
     bind_note_properties(binary);
     bind_value_equality(binary);
     bind_repr(binary, "BinarySnowballOption",
@@ -293,7 +647,34 @@ void bind_structured_instruments(nb::module_& module)
                {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
 
     auto ternary = nb::class_<TernarySnowballOption>(
-        module, "TernarySnowballOption", "Immutable validated ternary snowball option.")
+        module, "TernarySnowballOption", R"doc(Immutable validated ternary snowball option.
+
+Attributes
+----------
+knock_out_coupon_rates : list[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+minimum_coupon_rate : float
+    Minimum annualized coupon rate for the third payoff region.
+initial_spot : float
+    Reference spot used to define relative terms.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : list[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal payoff thresholds.
+observation_dates : list[datetime.date]
+    Ordered knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState
+    Barrier history known at valuation time.
+principal_ratio : float
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
                         PythonReal initial_spot, PythonReal knock_in_level,
@@ -321,10 +702,47 @@ void bind_structured_instruments(nb::module_& module)
              "barrier_state"_a = TernarySnowballTerms{}.barrier_state,
              "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
              "effective_date"_a, "expiry_date"_a,
-             "Create a validated ternary snowball option.")
-        .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates)
-        .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate)
-        .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate);
+             R"doc(Create a validated ternary snowball option.
+
+Parameters
+----------
+knock_out_coupon_rates : iterable[float]
+    Annualized coupon rate for each observation date.
+maturity_coupon_rate : float
+    Annualized coupon rate used at maturity when applicable.
+minimum_coupon_rate : float
+    Minimum annualized coupon rate for the third payoff region.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : iterable[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal payoff thresholds.
+observation_dates : iterable[datetime.date]
+    Ordered knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+
+Raises
+------
+TypeError
+    If an argument or sequence element has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc")
+        .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates,
+                     "Annualized coupon rate for each observation date.")
+        .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate,
+                     "Annualized coupon rate used at maturity when applicable.")
+        .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate,
+                     "Minimum annualized coupon rate for the third payoff region.");
     bind_knock_in_properties(ternary);
     bind_value_equality(ternary);
     bind_repr(ternary, "TernarySnowballOption",
@@ -340,7 +758,32 @@ void bind_structured_instruments(nb::module_& module)
                {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
 
     auto phoenix = nb::class_<PhoenixOption>(
-        module, "PhoenixOption", "Immutable validated Phoenix option.")
+        module, "PhoenixOption", R"doc(Immutable validated Phoenix autocallable option.
+
+Attributes
+----------
+coupon_rate : float
+    Annualized coupon rate.
+coupon_barrier_levels : list[float]
+    Coupon barrier level for each observation date.
+initial_spot : float
+    Reference spot used to define relative terms.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : list[float]
+    Knock-out level for each observation date.
+upper_strike, lower_strike : float
+    Terminal participation strikes.
+observation_dates : list[datetime.date]
+    Ordered coupon and knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState
+    Barrier history known at valuation time.
+principal_ratio : float
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_spot,
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                         PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
@@ -364,9 +807,43 @@ void bind_structured_instruments(nb::module_& module)
              "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
              "barrier_state"_a = PhoenixTerms{}.barrier_state,
              "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a, "Create a validated Phoenix option.")
-        .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate)
-        .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels);
+             "effective_date"_a, "expiry_date"_a, R"doc(Create a validated Phoenix option.
+
+Parameters
+----------
+coupon_rate : float
+    Annualized coupon rate.
+initial_spot : float
+    Positive reference spot.
+knock_in_level : float
+    Lower knock-in barrier level.
+knock_out_levels : iterable[float]
+    Knock-out level for each observation date.
+coupon_barrier_levels : iterable[float]
+    Coupon barrier level for each observation date.
+upper_strike, lower_strike : float
+    Terminal participation strikes.
+observation_dates : iterable[datetime.date]
+    Ordered coupon and knock-out observation dates.
+knock_in_observation_mode : KnockInObservationMode
+    Trading-day or expiry-only knock-in observation rule.
+barrier_state : AutocallableBarrierState, optional
+    Barrier history known at valuation time.
+principal_ratio : float, optional
+    Principal scaling applied to the payoff.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates.
+
+Raises
+------
+TypeError
+    If an argument or sequence element has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc")
+        .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate,
+                     "Annualized coupon rate.")
+        .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels,
+                     "Coupon barrier level for each observation date.");
     bind_knock_in_properties(phoenix);
     bind_value_equality(phoenix);
     bind_repr(phoenix, "PhoenixOption",
