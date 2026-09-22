@@ -7,26 +7,41 @@
 
 namespace kiyosi {
 
+/// Civil date represented as a day on the system clock timeline.
 using Date = std::chrono::sys_days;
-// Intraday moments use UTC-like sys_time; Date-based contracts remain midnight anchored.
+/// UTC-like instant with nanosecond precision; date-only contracts are midnight anchored.
 using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
 
-/// Returns whether value is within the inclusive civil-Date range supported by std::chrono::year.
+/// Tests whether a date is representable by `std::chrono::year`.
+/// @param value Date to test.
+/// @return `true` when `value` is in the supported inclusive civil-date range.
 [[nodiscard]] KIYOSI_EXPORT bool is_supported_date(Date value) noexcept;
 
+/// Converts a date to its midnight timestamp.
+/// @param value Date to convert.
+/// @return Timestamp at the start of `value`.
 [[nodiscard]] inline Timestamp start_of_day(Date value) noexcept
 {
     return Timestamp{value.time_since_epoch()};
 }
 
+/// Extracts the civil date containing a timestamp.
+/// @param value Timestamp to convert.
+/// @return Date obtained by flooring `value` to whole days.
 [[nodiscard]] inline Date date_of(Timestamp value) noexcept
 {
     return Date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
 }
 
+/// Validates that a date valuation does not follow an expiry date.
+/// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Date valuation_date, Date expiry_date);
+/// Validates that a timestamp valuation does not follow the end of an expiry date.
+/// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Timestamp valuation_time, Date expiry_date);
 
+/// Validates that a valuation date lies within an instrument's inclusive life.
+/// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] inline Result<void> validate_valuation_within_instrument_life(Date valuation_date, Date effective_date, Date expiry_date)
 {
     if (!is_supported_date(valuation_date) || !is_supported_date(effective_date) || !is_supported_date(expiry_date))
@@ -38,6 +53,8 @@ using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
     return {};
 }
 
+/// Validates that a valuation timestamp lies within an instrument's inclusive life.
+/// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] inline Result<void> validate_valuation_within_instrument_life(Timestamp valuation_time, Date effective_date, Date expiry_date)
 {
     auto valid = validate_valuation_within_instrument_life(date_of(valuation_time), effective_date, expiry_date);

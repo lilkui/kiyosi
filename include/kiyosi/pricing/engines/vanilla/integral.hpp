@@ -11,6 +11,8 @@ namespace kiyosi {
 /// Simpson quadrature over the terminal lognormal density.
 class KIYOSI_EXPORT QuadratureVanillaEngine {
 public:
+    /// Prices a European vanilla option by numerical quadrature.
+    /// @return Pricing measures, or a contract or context error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price(

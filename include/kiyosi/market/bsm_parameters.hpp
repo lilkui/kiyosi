@@ -9,10 +9,14 @@ namespace kiyosi {
 /// Black-Scholes-Merton model parameters: continuously compounded rates and a flat volatility.
 class BlackScholesMertonParameters {
 public:
+    /// Returns the continuously compounded risk-free rate as a decimal.
     double risk_free_rate() const noexcept { return risk_free_rate_; }
+    /// Returns the continuously compounded dividend yield as a decimal.
     double dividend_yield() const noexcept { return dividend_yield_; }
+    /// Returns the positive annualized volatility as a decimal.
     double volatility() const noexcept { return volatility_; }
 
+    /// Compares all model parameters.
     friend bool operator==(const BlackScholesMertonParameters&, const BlackScholesMertonParameters&) = default;
 
 private:
@@ -26,6 +30,8 @@ private:
     friend Result<BlackScholesMertonParameters> make_bsm_parameters(double, double, double);
 };
 
+/// Creates validated Black-Scholes-Merton model parameters.
+/// @return The parameters, or a rate, yield, or volatility validation error.
 [[nodiscard]] inline Result<BlackScholesMertonParameters> make_bsm_parameters(
     double risk_free_rate, double dividend_yield, double volatility)
 {

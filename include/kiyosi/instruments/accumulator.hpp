@@ -9,29 +9,41 @@ namespace kiyosi {
 
 class Accumulator;
 
+/// Input terms used to construct an Accumulator.
 struct AccumulatorTerms {
-    double strike{};
-    double knock_out_level{};
-    double daily_quantity{};
-    double acceleration_factor{};
-    double accumulated_quantity{};
-    Date effective_date{};
-    Date expiry_date{};
+    double strike{};               ///< Positive purchase strike.
+    double knock_out_level{};      ///< Positive spot level that terminates accrual.
+    double daily_quantity{};       ///< Non-negative base quantity accrued per trading day.
+    double acceleration_factor{};  ///< Non-negative quantity multiplier below strike.
+    double accumulated_quantity{}; ///< Non-negative quantity already accrued.
+    Date effective_date{};         ///< First date of the contract life.
+    Date expiry_date{};            ///< Final date of the contract life.
 };
 
+/// Creates a validated accumulator contract.
+/// @param terms Contract terms.
+/// @return The accumulator, or an input-validation error.
 [[nodiscard]] Result<Accumulator> make_accumulator(AccumulatorTerms);
 
 /// Forward accrual that buys a fixed daily quantity, accelerating below strike and
 /// terminating once spot reaches the knock-out level.
 class Accumulator {
 public:
+    /// Returns the purchase strike.
     double strike() const noexcept { return strike_; }
+    /// Returns the knock-out spot level.
     double knock_out_level() const noexcept { return knock_out_level_; }
+    /// Returns the base quantity accrued per trading day.
     double daily_quantity() const noexcept { return daily_quantity_; }
+    /// Returns the below-strike quantity multiplier.
     double acceleration_factor() const noexcept { return acceleration_factor_; }
+    /// Returns the quantity accrued before valuation.
     double accumulated_quantity() const noexcept { return accumulated_quantity_; }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return effective_date_; }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return expiry_date_; }
+    /// Compares all contract terms and accrued quantity.
     friend bool operator==(const Accumulator&, const Accumulator&) = default;
 
 private:

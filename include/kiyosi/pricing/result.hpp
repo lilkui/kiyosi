@@ -23,31 +23,37 @@ namespace kiyosi {
 ///   time moves forward.
 /// Undefined or unsupported measures are unavailable (`std::nullopt`), never represented by zero.
 enum class RiskMeasure : std::uint8_t {
-    price,
-    delta,
-    gamma,
-    speed,
-    theta,
-    charm,
-    color,
-    vega,
-    vanna,
-    zomma,
-    rho,
+    price, ///< Instrument value.
+    delta, ///< First derivative with respect to spot.
+    gamma, ///< Second derivative with respect to spot.
+    speed, ///< Third derivative with respect to spot.
+    theta, ///< Value change per calendar day of forward valuation time.
+    charm, ///< Delta change per calendar day of forward valuation time.
+    color, ///< Gamma change per calendar day of forward valuation time.
+    vega,  ///< Value change per volatility percentage point.
+    vanna, ///< Delta change per volatility percentage point.
+    zomma, ///< Gamma change per volatility percentage point.
+    rho,   ///< Value change per interest-rate percentage point.
 };
 
+/// Number of defined RiskMeasure values.
 inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(RiskMeasure::rho) + 1;
 
+/// Converts a risk measure to its PricingResult storage index.
+/// @return The index, or `std::nullopt` for an unknown enumerator.
 [[nodiscard]] constexpr std::optional<std::size_t> risk_measure_index(RiskMeasure measure) noexcept
 {
     const auto index = static_cast<std::size_t>(measure);
     return index < risk_measure_count ? std::optional{index} : std::nullopt;
 }
 
+/// Fixed-size collection of optional pricing and risk measures.
 class PricingResult {
 public:
+    /// Storage type indexed by risk_measure_index().
     using MeasureValues = std::array<std::optional<double>, risk_measure_count>;
 
+    /// Creates a result with every measure unavailable.
     PricingResult() = default;
 
     /// Reports whether the measure is available; a stored zero is available.
@@ -57,6 +63,8 @@ public:
         return index && values_[*index].has_value();
     }
 
+    /// Retrieves a measure when its enumerator is valid.
+    /// @return The optional value, or an `invalid_parameter` error for an unknown measure.
     [[nodiscard]] Result<std::optional<double>> get(RiskMeasure measure) const
     {
         const auto index = risk_measure_index(measure);
@@ -66,6 +74,8 @@ public:
         return values_[*index];
     }
 
+    /// Retrieves a required measure.
+    /// @return The value, or an `invalid_parameter` or `invalid_result` error.
     [[nodiscard]] Result<double> require(RiskMeasure measure) const
     {
         const auto value = get(measure);
@@ -75,8 +85,11 @@ public:
                                      "requested risk measure is unavailable"});
     }
 
+    /// Returns a read-only view of all measure slots.
+    /// @note The reference remains valid until this result is destroyed, moved from, or assigned.
     [[nodiscard]] const MeasureValues& values_view() const noexcept { return values_; }
 
+    /// Tests whether every available measure is finite.
     [[nodiscard]] bool all_finite() const noexcept
     {
         for (const auto& value : values_)
@@ -93,6 +106,8 @@ private:
 
 /// Builds a result from runtime risk-measure entries.
 /// Unknown measures are rejected with `invalid_parameter`.
+/// Later duplicate entries replace earlier entries for the same measure.
+/// @return The populated result, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<PricingResult> make_pricing_result(
     std::initializer_list<std::pair<RiskMeasure, std::optional<double>>> entries)
 {

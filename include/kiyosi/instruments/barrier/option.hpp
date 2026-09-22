@@ -11,39 +11,56 @@ namespace kiyosi {
 
 class BarrierOption;
 
+/// Input terms used to construct a BarrierOption.
 struct BarrierOptionTerms {
-    OptionType option_type{};
-    double strike{};
-    Date effective_date{};
-    Date expiry_date{};
-    double barrier_level{};
-    BarrierType barrier_type{};
-    double rebate{};
-    kiyosi::RebateTiming rebate_timing{kiyosi::RebateTiming::at_expiry};
-    kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous};
-    std::vector<Date> observation_dates{};
+    OptionType option_type{};                                                      ///< Call-or-put direction.
+    double strike{};                                                               ///< Positive option strike.
+    Date effective_date{};                                                         ///< First date of the contract life.
+    Date expiry_date{};                                                            ///< Final date of the contract life.
+    double barrier_level{};                                                        ///< Positive barrier trigger level.
+    BarrierType barrier_type{};                                                    ///< Barrier direction and activation behavior.
+    double rebate{};                                                               ///< Non-negative cash rebate.
+    kiyosi::RebateTiming rebate_timing{kiyosi::RebateTiming::at_expiry};           ///< Rebate payment timing.
+    kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous}; ///< Monitoring frequency.
+    std::vector<Date> observation_dates{};                                         ///< Ordered dates for scheduled monitoring.
 };
 
+/// Creates a validated barrier option.
+/// @return The option, or an input-validation error.
 [[nodiscard]] Result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 
 /// Knock-in or knock-out vanilla payoff with an optional rebate.
 class BarrierOption {
 public:
+    /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return option_type_; }
+    /// Returns the positive strike price.
     double strike() const noexcept { return strike_; }
+    /// Returns the non-negative rebate.
     double rebate() const noexcept { return rebate_; }
+    /// Returns when the rebate is paid.
     kiyosi::RebateTiming rebate_timing() const noexcept { return rebate_timing_; }
 
+    /// Returns the validated barrier terms.
     const BarrierTerms& barrier_terms() const noexcept { return barrier_; }
+    /// Returns the positive barrier level.
     double barrier_level() const noexcept { return barrier_.barrier_level(); }
+    /// Returns the barrier direction and activation behavior.
     BarrierType barrier_type() const noexcept { return barrier_.barrier_type(); }
+    /// Returns the monitoring frequency.
     kiyosi::ObservationMode observation_mode() const noexcept { return barrier_.observation_mode(); }
+    /// Returns the validated observation schedule.
     const ObservationSchedule& observation_schedule() const noexcept { return barrier_.observation_schedule(); }
+    /// Returns the ordered observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return barrier_.observation_dates(); }
+    /// Returns the average spacing between scheduled observations in years.
     double mean_observation_year_fraction() const noexcept { return barrier_.mean_observation_year_fraction(); }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return barrier_.effective_date(); }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return barrier_.expiry_date(); }
 
+    /// Compares all option, rebate, and barrier terms.
     friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
 
 private:

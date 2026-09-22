@@ -11,6 +11,8 @@ namespace kiyosi {
 /// Bjerksund-Stensland (2002) two-step American approximation.
 class KIYOSI_EXPORT BjerksundStenslandVanillaEngine {
 public:
+    /// Prices an American vanilla option with the two-step approximation.
+    /// @return Pricing measures, or a contract or context error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] Result<PricingResult> price(

@@ -13,6 +13,14 @@
 namespace kiyosi {
 
 /// Bisects the engine's price curve in volatility; the caller's bounds must bracket the quote.
+/// @tparam Engine Pricing engine providing `price(option, context)`.
+/// @tparam Option Instrument accepted by the engine.
+/// @param engine Pricing engine used for each trial volatility.
+/// @param option Instrument to value.
+/// @param context Market state whose volatility is replaced for each trial.
+/// @param observed_price Finite market price to match.
+/// @param settings Positive bounds and convergence controls.
+/// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
@@ -228,6 +236,13 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 } // namespace detail
 
 /// Bisects a Snowball engine's price curve in its knock-out coupon.
+/// @param engine Pricing engine used for each trial coupon.
+/// @param option Snowball-family instrument to value.
+/// @param context Market state used for every trial.
+/// @param observed_price Finite market price to match.
+/// @param convention Whether the maturity coupon shifts with the quoted coupon.
+/// @param settings Non-negative bounds and convergence controls.
+/// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
@@ -244,6 +259,7 @@ template <typename Engine, typename Option>
 }
 
 /// Bisects the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
+/// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,

@@ -10,25 +10,41 @@
 
 namespace kiyosi {
 
-enum class KnockInObservationMode { every_trading_day,
-                                    at_expiry };
+/// Monitoring frequency for an autocallable knock-in barrier.
+enum class KnockInObservationMode {
+    every_trading_day, ///< Observe on every trading day in the contract life.
+    at_expiry          ///< Observe only at expiry.
+};
 
-enum class AutocallableBarrierState { none,
-                                      knocked_out,
-                                      knocked_in };
+/// Barrier events known before valuation.
+enum class AutocallableBarrierState {
+    none,        ///< No barrier event has occurred.
+    knocked_out, ///< The note has already knocked out.
+    knocked_in   ///< The downside barrier has already been breached.
+};
 
 /// Principal, knock-out ladder, and settlement strikes shared by every autocallable structure.
 class AutocallableNote {
 public:
+    /// Returns the reference spot used to normalize contract levels.
     double initial_spot() const noexcept { return terms_.initial_spot; }
+    /// Returns one positive knock-out level per observation date.
     const std::vector<double>& knock_out_levels() const noexcept { return terms_.knock_out_levels; }
+    /// Returns the upper settlement strike.
     double upper_strike() const noexcept { return terms_.upper_strike; }
+    /// Returns the lower settlement strike.
     double lower_strike() const noexcept { return terms_.lower_strike; }
+    /// Returns the strictly ordered knock-out observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return terms_.observation_dates; }
+    /// Returns the non-negative principal multiplier.
     double principal_ratio() const noexcept { return terms_.principal_ratio; }
+    /// Returns the first date of the note life.
     Date effective_date() const noexcept { return terms_.effective_date; }
+    /// Returns the final date of the note life.
     Date expiry_date() const noexcept { return terms_.expiry_date; }
+    /// Returns barrier events known before valuation.
     AutocallableBarrierState barrier_state() const noexcept { return terms_.barrier_state; }
+    /// Compares all shared autocallable terms.
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
 
 private:
@@ -58,17 +74,29 @@ private:
 /// An autocallable note carrying a downside knock-in barrier.
 class KnockInAutocallableNote {
 public:
+    /// Returns the reference spot used to normalize contract levels.
     double initial_spot() const noexcept { return note_.initial_spot(); }
+    /// Returns one positive knock-out level per observation date.
     const std::vector<double>& knock_out_levels() const noexcept { return note_.knock_out_levels(); }
+    /// Returns the upper settlement strike.
     double upper_strike() const noexcept { return note_.upper_strike(); }
+    /// Returns the lower settlement strike.
     double lower_strike() const noexcept { return note_.lower_strike(); }
+    /// Returns the strictly ordered knock-out observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return note_.observation_dates(); }
+    /// Returns the non-negative principal multiplier.
     double principal_ratio() const noexcept { return note_.principal_ratio(); }
+    /// Returns the first date of the note life.
     Date effective_date() const noexcept { return note_.effective_date(); }
+    /// Returns the final date of the note life.
     Date expiry_date() const noexcept { return note_.expiry_date(); }
+    /// Returns barrier events known before valuation.
     AutocallableBarrierState barrier_state() const noexcept { return note_.barrier_state(); }
+    /// Returns the positive downside knock-in level.
     double knock_in_level() const noexcept { return knock_in_level_; }
+    /// Returns the knock-in monitoring frequency.
     KnockInObservationMode knock_in_observation_mode() const noexcept { return knock_in_observation_mode_; }
+    /// Compares all shared terms and knock-in terms.
     friend bool operator==(const KnockInAutocallableNote&, const KnockInAutocallableNote&) = default;
 
 private:
@@ -91,6 +119,8 @@ private:
 
 /// Authoritative domain validation for every autocallable product; optional features are
 /// detected structurally so each product only pays for the checks it needs.
+/// @tparam Note Autocallable note exposing the required term accessors.
+/// @return Success, or an `invalid_parameter` or `invalid_schedule` error.
 template <typename Note>
 [[nodiscard]] inline Result<void> validate_autocallable_note(const Note& note)
 {

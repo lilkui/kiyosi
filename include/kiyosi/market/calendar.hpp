@@ -22,15 +22,21 @@ namespace detail {
 /// any state shared by its copies support concurrent invocation.
 class TradingCalendar {
 public:
+    /// Predicate returning whether a supported date is a trading day.
     using TradingDayPredicate = std::function<bool(Date)>;
 
+    /// Tests whether a supported date is a trading day.
+    /// @return `false` for unsupported dates or when the predicate rejects the date.
     [[nodiscard]] bool is_trading_day(Date value) const
     {
         return is_supported_date(value) && predicate_ && predicate_(value);
     }
 
+    /// Returns the positive annual trading-day basis.
     int trading_days_per_year() const noexcept { return trading_days_per_year_; }
 
+    /// Counts trading days in the half-open interval `[start, end)`.
+    /// @return The count, or an `invalid_date` or `invalid_time_range` error.
     [[nodiscard]] Result<int> trading_days_between(Date start, Date end) const
     {
         if (!is_supported_date(start) || !is_supported_date(end))
@@ -45,6 +51,8 @@ public:
         return count;
     }
 
+    /// Computes a trading-day year fraction over `[start, end)`.
+    /// @return Trading days divided by trading_days_per_year(), or a range error.
     [[nodiscard]] Result<double> trading_year_fraction(Date start, Date end) const
     {
         const auto days = trading_days_between(start, end);
@@ -64,11 +72,15 @@ private:
 };
 
 [[nodiscard]] inline TradingCalendar detail::make_calendar(
-    TradingCalendar::TradingDayPredicate predicate, int trading_days_per_year)
+    std::function<bool(Date)> predicate, int trading_days_per_year)
 {
     return TradingCalendar{std::move(predicate), trading_days_per_year};
 }
 
+/// Creates a validated trading calendar.
+/// @param predicate Callable returning whether a date is a trading day.
+/// @param trading_days_per_year Positive annualization basis.
+/// @return The calendar, or an `invalid_calendar` error.
 [[nodiscard]] inline Result<TradingCalendar> make_trading_calendar(
     TradingCalendar::TradingDayPredicate predicate, int trading_days_per_year)
 {
@@ -83,12 +95,15 @@ private:
     return detail::make_calendar(std::move(predicate), trading_days_per_year);
 }
 
+/// Creates a calendar in which every supported date is a trading day.
+/// @return Calendar with a 365-day annualization basis.
 [[nodiscard]] inline TradingCalendar all_days_calendar()
 {
     return detail::make_calendar([](Date) { return true; }, 365);
 }
 
 /// Holiday-unaware Monday-through-Friday calendar with a 252-day annualization basis.
+/// @return A weekday-only calendar.
 [[nodiscard]] inline TradingCalendar weekdays_calendar()
 {
     return detail::make_calendar(

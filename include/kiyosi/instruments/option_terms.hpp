@@ -7,8 +7,11 @@
 
 namespace kiyosi {
 
-enum class OptionType { call,
-                        put };
+/// Direction of an option payoff.
+enum class OptionType {
+    call, ///< Right to benefit from prices above the strike.
+    put   ///< Right to benefit from prices below the strike.
+};
 
 class OptionTerms;
 
@@ -19,10 +22,15 @@ namespace detail {
 /// Contractual essentials shared by every strike-and-life option: option_type, strike, and life dates.
 class OptionTerms {
 public:
+    /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return option_type_; }
+    /// Returns the positive strike price.
     double strike() const noexcept { return strike_; }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return effective_date_; }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return expiry_date_; }
+    /// Compares all contractual terms.
     friend bool operator==(const OptionTerms&, const OptionTerms&) = default;
 
 private:

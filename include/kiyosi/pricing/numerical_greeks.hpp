@@ -53,6 +53,9 @@ template <typename Engine, typename Option>
 /// supported stencil inside a model boundary are unavailable, while the valid base price and
 /// independent measures are retained. A failure while pricing any feasible bumped state fails the
 /// whole operation.
+/// @tparam Engine Pricing engine providing `price(option, context)`.
+/// @tparam Option Instrument accepted by the engine.
+/// @return Pricing and risk measures, or a settings, pricing, or result error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<PricingResult> calculate_numerical_risk_measures(
     const Engine& engine, const Option& option, const PricingContext& context,

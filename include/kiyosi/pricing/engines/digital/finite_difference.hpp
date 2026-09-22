@@ -9,13 +9,18 @@
 
 namespace kiyosi {
 
+/// Uniform-grid finite-difference engine for European digital options.
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
+    /// Creates an engine with aggregate finite-difference settings.
     explicit FiniteDifferenceDigitalEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
+    /// Creates an engine with explicit grid dimensions and scheme.
     FiniteDifferenceDigitalEngine(int asset_step_count, int time_step_count,
                                   FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_step_count, time_step_count, scheme} {}
 
+    /// Prices a European cash-or-nothing or asset-or-nothing option.
+    /// @return Pricing measures, or a contract, context, or settings error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires(std::same_as<Payoff, CashOrNothingPayoff> ||
                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
@@ -29,6 +34,7 @@ public:
             return price_asset_or_nothing(option, context);
     }
 
+    /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:

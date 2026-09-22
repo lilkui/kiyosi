@@ -17,10 +17,15 @@ class PricingContext;
 /// Valuation-time snapshot: model parameters, the observable spot, and the trading calendar.
 class PricingContext {
 public:
+    /// Returns the Black-Scholes-Merton model parameters.
     const BlackScholesMertonParameters& model_parameters() const noexcept { return model_parameters_; }
+    /// Returns the positive observable spot price.
     double spot_price() const noexcept { return spot_price_; }
+    /// Returns the civil date containing the valuation time.
     Date valuation_date() const noexcept { return date_of(valuation_time_); }
+    /// Returns the valuation timestamp.
     Timestamp valuation_time() const noexcept { return valuation_time_; }
+    /// Returns the trading calendar.
     const TradingCalendar& calendar() const noexcept { return calendar_; }
 
 private:
@@ -38,6 +43,8 @@ private:
         BlackScholesMertonParameters, double, Timestamp, TradingCalendar);
 };
 
+/// Creates a pricing context at an intraday valuation time with an explicit calendar.
+/// @return The context, or an `invalid_spot_price` or `invalid_date` error.
 [[nodiscard]] inline Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters model_parameters, double spot_price, Timestamp valuation_time, TradingCalendar calendar)
 {
@@ -52,12 +59,16 @@ private:
     return PricingContext{std::move(model_parameters), spot_price, valuation_time, std::move(calendar)};
 }
 
+/// Creates a pricing context at an intraday valuation time using weekdays_calendar().
+/// @return The context, or an `invalid_spot_price` or `invalid_date` error.
 [[nodiscard]] inline Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters model_parameters, double spot_price, Timestamp valuation_time)
 {
     return make_pricing_context(std::move(model_parameters), spot_price, valuation_time, weekdays_calendar());
 }
 
+/// Creates a midnight pricing context for a date with an explicit calendar.
+/// @return The context, or an `invalid_spot_price` or `invalid_date` error.
 [[nodiscard]] inline Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters model_parameters, double spot_price, Date valuation_date, TradingCalendar calendar)
 {
@@ -69,6 +80,8 @@ private:
                                 std::move(calendar));
 }
 
+/// Creates a midnight pricing context for a date using weekdays_calendar().
+/// @return The context, or an `invalid_spot_price` or `invalid_date` error.
 [[nodiscard]] inline Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters model_parameters, double spot_price, Date valuation_date)
 {

@@ -10,18 +10,21 @@ namespace kiyosi {
 /// Named market conventions layered over make_snowball_option; each one only shapes the
 /// coupon and knock-out ladders before delegating to the authoritative factory.
 
+/// Terms for a constant-coupon, constant-knock-out snowball preset.
 struct StandardSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double coupon_rate{};                                                  ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};                                                 ///< Positive reference spot and upper strike.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level used at every observation.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a standard snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_standard_snowball(
     StandardSnowballTerms terms)
 {
@@ -42,20 +45,23 @@ struct StandardSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball whose knock-out level decreases by observation.
 struct StepDownSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double initial_knock_out_level{};
+    double coupon_rate{};             ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};            ///< Positive reference spot and upper strike.
+    double knock_in_level{};          ///< Positive downside knock-in level.
+    double initial_knock_out_level{}; ///< First positive knock-out level.
     /// Absolute underlying-price decrement applied at each observation.
     double knock_out_level_decrement{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a step-down snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_step_down_snowball(
     StepDownSnowballTerms terms)
 {
@@ -79,22 +85,25 @@ struct StepDownSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball whose coupon and knock-out level both decrease by observation.
 struct BothDownSnowballTerms {
-    double initial_coupon_rate{};
+    double initial_coupon_rate{}; ///< Coupon rate at the first observation.
     /// Absolute decimal-rate decrement applied at each observation (0.01 is one percentage point).
     double coupon_rate_decrement{};
-    double initial_spot{};
-    double knock_in_level{};
-    double initial_knock_out_level{};
+    double initial_spot{};            ///< Positive reference spot and upper strike.
+    double knock_in_level{};          ///< Positive downside knock-in level.
+    double initial_knock_out_level{}; ///< First positive knock-out level.
     /// Absolute underlying-price decrement applied at each observation.
     double knock_out_level_decrement{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a both-down snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_both_down_snowball(
     BothDownSnowballTerms terms)
 {
@@ -122,19 +131,22 @@ struct BothDownSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball with distinct knock-out and maturity coupons.
 struct DualCouponSnowballTerms {
-    double knock_out_coupon_rate{};
-    double maturity_coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double knock_out_coupon_rate{};                                        ///< Coupon rate paid after knock-out.
+    double maturity_coupon_rate{};                                         ///< Coupon rate paid at maturity when applicable.
+    double initial_spot{};                                                 ///< Positive reference spot and upper strike.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level used at every observation.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a dual-coupon snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_dual_coupon_snowball(
     DualCouponSnowballTerms terms)
 {
@@ -155,19 +167,22 @@ struct DualCouponSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball with a distinct final knock-out level.
 struct ParachuteSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    double final_knock_out_level{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double coupon_rate{};                                                  ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};                                                 ///< Positive reference spot and upper strike.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level before the final observation.
+    double final_knock_out_level{};                                        ///< Positive knock-out level at the final observation.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a parachute snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_parachute_snowball(
     ParachuteSnowballTerms terms)
 {
@@ -189,19 +204,22 @@ struct ParachuteSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball with an out-of-the-money upper settlement strike.
 struct OtmSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    double upper_strike{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double coupon_rate{};                                                  ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};                                                 ///< Positive reference spot.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level used at every observation.
+    double upper_strike{};                                                 ///< Positive upper settlement strike.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates an out-of-the-money snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_otm_snowball(
     OtmSnowballTerms terms)
 {
@@ -222,19 +240,22 @@ struct OtmSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball whose downside participation is capped by a lower strike.
 struct LossCappedSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    double lower_strike{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double coupon_rate{};                                                  ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};                                                 ///< Positive reference spot and upper strike.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level used at every observation.
+    double lower_strike{};                                                 ///< Non-negative downside settlement floor.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a loss-capped snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_loss_capped_snowball(
     LossCappedSnowballTerms terms)
 {
@@ -255,18 +276,21 @@ struct LossCappedSnowballTerms {
                                  .expiry_date = terms.expiry_date});
 }
 
+/// Terms for a snowball whose knock-in barrier is observed only at expiry.
 struct EuropeanSnowballTerms {
-    double coupon_rate{};
-    double initial_spot{};
-    double knock_in_level{};
-    double knock_out_level{};
-    std::vector<Date> observation_dates;
-    Date effective_date{};
-    Date expiry_date{};
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state};
-    double principal_ratio{SnowballTerms{}.principal_ratio};
+    double coupon_rate{};                                                  ///< Coupon rate used at knock-out and maturity.
+    double initial_spot{};                                                 ///< Positive reference spot and upper strike.
+    double knock_in_level{};                                               ///< Positive downside knock-in level.
+    double knock_out_level{};                                              ///< Positive knock-out level used at every observation.
+    std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
+    Date effective_date{};                                                 ///< First date of the note life.
+    Date expiry_date{};                                                    ///< Final date of the note life.
+    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
+/// Creates a European-knock-in snowball from named market terms.
+/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
 [[nodiscard]] inline Result<SnowballOption> make_european_snowball(
     EuropeanSnowballTerms terms)
 {

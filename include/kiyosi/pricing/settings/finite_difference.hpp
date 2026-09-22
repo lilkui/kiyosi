@@ -7,20 +7,24 @@
 
 namespace kiyosi {
 
+/// Time-marching schemes supported by finite-difference engines.
 enum class FiniteDifferenceScheme : unsigned char {
-    explicit_euler,
-    implicit_euler,
-    crank_nicolson,
+    explicit_euler, ///< First-order explicit Euler scheme.
+    implicit_euler, ///< First-order implicit Euler scheme.
+    crank_nicolson, ///< Second-order Crank-Nicolson scheme.
 };
 
 /// Aggregate configuration validated by finite-difference engines when price() is called.
 struct FiniteDifferenceSettings {
-    int asset_step_count = 200;
-    int time_step_count = 200;
-    FiniteDifferenceScheme scheme = FiniteDifferenceScheme::crank_nicolson;
-    std::optional<double> asset_upper_boundary{};
+    int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.
+    int time_step_count = 200;                                              ///< Number of time steps; must be positive.
+    FiniteDifferenceScheme scheme = FiniteDifferenceScheme::crank_nicolson; ///< Time-marching scheme.
+    std::optional<double> asset_upper_boundary{};                           ///< Positive upper spot boundary, or automatic when absent.
 };
 
+/// Validates finite-difference grid settings.
+/// @param settings Settings to validate.
+/// @return Success, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<void> validate_finite_difference_settings(
     const FiniteDifferenceSettings& settings)
 {

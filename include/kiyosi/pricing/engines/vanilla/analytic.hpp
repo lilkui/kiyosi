@@ -8,9 +8,11 @@
 
 namespace kiyosi {
 
+/// Closed-form Black-Scholes-Merton engine for European vanilla options.
 class KIYOSI_EXPORT AnalyticVanillaEngine {
 public:
     /// Returns intrinsic value with Greeks unavailable when valued at expiry_date.
+    /// @return Pricing measures, or a contract or context error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price(

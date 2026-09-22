@@ -14,12 +14,16 @@ namespace kiyosi {
 /// Monte Carlo valuation for vanilla European and American options.
 class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
+    /// Creates an engine with aggregate Monte Carlo settings.
     explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
+    /// Creates an engine with explicit path count, step count, seed, and backend.
     MonteCarloVanillaEngine(
         int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed,
         MonteCarloBackend backend = MonteCarloSettings{}.backend)
         : settings_{path_count, step_count, seed, backend} {}
 
+    /// Prices a European or American vanilla option.
+    /// @return Pricing measures, or a contract, context, settings, or backend error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&
                  (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
@@ -30,6 +34,7 @@ public:
         else return price_american(option, context);
     }
 
+    /// Returns the engine settings.
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:

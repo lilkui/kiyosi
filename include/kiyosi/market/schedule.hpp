@@ -17,6 +17,8 @@ namespace detail {
     std::vector<Date>, Date, Date, const TradingCalendar&);
 } // namespace detail
 
+/// Validates ordering and instrument-life bounds for a date schedule.
+/// @return Success, or an `invalid_date` error.
 [[nodiscard]] inline Result<void> validate_date_schedule(
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end)
 {
@@ -35,6 +37,8 @@ namespace detail {
     return {};
 }
 
+/// Validates one observation date against an instrument life and calendar.
+/// @return Success, or an `invalid_date` error.
 [[nodiscard]] inline Result<void> validate_observation_date(
     Date observation_date, Date instrument_start, Date instrument_end, const TradingCalendar& calendar)
 {
@@ -51,6 +55,8 @@ namespace detail {
     return {};
 }
 
+/// Validates ordering, life bounds, and trading-day status for observation dates.
+/// @return Success, or an `invalid_date` error.
 [[nodiscard]] inline Result<void> validate_observation_dates(
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end,
     const TradingCalendar& calendar)
@@ -70,15 +76,23 @@ namespace detail {
     return {};
 }
 
+/// Immutable, strictly ordered collection of contract observation dates.
 class ObservationSchedule {
 public:
+    /// Returns the underlying ordered dates.
     const std::vector<Date>& dates() const noexcept { return dates_; }
+    /// Returns the number of dates.
     std::size_t size() const noexcept { return dates_.size(); }
+    /// Returns whether the schedule has no dates.
     bool empty() const noexcept { return dates_.empty(); }
+    /// Returns the date at `index` without bounds checking.
     const Date& operator[](std::size_t index) const noexcept { return dates_[index]; }
+    /// Returns an iterator to the first date.
     auto begin() const noexcept { return dates_.begin(); }
+    /// Returns the past-the-end iterator.
     auto end() const noexcept { return dates_.end(); }
 
+    /// Compares the ordered date sequences.
     friend bool operator==(const ObservationSchedule&, const ObservationSchedule&) = default;
 
 private:

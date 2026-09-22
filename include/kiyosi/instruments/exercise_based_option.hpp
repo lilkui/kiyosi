@@ -27,23 +27,34 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 } // namespace detail
 
 /// An option built from an independent payoff and exercise style over shared option terms.
+/// @tparam Payoff Copyable payoff tag satisfying OptionPayoff.
+/// @tparam Exercise Copyable exercise-style tag satisfying OptionExercise.
 template <OptionPayoff Payoff, OptionExercise Exercise>
 class ExerciseBasedOption {
 public:
+    /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return terms_.option_type(); }
+    /// Returns the positive strike price.
     double strike() const noexcept { return terms_.strike(); }
+    /// Returns the first date of the option life.
     Date effective_date() const noexcept { return terms_.effective_date(); }
+    /// Returns the option expiry date.
     Date expiry_date() const noexcept { return terms_.expiry_date(); }
+    /// Returns the validated contractual terms.
     const OptionTerms& terms() const noexcept { return terms_; }
+    /// Returns the payoff tag.
     const Payoff& payoff() const noexcept { return payoff_; }
+    /// Returns the exercise-style tag.
     const Exercise& exercise() const noexcept { return exercise_; }
 
+    /// Returns the fixed payout when the payoff type provides one.
     double payout() const noexcept
         requires requires(const Payoff& value) { value.payout(); }
     {
         return payoff_.payout();
     }
 
+    /// Compares terms, payoff, and exercise style.
     friend bool operator==(const ExerciseBasedOption&, const ExerciseBasedOption&) = default;
 
 private:
@@ -93,6 +104,8 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     return detail::make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
 }
 
+/// Validates observation dates against an option's expiry and a trading calendar.
+/// @return Success, or an `invalid_date` error.
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline Result<void> validate_observation_dates(
     std::span<const Date> observation_dates, Date valuation_date,

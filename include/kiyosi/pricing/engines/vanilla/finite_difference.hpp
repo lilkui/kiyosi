@@ -12,12 +12,16 @@ namespace kiyosi {
 /// Uniform-grid finite-difference engine for vanilla European and American options.
 class KIYOSI_EXPORT FiniteDifferenceVanillaEngine {
 public:
+    /// Creates an engine with aggregate finite-difference settings.
     explicit FiniteDifferenceVanillaEngine(FiniteDifferenceSettings settings = {})
         : settings_(settings) {}
+    /// Creates an engine with explicit grid dimensions and scheme.
     FiniteDifferenceVanillaEngine(int asset_step_count, int time_step_count,
                                   FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
         : settings_{asset_step_count, time_step_count, scheme} {}
 
+    /// Prices a European or American vanilla option.
+    /// @return Pricing measures, or a contract, context, or settings error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&
                  (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
@@ -28,6 +32,7 @@ public:
         else return price_american(option, context);
     }
 
+    /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:

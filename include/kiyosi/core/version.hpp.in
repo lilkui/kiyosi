@@ -2,8 +2,11 @@
 
 namespace kiyosi {
 
+/// Library semantic-version major component.
 inline constexpr int version_major = @PROJECT_VERSION_MAJOR@;
+/// Library semantic-version minor component.
 inline constexpr int version_minor = @PROJECT_VERSION_MINOR@;
+/// Library semantic-version patch component.
 inline constexpr int version_patch = @PROJECT_VERSION_PATCH@;
 
 } // namespace kiyosi

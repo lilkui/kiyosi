@@ -13,19 +13,26 @@ namespace kiyosi {
 class BinaryBarrierOption;
 class TouchOption;
 
+/// Input terms shared by cash and asset binary barrier options.
 struct BinaryBarrierTerms {
-    OptionType option_type{};
-    double strike{};
-    Date effective_date{};
-    Date expiry_date{};
-    double barrier_level{};
-    BarrierType barrier_type{};
-    kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous};
-    std::vector<Date> observation_dates{};
+    OptionType option_type{};                                                      ///< Call-or-put direction.
+    double strike{};                                                               ///< Positive binary strike.
+    Date effective_date{};                                                         ///< First date of the contract life.
+    Date expiry_date{};                                                            ///< Final date of the contract life.
+    double barrier_level{};                                                        ///< Positive barrier trigger level.
+    BarrierType barrier_type{};                                                    ///< Barrier direction and activation behavior.
+    kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous}; ///< Monitoring frequency.
+    std::vector<Date> observation_dates{};                                         ///< Ordered dates for scheduled monitoring.
 };
 
+/// Creates a validated cash-paying binary barrier option.
+/// @param terms Strike, life, and barrier terms.
+/// @param payout Positive finite cash payout.
+/// @return The option, or an input-validation error.
 [[nodiscard]] Result<BinaryBarrierOption> make_cash_binary_barrier_option(
     BinaryBarrierTerms, double payout);
+/// Creates a validated asset-paying binary barrier option.
+/// @return The option, or an input-validation error.
 [[nodiscard]] Result<BinaryBarrierOption> make_asset_binary_barrier_option(BinaryBarrierTerms);
 
 namespace detail {
@@ -37,21 +44,35 @@ namespace detail {
 /// Strike-based binary option whose payoff also depends on a barrier_level event.
 class BinaryBarrierOption {
 public:
+    /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return terms_.option_type(); }
+    /// Returns the positive strike price.
     double strike() const noexcept { return terms_.strike(); }
+    /// Returns the cash-or-asset payoff.
     const BinaryPayoff& payoff() const noexcept { return payoff_; }
+    /// Returns the payoff denomination.
     PayoffType payoff_type() const noexcept { return kiyosi::payoff_type(payoff_); }
 
+    /// Returns the validated barrier terms.
     const BarrierTerms& barrier_terms() const noexcept { return barrier_; }
+    /// Returns the positive barrier level.
     double barrier_level() const noexcept { return barrier_.barrier_level(); }
+    /// Returns the barrier direction and activation behavior.
     BarrierType barrier_type() const noexcept { return barrier_.barrier_type(); }
+    /// Returns the monitoring frequency.
     kiyosi::ObservationMode observation_mode() const noexcept { return barrier_.observation_mode(); }
+    /// Returns the validated observation schedule.
     const ObservationSchedule& observation_schedule() const noexcept { return barrier_.observation_schedule(); }
+    /// Returns the ordered observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return barrier_.observation_dates(); }
+    /// Returns the average spacing between scheduled observations in years.
     double mean_observation_year_fraction() const noexcept { return barrier_.mean_observation_year_fraction(); }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return terms_.effective_date(); }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return terms_.expiry_date(); }
 
+    /// Compares all option, payoff, and barrier terms.
     friend bool operator==(const BinaryBarrierOption&, const BinaryBarrierOption&) = default;
 
 private:
@@ -105,21 +126,35 @@ namespace detail {
 /// Strike-free one-touch or no-touch contract paying cash or the asset.
 class TouchOption {
 public:
+    /// Returns the cash-or-asset payoff.
     const BinaryPayoff& payoff() const noexcept { return payoff_; }
+    /// Returns the payoff denomination.
     PayoffType payoff_type() const noexcept { return kiyosi::payoff_type(payoff_); }
+    /// Returns when the payoff settles.
     kiyosi::SettlementTiming settlement_timing() const noexcept { return settlement_timing_; }
 
+    /// Returns the validated barrier terms.
     const BarrierTerms& barrier_terms() const noexcept { return barrier_; }
+    /// Returns the positive barrier level.
     double barrier_level() const noexcept { return barrier_.barrier_level(); }
+    /// Returns whether this contract pays when the barrier is touched.
     bool is_one_touch() const noexcept { return barrier_.is_knock_in(); }
+    /// Returns whether this is an upward barrier.
     bool is_up() const noexcept { return barrier_.is_up(); }
+    /// Returns the monitoring frequency.
     kiyosi::ObservationMode observation_mode() const noexcept { return barrier_.observation_mode(); }
+    /// Returns the validated observation schedule.
     const ObservationSchedule& observation_schedule() const noexcept { return barrier_.observation_schedule(); }
+    /// Returns the ordered observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return barrier_.observation_dates(); }
+    /// Returns the average spacing between scheduled observations in years.
     double mean_observation_year_fraction() const noexcept { return barrier_.mean_observation_year_fraction(); }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return barrier_.effective_date(); }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return barrier_.expiry_date(); }
 
+    /// Compares the payoff, settlement timing, and barrier terms.
     friend bool operator==(const TouchOption&, const TouchOption&) = default;
 
 private:
@@ -181,6 +216,8 @@ namespace detail {
 
 } // namespace detail
 
+/// Creates an up one-touch option with a fixed cash payout.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_cash_one_touch_up(
     Date effective_date, Date expiry_date, double barrier_level, double payout,
     kiyosi::SettlementTiming settlement_timing = kiyosi::SettlementTiming::at_expiry,
@@ -192,6 +229,8 @@ namespace detail {
                                           std::move(observation_dates));
 }
 
+/// Creates a down one-touch option with a fixed cash payout.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_cash_one_touch_down(
     Date effective_date, Date expiry_date, double barrier_level, double payout,
     kiyosi::SettlementTiming settlement_timing = kiyosi::SettlementTiming::at_expiry,
@@ -203,6 +242,8 @@ namespace detail {
                                           std::move(observation_dates));
 }
 
+/// Creates an up no-touch option with a fixed cash payout at expiry.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_cash_no_touch_up(
     Date effective_date, Date expiry_date, double barrier_level, double payout,
     kiyosi::ObservationMode observation_mode = kiyosi::ObservationMode::continuous,
@@ -213,6 +254,8 @@ namespace detail {
                                           observation_mode, std::move(observation_dates));
 }
 
+/// Creates a down no-touch option with a fixed cash payout at expiry.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_cash_no_touch_down(
     Date effective_date, Date expiry_date, double barrier_level, double payout,
     kiyosi::ObservationMode observation_mode = kiyosi::ObservationMode::continuous,
@@ -223,6 +266,8 @@ namespace detail {
                                           observation_mode, std::move(observation_dates));
 }
 
+/// Creates an up one-touch option paying the underlying asset.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_asset_one_touch_up(
     Date effective_date, Date expiry_date, double barrier_level,
     kiyosi::SettlementTiming settlement_timing = kiyosi::SettlementTiming::at_expiry,
@@ -234,6 +279,8 @@ namespace detail {
                                            std::move(observation_dates));
 }
 
+/// Creates a down one-touch option paying the underlying asset.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_asset_one_touch_down(
     Date effective_date, Date expiry_date, double barrier_level,
     kiyosi::SettlementTiming settlement_timing = kiyosi::SettlementTiming::at_expiry,
@@ -245,6 +292,8 @@ namespace detail {
                                            std::move(observation_dates));
 }
 
+/// Creates an up no-touch option paying the underlying asset at expiry.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_asset_no_touch_up(
     Date effective_date, Date expiry_date, double barrier_level,
     kiyosi::ObservationMode observation_mode = kiyosi::ObservationMode::continuous,
@@ -255,6 +304,8 @@ namespace detail {
                                            std::move(observation_dates));
 }
 
+/// Creates a down no-touch option paying the underlying asset at expiry.
+/// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<TouchOption> make_asset_no_touch_down(
     Date effective_date, Date expiry_date, double barrier_level,
     kiyosi::ObservationMode observation_mode = kiyosi::ObservationMode::continuous,

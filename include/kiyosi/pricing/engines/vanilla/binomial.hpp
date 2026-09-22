@@ -13,9 +13,13 @@ namespace kiyosi {
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks are unavailable.
 class KIYOSI_EXPORT CoxRossRubinsteinVanillaEngine {
 public:
+    /// Creates an engine with aggregate binomial settings.
     explicit CoxRossRubinsteinVanillaEngine(BinomialSettings settings = {}) : settings_(settings) {}
+    /// Creates an engine with an explicit tree step count.
     explicit CoxRossRubinsteinVanillaEngine(int step_count) : settings_{step_count} {}
 
+    /// Prices a European or American vanilla option.
+    /// @return Pricing measures, or a contract, context, or settings error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires std::same_as<Payoff, VanillaPayoff> &&
                  (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
@@ -26,6 +30,7 @@ public:
         else return price_american(option, context);
     }
 
+    /// Returns the engine settings.
     BinomialSettings settings() const noexcept { return settings_; }
 
 private:

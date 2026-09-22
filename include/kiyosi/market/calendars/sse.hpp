@@ -6,6 +6,7 @@
 namespace kiyosi {
 
 /// Shanghai Stock Exchange: weekdays excluding the published mainland holiday closures.
+/// @return The SSE trading calendar with a 252-day annualization basis.
 [[nodiscard]] KIYOSI_EXPORT TradingCalendar sse_calendar();
 
 } // namespace kiyosi

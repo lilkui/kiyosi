@@ -11,27 +11,41 @@
 
 namespace kiyosi {
 
+/// Direction and activation behavior of a barrier.
 enum class BarrierType {
-    up_and_in,
-    up_and_out,
-    down_and_in,
-    down_and_out,
+    up_and_in,   ///< Activates when spot reaches or exceeds the barrier.
+    up_and_out,  ///< Terminates when spot reaches or exceeds the barrier.
+    down_and_in, ///< Activates when spot reaches or falls below the barrier.
+    down_and_out ///< Terminates when spot reaches or falls below the barrier.
 };
 
-enum class ObservationMode { continuous,
-                             scheduled };
+/// Barrier monitoring frequency.
+enum class ObservationMode {
+    continuous, ///< Monitor continuously throughout the contract life.
+    scheduled   ///< Monitor only on explicit observation dates.
+};
 
-enum class RebateTiming { at_hit,
-                          at_expiry };
+/// Payment timing for a barrier-option rebate.
+enum class RebateTiming {
+    at_hit,   ///< Pay when the barrier is hit.
+    at_expiry ///< Pay at contract expiry.
+};
 
-enum class SettlementTiming { at_hit,
-                              at_expiry };
+/// Settlement timing for a touch option.
+enum class SettlementTiming {
+    at_hit,   ///< Settle when the barrier is hit.
+    at_expiry ///< Settle at contract expiry.
+};
 
+/// Tests whether a barrier is triggered by upward spot movement.
+/// @return `true` for up-and-in and up-and-out barriers.
 [[nodiscard]] constexpr bool is_up_barrier(BarrierType kind) noexcept
 {
     return kind == BarrierType::up_and_in || kind == BarrierType::up_and_out;
 }
 
+/// Tests whether a barrier activates rather than terminates the contract.
+/// @return `true` for up-and-in and down-and-in barriers.
 [[nodiscard]] constexpr bool is_knock_in_barrier(BarrierType kind) noexcept
 {
     return kind == BarrierType::up_and_in || kind == BarrierType::down_and_in;
@@ -47,16 +61,26 @@ namespace detail {
 /// Trigger level, knock direction, and monitoring schedule shared by every barrier contract.
 class BarrierTerms {
 public:
+    /// Returns the positive barrier level.
     double barrier_level() const noexcept { return barrier_level_; }
+    /// Returns the barrier direction and activation behavior.
     BarrierType barrier_type() const noexcept { return barrier_type_; }
+    /// Returns the monitoring frequency.
     kiyosi::ObservationMode observation_mode() const noexcept { return observation_mode_; }
+    /// Returns the validated monitoring schedule.
     const ObservationSchedule& observation_schedule() const noexcept { return observation_dates_; }
+    /// Returns the ordered monitoring dates; empty for continuous monitoring.
     const std::vector<Date>& observation_dates() const noexcept { return observation_dates_.dates(); }
+    /// Returns the first date of the contract life.
     Date effective_date() const noexcept { return effective_date_; }
+    /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return expiry_date_; }
 
+    /// Returns whether this is an upward barrier.
     bool is_up() const noexcept { return is_up_barrier(barrier_type_); }
+    /// Returns whether this is a knock-in barrier.
     bool is_knock_in() const noexcept { return is_knock_in_barrier(barrier_type_); }
+    /// Returns whether monitoring is continuous.
     bool is_continuous() const noexcept { return observation_mode_ == ObservationMode::continuous; }
 
     /// Mean spacing between monitoring dates, used for the BGK discrete-barrier shift.
@@ -68,7 +92,9 @@ public:
                          static_cast<double>(observation_dates_.size());
     }
 
-    /// True when the barrier is being monitored on `date`.
+    /// Tests whether the barrier is monitored on a date.
+    /// @param date Date to test.
+    /// @return `true` for continuous monitoring or a scheduled observation date.
     bool is_monitored_on(Date date) const noexcept
     {
         if (is_continuous()) return true;
@@ -77,12 +103,15 @@ public:
         return false;
     }
 
-    /// True when `spot` sits on the knocked side of the barrier.
+    /// Tests whether a spot lies on the triggered side of the barrier.
+    /// @param spot Spot value to test.
+    /// @return `true` when `spot` breaches the barrier.
     bool is_breached_by(double spot) const noexcept
     {
         return is_up() ? spot >= barrier_level_ : spot <= barrier_level_;
     }
 
+    /// Compares the barrier level, type, schedule, and contract life.
     friend bool operator==(const BarrierTerms&, const BarrierTerms&) = default;
 
 private:

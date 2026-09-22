@@ -11,6 +11,8 @@ namespace kiyosi {
 /// Closed-form cash-or-nothing and asset-or-nothing valuation with analytic delta and gamma.
 class KIYOSI_EXPORT AnalyticDigitalEngine {
 public:
+    /// Prices a European cash-or-nothing or asset-or-nothing option.
+    /// @return Pricing measures, or a contract or context error.
     template <OptionPayoff Payoff, OptionExercise Exercise>
         requires(std::same_as<Payoff, CashOrNothingPayoff> ||
                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
