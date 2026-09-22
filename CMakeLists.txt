@@ -12,6 +12,7 @@ option(KIYOSI_INSTALL "Enable install rules" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+option(KIYOSI_BUILD_DOCS "Add the Doxygen XML documentation target" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" ${PROJECT_IS_TOP_LEVEL})
@@ -202,6 +203,19 @@ set_target_properties(kiyosi PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+if(KIYOSI_BUILD_DOCS)
+    find_package(Doxygen REQUIRED)
+    set(DOXYGEN_GENERATE_HTML NO)
+    set(DOXYGEN_GENERATE_XML YES)
+    set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/docs")
+    doxygen_add_docs(kiyosi-docs
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
+        COMMENT "Generate Doxygen XML documentation"
+    )
+endif()
+
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     include(FetchContent)
     FetchContent_Declare(
