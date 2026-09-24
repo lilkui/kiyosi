@@ -232,6 +232,7 @@ if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
 endif()
 
 if(KIYOSI_BUILD_BENCHMARKS)
+    find_package(QuantLib CONFIG QUIET)
     include(FetchContent)
     set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
     FetchContent_Declare(
