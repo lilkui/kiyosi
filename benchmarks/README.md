@@ -4,7 +4,11 @@
 
 ## Build and run
 
-Install QuantLib C++ with its CMake package, then configure a Release build. CMake adds QuantLib comparisons automatically when it finds the package. QuantLib 1.43 matches the version used by the repository's reference tooling. From a Visual Studio Developer PowerShell:
+Install QuantLib C++ with its CMake package, then configure a Release build. CMake adds QuantLib comparisons automatically when it finds the package. QuantLib 1.43 matches the version used by the repository's reference tooling.
+
+On Windows with vcpkg `QuantLib:x64-windows-static`, run `run-benchmarks.bat C:\path\to\vcpkg` from the repository root (or set `VCPKG_ROOT` and run it without an argument). The script builds and runs every registered CPU benchmark, including the QuantLib comparisons, and writes `build\windows-benchmarks\benchmarks.json`. CUDA benchmarks require a separate CUDA-enabled build.
+
+For a matrix-only run or a manually installed QuantLib package, use these commands from a Visual Studio Developer PowerShell:
 
 ```powershell
 cmake --preset windows-release -DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib
