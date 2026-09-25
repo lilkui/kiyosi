@@ -761,8 +761,8 @@ touch_state : BarrierTouchState or None
                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "settlement_timing"_a = SettlementTiming::at_expiry,
-               "observation_mode"_a = ObservationMode::continuous,
+               "settlement_timing"_a = default_one_touch_settlement_timing,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                cash_one_touch_doc);
@@ -778,8 +778,8 @@ touch_state : BarrierTouchState or None
                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "settlement_timing"_a = SettlementTiming::at_expiry,
-               "observation_mode"_a = ObservationMode::continuous,
+               "settlement_timing"_a = default_one_touch_settlement_timing,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                cash_one_touch_doc);
@@ -793,7 +793,7 @@ touch_state : BarrierTouchState or None
                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "observation_mode"_a = ObservationMode::continuous,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                cash_no_touch_doc);
@@ -807,7 +807,7 @@ touch_state : BarrierTouchState or None
                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "observation_mode"_a = ObservationMode::continuous,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                cash_no_touch_doc);
@@ -821,8 +821,8 @@ touch_state : BarrierTouchState or None
                        date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "settlement_timing"_a = SettlementTiming::at_expiry,
-               "observation_mode"_a = ObservationMode::continuous,
+               "settlement_timing"_a = default_one_touch_settlement_timing,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                asset_one_touch_doc);
@@ -836,8 +836,8 @@ touch_state : BarrierTouchState or None
                        date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "settlement_timing"_a = SettlementTiming::at_expiry,
-               "observation_mode"_a = ObservationMode::continuous,
+               "settlement_timing"_a = default_one_touch_settlement_timing,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                asset_one_touch_doc);
@@ -851,7 +851,7 @@ touch_state : BarrierTouchState or None
                        date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "observation_mode"_a = ObservationMode::continuous,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                asset_no_touch_doc);
@@ -865,7 +865,7 @@ touch_state : BarrierTouchState or None
                        date_sequence(observation_dates, "observation_dates"), touch_state));
                },
                nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "observation_mode"_a = ObservationMode::continuous,
+               "observation_mode"_a = default_touch_observation_mode,
                "observation_dates"_a = nb::make_tuple(),
                "touch_state"_a = std::nullopt,
                asset_no_touch_doc);

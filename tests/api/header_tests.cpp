@@ -63,6 +63,8 @@ static_assert(kiyosi::BarrierOptionTerms{}.rebate_timing == kiyosi::RebateTiming
 static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
 static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
 static_assert(kiyosi::SettlementTiming::at_expiry != kiyosi::SettlementTiming::at_hit);
+static_assert(kiyosi::default_touch_observation_mode == kiyosi::ObservationMode::continuous);
+static_assert(kiyosi::default_one_touch_settlement_timing == kiyosi::SettlementTiming::at_expiry);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
 static_assert(!kiyosi::SnowballTerms{}.barrier_state);
 static_assert(kiyosi::SnowballTerms{}.principal_ratio == 1.0);
