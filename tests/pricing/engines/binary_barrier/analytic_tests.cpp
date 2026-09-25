@@ -96,3 +96,33 @@ TEST_CASE("Binary and touch contracts distinguish past settlement from future pa
         valuation, expiry, 90.0, 10.0, kiyosi::SettlementTiming::at_hit);
     CHECK(*engine.price(touching_now, context) == 10.0);
 }
+
+TEST_CASE("Scheduled binary and touch contracts stop monitoring after their final observation")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, day(2025, 1, 3));
+    const kiyosi::AnalyticBinaryBarrierEngine engine;
+    auto terms = kiyosi::BinaryBarrierTerms{.option_type = kiyosi::OptionType::call,
+                                            .strike = 100.0,
+                                            .effective_date = effective,
+                                            .expiry_date = expiry,
+                                            .barrier_level = 120.0,
+                                            .barrier_type = kiyosi::BarrierType::up_and_in,
+                                            .observation_mode = kiyosi::ObservationMode::scheduled,
+                                            .observation_dates = {day(2025, 1, 2)},
+                                            .touch_state = kiyosi::BarrierTouchState::untouched};
+    CHECK(*engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context) == 0.0);
+    terms.barrier_type = kiyosi::BarrierType::up_and_out;
+    CHECK(*engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context) > 0.0);
+    const auto one_touch = *kiyosi::make_cash_one_touch_up(
+        effective, expiry, 120.0, 10.0, kiyosi::SettlementTiming::at_expiry,
+        kiyosi::ObservationMode::scheduled, {day(2025, 1, 2)}, kiyosi::BarrierTouchState::untouched);
+    const auto no_touch = *kiyosi::make_cash_no_touch_up(
+        effective, expiry, 120.0, 10.0,
+        kiyosi::ObservationMode::scheduled, {day(2025, 1, 2)}, kiyosi::BarrierTouchState::untouched);
+    CHECK(*engine.price(one_touch, context) == 0.0);
+    CHECK_THAT(*engine.price(no_touch, context),
+               Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05 * 363.0 / 365.0), 1e-12));
+}

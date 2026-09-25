@@ -118,6 +118,13 @@ public:
                          static_cast<double>(observation_dates_.size());
     }
 
+    /// Returns whether a scheduled observation can still occur at valuation or later.
+    bool has_remaining_observation(Timestamp valuation_time) const noexcept
+    {
+        return !observation_dates_.empty() &&
+               start_of_day(observation_dates_.dates().back()) >= valuation_time;
+    }
+
     /// Tests whether the barrier is monitored on a date.
     /// @param date Date to test.
     /// @return `true` within the contract life for continuous monitoring, or on a scheduled observation date.

@@ -91,6 +91,9 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
         return make_pricing_result(
             {{RiskMeasure::price, vanilla_digital(option, context, time)}});
     }
+    if (terms.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
+        return make_pricing_result({{RiskMeasure::price,
+                                     knock_in ? 0.0 : vanilla_digital(option, context, time)}});
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier_level();

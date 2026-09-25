@@ -891,6 +891,29 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertGreater(engine.price(cash, self.context), 0)
         self.assertGreater(engine.price(binary, self.context), 0)
 
+    def test_scheduled_barrier_has_no_risk_after_last_fixing(self):
+        start, expiry = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=self.parameters, spot_price=100,
+            valuation_time=date(2025, 1, 3),
+        )
+        barrier = BarrierOption(
+            option_type=OptionType.CALL, strike=100,
+            effective_date=start, expiry_date=expiry,
+            barrier_level=120, barrier_type=BarrierType.UP_AND_OUT,
+            observation_mode=ObservationMode.SCHEDULED,
+            observation_dates=[date(2025, 1, 2)],
+            touch_state=BarrierTouchState.UNTOUCHED,
+        )
+        vanilla = EuropeanOption(
+            option_type=OptionType.CALL, strike=100,
+            effective_date=start, expiry_date=expiry,
+        )
+        self.assertAlmostEqual(
+            AnalyticBarrierEngine().price(barrier, context),
+            AnalyticVanillaEngine().price(vanilla, context),
+        )
+
     def test_barrier_history_is_required_and_changes_remaining_value(self):
         terms = dict(option_type=OptionType.CALL, strike=100,
                      effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),

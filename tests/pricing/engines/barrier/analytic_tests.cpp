@@ -125,4 +125,29 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
                Catch::Matchers::WithinAbs(10.0 * std::exp(-0.04 * 184.0 / 365.0), 1e-12));
 }
 
+TEST_CASE("Analytic scheduled barriers stop monitoring after their final observation")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, day(2025, 1, 3));
+    const auto vanilla = *kiyosi::AnalyticVanillaEngine{}.price(
+        *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry), context);
+    auto terms = kiyosi::BarrierOptionTerms{.option_type = kiyosi::OptionType::call,
+                                            .strike = 100.0,
+                                            .effective_date = effective,
+                                            .expiry_date = expiry,
+                                            .barrier_level = 120.0,
+                                            .barrier_type = kiyosi::BarrierType::up_and_out,
+                                            .observation_mode = kiyosi::ObservationMode::scheduled,
+                                            .observation_dates = {day(2025, 1, 2)},
+                                            .touch_state = kiyosi::BarrierTouchState::untouched};
+    CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context),
+               Catch::Matchers::WithinAbs(vanilla, 1e-12));
+    terms.barrier_type = kiyosi::BarrierType::up_and_in;
+    terms.rebate = 10.0;
+    CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context),
+               Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05 * 363.0 / 365.0), 1e-12));
+}
+
 } // namespace
