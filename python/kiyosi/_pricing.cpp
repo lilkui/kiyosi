@@ -118,7 +118,7 @@ KiyosiError
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
         R"doc(Compute price and the explicitly selected Greeks tier.
 
-``GreeksLevel.basic`` requests delta and gamma; ``GreeksLevel.full`` requests
+``GreeksLevel.BASIC`` requests delta and gamma; ``GreeksLevel.FULL`` requests
 all ten Greeks. Native values are reused and missing feasible measures use
 numerical price differences. Unrequested or undefined measures are None, never
 zero sentinels. At expiry or a monitored barrier hit-state boundary, only price
@@ -541,9 +541,9 @@ void bind_engine_analytics(nb::module_& module)
 void bind_results(nb::module_& module)
 {
     nb::enum_<GreeksLevel>(module, "GreeksLevel",
-        "Explicit Greeks calculation tier; basic is delta/gamma, full is all ten Greeks.")
-        .value("basic", GreeksLevel::basic)
-        .value("full", GreeksLevel::full);
+        "Explicit Greeks calculation tier; BASIC is delta/gamma, FULL is all ten Greeks.")
+        .value("BASIC", GreeksLevel::basic)
+        .value("FULL", GreeksLevel::full);
 
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",

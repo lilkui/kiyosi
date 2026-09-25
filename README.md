@@ -56,10 +56,10 @@ context = PricingContext(
 engine = AnalyticVanillaEngine()
 print(engine.price(option, context))  # float; no Greeks are calculated
 
-basic = engine.price_with_greeks(option, context, GreeksLevel.basic)
+basic = engine.price_with_greeks(option, context, GreeksLevel.BASIC)
 print(basic.price, basic.delta, basic.gamma)
 
-full = engine.price_with_greeks(option, context, GreeksLevel.full)
+full = engine.price_with_greeks(option, context, GreeksLevel.FULL)
 print(full.vega, full.theta)
 ```
 
