@@ -46,7 +46,7 @@ concept can_price = requires(
     const Engine& engine, const Option& option, const kiyosi::PricingContext& context) {
     { engine.price(option, context) } -> std::same_as<kiyosi::Result<double>>;
     { engine.price_with_greeks(option, context, kiyosi::GreeksLevel::basic) }
-        -> std::same_as<kiyosi::Result<kiyosi::PricingResult>>;
+      -> std::same_as<kiyosi::Result<kiyosi::PricingResult>>;
 };
 
 template <typename Engine, typename Option, typename Settings>

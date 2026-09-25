@@ -39,7 +39,8 @@ concept implicit_greeks_level = requires(const Engine& engine, const EuropeanOpt
 };
 static_assert(!implicit_greeks_level<AnalyticVanillaEngine>);
 static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
-    std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())), Result<double>>);
+                                 std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
+                             Result<double>>);
 
 TEST_CASE("Pricing API separates scalar basic and full outputs", "[pricing-api]")
 {
@@ -85,7 +86,8 @@ TEST_CASE("Basic Greek completion uses only missing spot differences", "[pricing
     CHECK(risk_value(*basic, RiskMeasure::gamma) == Catch::Approx(2.0).margin(1e-5));
     calls.clear();
     const auto supplied = *make_pricing_result({{RiskMeasure::price, 10000.0},
-                                               {RiskMeasure::delta, 17.0}, {RiskMeasure::gamma, 0.0}});
+                                                {RiskMeasure::delta, 17.0},
+                                                {RiskMeasure::gamma, 0.0}});
     const auto preserved = detail::complete_greeks(engine, option, context, GreeksLevel::basic, {}, supplied);
     REQUIRE(preserved);
     CHECK(calls.empty());
@@ -123,14 +125,14 @@ TEST_CASE("Joint completion keeps unavailable stencils and propagates feasible f
     std::vector<PricingContext> calls;
     const auto native = *make_pricing_result({{RiskMeasure::price, 10000.0}});
     const auto unavailable = detail::complete_greeks(RecordingPriceEngine{calls}, option,
-        market(), GreeksLevel::basic, NumericalShiftSettings{.spot_shift = 100.0}, native);
+                                                     market(), GreeksLevel::basic, NumericalShiftSettings{.spot_shift = 100.0}, native);
     REQUIRE(unavailable);
     CHECK(risk_value(*unavailable, RiskMeasure::price) == 10000.0);
     CHECK_FALSE(unavailable->has(RiskMeasure::delta));
     CHECK_FALSE(unavailable->has(RiskMeasure::gamma));
     CHECK(calls.empty());
     const auto rejected = detail::complete_greeks(RecordingPriceEngine{calls, true}, option,
-        market(), GreeksLevel::basic, {}, native);
+                                                  market(), GreeksLevel::basic, {}, native);
     REQUIRE_FALSE(rejected);
     CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
     CHECK(rejected.error().message == "bump rejected");
@@ -158,10 +160,7 @@ TEST_CASE("Expiry suppresses all Greeks for every requested tier", "[pricing-api
 
 TEST_CASE("Monitored barrier equality leaves all Greeks unavailable", "[pricing-api]")
 {
-    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
-        .effective_date = effective, .expiry_date = expiry, .barrier_level = 100.0,
-        .barrier_type = BarrierType::down_and_out, .rebate = 2.0,
-        .touch_state = BarrierTouchState::untouched});
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 100.0, .barrier_type = BarrierType::down_and_out, .rebate = 2.0, .touch_state = BarrierTouchState::untouched});
     const AnalyticBarrierEngine engine;
     const auto scalar = engine.price(option, market());
     REQUIRE(scalar);
@@ -179,7 +178,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
     const auto result = calculate_numerical_risk_measures(RecordingPriceEngine{calls}, option,
-        market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
+                                                          market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
     REQUIRE(result);
     CHECK(risk_value(*result, RiskMeasure::theta) == 0.0);
     for (const auto& call : calls) {
@@ -210,7 +209,7 @@ TEST_CASE("Seeded Monte Carlo joint pricing is reproducible and matches scalar p
 TEST_CASE("Scalar and basic analytic pricing avoid overflowing higher Greeks", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 1e-160,
-        effective, expiry);
+                                                      effective, expiry);
     const kiyosi::AnalyticVanillaEngine engine;
     const auto context = market(1e-160);
     const auto scalar = engine.price(option, context);
@@ -232,7 +231,7 @@ struct SeedRecordingEngine {
     SeedRecordingSettings configuration;
     const SeedRecordingSettings& settings() const { return configuration; }
     kiyosi::Result<double> price(const kiyosi::EuropeanOption&,
-                                  const kiyosi::PricingContext& context) const
+                                 const kiyosi::PricingContext& context) const
     {
         configuration.calls->push_back(configuration.seed);
         return context.spot_price() * context.spot_price();
@@ -245,15 +244,16 @@ TEST_CASE("Unseeded joint pricing selects one seed without changing the engine",
     std::vector<std::optional<unsigned>> calls;
     const SeedRecordingEngine engine{{std::nullopt, &calls}};
     const auto result = kiyosi::detail::price_with_greeks(engine, option, market(),
-        kiyosi::GreeksLevel::basic, {}, [&](const auto& seeded) -> kiyosi::Result<kiyosi::PricingResult> {
-            const auto value = seeded.price(option, market());
-            if (!value) return std::unexpected(value.error());
-            return kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, *value}});
-        });
+                                                          kiyosi::GreeksLevel::basic, {}, [&](const auto& seeded) -> kiyosi::Result<kiyosi::PricingResult> {
+                                                              const auto value = seeded.price(option, market());
+                                                              if (!value) return std::unexpected(value.error());
+                                                              return kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, *value}});
+                                                          });
     REQUIRE(result);
     REQUIRE(calls.size() == 3);
     REQUIRE(calls.front().has_value());
-    for (const auto seed : calls) CHECK(seed == calls.front());
+    for (const auto seed : calls)
+        CHECK(seed == calls.front());
     CHECK_FALSE(engine.settings().seed.has_value());
     CHECK(risk_value(*result, kiyosi::RiskMeasure::delta) == Catch::Approx(200.0));
 }
@@ -276,16 +276,14 @@ struct SolverSeedRecordingEngine {
 TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
-    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0,
-        .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0},
-        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry},
-        .effective_date = effective, .expiry_date = expiry});
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
     std::vector<std::optional<unsigned>> calls;
     const SolverSeedRecordingEngine engine{{std::nullopt, &calls}};
     const auto check_calls = [&] {
         REQUIRE(calls.size() > 2);
         REQUIRE(calls.front().has_value());
-        for (const auto seed : calls) CHECK(seed == calls.front());
+        for (const auto seed : calls)
+            CHECK(seed == calls.front());
         calls.clear();
     };
 
@@ -303,18 +301,20 @@ TEST_CASE("Implied solvers keep one seed for every trial without changing the en
     const SolverSeedRecordingEngine seeded{{73, &calls}};
     REQUIRE(kiyosi::implied_volatility(seeded, option, market(), 0.3));
     REQUIRE(calls.size() > 2);
-    for (const auto seed : calls) CHECK(seed == 73);
+    for (const auto seed : calls)
+        CHECK(seed == 73);
 }
 TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility sensitivities", "[pricing-api]")
 {
-    const auto accumulator = *kiyosi::make_accumulator({.strike = 90.0, .knock_out_level = 100.0,
-        .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0,
-        .effective_date = effective, .expiry_date = expiry});
+    const auto accumulator = *kiyosi::make_accumulator({.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});
     const auto snowball = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1, 0.1},
-        .maturity_coupon_rate = 0.05, .knock_out_levels = {100.0, 100.0},
-        .observation_dates = {valuation, expiry},
-        .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0,
-        .effective_date = effective, .expiry_date = expiry});
+                                                                .maturity_coupon_rate = 0.05,
+                                                                .knock_out_levels = {100.0, 100.0},
+                                                                .observation_dates = {valuation, expiry},
+                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                                                .principal_ratio = 1.0,
+                                                                .effective_date = effective,
+                                                                .expiry_date = expiry});
     const auto check = [&](const auto& engine, const auto& option) {
         const auto result = engine.price_with_greeks(option, market(), kiyosi::GreeksLevel::full);
         REQUIRE(result);
@@ -322,11 +322,11 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
         CHECK(risk_value(*result, kiyosi::RiskMeasure::vega) == 0.0);
         CHECK(risk_value(*result, kiyosi::RiskMeasure::rho) == 0.0);
         for (const auto measure : {kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma,
-            kiyosi::RiskMeasure::speed, kiyosi::RiskMeasure::theta, kiyosi::RiskMeasure::charm,
-            kiyosi::RiskMeasure::color, kiyosi::RiskMeasure::vanna, kiyosi::RiskMeasure::zomma})
+                                   kiyosi::RiskMeasure::speed, kiyosi::RiskMeasure::theta, kiyosi::RiskMeasure::charm,
+                                   kiyosi::RiskMeasure::color, kiyosi::RiskMeasure::vanna, kiyosi::RiskMeasure::zomma})
             CHECK_FALSE(result->has(measure));
         const auto noon = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
-            100.0, kiyosi::start_of_day(valuation) + std::chrono::hours{12});
+                                                        100.0, kiyosi::start_of_day(valuation) + std::chrono::hours{12});
         const auto after = engine.price_with_greeks(option, noon, kiyosi::GreeksLevel::basic);
         REQUIRE(after);
         REQUIRE(after->has(kiyosi::RiskMeasure::delta));
@@ -342,9 +342,7 @@ TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[p
 {
     const auto start = day(2025, 1, 1);
     const auto option = *kiyosi::make_barrier_option(
-        {.option_type = kiyosi::OptionType::call, .strike = 100.0,
-         .effective_date = start, .expiry_date = day(2026, 1, 1),
-         .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out});
+        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = day(2026, 1, 1), .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out});
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     const auto result = kiyosi::AnalyticBarrierEngine{}.price_with_greeks(
@@ -369,11 +367,7 @@ TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-ap
     CHECK(volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
 
     const auto note = *kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05,
-         .knock_out_levels = {120.0, 120.0},
-         .observation_dates = {day(2025, 7, 1), expiry},
-         .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
-         .effective_date = day(2025, 1, 1), .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05, .knock_out_levels = {120.0, 120.0}, .observation_dates = {day(2025, 7, 1), expiry}, .barrier_state = kiyosi::AutocallableBarrierState::knocked_out, .effective_date = day(2025, 1, 1), .expiry_date = expiry});
     const auto coupon = kiyosi::implied_coupon(
         kiyosi::MonteCarloBinarySnowballEngine{{32, 1}}, note, market, 0.0,
         kiyosi::CouponQuoteConvention::shift_maturity_coupon);
@@ -386,10 +380,7 @@ TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-ap
     CHECK(note_volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
 
     const auto barrier = *kiyosi::make_barrier_option(
-        {.option_type = kiyosi::OptionType::call, .strike = 100.0,
-         .effective_date = day(2025, 1, 1), .expiry_date = expiry,
-         .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out,
-         .touch_state = kiyosi::BarrierTouchState::touched});
+        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = day(2025, 1, 1), .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out, .touch_state = kiyosi::BarrierTouchState::touched});
     const auto barrier_volatility = kiyosi::implied_volatility(
         kiyosi::AnalyticBarrierEngine{}, barrier, market, 0.0);
     REQUIRE_FALSE(barrier_volatility);

@@ -319,7 +319,7 @@ TEST_CASE("Binary barrier expiry_date uses inclusive hits and strict strikes")
     for (const auto& item : cases) {
         const auto check = [&](const auto& option) {
             CHECK(*kiyosi::AnalyticBinaryBarrierEngine{}.price(
-                                 option, context(100.0, 0.04, 0.01, 0.3, expiry_date)) == item.expected);
+                      option, context(100.0, 0.04, 0.01, 0.3, expiry_date)) == item.expected);
         };
         if (item.type) {
             const kiyosi::BinaryBarrierTerms terms{.option_type = *item.type,

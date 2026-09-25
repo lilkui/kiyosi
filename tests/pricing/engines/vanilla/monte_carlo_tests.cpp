@@ -78,12 +78,10 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     CHECK(std::abs(*first -
                    *kiyosi::AnalyticVanillaEngine{}.price(call, context)) < 0.5);
 
-
     const kiyosi::MonteCarloVanillaEngine american_engine{20'000, 20, 42};
     const auto american_result = american_engine.price(american, context);
     REQUIRE(american_result.has_value());
     CHECK(*american_result >= 0.0);
-
 
     CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{0, 2}.price(call, context).has_value());
     CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{20, 2}.price(american, context).has_value());
@@ -306,7 +304,6 @@ TEST_CASE("CUDA European Monte Carlo is seeded and deterministic", "[cuda]")
     CHECK(*first !=
           *different_path_count);
     CHECK(*first >= 0.0);
-
 }
 
 TEST_CASE("CUDA European Monte Carlo agrees with CPU and analytic prices", "[cuda]")

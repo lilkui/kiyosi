@@ -283,13 +283,16 @@ TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cro
             const std::vector<kiyosi::Date> dates = split ? std::vector{middle, expiry_date}
                                                           : std::vector{expiry_date};
             const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.08,
-                .initial_spot = scale, .knock_in_level = 0.5 * scale,
-                .knock_out_levels = std::vector(dates.size(), 2.0 * scale),
-                .coupon_barrier_levels = std::vector(dates.size(), 0.9 * scale),
-                .upper_strike = scale, .lower_strike = 0.0,
-                .observation_dates = dates,
-                .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                .effective_date = effective_date, .expiry_date = expiry_date});
+                                                           .initial_spot = scale,
+                                                           .knock_in_level = 0.5 * scale,
+                                                           .knock_out_levels = std::vector(dates.size(), 2.0 * scale),
+                                                           .coupon_barrier_levels = std::vector(dates.size(), 0.9 * scale),
+                                                           .upper_strike = scale,
+                                                           .lower_strike = 0.0,
+                                                           .observation_dates = dates,
+                                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
+                                                           .effective_date = effective_date,
+                                                           .expiry_date = expiry_date});
             REQUIRE(note);
             CAPTURE(scale, split);
             const auto context = market(scale, effective_date, 0.0, 1e-8);

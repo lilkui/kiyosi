@@ -18,12 +18,12 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const BinaryBarrierOption& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+                                                          GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
 
     /// Prices a one-touch or no-touch option.
@@ -35,12 +35,12 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const TouchOption& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+                                                          GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
 
 private:

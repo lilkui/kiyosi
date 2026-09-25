@@ -159,11 +159,7 @@ TEST_CASE("Scheduled barrier fixing does not recur later on its observation date
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 125.0, time);
     const auto barrier = *kiyosi::make_barrier_option(
-        {.option_type = kiyosi::OptionType::call, .strike = 100.0,
-         .effective_date = effective, .expiry_date = expiry,
-         .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out,
-         .observation_mode = kiyosi::ObservationMode::scheduled,
-         .observation_dates = {fixing}, .touch_state = kiyosi::BarrierTouchState::untouched});
+        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out, .observation_mode = kiyosi::ObservationMode::scheduled, .observation_dates = {fixing}, .touch_state = kiyosi::BarrierTouchState::untouched});
     const auto vanilla = *kiyosi::AnalyticVanillaEngine{}.price(
         *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry), context);
     CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(barrier, context),

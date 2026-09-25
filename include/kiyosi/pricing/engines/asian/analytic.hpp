@@ -19,14 +19,13 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const GeometricAveragePriceOption& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+                                                          GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
-
 
 private:
     [[nodiscard]] Result<PricingResult> price_native(const GeometricAveragePriceOption& option, const PricingContext& context) const;
@@ -46,14 +45,13 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const ArithmeticAveragePriceOption& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+                                                          GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
-
 
 private:
     [[nodiscard]] Result<PricingResult> price_native(const ArithmeticAveragePriceOption& option, const PricingContext& context) const;

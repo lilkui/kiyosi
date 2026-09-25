@@ -18,7 +18,9 @@ enum class GreeksLevel : std::uint8_t {
 };
 
 namespace detail {
-enum class RiskMeasureOutput { price_only, basic, all };
+enum class RiskMeasureOutput { price_only,
+                               basic,
+                               all };
 }
 
 /// Public risk-measure contract:

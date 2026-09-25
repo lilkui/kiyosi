@@ -29,9 +29,9 @@ public:
         GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
 
 private:

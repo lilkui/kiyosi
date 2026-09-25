@@ -77,10 +77,12 @@ inline Result<PricingResult> price_at_volatility(
     const double delta = sign * dividend_discount_factor * cumulative_d1;
     const double density_d1 = normal_pdf(d1);
     const double basic_gamma = density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)
-        ? dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time) : 0.0;
+                                   ? dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time)
+                                   : 0.0;
     if (requested_output == RiskMeasureOutput::basic) {
         auto result = make_pricing_result({{RiskMeasure::price, value},
-            {RiskMeasure::delta, delta}, {RiskMeasure::gamma, basic_gamma}});
+                                           {RiskMeasure::delta, delta},
+                                           {RiskMeasure::gamma, basic_gamma}});
         if (result && !result->all_finite())
             return std::unexpected(Error{ErrorCategory::invalid_result, "analytic Greeks are non-finite"});
         return result;

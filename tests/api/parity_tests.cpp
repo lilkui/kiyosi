@@ -124,14 +124,15 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const auto result = kiyosi::AnalyticVanillaEngine{}.price(*option, *context);
                 REQUIRE(result);
                 CHECK_THAT(*result, Catch::Matchers::WithinAbs(
-                                                                             std::stod(test.expected.at("price")), std::stod(test.tolerance)));
+                                        std::stod(test.expected.at("price")), std::stod(test.tolerance)));
                 if (test.kind == "pricing_greeks") {
                     const auto level = test.inputs.at("level") == "basic"
-                        ? kiyosi::GreeksLevel::basic : kiyosi::GreeksLevel::full;
+                                           ? kiyosi::GreeksLevel::basic
+                                           : kiyosi::GreeksLevel::full;
                     const auto joint = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(*option, *context, level);
                     REQUIRE(joint);
                     constexpr std::array names{"price", "delta", "gamma", "speed", "theta", "charm",
-                                                "color", "vega", "vanna", "zomma", "rho"};
+                                               "color", "vega", "vanna", "zomma", "rho"};
                     for (std::size_t i = 0; i < names.size(); ++i) {
                         INFO(names[i]);
                         const auto measure = static_cast<kiyosi::RiskMeasure>(i);

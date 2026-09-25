@@ -11,19 +11,19 @@ class PhoenixOption;
 
 /// Input terms used to construct a PhoenixOption.
 struct PhoenixTerms {
-    double coupon_rate{};                                                   ///< Finite annualized coupon rate per observation period (ACT/365 Fixed).
-    double initial_spot{};                                                  ///< Positive reference spot.
-    double knock_in_level{};                                                ///< Positive downside knock-in level.
-    std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    std::vector<double> coupon_barrier_levels;                              ///< Non-negative coupon barriers by observation.
-    double upper_strike{};                                                  ///< Positive upper settlement strike.
-    double lower_strike{};                                                  ///< Non-negative lower settlement strike.
-    std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
-    KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
+    double coupon_rate{};                                    ///< Finite annualized coupon rate per observation period (ACT/365 Fixed).
+    double initial_spot{};                                   ///< Positive reference spot.
+    double knock_in_level{};                                 ///< Positive downside knock-in level.
+    std::vector<double> knock_out_levels;                    ///< Positive knock-out levels by observation.
+    std::vector<double> coupon_barrier_levels;               ///< Non-negative coupon barriers by observation.
+    double upper_strike{};                                   ///< Positive upper settlement strike.
+    double lower_strike{};                                   ///< Non-negative lower settlement strike.
+    std::vector<Date> observation_dates;                     ///< Strictly ordered event dates.
+    KnockInObservationMode knock_in_observation_mode{};      ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Non-negative principal component in normalized payoff units.
-    Date effective_date{};                                                  ///< First date of the note life.
-    Date expiry_date{};                                                     ///< Final date of the note life.
+    double principal_ratio{1.0};                             ///< Non-negative principal component in normalized payoff units.
+    Date effective_date{};                                   ///< First date of the note life.
+    Date expiry_date{};                                      ///< Final date of the note life.
 };
 
 /// Creates a validated Phoenix autocallable.

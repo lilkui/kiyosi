@@ -128,12 +128,12 @@ Result<PricingResult> complete_greeks(
         return make_pricing_result({{RiskMeasure::price, *p0}});
     const auto need = [&](RiskMeasure measure) {
         return !native.has(measure) && (level == GreeksLevel::full ||
-            measure == RiskMeasure::delta || measure == RiskMeasure::gamma);
+                                        measure == RiskMeasure::delta || measure == RiskMeasure::gamma);
     };
     const double h = settings.spot_shift;
     const bool spot_discontinuity = at_spot_discontinuity(option, context);
     const bool spot_stencil_available = !spot_discontinuity && spot > h &&
-        std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
+                                        std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
     auto delta = *native.get(RiskMeasure::delta);
     auto gamma = *native.get(RiskMeasure::gamma);
     auto speed = *native.get(RiskMeasure::speed);
@@ -162,7 +162,8 @@ Result<PricingResult> complete_greeks(
 
     if (level == GreeksLevel::basic) {
         auto output = make_pricing_result({{RiskMeasure::price, *p0},
-            {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}});
+                                           {RiskMeasure::delta, delta},
+                                           {RiskMeasure::gamma, gamma}});
         if (output && !output->all_finite())
             return std::unexpected(Error{ErrorCategory::invalid_result, "numerical analytics are non-finite"});
         return output;
@@ -201,7 +202,7 @@ Result<PricingResult> complete_greeks(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(RiskMeasure::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
-                    (4.0 * h * vol_scale);
+                                                  (4.0 * h * vol_scale);
 
             const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / (h * h);
             const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / (h * h);
@@ -241,7 +242,8 @@ Result<PricingResult> complete_greeks(
     if constexpr (requires { option.averaging_start_date(); option.realized_average(); }) {
         const Timestamp averaging_start = start_of_day(option.averaging_start_date());
         time_stencil_available = option.realized_average() == 0.0
-                                     ? after <= averaging_start : before > averaging_start;
+                                     ? after <= averaging_start
+                                     : before > averaging_start;
     }
     const auto crosses_event = [&](Date date) {
         const Timestamp event = start_of_day(date);
@@ -253,13 +255,12 @@ Result<PricingResult> complete_greeks(
                                  terms.was_touched_before(after).has_value();
         if (!terms.is_continuous())
             time_stencil_available = time_stencil_available &&
-                std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), crosses_event);
+                                     std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), crosses_event);
     }
     if constexpr (requires { option.observation_dates(); option.barrier_state(); })
         time_stencil_available = time_stencil_available &&
-            std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
-    if constexpr (requires { option.accumulated_quantity(); } ||
-                  requires { option.knock_in_observation_mode(); }) {
+                                 std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
+    if constexpr (requires { option.accumulated_quantity(); } || requires { option.knock_in_observation_mode(); }) {
         bool daily_events = true;
         if constexpr (requires { option.knock_in_observation_mode(); })
             daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
@@ -300,10 +301,10 @@ Result<PricingResult> complete_greeks(
                 engine, option, context, spot - h, volatility, rate, after);
             if (!d_after_low) return std::unexpected(d_after_low.error());
             if (need(RiskMeasure::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
-                    (2.0 * h * day_scale);
+                                                  (2.0 * h * day_scale);
             if (need(RiskMeasure::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
-                      (*d_before - 2.0 * *t_before + *d_before_low)) /
-                     (h * h * day_scale));
+                                                    (*d_before - 2.0 * *t_before + *d_before_low)) /
+                                                   (h * h * day_scale));
         }
     }
 
@@ -357,11 +358,11 @@ template <typename Engine, typename Option>
     NumericalShiftSettings settings = {})
 {
     return detail::price_with_greeks(engine, option, context, GreeksLevel::full, settings,
-        [&](const auto& seeded_engine) -> Result<PricingResult> {
-            const auto value = detail::numerical_value(seeded_engine, option, context);
-            if (!value) return std::unexpected(value.error());
-            return make_pricing_result({{RiskMeasure::price, *value}});
-        });
+                                     [&](const auto& seeded_engine) -> Result<PricingResult> {
+                                         const auto value = detail::numerical_value(seeded_engine, option, context);
+                                         if (!value) return std::unexpected(value.error());
+                                         return make_pricing_result({{RiskMeasure::price, *value}});
+                                     });
 }
 
 } // namespace kiyosi

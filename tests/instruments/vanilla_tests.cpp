@@ -67,20 +67,18 @@ TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
         return kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, start, start, end);
     });
     check([](auto start, auto end) {
-        return kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call, .strike = 100.0,
-            .effective_date = start, .expiry_date = end, .barrier_level = 120.0,
-            .barrier_type = kiyosi::BarrierType::up_and_out});
+        return kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out});
     });
     check([](auto start, auto end) {
-        return kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
-            .daily_quantity = 1.0, .acceleration_factor = 2.0,
-            .effective_date = start, .expiry_date = end});
+        return kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     });
     check([](auto start, auto end) {
         return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
-            .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0},
-            .observation_dates = {end},
-            .effective_date = start, .expiry_date = end});
+                                                    .maturity_coupon_rate = 0.05,
+                                                    .knock_out_levels = {110.0},
+                                                    .observation_dates = {end},
+                                                    .effective_date = start,
+                                                    .expiry_date = end});
     });
 
     CHECK(kiyosi::validate_date_schedule({&later, 1}, later, earlier).error().category ==

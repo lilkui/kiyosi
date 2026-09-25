@@ -71,7 +71,8 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const double carry = rate - context.model_parameters().dividend_yield();
     const double period = actual_365_fixed_year_fraction(averaging_start, expiry);
     const double lead = valuation < averaging_start
-                            ? actual_365_fixed_year_fraction(valuation, averaging_start) : 0.0;
+                            ? actual_365_fixed_year_fraction(valuation, averaging_start)
+                            : 0.0;
     const double future = actual_365_fixed_year_fraction(std::max(valuation, averaging_start), expiry);
     const double weight = period > 0.0 ? future / period : 1.0;
     // The future log-average has Brownian variance proportional to lead + future / 3.

@@ -100,10 +100,7 @@ TEST_CASE("Accumulator engines reject nominal weekend expiry and accept adjusted
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 110.0, day(2025, 1, 3), calendar);
     const auto option = [&](kiyosi::Date expiry) {
-        return *kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 1000.0,
-                                          .daily_quantity = 0.0, .acceleration_factor = 1.0,
-                                          .accumulated_quantity = 1.0,
-                                          .effective_date = day(2025, 1, 3), .expiry_date = expiry});
+        return *kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 1000.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 1.0, .effective_date = day(2025, 1, 3), .expiry_date = expiry});
     };
     const auto unadjusted = option(nominal);
     const auto adjusted_expiry = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);

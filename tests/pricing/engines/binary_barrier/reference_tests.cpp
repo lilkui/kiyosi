@@ -115,9 +115,9 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                                                 effective_date, expiry_date, barrier, settlement_timing,
                                                 kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::untouched))
                                     : (up ? kiyosi::make_asset_no_touch_up(effective_date, expiry_date, barrier,
-                                                                            kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::untouched)
+                                                                           kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::untouched)
                                           : kiyosi::make_asset_no_touch_down(effective_date, expiry_date, barrier,
-                                                                              kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::untouched));
+                                                                             kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::untouched));
             REQUIRE(option);
             check(*option);
         } else {

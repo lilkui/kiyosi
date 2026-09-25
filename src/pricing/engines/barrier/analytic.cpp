@@ -82,7 +82,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     if (option.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
         return make_price_delta_gamma_result(knock_in ? option.rebate() * std::exp(-rate * t)
-                                                       : *vanilla->require(RiskMeasure::price));
+                                                      : *vanilla->require(RiskMeasure::price));
     if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;

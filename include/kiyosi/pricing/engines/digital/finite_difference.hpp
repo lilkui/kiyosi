@@ -42,10 +42,9 @@ public:
         GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context, level == GreeksLevel::basic
-                    ? detail::RiskMeasureOutput::basic : detail::RiskMeasureOutput::all);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context, level == GreeksLevel::basic ? detail::RiskMeasureOutput::basic : detail::RiskMeasureOutput::all);
+                                         });
     }
 
     /// Returns the engine settings.

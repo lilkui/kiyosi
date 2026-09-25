@@ -13,46 +13,46 @@ class TernarySnowballOption;
 
 /// Input terms used to construct a SnowballOption.
 struct SnowballTerms {
-    std::vector<double> knock_out_coupon_rates;                             ///< Finite knock-out coupons by observation.
-    double maturity_coupon_rate{};                                          ///< Finite coupon paid at maturity when applicable.
-    double initial_spot{};                                                  ///< Positive reference spot.
-    double knock_in_level{};                                                ///< Positive downside knock-in level.
-    std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    double upper_strike{};                                                  ///< Positive upper settlement strike.
-    double lower_strike{};                                                  ///< Non-negative lower settlement strike.
-    std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
-    KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
+    std::vector<double> knock_out_coupon_rates;              ///< Finite knock-out coupons by observation.
+    double maturity_coupon_rate{};                           ///< Finite coupon paid at maturity when applicable.
+    double initial_spot{};                                   ///< Positive reference spot.
+    double knock_in_level{};                                 ///< Positive downside knock-in level.
+    std::vector<double> knock_out_levels;                    ///< Positive knock-out levels by observation.
+    double upper_strike{};                                   ///< Positive upper settlement strike.
+    double lower_strike{};                                   ///< Non-negative lower settlement strike.
+    std::vector<Date> observation_dates;                     ///< Strictly ordered event dates.
+    KnockInObservationMode knock_in_observation_mode{};      ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
-    Date effective_date{};                                                  ///< First date of the note life.
-    Date expiry_date{};                                                     ///< Final date of the note life.
+    double principal_ratio{1.0};                             ///< Normalized principal repayment component.
+    Date effective_date{};                                   ///< First date of the note life.
+    Date expiry_date{};                                      ///< Final date of the note life.
 };
 
 /// Input terms used to construct a TernarySnowballOption.
 struct TernarySnowballTerms {
-    std::vector<double> knock_out_coupon_rates;                             ///< Finite knock-out coupons by observation.
-    double maturity_coupon_rate{};                                          ///< Finite coupon paid at maturity before knock-in adjustment.
-    double minimum_coupon_rate{};                                           ///< Finite maturity-coupon floor after knock-in.
-    double knock_in_level{};                                                ///< Positive downside knock-in level.
-    std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
-    KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
+    std::vector<double> knock_out_coupon_rates;              ///< Finite knock-out coupons by observation.
+    double maturity_coupon_rate{};                           ///< Finite coupon paid at maturity before knock-in adjustment.
+    double minimum_coupon_rate{};                            ///< Finite maturity-coupon floor after knock-in.
+    double knock_in_level{};                                 ///< Positive downside knock-in level.
+    std::vector<double> knock_out_levels;                    ///< Positive knock-out levels by observation.
+    std::vector<Date> observation_dates;                     ///< Strictly ordered event dates.
+    KnockInObservationMode knock_in_observation_mode{};      ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
-    Date effective_date{};                                                  ///< First date of the note life.
-    Date expiry_date{};                                                     ///< Final date of the note life.
+    double principal_ratio{1.0};                             ///< Normalized principal repayment component.
+    Date effective_date{};                                   ///< First date of the note life.
+    Date expiry_date{};                                      ///< Final date of the note life.
 };
 
 /// Input terms used to construct a BinarySnowballOption.
 struct BinarySnowballTerms {
-    std::vector<double> knock_out_coupon_rates;                             ///< Finite knock-out coupons by observation.
-    double maturity_coupon_rate{};                                          ///< Finite flat maturity coupon.
-    std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
+    std::vector<double> knock_out_coupon_rates;              ///< Finite knock-out coupons by observation.
+    double maturity_coupon_rate{};                           ///< Finite flat maturity coupon.
+    std::vector<double> knock_out_levels;                    ///< Positive knock-out levels by observation.
+    std::vector<Date> observation_dates;                     ///< Strictly ordered event dates.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
-    Date effective_date{};                                                  ///< First date of the note life.
-    Date expiry_date{};                                                     ///< Final date of the note life.
+    double principal_ratio{1.0};                             ///< Normalized principal repayment component.
+    Date effective_date{};                                   ///< First date of the note life.
+    Date expiry_date{};                                      ///< Final date of the note life.
 };
 
 /// Creates a validated knock-in snowball.
@@ -108,8 +108,8 @@ public:
 
 private:
     using AutocallableNote::initial_spot;
-    using AutocallableNote::upper_strike;
     using AutocallableNote::lower_strike;
+    using AutocallableNote::upper_strike;
     BinarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                          double initial_spot, std::vector<double> knock_out_levels,
                          double upper_strike, double lower_strike, std::vector<Date> observation_dates,
@@ -140,8 +140,8 @@ public:
 
 private:
     using KnockInAutocallableNote::initial_spot;
-    using KnockInAutocallableNote::upper_strike;
     using KnockInAutocallableNote::lower_strike;
+    using KnockInAutocallableNote::upper_strike;
     TernarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                           double minimum_coupon_rate, double initial_spot, double knock_in_level,
                           std::vector<double> knock_out_levels, double upper_strike,

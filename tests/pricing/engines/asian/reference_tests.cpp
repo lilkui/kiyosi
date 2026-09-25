@@ -113,7 +113,11 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     REQUIRE(context);
     const kiyosi::AnalyticGeometricAveragePriceEngine engine;
 
-    struct Case { kiyosi::Date start; double realized; double expected; };
+    struct Case {
+        kiyosi::Date start;
+        double realized;
+        double expected;
+    };
     const std::array cases{
         Case{effective, 80.0, 0.005141652127146822},
         Case{effective, 120.0, 9.472410353379193},

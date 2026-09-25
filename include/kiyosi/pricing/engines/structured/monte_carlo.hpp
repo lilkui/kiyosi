@@ -33,12 +33,12 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+                                                          GreeksLevel level, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, level, settings,
-            [&](const auto& engine) {
-                return engine.price_native(option, context);
-            });
+                                         [&](const auto& engine) {
+                                             return engine.price_native(option, context);
+                                         });
     }
 
     /// Returns the engine settings.

@@ -159,7 +159,7 @@ struct RecordingEngine {
     kiyosi::Timestamp origin;
 
     kiyosi::Result<double> price(const kiyosi::EuropeanOption&,
-                                                const kiyosi::PricingContext& context) const
+                                 const kiyosi::PricingContext& context) const
     {
         moments.push_back(context.valuation_time());
         const double elapsed_days = std::chrono::duration<double, std::ratio<86400>>{
