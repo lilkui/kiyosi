@@ -357,4 +357,44 @@ TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[p
     CHECK_FALSE(result->has(kiyosi::RiskMeasure::color));
 }
 
+TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
+{
+    const auto market = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 110.0, expiry);
+    const auto call = *kiyosi::make_european_option(
+        kiyosi::OptionType::call, 100.0, day(2025, 1, 1), expiry);
+    const auto volatility = kiyosi::implied_volatility(
+        kiyosi::AnalyticVanillaEngine{}, call, market, 10.0);
+    REQUIRE_FALSE(volatility);
+    CHECK(volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
+
+    const auto note = *kiyosi::make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
+         .initial_spot = 100.0, .knock_out_levels = {120.0},
+         .upper_strike = 100.0, .lower_strike = 60.0,
+         .observation_dates = {expiry},
+         .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
+         .effective_date = day(2025, 1, 1), .expiry_date = expiry});
+    const auto coupon = kiyosi::implied_coupon(
+        kiyosi::MonteCarloBinarySnowballEngine{{32, 1}}, note, market, 0.0,
+        kiyosi::CouponQuoteConvention::shift_maturity_coupon);
+    REQUIRE_FALSE(coupon);
+    CHECK(coupon.error().category == kiyosi::ErrorCategory::unsupported_operation);
+
+    const auto note_volatility = kiyosi::implied_volatility(
+        kiyosi::MonteCarloBinarySnowballEngine{{32, 1}}, note, market, 0.0);
+    REQUIRE_FALSE(note_volatility);
+    CHECK(note_volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
+
+    const auto barrier = *kiyosi::make_barrier_option(
+        {.option_type = kiyosi::OptionType::call, .strike = 100.0,
+         .effective_date = day(2025, 1, 1), .expiry_date = expiry,
+         .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out,
+         .touch_state = kiyosi::BarrierTouchState::touched});
+    const auto barrier_volatility = kiyosi::implied_volatility(
+        kiyosi::AnalyticBarrierEngine{}, barrier, market, 0.0);
+    REQUIRE_FALSE(barrier_volatility);
+    CHECK(barrier_volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
+}
+
 } // namespace

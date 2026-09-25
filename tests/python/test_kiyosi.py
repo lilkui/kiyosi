@@ -267,6 +267,35 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertAlmostEqual(implied, -0.1, delta=1e-7)
 
+    def test_implied_parameters_reject_known_unidentifiable_states(self):
+        expiry = date(2026, 1, 1)
+        expired = PricingContext(
+            model_parameters=self.parameters, spot_price=110,
+            valuation_time=expiry,
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            implied_volatility(AnalyticVanillaEngine(), self.option, expired, 10)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[0.1, 0.1], maturity_coupon_rate=0.05,
+            knock_out_levels=[120, 120],
+            observation_dates=[date(2025, 7, 1), expiry],
+            barrier_state=AutocallableBarrierState.KNOCKED_OUT,
+            effective_date=date(2025, 1, 1), expiry_date=expiry,
+        )
+        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=1)
+        for solve in (
+            lambda: implied_volatility(engine, note, expired, 0),
+            lambda: implied_coupon(
+                engine, note, expired, 0,
+                quote_convention=pricing.CouponQuoteConvention.SHIFT_MATURITY_COUPON,
+            ),
+        ):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                solve()
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
     def test_binary_snowball_rejects_knock_in_history(self):
         expiry = date(2026, 1, 1)
         terms = dict(

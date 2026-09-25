@@ -23,6 +23,8 @@ namespace kiyosi {
 /// @param settings Positive bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// A root is not guaranteed unique; expiry payoffs and terminated knock-out contracts
+/// independent of volatility are rejected.
 /// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
@@ -60,6 +62,21 @@ template <typename Engine, typename Option>
     if (!fhi) return std::unexpected(fhi.error());
     double elo = *flo - observed_price;
     const double ehi = *fhi - observed_price;
+    const bool matches_both_bounds =
+        std::abs(elo) <= settings.tolerance && std::abs(ehi) <= settings.tolerance;
+    if constexpr (requires { option.expiry_date(); })
+        if (context.valuation_time() == start_of_day(option.expiry_date()) && matches_both_bounds)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "volatility is not identifiable at expiry"});
+    if constexpr (requires { option.barrier_state(); })
+        if (option.barrier_state() == AutocallableBarrierState::knocked_out && matches_both_bounds)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "volatility is not identifiable after knock-out"});
+    if constexpr (requires { option.barrier_terms(); })
+        if (option.barrier_terms().touch_state() == BarrierTouchState::touched &&
+            !option.barrier_terms().is_knock_in() && matches_both_bounds)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "volatility is not identifiable after knock-out"});
     if (std::abs(elo) <= settings.tolerance) return lo;
     if (std::abs(ehi) <= settings.tolerance) return hi;
     if ((elo < 0.0) == (ehi < 0.0))
@@ -226,6 +243,11 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     if (!flo) return std::unexpected(flo.error());
     auto fhi = evaluate(hi);
     if (!fhi) return std::unexpected(fhi.error());
+    if constexpr (requires { option.barrier_state(); })
+        if (option.barrier_state() == AutocallableBarrierState::knocked_out &&
+            std::abs(*flo) <= settings.tolerance && std::abs(*fhi) <= settings.tolerance)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "coupon is not identifiable after knock-out"});
     if (std::abs(*flo) <= settings.tolerance) return lo;
     if (std::abs(*fhi) <= settings.tolerance) return hi;
     if ((*flo < 0.0) == (*fhi < 0.0))
@@ -259,6 +281,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// A root is not guaranteed unique; an already knocked-out note is rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
