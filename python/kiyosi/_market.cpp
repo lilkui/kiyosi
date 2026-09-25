@@ -470,7 +470,7 @@ TradingCalendar
 Returns
 -------
 TradingCalendar
-    Exchange calendar with 252 annual trading days.)doc");
+    Exchange calendar with 243 annual trading days.)doc");
     module.def(
         "fixed_interval_schedule",
         [](PythonDate start, PythonDate end, PythonInteger interval_days,
