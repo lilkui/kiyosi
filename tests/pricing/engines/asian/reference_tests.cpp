@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <string>
+#include <utility>
 
 #include "support/reference_harness.hpp"
 
@@ -202,6 +203,33 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
         kiyosi::OptionType::call, 100.0, expiry, effective, expiry);
     REQUIRE(valid_single);
     CHECK(*asian_engine.price(*valid_single, *at_expiry) == 10.0);
+}
+
+TEST_CASE("Arithmetic Asian moment matching remains stable at carry singularities")
+{
+    const auto start = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = kiyosi::Date{std::chrono::year{2026} / 1 / 1};
+    const auto option = kiyosi::make_arithmetic_average_option(
+        kiyosi::OptionType::call, 100.0, start, start, expiry);
+    REQUIRE(option);
+    const kiyosi::TurnbullWakemanArithmeticAveragePriceEngine engine;
+    const std::array cases{
+        std::pair{0.02, 4.097769938360},
+        std::pair{0.04, 3.624512942693},
+        std::pair{0.2 * 0.2, 3.624512942693},
+        std::pair{0.04 - 1e-6, 3.624535605482},
+        std::pair{0.04 + 1e-6, 3.624490280002},
+    };
+    for (const auto& [dividend, expected] : cases) {
+        INFO("dividend=" << dividend);
+        const auto parameters = kiyosi::make_bsm_parameters(0.0, dividend, 0.2);
+        REQUIRE(parameters);
+        const auto context = kiyosi::make_pricing_context(*parameters, 100.0, start);
+        REQUIRE(context);
+        const auto price = engine.price(*option, *context);
+        REQUIRE(price);
+        CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected, 1e-9));
+    }
 }
 
 TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has begun")

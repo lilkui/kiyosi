@@ -19,6 +19,31 @@ Result<double> time_to_expiry(const PricingContext& context, Date effective_date
     if (!valid) return std::unexpected(valid.error());
     return actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
 }
+double exprel(double value)
+{
+    return value == 0.0 ? 1.0 : std::expm1(value) / value;
+}
+double divided_exprel(double x, double y)
+{
+    if (std::max(std::abs(x), std::abs(y)) < 0.5) {
+        double sum = 0.5;
+        double homogeneous = 1.0;
+        double y_power = 1.0;
+        double factorial = 2.0;
+        for (int n = 1; n <= 16; ++n) {
+            y_power *= y;
+            homogeneous = x * homogeneous + y_power;
+            factorial *= n + 2;
+            sum += homogeneous / factorial;
+        }
+        return sum;
+    }
+    if (std::abs(x - y) < 1e-5) {
+        const double midpoint = (x + y) / 2.0;
+        return ((midpoint - 1.0) * std::exp(midpoint) + 1.0) / (midpoint * midpoint);
+    }
+    return (exprel(x) - exprel(y)) / (x - y);
+}
 } // namespace
 
 Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
@@ -102,9 +127,10 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double average_period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
     const double t1 = std::max(0.0, tau - average_period);
     const double remaining = average_period - tau;
-    const double m1 = std::abs(carry) < 1e-12
-                          ? 1.0
-                          : (std::exp(carry * tau) - std::exp(carry * t1)) / (carry * (tau - t1));
+    const double delta = tau - t1;
+    const double m1 = std::exp(carry * t1) * exprel(carry * delta);
+    if (!std::isfinite(m1) || m1 <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid moment"});
     double adjusted_strike = strike;
     double scale = 1.0;
     if (remaining > 0.0) {
@@ -119,21 +145,17 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
                   std::max(expected - strike, 0.0) * std::exp(-rate * tau)}});
         }
     }
-    const double b_a = std::log(m1) / tau;
     const double vol2 = sigma * sigma;
-    const double delta = tau - t1;
-    const double delta2 = delta * delta;
-    double m2;
-    if (std::abs(carry) < 1e-12) {
-        m2 = 2.0 * std::exp(vol2 * tau) / (vol2 * vol2 * delta2) -
-             2.0 * std::exp(vol2 * t1) * (1.0 + vol2 * delta) / (vol2 * vol2 * delta2);
-    } else {
-        const double two = 2.0 * carry + vol2;
-        const double one = carry + vol2;
-        m2 = 2.0 * std::exp(two * tau) / (one * two * delta2) +
-             2.0 * std::exp(two * t1) / (carry * delta2) * (1.0 / two - std::exp(carry * delta) / one);
-    }
-    const double adjusted_vol = std::sqrt(std::max(0.0, std::log(m2) / tau - 2.0 * b_a));
+    // The second moment is a divided difference of (exp(x) - 1) / x.
+    const double m2 = 2.0 * std::exp((2.0 * carry + vol2) * t1) *
+                      divided_exprel((2.0 * carry + vol2) * delta, carry * delta);
+    if (!std::isfinite(m2) || m2 <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid moment"});
+    const double log_variance = std::log(m2) - 2.0 * std::log(m1);
+    if (!std::isfinite(log_variance) || log_variance < -1e-12)
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid variance"});
+    const double b_a = std::log(m1) / tau;
+    const double adjusted_vol = std::sqrt(std::max(0.0, log_variance / tau));
     const double root = adjusted_vol * std::sqrt(tau);
     if (root < 1e-12) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
