@@ -160,7 +160,8 @@ TEST_CASE("Monitored barrier equality leaves all Greeks unavailable", "[pricing-
 {
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
         .effective_date = effective, .expiry_date = expiry, .barrier_level = 100.0,
-        .barrier_type = BarrierType::down_and_out, .rebate = 2.0});
+        .barrier_type = BarrierType::down_and_out, .rebate = 2.0,
+        .touch_state = BarrierTouchState::untouched});
     const AnalyticBarrierEngine engine;
     const auto scalar = engine.price(option, market());
     REQUIRE(scalar);

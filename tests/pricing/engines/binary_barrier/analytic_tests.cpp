@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -56,4 +57,42 @@ TEST_CASE("Touch factories require only payoff-relevant terms")
     CHECK_FALSE(asset->is_up());
     CHECK(asset->payoff_type() == kiyosi::PayoffType::asset);
     CHECK(asset->settlement_timing() == kiyosi::SettlementTiming::at_expiry);
+}
+
+TEST_CASE("Binary and touch contracts distinguish past settlement from future payoff")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto valuation = day(2025, 7, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, valuation);
+    const kiyosi::AnalyticBinaryBarrierEngine engine;
+    auto terms = kiyosi::BinaryBarrierTerms{.option_type = kiyosi::OptionType::call,
+                                            .strike = 90.0,
+                                            .effective_date = effective,
+                                            .expiry_date = expiry,
+                                            .barrier_level = 120.0,
+                                            .barrier_type = kiyosi::BarrierType::up_and_out};
+    const auto missing = engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context);
+    REQUIRE_FALSE(missing);
+    CHECK(missing.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    terms.touch_state = kiyosi::BarrierTouchState::untouched;
+    CHECK(*engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context) > 0.0);
+    terms.touch_state = kiyosi::BarrierTouchState::touched;
+    CHECK(*engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context) == 0.0);
+    terms.barrier_type = kiyosi::BarrierType::up_and_in;
+    CHECK(*engine.price(*kiyosi::make_cash_binary_barrier_option(terms, 10.0), context) > 0.0);
+
+    const auto at_hit = *kiyosi::make_cash_one_touch_up(
+        effective, expiry, 120.0, 10.0, kiyosi::SettlementTiming::at_hit,
+        kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::touched);
+    const auto at_expiry = *kiyosi::make_cash_one_touch_up(
+        effective, expiry, 120.0, 10.0, kiyosi::SettlementTiming::at_expiry,
+        kiyosi::ObservationMode::continuous, {}, kiyosi::BarrierTouchState::touched);
+    CHECK(*engine.price(at_hit, context) == 0.0);
+    CHECK_THAT(*engine.price(at_expiry, context),
+               Catch::Matchers::WithinAbs(10.0 * std::exp(-0.04 * 184.0 / 365.0), 1e-12));
+    const auto touching_now = *kiyosi::make_cash_one_touch_up(
+        valuation, expiry, 90.0, 10.0, kiyosi::SettlementTiming::at_hit);
+    CHECK(*engine.price(touching_now, context) == 10.0);
 }

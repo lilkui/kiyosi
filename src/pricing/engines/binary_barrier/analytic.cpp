@@ -52,12 +52,11 @@ double vanilla_digital(const BinaryBarrierContractView& option, const PricingCon
                                    : option.payout * std::exp(-rate * time) * normal_cdf(sign * d2);
 }
 
-double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool observed)
+double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool touched)
 {
     const auto& terms = option.barrier_terms;
     const bool in_money = !option.option_type || (*option.option_type == OptionType::call ? spot > option.strike : spot < option.strike);
-    const bool hit = observed && terms.is_breached_by(spot);
-    return terms.is_knock_in() == hit && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
+    return terms.is_knock_in() == touched && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
 }
 
 Result<PricingResult> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
@@ -69,15 +68,20 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
         auto schedule = validate_observation_dates(terms.observation_dates(), terms.effective_date(), terms.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
+    const auto prior_touch = terms.was_touched_before(context.valuation_time());
+    if (!prior_touch) return std::unexpected(prior_touch.error());
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), terms.expiry_date());
     const double spot = context.spot_price();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
     const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
-    const bool touched = observed_now && terms.is_breached_by(spot);
+    const bool touched_now = observed_now && terms.is_breached_by(spot);
+    const bool touched = *prior_touch || touched_now;
+    if (*prior_touch && option.settlement_timing == SettlementTiming::at_hit)
+        return make_pricing_result({{RiskMeasure::price, 0.0}});
     if (time == 0.0)
         return make_pricing_result(
-            {{RiskMeasure::price, terminal_payoff(option, spot, observed_now)}});
+            {{RiskMeasure::price, terminal_payoff(option, spot, touched)}});
     if (touched) {
         if (!knock_in) return make_pricing_result({{RiskMeasure::price, 0.0}});
         if (option.settlement_timing == SettlementTiming::at_hit)

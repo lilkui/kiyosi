@@ -109,6 +109,12 @@ SCHEDULED
     Observe only on the supplied observation dates.)doc")
         .value("CONTINUOUS", ObservationMode::continuous)
         .value("SCHEDULED", ObservationMode::scheduled);
+    nb::enum_<BarrierTouchState>(module, "BarrierTouchState", R"doc(Barrier touch history strictly before valuation.
+
+UNTOUCHED and TOUCHED describe the history for one valuation snapshot.
+Use None when no history is supplied.)doc")
+        .value("UNTOUCHED", BarrierTouchState::untouched)
+        .value("TOUCHED", BarrierTouchState::touched);
     nb::enum_<RebateTiming>(module, "RebateTiming", R"doc(Payment time for a barrier-option rebate.
 
 Attributes

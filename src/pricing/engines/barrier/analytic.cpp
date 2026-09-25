@@ -61,10 +61,13 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const auto& terms = option.barrier_terms();
+    const auto prior_touch = terms.was_touched_before(context.valuation_time());
+    if (!prior_touch) return std::unexpected(prior_touch.error());
     double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool touched = terms.is_monitored_on(date_of(context.valuation_time())) && terms.is_breached_by(spot);
+    const bool touched_now = terms.is_monitored_on(date_of(context.valuation_time())) && terms.is_breached_by(spot);
+    const bool touched = *prior_touch || touched_now;
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
@@ -73,7 +76,9 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         const double touched_value = *vanilla->require(RiskMeasure::price);
         return make_price_delta_gamma_result(knock_in
                                                  ? touched_value
-                                                 : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit ? 1.0 : std::exp(-rate * t)));
+                                                 : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
+                                                                          ? (*prior_touch ? 0.0 : 1.0)
+                                                                          : std::exp(-rate * t)));
     }
     if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;

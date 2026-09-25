@@ -81,4 +81,48 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);
 }
 
+TEST_CASE("Barrier engines price prior touches from history instead of current spot")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto valuation = day(2025, 7, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, valuation);
+    auto terms = kiyosi::BarrierOptionTerms{.option_type = kiyosi::OptionType::call,
+                                            .strike = 100.0,
+                                            .effective_date = effective,
+                                            .expiry_date = expiry,
+                                            .barrier_level = 120.0,
+                                            .barrier_type = kiyosi::BarrierType::up_and_out};
+    const auto missing = *kiyosi::make_barrier_option(terms);
+    CHECK_FALSE(missing.touch_state());
+    const auto missing_result = kiyosi::AnalyticBarrierEngine{}.price(missing, context);
+    REQUIRE_FALSE(missing_result);
+    CHECK(missing_result.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(missing, context).error().category ==
+          kiyosi::ErrorCategory::invalid_parameter);
+
+    terms.touch_state = kiyosi::BarrierTouchState::untouched;
+    const auto untouched = *kiyosi::make_barrier_option(terms);
+    terms.touch_state = kiyosi::BarrierTouchState::touched;
+    const auto touched = *kiyosi::make_barrier_option(terms);
+    CHECK(*kiyosi::AnalyticBarrierEngine{}.price(untouched, context) > 0.0);
+    CHECK(*kiyosi::AnalyticBarrierEngine{}.price(touched, context) == 0.0);
+    CHECK(*kiyosi::FiniteDifferenceBarrierEngine{}.price(touched, context) == 0.0);
+
+    terms.barrier_type = kiyosi::BarrierType::up_and_in;
+    const auto knocked_in = *kiyosi::make_barrier_option(terms);
+    const auto vanilla = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
+    CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(knocked_in, context),
+               Catch::Matchers::WithinAbs(*kiyosi::AnalyticVanillaEngine{}.price(vanilla, context), 1e-12));
+
+    terms.barrier_type = kiyosi::BarrierType::up_and_out;
+    terms.rebate = 10.0;
+    terms.rebate_timing = kiyosi::RebateTiming::at_hit;
+    CHECK(*kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context) == 0.0);
+    terms.rebate_timing = kiyosi::RebateTiming::at_expiry;
+    CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context),
+               Catch::Matchers::WithinAbs(10.0 * std::exp(-0.04 * 184.0 / 365.0), 1e-12));
+}
+
 } // namespace

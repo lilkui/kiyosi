@@ -14,6 +14,7 @@ from kiyosi.instruments import (
     AutocallableBarrierState,
     BarrierOption,
     BarrierType,
+    BarrierTouchState,
     BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
@@ -879,6 +880,36 @@ class KiyosiPythonTests(unittest.TestCase):
         engine = AnalyticBinaryBarrierEngine()
         self.assertGreater(engine.price(cash, self.context), 0)
         self.assertGreater(engine.price(binary, self.context), 0)
+
+    def test_barrier_history_is_required_and_changes_remaining_value(self):
+        terms = dict(option_type=OptionType.CALL, strike=100,
+                     effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+                     barrier_level=120, barrier_type=BarrierType.UP_AND_OUT)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2),
+            spot_price=100, valuation_time=date(2025, 7, 1))
+        engine = AnalyticBarrierEngine()
+        self.assertFalse(hasattr(BarrierTouchState, "UNKNOWN"))
+        self.assertIsNone(BarrierOption(**terms).touch_state)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(BarrierOption(**terms, touch_state=None), context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        self.assertGreater(engine.price(BarrierOption(**terms, touch_state=BarrierTouchState.UNTOUCHED), context), 0)
+        self.assertEqual(engine.price(BarrierOption(**terms, touch_state=BarrierTouchState.TOUCHED), context), 0)
+        knocked_in = BarrierOption(**(terms | {"barrier_type": BarrierType.UP_AND_IN}),
+                                   touch_state=BarrierTouchState.TOUCHED)
+        self.assertAlmostEqual(engine.price(knocked_in, context), AnalyticVanillaEngine().price(
+            EuropeanOption(option_type=OptionType.CALL, strike=100,
+                           effective_date=terms["effective_date"], expiry_date=terms["expiry_date"]), context))
+        touch_terms = dict(effective_date=terms["effective_date"], expiry_date=terms["expiry_date"],
+                           barrier_level=120, payout=10, touch_state=BarrierTouchState.TOUCHED)
+        binary_engine = AnalyticBinaryBarrierEngine()
+        self.assertEqual(binary_engine.price(cash_one_touch_up(
+            **touch_terms, settlement_timing=SettlementTiming.AT_HIT), context), 0)
+        self.assertAlmostEqual(binary_engine.price(cash_one_touch_up(
+            **touch_terms, settlement_timing=SettlementTiming.AT_EXPIRY), context),
+            10 * math.exp(-0.04 * 184 / 365))
 
     def test_public_api_matches_shared_language_parity_cases(self):
         cases = parity_cases()

@@ -36,6 +36,9 @@ TEST_CASE("Barrier option factory rejects invalid contracts")
     invalid.rebate = 10.0;
     invalid.rebate_timing = kiyosi::RebateTiming::at_hit;
     CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::ErrorCategory::invalid_option);
+    invalid = terms;
+    invalid.touch_state = static_cast<kiyosi::BarrierTouchState>(99);
+    CHECK(kiyosi::make_barrier_option(invalid).error().category == kiyosi::ErrorCategory::invalid_option);
 }
 
 TEST_CASE("Barrier option exposes its contractual terms")

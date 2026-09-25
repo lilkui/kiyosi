@@ -23,6 +23,7 @@ struct BarrierOptionTerms {
     kiyosi::RebateTiming rebate_timing{kiyosi::RebateTiming::at_expiry};           ///< Rebate payment timing.
     kiyosi::ObservationMode observation_mode{kiyosi::ObservationMode::continuous}; ///< Monitoring frequency.
     std::vector<Date> observation_dates{};                                         ///< Ordered dates for scheduled monitoring.
+    std::optional<BarrierTouchState> touch_state{};                                ///< History before valuation, if supplied.
 };
 
 /// Creates a validated barrier option.
@@ -59,8 +60,10 @@ public:
     Date effective_date() const noexcept { return barrier_.effective_date(); }
     /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return barrier_.expiry_date(); }
+    /// Returns the state of observations before valuation, if supplied.
+    std::optional<BarrierTouchState> touch_state() const noexcept { return barrier_.touch_state(); }
 
-    /// Compares all option, rebate, and barrier terms.
+    /// Compares all option, rebate, barrier, and touch-history terms.
     friend bool operator==(const BarrierOption&, const BarrierOption&) = default;
 
 private:
@@ -84,7 +87,8 @@ private:
 [[nodiscard]] inline Result<BarrierOption> make_barrier_option(BarrierOptionTerms terms)
 {
     auto barrier_terms = detail::make_barrier_terms(terms.barrier_level, terms.barrier_type, terms.observation_mode,
-                                                    std::move(terms.observation_dates), terms.effective_date, terms.expiry_date);
+                                                    std::move(terms.observation_dates), terms.effective_date, terms.expiry_date,
+                                                    terms.touch_state);
     if (!barrier_terms) return std::unexpected(barrier_terms.error());
     if (terms.option_type != OptionType::call && terms.option_type != OptionType::put)
         return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});

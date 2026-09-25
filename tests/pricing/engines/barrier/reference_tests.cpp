@@ -38,7 +38,8 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
                                                          .barrier_type = barrier_kinds.at(inputs.at("BarrierType")),
                                                          .rebate = number("rebate"),
                                                          .rebate_timing = inputs.at("settlement") == "at_hit" ? kiyosi::RebateTiming::at_hit
-                                                                                                              : kiyosi::RebateTiming::at_expiry});
+                                                                                                              : kiyosi::RebateTiming::at_expiry,
+                                                         .touch_state = kiyosi::BarrierTouchState::untouched});
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());

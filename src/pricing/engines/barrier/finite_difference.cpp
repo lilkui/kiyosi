@@ -94,6 +94,8 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
         if (!schedule) return std::unexpected(schedule.error());
     }
     const auto& terms = option.barrier_terms();
+    const auto prior_touch = terms.was_touched_before(context.valuation_time());
+    if (!prior_touch) return std::unexpected(prior_touch.error());
     const bool knock_in = terms.is_knock_in();
     const bool touched = terms.is_breached_by(context.spot_price());
     const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
@@ -104,12 +106,12 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
         if (!vanilla) return std::unexpected(vanilla.error());
         return *vanilla->require(RiskMeasure::price);
     };
-    if (touched && observed_now) {
+    if (*prior_touch || (touched && observed_now)) {
         if (!knock_in)
             return make_pricing_result(
                 {{RiskMeasure::price,
                   option.rebate_timing() == RebateTiming::at_hit
-                      ? option.rebate()
+                      ? (*prior_touch ? 0.0 : option.rebate())
                       : option.rebate() *
                             std::exp(-context.model_parameters().risk_free_rate() * t)}});
         auto vanilla = vanilla_price();

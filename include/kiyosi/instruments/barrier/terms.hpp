@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -23,6 +25,12 @@ enum class BarrierType {
 enum class ObservationMode {
     continuous, ///< Monitor continuously throughout the contract life.
     scheduled   ///< Monitor only on explicit observation dates.
+};
+
+/// Barrier observations strictly before the valuation time.
+enum class BarrierTouchState {
+    untouched, ///< No prior observation breached the barrier.
+    touched    ///< A prior observation breached the barrier.
 };
 
 /// Payment timing for a barrier-option rebate.
@@ -55,7 +63,7 @@ class BarrierTerms;
 
 namespace detail {
 [[nodiscard]] Result<BarrierTerms> make_barrier_terms(
-    double, BarrierType, ObservationMode, std::vector<Date>, Date, Date);
+    double, BarrierType, ObservationMode, std::vector<Date>, Date, Date, std::optional<BarrierTouchState>);
 }
 
 /// Trigger level, knock direction, and monitoring schedule shared by every barrier contract.
@@ -75,6 +83,24 @@ public:
     Date effective_date() const noexcept { return effective_date_; }
     /// Returns the final date of the contract life.
     Date expiry_date() const noexcept { return expiry_date_; }
+    /// Returns the caller-supplied state before valuation, if supplied.
+    std::optional<BarrierTouchState> touch_state() const noexcept { return touch_state_; }
+
+    /// Resolves prior history, rejecting missing or impossible history.
+    [[nodiscard]] Result<bool> was_touched_before(Timestamp valuation_time) const
+    {
+        const bool had_observation = is_continuous()
+                                         ? valuation_time > start_of_day(effective_date_)
+                                         : std::any_of(observation_dates_.dates().begin(), observation_dates_.dates().end(),
+                                                       [&](Date date) { return start_of_day(date) < valuation_time; });
+        if (!had_observation && touch_state_ == BarrierTouchState::touched)
+            return std::unexpected(Error{ErrorCategory::invalid_option,
+                                         "barrier cannot have been touched before monitoring began"});
+        if (had_observation && !touch_state_)
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                         "prior barrier touch state is required at valuation"});
+        return touch_state_ == BarrierTouchState::touched;
+    }
 
     /// Returns whether this is an upward barrier.
     bool is_up() const noexcept { return is_up_barrier(barrier_type_); }
@@ -112,14 +138,16 @@ public:
         return is_up() ? spot >= barrier_level_ : spot <= barrier_level_;
     }
 
-    /// Compares the barrier level, type, schedule, and contract life.
+    /// Compares the barrier level, type, schedule, life, and touch history.
     friend bool operator==(const BarrierTerms&, const BarrierTerms&) = default;
 
 private:
     BarrierTerms(double barrier_level, BarrierType barrier_type, kiyosi::ObservationMode observation_mode,
-                 ObservationSchedule observation_dates, Date effective_date, Date expiry_date)
+                 ObservationSchedule observation_dates, Date effective_date, Date expiry_date,
+                 std::optional<BarrierTouchState> touch_state)
         : barrier_level_(barrier_level), barrier_type_(barrier_type), observation_mode_(observation_mode),
-          observation_dates_(std::move(observation_dates)), effective_date_(effective_date), expiry_date_(expiry_date) {}
+          observation_dates_(std::move(observation_dates)), effective_date_(effective_date), expiry_date_(expiry_date),
+          touch_state_(touch_state) {}
 
     double barrier_level_;
     BarrierType barrier_type_;
@@ -127,15 +155,17 @@ private:
     ObservationSchedule observation_dates_;
     Date effective_date_;
     Date expiry_date_;
+    std::optional<BarrierTouchState> touch_state_;
 
     friend Result<BarrierTerms> detail::make_barrier_terms(
-        double, BarrierType, kiyosi::ObservationMode, std::vector<Date>, Date, Date);
+        double, BarrierType, kiyosi::ObservationMode, std::vector<Date>, Date, Date,
+        std::optional<BarrierTouchState>);
 };
 
 [[nodiscard]] inline Result<BarrierTerms> detail::make_barrier_terms(
     double barrier_level, BarrierType barrier_type, kiyosi::ObservationMode observation_mode,
     std::vector<Date> observation_dates,
-    Date effective_date, Date expiry_date)
+    Date effective_date, Date expiry_date, std::optional<BarrierTouchState> touch_state)
 {
     if (!std::isfinite(barrier_level) || barrier_level <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
@@ -154,9 +184,13 @@ private:
     if (observation_mode == kiyosi::ObservationMode::scheduled && observation_dates.empty())
         return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                      "scheduled barriers require observation dates"});
+    if (touch_state && *touch_state != BarrierTouchState::untouched &&
+        *touch_state != BarrierTouchState::touched)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid barrier touch state"});
     auto schedule = detail::make_date_schedule(std::move(observation_dates), effective_date, expiry_date);
     if (!schedule) return std::unexpected(schedule.error());
-    return BarrierTerms{barrier_level, barrier_type, observation_mode, std::move(*schedule), effective_date, expiry_date};
+    return BarrierTerms{barrier_level, barrier_type, observation_mode, std::move(*schedule), effective_date, expiry_date,
+                        touch_state};
 }
 
 } // namespace kiyosi

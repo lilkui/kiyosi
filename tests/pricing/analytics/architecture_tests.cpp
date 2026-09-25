@@ -53,7 +53,8 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date,
                                                        .barrier_level = 80.0,
-                                                       .barrier_type = kiyosi::BarrierType::down_and_out});
+                                                       .barrier_type = kiyosi::BarrierType::down_and_out,
+                                                       .touch_state = kiyosi::BarrierTouchState::untouched});
     check(kiyosi::AnalyticBarrierEngine{}, barrier, 10.0);
     check(kiyosi::FiniteDifferenceBarrierEngine{}, barrier, 10.0);
     const auto binary = *kiyosi::make_cash_binary_barrier_option(
@@ -62,7 +63,8 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
          .effective_date = effective_date,
          .expiry_date = expiry_date,
          .barrier_level = 80.0,
-         .barrier_type = kiyosi::BarrierType::down_and_out},
+         .barrier_type = kiyosi::BarrierType::down_and_out,
+         .touch_state = kiyosi::BarrierTouchState::untouched},
         7.0);
     check(kiyosi::AnalyticBinaryBarrierEngine{}, binary, 7.0);
     check(kiyosi::AnalyticGeometricAveragePriceEngine{}, *kiyosi::make_geometric_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);

@@ -7,6 +7,7 @@
 #include <ratio>
 #include <random>
 
+#include <kiyosi/instruments/barrier/terms.hpp>
 #include <kiyosi/instruments/structured/autocallable.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -74,7 +75,8 @@ bool greeks_unavailable(const Option& option, const PricingContext& context)
     if constexpr (requires { option.expiry_date(); })
         if (context.valuation_time() == start_of_day(option.expiry_date())) return true;
     if constexpr (requires { option.barrier_terms(); })
-        if (option.barrier_terms().is_monitored_on(context.valuation_date()) &&
+        if (option.barrier_terms().touch_state() != BarrierTouchState::touched &&
+            option.barrier_terms().is_monitored_on(context.valuation_date()) &&
             context.spot_price() == option.barrier_level()) return true;
     return false;
 }
