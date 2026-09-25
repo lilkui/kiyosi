@@ -637,6 +637,25 @@ class KiyosiPythonTests(unittest.TestCase):
                 with self.assertRaises(TypeError):
                     engine_type(backend="cuda")
 
+    def test_trading_day_monte_carlo_accepts_optional_seed(self):
+        for engine_type in (
+            pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloSnowballEngine,
+            pricing.MonteCarloBinarySnowballEngine,
+            pricing.MonteCarloTernarySnowballEngine,
+            pricing.MonteCarloPhoenixEngine,
+        ):
+            with self.subTest(engine=engine_type.__name__):
+                self.assertEqual(engine_type().seed, 1)
+                self.assertIsNone(engine_type(seed=None).seed)
+                self.assertEqual(engine_type(seed=73).seed, 73)
+                self.assertEqual(engine_type(seed=2**64 - 1).seed, 2**64 - 1)
+                with self.assertRaises(TypeError):
+                    engine_type(seed=True)
+                for invalid in (-1, 2**64):
+                    with self.assertRaises(OverflowError):
+                        engine_type(seed=invalid)
+
     def test_cuda_backend_unavailable_is_deferred_and_categorized(self):
         engine = pricing.MonteCarloVanillaEngine(
             path_count=20, step_count=2, seed=42,

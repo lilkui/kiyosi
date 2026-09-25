@@ -261,7 +261,7 @@ backend : MonteCarloBackend
                      monte_carlo_backend_value(backend)}};
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
-             "seed"_a = TradingDayMonteCarloSettings{}.seed.value(),
+             "seed"_a.none() = TradingDayMonteCarloSettings{}.seed.value(),
              "backend"_a = TradingDayMonteCarloSettings{}.backend,
              R"doc(Store Monte Carlo settings.
 
