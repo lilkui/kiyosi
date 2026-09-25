@@ -338,4 +338,23 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
     check(kiyosi::MonteCarloBinarySnowballEngine{{64, 7}}, snowball);
 }
 
+TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[pricing-api]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto option = *kiyosi::make_barrier_option(
+        {.option_type = kiyosi::OptionType::call, .strike = 100.0,
+         .effective_date = start, .expiry_date = day(2026, 1, 1),
+         .barrier_level = 120.0, .barrier_type = kiyosi::BarrierType::up_and_out});
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto result = kiyosi::AnalyticBarrierEngine{}.price_with_greeks(
+        option, context, kiyosi::GreeksLevel::full);
+    REQUIRE(result);
+    CHECK(result->has(kiyosi::RiskMeasure::price));
+    CHECK(result->has(kiyosi::RiskMeasure::delta));
+    CHECK_FALSE(result->has(kiyosi::RiskMeasure::theta));
+    CHECK_FALSE(result->has(kiyosi::RiskMeasure::charm));
+    CHECK_FALSE(result->has(kiyosi::RiskMeasure::color));
+}
+
 } // namespace

@@ -243,6 +243,33 @@ Result<PricingResult> complete_greeks(
         time_stencil_available = option.realized_average() == 0.0
                                      ? after <= averaging_start : before > averaging_start;
     }
+    const auto crosses_event = [&](Date date) {
+        const Timestamp event = start_of_day(date);
+        return before <= event && event <= after;
+    };
+    if constexpr (requires { option.barrier_terms(); }) {
+        const auto& terms = option.barrier_terms();
+        time_stencil_available = time_stencil_available && terms.was_touched_before(before).has_value() &&
+                                 terms.was_touched_before(after).has_value();
+        if (!terms.is_continuous())
+            time_stencil_available = time_stencil_available &&
+                std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), crosses_event);
+    }
+    if constexpr (requires { option.observation_dates(); option.barrier_state(); })
+        time_stencil_available = time_stencil_available &&
+            std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
+    if constexpr (requires { option.accumulated_quantity(); } ||
+                  requires { option.knock_in_observation_mode(); }) {
+        bool daily_events = true;
+        if constexpr (requires { option.knock_in_observation_mode(); })
+            daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
+        if (daily_events)
+            for (Date date = date_of(before); date <= date_of(after); date += std::chrono::days{1})
+                if (crosses_event(date) && context.calendar().is_trading_day(date)) {
+                    time_stencil_available = false;
+                    break;
+                }
+    }
     if (!spot_discontinuity && time_stencil_available &&
         (need(RiskMeasure::theta) || need(RiskMeasure::charm) || need(RiskMeasure::color)) &&
         (before_days != 0.0 || after_days != 0.0)) {

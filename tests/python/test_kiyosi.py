@@ -959,6 +959,20 @@ class KiyosiPythonTests(unittest.TestCase):
             delta=1e-7,
         )
 
+    def test_time_greeks_omit_stencils_without_barrier_history(self):
+        barrier = BarrierOption(
+            option_type=OptionType.CALL, strike=100,
+            effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+            barrier_level=120, barrier_type=BarrierType.UP_AND_OUT,
+        )
+        result = AnalyticBarrierEngine().price_with_greeks(
+            barrier, self.context, GreeksLevel.FULL,
+        )
+        self.assertIsNotNone(result.price)
+        self.assertIsNotNone(result.delta)
+        for name in ("theta", "charm", "color"):
+            self.assertIsNone(getattr(result, name))
+
     def test_barrier_history_is_required_and_changes_remaining_value(self):
         terms = dict(option_type=OptionType.CALL, strike=100,
                      effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
