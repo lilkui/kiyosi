@@ -18,36 +18,37 @@ namespace detail {
 } // namespace detail
 
 /// Validates ordering and instrument-life bounds for a date schedule.
-/// @return Success, or an `invalid_date` error.
+/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<void> validate_date_schedule(
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end)
 {
-    if (!is_supported_date(instrument_start) || !is_supported_date(instrument_end) || instrument_end < instrument_start)
-        return std::unexpected(Error{ErrorCategory::invalid_date,
-                                     "instrument life must be a valid ordered Date range"});
+    auto life = validate_instrument_life(instrument_start, instrument_end);
+    if (!life) return life;
     for (std::size_t index = 0; index < observation_dates.size(); ++index) {
+        if (!is_supported_date(observation_dates[index]))
+            return std::unexpected(Error{ErrorCategory::invalid_date, "observation date is invalid"});
         if (index > 0 && observation_dates[index] <= observation_dates[index - 1])
-            return std::unexpected(Error{ErrorCategory::invalid_date,
+            return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                          "observation dates must be strictly ordered"});
-        if (!is_supported_date(observation_dates[index]) || observation_dates[index] < instrument_start ||
-            observation_dates[index] > instrument_end)
-            return std::unexpected(Error{ErrorCategory::invalid_date,
+        if (observation_dates[index] < instrument_start || observation_dates[index] > instrument_end)
+            return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                          "observation Date must be within the instrument life"});
     }
     return {};
 }
 
 /// Validates one observation date against an instrument life and calendar.
-/// @return Success, or an `invalid_date` error.
+/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<void> validate_observation_date(
     Date observation_date, Date instrument_start, Date instrument_end, const TradingCalendar& calendar)
 {
-    if (!is_supported_date(observation_date) || !is_supported_date(instrument_start) ||
-        !is_supported_date(instrument_end) || instrument_end < instrument_start ||
-        observation_date < instrument_start || instrument_end < observation_date) {
-        return std::unexpected(Error{ErrorCategory::invalid_date,
+    auto life = validate_instrument_life(instrument_start, instrument_end);
+    if (!life) return life;
+    if (!is_supported_date(observation_date))
+        return std::unexpected(Error{ErrorCategory::invalid_date, "observation date is invalid"});
+    if (observation_date < instrument_start || instrument_end < observation_date)
+        return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                      "observation Date must be within the instrument life"});
-    }
     if (!calendar.is_trading_day(observation_date)) {
         return std::unexpected(Error{ErrorCategory::invalid_date,
                                      "observation Date is not a trading day"});
@@ -56,23 +57,17 @@ namespace detail {
 }
 
 /// Validates ordering, life bounds, and trading-day status for observation dates.
-/// @return Success, or an `invalid_date` error.
+/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<void> validate_observation_dates(
     std::span<const Date> observation_dates, Date instrument_start, Date instrument_end,
     const TradingCalendar& calendar)
 {
-    if (!is_supported_date(instrument_start) || !is_supported_date(instrument_end) || instrument_end < instrument_start) {
-        return std::unexpected(Error{ErrorCategory::invalid_date,
-                                     "instrument life must be a valid ordered Date range"});
-    }
-    for (std::size_t index = 0; index < observation_dates.size(); ++index) {
-        if (index > 0 && observation_dates[index] <= observation_dates[index - 1]) {
+    auto schedule = validate_date_schedule(observation_dates, instrument_start, instrument_end);
+    if (!schedule) return schedule;
+    for (Date observation_date : observation_dates)
+        if (!calendar.is_trading_day(observation_date))
             return std::unexpected(Error{ErrorCategory::invalid_date,
-                                         "observation dates must be strictly ordered"});
-        }
-        auto valid = validate_observation_date(observation_dates[index], instrument_start, instrument_end, calendar);
-        if (!valid) return std::unexpected(valid.error());
-    }
+                                         "observation Date is not a trading day"});
     return {};
 }
 

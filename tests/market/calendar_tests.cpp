@@ -45,6 +45,30 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     REQUIRE(context_copy.calendar().is_trading_day(day(2025, 1, 2)));
 }
 
+TEST_CASE("Schedule errors distinguish dates, instrument life, and observation layout")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2025, 2, 1);
+    const auto reversed_fixed = kiyosi::make_fixed_interval_schedule(end, start, std::chrono::days{1});
+    REQUIRE_FALSE(reversed_fixed);
+    CHECK(reversed_fixed.error().category == kiyosi::ErrorCategory::invalid_time_range);
+    const auto reversed_monthly = kiyosi::make_monthly_schedule(end, start, 1);
+    REQUIRE_FALSE(reversed_monthly);
+    CHECK(reversed_monthly.error().category == kiyosi::ErrorCategory::invalid_time_range);
+    const auto unsupported = kiyosi::make_fixed_interval_schedule(kiyosi::Date::max(), end, std::chrono::days{1});
+    REQUIRE_FALSE(unsupported);
+    CHECK(unsupported.error().category == kiyosi::ErrorCategory::invalid_date);
+
+    const std::array unordered{end, start};
+    const auto invalid_schedule = kiyosi::validate_date_schedule(unordered, start, end);
+    REQUIRE_FALSE(invalid_schedule);
+    CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
+    const std::array invalid_date{kiyosi::Date::max()};
+    const auto unsupported_observation = kiyosi::validate_date_schedule(invalid_date, start, end);
+    REQUIRE_FALSE(unsupported_observation);
+    CHECK(unsupported_observation.error().category == kiyosi::ErrorCategory::invalid_date);
+}
+
 TEST_CASE("Nominal dates adjust in either direction without leaving the supported range")
 {
     const auto calendar = kiyosi::weekdays_calendar();

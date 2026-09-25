@@ -48,6 +48,45 @@ TEST_CASE("European option factories reject invalid terms")
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, day(2031, 1, 1), expiry_date).has_value());
 }
 
+TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
+{
+    const auto earlier = day(2025, 1, 1);
+    const auto later = day(2026, 1, 1);
+    const auto check = [&](auto make) {
+        const auto reversed = make(later, earlier);
+        REQUIRE_FALSE(reversed);
+        CHECK(reversed.error().category == kiyosi::ErrorCategory::invalid_time_range);
+        const auto unsupported = make(kiyosi::Date::max(), earlier);
+        REQUIRE_FALSE(unsupported);
+        CHECK(unsupported.error().category == kiyosi::ErrorCategory::invalid_date);
+    };
+    check([](auto start, auto end) {
+        return kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, start, end);
+    });
+    check([](auto start, auto end) {
+        return kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, start, start, end);
+    });
+    check([](auto start, auto end) {
+        return kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call, .strike = 100.0,
+            .effective_date = start, .expiry_date = end, .barrier_level = 120.0,
+            .barrier_type = kiyosi::BarrierType::up_and_out});
+    });
+    check([](auto start, auto end) {
+        return kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
+            .daily_quantity = 1.0, .acceleration_factor = 2.0,
+            .effective_date = start, .expiry_date = end});
+    });
+    check([](auto start, auto end) {
+        return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
+            .maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_out_levels = {110.0},
+            .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end},
+            .effective_date = start, .expiry_date = end});
+    });
+
+    CHECK(kiyosi::validate_date_schedule({&later, 1}, later, earlier).error().category ==
+          kiyosi::ErrorCategory::invalid_time_range);
+}
+
 TEST_CASE("Exercise style and engine risk measures are explicit")
 {
     const auto valuation = day(2025, 1, 1);

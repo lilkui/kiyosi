@@ -61,8 +61,11 @@ private:
     if (!std::isfinite(realized_average) || realized_average < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized average must be finite and non-negative"});
-    if (!is_supported_date(averaging_start_date) || !is_supported_date(effective_date) || !is_supported_date(expiry_date) ||
-        effective_date > expiry_date || averaging_start_date < effective_date || averaging_start_date > expiry_date)
+    auto life = validate_instrument_life(effective_date, expiry_date);
+    if (!life) return std::unexpected(life.error());
+    if (!is_supported_date(averaging_start_date))
+        return std::unexpected(Error{ErrorCategory::invalid_date, "averaging start date is invalid"});
+    if (averaging_start_date < effective_date || averaging_start_date > expiry_date)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "average dates are invalid"});
     return AveragePriceOptionTerms{option_type, strike, averaging_start_date, realized_average, effective_date, expiry_date};
 }

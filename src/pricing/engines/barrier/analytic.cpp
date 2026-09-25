@@ -48,8 +48,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     if (option.observation_mode() == ObservationMode::scheduled) {
         auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective_date(),
                                                          option.expiry_date(), context.calendar());
-        if (!schedule_valid)
-            return std::unexpected(Error{ErrorCategory::invalid_schedule, schedule_valid.error().message});
+        if (!schedule_valid) return std::unexpected(schedule_valid.error());
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
     const auto vanilla = price_at_volatility(

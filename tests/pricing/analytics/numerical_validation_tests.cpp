@@ -371,7 +371,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
                                                       100.0, valuation,
                                                       kiyosi::weekdays_calendar());
     CHECK(kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market).error().category ==
-          kiyosi::ErrorCategory::invalid_schedule);
+          kiyosi::ErrorCategory::invalid_date);
 }
 
 TEST_CASE("Scheduled vanilla barriers validate events and refine")
@@ -406,7 +406,7 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3), 100.0, valuation,
         kiyosi::weekdays_calendar());
     CHECK(kiyosi::AnalyticBarrierEngine{}.price(weekend, weekdays_market).error().category ==
-          kiyosi::ErrorCategory::invalid_schedule);
+          kiyosi::ErrorCategory::invalid_date);
     CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(weekend, weekdays_market).error().category ==
           kiyosi::ErrorCategory::invalid_date);
 

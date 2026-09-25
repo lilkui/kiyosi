@@ -105,7 +105,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 }
 
 /// Validates observation dates against an option's expiry and a trading calendar.
-/// @return Success, or an `invalid_date` error.
+/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline Result<void> validate_observation_dates(
     std::span<const Date> observation_dates, Date valuation_date,

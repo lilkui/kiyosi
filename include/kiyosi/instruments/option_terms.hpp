@@ -50,8 +50,8 @@ private:
         return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
     if (!std::isfinite(strike) || strike <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
-    if (!is_supported_date(effective_date) || !is_supported_date(expiry_date) || effective_date > expiry_date)
-        return std::unexpected(Error{ErrorCategory::invalid_schedule, "option life dates are invalid"});
+    auto life = validate_instrument_life(effective_date, expiry_date);
+    if (!life) return std::unexpected(life.error());
     return OptionTerms{option_type, strike, effective_date, expiry_date};
 }
 

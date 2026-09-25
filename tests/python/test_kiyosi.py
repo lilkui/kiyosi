@@ -380,6 +380,47 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
         self.assertEqual(str(error.exception), "expiry date must not precede the effective date")
 
+    def test_contract_date_errors_have_shared_categories(self):
+        earlier = date(2025, 1, 1)
+        later = date(2026, 1, 1)
+        factories = (
+            ("European", lambda start, end: EuropeanOption(
+                option_type=OptionType.CALL, strike=100, effective_date=start, expiry_date=end)),
+            ("Asian", lambda start, end: ArithmeticAveragePriceOption(
+                option_type=OptionType.CALL, strike=100, averaging_start_date=start,
+                effective_date=start, expiry_date=end)),
+            ("Barrier", lambda start, end: BarrierOption(
+                option_type=OptionType.CALL, strike=100, barrier_level=120,
+                barrier_type=BarrierType.UP_AND_OUT, effective_date=start, expiry_date=end)),
+            ("Accumulator", lambda start, end: Accumulator(
+                strike=100, knock_out_level=110, daily_quantity=1, acceleration_factor=2,
+                effective_date=start, expiry_date=end)),
+            ("Snowball", lambda start, end: BinarySnowballOption(
+                knock_out_coupon_rates=[0.1], maturity_coupon_rate=0.05, initial_spot=100,
+                knock_out_levels=[110], upper_strike=100, lower_strike=60,
+                observation_dates=[end], effective_date=start, expiry_date=end)),
+        )
+        for name, factory in factories:
+            with self.subTest(product=name), self.assertRaises(kiyosi.KiyosiError) as error:
+                factory(later, earlier)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
+
+        for schedule in (
+            lambda: fixed_interval_schedule(start=later, end=earlier, interval_days=1),
+            lambda: monthly_schedule(start=later, end=earlier, lock_up_months=1),
+        ):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                schedule()
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
+
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            ArithmeticAveragePriceOption(
+                option_type=OptionType.CALL, strike=100,
+                averaging_start_date=earlier - timedelta(days=1),
+                effective_date=earlier, expiry_date=later,
+            )
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_SCHEDULE)
+
     def test_accumulator_knock_out_settles_existing_quantity(self):
         effective_date = date(2025, 1, 1)
         option = Accumulator(

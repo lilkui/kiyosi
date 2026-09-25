@@ -120,7 +120,7 @@ private:
 /// Authoritative domain validation for every autocallable product; optional features are
 /// detected structurally so each product only pays for the checks it needs.
 /// @tparam Note Autocallable note exposing the required term accessors.
-/// @return Success, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return Success, or an input-validation error with a stable category.
 template <typename Note>
 [[nodiscard]] inline Result<void> validate_autocallable_note(const Note& note)
 {
@@ -130,12 +130,13 @@ template <typename Note>
         note.lower_strike() > note.upper_strike() ||
         !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
+    auto life = validate_instrument_life(note.effective_date(), note.expiry_date());
+    if (!life) return std::unexpected(life.error());
     if (note.observation_dates().empty() ||
         note.knock_out_levels().size() != note.observation_dates().size())
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable schedule is invalid"});
     auto schedule = validate_date_schedule(note.observation_dates(), note.effective_date(), note.expiry_date());
-    if (!schedule)
-        return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable schedule is invalid"});
+    if (!schedule) return std::unexpected(schedule.error());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
         if (!std::isfinite(note.knock_out_levels()[index]) || note.knock_out_levels()[index] <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-out levels are invalid"});

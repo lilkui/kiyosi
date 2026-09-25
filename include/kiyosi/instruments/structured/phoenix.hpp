@@ -27,7 +27,7 @@ struct PhoenixTerms {
 };
 
 /// Creates a validated Phoenix autocallable.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] Result<PhoenixOption> make_phoenix_option(PhoenixTerms);
 
 /// Knock-in autocallable paying a conditional coupon whenever spot clears the coupon barrier.

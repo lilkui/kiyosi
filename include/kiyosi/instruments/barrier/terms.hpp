@@ -139,8 +139,8 @@ private:
     if (!std::isfinite(barrier_level) || barrier_level <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
-    if (!is_supported_date(effective_date) || !is_supported_date(expiry_date) || effective_date > expiry_date)
-        return std::unexpected(Error{ErrorCategory::invalid_schedule, "barrier life dates are invalid"});
+    auto life = validate_instrument_life(effective_date, expiry_date);
+    if (!life) return std::unexpected(life.error());
     if (barrier_type != BarrierType::up_and_in && barrier_type != BarrierType::up_and_out &&
         barrier_type != BarrierType::down_and_in && barrier_type != BarrierType::down_and_out)
         return std::unexpected(Error{ErrorCategory::invalid_option, "invalid barrier type"});
@@ -154,9 +154,7 @@ private:
         return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                      "scheduled barriers require observation dates"});
     auto schedule = detail::make_date_schedule(std::move(observation_dates), effective_date, expiry_date);
-    if (!schedule)
-        return std::unexpected(Error{ErrorCategory::invalid_schedule,
-                                     "observation dates must be ordered and not exceed expiry_date"});
+    if (!schedule) return std::unexpected(schedule.error());
     return BarrierTerms{barrier_level, barrier_type, observation_mode, std::move(*schedule), effective_date, expiry_date};
 }
 

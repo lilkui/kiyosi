@@ -10,7 +10,7 @@ using EuropeanOption = ExerciseBasedOption<VanillaPayoff, EuropeanExercise>;
 using AmericanOption = ExerciseBasedOption<VanillaPayoff, AmericanExercise>;
 
 /// Creates a validated European vanilla option.
-/// @return The option, or an `invalid_option`, `invalid_strike`, or `invalid_schedule` error.
+/// @return The option, or an `invalid_option`, `invalid_strike`, `invalid_date`, or `invalid_time_range` error.
 [[nodiscard]] inline Result<EuropeanOption> make_european_option(
     OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
@@ -18,7 +18,7 @@ using AmericanOption = ExerciseBasedOption<VanillaPayoff, AmericanExercise>;
 }
 
 /// Creates a validated American vanilla option.
-/// @return The option, or an `invalid_option`, `invalid_strike`, or `invalid_schedule` error.
+/// @return The option, or an `invalid_option`, `invalid_strike`, `invalid_date`, or `invalid_time_range` error.
 [[nodiscard]] inline Result<AmericanOption> make_american_option(
     OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {

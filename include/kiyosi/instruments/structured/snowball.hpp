@@ -62,14 +62,14 @@ struct BinarySnowballTerms {
 };
 
 /// Creates a validated knock-in snowball.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] Result<SnowballOption> make_snowball_option(SnowballTerms);
 /// Creates a validated ternary snowball.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
 
 /// Creates a validated binary snowball.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
 
 /// Knock-in autocallable accruing a coupon until knock-out, with downside participation.

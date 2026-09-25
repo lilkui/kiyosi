@@ -24,7 +24,7 @@ struct StandardSnowballTerms {
 };
 
 /// Creates a standard snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_standard_snowball(
     StandardSnowballTerms terms)
 {
@@ -61,7 +61,7 @@ struct StepDownSnowballTerms {
 };
 
 /// Creates a step-down snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_step_down_snowball(
     StepDownSnowballTerms terms)
 {
@@ -103,7 +103,7 @@ struct BothDownSnowballTerms {
 };
 
 /// Creates a both-down snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_both_down_snowball(
     BothDownSnowballTerms terms)
 {
@@ -146,7 +146,7 @@ struct DualCouponSnowballTerms {
 };
 
 /// Creates a dual-coupon snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_dual_coupon_snowball(
     DualCouponSnowballTerms terms)
 {
@@ -182,7 +182,7 @@ struct ParachuteSnowballTerms {
 };
 
 /// Creates a parachute snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_parachute_snowball(
     ParachuteSnowballTerms terms)
 {
@@ -219,7 +219,7 @@ struct OtmSnowballTerms {
 };
 
 /// Creates an out-of-the-money snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_otm_snowball(
     OtmSnowballTerms terms)
 {
@@ -255,7 +255,7 @@ struct LossCappedSnowballTerms {
 };
 
 /// Creates a loss-capped snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_loss_capped_snowball(
     LossCappedSnowballTerms terms)
 {
@@ -290,7 +290,7 @@ struct EuropeanSnowballTerms {
 };
 
 /// Creates a European-knock-in snowball from named market terms.
-/// @return The option, or an `invalid_parameter` or `invalid_schedule` error.
+/// @return The option, or an input-validation error with a stable category.
 [[nodiscard]] inline Result<SnowballOption> make_european_snowball(
     EuropeanSnowballTerms terms)
 {

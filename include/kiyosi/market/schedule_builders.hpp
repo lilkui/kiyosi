@@ -39,11 +39,13 @@ namespace detail {
 /// `end` is not guaranteed to be an observation Date. For example, the weekdays calendar maps a
 /// daily schedule from 2025-01-03 through 2025-01-07 to [2025-01-06, 2025-01-07]. Supply explicit
 /// observation dates to an instrument factory when the contract requires a bespoke terminal Date.
-/// @return The validated schedule, or an `invalid_schedule` or `invalid_date` error.
+/// @return The validated schedule, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<ObservationSchedule> make_fixed_interval_schedule(
     Date start, Date end, std::chrono::days interval, const TradingCalendar& calendar = weekdays_calendar())
 {
-    if (!is_supported_date(start) || !is_supported_date(end) || end < start || interval <= std::chrono::days{0})
+    auto life = validate_instrument_life(start, end);
+    if (!life) return std::unexpected(life.error());
+    if (interval <= std::chrono::days{0})
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "fixed schedule terms are invalid"});
     std::vector<Date> dates;
     for (auto target = start + interval; target <= end; target += interval) {
@@ -61,11 +63,13 @@ namespace detail {
 /// 2025-01-01 through 2025-03-01 with one lock-up month to [2025-02-03]; the Saturday end candidate
 /// would adjust past the bound. Supply explicit observation dates to an instrument factory when
 /// the contract requires a bespoke terminal Date.
-/// @return The validated schedule, or an `invalid_schedule` or `invalid_date` error.
+/// @return The validated schedule, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<ObservationSchedule> make_monthly_schedule(
     Date start, Date end, int lock_up_months, const TradingCalendar& calendar = weekdays_calendar())
 {
-    if (!is_supported_date(start) || !is_supported_date(end) || end < start || lock_up_months <= 0)
+    auto life = validate_instrument_life(start, end);
+    if (!life) return std::unexpected(life.error());
+    if (lock_up_months <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "monthly schedule terms are invalid"});
     std::vector<Date> dates;
     for (int month = lock_up_months;; ++month) {

@@ -67,7 +67,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     if (!valid) return std::unexpected(valid.error());
     if (terms.observation_mode() == ObservationMode::scheduled) {
         auto schedule = validate_observation_dates(terms.observation_dates(), terms.effective_date(), terms.expiry_date(), context.calendar());
-        if (!schedule) return std::unexpected(Error{ErrorCategory::invalid_schedule, schedule.error().message});
+        if (!schedule) return std::unexpected(schedule.error());
     }
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), terms.expiry_date());
     const double spot = context.spot_price();
