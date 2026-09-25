@@ -1,6 +1,7 @@
 """Pricing engines, analytics, and implied-value solvers."""
 
 from ._native import (
+    GreeksLevel,
     AnalyticBarrierEngine,
     AnalyticBinaryBarrierEngine,
     AnalyticDigitalEngine,
@@ -35,6 +36,7 @@ from ._native import (
 
 
 __all__ = [
+    "GreeksLevel",
     "AnalyticBarrierEngine",
     "AnalyticBinaryBarrierEngine",
     "AnalyticDigitalEngine",

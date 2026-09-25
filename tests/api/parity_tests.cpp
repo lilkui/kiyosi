@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <fstream>
@@ -89,7 +90,7 @@ kiyosi::BlackScholesMertonParameters parameters(const Fields& values)
 TEST_CASE("C++ public API matches the shared language parity cases", "[api][parity]")
 {
     const auto cases = parity_cases();
-    REQUIRE(cases.size() == 7);
+    REQUIRE(cases.size() == 10);
 
     for (const auto& test : cases) {
         DYNAMIC_SECTION(test.id)
@@ -111,7 +112,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 CHECK(settings.scheme == kiyosi::FiniteDifferenceScheme::crank_nicolson);
                 REQUIRE(test.expected.at("asset_upper_boundary") == "none");
                 CHECK_FALSE(settings.asset_upper_boundary);
-            } else if (test.kind == "pricing") {
+            } else if (test.kind == "pricing" || test.kind == "pricing_greeks") {
                 const auto option = kiyosi::make_european_option(
                     option_type(test.inputs), std::stod(test.inputs.at("strike")),
                     parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
@@ -122,9 +123,27 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 REQUIRE(context);
                 const auto result = kiyosi::AnalyticVanillaEngine{}.price(*option, *context);
                 REQUIRE(result);
-                REQUIRE(result->require(kiyosi::RiskMeasure::price));
-                CHECK_THAT(*result->require(kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(
+                CHECK_THAT(*result, Catch::Matchers::WithinAbs(
                                                                              std::stod(test.expected.at("price")), std::stod(test.tolerance)));
+                if (test.kind == "pricing_greeks") {
+                    const auto level = test.inputs.at("level") == "basic"
+                        ? kiyosi::GreeksLevel::basic : kiyosi::GreeksLevel::full;
+                    const auto joint = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(*option, *context, level);
+                    REQUIRE(joint);
+                    constexpr std::array names{"price", "delta", "gamma", "speed", "theta", "charm",
+                                                "color", "vega", "vanna", "zomma", "rho"};
+                    for (std::size_t i = 0; i < names.size(); ++i) {
+                        INFO(names[i]);
+                        const auto measure = static_cast<kiyosi::RiskMeasure>(i);
+                        const auto& expected = test.expected.at(names[i]);
+                        if (expected == "none") CHECK_FALSE(joint->has(measure));
+                        else {
+                            const auto value = joint->require(measure);
+                            REQUIRE(value);
+                            CHECK_THAT(*value, Catch::Matchers::WithinAbs(std::stod(expected), std::stod(test.tolerance)));
+                        }
+                    }
+                }
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
                     std::stod(test.inputs.at("risk_free_rate")),

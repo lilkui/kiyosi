@@ -40,7 +40,7 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
 
 } // namespace
 
-Result<PricingResult> AnalyticBarrierEngine::price(
+Result<PricingResult> AnalyticBarrierEngine::price_native(
     const BarrierOption& option, const PricingContext& context) const
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());

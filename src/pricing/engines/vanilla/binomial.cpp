@@ -13,7 +13,7 @@ using namespace detail;
 
 template <typename Option>
 Result<PricingResult> price_binomial(
-    const Option& option, const PricingContext& context, BinomialSettings settings, bool american)
+    const Option& option, const PricingContext& context, BinomialSettings settings, bool american, RiskMeasureOutput requested_output)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
@@ -66,8 +66,8 @@ Result<PricingResult> price_binomial(
 
     std::array<double, 3> level_two{};
     std::array<double, 2> level_one{};
-    if (settings.step_count == 1) level_one = {values[0], values[1]};
-    if (settings.step_count == 2) level_two = {values[0], values[1], values[2]};
+    if (requested_output != RiskMeasureOutput::price_only && settings.step_count == 1) level_one = {values[0], values[1]};
+    if (requested_output != RiskMeasureOutput::price_only && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
     node_spot = spot * std::pow(down, settings.step_count - 1);
     for (int level = settings.step_count - 1; level >= 0; --level) {
         if (level < settings.step_count - 1) node_spot *= up;
@@ -83,12 +83,15 @@ Result<PricingResult> price_binomial(
             }
             level_node_spot *= up_squared;
         }
-        if (level == 2) {
+        if (requested_output != RiskMeasureOutput::price_only && level == 2) {
             level_two = {values[0], values[1], values[2]};
-        } else if (level == 1) {
+        } else if (requested_output != RiskMeasureOutput::price_only && level == 1) {
             level_one = {values[0], values[1]};
         }
     }
+
+    if (requested_output == RiskMeasureOutput::price_only)
+        return make_pricing_result({{RiskMeasure::price, values[0]}});
 
     double delta = 0.0;
     double gamma = 0.0;
@@ -124,15 +127,15 @@ Result<PricingResult> price_binomial(
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_european(
-    const EuropeanOption& option, const PricingContext& context) const
+    const EuropeanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_binomial(option, context, settings_, false);
+    return price_binomial(option, context, settings_, false, output);
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_american(
-    const AmericanOption& option, const PricingContext& context) const
+    const AmericanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_binomial(option, context, settings_, true);
+    return price_binomial(option, context, settings_, true, output);
 }
 
 } // namespace kiyosi

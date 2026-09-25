@@ -152,7 +152,7 @@ Result<double> cuda_sum(CudaPricingResult cuda_result)
 } // namespace
 
 template <typename Note>
-Result<PricingResult> MonteCarloAutocallableEngine<Note>::price(
+Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     const Note& note, const PricingContext& context) const
 {
     auto note_validation = validate_autocallable_note(note);

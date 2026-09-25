@@ -37,9 +37,9 @@ T checked(Result<T> value)
     return *value;
 }
 
-double price(Result<PricingResult> value)
+double price(Result<double> value)
 {
-    const double amount = checked(checked(std::move(value)).require(RiskMeasure::price));
+    const double amount = checked(std::move(value));
     REQUIRE(std::isfinite(amount));
     return amount;
 }

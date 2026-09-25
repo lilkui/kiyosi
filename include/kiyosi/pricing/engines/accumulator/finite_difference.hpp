@@ -2,7 +2,7 @@
 
 #include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi {
@@ -19,12 +19,27 @@ public:
         : settings_{asset_step_count, time_step_count, scheme} {}
 
     /// Prices an accumulator by finite differences.
-    /// @return Pricing measures, or a contract, context, or settings error.
-    [[nodiscard]] Result<PricingResult> price(const Accumulator&, const PricingContext&) const;
+    /// @return Price, or a contract, context, or settings error.
+    [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const
+    {
+        return detail::price_value(price_native(option, context));
+    }
+
+    /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
+        GreeksLevel level, NumericalShiftSettings settings = {}) const
+    {
+        return detail::price_with_greeks(*this, option, context, level, settings,
+            [&](const auto& engine) {
+                return engine.price_native(option, context);
+            });
+    }
+
     /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] Result<PricingResult> price_native(const Accumulator& option, const PricingContext& context) const;
     FiniteDifferenceSettings settings_;
 };
 

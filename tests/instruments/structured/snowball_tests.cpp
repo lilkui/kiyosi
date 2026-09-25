@@ -19,15 +19,14 @@ struct CouponSumEngine {
     mutable double minimal_coupon{};
 
     template <typename Option>
-    kiyosi::Result<kiyosi::PricingResult> price(
+    kiyosi::Result<double> price(
         const Option& option, const kiyosi::PricingContext&) const
     {
         coupon_rates = option.knock_out_coupon_rates();
         maturity_coupon_rate = option.maturity_coupon_rate();
         if constexpr (requires { option.minimum_coupon_rate(); })
             minimal_coupon = option.minimum_coupon_rate();
-        return kiyosi::make_pricing_result(
-            {{kiyosi::RiskMeasure::price, coupon_rates.front() + maturity_coupon_rate}});
+        return coupon_rates.front() + maturity_coupon_rate;
     }
 };
 

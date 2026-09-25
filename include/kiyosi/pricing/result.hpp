@@ -11,6 +11,16 @@
 
 namespace kiyosi {
 
+/// Explicit work requested by price_with_greeks(); no default tier is implied.
+enum class GreeksLevel : std::uint8_t {
+    basic, ///< Price, delta, and gamma.
+    full,  ///< Price and all ten defined Greeks, where available.
+};
+
+namespace detail {
+enum class RiskMeasureOutput { price_only, basic, all };
+}
+
 /// Public risk-measure contract:
 /// - price uses the instrument's value units;
 /// - delta, gamma, and speed are price changes per one spot unit, squared spot unit, and cubed
@@ -21,7 +31,7 @@ namespace kiyosi {
 ///   0.01);
 /// - theta, charm, and color are price, delta, and gamma changes per calendar day as valuation
 ///   time moves forward.
-/// Undefined or unsupported measures are unavailable (`std::nullopt`), never represented by zero.
+/// Unrequested, undefined, or unsupported measures are unavailable (`std::nullopt`), never zero sentinels.
 enum class RiskMeasure : std::uint8_t {
     price, ///< Instrument value.
     delta, ///< First derivative with respect to spot.

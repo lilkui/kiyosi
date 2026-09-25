@@ -6,18 +6,13 @@
 namespace {
 
 bool print_price(std::string_view instrument, std::string_view engine,
-                 const kiyosi::Result<kiyosi::PricingResult>& result)
+                 const kiyosi::Result<double>& result)
 {
     if (!result) {
         std::cerr << instrument << " / " << engine << ": " << result.error().message << '\n';
         return false;
     }
-    const auto price = result->require(kiyosi::RiskMeasure::price);
-    if (!price) {
-        std::cerr << instrument << " / " << engine << ": " << price.error().message << '\n';
-        return false;
-    }
-    std::cout << instrument << " / " << engine << ": " << *price << '\n';
+    std::cout << instrument << " / " << engine << ": " << *result << '\n';
     return true;
 }
 
@@ -150,6 +145,18 @@ int main()
     price("BinarySnowballOption", "MonteCarloBinarySnowballEngine", kiyosi::MonteCarloBinarySnowballEngine{2'000, 42}.price(binary_snowball, context));
     price("TernarySnowballOption", "FiniteDifferenceTernarySnowballEngine", kiyosi::FiniteDifferenceTernarySnowballEngine{80, 80}.price(ternary_snowball, context));
     price("TernarySnowballOption", "MonteCarloTernarySnowballEngine", kiyosi::MonteCarloTernarySnowballEngine{2'000, 42}.price(ternary_snowball, context));
+
+    for (const auto level : {kiyosi::GreeksLevel::basic, kiyosi::GreeksLevel::full}) {
+        const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, level);
+        if (!result) {
+            std::cerr << result.error().message << '\n';
+            ok = false;
+            continue;
+        }
+        std::cout << "EuropeanOption / analytic Greeks: delta="
+                  << *result->require(kiyosi::RiskMeasure::delta)
+                  << " gamma=" << *result->require(kiyosi::RiskMeasure::gamma) << '\n';
+    }
 
     return ok ? 0 : 1;
 }

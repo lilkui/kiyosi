@@ -46,8 +46,6 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
         const auto check = [&](const auto& option) {
             const auto native = engine.price(option, *context);
             check_price(fixture, native);
-            for (const auto& [name, measure] : measures)
-                REQUIRE(native->has(measure) == (name == "price"));
             for (const auto& [name, value] : fixture.outputs)
                 REQUIRE(measures.contains(name));
             ++generated;

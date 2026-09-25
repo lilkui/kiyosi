@@ -12,7 +12,7 @@ Kiyosi is a modern C++23 derivatives-pricing library with Python bindings, offer
 
 - Vanilla, digital, Asian, barrier, accumulator, snowball, and phoenix instruments
 - Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines with CPU and CUDA backends
-- Prices and Greeks through a consistent result type
+- Price-only valuation and explicit basic or full Greeks calculation
 - Numerical analytics, implied volatility, and implied coupon solvers
 - Trading calendars and observation schedule builders, including SSE holidays
 - A native C++ core exposed through a Python-first API
@@ -34,7 +34,7 @@ from datetime import date
 
 from kiyosi.instruments import EuropeanOption, OptionType
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
-from kiyosi.pricing import AnalyticVanillaEngine
+from kiyosi.pricing import AnalyticVanillaEngine, GreeksLevel
 
 valuation = date(2025, 1, 1)
 option = EuropeanOption(
@@ -53,9 +53,29 @@ context = PricingContext(
     valuation_time=valuation,
 )
 
-result = AnalyticVanillaEngine().price(option, context)
-print(result.price)
+engine = AnalyticVanillaEngine()
+print(engine.price(option, context))  # float; no Greeks are calculated
+
+basic = engine.price_with_greeks(option, context, GreeksLevel.basic)
+print(basic.price, basic.delta, basic.gamma)
+
+full = engine.price_with_greeks(option, context, GreeksLevel.full)
+print(full.vega, full.theta)
 ```
+
+The Greeks tier is required. `basic` computes Delta and Gamma; `full` requests
+Delta, Gamma, Speed, Theta, Charm, Color, Vega, Vanna, Zomma, and Rho. Native
+Greeks are reused; missing feasible measures use numerical price differences.
+Unrequested or undefined measures are `None`, including all Greeks at expiry.
+Shift keyword arguments (`spot_shift`, `volatility_shift`, `rate_shift`, and
+`time_shift_days`) control numerical supplementation. Monte Carlo base and
+bumped valuations share one seed per call without changing the engine settings.
+`calculate_numerical_risk_measures()` remains the forced numerical alternative.
+
+C++ uses the same contract: `price()` returns `Result<double>` and
+`price_with_greeks(option, context, GreeksLevel::basic)` returns
+`Result<PricingResult>`. Use `GreeksLevel::full` for all ten Greeks and pass an
+optional `NumericalShiftSettings` as the final argument to customize shifts.
 
 The Python API is organized into three modules:
 

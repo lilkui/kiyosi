@@ -57,8 +57,6 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             REQUIRE(option.has_value());
             const auto native = engine.price(*option, *context);
             check_price(fixture, native);
-            for (const auto& [name, measure] : measures)
-                REQUIRE(native->has(measure) == (name == "price"));
             ++generated;
             const bool smooth = !terminal && (date("valuation") - date("averaging_start_date")).count() > 2 &&
                                 (date("expiry_date") - date("valuation")).count() > 2;

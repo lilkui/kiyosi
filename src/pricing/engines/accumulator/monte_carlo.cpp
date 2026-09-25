@@ -111,7 +111,7 @@ Result<double> cuda_sum(detail::CudaPricingResult cuda_result)
 
 } // namespace
 
-Result<PricingResult> MonteCarloAccumulatorEngine::price(
+Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     const Accumulator& option, const PricingContext& context) const
 {
     auto contract = make_accumulator({option.strike(), option.knock_out_level(), option.daily_quantity(),

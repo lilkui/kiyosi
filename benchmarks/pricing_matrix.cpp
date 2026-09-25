@@ -19,12 +19,7 @@ void register_kiyosi(const char* name, Option option, Engine engine, kiyosi::Pri
                                                             state.SkipWithError(warmup.error().message.c_str());
                                                             return;
                                                         }
-                                                        const auto warmup_price = warmup->require(kiyosi::RiskMeasure::price);
-                                                        if (!warmup_price) {
-                                                            state.SkipWithError(warmup_price.error().message.c_str());
-                                                            return;
-                                                        }
-                                                        state.counters["price"] = *warmup_price;
+                                                        state.counters["price"] = *warmup;
                                                         for (auto _ : state) {
                                                             auto result = engine.price(option, context);
                                                             benchmark::DoNotOptimize(result);

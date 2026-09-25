@@ -92,8 +92,8 @@ void check_structured_refinement(const Instrument& instrument, const kiyosi::Pri
         const auto fine = kiyosi::FiniteDifferenceAutocallableEngine<Instrument>{{80, 1024, scheme}}.price(instrument, context);
         REQUIRE(coarse);
         REQUIRE(fine);
-        const double coarse_value = *coarse->require(kiyosi::RiskMeasure::price);
-        const double fine_value = *fine->require(kiyosi::RiskMeasure::price);
+        const double coarse_value = *coarse;
+        const double fine_value = *fine;
         CHECK(std::isfinite(coarse_value));
         CHECK(std::isfinite(fine_value));
         CHECK(fine_value != coarse_value);
@@ -111,7 +111,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloAutocallableEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->require(kiyosi::RiskMeasure::price);
+        return *result;
     };
 
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
@@ -156,7 +156,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloAutocallableEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->require(kiyosi::RiskMeasure::price);
+        return *result;
     };
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.10},
                                                          .maturity_coupon_rate = 0.05,
@@ -201,7 +201,7 @@ TEST_CASE("Binary snowball expiry_date settlement applies final observations")
     const auto price = [&](const auto& engine, const auto& note, double spot) {
         const auto result = engine.price(note, market(spot));
         REQUIRE(result);
-        return *result->require(kiyosi::RiskMeasure::price);
+        return *result;
     };
     const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.10},
                                                               .maturity_coupon_rate = 0.05,
@@ -233,7 +233,7 @@ TEST_CASE("Ternary snowball expiry_date settlement applies final observations")
     const auto price = [&](const auto& note, double spot) {
         const auto result = kiyosi::MonteCarloAutocallableEngine<std::remove_cvref_t<decltype(note)>>{{32, 7}}.price(note, market(spot));
         REQUIRE(result);
-        return *result->require(kiyosi::RiskMeasure::price);
+        return *result;
     };
     const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.10},
                                                                 .maturity_coupon_rate = 0.05,
@@ -265,7 +265,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
         using Instrument = std::remove_cvref_t<decltype(instrument)>;
         const auto result = kiyosi::MonteCarloAutocallableEngine<Instrument>{{32, 7}}.price(instrument, context);
         REQUIRE(result);
-        return *result->require(kiyosi::RiskMeasure::price);
+        return *result;
     };
     const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                             .maturity_coupon_rate = 0.05,
@@ -283,8 +283,8 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     const auto second = engine.price(note, context);
     REQUIRE(first);
     REQUIRE(second);
-    CHECK(*first->require(kiyosi::RiskMeasure::price) == *second->require(kiyosi::RiskMeasure::price));
-    CHECK(*first->require(kiyosi::RiskMeasure::price) ==
+    CHECK(*first == *second);
+    CHECK(*first ==
           Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective_date, valuation).value()).margin(1e-10));
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                          .maturity_coupon_rate = 0.05,
@@ -366,14 +366,14 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
     const auto immediate = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
-    CHECK(*immediate->require(kiyosi::RiskMeasure::price) == large_payoff);
+    CHECK(*immediate == large_payoff);
     CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
     REQUIRE(touched);
-    CHECK(*touched->require(kiyosi::RiskMeasure::price) == 0.0);
+    CHECK(*touched == 0.0);
     CHECK(calls->load() == 2);
 
     calls->store(0);
@@ -393,7 +393,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
     const auto at_expiry = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
-    CHECK(*at_expiry->require(kiyosi::RiskMeasure::price) == large_payoff);
+    CHECK(*at_expiry == large_payoff);
     CHECK(calls->load() == 1);
 
     calls->store(0);
@@ -447,14 +447,14 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
         const auto result = kiyosi::MonteCarloBinarySnowballEngine{settings}.price(note, context);
 
         REQUIRE(result);
-        CHECK(*result->require(kiyosi::RiskMeasure::price) == legacy);
+        CHECK(*result == legacy);
         CHECK(calls->load() == 7);
     }
 
     const auto unseeded =
         kiyosi::MonteCarloBinarySnowballEngine{{32, std::nullopt}}.price(note, context);
     REQUIRE(unseeded);
-    CHECK(std::isfinite(*unseeded->require(kiyosi::RiskMeasure::price)));
+    CHECK(std::isfinite(*unseeded));
 }
 
 TEST_CASE("Structured CUDA selection validates and preserves deterministic settlements")
@@ -483,7 +483,7 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
 
     const auto settled = cuda.price(make_note(kiyosi::AutocallableBarrierState::knocked_out), context);
     REQUIRE(settled);
-    CHECK(*settled->require(kiyosi::RiskMeasure::price) == 0.0);
+    CHECK(*settled == 0.0);
 
     const auto invalid = kiyosi::MonteCarloBinarySnowballEngine{
         {0, 7, kiyosi::MonteCarloBackend::cuda}}
@@ -530,9 +530,9 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
         REQUIRE(cpu);
         REQUIRE(first);
         REQUIRE(second);
-        const double cuda_price = *first->require(kiyosi::RiskMeasure::price);
-        CHECK(cuda_price == *second->require(kiyosi::RiskMeasure::price));
-        CHECK(cuda_price == Catch::Approx(*cpu->require(kiyosi::RiskMeasure::price))
+        const double cuda_price = *first;
+        CHECK(cuda_price == *second);
+        CHECK(cuda_price == Catch::Approx(*cpu)
                                 .margin(0.04));
     };
 
@@ -606,8 +606,8 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
         kiyosi::MonteCarloPhoenixEngine{cuda_settings}.price(phoenix, context);
     REQUIRE(different_seed);
     REQUIRE(original_seed);
-    CHECK(*different_seed->require(kiyosi::RiskMeasure::price) !=
-          *original_seed->require(kiyosi::RiskMeasure::price));
+    CHECK(*different_seed !=
+          *original_seed);
 }
 
 TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch state")
@@ -638,7 +638,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
     const auto phoenix_result =
         kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0));
     REQUIRE(phoenix_result);
-    CHECK(*phoenix_result->require(kiyosi::RiskMeasure::price) ==
+    CHECK(*phoenix_result ==
           Catch::Approx(4.0).margin(1e-10));
 
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08},
@@ -657,7 +657,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
     const auto snowball_result =
         kiyosi::MonteCarloSnowballEngine{settings}.price(snowball, context(70.0));
     REQUIRE(snowball_result);
-    CHECK(*snowball_result->require(kiyosi::RiskMeasure::price) ==
+    CHECK(*snowball_result ==
           Catch::Approx(0.7).margin(1e-8));
 
     const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.08},
@@ -677,7 +677,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
     const auto ternary_result =
         kiyosi::MonteCarloTernarySnowballEngine{settings}.price(ternary, context(100.0));
     REQUIRE(ternary_result);
-    CHECK(*ternary_result->require(kiyosi::RiskMeasure::price) ==
+    CHECK(*ternary_result ==
           Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-12));
 
     const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
@@ -694,7 +694,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
     const auto binary_result =
         kiyosi::MonteCarloBinarySnowballEngine{settings}.price(binary, context(100.0));
     REQUIRE(binary_result);
-    CHECK(*binary_result->require(kiyosi::RiskMeasure::price) ==
+    CHECK(*binary_result ==
           Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).margin(1e-12));
 }
 #endif
@@ -725,7 +725,7 @@ TEST_CASE("Structured finite difference preserves future observation indices")
 
     REQUIRE(result);
     const double expected = 1.0 + 0.2 * *kiyosi::year_fraction(effective_date, future_observation);
-    CHECK(*result->require(kiyosi::RiskMeasure::price) == Catch::Approx(expected).margin(1e-12));
+    CHECK(*result == Catch::Approx(expected).margin(1e-12));
 }
 
 TEST_CASE("Binary snowball finite difference has one continuation state")
@@ -762,9 +762,9 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
         REQUIRE(untouched);
         REQUIRE(down_touched);
         REQUIRE(up_touched);
-        CHECK(*untouched->require(kiyosi::RiskMeasure::price) ==
-              *down_touched->require(kiyosi::RiskMeasure::price));
-        CHECK(*up_touched->require(kiyosi::RiskMeasure::price) == 0.0);
+        CHECK(*untouched ==
+              *down_touched);
+        CHECK(*up_touched == 0.0);
     }
 }
 

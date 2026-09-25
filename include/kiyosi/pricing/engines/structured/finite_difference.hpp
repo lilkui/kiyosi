@@ -3,13 +3,13 @@
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi {
 
 /// Prices an autocallable note with the finite-difference implementation.
-/// @return Pricing measures, or a contract, context, or settings error.
+/// @return Price, or a contract, context, or settings error.
 template <typename Note>
 [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_autocallable_finite_difference(
     const Note&, const PricingContext&, FiniteDifferenceSettings);
@@ -27,16 +27,30 @@ public:
         : settings_{asset_step_count, time_step_count, scheme} {}
 
     /// Prices an autocallable note by finite differences.
-    /// @return Pricing measures, or a contract, context, or settings error.
-    [[nodiscard]] Result<PricingResult> price(const Note& note, const PricingContext& context) const
+    /// @return Price, or a contract, context, or settings error.
+    [[nodiscard]] Result<double> price(const Note& option, const PricingContext& context) const
     {
-        return price_autocallable_finite_difference(note, context, settings_);
+        return detail::price_value(price_native(option, context));
+    }
+
+    /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
+        GreeksLevel level, NumericalShiftSettings settings = {}) const
+    {
+        return detail::price_with_greeks(*this, option, context, level, settings,
+            [&](const auto& engine) {
+                return engine.price_native(option, context);
+            });
     }
 
     /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] Result<PricingResult> price_native(const Note& option, const PricingContext& context) const
+    {
+        return price_autocallable_finite_difference(option, context, settings_);
+    }
     FiniteDifferenceSettings settings_;
 };
 

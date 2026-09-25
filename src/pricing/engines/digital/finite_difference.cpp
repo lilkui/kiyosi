@@ -14,7 +14,7 @@ using namespace detail;
 namespace {
 template <typename Option>
 Result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
-                                       FiniteDifferenceSettings settings, bool asset)
+                                       FiniteDifferenceSettings settings, bool asset, RiskMeasureOutput requested_output)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -74,6 +74,9 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
                                         old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
+    if (requested_output == RiskMeasureOutput::price_only)
+        return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
+
     auto output = make_pricing_result(
         {{RiskMeasure::price, space->interpolate(old, spot)},
          {RiskMeasure::delta, space->delta(old, spot)},
@@ -87,14 +90,14 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 } // namespace
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
-    const CashOrNothingOption& option, const PricingContext& context) const
+    const CashOrNothingOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_digital_fd(option, context, settings_, false);
+    return price_digital_fd(option, context, settings_, false, output);
 }
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_asset_or_nothing(
-    const AssetOrNothingOption& option, const PricingContext& context) const
+    const AssetOrNothingOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_digital_fd(option, context, settings_, true);
+    return price_digital_fd(option, context, settings_, true, output);
 }
 
 } // namespace kiyosi

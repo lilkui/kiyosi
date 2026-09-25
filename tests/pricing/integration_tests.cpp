@@ -27,7 +27,7 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     const auto cash_put = *kiyosi::make_cash_or_nothing_option(
         kiyosi::OptionType::put, 100.0, 10.0, valuation, expiry_date);
     const kiyosi::AnalyticDigitalEngine digital;
-    const auto call_value = digital.price(cash_call, context);
+    const auto call_value = digital.price_with_greeks(cash_call, context, kiyosi::GreeksLevel::basic);
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());
@@ -36,7 +36,7 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     CHECK(call_value->has(kiyosi::RiskMeasure::gamma));
     CHECK_FALSE(call_value->has(kiyosi::RiskMeasure::vega));
     CHECK_THAT(risk_value(*call_value, kiyosi::RiskMeasure::price) +
-                   risk_value(*put_value, kiyosi::RiskMeasure::price),
+                   *put_value,
                WithinAbs(10.0 * std::exp(-0.04), 1e-10));
     CHECK_FALSE(kiyosi::make_cash_or_nothing_option(
                     kiyosi::OptionType::call, 100.0, 0.0, valuation, expiry_date)
@@ -69,9 +69,9 @@ TEST_CASE("Barrier in and out prices compose to vanilla")
     REQUIRE(barrier_out.has_value());
     REQUIRE(barrier_in.has_value());
     REQUIRE(vanilla.has_value());
-    CHECK_THAT(risk_value(*barrier_out, kiyosi::RiskMeasure::price) +
-                   risk_value(*barrier_in, kiyosi::RiskMeasure::price),
-               WithinAbs(risk_value(*vanilla, kiyosi::RiskMeasure::price), 1e-5));
+    CHECK_THAT(*barrier_out +
+                   *barrier_in,
+               WithinAbs(*vanilla, 1e-5));
 }
 
 TEST_CASE("Scheduled barrier contracts price analytically")
@@ -107,8 +107,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     REQUIRE(asian.has_value());
     auto asian_result = kiyosi::AnalyticGeometricAveragePriceEngine{}.price(*asian, *context);
     REQUIRE(asian_result.has_value());
-    REQUIRE(asian_result->has(kiyosi::RiskMeasure::price));
-    REQUIRE(*asian_result->require(kiyosi::RiskMeasure::price) > 0.0);
+    REQUIRE(*asian_result > 0.0);
 
     auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
                                                      .maturity_coupon_rate = 0.05,
@@ -125,7 +124,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
     auto note_result = engine.price(*note, *context);
     REQUIRE(note_result.has_value());
-    REQUIRE(note_result->has(kiyosi::RiskMeasure::price));
+    CHECK(*note_result > 0.0);
 }
 
 TEST_CASE("Numerical analytics expose shared risk measures")

@@ -23,7 +23,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
     const auto check = [&](const auto& engine, const auto& option, double terminal) {
         const auto settled = engine.price(option, market(midnight));
         REQUIRE(settled);
-        CHECK(risk_value(*settled, kiyosi::RiskMeasure::price) == Catch::Approx(terminal));
+        CHECK(*settled == Catch::Approx(terminal));
         for (const auto delay : {std::chrono::seconds{1}, std::chrono::seconds{43200}}) {
             const auto expired = engine.price(option, market(midnight + delay));
             REQUIRE_FALSE(expired);
@@ -149,7 +149,7 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     const auto check = [&](const auto& engine, double tolerance) {
         const auto priced = engine.price(option, context);
         REQUIRE(priced);
-        CHECK(risk_value(*priced, kiyosi::RiskMeasure::price) == Catch::Approx(expected).margin(tolerance));
+        CHECK(*priced == Catch::Approx(expected).margin(tolerance));
     };
     check(kiyosi::AnalyticVanillaEngine{}, 1e-10);
     check(kiyosi::QuadratureVanillaEngine{}, 1e-6);
@@ -162,16 +162,14 @@ struct RecordingEngine {
     std::vector<kiyosi::Timestamp>& moments;
     kiyosi::Timestamp origin;
 
-    kiyosi::Result<kiyosi::PricingResult> price(const kiyosi::EuropeanOption&,
+    kiyosi::Result<double> price(const kiyosi::EuropeanOption&,
                                                 const kiyosi::PricingContext& context) const
     {
         moments.push_back(context.valuation_time());
         const double elapsed_days = std::chrono::duration<double, std::ratio<86400>>{
             context.valuation_time() - origin}
                                         .count();
-        return kiyosi::make_pricing_result(
-            {{kiyosi::RiskMeasure::price,
-              context.model_parameters().volatility() + elapsed_days}});
+        return context.model_parameters().volatility() + elapsed_days;
     }
 };
 
@@ -234,7 +232,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
                                         ? 1.0 + 10.0 *
                                                     kiyosi::year_fraction(effective_date, observation_date).value()
                                         : 1.1;
-            CHECK(risk_value(*priced, kiyosi::RiskMeasure::price) == Catch::Approx(expected).margin(1e-8));
+            CHECK(*priced == Catch::Approx(expected).margin(1e-8));
         }
     };
     check(kiyosi::MonteCarloBinarySnowballEngine{{32, 7}});
@@ -269,7 +267,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
         const double coupon = hour == 0 ? 0.2 : 0.8;
         const double remaining = hour == 0 ? 1.0 / 365.0 : 0.5 / 365.0;
         const double expected = (1.0 + coupon * 2.0 / 365.0) * std::exp(-400.0 * remaining);
-        CHECK(risk_value(*priced, kiyosi::RiskMeasure::price) == Catch::Approx(expected).margin(1e-10));
+        CHECK(*priced == Catch::Approx(expected).margin(1e-10));
     }
 }
 

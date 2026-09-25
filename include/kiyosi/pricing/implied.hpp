@@ -197,12 +197,10 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         if (!replaced) return std::unexpected(replaced.error());
         auto priced = engine.price(*replaced, context);
         if (!priced) return std::unexpected(priced.error());
-        const auto value = priced->get(RiskMeasure::price);
-        if (!value) return std::unexpected(value.error());
-        if (!*value || !std::isfinite(**value))
+        if (!std::isfinite(*priced))
             return std::unexpected(Error{ErrorCategory::solver_non_finite,
                                          "implied-coupon pricing became non-finite"});
-        return **value - observed_price;
+        return *priced - observed_price;
     };
 
     double lo = settings.lower_bound;

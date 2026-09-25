@@ -48,7 +48,7 @@ Result<PricingResult> terminal_value(const Accumulator& option, const PricingCon
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceAccumulatorEngine::price(
+Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const Accumulator& option, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());

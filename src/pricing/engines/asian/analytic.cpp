@@ -20,7 +20,7 @@ Result<double> time_to_expiry(const PricingContext& context, Date effective_date
 }
 } // namespace
 
-Result<PricingResult> AnalyticGeometricAveragePriceEngine::price(
+Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const GeometricAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
@@ -54,7 +54,7 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price(
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }
 
-Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price(
+Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const ArithmeticAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());

@@ -25,7 +25,7 @@ TEST_CASE("Binomial American engine prices expiry_date and validates steps")
 
     const auto priced = engine.price(option, context);
     REQUIRE(priced.has_value());
-    CHECK(risk_value(*priced, kiyosi::RiskMeasure::price) == 10.0);
+    CHECK(*priced == 10.0);
 
     const auto invalid = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{0}}.price(option, context);
     REQUIRE_FALSE(invalid.has_value());
@@ -36,7 +36,7 @@ TEST_CASE("Binomial American engine prices expiry_date and validates steps")
     CHECK(too_many.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
 
-TEST_CASE("Binomial American engine does not expose gamma below two steps")
+TEST_CASE("Binomial American engine supplements gamma below two steps")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry_date = valuation + std::chrono::days{365};
@@ -45,14 +45,15 @@ TEST_CASE("Binomial American engine does not expose gamma below two steps")
     const auto option = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
 
-    const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1}}.price(option, context);
+    const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1}}.price_with_greeks(option, context, kiyosi::GreeksLevel::basic);
     REQUIRE(result.has_value());
     CHECK(result->has(kiyosi::RiskMeasure::price));
     CHECK(result->has(kiyosi::RiskMeasure::delta));
-    CHECK_FALSE(result->has(kiyosi::RiskMeasure::gamma));
+    CHECK(result->has(kiyosi::RiskMeasure::gamma));
     const auto gamma = result->get(kiyosi::RiskMeasure::gamma);
     REQUIRE(gamma.has_value());
-    CHECK_FALSE(gamma->has_value());
+    REQUIRE(gamma->has_value());
+    CHECK_THAT(**gamma, Catch::Matchers::WithinAbs(0.0, 1e-7));
 }
 
 TEST_CASE("Binomial American engine exercises puts and converges to European calls")
@@ -74,24 +75,24 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const auto european_put = kiyosi::AnalyticVanillaEngine{}.price(european_put_option, context);
     REQUIRE(american_put.has_value());
     REQUIRE(european_put.has_value());
-    CHECK(risk_value(*american_put, kiyosi::RiskMeasure::price) >
-          risk_value(*european_put, kiyosi::RiskMeasure::price));
+    CHECK(*american_put >
+          *european_put);
 
     const auto at_the_money_context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto american_call = engine.price(american_call_option, at_the_money_context);
+    const auto american_call = engine.price_with_greeks(american_call_option, at_the_money_context, kiyosi::GreeksLevel::basic);
     const auto european_call = kiyosi::AnalyticVanillaEngine{}.price(call, at_the_money_context);
     REQUIRE(american_call.has_value());
     REQUIRE(european_call.has_value());
     CHECK_THAT(risk_value(*american_call, kiyosi::RiskMeasure::price),
-               WithinAbs(risk_value(*european_call, kiyosi::RiskMeasure::price), 0.02));
+               WithinAbs(*european_call, 0.02));
     CHECK(std::isfinite(risk_value(*american_call, kiyosi::RiskMeasure::delta)));
     CHECK(std::isfinite(risk_value(*american_call, kiyosi::RiskMeasure::gamma)));
 
     const auto high_resolution = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1200}}
                                      .price(american_call_option, at_the_money_context);
     REQUIRE(high_resolution.has_value());
-    CHECK_THAT(risk_value(*high_resolution, kiyosi::RiskMeasure::price),
-               WithinAbs(risk_value(*european_call, kiyosi::RiskMeasure::price), 0.01));
+    CHECK_THAT(*high_resolution,
+               WithinAbs(*european_call, 0.01));
 }
 
 TEST_CASE("Binomial American call and put values are symmetric at zero carry")
@@ -108,8 +109,8 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     const auto put_result = engine.price(put, context);
     REQUIRE(call_result.has_value());
     REQUIRE(put_result.has_value());
-    CHECK(std::abs(risk_value(*call_result, kiyosi::RiskMeasure::price) -
-                   risk_value(*put_result, kiyosi::RiskMeasure::price)) <= 1e-12);
+    CHECK(std::abs(*call_result -
+                   *put_result) <= 1e-12);
 }
 
 } // namespace

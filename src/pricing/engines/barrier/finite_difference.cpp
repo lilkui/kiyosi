@@ -81,7 +81,7 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     return space->interpolate(old, spot);
 }
 } // namespace
-Result<PricingResult> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierOption& option, const PricingContext& context) const
 {
     auto settings_valid = validate_finite_difference_settings(settings_);
     if (!settings_valid) return std::unexpected(settings_valid.error());

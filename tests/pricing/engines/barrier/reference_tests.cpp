@@ -47,8 +47,6 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         const auto check = [&](const auto& engine) {
             const auto native = engine.price(*option, *context);
             check_price(fixture, native);
-            for (const auto& [name, measure] : measures)
-                REQUIRE(native->has(measure) == (name == "price"));
             ++generated[fixture.engine];
             REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
             const bool boundary = (date("expiry_date") - date("valuation")).count() <= 2;

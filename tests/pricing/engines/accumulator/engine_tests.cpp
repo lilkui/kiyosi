@@ -85,12 +85,12 @@ TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
 
     const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(90.0));
     REQUIRE(monte_carlo);
-    CHECK(*monte_carlo->require(kiyosi::RiskMeasure::price) == Catch::Approx(-50.0));
+    CHECK(*monte_carlo == Catch::Approx(-50.0));
 
     const auto finite_difference =
         kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(90.0));
     REQUIRE(finite_difference);
-    CHECK(*finite_difference->require(kiyosi::RiskMeasure::price) == Catch::Approx(-50.0));
+    CHECK(*finite_difference == Catch::Approx(-50.0));
 }
 
 TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
@@ -124,14 +124,14 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
         const auto result = kiyosi::MonteCarloAccumulatorEngine{settings}.price(accumulator, context);
 
         REQUIRE(result);
-        CHECK(*result->require(kiyosi::RiskMeasure::price) == legacy);
+        CHECK(*result == legacy);
         CHECK(calls->load() == 6);
     }
 
     const auto unseeded =
         kiyosi::MonteCarloAccumulatorEngine{{32, std::nullopt}}.price(accumulator, context);
     REQUIRE(unseeded);
-    CHECK(std::isfinite(*unseeded->require(kiyosi::RiskMeasure::price)));
+    CHECK(std::isfinite(*unseeded));
 }
 
 TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulation")
@@ -163,7 +163,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
     const auto immediate = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
         make_option(large_payoff), context(valuation, 101.0));
     REQUIRE(immediate);
-    CHECK(*immediate->require(kiyosi::RiskMeasure::price) == large_payoff);
+    CHECK(*immediate == large_payoff);
     CHECK(calls->load() == 1);
 
     calls->store(0);
@@ -172,7 +172,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
     const auto at_expiry = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
         make_option(expiry_quantity), context(expiry_date, 90.0));
     REQUIRE(at_expiry);
-    CHECK(*at_expiry->require(kiyosi::RiskMeasure::price) == expiry_payoff);
+    CHECK(*at_expiry == expiry_payoff);
     CHECK(calls->load() == 1);
 
     calls->store(0);
@@ -210,7 +210,7 @@ TEST_CASE("Accumulator CUDA selection validates and preserves deterministic sett
 
     const auto settled = cuda.price(option, context(110.0));
     REQUIRE(settled);
-    CHECK(*settled->require(kiyosi::RiskMeasure::price) == 30.0);
+    CHECK(*settled == 30.0);
 
     const auto invalid = kiyosi::MonteCarloAccumulatorEngine{
         {0, 7, kiyosi::MonteCarloBackend::cuda}}
@@ -257,8 +257,8 @@ TEST_CASE("Accumulator CUDA Monte Carlo preserves accrual and seeded execution")
 
     REQUIRE(first);
     REQUIRE(second);
-    const double first_price = *first->require(kiyosi::RiskMeasure::price);
-    CHECK(first_price == *second->require(kiyosi::RiskMeasure::price));
+    const double first_price = *first;
+    CHECK(first_price == *second);
     CHECK(first_price == Catch::Approx(-110.0).margin(1e-5));
 }
 #endif
@@ -283,8 +283,8 @@ TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid
         const auto fine = kiyosi::FiniteDifferenceAccumulatorEngine{{80, 1024, scheme}}.price(accumulator, context);
         REQUIRE(coarse);
         REQUIRE(fine);
-        const double coarse_value = *coarse->require(kiyosi::RiskMeasure::price);
-        const double fine_value = *fine->require(kiyosi::RiskMeasure::price);
+        const double coarse_value = *coarse;
+        const double fine_value = *fine;
         CHECK(std::isfinite(coarse_value));
         CHECK(std::isfinite(fine_value));
         CHECK(fine_value != coarse_value);

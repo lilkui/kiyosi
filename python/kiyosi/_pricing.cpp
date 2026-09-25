@@ -69,6 +69,10 @@ nb::tuple result_items(const PricingResult& result)
     return output;
 }
 
+NumericalShiftSettings numerical_settings(
+    nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
+    nb::handle time_shift_days);
+
 template <typename Engine, typename Instrument>
 void bind_engine_price(nb::class_<Engine>& binding)
 {
@@ -89,14 +93,56 @@ context : PricingContext
 
 Returns
 -------
-PricingResult
-    Result containing ``price`` and any analytics produced by the engine.
+float
+    Instrument price. No Greeks are calculated.
 
 Raises
 ------
 KiyosiError
     If instrument terms, context, engine settings, backend availability, or
     the requested valuation are invalid.)doc");
+    binding.def(
+        "price_with_greeks",
+        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
+           GreeksLevel level, PythonReal spot_shift, PythonReal volatility_shift,
+           PythonReal rate_shift, PythonInteger time_shift_days) {
+            const auto settings = numerical_settings(
+                spot_shift, volatility_shift, rate_shift, time_shift_days);
+            nb::gil_scoped_release release;
+            return unwrap(engine.price_with_greeks(instrument, context, level, settings));
+        },
+        "instrument"_a, "context"_a, "level"_a.noconvert(), nb::kw_only(),
+        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
+        "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
+        "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
+        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
+        R"doc(Compute price and the explicitly selected Greeks tier.
+
+``GreeksLevel.basic`` requests delta and gamma; ``GreeksLevel.full`` requests
+all ten Greeks. Native values are reused and missing feasible measures use
+numerical price differences. Unrequested or undefined measures are None, never
+zero sentinels. At expiry or a monitored barrier hit-state boundary, only price
+is available. Feasible bumped valuation failures fail the entire operation.
+At current structured-product event thresholds, undefined spot and time
+sensitivities remain None while feasible rate and volatility sensitivities survive.
+
+Shift keyword arguments are absolute, use core-owned defaults, and follow
+calculate_numerical_risk_measures. Monte Carlo valuations share one seed per
+request without changing the engine. Concurrent calls are safe.
+
+Returns
+-------
+PricingResult
+    Price and requested available Greeks, with RiskMeasure units.
+
+Raises
+------
+TypeError
+    If level, engine/instrument pairing, or a shift representation is incompatible.
+OverflowError
+    If time_shift_days is outside the C++ int range.
+KiyosiError
+    If settings are invalid or a required valuation fails.)doc");
 }
 
 template <typename Engine>
@@ -488,6 +534,11 @@ void bind_engine_analytics(nb::module_& module)
 
 void bind_results(nb::module_& module)
 {
+    nb::enum_<GreeksLevel>(module, "GreeksLevel",
+        "Explicit Greeks calculation tier; basic is delta/gamma, full is all ten Greeks.")
+        .value("basic", GreeksLevel::basic)
+        .value("full", GreeksLevel::full);
+
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",
         R"doc(Read-only mapping over the fixed risk-measure vocabulary.

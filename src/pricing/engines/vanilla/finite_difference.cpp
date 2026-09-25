@@ -14,7 +14,7 @@ using namespace detail;
 template <typename Option>
 Result<PricingResult> price_finite_difference(
     const Option& option, const PricingContext& context,
-    FiniteDifferenceSettings settings, bool american)
+    FiniteDifferenceSettings settings, bool american, RiskMeasureOutput requested_output)
 {
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
@@ -73,6 +73,9 @@ Result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
+    if (requested_output == RiskMeasureOutput::price_only)
+        return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
+
     auto output = make_pricing_result(
         {{RiskMeasure::price, space->interpolate(old, spot)},
          {RiskMeasure::delta, space->delta(old, spot)},
@@ -85,15 +88,15 @@ Result<PricingResult> price_finite_difference(
 }
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_european(
-    const EuropeanOption& option, const PricingContext& context) const
+    const EuropeanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_finite_difference(option, context, settings_, false);
+    return price_finite_difference(option, context, settings_, false, output);
 }
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_american(
-    const AmericanOption& option, const PricingContext& context) const
+    const AmericanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return price_finite_difference(option, context, settings_, true);
+    return price_finite_difference(option, context, settings_, true, output);
 }
 
 } // namespace kiyosi

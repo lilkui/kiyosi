@@ -35,7 +35,7 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
     const auto check = [&](const auto& engine) {
         const auto result = engine.price(instrument, context);
         REQUIRE(result);
-        const auto price = result->require(kiyosi::RiskMeasure::price);
+        const auto price = result;
         REQUIRE(price);
         CHECK(*price == Catch::Approx(expected).margin(tolerance).epsilon(0.0));
     };
@@ -243,8 +243,8 @@ TEST_CASE("FD-MC accumulator future knock-out settles on first trading day",
         const auto mc_result = mc.price(*option, *context);
         REQUIRE(fd_result);
         REQUIRE(mc_result);
-        const auto fd_price = fd_result->require(kiyosi::RiskMeasure::price);
-        const auto mc_price = mc_result->require(kiyosi::RiskMeasure::price);
+        const auto fd_price = fd_result;
+        const auto mc_price = mc_result;
         REQUIRE(fd_price);
         REQUIRE(mc_price);
         CHECK(*fd_price == Catch::Approx(expected).margin(1e-7).epsilon(0.0));
@@ -268,8 +268,6 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
     REQUIRE(fd);
     REQUIRE(mc);
     for (const auto& result : {*fd, *mc}) {
-        const auto price = result.require(kiyosi::RiskMeasure::price);
-        REQUIRE(price);
-        CHECK(*price == Catch::Approx(1.25).margin(1e-6).epsilon(0.0));
+        CHECK(result == Catch::Approx(1.25).margin(1e-6).epsilon(0.0));
     }
 }

@@ -17,7 +17,7 @@ Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<
 }
 
 Result<PricingResult> digital_price(double strike, OptionType type, double payout,
-                                    bool asset_settlement, Date effective_date, Date expiry_date, const PricingContext& context)
+                                    bool asset_settlement, Date effective_date, Date expiry_date, const PricingContext& context, RiskMeasureOutput output)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
@@ -26,8 +26,7 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
-        auto output = make_price_delta_gamma_result(exercised ? (asset_settlement ? spot : payout) : 0.0);
-        return output;
+        return make_price_delta_gamma_result(exercised ? (asset_settlement ? spot : payout) : 0.0);
     }
     const double sigma = context.model_parameters().volatility();
     const double root_t = std::sqrt(t);
@@ -40,9 +39,12 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
                       (sigma * root_t);
     const double d2 = d1 - sigma * root_t;
     const double nd = normal_cdf(sign * (asset_settlement ? d1 : d2));
-    const double density = normal_pdf(asset_settlement ? d1 : d2);
     const double scale = asset_settlement ? spot * div_df : payout * rate_df;
     const double value = scale * nd;
+    if (!std::isfinite(value))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
+    if (output == RiskMeasureOutput::price_only) return make_price_delta_gamma_result(value);
+    const double density = normal_pdf(asset_settlement ? d1 : d2);
     double delta = 0.0;
     double gamma = 0.0;
     if (asset_settlement) {
@@ -54,20 +56,20 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
         gamma = -payout * rate_df * sign * density *
                 (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
-    auto output = make_price_delta_gamma_result(value, delta, gamma);
-    if (!output) return std::unexpected(output.error());
-    if (!output->all_finite())
+    auto result = make_price_delta_gamma_result(value, delta, gamma);
+    if (!result) return std::unexpected(result.error());
+    if (!result->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    return output;
+    return result;
 }
 
 } // namespace
 
 Result<PricingResult> AnalyticDigitalEngine::price_impl(
     OptionType type, double strike, double payout, bool asset_settlement, Date effective_date, Date expiry_date,
-    const PricingContext& context) const
+    const PricingContext& context, detail::RiskMeasureOutput output) const
 {
-    return digital_price(strike, type, payout, asset_settlement, effective_date, expiry_date, context);
+    return digital_price(strike, type, payout, asset_settlement, effective_date, expiry_date, context, output);
 }
 
 } // namespace kiyosi

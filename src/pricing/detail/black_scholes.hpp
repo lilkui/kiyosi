@@ -16,11 +16,6 @@ inline Result<PricingResult> price_only_result(double value)
     return make_pricing_result({{RiskMeasure::price, value}});
 }
 
-enum class RiskMeasureOutput {
-    all,
-    price_only,
-};
-
 /// Black-Scholes-Merton valuation of a European vanilla with the full analytic Greek set.
 /// The volatility is supplied separately so solvers can reprice without rebuilding the context.
 inline Result<PricingResult> price_at_volatility(
@@ -81,6 +76,15 @@ inline Result<PricingResult> price_at_volatility(
 
     const double delta = sign * dividend_discount_factor * cumulative_d1;
     const double density_d1 = normal_pdf(d1);
+    const double basic_gamma = density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)
+        ? dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time) : 0.0;
+    if (requested_output == RiskMeasureOutput::basic) {
+        auto result = make_pricing_result({{RiskMeasure::price, value},
+            {RiskMeasure::delta, delta}, {RiskMeasure::gamma, basic_gamma}});
+        if (result && !result->all_finite())
+            return std::unexpected(Error{ErrorCategory::invalid_result, "analytic Greeks are non-finite"});
+        return result;
+    }
     const double carry = sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
                          sign * rate * strike * rate_discount_factor * cumulative_d2;
     double gamma = 0.0;
@@ -92,7 +96,7 @@ inline Result<PricingResult> price_at_volatility(
     double vanna = 0.0;
     double zomma = 0.0;
     if (density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)) {
-        gamma = dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time);
+        gamma = basic_gamma;
         speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
         theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) /
                 365.0;

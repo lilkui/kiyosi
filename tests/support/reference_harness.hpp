@@ -54,9 +54,12 @@ void check_price(const ReferenceCase& fixture, const PriceResult& priced)
     REQUIRE(priced.has_value());
     REQUIRE(fixture.outputs.contains("price"));
     REQUIRE(fixture.tolerances.contains("price"));
-    REQUIRE(priced->require(kiyosi::RiskMeasure::price).has_value());
-    CAPTURE(*priced->require(kiyosi::RiskMeasure::price));
-    CHECK(std::abs(*priced->require(kiyosi::RiskMeasure::price) - fixture.outputs.at("price")) <=
+    const double value = [&] {
+        if constexpr (std::is_same_v<typename PriceResult::value_type, double>) return *priced;
+        else return *priced->require(kiyosi::RiskMeasure::price);
+    }();
+    CAPTURE(value);
+    CHECK(std::abs(value - fixture.outputs.at("price")) <=
           fixture.tolerances.at("price"));
 }
 

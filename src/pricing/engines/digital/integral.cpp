@@ -46,11 +46,11 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
 }
 } // namespace
 
-Result<PricingResult> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), option.payout(), false, option.effective_date(), option.expiry_date(), context);
 }
-Result<PricingResult> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
 }

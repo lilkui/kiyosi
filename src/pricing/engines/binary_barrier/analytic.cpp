@@ -147,13 +147,13 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
 }
 } // namespace
 
-Result<PricingResult> AnalyticBinaryBarrierEngine::price(
+Result<PricingResult> AnalyticBinaryBarrierEngine::price_native(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
     return price_contract(make_contract_view(option), context);
 }
 
-Result<PricingResult> AnalyticBinaryBarrierEngine::price(
+Result<PricingResult> AnalyticBinaryBarrierEngine::price_native(
     const TouchOption& option, const PricingContext& context) const
 {
     return price_contract(make_contract_view(option), context);

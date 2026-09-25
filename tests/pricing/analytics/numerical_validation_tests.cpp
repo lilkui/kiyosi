@@ -32,8 +32,8 @@ kiyosi::PricingResult analytic(kiyosi::OptionType type, double spot = 100.0, dou
                                double strike = 100.0)
 {
     const auto option = *kiyosi::make_european_option(type, strike, value_date, option_expiry);
-    return *kiyosi::AnalyticVanillaEngine{}.price(
-        option, context(spot, rate, dividend, volatility, value_date));
+    return *kiyosi::AnalyticVanillaEngine{}.price_with_greeks(
+        option, context(spot, rate, dividend, volatility, value_date), kiyosi::GreeksLevel::full);
 }
 
 double difference(double left, double right)
@@ -54,8 +54,9 @@ void check_close(double actual, double expected, double absolute = 1e-7, double 
 double value(kiyosi::OptionType type, double spot, double rate, double dividend,
              double volatility, kiyosi::Date value_date, kiyosi::Date option_expiry, double strike = 100.0)
 {
-    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
-                      kiyosi::RiskMeasure::price);
+    const auto option = *kiyosi::make_european_option(type, strike, value_date, option_expiry);
+    return *kiyosi::AnalyticVanillaEngine{}.price(
+        option, context(spot, rate, dividend, volatility, value_date));
 }
 
 double delta(kiyosi::OptionType type, double spot, double rate, double dividend,
@@ -73,15 +74,13 @@ double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
 }
 
 struct RejectingMixedBumpEngine {
-    kiyosi::Result<kiyosi::PricingResult> price(
+    kiyosi::Result<double> price(
         const kiyosi::EuropeanOption&, const kiyosi::PricingContext& market) const
     {
         if (market.spot_price() > 100.0 && market.model_parameters().volatility() > 0.3)
             return std::unexpected(kiyosi::Error{
                 kiyosi::ErrorCategory::invalid_schedule, "feasible mixed bump rejected"});
-        return kiyosi::make_pricing_result(
-            {{kiyosi::RiskMeasure::price,
-              market.spot_price() + market.model_parameters().volatility()}});
+        return market.spot_price() + market.model_parameters().volatility();
     }
 };
 
@@ -148,7 +147,7 @@ TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
         kiyosi::OptionType::call, 100.0, valuation - std::chrono::days{30}, expiry_date);
     const auto market = context();
     const kiyosi::AnalyticVanillaEngine engine;
-    const auto analytic_result = *engine.price(option, market);
+    const auto analytic_result = *engine.price_with_greeks(option, market, kiyosi::GreeksLevel::full);
     const auto numerical_result = *kiyosi::calculate_numerical_risk_measures(engine, option, market);
 
     for (std::size_t index = 0; index < kiyosi::risk_measure_count; ++index) {
@@ -173,7 +172,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
 
         REQUIRE(result);
         check_close(risk_value(*result, kiyosi::RiskMeasure::price),
-                    risk_value(direct, kiyosi::RiskMeasure::price));
+                    direct);
         CHECK(result->has(kiyosi::RiskMeasure::delta));
         CHECK(result->has(kiyosi::RiskMeasure::rho));
         CHECK_FALSE(result->has(kiyosi::RiskMeasure::vega));
@@ -189,7 +188,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
 
         REQUIRE(result);
         check_close(risk_value(*result, kiyosi::RiskMeasure::price),
-                    risk_value(direct, kiyosi::RiskMeasure::price));
+                    direct);
         CHECK(result->has(kiyosi::RiskMeasure::vega));
         CHECK(result->has(kiyosi::RiskMeasure::theta));
         CHECK(result->has(kiyosi::RiskMeasure::rho));
@@ -242,8 +241,8 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
         const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 100.0, valuation, expiry_date);
         const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, valuation, expiry_date);
         const auto vanilla = analytic(type);
-        const auto cash_value = risk_value(*digital.price(cash, context()), kiyosi::RiskMeasure::price);
-        const auto asset_value = risk_value(*digital.price(asset, context()), kiyosi::RiskMeasure::price);
+        const auto cash_value = *digital.price(cash, context());
+        const auto asset_value = *digital.price(asset, context());
         check_close(type == kiyosi::OptionType::call ? asset_value - cash_value : cash_value - asset_value,
                     risk_value(vanilla, kiyosi::RiskMeasure::price), 2e-10, 2e-10);
     }
@@ -271,8 +270,8 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
                                                           .expiry_date = expiry_date,
                                                           .barrier_level = barrier,
                                                           .barrier_type = paired_kind});
-        check_close(risk_value(*barriers.price(option, context()), kiyosi::RiskMeasure::price) +
-                        risk_value(*barriers.price(paired, context()), kiyosi::RiskMeasure::price),
+        check_close(*barriers.price(option, context()) +
+                        *barriers.price(paired, context()),
                     risk_value(analytic(kiyosi::OptionType::call), kiyosi::RiskMeasure::price), 2e-5, 2e-5);
     }
 }
@@ -319,9 +318,8 @@ TEST_CASE("Binary barrier expiry_date uses inclusive hits and strict strikes")
     };
     for (const auto& item : cases) {
         const auto check = [&](const auto& option) {
-            CHECK(risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(
-                                 option, context(100.0, 0.04, 0.01, 0.3, expiry_date)),
-                             kiyosi::RiskMeasure::price) == item.expected);
+            CHECK(*kiyosi::AnalyticBinaryBarrierEngine{}.price(
+                                 option, context(100.0, 0.04, 0.01, 0.3, expiry_date)) == item.expected);
         };
         if (item.type) {
             const kiyosi::BinaryBarrierTerms terms{.option_type = *item.type,
@@ -362,8 +360,8 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
     const auto long_schedule = *kiyosi::make_cash_no_touch_down(
         valuation, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
         {valuation + std::chrono::days{179}, expiry_date});
-    const auto short_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context()), kiyosi::RiskMeasure::price);
-    const auto long_value = risk_value(*kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context()), kiyosi::RiskMeasure::price);
+    const auto short_value = *kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context());
+    const auto long_value = *kiyosi::AnalyticBinaryBarrierEngine{}.price(long_schedule, context());
     CHECK(std::abs(short_value - long_value) > 1e-4);
 
     const auto weekend = *kiyosi::make_cash_no_touch_down(
@@ -395,11 +393,11 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     knock_in_terms.barrier_type = kiyosi::BarrierType::down_and_in;
     const auto in = *kiyosi::make_barrier_option(knock_in_terms);
     const auto market = context();
-    const double coarse = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market), kiyosi::RiskMeasure::price);
-    const double fine = risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(out, market), kiyosi::RiskMeasure::price);
-    const double analytic = risk_value(*kiyosi::AnalyticBarrierEngine{}.price(out, market), kiyosi::RiskMeasure::price);
+    const double coarse = *kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market);
+    const double fine = *kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(out, market);
+    const double analytic = *kiyosi::AnalyticBarrierEngine{}.price(out, market);
     CHECK(std::abs(fine - analytic) < std::abs(coarse - analytic));
-    CHECK(risk_value(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market), kiyosi::RiskMeasure::price) > 0.0);
+    CHECK(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market) > 0.0);
 
     auto weekend_terms = terms;
     weekend_terms.observation_dates = {day(2025, 1, 11)};
@@ -416,7 +414,7 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     at_hit_terms.rebate_timing = kiyosi::RebateTiming::at_hit;
     at_hit_terms.observation_dates = {valuation + std::chrono::days{37}, expiry_date};
     const auto at_hit = *kiyosi::make_barrier_option(at_hit_terms);
-    CHECK(risk_value(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market), kiyosi::RiskMeasure::price) > 0.0);
+    CHECK(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market) > 0.0);
 }
 
 TEST_CASE("Binomial and finite-difference prices converge toward analytic values")
@@ -426,14 +424,14 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     const auto american_call = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto market = context(100.0, 0.04, 0.0, 0.3);
-    const double reference = risk_value(*kiyosi::AnalyticVanillaEngine{}.price(option, market), kiyosi::RiskMeasure::price);
+    const double reference = *kiyosi::AnalyticVanillaEngine{}.price(option, market);
 
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {
         const int steps = 64 << static_cast<int>(index);
         const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{steps}.price(american_call, market);
         REQUIRE(result.has_value());
-        tree_errors[index] = difference(risk_value(*result, kiyosi::RiskMeasure::price), reference);
+        tree_errors[index] = difference(*result, reference);
     }
     CHECK(tree_errors.back() < tree_errors.front());
     CHECK(tree_errors[2] < tree_errors[0]);
@@ -444,7 +442,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
         const int steps = 50 << static_cast<int>(index);
         const auto result = kiyosi::FiniteDifferenceVanillaEngine{steps, steps}.price(option, market);
         REQUIRE(result.has_value());
-        finite_difference_errors[index] = difference(risk_value(*result, kiyosi::RiskMeasure::price), reference);
+        finite_difference_errors[index] = difference(*result, reference);
     }
     CHECK(finite_difference_errors.back() < finite_difference_errors.front());
     CHECK(finite_difference_errors[2] < finite_difference_errors[1]);

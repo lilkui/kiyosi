@@ -31,7 +31,7 @@ TEST_CASE("Already-hit barrier rebates respect expiry_date payment timing")
 
     const auto result = kiyosi::AnalyticBarrierEngine{}.price(barrier, context);
     REQUIRE(result.has_value());
-    CHECK_THAT(risk_value(*result, kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05), 1e-12));
+    CHECK_THAT(*result, Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05), 1e-12));
 }
 
 TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
@@ -58,7 +58,7 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
                                       normal_cdf((root - distance) / 0.2) +
                                   std::exp(root * distance / (0.2 * 0.2)) *
                                       normal_cdf((-root - distance) / 0.2);
-    CHECK_THAT(risk_value(*result, kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(10.0 * discounted_hit, 1e-6));
+    CHECK_THAT(*result, Catch::Matchers::WithinAbs(10.0 * discounted_hit, 1e-6));
 }
 
 TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")

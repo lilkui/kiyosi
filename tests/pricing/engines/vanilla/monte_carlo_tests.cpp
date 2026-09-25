@@ -74,16 +74,16 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     const auto second = european.price(call, context);
     REQUIRE(first.has_value());
     REQUIRE(second.has_value());
-    CHECK(*first->require(kiyosi::RiskMeasure::price) == *second->require(kiyosi::RiskMeasure::price));
-    CHECK(std::abs(*first->require(kiyosi::RiskMeasure::price) -
-                   *kiyosi::AnalyticVanillaEngine{}.price(call, context)->require(kiyosi::RiskMeasure::price)) < 0.5);
-    CHECK_FALSE(first->has(kiyosi::RiskMeasure::delta));
+    CHECK(*first == *second);
+    CHECK(std::abs(*first -
+                   *kiyosi::AnalyticVanillaEngine{}.price(call, context)) < 0.5);
+
 
     const kiyosi::MonteCarloVanillaEngine american_engine{20'000, 20, 42};
     const auto american_result = american_engine.price(american, context);
     REQUIRE(american_result.has_value());
-    CHECK(*american_result->require(kiyosi::RiskMeasure::price) >= 0.0);
-    CHECK_FALSE(american_result->has(kiyosi::RiskMeasure::gamma));
+    CHECK(*american_result >= 0.0);
+
 
     CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{0, 2}.price(call, context).has_value());
     CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{20, 2}.price(american, context).has_value());
@@ -97,7 +97,7 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry_date")
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, expiry_date, expiry_date);
     const auto result = kiyosi::MonteCarloVanillaEngine{10, 2, 1}.price(call, context);
     REQUIRE(result.has_value());
-    CHECK(*result->require(kiyosi::RiskMeasure::price) == 10.0);
+    CHECK(*result == 10.0);
 }
 
 TEST_CASE("European Monte Carlo terminal retention preserves full-path seeded results")
@@ -118,7 +118,7 @@ TEST_CASE("European Monte Carlo terminal retention preserves full-path seeded re
         CAPTURE(setting.path_count, setting.step_count);
         const auto result = kiyosi::MonteCarloVanillaEngine{setting}.price(call, context);
         REQUIRE(result.has_value());
-        CHECK(*result->require(kiyosi::RiskMeasure::price) ==
+        CHECK(*result ==
               legacy_european_price(call, context, setting));
     }
 }
@@ -132,7 +132,7 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     const auto put = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, valuation, expiry_date);
     const auto result = kiyosi::MonteCarloVanillaEngine{20'000, 50, 42}.price(put, context);
     REQUIRE(result.has_value());
-    CHECK_THAT(*result->require(kiyosi::RiskMeasure::price), Catch::Matchers::WithinAbs(50.0, 1e-10));
+    CHECK_THAT(*result, Catch::Matchers::WithinAbs(50.0, 1e-10));
 }
 
 TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbacks")
@@ -150,9 +150,9 @@ TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbac
 
     REQUIRE(sparse);
     REQUIRE(singular);
-    CHECK(*sparse->require(kiyosi::RiskMeasure::price) ==
-          *singular->require(kiyosi::RiskMeasure::price));
-    CHECK(*sparse->require(kiyosi::RiskMeasure::price) > 50.0);
+    CHECK(*sparse ==
+          *singular);
+    CHECK(*sparse > 50.0);
 }
 
 TEST_CASE("Monte Carlo defaults to CPU and preserves explicit CPU pricing")
@@ -172,8 +172,8 @@ TEST_CASE("Monte Carlo defaults to CPU and preserves explicit CPU pricing")
     const auto explicit_result = explicit_cpu.price(call, context);
     REQUIRE(implicit_result);
     REQUIRE(explicit_result);
-    CHECK(*implicit_result->require(kiyosi::RiskMeasure::price) ==
-          *explicit_result->require(kiyosi::RiskMeasure::price));
+    CHECK(*implicit_result ==
+          *explicit_result);
 
     auto invalid_settings = implicit_cpu.settings();
     invalid_settings.backend = static_cast<kiyosi::MonteCarloBackend>(255);
@@ -265,7 +265,7 @@ TEST_CASE("CUDA American Monte Carlo returns intrinsic value at expiry_date with
             20, 3, 42, kiyosi::MonteCarloBackend::cuda}
                                 .price(option, context);
         REQUIRE(result);
-        CHECK(*result->require(kiyosi::RiskMeasure::price) == test.expected);
+        CHECK(*result == test.expected);
     }
 }
 
@@ -297,16 +297,16 @@ TEST_CASE("CUDA European Monte Carlo is seeded and deterministic", "[cuda]")
     REQUIRE(different_seed);
     REQUIRE(repeated_different_seed);
     REQUIRE(different_path_count);
-    CHECK(*first->require(kiyosi::RiskMeasure::price) ==
-          *second->require(kiyosi::RiskMeasure::price));
-    CHECK(*different_seed->require(kiyosi::RiskMeasure::price) ==
-          *repeated_different_seed->require(kiyosi::RiskMeasure::price));
-    CHECK(*first->require(kiyosi::RiskMeasure::price) !=
-          *different_seed->require(kiyosi::RiskMeasure::price));
-    CHECK(*first->require(kiyosi::RiskMeasure::price) !=
-          *different_path_count->require(kiyosi::RiskMeasure::price));
-    CHECK(*first->require(kiyosi::RiskMeasure::price) >= 0.0);
-    CHECK_FALSE(first->has(kiyosi::RiskMeasure::delta));
+    CHECK(*first ==
+          *second);
+    CHECK(*different_seed ==
+          *repeated_different_seed);
+    CHECK(*first !=
+          *different_seed);
+    CHECK(*first !=
+          *different_path_count);
+    CHECK(*first >= 0.0);
+
 }
 
 TEST_CASE("CUDA European Monte Carlo agrees with CPU and analytic prices", "[cuda]")
@@ -341,11 +341,11 @@ TEST_CASE("CUDA European Monte Carlo agrees with CPU and analytic prices", "[cud
         REQUIRE(cpu);
         REQUIRE(cuda);
         REQUIRE(analytic);
-        const double cuda_price = *cuda->require(kiyosi::RiskMeasure::price);
+        const double cuda_price = *cuda;
         CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
-                                   *cpu->require(kiyosi::RiskMeasure::price), tolerance));
+                                   *cpu, tolerance));
         CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
-                                   *analytic->require(kiyosi::RiskMeasure::price), tolerance));
+                                   *analytic, tolerance));
     }
 }
 
@@ -368,8 +368,8 @@ TEST_CASE("CUDA European Monte Carlo rounds odd path counts for antithetic pairs
                               .price(call, context);
         REQUIRE(odd);
         REQUIRE(even);
-        CHECK(*odd->require(kiyosi::RiskMeasure::price) ==
-              *even->require(kiyosi::RiskMeasure::price));
+        CHECK(*odd ==
+              *even);
     }
 }
 
@@ -386,14 +386,14 @@ TEST_CASE("CUDA Monte Carlo supports concurrent const pricing", "[cuda]")
     const auto baseline = engine.price(call, context);
     REQUIRE(baseline);
 
-    std::array<std::future<kiyosi::Result<kiyosi::PricingResult>>, 4> results;
+    std::array<std::future<kiyosi::Result<double>>, 4> results;
     for (auto& result : results)
         result = std::async(std::launch::async, [&] { return engine.price(call, context); });
     for (auto& pending : results) {
         const auto result = pending.get();
         REQUIRE(result);
-        CHECK(*result->require(kiyosi::RiskMeasure::price) ==
-              *baseline->require(kiyosi::RiskMeasure::price));
+        CHECK(*result ==
+              *baseline);
     }
 }
 
@@ -424,8 +424,8 @@ TEST_CASE("CUDA American Monte Carlo is seeded and deterministic", "[cuda]")
         const auto second = engine.price(option, context);
         REQUIRE(first);
         REQUIRE(second);
-        CHECK(*first->require(kiyosi::RiskMeasure::price) ==
-              *second->require(kiyosi::RiskMeasure::price));
+        CHECK(*first ==
+              *second);
     }
 
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
@@ -448,12 +448,12 @@ TEST_CASE("CUDA American Monte Carlo is seeded and deterministic", "[cuda]")
     REQUIRE(different_seed);
     REQUIRE(different_path_count);
     REQUIRE(cpu);
-    CHECK(*baseline->require(kiyosi::RiskMeasure::price) !=
-          *different_seed->require(kiyosi::RiskMeasure::price));
-    CHECK(*baseline->require(kiyosi::RiskMeasure::price) !=
-          *different_path_count->require(kiyosi::RiskMeasure::price));
-    CHECK(*baseline->require(kiyosi::RiskMeasure::price) !=
-          *cpu->require(kiyosi::RiskMeasure::price));
+    CHECK(*baseline !=
+          *different_seed);
+    CHECK(*baseline !=
+          *different_path_count);
+    CHECK(*baseline !=
+          *cpu);
 }
 
 TEST_CASE("CUDA American Monte Carlo prices early exercise for puts and dividend calls", "[cuda]")
@@ -483,7 +483,7 @@ TEST_CASE("CUDA American Monte Carlo prices early exercise for puts and dividend
             100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
                                 .price(option, context);
         REQUIRE(result);
-        CHECK_THAT(*result->require(kiyosi::RiskMeasure::price),
+        CHECK_THAT(*result,
                    Catch::Matchers::WithinAbs(50.0, 1e-10));
     }
 }
@@ -528,12 +528,12 @@ TEST_CASE("CUDA American Monte Carlo agrees with CPU and finite-difference price
         REQUIRE(cuda);
         REQUIRE(european_cuda);
         REQUIRE(finite_difference);
-        const double cuda_price = *cuda->require(kiyosi::RiskMeasure::price);
-        CHECK(cuda_price > *european_cuda->require(kiyosi::RiskMeasure::price));
+        const double cuda_price = *cuda;
+        CHECK(cuda_price > *european_cuda);
         CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
-                                   *cpu->require(kiyosi::RiskMeasure::price), tolerance));
+                                   *cpu, tolerance));
         CHECK_THAT(cuda_price, Catch::Matchers::WithinAbs(
-                                   *finite_difference->require(kiyosi::RiskMeasure::price),
+                                   *finite_difference,
                                    tolerance));
     }
 }
@@ -555,8 +555,8 @@ TEST_CASE("CUDA American Monte Carlo rounds odd path counts for antithetic pairs
 
     REQUIRE(odd);
     REQUIRE(even);
-    CHECK(*odd->require(kiyosi::RiskMeasure::price) ==
-          *even->require(kiyosi::RiskMeasure::price));
+    CHECK(*odd ==
+          *even);
 }
 
 TEST_CASE("CUDA American Monte Carlo preserves sparse and singular regression fallbacks", "[cuda]")
@@ -585,14 +585,14 @@ TEST_CASE("CUDA American Monte Carlo preserves sparse and singular regression fa
     REQUIRE(singular);
     REQUIRE(sparse_cpu);
     REQUIRE(singular_cpu);
-    CHECK(*sparse->require(kiyosi::RiskMeasure::price) ==
-          *singular->require(kiyosi::RiskMeasure::price));
-    CHECK_THAT(*sparse->require(kiyosi::RiskMeasure::price),
+    CHECK(*sparse ==
+          *singular);
+    CHECK_THAT(*sparse,
                Catch::Matchers::WithinAbs(
-                   *sparse_cpu->require(kiyosi::RiskMeasure::price), 1e-10));
-    CHECK_THAT(*singular->require(kiyosi::RiskMeasure::price),
+                   *sparse_cpu, 1e-10));
+    CHECK_THAT(*singular,
                Catch::Matchers::WithinAbs(
-                   *singular_cpu->require(kiyosi::RiskMeasure::price), 1e-10));
+                   *singular_cpu, 1e-10));
 }
 
 TEST_CASE("CUDA American Monte Carlo supports concurrent const pricing", "[cuda]")
@@ -608,14 +608,14 @@ TEST_CASE("CUDA American Monte Carlo supports concurrent const pricing", "[cuda]
     const auto baseline = engine.price(put, context);
     REQUIRE(baseline);
 
-    std::array<std::future<kiyosi::Result<kiyosi::PricingResult>>, 4> results;
+    std::array<std::future<kiyosi::Result<double>>, 4> results;
     for (auto& result : results)
         result = std::async(std::launch::async, [&] { return engine.price(put, context); });
     for (auto& pending : results) {
         const auto result = pending.get();
         REQUIRE(result);
-        CHECK(*result->require(kiyosi::RiskMeasure::price) ==
-              *baseline->require(kiyosi::RiskMeasure::price));
+        CHECK(*result ==
+              *baseline);
     }
 }
 
@@ -633,7 +633,7 @@ TEST_CASE("CUDA American Monte Carlo discounts every exercise interval", "[cuda]
                             .price(call, context);
 
     REQUIRE(result);
-    CHECK_THAT(*result->require(kiyosi::RiskMeasure::price),
+    CHECK_THAT(*result,
                Catch::Matchers::WithinAbs(100.0 * (1.0 - std::exp(-0.05)), 1e-10));
 }
 

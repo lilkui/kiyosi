@@ -2,7 +2,7 @@
 
 #include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/numerical_greeks.hpp>
 
 namespace kiyosi {
 
@@ -10,16 +10,50 @@ namespace kiyosi {
 class KIYOSI_EXPORT AnalyticGeometricAveragePriceEngine {
 public:
     /// Prices a geometric-average option.
-    /// @return Pricing measures, or a contract or context error.
-    [[nodiscard]] Result<PricingResult> price(const GeometricAveragePriceOption&, const PricingContext&) const;
+    /// @return Price, or a contract or context error.
+    [[nodiscard]] Result<double> price(const GeometricAveragePriceOption& option, const PricingContext& context) const
+    {
+        return detail::price_value(price_native(option, context));
+    }
+
+    /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const GeometricAveragePriceOption& option, const PricingContext& context,
+        GreeksLevel level, NumericalShiftSettings settings = {}) const
+    {
+        return detail::price_with_greeks(*this, option, context, level, settings,
+            [&](const auto& engine) {
+                return engine.price_native(option, context);
+            });
+    }
+
+
+private:
+    [[nodiscard]] Result<PricingResult> price_native(const GeometricAveragePriceOption& option, const PricingContext& context) const;
 };
 
 /// Turnbull-Wakeman moment-matched approximation for arithmetic averaging.
 class KIYOSI_EXPORT TurnbullWakemanArithmeticAveragePriceEngine {
 public:
     /// Prices an arithmetic-average option using moment matching.
-    /// @return Pricing measures, or a contract or context error.
-    [[nodiscard]] Result<PricingResult> price(const ArithmeticAveragePriceOption&, const PricingContext&) const;
+    /// @return Price, or a contract or context error.
+    [[nodiscard]] Result<double> price(const ArithmeticAveragePriceOption& option, const PricingContext& context) const
+    {
+        return detail::price_value(price_native(option, context));
+    }
+
+    /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const ArithmeticAveragePriceOption& option, const PricingContext& context,
+        GreeksLevel level, NumericalShiftSettings settings = {}) const
+    {
+        return detail::price_with_greeks(*this, option, context, level, settings,
+            [&](const auto& engine) {
+                return engine.price_native(option, context);
+            });
+    }
+
+
+private:
+    [[nodiscard]] Result<PricingResult> price_native(const ArithmeticAveragePriceOption& option, const PricingContext& context) const;
 };
 
 } // namespace kiyosi
