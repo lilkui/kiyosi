@@ -451,7 +451,7 @@ context : PricingContext
 observed_price : float
     Target instrument price.
 lower_bound, upper_bound : float, optional
-    Coupon-rate search interval. Omitted values use core defaults.
+    Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
 tolerance : float, optional
     Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
 max_iterations : int, optional
@@ -509,7 +509,7 @@ observed_price : float
 quote_convention : CouponQuoteConvention
     Whether the maturity coupon shifts with quoted knock-out coupons.
 lower_bound, upper_bound : float, optional
-    Coupon-rate search interval. Omitted values use core defaults.
+    Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
 tolerance : float, optional
     Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
 max_iterations : int, optional

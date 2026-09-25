@@ -18,8 +18,8 @@ struct ImpliedVolatilitySettings {
 
 /// Bracketing bounds and convergence controls for the implied-coupon solver.
 struct ImpliedCouponSettings {
-    double lower_bound = 0.0; ///< Non-negative lower coupon bound.
-    double upper_bound = 2.0; ///< Upper coupon bound, greater than the lower bound.
+    double lower_bound = 0.0; ///< Finite lower coupon bound.
+    double upper_bound = 2.0; ///< Finite upper coupon bound, greater than the lower bound.
     double tolerance = 1e-8;  ///< Positive price and interval convergence tolerance.
     int max_iterations = 100; ///< Positive maximum bisection iteration count.
 };

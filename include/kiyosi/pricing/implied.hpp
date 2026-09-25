@@ -196,7 +196,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon)
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
-        !std::isfinite(settings.upper_bound) || settings.lower_bound < 0.0 ||
+        !std::isfinite(settings.upper_bound) ||
         settings.lower_bound >= settings.upper_bound || !std::isfinite(settings.tolerance) ||
         settings.tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
@@ -256,7 +256,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param context Market state used for every trial.
 /// @param observed_price Finite market price to match.
 /// @param convention Whether the maturity coupon shifts with the quoted coupon.
-/// @param settings Non-negative bounds and convergence controls.
+/// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.

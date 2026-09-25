@@ -243,6 +243,24 @@ class KiyosiPythonTests(unittest.TestCase):
                 )
                 self.assertAlmostEqual(implied, 0.12, places=5)
 
+    def test_negative_binary_snowball_coupon_can_be_implied(self):
+        effective = date(2025, 1, 1)
+        expiry = date(2026, 1, 1)
+        option = BinarySnowballOption(
+            knock_out_coupon_rates=[-0.1], maturity_coupon_rate=-0.1,
+            initial_spot=100, knock_out_levels=[1], upper_strike=100, lower_strike=60,
+            observation_dates=[expiry], effective_date=effective, expiry_date=expiry,
+        )
+        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=effective)
+        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=73)
+        price = engine.price(option, context)
+        implied = implied_coupon(
+            engine, option, context, price,
+            quote_convention=pricing.CouponQuoteConvention.PRESERVE_MATURITY_COUPON,
+            lower_bound=-0.2, upper_bound=0.2,
+        )
+        self.assertAlmostEqual(implied, -0.1, delta=1e-7)
+
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
         self.assertIn("weekdays", market.weekdays_calendar.__doc__.lower())

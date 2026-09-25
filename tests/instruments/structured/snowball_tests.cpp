@@ -345,3 +345,23 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
     CHECK(ternary_engine.maturity_coupon_rate == Catch::Approx(0.03));
     CHECK(ternary_engine.minimal_coupon == Catch::Approx(0.01));
 }
+
+TEST_CASE("Negative Binary Snowball coupon can be implied")
+{
+    const auto effective_date = day(2025, 1, 1);
+    const auto expiry_date = day(2026, 1, 1);
+    const auto option = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {-0.1},
+        .maturity_coupon_rate = -0.1, .initial_spot = 100.0, .knock_out_levels = {1.0},
+        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date},
+        .effective_date = effective_date, .expiry_date = expiry_date});
+    REQUIRE(option);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date);
+    const kiyosi::MonteCarloBinarySnowballEngine engine{{32, 73}};
+    const auto price = engine.price(*option, context);
+    REQUIRE(price);
+    const auto implied = kiyosi::implied_coupon(engine, *option, context, *price,
+        kiyosi::CouponQuoteConvention::preserve_maturity_coupon, {-0.2, 0.2});
+    REQUIRE(implied);
+    CHECK(*implied == Catch::Approx(-0.1).margin(1e-7));
+}
