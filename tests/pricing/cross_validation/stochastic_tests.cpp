@@ -135,7 +135,7 @@ Terms note_terms(const Scenario& scenario)
     }
     if constexpr (requires { terms.minimum_coupon_rate; }) terms.minimum_coupon_rate = 0.01;
     if constexpr (requires { terms.coupon_rate; }) {
-        terms.coupon_rate = 0.0025; // 0.25 native price units per qualifying observation.
+        terms.coupon_rate = 0.0025; // Annualized rate in normalized principal units.
         terms.coupon_barrier_levels = {90.0, 90.0, 90.0};
     }
     return terms;
@@ -147,7 +147,7 @@ void check_scenario(const Scenario& scenario, bool extended)
             scenario.history, scenario.accumulated_quantity);
     const auto market = checked(make_pricing_context(
         checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, effective_date));
-    // Native price units: normalized snowballs, Phoenix cash coupons, accumulator quantity*price.
+    // Native price units: normalized structured notes; accumulator quantity*price.
     DYNAMIC_SECTION(scenario.name << ": snowball")
     {
         compare(checked(make_snowball_option(note_terms<SnowballTerms>(scenario))), market,

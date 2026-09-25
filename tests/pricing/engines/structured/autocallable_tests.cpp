@@ -127,7 +127,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
-    CHECK(price(phoenix, 100.0) == Catch::Approx(9.0));
+    CHECK(price(phoenix, 100.0) == Catch::Approx(1.08));
     CHECK(price(phoenix, 80.0) == Catch::Approx(1.0));
     const auto phoenix_up = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
                                                           .initial_spot = 100.0,
@@ -330,7 +330,8 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
-    CHECK(monte_carlo_price(phoenix) == Catch::Approx(9.0));
+    CHECK(monte_carlo_price(phoenix) ==
+          Catch::Approx(1.0 + 0.08 * kiyosi::year_fraction(effective_date, valuation).value()));
 }
 
 TEST_CASE("Structured Monte Carlo settles deterministic states before simulation")
@@ -639,7 +640,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
         kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0));
     REQUIRE(phoenix_result);
     CHECK(*phoenix_result ==
-          Catch::Approx(4.0).margin(1e-10));
+          Catch::Approx(1.01).margin(1e-10));
 
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08},
                                                          .maturity_coupon_rate = 0.06,

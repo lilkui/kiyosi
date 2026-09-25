@@ -363,7 +363,35 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         for engine in engines:
             with self.subTest(engine=type(engine).__name__):
-                self.assertAlmostEqual(engine.price(option, context), 1.25, delta=1e-6)
+                self.assertAlmostEqual(engine.price(option, context), 1 + 0.0025 * 91 / 365, delta=1e-6)
+
+    def test_phoenix_annual_coupon_is_scale_and_frequency_invariant(self):
+        start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        for scale in (100, 1000):
+            for dates in ([end], [middle, end]):
+                option = PhoenixOption(
+                    coupon_rate=0.08, initial_spot=scale, knock_in_level=0.5 * scale,
+                    knock_out_levels=[2 * scale] * len(dates),
+                    coupon_barrier_levels=[0.9 * scale] * len(dates),
+                    upper_strike=scale, lower_strike=0, observation_dates=dates,
+                    knock_in_observation_mode=KnockInObservationMode.AT_EXPIRY,
+                    effective_date=start, expiry_date=end,
+                )
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0, dividend_yield=0, volatility=1e-8,
+                    ),
+                    spot_price=scale, valuation_time=start,
+                    calendar=market.all_days_calendar(),
+                )
+                for engine in (
+                    pricing.FiniteDifferencePhoenixEngine(
+                        asset_step_count=400, time_step_count=400, asset_upper_boundary=4 * scale,
+                    ),
+                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                ):
+                    with self.subTest(scale=scale, dates=dates, engine=type(engine).__name__):
+                        self.assertAlmostEqual(engine.price(option, context), 1.08, delta=1e-6)
 
     def test_numeric_and_date_boundaries_are_checked(self):
         with self.assertRaises(TypeError):

@@ -11,7 +11,7 @@ class PhoenixOption;
 
 /// Input terms used to construct a PhoenixOption.
 struct PhoenixTerms {
-    double coupon_rate{};                                                   ///< Finite coupon rate paid at qualifying observations.
+    double coupon_rate{};                                                   ///< Finite annualized coupon rate per observation period (ACT/365 Fixed).
     double initial_spot{};                                                  ///< Positive reference spot.
     double knock_in_level{};                                                ///< Positive downside knock-in level.
     std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
@@ -21,7 +21,7 @@ struct PhoenixTerms {
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
     AutocallableBarrierState barrier_state{AutocallableBarrierState::none}; ///< Prior barrier state.
-    double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
+    double principal_ratio{1.0};                                            ///< Non-negative principal component in normalized payoff units.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
 };
@@ -31,9 +31,10 @@ struct PhoenixTerms {
 [[nodiscard]] Result<PhoenixOption> make_phoenix_option(PhoenixTerms);
 
 /// Knock-in autocallable paying a conditional coupon whenever spot clears the coupon barrier.
+/// Prices use normalized principal units; the annual coupon accrues over each observation period.
 class PhoenixOption : public KnockInAutocallableNote {
 public:
-    /// Returns the finite conditional coupon rate.
+    /// Returns the finite annualized conditional coupon rate per observation period.
     double coupon_rate() const noexcept { return coupon_rate_; }
     /// Returns one non-negative coupon barrier per observation date.
     const std::vector<double>& coupon_barrier_levels() const noexcept { return coupon_barriers_; }

@@ -51,9 +51,9 @@ price. This remains meaningful for negative and near-zero accumulator values.
 | Phoenix | 0.008 | 0.008 | 0.004 |
 | Accumulator | 2.0 | 8.0 | 4.0 |
 
-Snowballs use principal ratio 1. Phoenix uses principal ratio 1 plus coupons
-of `100 * 0.0025 = 0.25` at qualifying observations. Accumulator values are
-quantity times underlying-price difference, with daily quantity 1 and
+Snowballs use principal ratio 1. Phoenix uses principal ratio 1 plus annualized
+coupons in the same units, accrued over each observation period using Actual/365 Fixed.
+Accumulator values are quantity times underlying-price difference, with daily quantity 1 and
 acceleration 2. The budgets deliberately differ by this scale and payoff shape;
 they are regression acceptance budgets for these scenarios, not universal
 accuracy guarantees for arbitrary contracts or default engine settings.

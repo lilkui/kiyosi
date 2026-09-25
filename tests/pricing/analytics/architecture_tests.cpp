@@ -133,8 +133,8 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                        .principal_ratio = 1.0,
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
-    check(kiyosi::MonteCarloPhoenixEngine{{32, 7}}, phoenix, 9.0);
-    check(kiyosi::FiniteDifferencePhoenixEngine{}, phoenix, 9.0);
+    check(kiyosi::MonteCarloPhoenixEngine{{32, 7}}, phoenix, 1.08);
+    check(kiyosi::FiniteDifferencePhoenixEngine{}, phoenix, 1.08);
 }
 
 TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")

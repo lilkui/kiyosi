@@ -763,7 +763,7 @@ KiyosiError
 Attributes
 ----------
 coupon_rate : float
-    Annualized coupon rate.
+    Annualized coupon rate per observation period (Actual/365 Fixed).
 coupon_barrier_levels : list[float]
     Coupon barrier level for each observation date.
 initial_spot : float
@@ -781,7 +781,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState
     Barrier history known at valuation time.
 principal_ratio : float
-    Principal scaling applied to the payoff.
+    Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_spot,
@@ -812,7 +812,8 @@ effective_date, expiry_date : datetime.date
 Parameters
 ----------
 coupon_rate : float
-    Annualized coupon rate.
+    Annualized coupon rate, accrued from the previous observation (the effective
+    date for the first coupon) using Actual/365 Fixed, in principal-ratio units.
 initial_spot : float
     Positive reference spot.
 knock_in_level : float
@@ -830,7 +831,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState, optional
     Barrier history known at valuation time.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
 
@@ -841,7 +842,7 @@ TypeError
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
         .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate,
-                     "Annualized coupon rate.")
+                     "Annualized coupon rate per observation period (Actual/365 Fixed).")
         .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels,
                      "Coupon barrier level for each observation date.");
     bind_knock_in_properties(phoenix);

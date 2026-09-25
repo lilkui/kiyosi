@@ -30,7 +30,9 @@ struct AutocallableTraits<PhoenixOption> {
 
     static AutocallableEvent event(const PhoenixOption& note, std::size_t index)
     {
-        return {note.knock_out_levels()[index], note.initial_spot() * note.coupon_rate(),
+        const Date period_start = index == 0 ? note.effective_date() : note.observation_dates()[index - 1];
+        return {note.knock_out_levels()[index],
+                note.coupon_rate() * actual_365_fixed_year_fraction(period_start, note.observation_dates()[index]),
                 note.coupon_barrier_levels()[index], true, true};
     }
 };

@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cmath>
 #include <type_traits>
+#include <vector>
 
 #include <kiyosi/kiyosi.hpp>
 
@@ -127,12 +128,12 @@ TEST_CASE("FD-MC phoenix matches independent coupon and loss boundaries", "[cros
 {
     const auto note = phoenix(AutocallableBarrierState::none);
     REQUIRE(note);
-    // The contract's coupon is 100 * 0.08 = 8, not 0.08 principal units.
+    // One full-year observation pays 0.08 normalized principal units.
     for (const auto [spot, expected] : std::array{
              std::array{59.0, 0.60}, std::array{60.0, 0.60}, std::array{61.0, 0.61},
              std::array{79.0, 0.79}, std::array{80.0, 1.0}, std::array{81.0, 1.0},
-             std::array{89.0, 1.0}, std::array{90.0, 9.0}, std::array{91.0, 9.0},
-             std::array{119.0, 9.0}, std::array{120.0, 9.0}, std::array{121.0, 9.0}}) {
+             std::array{89.0, 1.0}, std::array{90.0, 1.08}, std::array{91.0, 1.08},
+             std::array{119.0, 1.08}, std::array{120.0, 1.08}, std::array{121.0, 1.08}}) {
         CAPTURE(spot);
         check_known_price(*note, market(spot, expiry_date), expected);
     }
@@ -154,7 +155,7 @@ TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishe
         const auto context = market(spot, expiry_date);
         check_known_price(*standard, context, principal);
         check_known_price(*three_way, context, 1.03);
-        check_known_price(*bird, context, principal + 8.0);
+        check_known_price(*bird, context, principal + 0.08);
     }
     const auto check_extinguished = [](const auto& result) {
         REQUIRE(result);
@@ -193,7 +194,7 @@ TEST_CASE("FD-MC pre-expiry_date prices approach independently known constant-pa
     check(snowball(AutocallableBarrierState::none), 1.12);
     check(ternary(AutocallableBarrierState::none), 1.12);
     check(binary(AutocallableBarrierState::none), 1.12);
-    check(phoenix(AutocallableBarrierState::none), 9.0);
+    check(phoenix(AutocallableBarrierState::none), 1.08);
 
     const auto option = kiyosi::make_accumulator(
         {100.0, 110.0, 1.0, 2.0, 3.0, effective_date, day(2025, 1, 6)});
@@ -260,7 +261,7 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
     REQUIRE(note);
     const auto context = market(100.0, start, 0.0, 1e-8);
     // 91/365 and this subdivision count previously introduced a second endpoint
-    // nearly equal to maturity. One observation owes principal 1 plus coupon 0.25.
+    // nearly equal to maturity. One observation owes principal 1 plus the accrued coupon.
     const auto fd = kiyosi::FiniteDifferencePhoenixEngine{
         {400, 1600, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}}
                         .price(*note, context);
@@ -268,6 +269,36 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
     REQUIRE(fd);
     REQUIRE(mc);
     for (const auto& result : {*fd, *mc}) {
-        CHECK(result == Catch::Approx(1.25).margin(1e-6).epsilon(0.0));
+        CHECK(result == Catch::Approx(1.0 + 0.0025 * 91.0 / 365.0).margin(1e-6).epsilon(0.0));
+    }
+}
+
+TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cross-validation]")
+{
+    const auto middle = day(2025, 7, 1);
+    for (const double scale : {100.0, 1000.0}) {
+        for (const bool split : {false, true}) {
+            const std::vector<kiyosi::Date> dates = split ? std::vector{middle, expiry_date}
+                                                          : std::vector{expiry_date};
+            const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.08,
+                .initial_spot = scale, .knock_in_level = 0.5 * scale,
+                .knock_out_levels = std::vector(dates.size(), 2.0 * scale),
+                .coupon_barrier_levels = std::vector(dates.size(), 0.9 * scale),
+                .upper_strike = scale, .lower_strike = 0.0,
+                .observation_dates = dates,
+                .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
+                .effective_date = effective_date, .expiry_date = expiry_date});
+            REQUIRE(note);
+            CAPTURE(scale, split);
+            const auto context = market(scale, effective_date, 0.0, 1e-8);
+            const auto check = [&](const auto& engine) {
+                const auto result = engine.price(*note, context);
+                REQUIRE(result);
+                CHECK(*result == Catch::Approx(1.08).margin(1e-6).epsilon(0.0));
+            };
+            check(kiyosi::FiniteDifferencePhoenixEngine{
+                {400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 4.0 * scale}});
+            check(kiyosi::MonteCarloPhoenixEngine{{64, 73}});
+        }
     }
 }
