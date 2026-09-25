@@ -399,7 +399,7 @@ observed_price : float
 lower_bound, upper_bound : float, optional
     Volatility search interval. Omitted values use core defaults.
 tolerance : float, optional
-    Solver convergence tolerance.
+    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
 max_iterations : int, optional
     Maximum solver iterations.
 
@@ -407,6 +407,8 @@ Returns
 -------
 float
     Implied volatility as a decimal rate.
+
+An unseeded Monte Carlo engine uses one random seed throughout this solve.
 
 Raises
 ------
@@ -451,7 +453,7 @@ observed_price : float
 lower_bound, upper_bound : float, optional
     Coupon-rate search interval. Omitted values use core defaults.
 tolerance : float, optional
-    Solver convergence tolerance.
+    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
 max_iterations : int, optional
     Maximum solver iterations.
 
@@ -459,6 +461,8 @@ Returns
 -------
 float
     Implied annualized coupon rate.
+
+An unseeded Monte Carlo engine uses one random seed throughout this solve.
 
 Raises
 ------
@@ -507,7 +511,7 @@ quote_convention : CouponQuoteConvention
 lower_bound, upper_bound : float, optional
     Coupon-rate search interval. Omitted values use core defaults.
 tolerance : float, optional
-    Solver convergence tolerance.
+    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
 max_iterations : int, optional
     Maximum solver iterations.
 
@@ -515,6 +519,8 @@ Returns
 -------
 float
     Implied annualized quoted coupon rate.
+
+An unseeded Monte Carlo engine uses one random seed throughout this solve.
 
 Raises
 ------

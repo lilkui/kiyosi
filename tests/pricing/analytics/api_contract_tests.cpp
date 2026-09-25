@@ -256,6 +256,54 @@ TEST_CASE("Unseeded joint pricing selects one seed without changing the engine",
     CHECK_FALSE(engine.settings().seed.has_value());
     CHECK(risk_value(*result, kiyosi::RiskMeasure::delta) == Catch::Approx(200.0));
 }
+
+struct SolverSeedRecordingEngine {
+    SeedRecordingSettings configuration;
+    const SeedRecordingSettings& settings() const { return configuration; }
+    kiyosi::Result<double> price(const kiyosi::EuropeanOption&, const kiyosi::PricingContext& context) const
+    {
+        configuration.calls->push_back(configuration.seed);
+        return context.model_parameters().volatility();
+    }
+    kiyosi::Result<double> price(const kiyosi::PhoenixOption& option, const kiyosi::PricingContext&) const
+    {
+        configuration.calls->push_back(configuration.seed);
+        return option.coupon_rate();
+    }
+};
+
+TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
+{
+    const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0,
+        .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0},
+        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry},
+        .effective_date = effective, .expiry_date = expiry});
+    std::vector<std::optional<unsigned>> calls;
+    const SolverSeedRecordingEngine engine{{std::nullopt, &calls}};
+    const auto check_calls = [&] {
+        REQUIRE(calls.size() > 2);
+        REQUIRE(calls.front().has_value());
+        for (const auto seed : calls) CHECK(seed == calls.front());
+        calls.clear();
+    };
+
+    const auto volatility = kiyosi::implied_volatility(engine, option, market(), 0.3);
+    REQUIRE(volatility);
+    CHECK(*volatility == Catch::Approx(0.3).margin(1e-8));
+    check_calls();
+
+    const auto coupon = kiyosi::implied_coupon(engine, phoenix, market(), 0.125);
+    REQUIRE(coupon);
+    CHECK(*coupon == Catch::Approx(0.125).margin(1e-8));
+    check_calls();
+    CHECK_FALSE(engine.settings().seed.has_value());
+
+    const SolverSeedRecordingEngine seeded{{73, &calls}};
+    REQUIRE(kiyosi::implied_volatility(seeded, option, market(), 0.3));
+    REQUIRE(calls.size() > 2);
+    for (const auto seed : calls) CHECK(seed == 73);
+}
 TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility sensitivities", "[pricing-api]")
 {
     const auto accumulator = *kiyosi::make_accumulator({.strike = 90.0, .knock_out_level = 100.0,

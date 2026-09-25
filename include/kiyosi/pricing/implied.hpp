@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <numeric>
+#include <random>
 
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
@@ -20,6 +21,8 @@ namespace kiyosi {
 /// @param context Market state whose volatility is replaced for each trial.
 /// @param observed_price Finite market price to match.
 /// @param settings Positive bounds and convergence controls.
+/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// applies to that sampled price curve and does not bound sampling error.
 /// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
@@ -33,6 +36,13 @@ template <typename Engine, typename Option>
         !std::isfinite(settings.tolerance) || settings.tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-volatility settings are invalid"});
+    if constexpr (requires { engine.settings().seed; }) {
+        auto simulation = engine.settings();
+        if (!simulation.seed) {
+            simulation.seed = std::random_device{}();
+            return implied_volatility(Engine{simulation}, option, context, observed_price, settings);
+        }
+    }
 
     const auto evaluate = [&](double volatility) -> Result<double> {
         auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
@@ -191,6 +201,13 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         settings.tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-coupon settings are invalid"});
+    if constexpr (requires { engine.settings().seed; }) {
+        auto simulation = engine.settings();
+        if (!simulation.seed) {
+            simulation.seed = std::random_device{}();
+            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon);
+        }
+    }
 
     const auto evaluate = [&](double coupon) -> Result<double> {
         auto replaced = replace_coupon(option, coupon);
@@ -240,6 +257,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param observed_price Finite market price to match.
 /// @param convention Whether the maturity coupon shifts with the quoted coupon.
 /// @param settings Non-negative bounds and convergence controls.
+/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// applies to that sampled price curve and does not bound sampling error.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
@@ -257,6 +276,8 @@ template <typename Engine, typename Option>
 }
 
 /// Bisects the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
+/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// applies to that sampled price curve and does not bound sampling error.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
