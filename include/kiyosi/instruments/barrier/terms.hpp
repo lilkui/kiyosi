@@ -94,9 +94,10 @@ public:
 
     /// Tests whether the barrier is monitored on a date.
     /// @param date Date to test.
-    /// @return `true` for continuous monitoring or a scheduled observation date.
+    /// @return `true` within the contract life for continuous monitoring, or on a scheduled observation date.
     bool is_monitored_on(Date date) const noexcept
     {
+        if (date < effective_date_ || date > expiry_date_) return false;
         if (is_continuous()) return true;
         for (const Date event : observation_dates_.dates())
             if (event == date) return true;
