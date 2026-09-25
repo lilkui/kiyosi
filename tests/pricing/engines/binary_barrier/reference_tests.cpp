@@ -59,8 +59,8 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                 number("spot_shift"), number("volatility_shift"), number("rate_shift"),
                 static_cast<int>(number("time_shift_days"))};
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(
-                option, *context);
+            const auto numerical = kiyosi::calculate_numerical_risk_measures(
+                engine, option, *context, shifts);
             REQUIRE(numerical);
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);

@@ -69,12 +69,11 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             }
             ++wrapped;
             REQUIRE(fixture.outputs.size() == measures.size());
-            const auto numerical =
-                kiyosi::NumericalAnalyticsEngine{
-                    engine, kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
-                                                           number("rate_shift"),
-                                                           static_cast<int>(number("time_shift_days"))}}
-                    .price(*option, *context);
+            const auto numerical = kiyosi::calculate_numerical_risk_measures(
+                engine, *option, *context,
+                kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
+                                               number("rate_shift"),
+                                               static_cast<int>(number("time_shift_days"))});
             REQUIRE(numerical.has_value());
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);

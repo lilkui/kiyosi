@@ -142,10 +142,7 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     REQUIRE(analytics.has_value());
     CHECK(analytics->has(kiyosi::RiskMeasure::speed));
     CHECK(analytics->has(kiyosi::RiskMeasure::rho));
-    kiyosi::NumericalAnalyticsEngine<kiyosi::CoxRossRubinsteinVanillaEngine> shared{kiyosi::CoxRossRubinsteinVanillaEngine{64}};
-    auto shared_result = shared.price(*option, *context);
-    REQUIRE(shared_result.has_value());
-    CHECK(shared_result->has(kiyosi::RiskMeasure::vega));
+    CHECK(analytics->has(kiyosi::RiskMeasure::vega));
 }
 
 } // namespace

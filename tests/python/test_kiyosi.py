@@ -30,7 +30,7 @@ from kiyosi.instruments import (
     standard_snowball,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext, fixed_interval_schedule, monthly_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, NumericalAnalyticsEngine, implied_coupon, implied_volatility
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, calculate_numerical_risk_measures, implied_coupon, implied_volatility
 
 
 def parity_fields(value):
@@ -142,10 +142,9 @@ class KiyosiPythonTests(unittest.TestCase):
         linked = pricing.CouponQuoteConvention.SHIFT_MATURITY_COUPON
         fixed = pricing.CouponQuoteConvention.PRESERVE_MATURITY_COUPON
         engine = pricing.FiniteDifferenceSnowballEngine(asset_step_count=40, time_step_count=40)
-        analytics = NumericalAnalyticsEngine(engine)
         observed_price = engine.price(target_standard, self.context).price
         with self.assertRaises(TypeError):
-            analytics.implied_coupon(standard, self.context, observed_price)
+            implied_coupon(engine, standard, self.context, observed_price)
         self.assertFalse(hasattr(standard, "with_quoted_coupon_rate"))
 
         cases = (
@@ -155,14 +154,7 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         for instrument, target, convention in cases:
             with self.subTest(instrument=instrument):
-                implied = analytics.implied_coupon(
-                    instrument,
-                    self.context,
-                    engine.price(target, self.context).price,
-                    quote_convention=convention,
-                    tolerance=1e-6,
-                )
-                standalone = implied_coupon(
+                implied = implied_coupon(
                     engine,
                     instrument,
                     self.context,
@@ -171,7 +163,6 @@ class KiyosiPythonTests(unittest.TestCase):
                     tolerance=1e-6,
                 )
                 self.assertAlmostEqual(implied, 0.12, places=5)
-                self.assertEqual(standalone, implied)
 
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
@@ -182,9 +173,8 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("absolute", NumericalAnalyticsEngine.__doc__.lower())
-        self.assertIn("boundary", NumericalAnalyticsEngine.__doc__.lower())
-        self.assertIn("solve", NumericalAnalyticsEngine.implied_volatility.__doc__.lower())
+        self.assertIn("absolute", calculate_numerical_risk_measures.__doc__.lower())
+        self.assertIn("boundary", calculate_numerical_risk_measures.__doc__.lower())
         self.assertIn("solve", implied_volatility.__doc__.lower())
         self.assertIn("solve", implied_coupon.__doc__.lower())
         self.assertIn("start is excluded", fixed_interval_schedule.__doc__.lower())
@@ -446,38 +436,20 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertFalse(hasattr(barrier, "observation"))
         self.assertEqual(len(fixed_interval_schedule(start=date(2025, 1, 1), end=date(2025, 3, 1), interval_days=10)), 5)
         engine = AnalyticVanillaEngine()
-        analytics = NumericalAnalyticsEngine(engine)
-        self.assertIs(analytics.engine, engine)
-        with self.assertRaises(AttributeError):
-            analytics.engine = AnalyticVanillaEngine()
-        self.assertIsNotNone(analytics.price(self.option, self.context).vega)
+        self.assertIsNotNone(calculate_numerical_risk_measures(engine, self.option, self.context).vega)
         observed_price = engine.price(self.option, self.context).price
-        standalone = implied_volatility(engine, self.option, self.context, observed_price)
         self.assertAlmostEqual(
-            analytics.implied_volatility(self.option, self.context, observed_price),
+            implied_volatility(engine, self.option, self.context, observed_price),
             self.parameters.volatility,
         )
-        self.assertEqual(
-            standalone,
-            analytics.implied_volatility(self.option, self.context, observed_price),
-        )
-
-        categories = []
-        for solve in (
-            lambda: implied_volatility(engine, self.option, self.context, observed_price, lower_bound=0.5, upper_bound=0.1),
-            lambda: analytics.implied_volatility(self.option, self.context, observed_price, lower_bound=0.5, upper_bound=0.1),
-        ):
-            with self.assertRaises(kiyosi.KiyosiError) as error:
-                solve()
-            categories.append(error.exception.category)
-        self.assertEqual(categories[0], categories[1])
-
-    def test_calculate_numerical_risk_measures_forwards_explicit_shift_settings(self):
-        analytics = NumericalAnalyticsEngine(AnalyticVanillaEngine(), spot_shift=0.0)
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            analytics.price(self.option, self.context)
+            implied_volatility(engine, self.option, self.context, observed_price, lower_bound=0.5, upper_bound=0.1)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
-        self.assertTrue(hasattr(pricing, "calculate_numerical_risk_measures"))
+
+    def test_calculate_numerical_risk_measures_rejects_invalid_shift_settings(self):
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            calculate_numerical_risk_measures(AnalyticVanillaEngine(), self.option, self.context, spot_shift=0.0)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
     def test_engine_settings_are_validated_when_pricing(self):
         configured_engines = (
@@ -500,7 +472,6 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_calculate_numerical_risk_measures_retains_valid_boundary_results(self):
         engine = AnalyticVanillaEngine()
-        analytics = NumericalAnalyticsEngine(engine)
 
         low_volatility = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -511,7 +482,7 @@ class KiyosiPythonTests(unittest.TestCase):
             spot_price=100.0,
             valuation_time=date(2025, 1, 1),
         )
-        result = analytics.price(self.option, low_volatility)
+        result = calculate_numerical_risk_measures(engine, self.option, low_volatility)
         self.assertAlmostEqual(result.price, engine.price(self.option, low_volatility).price)
         self.assertIsNotNone(result.delta)
         self.assertIsNotNone(result.rho)
@@ -524,7 +495,7 @@ class KiyosiPythonTests(unittest.TestCase):
             spot_price=0.005,
             valuation_time=date(2025, 1, 1),
         )
-        result = analytics.price(self.option, low_spot)
+        result = calculate_numerical_risk_measures(engine, self.option, low_spot)
         self.assertAlmostEqual(result.price, engine.price(self.option, low_spot).price)
         self.assertIsNotNone(result.vega)
         self.assertIsNotNone(result.theta)

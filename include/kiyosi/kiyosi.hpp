@@ -34,7 +34,6 @@
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
 
-#include <kiyosi/pricing/analytics.hpp>
 #include <kiyosi/pricing/implied.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>

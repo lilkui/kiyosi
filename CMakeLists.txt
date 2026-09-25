@@ -157,7 +157,6 @@ target_sources(kiyosi
             include/kiyosi/market/schedule.hpp
             include/kiyosi/market/schedule_builders.hpp
             include/kiyosi/market/calendars/sse.hpp
-            include/kiyosi/pricing/analytics.hpp
             include/kiyosi/pricing/implied.hpp
             include/kiyosi/pricing/numerical_greeks.hpp
             include/kiyosi/pricing/result.hpp

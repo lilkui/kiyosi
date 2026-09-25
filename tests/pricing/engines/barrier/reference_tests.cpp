@@ -61,7 +61,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
                                                         number("rate_shift"), static_cast<int>(number("time_shift_days"))};
             // Three nested spot shifts are used by speed; keep every stencil in the same hit state.
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(*option, *context);
+            const auto numerical = kiyosi::calculate_numerical_risk_measures(engine, *option, *context, shifts);
             REQUIRE(numerical.has_value());
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);

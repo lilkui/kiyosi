@@ -71,7 +71,9 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     shifts = {number("spot_shift"), number("volatility_shift"), number("rate_shift"),
                               static_cast<int>(number("time_shift_days"))};
                 }
-                const auto numerical = wrapped ? kiyosi::NumericalAnalyticsEngine{engine, shifts}.price(option, *context) : native;
+                const auto numerical = wrapped
+                                           ? kiyosi::calculate_numerical_risk_measures(engine, option, *context, shifts)
+                                           : native;
                 REQUIRE(numerical.has_value());
                 std::size_t available = 0;
                 for (const auto& [name, measure] : measures) {
