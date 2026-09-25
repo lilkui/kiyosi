@@ -939,6 +939,26 @@ class KiyosiPythonTests(unittest.TestCase):
             expected, delta=0.1,
         )
 
+    def test_snowball_skips_weekend_knock_in_at_valuation(self):
+        note = standard_snowball(
+            coupon_rate=0.12, initial_spot=100, knock_in_level=80,
+            knock_out_level=120, observation_dates=[date(2025, 1, 6)],
+            barrier_state=AutocallableBarrierState.NONE,
+            effective_date=date(2025, 1, 1), expiry_date=date(2025, 1, 6),
+        )
+        saturday = datetime(2025, 1, 4, tzinfo=timezone.utc)
+        def context(at):
+            return PricingContext(
+                model_parameters=self.parameters, spot_price=79,
+                valuation_time=at,
+            )
+        engine = pricing.MonteCarloSnowballEngine(path_count=20000, seed=1)
+        self.assertAlmostEqual(
+            engine.price(note, context(saturday)),
+            engine.price(note, context(saturday + timedelta(microseconds=1))),
+            delta=1e-7,
+        )
+
     def test_barrier_history_is_required_and_changes_remaining_value(self):
         terms = dict(option_type=OptionType.CALL, strike=100,
                      effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),

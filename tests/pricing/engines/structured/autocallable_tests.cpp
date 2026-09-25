@@ -218,6 +218,29 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
     CHECK(price(snowball_down, 70.0) == Catch::Approx(0.70));
 }
 
+TEST_CASE("Structured Monte Carlo skips knock-in on a non-trading valuation day")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2025, 1, 6);
+    const auto note = *kiyosi::make_snowball_option(
+        {.knock_out_coupon_rates = {0.12}, .maturity_coupon_rate = 0.12,
+         .initial_spot = 100.0, .knock_in_level = 80.0,
+         .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0,
+         .observation_dates = {expiry},
+         .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+         .effective_date = effective, .expiry_date = expiry});
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto saturday = kiyosi::start_of_day(day(2025, 1, 4));
+    const auto midnight = *kiyosi::make_pricing_context(parameters, 79.0, saturday);
+    const auto later = *kiyosi::make_pricing_context(parameters, 79.0, saturday + std::chrono::microseconds{1});
+    const kiyosi::MonteCarloSnowballEngine engine{{20'000, 1}};
+    const auto first = engine.price(note, midnight);
+    const auto second = engine.price(note, later);
+    REQUIRE(first);
+    REQUIRE(second);
+    CHECK(std::abs(*first - *second) < 1e-7);
+}
+
 TEST_CASE("Binary snowball expiry_date settlement applies final observations")
 {
     const auto effective_date = day(2025, 1, 1);

@@ -44,7 +44,8 @@ InitialState initial_state(const Note& note, const PricingContext& context,
     InitialState initial{
         .path = {.coupons = 0.0,
                  .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in}};
-    if (valuation == start_of_day(date_of(valuation)))
+    if (valuation == start_of_day(date_of(valuation)) &&
+        context.calendar().is_trading_day(date_of(valuation)))
         initial.path.knocked_in = program_knocked_in(
             program, value, initial.path.knocked_in, valuation == note.expiry_date());
 
