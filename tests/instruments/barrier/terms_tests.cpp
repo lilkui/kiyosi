@@ -41,6 +41,12 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     CHECK_FALSE(scheduled.barrier_terms().is_up());
     CHECK_FALSE(scheduled.barrier_terms().is_continuous());
     CHECK(scheduled.barrier_terms().is_monitored_on(observation_dates.front()));
+    const auto fixing = kiyosi::start_of_day(observation_dates.front());
+    CHECK(scheduled.barrier_terms().is_monitored_at(fixing));
+    CHECK_FALSE(scheduled.barrier_terms().is_monitored_at(fixing - std::chrono::microseconds{1}));
+    CHECK_FALSE(scheduled.barrier_terms().is_monitored_at(fixing + std::chrono::microseconds{1}));
+    CHECK_FALSE(scheduled.barrier_terms().is_monitored_at(fixing + std::chrono::hours{12}));
+    CHECK(terms.is_monitored_at(fixing + std::chrono::hours{12}));
     CHECK_FALSE(scheduled.barrier_terms().is_monitored_on(effective_date));
     CHECK(scheduled.barrier_terms().mean_observation_year_fraction() > 0.0);
 

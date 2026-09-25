@@ -66,7 +66,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool touched_now = terms.is_monitored_on(date_of(context.valuation_time())) && terms.is_breached_by(spot);
+    const bool touched_now = terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *

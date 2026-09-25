@@ -74,7 +74,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const double spot = context.spot_price();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
+    const bool observed_now = terms.is_monitored_at(context.valuation_time());
     const bool touched_now = observed_now && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
     if (*prior_touch && option.settlement_timing == SettlementTiming::at_hit)

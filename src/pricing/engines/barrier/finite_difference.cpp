@@ -98,7 +98,7 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
     if (!prior_touch) return std::unexpected(prior_touch.error());
     const bool knock_in = terms.is_knock_in();
     const bool touched = terms.is_breached_by(context.spot_price());
-    const bool observed_now = terms.is_monitored_on(date_of(context.valuation_time()));
+    const bool observed_now = terms.is_monitored_at(context.valuation_time());
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const auto vanilla_price = [&]() -> Result<double> {
         auto vanilla = price_at_volatility(*make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),

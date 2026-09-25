@@ -76,7 +76,7 @@ bool greeks_unavailable(const Option& option, const PricingContext& context)
         if (context.valuation_time() == start_of_day(option.expiry_date())) return true;
     if constexpr (requires { option.barrier_terms(); })
         if (option.barrier_terms().touch_state() != BarrierTouchState::touched &&
-            option.barrier_terms().is_monitored_on(context.valuation_date()) &&
+            option.barrier_terms().is_monitored_at(context.valuation_time()) &&
             context.spot_price() == option.barrier_level()) return true;
     return false;
 }

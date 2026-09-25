@@ -137,6 +137,14 @@ public:
         return false;
     }
 
+    /// Tests whether monitoring occurs at this exact valuation instant.
+    bool is_monitored_at(Timestamp time) const noexcept
+    {
+        if (time < start_of_day(effective_date_) || time > start_of_day(expiry_date_)) return false;
+        return is_continuous() ||
+               (time == start_of_day(date_of(time)) && is_monitored_on(date_of(time)));
+    }
+
     /// Tests whether a spot lies on the triggered side of the barrier.
     /// @param spot Spot value to test.
     /// @return `true` when `spot` breaches the barrier.

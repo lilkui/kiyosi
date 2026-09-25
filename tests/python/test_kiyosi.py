@@ -914,6 +914,31 @@ class KiyosiPythonTests(unittest.TestCase):
             AnalyticVanillaEngine().price(vanilla, context),
         )
 
+    def test_scheduled_fixing_does_not_recur_at_noon(self):
+        start, expiry = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=self.parameters, spot_price=125,
+            valuation_time=datetime(2025, 1, 2, 12, tzinfo=timezone.utc),
+        )
+        barrier = BarrierOption(
+            option_type=OptionType.CALL, strike=100,
+            effective_date=start, expiry_date=expiry,
+            barrier_level=120, barrier_type=BarrierType.UP_AND_OUT,
+            observation_mode=ObservationMode.SCHEDULED,
+            observation_dates=[date(2025, 1, 2)],
+            touch_state=BarrierTouchState.UNTOUCHED,
+        )
+        vanilla = EuropeanOption(
+            option_type=OptionType.CALL, strike=100,
+            effective_date=start, expiry_date=expiry,
+        )
+        expected = AnalyticVanillaEngine().price(vanilla, context)
+        self.assertAlmostEqual(AnalyticBarrierEngine().price(barrier, context), expected)
+        self.assertAlmostEqual(
+            pricing.FiniteDifferenceBarrierEngine().price(barrier, context),
+            expected, delta=0.1,
+        )
+
     def test_barrier_history_is_required_and_changes_remaining_value(self):
         terms = dict(option_type=OptionType.CALL, strike=100,
                      effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
