@@ -1,11 +1,14 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
+#include <optional>
 #include <utility>
 #include <vector>
 
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
+#include <kiyosi/market/context.hpp>
 #include <kiyosi/market/schedule.hpp>
 
 namespace kiyosi {
@@ -24,6 +27,7 @@ enum class AutocallableBarrierState {
 };
 
 /// Principal, knock-out ladder, and settlement strikes shared by every autocallable structure.
+/// Valuation excludes cashflows settled before the valuation time.
 class AutocallableNote {
 public:
     /// Returns the reference spot used to normalize contract levels.
@@ -42,15 +46,15 @@ public:
     Date effective_date() const noexcept { return terms_.effective_date; }
     /// Returns the final date of the note life.
     Date expiry_date() const noexcept { return terms_.expiry_date; }
-    /// Returns barrier events known before valuation.
-    AutocallableBarrierState barrier_state() const noexcept { return terms_.barrier_state; }
+    /// Returns the supplied state before valuation, or nullopt when history is unknown.
+    std::optional<AutocallableBarrierState> barrier_state() const noexcept { return terms_.barrier_state; }
     /// Compares all shared autocallable terms.
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
 
 private:
     AutocallableNote(double initial_spot, std::vector<double> knock_out_levels, double upper_strike,
                      double lower_strike, std::vector<Date> observation_dates, double principal_ratio,
-                     AutocallableBarrierState barrier_state, Date effective_date, Date expiry_date)
+                     std::optional<AutocallableBarrierState> barrier_state, Date effective_date, Date expiry_date)
         : terms_{initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
                  std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date} {}
 
@@ -61,7 +65,7 @@ private:
         double lower_strike;
         std::vector<Date> observation_dates;
         double principal_ratio;
-        AutocallableBarrierState barrier_state;
+        std::optional<AutocallableBarrierState> barrier_state;
         Date effective_date;
         Date expiry_date;
         friend bool operator==(const Terms&, const Terms&) = default;
@@ -90,8 +94,8 @@ public:
     Date effective_date() const noexcept { return note_.effective_date(); }
     /// Returns the final date of the note life.
     Date expiry_date() const noexcept { return note_.expiry_date(); }
-    /// Returns barrier events known before valuation.
-    AutocallableBarrierState barrier_state() const noexcept { return note_.barrier_state(); }
+    /// Returns the supplied state before valuation, or nullopt when history is unknown.
+    std::optional<AutocallableBarrierState> barrier_state() const noexcept { return note_.barrier_state(); }
     /// Returns the positive downside knock-in level.
     double knock_in_level() const noexcept { return knock_in_level_; }
     /// Returns the knock-in monitoring frequency.
@@ -102,7 +106,7 @@ public:
 private:
     KnockInAutocallableNote(double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,
                             double upper_strike, double lower_strike, std::vector<Date> observation_dates,
-                            KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                            KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                             double principal_ratio, Date effective_date, Date expiry_date)
         : note_(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
                 std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
@@ -141,7 +145,7 @@ template <typename Note>
         if (!std::isfinite(note.knock_out_levels()[index]) || note.knock_out_levels()[index] <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-out levels are invalid"});
     }
-    if (note.barrier_state() != AutocallableBarrierState::none &&
+    if (note.barrier_state() && note.barrier_state() != AutocallableBarrierState::none &&
         note.barrier_state() != AutocallableBarrierState::knocked_out &&
         note.barrier_state() != AutocallableBarrierState::knocked_in)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
@@ -180,6 +184,36 @@ template <typename Note>
         if (!std::isfinite(note.minimum_coupon_rate()))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "minimum coupon is invalid"});
     }
+    return {};
+}
+
+/// Validates the caller's history snapshot against events before valuation.
+template <typename Note>
+[[nodiscard]] inline Result<void> validate_autocallable_history(
+    const Note& note, const PricingContext& context)
+{
+    const Timestamp valuation = context.valuation_time();
+    const bool had_knock_out_observation = std::any_of(
+        note.observation_dates().begin(), note.observation_dates().end(),
+        [&](Date date) { return start_of_day(date) < valuation; });
+    bool had_knock_in_observation = false;
+    if constexpr (requires { note.knock_in_observation_mode(); })
+        if (note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day)
+            for (Date date = note.effective_date(); start_of_day(date) < valuation;
+                 date += std::chrono::days{1})
+                if (context.calendar().is_trading_day(date)) {
+                    had_knock_in_observation = true;
+                    break;
+                }
+    if (!note.barrier_state() && (had_knock_out_observation || had_knock_in_observation))
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "prior autocallable barrier state is required at valuation"});
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out && !had_knock_out_observation)
+        return std::unexpected(Error{ErrorCategory::invalid_option,
+                                     "autocallable cannot have knocked out before its first observation"});
+    if (note.barrier_state() == AutocallableBarrierState::knocked_in && !had_knock_in_observation)
+        return std::unexpected(Error{ErrorCategory::invalid_option,
+                                     "autocallable cannot have knocked in before monitoring began"});
     return {};
 }
 

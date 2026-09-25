@@ -15,7 +15,7 @@ struct AccumulatorTerms {
     double knock_out_level{};      ///< Positive spot level that terminates accrual.
     double daily_quantity{};       ///< Non-negative base quantity accrued per trading day.
     double acceleration_factor{};  ///< Non-negative quantity multiplier below strike.
-    double accumulated_quantity{}; ///< Non-negative quantity already accrued.
+    double accumulated_quantity{}; ///< Caller-asserted non-negative quantity already accrued; zero means none.
     Date effective_date{};         ///< First date of the contract life.
     Date expiry_date{};            ///< Final date of the contract life.
 };
@@ -25,8 +25,9 @@ struct AccumulatorTerms {
 /// @return The accumulator, or an input-validation error.
 [[nodiscard]] Result<Accumulator> make_accumulator(AccumulatorTerms);
 
-/// Forward accrual that buys a fixed daily quantity, accelerating below strike and
-/// terminating once spot reaches the knock-out level.
+/// Outstanding forward accrual that buys a fixed daily quantity, accelerating below strike and
+/// terminating once spot reaches the knock-out level. Do not value an already terminated contract;
+/// prices exclude cashflows settled before valuation.
 class Accumulator {
 public:
     /// Returns the purchase strike.

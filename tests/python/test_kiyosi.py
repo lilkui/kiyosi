@@ -310,6 +310,24 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(BinarySnowballOption(**terms, barrier_state=AutocallableBarrierState.KNOCKED_OUT).barrier_state,
                          AutocallableBarrierState.KNOCKED_OUT)
 
+    def test_structured_history_is_explicit_after_observation(self):
+        terms = dict(
+            knock_out_coupon_rates=[0.05, 0.05], maturity_coupon_rate=0.05,
+            initial_spot=100, knock_out_levels=[110, 110], upper_strike=100,
+            lower_strike=60, observation_dates=[date(2025, 1, 2), date(2025, 1, 6)],
+            effective_date=date(2025, 1, 1), expiry_date=date(2025, 1, 6),
+        )
+        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=1)
+        later = PricingContext(model_parameters=self.parameters, spot_price=100,
+                               valuation_time=date(2025, 1, 3))
+        missing = BinarySnowballOption(**terms)
+        self.assertIsNone(missing.barrier_state)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(missing, later)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        self.assertGreater(engine.price(BinarySnowballOption(
+            **terms, barrier_state=AutocallableBarrierState.NONE), later), 0)
+
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
         self.assertIn("weekdays", market.weekdays_calendar.__doc__.lower())

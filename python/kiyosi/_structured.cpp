@@ -25,7 +25,7 @@ void bind_note_properties(nb::class_<Note>& binding)
         .def_prop_ro("principal_ratio", &Note::principal_ratio,
                      "Principal scaling applied to the payoff.")
         .def_prop_ro("barrier_state", &Note::barrier_state,
-                     "Barrier history known at valuation time.")
+                     "State before valuation, or None when not supplied.")
         .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); },
                      "First date on which the note is effective.")
         .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); },
@@ -50,7 +50,7 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         [factory](PythonReal coupon_rate, PythonReal initial_spot,
                   PythonReal knock_in_level, PythonReal knock_out_level,
                   PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-                  AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+                  std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(factory(Terms{
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -85,8 +85,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -112,7 +112,7 @@ void bind_presets(nb::module_& module)
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_step_down_snowball({
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -147,8 +147,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -168,7 +168,7 @@ KiyosiError
         [](PythonReal initial_coupon_rate, PythonReal coupon_rate_decrement, PythonReal initial_spot,
            PythonReal knock_in_level, PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_both_down_snowball({
                 .initial_coupon_rate = real_number(initial_coupon_rate, "initial_coupon_rate"),
                 .coupon_rate_decrement = real_number(coupon_rate_decrement, "coupon_rate_decrement"),
@@ -207,8 +207,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -228,7 +228,7 @@ KiyosiError
         [](PythonReal knock_out_coupon_rate, PythonReal maturity_coupon_rate,
            PythonReal initial_spot, PythonReal knock_in_level, PythonReal knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_dual_coupon_snowball({
                 .knock_out_coupon_rate = real_number(knock_out_coupon_rate, "knock_out_coupon_rate"),
                 .maturity_coupon_rate = real_number(maturity_coupon_rate, "maturity_coupon_rate"),
@@ -264,8 +264,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -285,7 +285,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal final_knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_parachute_snowball({
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -320,8 +320,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -341,7 +341,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal upper_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_otm_snowball({
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -376,8 +376,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -397,7 +397,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal lower_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           AutocallableBarrierState barrier_state, PythonReal principal_ratio) {
+           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_loss_capped_snowball({
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -432,8 +432,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 
@@ -475,8 +475,8 @@ observation_dates : list[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None
+    State before valuation; None means unknown.
 principal_ratio : float
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -486,7 +486,7 @@ effective_date, expiry_date : datetime.date
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                         PythonReal upper_strike, PythonReal lower_strike,
                         PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_snowball_option({
                      real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
@@ -525,8 +525,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -572,8 +572,8 @@ upper_strike, lower_strike : float
     Terminal binary payoff thresholds.
 observation_dates : list[datetime.date]
     Ordered knock-out observation dates.
-barrier_state : AutocallableBarrierState
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None
+    State before valuation; None means unknown.
 principal_ratio : float
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -582,7 +582,7 @@ effective_date, expiry_date : datetime.date
                         PythonReal maturity_coupon_rate, PythonReal initial_spot,
                         PythonRealSequence knock_out_levels, PythonReal upper_strike,
                         PythonReal lower_strike, PythonDateSequence observation_dates,
-                        AutocallableBarrierState barrier_state, PythonReal principal_ratio,
+                        std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio,
                         PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_binary_snowball_option({
                      real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
@@ -617,8 +617,8 @@ upper_strike, lower_strike : float
     Terminal binary payoff thresholds.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -669,8 +669,8 @@ observation_dates : list[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None
+    State before valuation; None means unknown.
 principal_ratio : float
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -680,7 +680,7 @@ effective_date, expiry_date : datetime.date
                         PythonReal initial_spot, PythonReal knock_in_level,
                         PythonRealSequence knock_out_levels, PythonReal upper_strike,
                         PythonReal lower_strike, PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_ternary_snowball_option({
                      real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
@@ -724,8 +724,8 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal scaling applied to the payoff.
 effective_date, expiry_date : datetime.date
@@ -778,8 +778,8 @@ observation_dates : list[datetime.date]
     Ordered coupon and knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None
+    State before valuation; None means unknown.
 principal_ratio : float
     Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
@@ -788,7 +788,7 @@ effective_date, expiry_date : datetime.date
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                         PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
                         PythonReal lower_strike, PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_phoenix_option({
                      real_number(coupon_rate, "coupon_rate"),
@@ -828,8 +828,8 @@ observation_dates : iterable[datetime.date]
     Ordered coupon and knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState, optional
-    Barrier history known at valuation time.
+barrier_state : AutocallableBarrierState | None, optional
+    State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date

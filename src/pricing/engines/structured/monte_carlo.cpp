@@ -163,6 +163,8 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
                                                note.expiry_date(), context.calendar());
     if (!schedule) return std::unexpected(schedule.error());
+    auto history = validate_autocallable_history(note, context);
+    if (!history) return std::unexpected(history.error());
     if (settings_.path_count <= 0 || settings_.path_count > 10'000'000)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});

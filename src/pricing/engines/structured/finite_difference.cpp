@@ -80,6 +80,8 @@ Result<PricingResult> price_autocallable_finite_difference(
     auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
                                                note.expiry_date(), context.calendar());
     if (!schedule) return std::unexpected(schedule.error());
+    auto history = validate_autocallable_history(note, context);
+    if (!history) return std::unexpected(history.error());
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
     if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings.asset_upper_boundary)

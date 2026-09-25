@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <chrono>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -53,7 +54,7 @@ public:
     double principal_ratio() const noexcept { return 1.0; }
     kiyosi::Date effective_date() const noexcept { return effective_; }
     kiyosi::Date expiry_date() const noexcept { return expiry_; }
-    kiyosi::AutocallableBarrierState barrier_state() const noexcept
+    std::optional<kiyosi::AutocallableBarrierState> barrier_state() const noexcept
     {
         return kiyosi::AutocallableBarrierState::none;
     }
@@ -360,6 +361,39 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
     CHECK(ternary_engine.coupon_rates[1] == Catch::Approx(0.11));
     CHECK(ternary_engine.maturity_coupon_rate == Catch::Approx(0.03));
     CHECK(ternary_engine.minimal_coupon == Catch::Approx(0.01));
+}
+
+TEST_CASE("Autocallable valuation requires possible explicit history")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto first = day(2025, 1, 2);
+    const auto expiry = day(2025, 1, 6);
+    const auto market = [&](kiyosi::Date valuation) {
+        return *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, valuation);
+    };
+    const auto note = [&](std::optional<kiyosi::AutocallableBarrierState> state) {
+        return *kiyosi::make_snowball_option(
+            {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05,
+             .initial_spot = 100.0, .knock_in_level = 80.0,
+             .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = 60.0,
+             .observation_dates = {first, expiry},
+             .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+             .barrier_state = state, .effective_date = effective, .expiry_date = expiry});
+    };
+    const kiyosi::MonteCarloSnowballEngine mc{{32, 1}};
+    const kiyosi::FiniteDifferenceSnowballEngine fd{{40, 40}};
+    CHECK(mc.price(note(std::nullopt), market(effective)).has_value());
+    const auto missing = mc.price(note(std::nullopt), market(day(2025, 1, 3)));
+    REQUIRE_FALSE(missing);
+    CHECK(missing.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    CHECK(fd.price(note(std::nullopt), market(day(2025, 1, 3))).error().category ==
+          kiyosi::ErrorCategory::invalid_parameter);
+    CHECK(mc.price(note(kiyosi::AutocallableBarrierState::none), market(day(2025, 1, 3))).has_value());
+    const auto premature = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(effective));
+    REQUIRE_FALSE(premature);
+    CHECK(premature.error().category == kiyosi::ErrorCategory::invalid_option);
+    CHECK(*mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(day(2025, 1, 3))) == 0.0);
 }
 
 TEST_CASE("Negative Binary Snowball coupon can be implied")

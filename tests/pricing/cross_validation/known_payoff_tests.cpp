@@ -159,8 +159,10 @@ TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishe
     }
     const auto check_extinguished = [](const auto& result) {
         REQUIRE(result);
-        check_known_price(*result, market(100.0, effective_date), 0.0);
-        check_known_price(*result, market(120.0, expiry_date), 0.0);
+        const auto before_first = kiyosi::MonteCarloAutocallableEngine<std::remove_cvref_t<decltype(*result)>>{{64, 73}}
+                                      .price(*result, market(100.0, effective_date));
+        REQUIRE_FALSE(before_first);
+        CHECK(before_first.error().category == kiyosi::ErrorCategory::invalid_option);
     };
     check_extinguished(snowball(AutocallableBarrierState::knocked_out));
     check_extinguished(ternary(AutocallableBarrierState::knocked_out));

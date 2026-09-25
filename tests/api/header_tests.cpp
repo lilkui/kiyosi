@@ -64,13 +64,13 @@ static_assert(kiyosi::BarrierOptionTerms{}.observation_mode == kiyosi::Observati
 static_assert(kiyosi::BinaryBarrierTerms{}.observation_mode == kiyosi::ObservationMode::continuous);
 static_assert(kiyosi::SettlementTiming::at_expiry != kiyosi::SettlementTiming::at_hit);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
-static_assert(kiyosi::SnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
+static_assert(!kiyosi::SnowballTerms{}.barrier_state);
 static_assert(kiyosi::SnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::BinarySnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
+static_assert(!kiyosi::BinarySnowballTerms{}.barrier_state);
 static_assert(kiyosi::BinarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::TernarySnowballTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
+static_assert(!kiyosi::TernarySnowballTerms{}.barrier_state);
 static_assert(kiyosi::TernarySnowballTerms{}.principal_ratio == 1.0);
-static_assert(kiyosi::PhoenixTerms{}.barrier_state == kiyosi::AutocallableBarrierState::none);
+static_assert(!kiyosi::PhoenixTerms{}.barrier_state);
 static_assert(kiyosi::PhoenixTerms{}.principal_ratio == 1.0);
 
 static_assert(kiyosi::FiniteDifferenceSettings{}.asset_step_count == 200);

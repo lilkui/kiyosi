@@ -160,11 +160,11 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
     const auto phoenix_up = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
                                                           .initial_spot = 100.0,
                                                           .knock_in_level = 80.0,
-                                                          .knock_out_levels = {100.0},
-                                                          .coupon_barrier_levels = {90.0},
+                                                          .knock_out_levels = {100.0, 100.0},
+                                                          .coupon_barrier_levels = {90.0, 90.0},
                                                           .upper_strike = 100.0,
                                                           .lower_strike = 60.0,
-                                                          .observation_dates = {expiry_date},
+                                                          .observation_dates = {day(2025, 7, 1), expiry_date},
                                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
                                                           .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
                                                           .principal_ratio = 1.0,
@@ -228,6 +228,7 @@ TEST_CASE("Structured Monte Carlo skips knock-in on a non-trading valuation day"
          .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0,
          .observation_dates = {expiry},
          .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+         .barrier_state = kiyosi::AutocallableBarrierState::none,
          .effective_date = effective, .expiry_date = expiry});
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto saturday = kiyosi::start_of_day(day(2025, 1, 4));
@@ -419,14 +420,14 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
-    CHECK(calls->load() == 3);
+    CHECK(calls->load() == 4);
 
     calls->store(0);
     const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
-    REQUIRE(touched);
-    CHECK(*touched == 0.0);
-    CHECK(calls->load() == 3);
+    REQUIRE_FALSE(touched);
+    CHECK(touched.error().category == kiyosi::ErrorCategory::invalid_option);
+    CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto expiry_context = *kiyosi::make_pricing_context(
@@ -446,11 +447,11 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
     CHECK(*at_expiry == large_payoff);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto invalid_settings = kiyosi::MonteCarloBinarySnowballEngine{{0, 7}}.price(
-        make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
+        make_note(kiyosi::AutocallableBarrierState::none, 1.0), context);
     REQUIRE_FALSE(invalid_settings);
     CHECK(invalid_settings.error().category == kiyosi::ErrorCategory::invalid_parameter);
     CHECK(calls->load() == 2);
@@ -500,7 +501,7 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
 
         REQUIRE(result);
         CHECK(*result == legacy);
-        CHECK(calls->load() == 8);
+    CHECK(calls->load() == 9);
     }
 
     const auto unseeded =
@@ -533,7 +534,16 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
         {64, 7, kiyosi::MonteCarloBackend::cuda}};
     CHECK(cuda.settings().backend == kiyosi::MonteCarloBackend::cuda);
 
-    const auto settled = cuda.price(make_note(kiyosi::AutocallableBarrierState::knocked_out), context);
+    const auto settled_note = *kiyosi::make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = 0.05,
+         .initial_spot = 100.0, .knock_out_levels = {110.0, 110.0},
+         .upper_strike = 100.0, .lower_strike = 60.0,
+         .observation_dates = {day(2025, 1, 2), expiry_date},
+         .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
+         .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto settled_context = *kiyosi::make_pricing_context(
+        context.model_parameters(), 100.0, day(2025, 1, 3), kiyosi::all_days_calendar());
+    const auto settled = cuda.price(settled_note, settled_context);
     REQUIRE(settled);
     CHECK(*settled == 0.0);
 
@@ -545,7 +555,7 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
 
     const auto invalid_backend = kiyosi::MonteCarloBinarySnowballEngine{
         {64, 7, static_cast<kiyosi::MonteCarloBackend>(255)}}
-                                     .price(make_note(kiyosi::AutocallableBarrierState::knocked_out), context);
+                                     .price(make_note(kiyosi::AutocallableBarrierState::none), context);
     REQUIRE_FALSE(invalid_backend);
     CHECK(invalid_backend.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
@@ -811,9 +821,9 @@ TEST_CASE("Binary snowball finite difference prices active and knocked-out state
         const auto up_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_out), context);
 
         REQUIRE(untouched);
-        REQUIRE(up_touched);
+        REQUIRE_FALSE(up_touched);
         CHECK(*untouched > 0.0);
-        CHECK(*up_touched == 0.0);
+        CHECK(up_touched.error().category == kiyosi::ErrorCategory::invalid_option);
     }
 }
 

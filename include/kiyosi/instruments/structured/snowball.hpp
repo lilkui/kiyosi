@@ -22,7 +22,7 @@ struct SnowballTerms {
     double lower_strike{};                                                  ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
-    AutocallableBarrierState barrier_state{AutocallableBarrierState::none}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
     double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
@@ -40,7 +40,7 @@ struct TernarySnowballTerms {
     double lower_strike{};                                                  ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
-    AutocallableBarrierState barrier_state{AutocallableBarrierState::none}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
     double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
@@ -55,7 +55,7 @@ struct BinarySnowballTerms {
     double upper_strike{};                                                  ///< Positive upper settlement strike.
     double lower_strike{};                                                  ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
-    AutocallableBarrierState barrier_state{AutocallableBarrierState::none}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
     double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
@@ -87,7 +87,7 @@ private:
     SnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                    double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,
                    double upper_strike, double lower_strike, std::vector<Date> observation_dates,
-                   KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                   KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                    double principal_ratio, Date effective_date, Date expiry_date)
         : KnockInAutocallableNote(initial_spot, knock_in_level, std::move(knock_out_levels), upper_strike,
                                   lower_strike, std::move(observation_dates), knock_in_observation_mode, barrier_state,
@@ -115,7 +115,7 @@ private:
     BinarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                          double initial_spot, std::vector<double> knock_out_levels,
                          double upper_strike, double lower_strike, std::vector<Date> observation_dates,
-                         AutocallableBarrierState barrier_state, double principal_ratio, Date effective_date,
+                         std::optional<AutocallableBarrierState> barrier_state, double principal_ratio, Date effective_date,
                          Date expiry_date)
         : AutocallableNote(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
                            std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
@@ -145,7 +145,7 @@ private:
                           double minimum_coupon_rate, double initial_spot, double knock_in_level,
                           std::vector<double> knock_out_levels, double upper_strike,
                           double lower_strike, std::vector<Date> observation_dates,
-                          KnockInObservationMode knock_in_observation_mode, AutocallableBarrierState barrier_state,
+                          KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                           double principal_ratio, Date effective_date, Date expiry_date)
         : KnockInAutocallableNote(initial_spot, knock_in_level, std::move(knock_out_levels), upper_strike,
                                   lower_strike, std::move(observation_dates), knock_in_observation_mode, barrier_state,

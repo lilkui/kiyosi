@@ -19,7 +19,7 @@ struct StandardSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -56,7 +56,7 @@ struct StepDownSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -98,7 +98,7 @@ struct BothDownSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -141,7 +141,7 @@ struct DualCouponSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -177,7 +177,7 @@ struct ParachuteSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -214,7 +214,7 @@ struct OtmSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -250,7 +250,7 @@ struct LossCappedSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
@@ -285,7 +285,7 @@ struct EuropeanSnowballTerms {
     std::vector<Date> observation_dates;                                   ///< Strictly ordered event dates.
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
-    AutocallableBarrierState barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
+    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
     double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
 };
 
