@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdint>
 #include <utility>
 #include <vector>
 
@@ -71,9 +72,14 @@ namespace detail {
     if (!life) return std::unexpected(life.error());
     if (lock_up_months <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "monthly schedule terms are invalid"});
+    const auto start_month = std::chrono::year_month_day{start};
+    const auto end_month = std::chrono::year_month_day{end};
+    const auto months_until_end =
+        (std::int64_t{int(end_month.year())} - int(start_month.year())) * 12 +
+        int(unsigned(end_month.month())) - int(unsigned(start_month.month()));
     std::vector<Date> dates;
-    for (int month = lock_up_months;; ++month) {
-        const auto target = detail::add_months(start, month);
+    for (std::int64_t month = lock_up_months; month <= months_until_end; ++month) {
+        const auto target = detail::add_months(start, static_cast<int>(month));
         if (target > end) break;
         auto adjusted = detail::following_date(target, end, calendar);
         if (!adjusted) break;

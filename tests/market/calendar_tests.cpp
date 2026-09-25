@@ -195,6 +195,8 @@ TEST_CASE("Effective dates, schedules, and SSE calendar semantics")
     CHECK(month_end->dates() == std::vector<kiyosi::Date>{
                                     day(2025, 2, 28), day(2025, 3, 31), day(2025, 4, 30)});
     CHECK_FALSE(kiyosi::make_monthly_schedule(effective_date, expiry_date, 0));
+    CHECK(kiyosi::make_monthly_schedule(day(2025, 1, 1), day(2025, 12, 31), 786433)->empty());
+    CHECK(kiyosi::make_monthly_schedule(day(32767, 11, 1), day(32767, 12, 31), 2)->empty());
 
     const auto sse = kiyosi::sse_calendar();
     CHECK(sse.trading_days_per_year() == 243);

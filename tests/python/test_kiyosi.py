@@ -319,6 +319,16 @@ class KiyosiPythonTests(unittest.TestCase):
             [date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)],
         )
 
+    def test_monthly_schedule_does_not_wrap_extreme_lock_up(self):
+        self.assertEqual(monthly_schedule(
+            start=date(2025, 1, 1), end=date(2025, 12, 31),
+            lock_up_months=786433,
+        ).dates, [])
+        self.assertEqual(monthly_schedule(
+            start=date(9999, 11, 1), end=date(9999, 12, 31),
+            lock_up_months=2,
+        ).dates, [])
+
     def test_weekdays_calendar_is_the_explicit_default(self):
         self.assertFalse(hasattr(market, "exchange_calendar"))
         calendar = market.weekdays_calendar()
