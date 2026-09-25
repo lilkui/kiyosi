@@ -503,6 +503,13 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(context.valuation_time, datetime(2025, 1, 1, 0, 9, 10, 123456, tzinfo=timezone.utc))
         midnight = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=date(2025, 1, 1))
         self.assertEqual(midnight.valuation_time, datetime(2025, 1, 1, tzinfo=timezone.utc))
+        for value in (date(1600, 1, 1), date(2500, 1, 1), date(9999, 1, 1)):
+            with self.subTest(value=value):
+                context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=value)
+                self.assertEqual(context.valuation_time, datetime.combine(value, datetime.min.time(), timezone.utc))
+        latest = datetime(9999, 12, 31, 23, 59, 59, 999999, tzinfo=timezone.utc)
+        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=latest)
+        self.assertEqual(context.valuation_time, latest)
 
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(option_type=OptionType.CALL, strike=100, payout=10, effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))

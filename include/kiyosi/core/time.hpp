@@ -9,8 +9,9 @@ namespace kiyosi {
 
 /// Civil date represented as a day on the system clock timeline.
 using Date = std::chrono::sys_days;
-/// UTC-like instant with nanosecond precision; date-only contracts are midnight anchored.
-using Timestamp = std::chrono::sys_time<std::chrono::nanoseconds>;
+/// UTC-like instant with microsecond precision; date-only contracts are midnight anchored.
+/// Its range covers every supported civil date and the elapsed time between any two of them.
+using Timestamp = std::chrono::sys_time<std::chrono::microseconds>;
 
 /// Tests whether a date is representable by `std::chrono::year`.
 /// @param value Date to test.

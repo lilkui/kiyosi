@@ -88,6 +88,13 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     CHECK(kiyosi::is_supported_date(last_supported));
     CHECK_FALSE(kiyosi::is_supported_date(first_supported - std::chrono::days{1}));
     CHECK_FALSE(kiyosi::is_supported_date(last_supported + std::chrono::days{1}));
+    CHECK(kiyosi::date_of(kiyosi::start_of_day(first_supported)) == first_supported);
+    CHECK(kiyosi::date_of(kiyosi::start_of_day(last_supported)) == last_supported);
+    const auto full_range = kiyosi::year_fraction(
+        kiyosi::start_of_day(first_supported), kiyosi::start_of_day(last_supported));
+    REQUIRE(full_range.has_value());
+    CHECK_THAT(*full_range,
+               Catch::Matchers::WithinAbs(*kiyosi::year_fraction(first_supported, last_supported), 1e-9));
 
     const auto schedule = kiyosi::make_fixed_interval_schedule(
         start, day(2025, 1, 3), std::chrono::days{1}, kiyosi::weekdays_calendar());
