@@ -13,6 +13,7 @@ from kiyosi.instruments import (
     ArithmeticAveragePriceOption,
     BarrierOption,
     BarrierType,
+    BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
     GeometricAveragePriceOption,
@@ -291,6 +292,43 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(operation=operation.__name__), self.assertRaises(kiyosi.KiyosiError) as error:
                 operation(date(2025, 1, 6), date(2025, 1, 4))
             self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE)
+
+    def test_nominal_weekend_expiry_requires_explicit_adjustment(self):
+        calendar = market.weekdays_calendar()
+        nominal = date(2025, 1, 5)
+        self.assertEqual(calendar.adjust(nominal, market.BusinessDayConvention.FOLLOWING), date(2025, 1, 6))
+        self.assertEqual(calendar.adjust(nominal, market.BusinessDayConvention.PRECEDING), date(2025, 1, 3))
+        context = PricingContext(model_parameters=self.parameters, spot_price=110,
+                                 valuation_time=date(2025, 1, 3), calendar=calendar)
+        terms = dict(strike=100, knock_out_level=1000, daily_quantity=0,
+                     acceleration_factor=1, accumulated_quantity=1,
+                     effective_date=date(2025, 1, 3))
+        nominal_option = Accumulator(**terms, expiry_date=nominal)
+        adjusted_option = Accumulator(**terms, expiry_date=calendar.adjust(
+            nominal, market.BusinessDayConvention.FOLLOWING))
+        for engine in (pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+                       pricing.FiniteDifferenceAccumulatorEngine()):
+            with self.subTest(engine=type(engine).__name__):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(nominal_option, context)
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_DATE)
+                self.assertTrue(math.isfinite(engine.price(adjusted_option, context)))
+        note_terms = dict(knock_out_coupon_rates=[0], maturity_coupon_rate=0.01,
+                          initial_spot=100, knock_out_levels=[200], upper_strike=100,
+                          lower_strike=60, observation_dates=[date(2025, 1, 3)],
+                          effective_date=date(2025, 1, 3))
+        nominal_note = BinarySnowballOption(**note_terms, expiry_date=nominal)
+        adjusted_note = BinarySnowballOption(**note_terms, expiry_date=calendar.adjust(
+            nominal, market.BusinessDayConvention.FOLLOWING))
+        note_context = PricingContext(model_parameters=self.parameters, spot_price=100,
+                                      valuation_time=date(2025, 1, 3), calendar=calendar)
+        for engine in (pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=7),
+                       pricing.FiniteDifferenceBinarySnowballEngine()):
+            with self.subTest(engine=type(engine).__name__):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(nominal_note, note_context)
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_DATE)
+                self.assertTrue(math.isfinite(engine.price(adjusted_note, note_context)))
 
     def test_native_domain_errors_expose_categories(self):
         with self.assertRaises(kiyosi.KiyosiError) as error:

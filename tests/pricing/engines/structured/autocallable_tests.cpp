@@ -22,6 +22,34 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Structured engines reject nominal weekend expiry and accept adjusted expiry")
+{
+    const auto nominal = day(2025, 1, 5);
+    const auto calendar = kiyosi::weekdays_calendar();
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 100.0, day(2025, 1, 3), calendar);
+    const auto note = [&](kiyosi::Date expiry) {
+        return *kiyosi::make_binary_snowball_option({
+            .knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.01,
+            .initial_spot = 100.0, .knock_out_levels = {200.0},
+            .upper_strike = 100.0, .lower_strike = 60.0,
+            .observation_dates = {day(2025, 1, 3)},
+            .effective_date = day(2025, 1, 3), .expiry_date = expiry});
+    };
+    const auto unadjusted = note(nominal);
+    const auto adjusted_expiry = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);
+    REQUIRE(adjusted_expiry);
+    const auto adjusted = note(*adjusted_expiry);
+    const kiyosi::MonteCarloBinarySnowballEngine mc{{32, 7}};
+    const kiyosi::FiniteDifferenceBinarySnowballEngine fd{};
+    for (const auto& result : {mc.price(unadjusted, context), fd.price(unadjusted, context)}) {
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == kiyosi::ErrorCategory::invalid_date);
+    }
+    CHECK(mc.price(adjusted, context).has_value());
+    CHECK(fd.price(adjusted, context).has_value());
+}
+
 double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                                     const kiyosi::PricingContext& context,
                                     kiyosi::TradingDayMonteCarloSettings settings)
@@ -368,14 +396,14 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
         make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
     REQUIRE(touched);
     CHECK(*touched == 0.0);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto expiry_context = *kiyosi::make_pricing_context(
@@ -395,7 +423,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
     CHECK(*at_expiry == large_payoff);
-    CHECK(calls->load() == 1);
+    CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto invalid_settings = kiyosi::MonteCarloBinarySnowballEngine{{0, 7}}.price(
@@ -449,7 +477,7 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
 
         REQUIRE(result);
         CHECK(*result == legacy);
-        CHECK(calls->load() == 7);
+        CHECK(calls->load() == 8);
     }
 
     const auto unseeded =
@@ -818,14 +846,14 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     const auto binary_result =
         kiyosi::FiniteDifferenceBinarySnowballEngine{settings}.price(binary, sparse_context);
     REQUIRE(binary_result);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto expiry_only = make_snowball(kiyosi::KnockInObservationMode::at_expiry);
     const auto expiry_result =
         kiyosi::FiniteDifferenceSnowballEngine{settings}.price(expiry_only, sparse_context);
     REQUIRE(expiry_result);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto daily_calendar = *kiyosi::make_trading_calendar(
@@ -838,7 +866,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     const auto daily_result = kiyosi::FiniteDifferenceSnowballEngine{settings}.price(
         make_snowball(kiyosi::KnockInObservationMode::every_trading_day), daily_context);
     REQUIRE(daily_result);
-    CHECK(calls->load() == 8);
+    CHECK(calls->load() == 9);
 
     calls->store(0);
     const auto invalid_calendar = *kiyosi::make_trading_calendar(
@@ -852,7 +880,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
         kiyosi::FiniteDifferenceBinarySnowballEngine{settings}.price(binary, invalid_context);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 1);
 }
 
 TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")

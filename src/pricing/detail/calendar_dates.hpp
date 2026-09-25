@@ -8,6 +8,15 @@
 
 namespace kiyosi::detail {
 
+/// Trading-day engines settle at expiry and cannot price an unadjusted nominal expiry.
+inline Result<void> validate_trading_expiry(const TradingCalendar& calendar, Date expiry_date)
+{
+    if (!calendar.is_trading_day(expiry_date))
+        return std::unexpected(Error{ErrorCategory::invalid_date,
+                                     "expiry_date must be a trading day; adjust the nominal date first"});
+    return {};
+}
+
 /// Trading days in (start, end]; `include_start` also yields `start` when it is a midnight Date.
 inline std::vector<Date> trading_dates(
     const TradingCalendar& calendar, Timestamp start, Date end, bool include_start = false)

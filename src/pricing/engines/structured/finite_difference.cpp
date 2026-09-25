@@ -68,6 +68,8 @@ Result<PricingResult> price_autocallable_finite_difference(
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
+    auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
+    if (!expiry_valid) return std::unexpected(expiry_valid.error());
     auto settings_valid = validate_finite_difference_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     if (settings.asset_step_count > 2000 || settings.time_step_count > 2000)

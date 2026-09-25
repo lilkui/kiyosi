@@ -11,6 +11,12 @@ namespace kiyosi {
 
 class TradingCalendar;
 
+/// Direction used to move a nominal contract date onto a trading day.
+enum class BusinessDayConvention {
+    following, ///< Move to the next trading day, including the nominal date.
+    preceding  ///< Move to the previous trading day, including the nominal date.
+};
+
 namespace detail {
 // Unchecked construction shared by the venue calendars under kiyosi/market/calendars.
 [[nodiscard]] TradingCalendar make_calendar(std::function<bool(Date)>, int);
@@ -30,6 +36,31 @@ public:
     [[nodiscard]] bool is_trading_day(Date value) const
     {
         return is_supported_date(value) && predicate_ && predicate_(value);
+    }
+
+    /// Adjusts a nominal date to a trading day under the chosen convention.
+    /// @return The adjusted date, or `invalid_date` if no trading day exists in the
+    /// supported direction; an unknown convention returns `invalid_parameter`.
+    [[nodiscard]] Result<Date> adjust(Date nominal, BusinessDayConvention convention) const
+    {
+        if (!is_supported_date(nominal))
+            return std::unexpected(Error{ErrorCategory::invalid_date, "nominal date is unsupported"});
+        std::chrono::days direction{};
+        switch (convention) {
+        case BusinessDayConvention::following:
+            direction = std::chrono::days{1};
+            break;
+        case BusinessDayConvention::preceding:
+            direction = std::chrono::days{-1};
+            break;
+        default:
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                         "business-day convention is invalid"});
+        }
+        for (auto value = nominal; is_supported_date(value); value += direction)
+            if (is_trading_day(value)) return value;
+        return std::unexpected(Error{ErrorCategory::invalid_date,
+                                     "no trading day exists in the adjustment direction"});
     }
 
     /// Returns the positive annual trading-day basis.

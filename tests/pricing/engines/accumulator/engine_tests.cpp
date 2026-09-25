@@ -93,6 +93,32 @@ TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
     CHECK(*finite_difference == Catch::Approx(-50.0));
 }
 
+TEST_CASE("Accumulator engines reject nominal weekend expiry and accept adjusted expiry")
+{
+    const auto nominal = day(2025, 1, 5);
+    const auto calendar = kiyosi::weekdays_calendar();
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 110.0, day(2025, 1, 3), calendar);
+    const auto option = [&](kiyosi::Date expiry) {
+        return *kiyosi::make_accumulator({.strike = 100.0, .knock_out_level = 1000.0,
+                                          .daily_quantity = 0.0, .acceleration_factor = 1.0,
+                                          .accumulated_quantity = 1.0,
+                                          .effective_date = day(2025, 1, 3), .expiry_date = expiry});
+    };
+    const auto unadjusted = option(nominal);
+    const auto adjusted_expiry = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);
+    REQUIRE(adjusted_expiry);
+    const auto adjusted = option(*adjusted_expiry);
+    const kiyosi::MonteCarloAccumulatorEngine mc{{32, 7}};
+    const kiyosi::FiniteDifferenceAccumulatorEngine fd{};
+    for (const auto& result : {mc.price(unadjusted, context), fd.price(unadjusted, context)}) {
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == kiyosi::ErrorCategory::invalid_date);
+    }
+    CHECK(mc.price(adjusted, context).has_value());
+    CHECK(fd.price(adjusted, context).has_value());
+}
+
 TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
 {
     const auto valuation = day(2025, 1, 1);
@@ -125,7 +151,7 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
 
         REQUIRE(result);
         CHECK(*result == legacy);
-        CHECK(calls->load() == 6);
+        CHECK(calls->load() == 7);
     }
 
     const auto unseeded =
@@ -164,7 +190,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
         make_option(large_payoff), context(valuation, 101.0));
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
-    CHECK(calls->load() == 1);
+    CHECK(calls->load() == 2);
 
     calls->store(0);
     const double expiry_quantity = std::numeric_limits<double>::max() / 640.0;
@@ -173,7 +199,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
         make_option(expiry_quantity), context(expiry_date, 90.0));
     REQUIRE(at_expiry);
     CHECK(*at_expiry == expiry_payoff);
-    CHECK(calls->load() == 1);
+    CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto invalid_settings = kiyosi::MonteCarloAccumulatorEngine{{0, 7}}.price(

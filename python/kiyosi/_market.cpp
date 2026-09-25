@@ -8,6 +8,10 @@ namespace kiyosi::python_binding {
 
 void bind_enums(nb::module_& module)
 {
+    nb::enum_<BusinessDayConvention>(module, "BusinessDayConvention",
+                                     "Rule for adjusting a nominal date to a trading day.")
+        .value("FOLLOWING", BusinessDayConvention::following)
+        .value("PRECEDING", BusinessDayConvention::preceding);
     nb::enum_<ErrorCategory>(module, "ErrorCategory", R"doc(Stable category for a core domain error.
 
 Attributes
@@ -296,6 +300,13 @@ Raises
 ------
 TypeError
     If ``value`` is not a :class:`datetime.date`.)doc")
+        .def("adjust",
+             [](const TradingCalendar& calendar, PythonDate nominal,
+                BusinessDayConvention convention) {
+                 return python_date(unwrap(calendar.adjust(calendar_date(nominal, "nominal"), convention)));
+             },
+             "nominal"_a, "convention"_a,
+             "Adjust a nominal date to a trading day using FOLLOWING or PRECEDING.")
         .def("trading_days_between",
              [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
                  return unwrap(calendar.trading_days_between(

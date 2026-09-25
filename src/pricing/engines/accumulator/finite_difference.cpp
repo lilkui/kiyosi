@@ -53,6 +53,8 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
+    auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
+    if (!expiry_valid) return std::unexpected(expiry_valid.error());
     auto settings_valid = validate_finite_difference_settings(settings_);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     if (settings_.asset_step_count > 2000 || settings_.time_step_count > 2000)

@@ -45,6 +45,32 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     REQUIRE(context_copy.calendar().is_trading_day(day(2025, 1, 2)));
 }
 
+TEST_CASE("Nominal dates adjust in either direction without leaving the supported range")
+{
+    const auto calendar = kiyosi::weekdays_calendar();
+    const auto nominal = day(2025, 1, 5);
+    const auto following = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);
+    const auto preceding = calendar.adjust(nominal, kiyosi::BusinessDayConvention::preceding);
+    const auto unchanged = calendar.adjust(day(2025, 1, 6), kiyosi::BusinessDayConvention::following);
+    REQUIRE(following);
+    REQUIRE(preceding);
+    REQUIRE(unchanged);
+    CHECK(*following == day(2025, 1, 6));
+    CHECK(*preceding == day(2025, 1, 3));
+    CHECK(*unchanged == day(2025, 1, 6));
+    const auto invalid = calendar.adjust(kiyosi::Date::max(), kiyosi::BusinessDayConvention::following);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
+    const auto unknown = calendar.adjust(nominal, static_cast<kiyosi::BusinessDayConvention>(255));
+    REQUIRE_FALSE(unknown);
+    CHECK(unknown.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    const auto closed = *kiyosi::make_trading_calendar([](kiyosi::Date) { return false; }, 252);
+    const auto last_supported = kiyosi::Date{std::chrono::year::max() / std::chrono::December / 31};
+    const auto unavailable = closed.adjust(last_supported, kiyosi::BusinessDayConvention::following);
+    REQUIRE_FALSE(unavailable);
+    CHECK(unavailable.error().category == kiyosi::ErrorCategory::invalid_date);
+}
+
 TEST_CASE("Time and schedules share explicit day-count and calendar rules")
 {
     const auto start = day(2025, 1, 1);

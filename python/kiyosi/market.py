@@ -2,6 +2,7 @@
 
 from ._native import (
     BlackScholesMertonParameters,
+    BusinessDayConvention,
     ObservationSchedule,
     PricingContext,
     TradingCalendar,
@@ -14,6 +15,7 @@ from ._native import (
 
 __all__ = [
     "BlackScholesMertonParameters",
+    "BusinessDayConvention",
     "ObservationSchedule",
     "PricingContext",
     "TradingCalendar",

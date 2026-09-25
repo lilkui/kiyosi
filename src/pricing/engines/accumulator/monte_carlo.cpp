@@ -127,6 +127,8 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
         settings_.backend != MonteCarloBackend::cuda)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo backend is invalid"});
+    auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
+    if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
     const auto make_result = [](double value) -> Result<PricingResult> {
         if (!std::isfinite(value))
