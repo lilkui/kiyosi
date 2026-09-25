@@ -20,7 +20,7 @@ struct StandardSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a standard snowball from named market terms.
@@ -57,7 +57,7 @@ struct StepDownSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a step-down snowball from named market terms.
@@ -99,7 +99,7 @@ struct BothDownSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a both-down snowball from named market terms.
@@ -142,7 +142,7 @@ struct DualCouponSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a dual-coupon snowball from named market terms.
@@ -178,7 +178,7 @@ struct ParachuteSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a parachute snowball from named market terms.
@@ -215,7 +215,7 @@ struct OtmSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates an out-of-the-money snowball from named market terms.
@@ -251,7 +251,7 @@ struct LossCappedSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a loss-capped snowball from named market terms.
@@ -286,7 +286,7 @@ struct EuropeanSnowballTerms {
     Date effective_date{};                                                 ///< First date of the note life.
     Date expiry_date{};                                                    ///< Final date of the note life.
     std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Non-negative principal multiplier.
+    double principal_ratio{SnowballTerms{}.principal_ratio};               ///< Normalized principal repayment component.
 };
 
 /// Creates a European-knock-in snowball from named market terms.

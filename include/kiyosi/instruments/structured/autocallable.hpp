@@ -28,6 +28,8 @@ enum class AutocallableBarrierState {
 
 /// Principal, knock-out ladder, and settlement strikes shared by every autocallable structure.
 /// Valuation excludes cashflows settled before the valuation time.
+/// For example, principal_ratio 2 plus a 0.1 coupon pays 2.1 normalized units;
+/// principal_ratio 2 plus a -0.2 downside component pays 1.8.
 class AutocallableNote {
 public:
     /// Returns the reference spot used to normalize contract levels.
@@ -40,7 +42,7 @@ public:
     double lower_strike() const noexcept { return terms_.lower_strike; }
     /// Returns the strictly ordered knock-out observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return terms_.observation_dates; }
-    /// Returns the non-negative principal multiplier.
+    /// Returns the non-negative normalized principal repayment component.
     double principal_ratio() const noexcept { return terms_.principal_ratio; }
     /// Returns the first date of the note life.
     Date effective_date() const noexcept { return terms_.effective_date; }
@@ -88,7 +90,7 @@ public:
     double lower_strike() const noexcept { return note_.lower_strike(); }
     /// Returns the strictly ordered knock-out observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return note_.observation_dates(); }
-    /// Returns the non-negative principal multiplier.
+    /// Returns the non-negative normalized principal repayment component.
     double principal_ratio() const noexcept { return note_.principal_ratio(); }
     /// Returns the first date of the note life.
     Date effective_date() const noexcept { return note_.effective_date(); }

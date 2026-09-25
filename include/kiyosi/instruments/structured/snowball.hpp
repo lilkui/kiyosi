@@ -23,7 +23,7 @@ struct SnowballTerms {
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
+    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
 };
@@ -38,7 +38,7 @@ struct TernarySnowballTerms {
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
+    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
 };
@@ -50,7 +50,7 @@ struct BinarySnowballTerms {
     std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
-    double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
+    double principal_ratio{1.0};                                            ///< Normalized principal repayment component.
     Date effective_date{};                                                  ///< First date of the note life.
     Date expiry_date{};                                                     ///< Final date of the note life.
 };

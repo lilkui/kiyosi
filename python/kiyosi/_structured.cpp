@@ -17,7 +17,7 @@ void bind_note_properties(nb::class_<Note>& binding)
             return output;
         }, "Copy of the ordered observation dates.")
         .def_prop_ro("principal_ratio", &Note::principal_ratio,
-                     "Principal scaling applied to the payoff.")
+                     "Normalized principal repayment component; coupons and downside are separate.")
         .def_prop_ro("barrier_state", &Note::barrier_state,
                      "State before valuation, or None when not supplied.")
         .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); },
@@ -89,7 +89,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -151,7 +151,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -211,7 +211,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -268,7 +268,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -324,7 +324,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -380,7 +380,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -436,7 +436,7 @@ effective_date, expiry_date : datetime.date
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 
 Returns
 -------
@@ -479,7 +479,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState | None
     State before valuation; None means unknown.
 principal_ratio : float
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
@@ -529,7 +529,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
 
@@ -572,7 +572,7 @@ observation_dates : list[datetime.date]
 barrier_state : AutocallableBarrierState | None
     State before valuation; None means unknown.
 principal_ratio : float
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
@@ -608,7 +608,7 @@ observation_dates : iterable[datetime.date]
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
 
@@ -654,7 +654,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState | None
     State before valuation; None means unknown.
 principal_ratio : float
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
@@ -701,7 +701,7 @@ knock_in_observation_mode : KnockInObservationMode
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
-    Principal scaling applied to the payoff.
+    Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.
 
