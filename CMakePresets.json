@@ -2,14 +2,21 @@
     "version": 6,
     "configurePresets": [
         {
-            "name": "windows-base",
+            "name": "base",
             "hidden": true,
             "generator": "Ninja",
             "binaryDir": "${sourceDir}/out/build/${presetName}",
             "installDir": "${sourceDir}/out/install/${presetName}",
             "cacheVariables": {
-                "CMAKE_CXX_COMPILER": "cl.exe",
                 "CMAKE_EXPORT_COMPILE_COMMANDS": true
+            }
+        },
+        {
+            "name": "windows-base",
+            "hidden": true,
+            "inherits": "base",
+            "cacheVariables": {
+                "CMAKE_CXX_COMPILER": "cl.exe"
             },
             "architecture": {
                 "value": "x64",
@@ -40,12 +47,7 @@
         {
             "name": "linux-base",
             "hidden": true,
-            "generator": "Ninja",
-            "binaryDir": "${sourceDir}/out/build/${presetName}",
-            "installDir": "${sourceDir}/out/install/${presetName}",
-            "cacheVariables": {
-                "CMAKE_EXPORT_COMPILE_COMMANDS": true
-            },
+            "inherits": "base",
             "condition": {
                 "type": "equals",
                 "lhs": "${hostSystemName}",
@@ -71,9 +73,8 @@
         {
             "name": "linux-sanitizers",
             "displayName": "Linux ASan + UBSan",
-            "inherits": "linux-base",
+            "inherits": "linux-debug",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Debug",
                 "KIYOSI_ENABLE_SANITIZERS": true
             }
         },
@@ -146,66 +147,72 @@
         {
             "name": "test-base",
             "hidden": true,
-            "execution": { "noTestsAction": "error" }
+            "execution": { "noTestsAction": "error" },
+            "output": { "outputOnFailure": true }
         },
         {
             "name": "windows-debug",
             "inherits": "test-base",
-            "configurePreset": "windows-debug",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "windows-debug"
         },
         {
             "name": "windows-release",
             "inherits": "test-base",
-            "configurePreset": "windows-release",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "windows-release"
         },
         {
             "name": "linux-debug",
             "inherits": "test-base",
-            "configurePreset": "linux-debug",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "linux-debug"
         },
         {
             "name": "linux-release",
             "inherits": "test-base",
-            "configurePreset": "linux-release",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "linux-release"
         },
         {
             "name": "windows-ci",
             "inherits": "test-base",
-            "configurePreset": "windows-ci",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "windows-ci"
         },
         {
             "name": "linux-ci",
             "inherits": "test-base",
-            "configurePreset": "linux-ci",
-            "output": {
-                "outputOnFailure": true
-            }
+            "configurePreset": "linux-ci"
         },
         {
             "name": "linux-sanitizers",
             "inherits": "test-base",
             "configurePreset": "linux-sanitizers",
-            "output": {
-                "outputOnFailure": true
-            },
             "environment": {
                 "UBSAN_OPTIONS": "halt_on_error=1"
             }
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "windows-release",
+            "steps": [
+                { "type": "configure", "name": "windows-release" },
+                { "type": "build", "name": "windows-release" },
+                { "type": "test", "name": "windows-release" }
+            ]
+        },
+        {
+            "name": "linux-release",
+            "steps": [
+                { "type": "configure", "name": "linux-release" },
+                { "type": "build", "name": "linux-release" },
+                { "type": "test", "name": "linux-release" }
+            ]
+        },
+        {
+            "name": "linux-sanitizers",
+            "steps": [
+                { "type": "configure", "name": "linux-sanitizers" },
+                { "type": "build", "name": "linux-sanitizers" },
+                { "type": "test", "name": "linux-sanitizers" }
+            ]
         }
     ]
 }

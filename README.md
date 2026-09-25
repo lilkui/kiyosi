@@ -123,9 +123,7 @@ For performance comparisons against QuantLib C++, see the [pricing benchmark mat
 Building the C++ core requires CMake 3.28 or newer, Ninja, and a C++23 compiler. On Linux, configure, build, test, and install with:
 
 ```bash
-cmake --preset linux-release
-cmake --build --preset linux-release
-ctest --preset linux-release
+cmake --workflow --preset linux-release
 cmake --install out/build/linux-release
 ```
 
