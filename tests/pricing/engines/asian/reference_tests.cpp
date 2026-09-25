@@ -199,3 +199,46 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
     REQUIRE(settled);
     CHECK(*settled == 10.0);
 }
+
+TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has begun")
+{
+    const auto effective = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto start = kiyosi::Date{std::chrono::year{2025} / 2 / 1};
+    const auto active = kiyosi::Date{std::chrono::year{2025} / 6 / 1};
+    const auto expiry = kiyosi::Date{std::chrono::year{2026} / 1 / 1};
+    const auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    REQUIRE(parameters);
+    const auto missing = kiyosi::make_arithmetic_average_option(
+        kiyosi::OptionType::call, 100.0, start, effective, expiry);
+    const auto known = kiyosi::make_arithmetic_average_option(
+        kiyosi::OptionType::call, 100.0, start, effective, expiry, 110.0);
+    REQUIRE(missing);
+    REQUIRE(known);
+    const kiyosi::TurnbullWakemanArithmeticAveragePriceEngine engine;
+
+    for (const auto valuation : {effective, start}) {
+        const auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
+        REQUIRE(context);
+        REQUIRE(engine.price(*missing, *context));
+        const auto invalid = engine.price(*known, *context);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    }
+
+    const auto during = kiyosi::make_pricing_context(*parameters, 100.0, active);
+    const auto at_expiry = kiyosi::make_pricing_context(*parameters, 100.0, expiry);
+    REQUIRE(during);
+    REQUIRE(at_expiry);
+    REQUIRE(engine.price(*known, *during));
+    for (const auto& context : {*during, *at_expiry}) {
+        const auto invalid = engine.price(*missing, context);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    }
+    const auto greeks = engine.price_with_greeks(*missing, *during, kiyosi::GreeksLevel::basic);
+    REQUIRE_FALSE(greeks);
+    CHECK(greeks.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    const auto settled = engine.price(*known, *at_expiry);
+    REQUIRE(settled);
+    CHECK(*settled == 10.0);
+}

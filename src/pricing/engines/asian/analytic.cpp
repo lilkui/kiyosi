@@ -75,6 +75,14 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
+    const Timestamp valuation = context.valuation_time();
+    const Timestamp averaging_start = start_of_day(option.averaging_start_date());
+    const double realized = option.realized_average();
+    if (option.averaging_start_date() != option.expiry_date() &&
+        ((valuation > averaging_start && realized == 0.0) ||
+         (valuation <= averaging_start && realized != 0.0)))
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "realized arithmetic average must match the elapsed averaging period"});
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
@@ -85,10 +93,10 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     if (tau == 0.0)
         return make_pricing_result(
             {{RiskMeasure::price,
-              payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
+              payoff(option.option_type(), realized > 0.0 ? realized : spot,
                      strike)}});
     if (option.averaging_start_date() == option.expiry_date()) {
-        if (option.realized_average() != 0.0)
+        if (realized != 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                          "a future single fixing cannot have a realized average"});
         return price_at_volatility(
@@ -104,12 +112,12 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     double adjusted_strike = strike;
     double scale = 1.0;
     if (remaining > 0.0) {
-        adjusted_strike = average_period / tau * strike - remaining / tau * option.realized_average();
+        adjusted_strike = average_period / tau * strike - remaining / tau * realized;
         scale = tau / average_period;
         if (adjusted_strike < 0.0) {
             if (sign < 0.0)
                 return make_pricing_result({{RiskMeasure::price, 0.0}});
-            const double expected = option.realized_average() * remaining / average_period + spot * m1 * tau / average_period;
+            const double expected = realized * remaining / average_period + spot * m1 * tau / average_period;
             return make_pricing_result(
                 {{RiskMeasure::price,
                   std::max(expected - strike, 0.0) * std::exp(-rate * tau)}});

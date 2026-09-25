@@ -35,8 +35,9 @@ private:
 /// Turnbull-Wakeman moment-matched approximation for arithmetic averaging.
 class KIYOSI_EXPORT TurnbullWakemanArithmeticAveragePriceEngine {
 public:
-    /// Prices an arithmetic-average option using moment matching. A zero-length averaging window
-    /// is a single fixing at expiry and follows European vanilla pricing before expiry.
+    /// Prices an arithmetic-average option using moment matching. For a nonzero averaging window,
+    /// the realized average must be zero before averaging begins and positive afterward. A zero-length
+    /// window is a single fixing at expiry and follows European vanilla pricing before expiry.
     /// @return Price, or a contract or context error.
     [[nodiscard]] Result<double> price(const ArithmeticAveragePriceOption& option, const PricingContext& context) const
     {

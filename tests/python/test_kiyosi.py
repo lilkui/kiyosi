@@ -654,6 +654,38 @@ class KiyosiPythonTests(unittest.TestCase):
         at_expiry = PricingContext(model_parameters=self.parameters, spot_price=110, valuation_time=expiry)
         self.assertEqual(asian_engine.price(fixed, at_expiry), 10)
 
+    def test_arithmetic_asian_requires_elapsed_average(self):
+        effective = date(2025, 1, 1)
+        start = date(2025, 2, 1)
+        expiry = date(2026, 1, 1)
+        missing = ArithmeticAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=start,
+            effective_date=effective, expiry_date=expiry,
+        )
+        known = ArithmeticAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=start,
+            realized_average=110, effective_date=effective, expiry_date=expiry,
+        )
+        engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
+        for valuation in (effective, start):
+            context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=valuation)
+            self.assertIsInstance(engine.price(missing, context), float)
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price(known, context)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
+        during = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=date(2025, 6, 1))
+        at_expiry = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=expiry)
+        self.assertIsInstance(engine.price(known, during), float)
+        for context in (during, at_expiry):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price(missing, context)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price_with_greeks(missing, during, GreeksLevel.basic)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        self.assertEqual(engine.price(known, at_expiry), 10)
+
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(option_type=OptionType.CALL, strike=100, payout=10, effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
         self.assertGreater(AnalyticDigitalEngine().price(digital, self.context), 0)
