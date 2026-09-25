@@ -235,7 +235,13 @@ Result<PricingResult> complete_greeks(
     auto theta = *native.get(RiskMeasure::theta);
     auto charm = *native.get(RiskMeasure::charm);
     auto color = *native.get(RiskMeasure::color);
-    if (!spot_discontinuity &&
+    bool time_stencil_available = true;
+    if constexpr (requires { option.averaging_start_date(); option.realized_average(); }) {
+        const Timestamp averaging_start = start_of_day(option.averaging_start_date());
+        time_stencil_available = option.realized_average() == 0.0
+                                     ? after <= averaging_start : before > averaging_start;
+    }
+    if (!spot_discontinuity && time_stencil_available &&
         (need(RiskMeasure::theta) || need(RiskMeasure::charm) || need(RiskMeasure::color)) &&
         (before_days != 0.0 || after_days != 0.0)) {
         const auto t_before = before_days == 0.0

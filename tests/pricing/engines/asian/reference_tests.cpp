@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
+#include <array>
 #include <chrono>
 #include <string>
 
@@ -98,4 +99,61 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
     }
     CHECK(generated == 24);
     CHECK(wrapped == 6);
+}
+
+TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging periods")
+{
+    const auto effective = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto valuation = kiyosi::Date{std::chrono::year{2025} / 7 / 1};
+    const auto expiry = kiyosi::Date{std::chrono::year{2026} / 1 / 1};
+    const auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    REQUIRE(parameters);
+    const auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
+    REQUIRE(context);
+    const kiyosi::AnalyticGeometricAveragePriceEngine engine;
+
+    struct Case { kiyosi::Date start; double realized; double expected; };
+    const std::array cases{
+        Case{effective, 80.0, 0.005141652127146822},
+        Case{effective, 120.0, 9.472410353379193},
+        Case{kiyosi::Date{std::chrono::year{2025} / 10 / 1}, 0.0, 5.064920706779442},
+    };
+    for (const auto& test : cases) {
+        const auto option = kiyosi::make_geometric_average_option(
+            kiyosi::OptionType::call, 100.0, test.start, effective, expiry, test.realized);
+        REQUIRE(option);
+        const auto price = engine.price(*option, *context);
+        REQUIRE(price);
+        CHECK_THAT(*price, Catch::Matchers::WithinAbs(test.expected, 1e-10));
+    }
+
+    const auto missing = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, effective, effective, expiry);
+    REQUIRE(missing);
+    const auto missing_price = engine.price(*missing, *context);
+    REQUIRE_FALSE(missing_price);
+    CHECK(missing_price.error().category == kiyosi::ErrorCategory::invalid_parameter);
+
+    const auto starting = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, valuation, effective, expiry);
+    REQUIRE(starting);
+    const auto at_start = engine.price_with_greeks(*starting, *context, kiyosi::GreeksLevel::full);
+    REQUIRE(at_start);
+    CHECK(at_start->has(kiyosi::RiskMeasure::delta));
+    CHECK_FALSE(at_start->has(kiyosi::RiskMeasure::theta));
+
+    const auto ending = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, effective, effective, expiry, 120.0);
+    REQUIRE(ending);
+    const auto near_expiry = kiyosi::make_pricing_context(
+        *parameters, 100.0, kiyosi::Date{std::chrono::year{2025} / 12 / 31});
+    const auto at_expiry = kiyosi::make_pricing_context(*parameters, 100.0, expiry);
+    REQUIRE(near_expiry);
+    REQUIRE(at_expiry);
+    const auto near_price = engine.price(*ending, *near_expiry);
+    REQUIRE(near_price);
+    CHECK_THAT(*near_price, Catch::Matchers::WithinAbs(19.937346821828626, 1e-10));
+    const auto expiry_price = engine.price(*ending, *at_expiry);
+    REQUIRE(expiry_price);
+    CHECK(*expiry_price == 20.0);
 }

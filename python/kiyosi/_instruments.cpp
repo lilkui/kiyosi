@@ -159,7 +159,8 @@ strike : float
 averaging_start_date : datetime.date
     First date included in the averaging period.
 realized_average : float
-    Average realized before the valuation date, or zero before averaging begins.
+    Average realized before valuation time, or zero before averaging begins.
+    Geometric averaging requires a positive value after averaging starts.
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date

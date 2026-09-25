@@ -511,6 +511,51 @@ class KiyosiPythonTests(unittest.TestCase):
         context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=latest)
         self.assertEqual(context.valuation_time, latest)
 
+    def test_geometric_asian_uses_elapsed_average_and_forward_start(self):
+        engine = pricing.AnalyticGeometricAveragePriceEngine()
+        effective = date(2025, 1, 1)
+        expiry = date(2026, 1, 1)
+        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=date(2025, 7, 1))
+
+        for start, realized, expected in (
+            (effective, 80, 0.005141652127146822),
+            (effective, 120, 9.472410353379193),
+            (date(2025, 10, 1), 0, 5.064920706779442),
+        ):
+            with self.subTest(start=start, realized=realized):
+                option = GeometricAveragePriceOption(
+                    option_type=OptionType.CALL, strike=100, averaging_start_date=start,
+                    realized_average=realized, effective_date=effective, expiry_date=expiry,
+                )
+                self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-10)
+
+        missing = GeometricAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=effective,
+            effective_date=effective, expiry_date=expiry,
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(missing, context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
+        starting = GeometricAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=date(2025, 7, 1),
+            effective_date=effective, expiry_date=expiry,
+        )
+        greeks = engine.price_with_greeks(starting, context, GreeksLevel.full)
+        self.assertIsNotNone(greeks.delta)
+        self.assertIsNone(greeks.theta)
+
+        ending = GeometricAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=effective,
+            realized_average=120, effective_date=effective, expiry_date=expiry,
+        )
+        near_expiry = PricingContext(
+            model_parameters=self.parameters, spot_price=100, valuation_time=date(2025, 12, 31),
+        )
+        at_expiry = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=expiry)
+        self.assertAlmostEqual(engine.price(ending, near_expiry), 19.937346821828626, delta=1e-10)
+        self.assertEqual(engine.price(ending, at_expiry), 20)
+
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(option_type=OptionType.CALL, strike=100, payout=10, effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
         self.assertGreater(AnalyticDigitalEngine().price(digital, self.context), 0)

@@ -29,27 +29,41 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
+    const Timestamp valuation = context.valuation_time();
+    const Timestamp averaging_start = start_of_day(option.averaging_start_date());
+    const Timestamp expiry = start_of_day(option.expiry_date());
+    const double realized = option.realized_average();
+    if ((valuation > averaging_start && realized == 0.0) ||
+        (valuation <= averaging_start && realized != 0.0))
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "realized geometric average must match the elapsed averaging period"});
     if (tau == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
-                     strike)}});
+        return make_pricing_result({{RiskMeasure::price,
+                                     payoff(option.option_type(), realized > 0.0 ? realized : spot, strike)}});
     const double sigma = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
     const double carry = rate - context.model_parameters().dividend_yield();
-    const double adjusted_sigma = sigma / std::sqrt(3.0);
-    if (adjusted_sigma < 1e-12)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              std::exp(-rate * tau) *
-                  payoff(option.option_type(), spot * std::exp(carry * tau), strike)}});
-    const double adjusted_carry = 0.5 * (carry - sigma * sigma / 6.0);
-    const double root = std::sqrt(tau);
-    const double d1 = (std::log(spot / strike) + (adjusted_carry + 0.5 * adjusted_sigma * adjusted_sigma) * tau) /
-                      (adjusted_sigma * root);
-    const double d2 = d1 - adjusted_sigma * root;
-    const double value = sign * (spot * std::exp((adjusted_carry - rate) * tau) * normal_cdf(sign * d1) -
-                                 strike * std::exp(-rate * tau) * normal_cdf(sign * d2));
+    const double period = actual_365_fixed_year_fraction(averaging_start, expiry);
+    const double lead = valuation < averaging_start
+                            ? actual_365_fixed_year_fraction(valuation, averaging_start) : 0.0;
+    const double future = actual_365_fixed_year_fraction(std::max(valuation, averaging_start), expiry);
+    const double weight = period > 0.0 ? future / period : 1.0;
+    // The future log-average has Brownian variance proportional to lead + future / 3.
+    const double variance = sigma * sigma * weight * weight * (lead + future / 3.0);
+    double mean_log = weight * std::log(spot) +
+                      weight * (carry - 0.5 * sigma * sigma) * (lead + future / 2.0);
+    if (valuation > averaging_start) mean_log += (1.0 - weight) * std::log(realized);
+    const double forward = std::exp(mean_log + 0.5 * variance);
+    const double deviation = std::sqrt(variance);
+    double value;
+    if (deviation < 1e-12) {
+        value = std::exp(-rate * tau) * payoff(option.option_type(), forward, strike);
+    } else {
+        const double d1 = (mean_log - std::log(strike) + variance) / deviation;
+        const double d2 = d1 - deviation;
+        value = std::exp(-rate * tau) * sign *
+                (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));
+    }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }

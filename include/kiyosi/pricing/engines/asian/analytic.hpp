@@ -6,10 +6,11 @@
 
 namespace kiyosi {
 
-/// Closed-form geometric average-rate option under lognormal spot.
+/// Closed-form continuous geometric average-price option under lognormal spot.
 class KIYOSI_EXPORT AnalyticGeometricAveragePriceEngine {
 public:
-    /// Prices a geometric-average option.
+    /// Prices a geometric-average option. Once averaging has begun, its realized average must be positive.
+    /// Before averaging begins, the realized average must be zero.
     /// @return Price, or a contract or context error.
     [[nodiscard]] Result<double> price(const GeometricAveragePriceOption& option, const PricingContext& context) const
     {
