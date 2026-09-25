@@ -69,6 +69,10 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(len(result), 11)
         self.assertEqual(result["price"], result.price)
         self.assertIn("speed", result)
+        self.assertNotIn("unknown", result)
+        self.assertNotIn(1, result)
+        self.assertNotIn(None, result)
+        self.assertNotIn([], result)
 
     def test_pricing_levels_preserve_native_greeks_and_scalar_price(self):
         engine = AnalyticVanillaEngine()

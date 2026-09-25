@@ -570,9 +570,10 @@ rho : float or None
         .def("__iter__", [](const PricingResult&) {
             return PythonStringIterator{result_keys().attr("__iter__")()};
         })
-        .def("__contains__", [](const PricingResult&, nb::str key) {
-            return measure_named(nb::cast<std::string>(key)).has_value();
-        })
+        .def("__contains__", [](const PricingResult&, nb::handle key) {
+            return nb::isinstance<nb::str>(key) &&
+                   measure_named(nb::cast<std::string>(key)).has_value();
+        }, nb::arg().none())
         .def("__getitem__", [](const PricingResult& result, nb::str key) {
             const std::string name = nb::cast<std::string>(key);
             const auto measure = measure_named(name);
