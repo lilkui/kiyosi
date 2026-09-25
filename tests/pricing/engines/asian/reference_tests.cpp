@@ -196,8 +196,12 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
     const auto settled = asian_engine.price(*future_fixing, *at_expiry);
-    REQUIRE(settled);
-    CHECK(*settled == 10.0);
+    REQUIRE_FALSE(settled);
+    CHECK(settled.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    const auto valid_single = kiyosi::make_arithmetic_average_option(
+        kiyosi::OptionType::call, 100.0, expiry, effective, expiry);
+    REQUIRE(valid_single);
+    CHECK(*asian_engine.price(*valid_single, *at_expiry) == 10.0);
 }
 
 TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has begun")

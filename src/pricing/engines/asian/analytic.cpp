@@ -78,9 +78,8 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const Timestamp valuation = context.valuation_time();
     const Timestamp averaging_start = start_of_day(option.averaging_start_date());
     const double realized = option.realized_average();
-    if (option.averaging_start_date() != option.expiry_date() &&
-        ((valuation > averaging_start && realized == 0.0) ||
-         (valuation <= averaging_start && realized != 0.0)))
+    if ((valuation > averaging_start && realized == 0.0) ||
+        (valuation <= averaging_start && realized != 0.0))
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized arithmetic average must match the elapsed averaging period"});
     const double spot = context.spot_price();
@@ -96,9 +95,6 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
               payoff(option.option_type(), realized > 0.0 ? realized : spot,
                      strike)}});
     if (option.averaging_start_date() == option.expiry_date()) {
-        if (realized != 0.0)
-            return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                         "a future single fixing cannot have a realized average"});
         return price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
             context, sigma, RiskMeasureOutput::price_only);

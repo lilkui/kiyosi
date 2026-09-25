@@ -741,7 +741,9 @@ class KiyosiPythonTests(unittest.TestCase):
             asian_engine.price(fixed, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         at_expiry = PricingContext(model_parameters=self.parameters, spot_price=110, valuation_time=expiry)
-        self.assertEqual(asian_engine.price(fixed, at_expiry), 10)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            asian_engine.price(fixed, at_expiry)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
     def test_arithmetic_asian_requires_elapsed_average(self):
         effective = date(2025, 1, 1)
