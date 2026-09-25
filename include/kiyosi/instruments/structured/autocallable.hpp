@@ -151,6 +151,9 @@ template <typename Note>
             (note.knock_in_observation_mode() != KnockInObservationMode::every_trading_day &&
              note.knock_in_observation_mode() != KnockInObservationMode::at_expiry))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-in terms are invalid"});
+    } else if (note.barrier_state() == AutocallableBarrierState::knocked_in) {
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "knock-in state requires a knock-in barrier"});
     }
     if constexpr (requires { note.coupon_rate(); }) {
         if (!std::isfinite(note.coupon_rate()))

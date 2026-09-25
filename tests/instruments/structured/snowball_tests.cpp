@@ -110,6 +110,22 @@ TEST_CASE("Autocallable factories preserve validation error categories")
                                       .observation_dates = {expiry_date},
                                       .effective_date = effective_date,
                                       .expiry_date = expiry_date});
+    const kiyosi::BinarySnowballTerms binary_terms{.knock_out_coupon_rates = {0.05},
+                                                   .maturity_coupon_rate = 0.05,
+                                                   .initial_spot = 100.0,
+                                                   .knock_out_levels = {110.0},
+                                                   .upper_strike = 100.0,
+                                                   .lower_strike = 60.0,
+                                                   .observation_dates = {expiry_date},
+                                                   .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
+                                                   .effective_date = effective_date,
+                                                   .expiry_date = expiry_date};
+    const auto invalid_binary = kiyosi::make_binary_snowball_option(binary_terms);
+    REQUIRE_FALSE(invalid_binary);
+    CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    auto knocked_out_binary = binary_terms;
+    knocked_out_binary.barrier_state = kiyosi::AutocallableBarrierState::knocked_out;
+    CHECK(kiyosi::make_binary_snowball_option(std::move(knocked_out_binary)).has_value());
     check(kiyosi::make_snowball_option,
           kiyosi::SnowballTerms{.knock_out_coupon_rates = {0.05},
                                 .maturity_coupon_rate = 0.05,

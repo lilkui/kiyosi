@@ -716,7 +716,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                               .upper_strike = 100.0,
                                                               .lower_strike = 60.0,
                                                               .observation_dates = {expiry_date},
-                                                              .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
+                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                               .principal_ratio = 1.0,
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
@@ -757,7 +757,7 @@ TEST_CASE("Structured finite difference preserves future observation indices")
     CHECK(*result == Catch::Approx(expected).margin(1e-12));
 }
 
-TEST_CASE("Binary snowball finite difference has one continuation state")
+TEST_CASE("Binary snowball finite difference prices active and knocked-out states")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
@@ -785,14 +785,11 @@ TEST_CASE("Binary snowball finite difference has one continuation state")
         CAPTURE(scheme);
         const kiyosi::FiniteDifferenceBinarySnowballEngine engine{{80, 512, scheme, 500.0}};
         const auto untouched = engine.price(note(kiyosi::AutocallableBarrierState::none), context);
-        const auto down_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_in), context);
         const auto up_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_out), context);
 
         REQUIRE(untouched);
-        REQUIRE(down_touched);
         REQUIRE(up_touched);
-        CHECK(*untouched ==
-              *down_touched);
+        CHECK(*untouched > 0.0);
         CHECK(*up_touched == 0.0);
     }
 }

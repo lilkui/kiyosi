@@ -11,6 +11,7 @@ from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
     ArithmeticAveragePriceOption,
+    AutocallableBarrierState,
     BarrierOption,
     BarrierType,
     BinarySnowballOption,
@@ -260,6 +261,20 @@ class KiyosiPythonTests(unittest.TestCase):
             lower_bound=-0.2, upper_bound=0.2,
         )
         self.assertAlmostEqual(implied, -0.1, delta=1e-7)
+
+    def test_binary_snowball_rejects_knock_in_history(self):
+        expiry = date(2026, 1, 1)
+        terms = dict(
+            knock_out_coupon_rates=[0.05], maturity_coupon_rate=0.05,
+            initial_spot=100, knock_out_levels=[110], upper_strike=100,
+            lower_strike=60, observation_dates=[expiry],
+            effective_date=date(2025, 1, 1), expiry_date=expiry,
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            BinarySnowballOption(**terms, barrier_state=AutocallableBarrierState.KNOCKED_IN)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        self.assertEqual(BinarySnowballOption(**terms, barrier_state=AutocallableBarrierState.KNOCKED_OUT).barrier_state,
+                         AutocallableBarrierState.KNOCKED_OUT)
 
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
