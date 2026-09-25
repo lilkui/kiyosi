@@ -14,7 +14,7 @@ The factory name selects an upper or lower barrier.
 Parameters
 ----------
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 payout : float
@@ -49,7 +49,7 @@ expiry.
 Parameters
 ----------
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 payout : float
@@ -81,7 +81,7 @@ The factory name selects an upper or lower barrier.
 Parameters
 ----------
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 settlement_timing : SettlementTiming, optional
@@ -114,7 +114,7 @@ expiry.
 Parameters
 ----------
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 observation_mode : ObservationMode, optional
@@ -146,7 +146,7 @@ void bind_common_option_properties(nb::class_<Instrument>& binding, const char* 
         .def_prop_ro("effective_date", [](const Instrument& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.");
+                     "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     std::vector<ReprField> fields{{"option_type", "option_type"}, {"strike", "strike"}};
     fields.insert(fields.end(), extra_fields.begin(), extra_fields.end());
@@ -176,7 +176,7 @@ realized_average : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.)doc")
+    Contract expiry at 00:00 UTC.)doc")
         .def(nb::new_([factory](OptionType type, PythonReal strike,
                                 PythonDate averaging_start_date, PythonDate effective_date,
                                 PythonDate expiry_date, PythonReal realized_average) {
@@ -201,7 +201,7 @@ averaging_start_date : datetime.date
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.
+    Contract expiry at 00:00 UTC.
 realized_average : float, optional
     Average already realized; defaults to the core-owned pre-averaging value.
 
@@ -222,7 +222,7 @@ KiyosiError
         .def_prop_ro("effective_date", [](const AverageOptionType& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const AverageOptionType& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.");
+                     "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     bind_repr(binding, name,
               {{"option_type", "option_type"}, {"strike", "strike"},
@@ -249,7 +249,7 @@ strike : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.)doc")
+    Contract expiry at 00:00 UTC.)doc")
         .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
                         PythonDate expiry_date) {
                  return unwrap(make_european_option(
@@ -268,7 +268,7 @@ strike : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.
+    Contract expiry at 00:00 UTC.
 
 Raises
 ------
@@ -335,7 +335,7 @@ payout : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.)doc")
+    Contract expiry at 00:00 UTC.)doc")
         .def(nb::new_([](OptionType type, PythonReal strike, PythonReal payout,
                         PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_cash_or_nothing_option(
@@ -356,7 +356,7 @@ payout : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.
+    Contract expiry at 00:00 UTC.
 
 Raises
 ------
@@ -380,7 +380,7 @@ strike : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.)doc")
+    Contract expiry at 00:00 UTC.)doc")
         .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
                         PythonDate expiry_date) {
                  return unwrap(make_asset_or_nothing_option(
@@ -399,7 +399,7 @@ strike : float
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
-    Contract expiry date.
+    Contract expiry at 00:00 UTC.
 
 Raises
 ------
@@ -425,7 +425,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 barrier_type : BarrierType
@@ -466,7 +466,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 barrier_type : BarrierType
@@ -494,7 +494,7 @@ KiyosiError
         .def_prop_ro("effective_date", [](const BarrierOption& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const BarrierOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.")
+                     "Contract expiry at 00:00 UTC.")
         .def_prop_ro("barrier_level", &BarrierOption::barrier_level,
                      "Positive barrier level.")
         .def_prop_ro("barrier_type", &BarrierOption::barrier_type,
@@ -510,7 +510,7 @@ KiyosiError
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
             return output;
-        }, "Copy of the ordered scheduled observation dates.");
+        }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(barrier);
     bind_repr(barrier, "BarrierOption",
               {{"option_type", "option_type"}, {"strike", "strike"},
@@ -533,7 +533,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 barrier_type : BarrierType
@@ -554,7 +554,7 @@ touch_state : BarrierTouchState or None
         .def_prop_ro("effective_date", [](const BinaryBarrierOption& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const BinaryBarrierOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.")
+                     "Contract expiry at 00:00 UTC.")
         .def_prop_ro("barrier_level", &BinaryBarrierOption::barrier_level,
                      "Positive barrier level.")
         .def_prop_ro("barrier_type", &BinaryBarrierOption::barrier_type,
@@ -574,7 +574,7 @@ touch_state : BarrierTouchState or None
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
             return output;
-        }, "Copy of the ordered scheduled observation dates.");
+        }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(binary_barrier);
     bind_repr(binary_barrier, "BinaryBarrierOption",
                {{"option_type", "option_type"}, {"strike", "strike"},
@@ -610,7 +610,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 barrier_type : BarrierType
@@ -660,7 +660,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 barrier_type : BarrierType
@@ -693,7 +693,7 @@ factory functions.
 Attributes
 ----------
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
 is_one_touch : bool
@@ -715,7 +715,7 @@ touch_state : BarrierTouchState or None
         .def_prop_ro("effective_date", [](const TouchOption& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const TouchOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.")
+                     "Contract expiry at 00:00 UTC.")
         .def_prop_ro("barrier_level", &TouchOption::barrier_level,
                      "Positive barrier level.")
         .def_prop_ro("is_one_touch", &TouchOption::is_one_touch,
@@ -739,7 +739,7 @@ touch_state : BarrierTouchState or None
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
             return output;
-        }, "Copy of the ordered scheduled observation dates.");
+        }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
     bind_repr(touch, "TouchOption",
               {{"effective_date", "effective_date"}, {"expiry_date", "expiry_date"},
@@ -886,7 +886,7 @@ acceleration_factor : float
 accumulated_quantity : float
     Quantity already accumulated at valuation.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.)doc")
+    Contract effective and expiry dates, each anchored at 00:00 UTC.)doc")
         .def(nb::new_([](PythonReal strike, PythonReal knock_out,
                         PythonReal daily_quantity, PythonReal acceleration,
                         PythonReal accumulated_quantity, PythonDate effective_date,
@@ -916,7 +916,7 @@ acceleration_factor : float
 accumulated_quantity : float, optional
     Non-negative quantity already accumulated at valuation.
 effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates.
+    Contract effective and expiry dates, each anchored at 00:00 UTC.
 
 Raises
 ------
@@ -936,7 +936,7 @@ KiyosiError
         .def_prop_ro("effective_date", [](const Accumulator& value) { return python_date(value.effective_date()); },
                      "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const Accumulator& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry date.");
+                     "Contract expiry at 00:00 UTC.");
     bind_value_equality(accumulator);
     bind_repr(accumulator, "Accumulator",
               {{"strike", "strike"}, {"knock_out_level", "knock_out_level"},

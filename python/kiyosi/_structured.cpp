@@ -83,9 +83,9 @@ knock_in_level : float
 knock_out_level : float
     Knock-out level applied to every observation.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -145,9 +145,9 @@ initial_knock_out_level : float
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -205,9 +205,9 @@ initial_knock_out_level : float
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -262,9 +262,9 @@ knock_in_level : float
 knock_out_level : float
     Knock-out level applied to every observation.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -318,9 +318,9 @@ knock_out_level : float
 final_knock_out_level : float
     Knock-out level at the final observation.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -374,9 +374,9 @@ knock_out_level : float
 upper_strike : float
     Upper terminal participation strike.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -430,9 +430,9 @@ knock_out_level : float
 lower_strike : float
     Lower terminal strike that caps downside loss.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
@@ -473,7 +473,7 @@ knock_out_levels : list[float]
 upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : list[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None
@@ -481,7 +481,7 @@ barrier_state : AutocallableBarrierState | None
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.)doc")
+    Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal initial_spot,
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
@@ -523,7 +523,7 @@ knock_out_levels : iterable[float]
 upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None, optional
@@ -531,7 +531,7 @@ barrier_state : AutocallableBarrierState | None, optional
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 
 Raises
 ------
@@ -568,13 +568,13 @@ maturity_coupon_rate : float
 knock_out_levels : list[float]
     Knock-out level for each observation date.
 observation_dates : list[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None
     State before valuation; None means unknown.
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.)doc")
+    Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate,
                         PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
@@ -604,13 +604,13 @@ maturity_coupon_rate : float
 knock_out_levels : iterable[float]
     Knock-out level for each observation date.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 barrier_state : AutocallableBarrierState | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 
 Raises
 ------
@@ -648,7 +648,7 @@ knock_in_level : float
 knock_out_levels : list[float]
     Knock-out level for each observation date.
 observation_dates : list[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None
@@ -656,7 +656,7 @@ barrier_state : AutocallableBarrierState | None
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.)doc")
+    Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
                         PythonReal knock_in_level,
@@ -695,7 +695,7 @@ knock_in_level : float
 knock_out_levels : iterable[float]
     Knock-out level for each observation date.
 observation_dates : iterable[datetime.date]
-    Ordered knock-out observation dates.
+    Ordered knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None, optional
@@ -703,7 +703,7 @@ barrier_state : AutocallableBarrierState | None, optional
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 
 Raises
 ------
@@ -748,7 +748,7 @@ knock_out_levels : list[float]
 upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : list[datetime.date]
-    Ordered coupon and knock-out observation dates.
+    Ordered coupon and knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None
@@ -756,7 +756,7 @@ barrier_state : AutocallableBarrierState | None
 principal_ratio : float
     Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.)doc")
+    Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
         .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_spot,
                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                         PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
@@ -798,7 +798,7 @@ coupon_barrier_levels : iterable[float]
 upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : iterable[datetime.date]
-    Ordered coupon and knock-out observation dates.
+    Ordered coupon and knock-out observations at 00:00 UTC.
 knock_in_observation_mode : KnockInObservationMode
     Trading-day or expiry-only knock-in observation rule.
 barrier_state : AutocallableBarrierState | None, optional
@@ -806,7 +806,7 @@ barrier_state : AutocallableBarrierState | None, optional
 principal_ratio : float, optional
     Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
-    Note effective and expiry dates.
+    Note effective and expiry dates, each anchored at 00:00 UTC.
 
 Raises
 ------

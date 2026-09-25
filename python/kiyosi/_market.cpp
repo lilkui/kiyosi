@@ -106,7 +106,7 @@ Attributes
 CONTINUOUS
     Observe throughout the instrument lifetime.
 SCHEDULED
-    Observe only on the supplied observation dates.)doc")
+    Observe only at 00:00 UTC on the supplied observation dates.)doc")
         .value("CONTINUOUS", ObservationMode::continuous)
         .value("SCHEDULED", ObservationMode::scheduled);
     nb::enum_<BarrierTouchState>(module, "BarrierTouchState", R"doc(Barrier touch history strictly before valuation.

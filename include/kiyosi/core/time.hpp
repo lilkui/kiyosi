@@ -9,7 +9,7 @@ namespace kiyosi {
 
 /// Civil date represented as a day on the system clock timeline.
 using Date = std::chrono::sys_days;
-/// UTC-like instant with microsecond precision; date-only contracts are midnight anchored.
+/// UTC-like instant with microsecond precision; date-only expiry and observation events occur at 00:00 UTC.
 /// Its range covers every supported civil date and the elapsed time between any two of them.
 using Timestamp = std::chrono::sys_time<std::chrono::microseconds>;
 
@@ -37,7 +37,7 @@ using Timestamp = std::chrono::sys_time<std::chrono::microseconds>;
 /// Validates that a date valuation does not follow an expiry date.
 /// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Date valuation_date, Date expiry_date);
-/// Validates that a timestamp valuation does not follow the end of an expiry date.
+/// Validates that a timestamp valuation does not follow 00:00 UTC on the expiry date.
 /// @return Success, or an `invalid_date` or `invalid_time_range` error.
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Timestamp valuation_time, Date expiry_date);
 

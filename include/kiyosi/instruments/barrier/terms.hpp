@@ -24,7 +24,7 @@ enum class BarrierType {
 /// Barrier monitoring frequency.
 enum class ObservationMode {
     continuous, ///< Monitor continuously throughout the contract life.
-    scheduled   ///< Monitor only on explicit observation dates.
+    scheduled   ///< Monitor only at 00:00 UTC on explicit observation dates.
 };
 
 /// Barrier observations strictly before the valuation time.
