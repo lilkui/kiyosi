@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../../detail/black_scholes.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
@@ -86,10 +87,15 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
             {{RiskMeasure::price,
               payoff(option.option_type(), option.realized_average() > 0.0 ? option.realized_average() : spot,
                      strike)}});
+    if (option.averaging_start_date() == option.expiry_date()) {
+        if (option.realized_average() != 0.0)
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                         "a future single fixing cannot have a realized average"});
+        return price_at_volatility(
+            *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
+            context, sigma, RiskMeasureOutput::price_only);
+    }
     const double average_period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
-    if (average_period <= 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price, payoff(option.option_type(), spot, strike)}});
     const double t1 = std::max(0.0, tau - average_period);
     const double remaining = average_period - tau;
     const double m1 = std::abs(carry) < 1e-12

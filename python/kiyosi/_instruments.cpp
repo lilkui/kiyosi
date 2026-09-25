@@ -157,7 +157,7 @@ option_type : OptionType
 strike : float
     Positive strike price.
 averaging_start_date : datetime.date
-    First date included in the averaging period.
+    First date included in the averaging period. Equality with expiry denotes a single fixing.
 realized_average : float
     Average realized before valuation time, or zero before averaging begins.
     Geometric averaging requires a positive value after averaging starts.

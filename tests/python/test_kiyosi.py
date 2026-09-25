@@ -10,6 +10,7 @@ import kiyosi.pricing as pricing
 from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
+    ArithmeticAveragePriceOption,
     BarrierOption,
     BarrierType,
     CashOrNothingOption,
@@ -555,6 +556,37 @@ class KiyosiPythonTests(unittest.TestCase):
         at_expiry = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=expiry)
         self.assertAlmostEqual(engine.price(ending, near_expiry), 19.937346821828626, delta=1e-10)
         self.assertEqual(engine.price(ending, at_expiry), 20)
+
+    def test_single_arithmetic_fixing_has_european_time_value(self):
+        effective = date(2025, 1, 1)
+        expiry = date(2026, 1, 1)
+        asian_engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
+        vanilla_engine = AnalyticVanillaEngine()
+        for option_type in (OptionType.CALL, OptionType.PUT):
+            asian = ArithmeticAveragePriceOption(
+                option_type=option_type, strike=100, averaging_start_date=expiry,
+                effective_date=effective, expiry_date=expiry,
+            )
+            vanilla = EuropeanOption(
+                option_type=option_type, strike=100, effective_date=effective, expiry_date=expiry,
+            )
+            for valuation in (effective, date(2025, 12, 31)):
+                context = PricingContext(
+                    model_parameters=self.parameters, spot_price=100, valuation_time=valuation,
+                )
+                self.assertEqual(asian_engine.price(asian, context), vanilla_engine.price(vanilla, context))
+                if option_type == OptionType.CALL and valuation == effective:
+                    self.assertAlmostEqual(asian_engine.price(asian, context), 9.227005508154036, delta=1e-12)
+
+        fixed = ArithmeticAveragePriceOption(
+            option_type=OptionType.CALL, strike=100, averaging_start_date=expiry,
+            realized_average=110, effective_date=effective, expiry_date=expiry,
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            asian_engine.price(fixed, self.context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        at_expiry = PricingContext(model_parameters=self.parameters, spot_price=110, valuation_time=expiry)
+        self.assertEqual(asian_engine.price(fixed, at_expiry), 10)
 
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(option_type=OptionType.CALL, strike=100, payout=10, effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))

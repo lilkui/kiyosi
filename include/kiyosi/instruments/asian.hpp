@@ -129,6 +129,7 @@ using ArithmeticAveragePriceOption = AveragePriceOption<ArithmeticAveraging>;
 
 /// Date arguments are ordered `averaging_start_date`, `effective_date`, `expiry_date`; valid terms satisfy
 /// `effective_date <= averaging_start_date <= expiry_date`.
+/// Equal averaging start and expiry dates denote a single fixing at expiry.
 /// @tparam Averaging GeometricAveraging or ArithmeticAveraging.
 /// @return The option, or an input-validation error.
 template <typename Averaging>

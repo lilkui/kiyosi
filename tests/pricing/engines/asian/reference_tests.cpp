@@ -157,3 +157,45 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     REQUIRE(expiry_price);
     CHECK(*expiry_price == 20.0);
 }
+
+TEST_CASE("A single arithmetic fixing at expiry has European time value")
+{
+    const auto effective = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = kiyosi::Date{std::chrono::year{2026} / 1 / 1};
+    const auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    REQUIRE(parameters);
+    const kiyosi::TurnbullWakemanArithmeticAveragePriceEngine asian_engine;
+    const kiyosi::AnalyticVanillaEngine vanilla_engine;
+
+    for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+        const auto asian = kiyosi::make_arithmetic_average_option(type, 100.0, expiry, effective, expiry);
+        const auto vanilla = kiyosi::make_european_option(type, 100.0, effective, expiry);
+        REQUIRE(asian);
+        REQUIRE(vanilla);
+        for (const auto valuation : {effective, kiyosi::Date{std::chrono::year{2025} / 12 / 31}}) {
+            const auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
+            REQUIRE(context);
+            const auto asian_price = asian_engine.price(*asian, *context);
+            const auto vanilla_price = vanilla_engine.price(*vanilla, *context);
+            REQUIRE(asian_price);
+            REQUIRE(vanilla_price);
+            CHECK(*asian_price == *vanilla_price);
+            if (type == kiyosi::OptionType::call && valuation == effective)
+                CHECK_THAT(*asian_price, Catch::Matchers::WithinAbs(9.227005508154036, 1e-12));
+        }
+    }
+
+    const auto future_fixing = kiyosi::make_arithmetic_average_option(
+        kiyosi::OptionType::call, 100.0, expiry, effective, expiry, 110.0);
+    const auto before_expiry = kiyosi::make_pricing_context(*parameters, 100.0, effective);
+    const auto at_expiry = kiyosi::make_pricing_context(*parameters, 110.0, expiry);
+    REQUIRE(future_fixing);
+    REQUIRE(before_expiry);
+    REQUIRE(at_expiry);
+    const auto invalid = asian_engine.price(*future_fixing, *before_expiry);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    const auto settled = asian_engine.price(*future_fixing, *at_expiry);
+    REQUIRE(settled);
+    CHECK(*settled == 10.0);
+}
