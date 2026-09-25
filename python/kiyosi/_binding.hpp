@@ -229,7 +229,7 @@ inline Timestamp valuation_time(nb::handle value)
 inline std::vector<Date> date_sequence(nb::handle values, std::string_view field)
 {
     const nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(values.ptr()));
-    if (!iterator.is_valid()) type_error(field, "an iterable of datetime.date values");
+    if (!iterator.is_valid()) throw nb::python_error();
     std::vector<Date> output;
     while (PyObject* item = PyIter_Next(iterator.ptr())) {
         const nb::object owned = nb::steal<nb::object>(item);
@@ -242,7 +242,7 @@ inline std::vector<Date> date_sequence(nb::handle values, std::string_view field
 inline std::vector<double> real_sequence(nb::handle values, std::string_view field)
 {
     const nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(values.ptr()));
-    if (!iterator.is_valid()) type_error(field, "an iterable of real numbers");
+    if (!iterator.is_valid()) throw nb::python_error();
     std::vector<double> output;
     while (PyObject* item = PyIter_Next(iterator.ptr())) {
         const nb::object owned = nb::steal<nb::object>(item);

@@ -309,6 +309,30 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(BinarySnowballOption(**terms, barrier_state=AutocallableBarrierState.KNOCKED_OUT).barrier_state,
                          AutocallableBarrierState.KNOCKED_OUT)
 
+    def test_sequence_conversion_preserves_iterator_initialization_errors(self):
+        expiry = date(2026, 1, 1)
+        terms = dict(
+            knock_out_coupon_rates=[0.05], maturity_coupon_rate=0.05,
+            knock_out_levels=[110], observation_dates=[expiry],
+            effective_date=date(2025, 1, 1), expiry_date=expiry,
+        )
+        for field in ("observation_dates", "knock_out_levels"):
+            for error_type in (RuntimeError, MemoryError):
+                class FailingIterable:
+                    def __iter__(self):
+                        raise error_type("iterator initialization failed")
+
+                with self.subTest(field=field, error=error_type.__name__):
+                    with self.assertRaises(error_type) as error:
+                        BinarySnowballOption(**{**terms, field: FailingIterable()})
+                    self.assertEqual(str(error.exception), "iterator initialization failed")
+            with self.subTest(field=field, kind="non-iterable"):
+                with self.assertRaises(TypeError):
+                    BinarySnowballOption(**{**terms, field: 42})
+            with self.subTest(field=field, kind="generator"):
+                note = BinarySnowballOption(**{**terms, field: (value for value in terms[field])})
+                self.assertEqual(getattr(note, field), terms[field])
+
     def test_structured_history_is_explicit_after_observation(self):
         terms = dict(
             knock_out_coupon_rates=[0.05, 0.05], maturity_coupon_rate=0.05,
