@@ -78,8 +78,8 @@ TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
     });
     check([](auto start, auto end) {
         return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
-            .maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_out_levels = {110.0},
-            .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end},
+            .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0},
+            .observation_dates = {end},
             .effective_date = start, .expiry_date = end});
     });
 

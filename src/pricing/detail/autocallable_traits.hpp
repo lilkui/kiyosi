@@ -66,8 +66,8 @@ struct AutocallableTraits<TernarySnowballOption> {
     static AutocallableProgram program(const TernarySnowballOption& note)
     {
         const double term = actual_365_fixed_year_fraction(note.effective_date(), note.expiry_date());
-        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
-                note.lower_strike(), note.knock_in_level(), note.maturity_coupon_rate() * term,
+        return {note.principal_ratio(), 0.0, 0.0,
+                0.0, note.knock_in_level(), note.maturity_coupon_rate() * term,
                 note.minimum_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
                 note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
     }
@@ -89,8 +89,8 @@ struct AutocallableTraits<BinarySnowballOption> {
     {
         const double coupon =
             note.maturity_coupon_rate() * actual_365_fixed_year_fraction(note.effective_date(), note.expiry_date());
-        return {note.principal_ratio(), note.initial_spot(), note.upper_strike(),
-                note.lower_strike(), 0.0, coupon, coupon,
+        return {note.principal_ratio(), 0.0, 0.0,
+                0.0, 0.0, coupon, coupon,
                 AutocallableTerminalKind::fixed, false, false, false};
     }
 

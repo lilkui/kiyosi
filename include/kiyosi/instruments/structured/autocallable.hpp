@@ -128,12 +128,14 @@ private:
 template <typename Note>
 [[nodiscard]] inline Result<void> validate_autocallable_note(const Note& note)
 {
-    if (!std::isfinite(note.initial_spot()) || note.initial_spot() <= 0.0 ||
-        !std::isfinite(note.upper_strike()) || note.upper_strike() <= 0.0 ||
-        !std::isfinite(note.lower_strike()) || note.lower_strike() < 0.0 ||
-        note.lower_strike() > note.upper_strike() ||
-        !std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0)
+    if (!std::isfinite(note.principal_ratio()) || note.principal_ratio() < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
+    if constexpr (requires { note.initial_spot(); note.upper_strike(); note.lower_strike(); })
+        if (!std::isfinite(note.initial_spot()) || note.initial_spot() <= 0.0 ||
+            !std::isfinite(note.upper_strike()) || note.upper_strike() <= 0.0 ||
+            !std::isfinite(note.lower_strike()) || note.lower_strike() < 0.0 ||
+            note.lower_strike() > note.upper_strike())
+            return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
     auto life = validate_instrument_life(note.effective_date(), note.expiry_date());
     if (!life) return std::unexpected(life.error());
     if (note.observation_dates().empty() ||
@@ -181,7 +183,8 @@ template <typename Note>
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "maturity coupon is invalid"});
     }
     if constexpr (requires { note.minimum_coupon_rate(); }) {
-        if (!std::isfinite(note.minimum_coupon_rate()))
+        if (!std::isfinite(note.minimum_coupon_rate()) ||
+            note.minimum_coupon_rate() > note.maturity_coupon_rate())
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "minimum coupon is invalid"});
     }
     return {};

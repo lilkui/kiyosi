@@ -27,7 +27,9 @@ struct ObservationEvent {
 template <typename Note>
 double highest_relevant_level(const Note& note, double spot)
 {
-    double relevant = std::max({spot, note.initial_spot(), note.upper_strike(), note.lower_strike()});
+    double relevant = spot;
+    if constexpr (requires { note.initial_spot(); note.upper_strike(); note.lower_strike(); })
+        relevant = std::max({relevant, note.initial_spot(), note.upper_strike(), note.lower_strike()});
     for (const double level : note.knock_out_levels())
         relevant = std::max(relevant, level);
     if constexpr (requires { note.knock_in_level(); })

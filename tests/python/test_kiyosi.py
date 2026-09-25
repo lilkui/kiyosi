@@ -254,7 +254,7 @@ class KiyosiPythonTests(unittest.TestCase):
         expiry = date(2026, 1, 1)
         option = BinarySnowballOption(
             knock_out_coupon_rates=[-0.1], maturity_coupon_rate=-0.1,
-            initial_spot=100, knock_out_levels=[1], upper_strike=100, lower_strike=60,
+            knock_out_levels=[1],
             observation_dates=[expiry], effective_date=effective, expiry_date=expiry,
         )
         context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=effective)
@@ -300,8 +300,7 @@ class KiyosiPythonTests(unittest.TestCase):
         expiry = date(2026, 1, 1)
         terms = dict(
             knock_out_coupon_rates=[0.05], maturity_coupon_rate=0.05,
-            initial_spot=100, knock_out_levels=[110], upper_strike=100,
-            lower_strike=60, observation_dates=[expiry],
+            knock_out_levels=[110], observation_dates=[expiry],
             effective_date=date(2025, 1, 1), expiry_date=expiry,
         )
         with self.assertRaises(kiyosi.KiyosiError) as error:
@@ -313,8 +312,7 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_structured_history_is_explicit_after_observation(self):
         terms = dict(
             knock_out_coupon_rates=[0.05, 0.05], maturity_coupon_rate=0.05,
-            initial_spot=100, knock_out_levels=[110, 110], upper_strike=100,
-            lower_strike=60, observation_dates=[date(2025, 1, 2), date(2025, 1, 6)],
+            knock_out_levels=[110, 110], observation_dates=[date(2025, 1, 2), date(2025, 1, 6)],
             effective_date=date(2025, 1, 1), expiry_date=date(2025, 1, 6),
         )
         engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=1)
@@ -327,6 +325,9 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         self.assertGreater(engine.price(BinarySnowballOption(
             **terms, barrier_state=AutocallableBarrierState.NONE), later), 0)
+        self.assertFalse(hasattr(missing, "initial_spot"))
+        self.assertFalse(hasattr(missing, "upper_strike"))
+        self.assertFalse(hasattr(missing, "lower_strike"))
 
     def test_public_api_has_targeted_docstrings(self):
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
@@ -409,8 +410,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_DATE)
                 self.assertTrue(math.isfinite(engine.price(adjusted_option, context)))
         note_terms = dict(knock_out_coupon_rates=[0], maturity_coupon_rate=0.01,
-                          initial_spot=100, knock_out_levels=[200], upper_strike=100,
-                          lower_strike=60, observation_dates=[date(2025, 1, 3)],
+                          knock_out_levels=[200], observation_dates=[date(2025, 1, 3)],
                           effective_date=date(2025, 1, 3))
         nominal_note = BinarySnowballOption(**note_terms, expiry_date=nominal)
         adjusted_note = BinarySnowballOption(**note_terms, expiry_date=calendar.adjust(
@@ -473,8 +473,8 @@ class KiyosiPythonTests(unittest.TestCase):
                 strike=100, knock_out_level=110, daily_quantity=1, acceleration_factor=2,
                 effective_date=start, expiry_date=end)),
             ("Snowball", lambda start, end: BinarySnowballOption(
-                knock_out_coupon_rates=[0.1], maturity_coupon_rate=0.05, initial_spot=100,
-                knock_out_levels=[110], upper_strike=100, lower_strike=60,
+                knock_out_coupon_rates=[0.1], maturity_coupon_rate=0.05,
+                knock_out_levels=[110],
                 observation_dates=[end], effective_date=start, expiry_date=end)),
         )
         for name, factory in factories:

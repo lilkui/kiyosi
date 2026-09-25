@@ -9,14 +9,8 @@ namespace {
 template <typename Note>
 void bind_note_properties(nb::class_<Note>& binding)
 {
-    binding.def_prop_ro("initial_spot", &Note::initial_spot,
-                        "Reference spot used to define relative terms.")
-        .def_prop_ro("knock_out_levels", &Note::knock_out_levels,
+    binding.def_prop_ro("knock_out_levels", &Note::knock_out_levels,
                      "Knock-out level for each observation date.")
-        .def_prop_ro("upper_strike", &Note::upper_strike,
-                     "Upper terminal participation strike.")
-        .def_prop_ro("lower_strike", &Note::lower_strike,
-                     "Lower terminal participation strike.")
         .def_prop_ro("observation_dates", [](const Note& note) {
             PythonDateList output;
             for (const Date value : note.observation_dates()) output.append(python_date(value));
@@ -30,6 +24,13 @@ void bind_note_properties(nb::class_<Note>& binding)
                      "First date on which the note is effective.")
         .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); },
                      "Note expiry date.");
+    if constexpr (requires { &Note::initial_spot; &Note::upper_strike; &Note::lower_strike; })
+        binding.def_prop_ro("initial_spot", &Note::initial_spot,
+                            "Reference spot used to define relative terms.")
+            .def_prop_ro("upper_strike", &Note::upper_strike,
+                         "Upper terminal participation strike.")
+            .def_prop_ro("lower_strike", &Note::lower_strike,
+                         "Lower terminal participation strike.");
 }
 
 template <typename Note>
@@ -564,12 +565,8 @@ knock_out_coupon_rates : list[float]
     Annualized coupon rate for each observation date.
 maturity_coupon_rate : float
     Annualized coupon rate used at maturity when applicable.
-initial_spot : float
-    Reference spot used to define relative terms.
 knock_out_levels : list[float]
     Knock-out level for each observation date.
-upper_strike, lower_strike : float
-    Terminal binary payoff thresholds.
 observation_dates : list[datetime.date]
     Ordered knock-out observation dates.
 barrier_state : AutocallableBarrierState | None
@@ -579,25 +576,20 @@ principal_ratio : float
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
-                        PythonReal maturity_coupon_rate, PythonReal initial_spot,
-                        PythonRealSequence knock_out_levels, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observation_dates,
+                        PythonReal maturity_coupon_rate,
+                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
                         std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio,
                         PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_binary_snowball_option({
                      real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
                      real_number(maturity_coupon_rate, "maturity_coupon_rate"),
-                     real_number(initial_spot, "initial_spot"),
                      real_sequence(knock_out_levels, "knock_out_levels"),
-                     real_number(upper_strike, "upper_strike"),
-                     real_number(lower_strike, "lower_strike"),
                      date_sequence(observation_dates, "observation_dates"), barrier_state,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
              }),
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
-             "initial_spot"_a, "knock_out_levels"_a, "upper_strike"_a,
-             "lower_strike"_a, "observation_dates"_a,
+             "knock_out_levels"_a, "observation_dates"_a,
              "barrier_state"_a = BinarySnowballTerms{}.barrier_state,
              "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
              "effective_date"_a, "expiry_date"_a,
@@ -609,12 +601,8 @@ knock_out_coupon_rates : iterable[float]
     Annualized coupon rate for each observation date.
 maturity_coupon_rate : float
     Annualized coupon rate used at maturity when applicable.
-initial_spot : float
-    Positive reference spot.
 knock_out_levels : iterable[float]
     Knock-out level for each observation date.
-upper_strike, lower_strike : float
-    Terminal binary payoff thresholds.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 barrier_state : AutocallableBarrierState | None, optional
@@ -639,9 +627,7 @@ KiyosiError
     bind_repr(binary, "BinarySnowballOption",
               {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
                {"maturity_coupon_rate", "maturity_coupon_rate"},
-               {"initial_spot", "initial_spot"},
                {"knock_out_levels", "knock_out_levels"},
-               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
                {"observation_dates", "observation_dates"}, {"barrier_state", "barrier_state"},
                {"principal_ratio", "principal_ratio"},
                {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
@@ -657,14 +643,10 @@ maturity_coupon_rate : float
     Annualized coupon rate used at maturity when applicable.
 minimum_coupon_rate : float
     Minimum annualized coupon rate for the third payoff region.
-initial_spot : float
-    Reference spot used to define relative terms.
 knock_in_level : float
     Lower knock-in barrier level.
 knock_out_levels : list[float]
     Knock-out level for each observation date.
-upper_strike, lower_strike : float
-    Terminal payoff thresholds.
 observation_dates : list[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
@@ -677,27 +659,23 @@ effective_date, expiry_date : datetime.date
     Note effective and expiry dates.)doc")
         .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                         PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
-                        PythonReal initial_spot, PythonReal knock_in_level,
-                        PythonRealSequence knock_out_levels, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observation_dates,
+                        PythonReal knock_in_level,
+                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
                         KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                  return unwrap(make_ternary_snowball_option({
                      real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
                      real_number(maturity_coupon_rate, "maturity_coupon_rate"),
                      real_number(minimum_coupon_rate, "minimum_coupon_rate"),
-                     real_number(initial_spot, "initial_spot"),
                      real_number(knock_in_level, "knock_in_level"),
                      real_sequence(knock_out_levels, "knock_out_levels"),
-                     real_number(upper_strike, "upper_strike"),
-                     real_number(lower_strike, "lower_strike"),
                      date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
                      real_number(principal_ratio, "principal_ratio"),
                      calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
              }),
              nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
-             "minimum_coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
-             "knock_out_levels"_a, "upper_strike"_a, "lower_strike"_a,
+             "minimum_coupon_rate"_a, "knock_in_level"_a,
+             "knock_out_levels"_a,
              "observation_dates"_a, "knock_in_observation_mode"_a,
              "barrier_state"_a = TernarySnowballTerms{}.barrier_state,
              "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
@@ -712,14 +690,10 @@ maturity_coupon_rate : float
     Annualized coupon rate used at maturity when applicable.
 minimum_coupon_rate : float
     Minimum annualized coupon rate for the third payoff region.
-initial_spot : float
-    Positive reference spot.
 knock_in_level : float
     Lower knock-in barrier level.
 knock_out_levels : iterable[float]
     Knock-out level for each observation date.
-upper_strike, lower_strike : float
-    Terminal payoff thresholds.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observation dates.
 knock_in_observation_mode : KnockInObservationMode
@@ -749,9 +723,8 @@ KiyosiError
               {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
                {"maturity_coupon_rate", "maturity_coupon_rate"},
                {"minimum_coupon_rate", "minimum_coupon_rate"},
-               {"initial_spot", "initial_spot"}, {"knock_in_level", "knock_in_level"},
+               {"knock_in_level", "knock_in_level"},
                {"knock_out_levels", "knock_out_levels"},
-               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
                {"observation_dates", "observation_dates"},
                {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"},
                {"principal_ratio", "principal_ratio"},

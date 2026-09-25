@@ -33,11 +33,8 @@ struct TernarySnowballTerms {
     std::vector<double> knock_out_coupon_rates;                             ///< Finite knock-out coupons by observation.
     double maturity_coupon_rate{};                                          ///< Finite coupon paid at maturity before knock-in adjustment.
     double minimum_coupon_rate{};                                           ///< Finite maturity-coupon floor after knock-in.
-    double initial_spot{};                                                  ///< Positive reference spot.
     double knock_in_level{};                                                ///< Positive downside knock-in level.
     std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    double upper_strike{};                                                  ///< Positive upper settlement strike.
-    double lower_strike{};                                                  ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     KnockInObservationMode knock_in_observation_mode{};                     ///< Knock-in monitoring frequency.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
@@ -50,10 +47,7 @@ struct TernarySnowballTerms {
 struct BinarySnowballTerms {
     std::vector<double> knock_out_coupon_rates;                             ///< Finite knock-out coupons by observation.
     double maturity_coupon_rate{};                                          ///< Finite flat maturity coupon.
-    double initial_spot{};                                                  ///< Positive reference spot.
     std::vector<double> knock_out_levels;                                   ///< Positive knock-out levels by observation.
-    double upper_strike{};                                                  ///< Positive upper settlement strike.
-    double lower_strike{};                                                  ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                                    ///< Strictly ordered event dates.
     std::optional<AutocallableBarrierState> barrier_state{}; ///< Prior barrier state; required after monitoring begins.
     double principal_ratio{1.0};                                            ///< Non-negative principal multiplier.
@@ -104,6 +98,7 @@ private:
 /// Snowball variant settling a flat coupon at maturity regardless of the terminal spot.
 class BinarySnowballOption : public AutocallableNote {
 public:
+    // Fixed terminal payoffs have no reference spot or participation strikes.
     /// Returns one finite knock-out coupon rate per observation date.
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     /// Returns the finite flat maturity coupon rate.
@@ -112,6 +107,9 @@ public:
     friend bool operator==(const BinarySnowballOption&, const BinarySnowballOption&) = default;
 
 private:
+    using AutocallableNote::initial_spot;
+    using AutocallableNote::upper_strike;
+    using AutocallableNote::lower_strike;
     BinarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                          double initial_spot, std::vector<double> knock_out_levels,
                          double upper_strike, double lower_strike, std::vector<Date> observation_dates,
@@ -141,6 +139,9 @@ public:
     friend bool operator==(const TernarySnowballOption&, const TernarySnowballOption&) = default;
 
 private:
+    using KnockInAutocallableNote::initial_spot;
+    using KnockInAutocallableNote::upper_strike;
+    using KnockInAutocallableNote::lower_strike;
     TernarySnowballOption(std::vector<double> knock_out_coupon_rates, double maturity_coupon_rate,
                           double minimum_coupon_rate, double initial_spot, double knock_in_level,
                           std::vector<double> knock_out_levels, double upper_strike,
@@ -163,8 +164,8 @@ private:
 [[nodiscard]] inline Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms terms)
 {
     return detail::validate_and_return_autocallable_note(BinarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
-                                                                              terms.initial_spot, std::move(terms.knock_out_levels), terms.upper_strike,
-                                                                              terms.lower_strike, std::move(terms.observation_dates), terms.barrier_state,
+                                                                              0.0, std::move(terms.knock_out_levels), 0.0,
+                                                                              0.0, std::move(terms.observation_dates), terms.barrier_state,
                                                                               terms.principal_ratio, terms.effective_date, terms.expiry_date});
 }
 
@@ -180,8 +181,8 @@ private:
 [[nodiscard]] inline Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms terms)
 {
     return detail::validate_and_return_autocallable_note(TernarySnowballOption{std::move(terms.knock_out_coupon_rates), terms.maturity_coupon_rate,
-                                                                               terms.minimum_coupon_rate, terms.initial_spot, terms.knock_in_level,
-                                                                               std::move(terms.knock_out_levels), terms.upper_strike, terms.lower_strike,
+                                                                               terms.minimum_coupon_rate, 0.0, terms.knock_in_level,
+                                                                               std::move(terms.knock_out_levels), 0.0, 0.0,
                                                                                std::move(terms.observation_dates), terms.knock_in_observation_mode, terms.barrier_state,
                                                                                terms.principal_ratio, terms.effective_date, terms.expiry_date});
 }

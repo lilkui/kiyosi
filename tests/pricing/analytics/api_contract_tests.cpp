@@ -311,8 +311,8 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
         .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0,
         .effective_date = effective, .expiry_date = expiry});
     const auto snowball = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1, 0.1},
-        .maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_out_levels = {100.0, 100.0},
-        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {valuation, expiry},
+        .maturity_coupon_rate = 0.05, .knock_out_levels = {100.0, 100.0},
+        .observation_dates = {valuation, expiry},
         .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0,
         .effective_date = effective, .expiry_date = expiry});
     const auto check = [&](const auto& engine, const auto& option) {
@@ -370,8 +370,7 @@ TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-ap
 
     const auto note = *kiyosi::make_binary_snowball_option(
         {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05,
-         .initial_spot = 100.0, .knock_out_levels = {120.0, 120.0},
-         .upper_strike = 100.0, .lower_strike = 60.0,
+         .knock_out_levels = {120.0, 120.0},
          .observation_dates = {day(2025, 7, 1), expiry},
          .barrier_state = kiyosi::AutocallableBarrierState::knocked_out,
          .effective_date = day(2025, 1, 1), .expiry_date = expiry});

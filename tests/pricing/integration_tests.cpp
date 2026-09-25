@@ -111,10 +111,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
 
     auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
                                                      .maturity_coupon_rate = 0.05,
-                                                     .initial_spot = 100.0,
                                                      .knock_out_levels = {110.0},
-                                                     .upper_strike = 100.0,
-                                                     .lower_strike = 60.0,
                                                      .observation_dates = {expiry_date},
                                                      .barrier_state = kiyosi::AutocallableBarrierState::none,
                                                      .principal_ratio = 1.0,

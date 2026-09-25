@@ -116,10 +116,12 @@ template <typename Terms>
 Terms note_terms(const Scenario& scenario)
 {
     Terms terms;
-    terms.initial_spot = 100.0;
+    if constexpr (requires { terms.initial_spot; }) {
+        terms.initial_spot = 100.0;
+        terms.upper_strike = 100.0;
+        terms.lower_strike = 60.0;
+    }
     terms.knock_out_levels = {112.0, 108.0, 104.0};
-    terms.upper_strike = 100.0;
-    terms.lower_strike = 60.0;
     terms.observation_dates = {effective_date + std::chrono::days{30},
                                effective_date + std::chrono::days{60}, expiry_date};
     terms.barrier_state = scenario.history;

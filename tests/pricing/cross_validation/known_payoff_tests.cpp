@@ -71,12 +71,12 @@ auto snowball(AutocallableBarrierState status)
 
 auto ternary(AutocallableBarrierState status)
 {
-    return kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 
 auto binary(AutocallableBarrierState status)
 {
-    return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
 }
 
 auto phoenix(AutocallableBarrierState status)
@@ -208,7 +208,7 @@ TEST_CASE("FD-MC pre-expiry_date prices approach independently known constant-pa
 TEST_CASE("FD-MC binary snowball discounts a known fixed terminal cashflow", "[cross-validation]")
 {
     // The only observation is expiry_date and both outcomes pay 1.12, for every simulated path.
-    const auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.12}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.12}, .maturity_coupon_rate = 0.12, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .effective_date = effective_date, .expiry_date = expiry_date});
     REQUIRE(note);
     check_known_price(*note, market(100.0, effective_date, 0.05), 1.12 * std::exp(-0.05), 1e-8);
 }
