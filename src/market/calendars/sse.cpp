@@ -1892,6 +1892,8 @@ TradingCalendar sse_calendar()
             const auto weekday = std::chrono::weekday{value};
             if (weekday == std::chrono::Saturday || weekday == std::chrono::Sunday) return false;
             const auto parts = std::chrono::year_month_day{value};
+            if (int(parts.year()) < sse_calendar_data_first_year ||
+                int(parts.year()) > sse_calendar_data_last_year) return true;
             const int encoded = int(parts.year()) * 10000 + int(unsigned(parts.month())) * 100 +
                                 int(unsigned(parts.day()));
             return !std::ranges::binary_search(sse_holidays, encoded);

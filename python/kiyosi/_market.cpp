@@ -471,7 +471,15 @@ Returns
 -------
 TradingCalendar
     Monday-to-Friday calendar with 252 annual trading days.)doc");
+    module.attr("sse_calendar_data_first_year") = sse_calendar_data_first_year;
+    module.attr("sse_calendar_data_last_year") = sse_calendar_data_last_year;
+    module.attr("sse_calendar_data_version") = sse_calendar_data_version;
     module.def("sse_calendar", &sse_calendar, R"doc(Return the Shanghai Stock Exchange holiday calendar.
+
+The bundled holiday table covers the years given by ``sse_calendar_data_first_year``
+and ``sse_calendar_data_last_year`` and was generated from ``sse_calendar_data_version``.
+Future exchange holidays may not yet be published. Outside the table range, queries
+use weekdays without exchange holidays.
 
 Returns
 -------

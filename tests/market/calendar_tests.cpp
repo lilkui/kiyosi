@@ -199,9 +199,13 @@ TEST_CASE("Effective dates, schedules, and SSE calendar semantics")
     CHECK(kiyosi::make_monthly_schedule(day(32767, 11, 1), day(32767, 12, 31), 2)->empty());
 
     const auto sse = kiyosi::sse_calendar();
+    CHECK(kiyosi::sse_calendar_data_first_year == 1901);
+    CHECK(kiyosi::sse_calendar_data_last_year == 2199);
     CHECK(sse.trading_days_per_year() == 243);
     CHECK_FALSE(sse.is_trading_day(day(2031, 1, 4)));
     CHECK(sse.is_trading_day(day(2031, 1, 2)));
+    for (const auto outside : {day(1900, 1, 1), day(2200, 1, 1)})
+        CHECK(sse.is_trading_day(outside) == kiyosi::weekdays_calendar().is_trading_day(outside));
 }
 
 } // namespace
