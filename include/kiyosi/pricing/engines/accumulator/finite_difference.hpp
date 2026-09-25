@@ -9,6 +9,7 @@ namespace kiyosi {
 
 /// Marches the accrual value back as an affine function of the accumulated quantity, so a single
 /// sweep prices every opening position.
+/// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine {
 public:
     /// Creates an engine with aggregate finite-difference settings.

@@ -85,7 +85,7 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
 {
     auto settings_valid = validate_finite_difference_settings(settings_);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings_.asset_step_count > 10'000 || settings_.time_step_count > 100'000)
+    if (settings_.asset_step_count > general_fd_max_asset_steps || settings_.time_step_count > general_fd_max_time_steps)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "finite-difference grid dimensions are out of range"});
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());

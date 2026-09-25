@@ -165,7 +165,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     if (!schedule) return std::unexpected(schedule.error());
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
-    if (settings_.path_count <= 0 || settings_.path_count > 10'000'000)
+    if (settings_.path_count <= 0 || settings_.path_count > maximum_monte_carlo_path_count)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
     if (settings_.backend != MonteCarloBackend::cpu &&

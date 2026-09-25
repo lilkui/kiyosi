@@ -16,6 +16,7 @@ template <typename Note>
 
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
+/// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 template <typename Note>
 class KIYOSI_EXPORT FiniteDifferenceAutocallableEngine {
 public:

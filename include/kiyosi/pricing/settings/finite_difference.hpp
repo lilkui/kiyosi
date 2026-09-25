@@ -15,6 +15,10 @@ enum class FiniteDifferenceScheme : unsigned char {
 };
 
 /// Aggregate configuration validated by finite-difference engines when price() is called.
+/// The shared validator checks asset steps >= 3 and time steps >= 1. Vanilla, digital, and
+/// barrier engines accept at most 10,000 asset and 100,000 time steps; accumulator and
+/// autocallable engines accept at most 2,000 of each. An explicit scheme may impose a
+/// further stability constraint for the chosen market and grid.
 struct FiniteDifferenceSettings {
     int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.
     int time_step_count = 200;                                              ///< Number of time steps; must be positive.
@@ -22,7 +26,13 @@ struct FiniteDifferenceSettings {
     std::optional<double> asset_upper_boundary{};                           ///< Positive upper spot boundary, or automatic when absent.
 };
 
-/// Validates finite-difference grid settings.
+namespace detail {
+inline constexpr int general_fd_max_asset_steps = 10'000;
+inline constexpr int general_fd_max_time_steps = 100'000;
+inline constexpr int trading_fd_max_steps = 2'000;
+} // namespace detail
+
+/// Validates shared finite-difference grid settings; engine-specific limits are checked by price().
 /// @param settings Settings to validate.
 /// @return Success, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<void> validate_finite_difference_settings(

@@ -74,7 +74,7 @@ Result<PricingResult> price_autocallable_finite_difference(
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
     auto settings_valid = validate_finite_difference_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings.asset_step_count > 2000 || settings.time_step_count > 2000)
+    if (settings.asset_step_count > trading_fd_max_steps || settings.time_step_count > trading_fd_max_steps)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference grid dimensions are out of range"});
     auto note_validation = validate_autocallable_note(note);

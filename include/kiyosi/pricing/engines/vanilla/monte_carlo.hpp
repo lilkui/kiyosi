@@ -12,6 +12,7 @@
 namespace kiyosi {
 
 /// Monte Carlo valuation for vanilla European and American options.
+/// Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before expiry needs 3 steps.
 class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
     /// Creates an engine with aggregate Monte Carlo settings.

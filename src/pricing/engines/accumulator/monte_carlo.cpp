@@ -120,7 +120,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     if (!contract) return std::unexpected(contract.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (settings_.path_count <= 0 || settings_.path_count > 10'000'000)
+    if (settings_.path_count <= 0 || settings_.path_count > maximum_monte_carlo_path_count)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "structured Monte Carlo path count is out of range"});
     if (settings_.backend != MonteCarloBackend::cpu &&

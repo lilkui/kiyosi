@@ -20,7 +20,7 @@ Result<PricingResult> price_finite_difference(
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
     auto settings_valid = validate_finite_difference_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings.asset_step_count > 10'000 || settings.time_step_count > 100'000)
+    if (settings.asset_step_count > general_fd_max_asset_steps || settings.time_step_count > general_fd_max_time_steps)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "finite-difference grid dimensions are out of range"});
 
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());

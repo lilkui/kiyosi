@@ -10,6 +10,7 @@
 namespace kiyosi {
 
 /// Uniform-grid finite-difference engine for European digital options.
+/// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
     /// Creates an engine with aggregate finite-difference settings.

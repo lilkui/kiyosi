@@ -11,6 +11,7 @@
 namespace kiyosi {
 
 /// Simulates the trading-day accrual, terminating each path at the knock-out level.
+/// Accepts 1..10,000,000 paths.
 class KIYOSI_EXPORT MonteCarloAccumulatorEngine {
 public:
     /// Creates an engine with aggregate trading-day simulation settings.

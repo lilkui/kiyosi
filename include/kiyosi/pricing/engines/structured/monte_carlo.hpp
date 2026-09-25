@@ -12,6 +12,7 @@
 namespace kiyosi {
 
 /// Steps the trading calendar path by path, applying knock-in, knock-out, and coupon events.
+/// Accepts 1..10,000,000 paths.
 template <typename Note>
 class KIYOSI_EXPORT MonteCarloAutocallableEngine {
 public:

@@ -18,9 +18,6 @@
 namespace kiyosi {
 namespace {
 
-constexpr int maximum_path_count = 10'000'000;
-constexpr int maximum_step_count = 10'000;
-
 enum class PathRetention { full,
                            terminal };
 
@@ -43,10 +40,10 @@ Result<double> simulation_time(const PricingContext& context, Date effective_dat
 
 Result<void> validate_settings(MonteCarloSettings settings)
 {
-    if (settings.path_count <= 0 || settings.path_count > maximum_path_count)
+    if (settings.path_count <= 0 || settings.path_count > detail::maximum_monte_carlo_path_count)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo path count is out of range"});
-    if (settings.step_count < 2 || settings.step_count > maximum_step_count)
+    if (settings.step_count < 2 || settings.step_count > detail::maximum_vanilla_monte_carlo_step_count)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo step count is out of range"});
     if (settings.backend != MonteCarloBackend::cpu &&

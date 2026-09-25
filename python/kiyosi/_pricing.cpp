@@ -169,9 +169,12 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 {
     nb::class_<Engine> binding{
         module, name,
-        R"doc(Finite-difference pricing engine with immutable configuration.
+R"doc(Finite-difference pricing engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
+Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
+time steps. Accumulator and structured engines accept 3..2,000 asset steps and
+1..2,000 time steps. The shared validator checks only the common lower bounds.
 
 Attributes
 ----------
@@ -197,9 +200,10 @@ asset_upper_boundary : float or None
              "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
              "asset_upper_boundary"_a = nb::none(),
-             R"doc(Store finite-difference settings.
+R"doc(Store finite-difference settings.
 
 Settings are validated when price() is called.
+The engine-specific ranges are listed in the engine class documentation.
 
 Parameters
 ----------
@@ -237,9 +241,10 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
 {
     nb::class_<Engine> binding{
         module, name,
-        R"doc(Trading-day Monte Carlo engine with immutable configuration.
+R"doc(Trading-day Monte Carlo engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
+Accumulator and structured engines accept 1..10,000,000 paths.
 
 Attributes
 ----------
@@ -735,6 +740,8 @@ The setting is validated when price() is called.)doc")
         R"doc(Monte Carlo vanilla-option engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
+Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
+expiry requires at least 3 steps.
 
 Attributes
 ----------
