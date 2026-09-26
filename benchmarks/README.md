@@ -1,6 +1,6 @@
 # Pricing benchmark matrix
 
-Latest report: [Windows CPU results, 2026-09-24](results/2026-09-24-windows.md), with timings, price differences, environment details, and archived raw results.
+Latest report: [Windows CPU results, 2026-09-26](results/2026-09-26-windows.md), with timings, price differences, environment details, and archived raw results.
 
 `kiyosi_benchmarks` includes one fixed Black–Scholes–Merton scenario for every supported C++ instrument and pricing engine pairing. The `matrix/kiyosi/` and `matrix/quantlib/` names share a suffix when both libraries price the same contract. `matrix/kiyosi_only/` marks a pairing without a direct QuantLib C++ engine. The optional CUDA backend adds seven more `kiyosi_only` cases when Kiyosi is built with CUDA.
 
