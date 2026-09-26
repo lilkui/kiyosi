@@ -44,8 +44,8 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_step_count);
         !stable)
         return std::unexpected(stable.error());
-    auto active = [&](double time) { return option.observation_mode() == ObservationMode::continuous || std::binary_search(observation_times.begin(), observation_times.end(), time); };
-    std::sort(observation_times.begin(), observation_times.end());
+    auto active = [&](double time) { return option.observation_mode() == ObservationMode::continuous || std::ranges::binary_search(observation_times, time); };
+    std::ranges::sort(observation_times);
     auto payoff = [&](double asset) { return std::max((option.option_type() == OptionType::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
     auto rebate_value = [&](double tau) { return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };

@@ -118,7 +118,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
                                                      .effective_date = valuation,
                                                      .expiry_date = expiry_date});
     REQUIRE(note);
-    kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
+    const kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
     auto note_result = engine.price(*note, *context);
     REQUIRE(note_result.has_value());
     CHECK(*note_result > 0.0);

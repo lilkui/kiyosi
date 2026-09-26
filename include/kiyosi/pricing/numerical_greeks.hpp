@@ -238,7 +238,7 @@ Result<PricingResult> complete_greeks(
     auto theta = *native.get(RiskMeasure::theta);
     auto charm = *native.get(RiskMeasure::charm);
     auto color = *native.get(RiskMeasure::color);
-    bool time_stencil_available = true;
+    bool time_stencil_available = true; // NOLINT(misc-const-correctness): later checks depend on the option type.
     if constexpr (requires { option.averaging_start_date(); option.realized_average(); }) {
         const Timestamp averaging_start = start_of_day(option.averaging_start_date());
         time_stencil_available = option.realized_average() == 0.0
@@ -261,7 +261,7 @@ Result<PricingResult> complete_greeks(
         time_stencil_available = time_stencil_available &&
                                  std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
     if constexpr (requires { option.accumulated_quantity(); } || requires { option.knock_in_observation_mode(); }) {
-        bool daily_events = true;
+        bool daily_events = true; // NOLINT(misc-const-correctness): daily monitoring depends on the option type.
         if constexpr (requires { option.knock_in_observation_mode(); })
             daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
         if (daily_events)

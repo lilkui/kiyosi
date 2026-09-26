@@ -25,7 +25,7 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     auto custom = kiyosi::make_trading_calendar(
         [](kiyosi::Date value) { return value == day(2025, 1, 2) || value == day(2025, 1, 3); }, 2);
     REQUIRE(custom.has_value());
-    const auto copied_calendar = *custom;
+    const auto copied_calendar = *custom; // NOLINT(performance-unnecessary-copy-initialization): exercises value copy.
     REQUIRE(copied_calendar.is_trading_day(day(2025, 1, 2)));
     REQUIRE(copied_calendar.trading_days_per_year() == 2);
 
@@ -41,7 +41,7 @@ TEST_CASE("Dates, calendars, and observation schedules are value-safe")
     auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     auto context = kiyosi::make_pricing_context(*parameters, 100.0, valuation, copied_calendar);
     REQUIRE(context.has_value());
-    const auto context_copy = *context;
+    const auto context_copy = *context; // NOLINT(performance-unnecessary-copy-initialization): exercises value copy.
     REQUIRE(context_copy.calendar().is_trading_day(day(2025, 1, 2)));
 }
 
@@ -49,10 +49,10 @@ TEST_CASE("Schedule errors distinguish dates, instrument life, and observation l
 {
     const auto start = day(2025, 1, 1);
     const auto end = day(2025, 2, 1);
-    const auto reversed_fixed = kiyosi::make_fixed_interval_schedule(end, start, std::chrono::days{1});
+    const auto reversed_fixed = kiyosi::make_fixed_interval_schedule(end, start, std::chrono::days{1}); // NOLINT(readability-suspicious-call-argument): tests reversed dates.
     REQUIRE_FALSE(reversed_fixed);
     CHECK(reversed_fixed.error().category == kiyosi::ErrorCategory::invalid_time_range);
-    const auto reversed_monthly = kiyosi::make_monthly_schedule(end, start, 1);
+    const auto reversed_monthly = kiyosi::make_monthly_schedule(end, start, 1); // NOLINT(readability-suspicious-call-argument): tests reversed dates.
     REQUIRE_FALSE(reversed_monthly);
     CHECK(reversed_monthly.error().category == kiyosi::ErrorCategory::invalid_time_range);
     const auto unsupported = kiyosi::make_fixed_interval_schedule(kiyosi::Date::max(), end, std::chrono::days{1});
@@ -121,10 +121,10 @@ TEST_CASE("Time and schedules share explicit day-count and calendar rules")
     REQUIRE(weekend_only.has_value());
     CHECK(*weekend_only == 0);
 
-    const auto reversed = kiyosi::weekdays_calendar().trading_days_between(end, start);
+    const auto reversed = kiyosi::weekdays_calendar().trading_days_between(end, start); // NOLINT(readability-suspicious-call-argument): tests reversed dates.
     REQUIRE_FALSE(reversed.has_value());
     CHECK(reversed.error().category == kiyosi::ErrorCategory::invalid_time_range);
-    const auto reversed_fraction = kiyosi::weekdays_calendar().trading_year_fraction(end, start);
+    const auto reversed_fraction = kiyosi::weekdays_calendar().trading_year_fraction(end, start); // NOLINT(readability-suspicious-call-argument): tests reversed dates.
     REQUIRE_FALSE(reversed_fraction.has_value());
     CHECK(reversed_fraction.error().category == kiyosi::ErrorCategory::invalid_time_range);
 
@@ -171,6 +171,7 @@ TEST_CASE("Effective dates, schedules, and SSE calendar semantics")
         kiyosi::OptionType::call, 100.0, effective_date, expiry_date);
     REQUIRE(option);
     CHECK(option->effective_date() == effective_date);
+    // NOLINTNEXTLINE(readability-suspicious-call-argument): tests reversed contract dates.
     CHECK_FALSE(kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, expiry_date, effective_date));
 

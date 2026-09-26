@@ -104,7 +104,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         if (!stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        if (std::binary_search(trading_times.begin(), trading_times.end(), grid[step])) {
+        if (std::ranges::binary_search(trading_times, grid[step])) {
             for (std::size_t index = 0; index < size; ++index) {
                 const double asset = space->spacing * static_cast<double>(index);
                 if (asset >= option.knock_out_level()) {

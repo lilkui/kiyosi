@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <limits>
+#include <numbers>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -12,7 +13,6 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
 
 TEST_CASE("Already-hit barrier rebates respect expiry_date payment timing")
 {
@@ -53,7 +53,7 @@ TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
     REQUIRE(result.has_value());
     const double distance = std::log(1.1);
     const double root = std::sqrt(2.0 * 0.05 * 0.2 * 0.2);
-    const auto normal_cdf = [](double value) { return 0.5 * std::erfc(-value / std::sqrt(2.0)); };
+    const auto normal_cdf = [](double value) { return 0.5 * std::erfc(-value / std::numbers::sqrt2); };
     const double discounted_hit = std::exp(-root * distance / (0.2 * 0.2)) *
                                       normal_cdf((root - distance) / 0.2) +
                                   std::exp(root * distance / (0.2 * 0.2)) *

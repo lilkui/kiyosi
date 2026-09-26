@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <chrono>
 #include <functional>
 #include <utility>
@@ -12,7 +14,7 @@ namespace kiyosi {
 class TradingCalendar;
 
 /// Direction used to move a nominal contract date onto a trading day.
-enum class BusinessDayConvention {
+enum class BusinessDayConvention : std::uint8_t {
     following, ///< Move to the next trading day, including the nominal date.
     preceding  ///< Move to the previous trading day, including the nominal date.
 };

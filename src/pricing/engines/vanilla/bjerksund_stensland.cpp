@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numbers>
 
@@ -39,11 +40,11 @@ double phi(double spot, double time, double gamma, double boundary, double strik
 
 double bivariate_normal_cdf(double first, double second, double correlation)
 {
-    constexpr double abscissas[] = {
+    constexpr std::array<double, 10> abscissas = {
         0.07652652113349733, 0.22778585114164508, 0.37370608871541956,
         0.5108670019508271, 0.636053680726515, 0.7463319064601508,
         0.8391169718222188, 0.9122344282513259, 0.9639719272779138, 0.9931285991850949};
-    constexpr double weights[] = {
+    constexpr std::array<double, 10> weights = {
         0.15275338713072585, 0.14917298647260375, 0.14209610931838205,
         0.13168863844917663, 0.11819453196151842, 0.10193011981724044,
         0.08327674157670475, 0.06267204833410906, 0.04060142980038694, 0.01761400713915212};
@@ -140,7 +141,7 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const American
     const double volatility = context.model_parameters().volatility();
     const double value = option.option_type() == OptionType::call
                              ? bjerksund_call(spot, strike, time, rate, dividend, volatility)
-                             : bjerksund_call(strike, spot, time, dividend, rate, volatility);
+                             : bjerksund_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});

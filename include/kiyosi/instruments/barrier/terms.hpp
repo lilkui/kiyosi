@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -14,7 +16,7 @@
 namespace kiyosi {
 
 /// Direction and activation behavior of a barrier.
-enum class BarrierType {
+enum class BarrierType : std::uint8_t {
     up_and_in,   ///< Activates when spot reaches or exceeds the barrier.
     up_and_out,  ///< Terminates when spot reaches or exceeds the barrier.
     down_and_in, ///< Activates when spot reaches or falls below the barrier.
@@ -22,25 +24,25 @@ enum class BarrierType {
 };
 
 /// Barrier monitoring frequency.
-enum class ObservationMode {
+enum class ObservationMode : std::uint8_t {
     continuous, ///< Monitor continuously throughout the contract life.
     scheduled   ///< Monitor only at 00:00 UTC on explicit observation dates.
 };
 
 /// Barrier observations strictly before the valuation time.
-enum class BarrierTouchState {
+enum class BarrierTouchState : std::uint8_t {
     untouched, ///< No prior observation breached the barrier.
     touched    ///< A prior observation breached the barrier.
 };
 
 /// Payment timing for a barrier-option rebate.
-enum class RebateTiming {
+enum class RebateTiming : std::uint8_t {
     at_hit,   ///< Pay when the barrier is hit.
     at_expiry ///< Pay at contract expiry.
 };
 
 /// Settlement timing for a touch option.
-enum class SettlementTiming {
+enum class SettlementTiming : std::uint8_t {
     at_hit,   ///< Settle when the barrier is hit.
     at_expiry ///< Settle at contract expiry.
 };

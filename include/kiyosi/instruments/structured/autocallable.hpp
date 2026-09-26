@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -14,13 +16,13 @@
 namespace kiyosi {
 
 /// Monitoring frequency for an autocallable knock-in barrier.
-enum class KnockInObservationMode {
+enum class KnockInObservationMode : std::uint8_t {
     every_trading_day, ///< Observe on every trading day in the contract life.
     at_expiry          ///< Observe only at expiry.
 };
 
 /// Barrier events known before valuation.
-enum class AutocallableBarrierState {
+enum class AutocallableBarrierState : std::uint8_t {
     none,        ///< No barrier event has occurred.
     knocked_out, ///< The note has already knocked out.
     knocked_in   ///< The downside barrier has already been breached.
@@ -169,7 +171,7 @@ template <typename Note>
         if (note.coupon_barrier_levels().size() != note.observation_dates().size())
             return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                          "Phoenix coupon schedule is invalid"});
-        for (double barrier : note.coupon_barrier_levels())
+        for (const double barrier : note.coupon_barrier_levels())
             if (!std::isfinite(barrier) || barrier < 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                              "coupon barrier levels are invalid"});
@@ -178,7 +180,7 @@ template <typename Note>
         if (note.knock_out_coupon_rates().size() != note.observation_dates().size())
             return std::unexpected(Error{ErrorCategory::invalid_schedule,
                                          "coupon schedule count is invalid"});
-        for (double coupon : note.knock_out_coupon_rates())
+        for (const double coupon : note.knock_out_coupon_rates())
             if (!std::isfinite(coupon))
                 return std::unexpected(Error{ErrorCategory::invalid_parameter, "coupon rates are invalid"});
         if (!std::isfinite(note.maturity_coupon_rate()))
@@ -201,7 +203,7 @@ template <typename Note>
     const bool had_knock_out_observation = std::any_of(
         note.observation_dates().begin(), note.observation_dates().end(),
         [&](Date date) { return start_of_day(date) < valuation; });
-    bool had_knock_in_observation = false;
+    bool had_knock_in_observation = false; // NOLINT(misc-const-correctness): mutable for notes with daily monitoring.
     if constexpr (requires { note.knock_in_observation_mode(); })
         if (note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day)
             for (Date date = note.effective_date(); start_of_day(date) < valuation;

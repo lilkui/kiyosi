@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <new>
 #include <random>
 #include <vector>
@@ -18,8 +19,8 @@
 namespace kiyosi {
 namespace {
 
-enum class PathRetention { full,
-                           terminal };
+enum class PathRetention : std::uint8_t { full,
+                                          terminal };
 
 struct SimulationParameters {
     double spot;
@@ -230,7 +231,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_european(
     } else {
         auto paths = simulate_paths(*parameters, settings_, PathRetention::terminal);
         if (!paths) return std::unexpected(paths.error());
-        for (double terminal_spot : *paths)
+        for (const double terminal_spot : *paths)
             sum += payoff(option.option_type(), terminal_spot, option.strike());
         path_count = paths->size();
     }
@@ -257,9 +258,8 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
     if (!parameters) return std::unexpected(parameters.error());
     const double discount = std::exp(-context.model_parameters().risk_free_rate() *
                                      *time / static_cast<double>(settings_.step_count - 1));
-    std::size_t path_count = static_cast<std::size_t>(
-        settings_.path_count % 2 == 0 ? settings_.path_count : settings_.path_count + 1);
     double sum = 0.0;
+    std::vector<double> cash_flows;
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
@@ -273,8 +273,8 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
     } else {
         auto paths = simulate_paths(*parameters, settings_, PathRetention::full);
         if (!paths) return std::unexpected(paths.error());
-        path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
-        std::vector<double> cash_flows(path_count);
+        const std::size_t path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
+        cash_flows.resize(path_count);
         const auto stride = static_cast<std::size_t>(settings_.step_count);
         for (std::size_t path = 0; path < path_count; ++path)
             cash_flows[path] = payoff(
@@ -289,7 +289,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
                 if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
                     ++sample_count;
                     const double scaled = spot / option.strike();
-                    const double basis[] = {1.0, scaled, scaled * scaled};
+                    const std::array<double, 3> basis{1.0, scaled, scaled * scaled};
                     for (int row = 0; row < 3; ++row) {
                         for (int column = 0; column < 3; ++column)
                             matrix[row][column] += basis[row] * basis[column];
@@ -311,9 +311,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
                     cash_flows[path] = intrinsic;
             }
         }
-        for (double cash_flow : cash_flows)
+        for (const double cash_flow : cash_flows)
             sum += cash_flow;
     }
+    const std::size_t path_count = settings_.backend == MonteCarloBackend::cuda
+                                       ? static_cast<std::size_t>(settings_.path_count + settings_.path_count % 2)
+                                       : cash_flows.size();
     const double continuation = sum / static_cast<double>(path_count) * discount;
     const double value = std::max(continuation,
                                   payoff(option.option_type(), context.spot_price(), option.strike()));

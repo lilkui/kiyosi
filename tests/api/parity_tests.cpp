@@ -174,7 +174,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const kiyosi::MonteCarloVanillaEngine engine{
                     kiyosi::MonteCarloSettings{100'000, 50, seed}};
                 REQUIRE(engine.settings().seed);
-                CHECK(*engine.settings().seed == std::stoull(test.expected.at("seed")));
+                CHECK(engine.settings().seed == std::stoull(test.expected.at("seed")));
             } else {
                 FAIL("unknown parity case kind: " << test.kind);
             }

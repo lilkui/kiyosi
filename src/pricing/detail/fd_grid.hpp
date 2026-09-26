@@ -22,8 +22,8 @@ inline std::vector<double> make_finite_difference_time_grid(double maturity, int
     events.push_back(maturity);
     for (int index = 1; index < steps; ++index)
         events.push_back(maturity * index / steps);
-    std::sort(events.begin(), events.end());
-    events.erase(std::unique(events.begin(), events.end()), events.end());
+    std::ranges::sort(events);
+    events.erase(std::ranges::unique(events).begin(), events.end());
     return events;
 }
 

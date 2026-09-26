@@ -11,6 +11,7 @@
 namespace kiyosi {
 using namespace detail;
 
+namespace {
 template <typename Option>
 Result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, bool american, RiskMeasureOutput requested_output)
@@ -125,6 +126,7 @@ Result<PricingResult> price_binomial(
     }
     return output;
 }
+} // namespace
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_european(
     const EuropeanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const

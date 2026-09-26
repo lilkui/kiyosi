@@ -42,7 +42,7 @@
 namespace {
 
 template <typename Engine, typename Option>
-concept can_price = requires(
+concept CanPrice = requires(
     const Engine& engine, const Option& option, const kiyosi::PricingContext& context) {
     { engine.price(option, context) } -> std::same_as<kiyosi::Result<double>>;
     { engine.price_with_greeks(option, context, kiyosi::GreeksLevel::basic) }
@@ -50,7 +50,7 @@ concept can_price = requires(
 };
 
 template <typename Engine, typename Option, typename Settings>
-concept can_price_with_settings = requires(
+concept CanPriceWithSettings = requires(
     const Engine& engine, const Option& option, const kiyosi::PricingContext& context) {
     engine.price(option, context, Settings{});
 };
@@ -107,40 +107,40 @@ static_assert(std::equality_comparable<kiyosi::SnowballOption>);
 static_assert(std::equality_comparable<kiyosi::BinarySnowballOption>);
 static_assert(std::equality_comparable<kiyosi::TernarySnowballOption>);
 
-static_assert(can_price<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::AnalyticVanillaEngine, kiyosi::CashOrNothingOption>);
-static_assert(can_price<kiyosi::QuadratureVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(!can_price<kiyosi::QuadratureVanillaEngine, kiyosi::AmericanOption>);
-static_assert(can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::AmericanOption>);
-static_assert(!can_price<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::AnalyticVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!CanPrice<kiyosi::AnalyticVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!CanPrice<kiyosi::AnalyticVanillaEngine, kiyosi::CashOrNothingOption>);
+static_assert(CanPrice<kiyosi::QuadratureVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(!CanPrice<kiyosi::QuadratureVanillaEngine, kiyosi::AmericanOption>);
+static_assert(CanPrice<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::AmericanOption>);
+static_assert(!CanPrice<kiyosi::BjerksundStenslandVanillaEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::CashOrNothingOption>);
-static_assert(can_price<kiyosi::AnalyticDigitalEngine, kiyosi::AssetOrNothingOption>);
-static_assert(!can_price<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::AnalyticDigitalEngine, kiyosi::CashOrNothingOption>);
+static_assert(CanPrice<kiyosi::AnalyticDigitalEngine, kiyosi::AssetOrNothingOption>);
+static_assert(!CanPrice<kiyosi::AnalyticDigitalEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(can_price<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::AmericanOption>);
+static_assert(CanPrice<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::FiniteDifferenceVanillaEngine, kiyosi::AmericanOption>);
 
-static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::CashOrNothingOption>);
-static_assert(can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::AssetOrNothingOption>);
-static_assert(!can_price<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::CashOrNothingOption>);
+static_assert(CanPrice<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::AssetOrNothingOption>);
+static_assert(!CanPrice<kiyosi::FiniteDifferenceDigitalEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::AmericanOption>);
-static_assert(can_price<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::AmericanOption>);
+static_assert(CanPrice<kiyosi::CoxRossRubinsteinVanillaEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
-static_assert(!can_price<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::AnalyticBarrierEngine, kiyosi::BarrierOption>);
+static_assert(!CanPrice<kiyosi::AnalyticBarrierEngine, kiyosi::EuropeanOption>);
 
-static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::EuropeanOption>);
-static_assert(can_price<kiyosi::MonteCarloVanillaEngine, kiyosi::AmericanOption>);
+static_assert(CanPrice<kiyosi::MonteCarloVanillaEngine, kiyosi::EuropeanOption>);
+static_assert(CanPrice<kiyosi::MonteCarloVanillaEngine, kiyosi::AmericanOption>);
 
-static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
-                                       kiyosi::EuropeanOption,
-                                       kiyosi::FiniteDifferenceSettings>);
-static_assert(!can_price_with_settings<kiyosi::FiniteDifferenceVanillaEngine,
-                                       kiyosi::AmericanOption,
-                                       kiyosi::FiniteDifferenceSettings>);
-static_assert(!can_price_with_settings<kiyosi::CoxRossRubinsteinVanillaEngine,
-                                       kiyosi::AmericanOption,
-                                       kiyosi::BinomialSettings>);
+static_assert(!CanPriceWithSettings<kiyosi::FiniteDifferenceVanillaEngine,
+                                    kiyosi::EuropeanOption,
+                                    kiyosi::FiniteDifferenceSettings>);
+static_assert(!CanPriceWithSettings<kiyosi::FiniteDifferenceVanillaEngine,
+                                    kiyosi::AmericanOption,
+                                    kiyosi::FiniteDifferenceSettings>);
+static_assert(!CanPriceWithSettings<kiyosi::CoxRossRubinsteinVanillaEngine,
+                                    kiyosi::AmericanOption,
+                                    kiyosi::BinomialSettings>);

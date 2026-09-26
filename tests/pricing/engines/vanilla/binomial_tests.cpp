@@ -53,7 +53,8 @@ TEST_CASE("Binomial American engine supplements gamma below two steps")
     const auto gamma = result->get(kiyosi::RiskMeasure::gamma);
     REQUIRE(gamma.has_value());
     REQUIRE(gamma->has_value());
-    CHECK_THAT(**gamma, Catch::Matchers::WithinAbs(0.0, 1e-7));
+    CHECK_THAT(gamma.value().value_or(std::numeric_limits<double>::quiet_NaN()),
+               Catch::Matchers::WithinAbs(0.0, 1e-7));
 }
 
 TEST_CASE("Binomial American engine exercises puts and converges to European calls")

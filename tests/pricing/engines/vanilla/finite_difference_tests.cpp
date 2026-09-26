@@ -12,7 +12,6 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
 
 TEST_CASE("Finite-difference European engines track analytic prices")
 {

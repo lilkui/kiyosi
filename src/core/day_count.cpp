@@ -21,7 +21,7 @@ Result<double> year_fraction(Timestamp start, Timestamp end, DayCountConvention 
         return std::unexpected(Error{ErrorCategory::invalid_time_range, "day-count end must not precede start"});
     if (convention != DayCountConvention::actual_365_fixed)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "unsupported day-count convention"});
-    return std::chrono::duration<double, std::ratio<86400 * 365>>{end - start}.count();
+    return std::chrono::duration<double, std::ratio<31'536'000>>{end - start}.count();
 }
 
 } // namespace kiyosi

@@ -12,6 +12,7 @@
 #include <optional>
 #include <random>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -98,7 +99,7 @@ double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                terminal;
     };
 
-    std::mt19937_64 generator(*settings.seed);
+    std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
     for (int path = 0; path < settings.path_count; ++path)
         sum += path_payoff(generator);
@@ -800,7 +801,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     };
     const kiyosi::FiniteDifferenceSettings settings{40, 40};
     const auto context = [&](kiyosi::TradingCalendar calendar) {
-        return *kiyosi::make_pricing_context(parameters, 100.0, valuation, calendar);
+        return *kiyosi::make_pricing_context(parameters, 100.0, valuation, std::move(calendar));
     };
 
     const auto calls = std::make_shared<std::atomic<int>>(0);

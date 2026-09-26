@@ -71,7 +71,7 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const double carry = rate - context.model_parameters().dividend_yield();
     const double period = actual_365_fixed_year_fraction(averaging_start, expiry);
     const double lead = valuation < averaging_start
-                            ? actual_365_fixed_year_fraction(valuation, averaging_start)
+                            ? actual_365_fixed_year_fraction(valuation, averaging_start) // NOLINT(readability-suspicious-call-argument): valuation precedes averaging.
                             : 0.0;
     const double future = actual_365_fixed_year_fraction(std::max(valuation, averaging_start), expiry);
     const double weight = period > 0.0 ? future / period : 1.0;
@@ -82,15 +82,14 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     if (valuation > averaging_start) mean_log += (1.0 - weight) * std::log(realized);
     const double forward = std::exp(mean_log + 0.5 * variance);
     const double deviation = std::sqrt(variance);
-    double value;
-    if (deviation < 1e-12) {
-        value = std::exp(-rate * tau) * payoff(option.option_type(), forward, strike);
-    } else {
+    const double value = [&] {
+        if (deviation < 1e-12)
+            return std::exp(-rate * tau) * payoff(option.option_type(), forward, strike);
         const double d1 = (mean_log - std::log(strike) + variance) / deviation;
         const double d2 = d1 - deviation;
-        value = std::exp(-rate * tau) * sign *
-                (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));
-    }
+        return std::exp(-rate * tau) * sign *
+               (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));
+    }();
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
 }

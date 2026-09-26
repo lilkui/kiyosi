@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <cmath>
 
 #include <kiyosi/core/error.hpp>
@@ -8,7 +10,7 @@
 namespace kiyosi {
 
 /// Direction of an option payoff.
-enum class OptionType {
+enum class OptionType : std::uint8_t {
     call, ///< Right to benefit from prices above the strike.
     put   ///< Right to benefit from prices below the strike.
 };

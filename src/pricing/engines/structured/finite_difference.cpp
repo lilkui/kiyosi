@@ -111,7 +111,7 @@ Result<PricingResult> price_autocallable_finite_difference(
         if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
-    bool monitors_daily = false;
+    bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
     std::vector<double> trading_times;
@@ -146,7 +146,7 @@ Result<PricingResult> price_autocallable_finite_difference(
     const std::size_t size = space->size();
     const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
     std::vector<double> alive(size), next_alive(size);
-    std::vector<double> knocked_in, next_knocked_in;
+    std::vector<double> knocked_in, next_knocked_in; // NOLINT(misc-const-correctness): used for knock-in note types.
     if constexpr (monitors_knock_in) {
         knocked_in.resize(size);
         next_knocked_in.resize(size);
@@ -154,7 +154,7 @@ Result<PricingResult> price_autocallable_finite_difference(
     const auto expiry_observation = event_index(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        bool ki = note.barrier_state() == AutocallableBarrierState::knocked_in;
+        bool ki = note.barrier_state() == AutocallableBarrierState::knocked_in; // NOLINT(misc-const-correctness): updated for knock-in note types.
         if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
         if (expiry_observation && value >= note.knock_out_levels()[*expiry_observation]) {
             alive[index] = note.principal_ratio() +
@@ -175,20 +175,21 @@ Result<PricingResult> price_autocallable_finite_difference(
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
-        bool advanced;
-        if constexpr (monitors_knock_in)
-            advanced = stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt);
-        else
-            advanced = stepper.advance(alive, next_alive, dt);
+        const bool advanced = [&] {
+            if constexpr (monitors_knock_in)
+                return stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt);
+            else
+                return stepper.advance(alive, next_alive, dt);
+        }();
         if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);
         const bool daily = monitors_daily &&
-                           std::binary_search(trading_times.begin(), trading_times.end(), grid[step]);
+                           std::ranges::binary_search(trading_times, grid[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
-            bool transitioned = false;
+            bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
             if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_level();
             if (observation_index && value >= note.knock_out_levels()[*observation_index]) {
                 next_alive[index] = note.principal_ratio() +

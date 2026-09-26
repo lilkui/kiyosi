@@ -51,7 +51,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry_date")
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
-        const double value = *item;
+        const double value = item.value_or(std::numeric_limits<double>::quiet_NaN());
         CHECK(std::isfinite(value));
     }
 }
@@ -279,7 +279,7 @@ TEST_CASE("Analytic European engine remains finite in deep tails")
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
-        const double value = *item;
+        const double value = item.value_or(std::numeric_limits<double>::quiet_NaN());
         CHECK(std::isfinite(value));
     }
 }

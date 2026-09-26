@@ -21,11 +21,11 @@ PricingContext market(double spot = 100.0, Date date = valuation)
 }
 
 struct RecordingPriceEngine {
-    std::vector<PricingContext>& calls;
+    std::vector<PricingContext>* calls{};
     bool reject_bump = false;
     Result<double> price(const EuropeanOption&, const PricingContext& context) const
     {
-        calls.push_back(context);
+        calls->push_back(context);
         if (reject_bump && context.spot_price() != 100.0)
             return std::unexpected(Error{ErrorCategory::invalid_schedule, "bump rejected"});
         return context.spot_price() * context.spot_price();
@@ -33,11 +33,11 @@ struct RecordingPriceEngine {
 };
 
 template <typename Engine>
-concept implicit_greeks_level = requires(const Engine& engine, const EuropeanOption& option,
-                                         const PricingContext& context) {
+concept ImplicitGreeksLevel = requires(const Engine& engine, const EuropeanOption& option,
+                                       const PricingContext& context) {
     engine.price_with_greeks(option, context);
 };
-static_assert(!implicit_greeks_level<AnalyticVanillaEngine>);
+static_assert(!ImplicitGreeksLevel<AnalyticVanillaEngine>);
 static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
                                  std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
                              Result<double>>);
@@ -70,7 +70,7 @@ TEST_CASE("Basic Greek completion uses only missing spot differences", "[pricing
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto context = market();
     std::vector<PricingContext> calls;
-    const RecordingPriceEngine engine{calls};
+    const RecordingPriceEngine engine{&calls};
     const auto native = *make_pricing_result({{RiskMeasure::price, 10000.0}});
     const auto basic = detail::complete_greeks(engine, option, context, GreeksLevel::basic, {}, native);
     REQUIRE(basic);
@@ -124,14 +124,14 @@ TEST_CASE("Joint completion keeps unavailable stencils and propagates feasible f
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
     const auto native = *make_pricing_result({{RiskMeasure::price, 10000.0}});
-    const auto unavailable = detail::complete_greeks(RecordingPriceEngine{calls}, option,
+    const auto unavailable = detail::complete_greeks(RecordingPriceEngine{&calls}, option,
                                                      market(), GreeksLevel::basic, NumericalShiftSettings{.spot_shift = 100.0}, native);
     REQUIRE(unavailable);
     CHECK(risk_value(*unavailable, RiskMeasure::price) == 10000.0);
     CHECK_FALSE(unavailable->has(RiskMeasure::delta));
     CHECK_FALSE(unavailable->has(RiskMeasure::gamma));
     CHECK(calls.empty());
-    const auto rejected = detail::complete_greeks(RecordingPriceEngine{calls, true}, option,
+    const auto rejected = detail::complete_greeks(RecordingPriceEngine{&calls, true}, option,
                                                   market(), GreeksLevel::basic, {}, native);
     REQUIRE_FALSE(rejected);
     CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
@@ -177,7 +177,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
-    const auto result = calculate_numerical_risk_measures(RecordingPriceEngine{calls}, option,
+    const auto result = calculate_numerical_risk_measures(RecordingPriceEngine{&calls}, option,
                                                           market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
     REQUIRE(result);
     CHECK(risk_value(*result, RiskMeasure::theta) == 0.0);

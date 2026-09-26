@@ -32,8 +32,8 @@ inline bool solve_quadratic(QuadraticRegressionMatrix matrix,
             value -= matrix[row][column] * coefficients[column];
         coefficients[row] = value / matrix[row][row];
     }
-    return std::all_of(coefficients.begin(), coefficients.end(),
-                       [](double value) { return std::isfinite(value); });
+    return std::ranges::all_of(coefficients,
+                               [](double value) { return std::isfinite(value); });
 }
 
 } // namespace kiyosi::detail

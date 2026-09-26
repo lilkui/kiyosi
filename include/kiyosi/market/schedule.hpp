@@ -64,7 +64,7 @@ namespace detail {
 {
     auto schedule = validate_date_schedule(observation_dates, instrument_start, instrument_end);
     if (!schedule) return schedule;
-    for (Date observation_date : observation_dates)
+    for (const Date observation_date : observation_dates)
         if (!calendar.is_trading_day(observation_date))
             return std::unexpected(Error{ErrorCategory::invalid_date,
                                          "observation Date is not a trading day"});

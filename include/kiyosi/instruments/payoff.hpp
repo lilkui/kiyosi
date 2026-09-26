@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+
 #include <cmath>
 #include <concepts>
 #include <type_traits>
@@ -27,7 +29,7 @@ struct AssetOrNothingPayoff {
 };
 
 /// Binary payoff denomination.
-enum class PayoffType {
+enum class PayoffType : std::uint8_t {
     cash, ///< Fixed cash payout.
     asset ///< Underlying-asset payout.
 };

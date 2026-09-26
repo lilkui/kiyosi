@@ -56,7 +56,7 @@ public:
             rhs_[position] = old[static_cast<std::size_t>(index)] +
                              (1.0 - theta) * dt *
                                  (a * old[position] + b * old[static_cast<std::size_t>(index)] +
-                                  c * old[static_cast<std::size_t>(index + 1)]);
+                                  c * old[static_cast<std::size_t>(index) + 1]);
             if (index == 1) rhs_[position] += theta * dt * a * next.front();
             if (index == asset_step_count - 1) rhs_[position] += theta * dt * c * next.back();
             lower_[position] = -theta * dt * a;
@@ -64,7 +64,7 @@ public:
             upper_diagonal_[position] = -theta * dt * c;
         }
         if (theta == 0.0) {
-            std::copy(rhs_.begin(), rhs_.end(), next.begin() + 1);
+            std::ranges::copy(rhs_, next.begin() + 1);
             return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
         }
         for (std::size_t index = 1; index < diagonal_.size(); ++index) {
@@ -78,7 +78,7 @@ public:
         for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
             rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
         if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); })) return false;
-        std::copy(rhs_.begin(), rhs_.end(), next.begin() + 1);
+        std::ranges::copy(rhs_, next.begin() + 1);
         return std::isfinite(next.front()) && std::isfinite(next.back());
     }
 
@@ -114,12 +114,12 @@ public:
                              (1.0 - theta) * dt *
                                  (a * first_old[position] +
                                   b * first_old[static_cast<std::size_t>(index)] +
-                                  c * first_old[static_cast<std::size_t>(index + 1)]);
+                                  c * first_old[static_cast<std::size_t>(index) + 1]);
             paired_rhs_[position] = second_old[static_cast<std::size_t>(index)] +
                                     (1.0 - theta) * dt *
                                         (a * second_old[position] +
                                          b * second_old[static_cast<std::size_t>(index)] +
-                                         c * second_old[static_cast<std::size_t>(index + 1)]);
+                                         c * second_old[static_cast<std::size_t>(index) + 1]);
             if (index == 1) {
                 rhs_[position] += theta * dt * a * first_next.front();
                 paired_rhs_[position] += theta * dt * a * second_next.front();
@@ -133,8 +133,8 @@ public:
             upper_diagonal_[position] = -theta * dt * c;
         }
         if (theta == 0.0) {
-            std::copy(rhs_.begin(), rhs_.end(), first_next.begin() + 1);
-            std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
+            std::ranges::copy(rhs_, first_next.begin() + 1);
+            std::ranges::copy(paired_rhs_, second_next.begin() + 1);
             return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
                    std::ranges::all_of(second_next,
                                        [](double value) { return std::isfinite(value); });
@@ -159,8 +159,8 @@ public:
         if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); }) ||
             !std::ranges::all_of(paired_rhs_, [](double value) { return std::isfinite(value); }))
             return false;
-        std::copy(rhs_.begin(), rhs_.end(), first_next.begin() + 1);
-        std::copy(paired_rhs_.begin(), paired_rhs_.end(), second_next.begin() + 1);
+        std::ranges::copy(rhs_, first_next.begin() + 1);
+        std::ranges::copy(paired_rhs_, second_next.begin() + 1);
         return std::isfinite(first_next.front()) && std::isfinite(first_next.back()) &&
                std::isfinite(second_next.front()) && std::isfinite(second_next.back());
     }

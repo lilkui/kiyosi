@@ -45,6 +45,10 @@ public:
     {
         ++*copies_;
     }
+    ~CopyCountingNote() = default;
+    CopyCountingNote& operator=(const CopyCountingNote&) = delete;
+    CopyCountingNote(CopyCountingNote&&) = delete;
+    CopyCountingNote& operator=(CopyCountingNote&&) = delete;
 
     double initial_spot() const noexcept { return 100.0; }
     const std::vector<double>& knock_out_levels() const noexcept { return knock_out_prices_; }
@@ -88,7 +92,8 @@ TEST_CASE("Autocallable factories preserve validation error categories")
         if constexpr (requires { terms.initial_spot; }) terms.initial_spot = 100.0;
         else terms.principal_ratio = 1.0;
         terms.observation_dates.clear();
-        CHECK(factory(std::move(terms)).error().category == kiyosi::ErrorCategory::invalid_schedule);
+        const auto invalid_schedule = factory(std::move(terms));
+        CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
     };
 
     check(kiyosi::make_phoenix_option,
@@ -122,7 +127,8 @@ TEST_CASE("Autocallable factories preserve validation error categories")
     CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
     auto knocked_out_binary = binary_terms;
     knocked_out_binary.barrier_state = kiyosi::AutocallableBarrierState::knocked_out;
-    CHECK(kiyosi::make_binary_snowball_option(std::move(knocked_out_binary)).has_value());
+    const auto knocked_out = kiyosi::make_binary_snowball_option(std::move(knocked_out_binary));
+    CHECK(knocked_out.has_value());
     check(kiyosi::make_snowball_option,
           kiyosi::SnowballTerms{.knock_out_coupon_rates = {0.05},
                                 .maturity_coupon_rate = 0.05,

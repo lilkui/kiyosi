@@ -30,8 +30,8 @@ Result<PricingResult> QuadratureVanillaEngine::price_impl(const EuropeanOption& 
                   std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
                            0.0)}});
     const double z_star = (std::log(strike / spot) - (rate - dividend - 0.5 * sigma * sigma) * tau) / (sigma * root);
-    double lower = sign > 0 ? std::max(z_star, -10.0) : -10.0;
-    double upper = sign > 0 ? 10.0 : std::min(z_star, 10.0);
+    const double lower = sign > 0 ? std::max(z_star, -10.0) : -10.0;
+    const double upper = sign > 0 ? 10.0 : std::min(z_star, 10.0);
     if (lower >= upper) return make_pricing_result({{RiskMeasure::price, 0.0}});
     constexpr int panels = 1024;
     const double h = (upper - lower) / panels;

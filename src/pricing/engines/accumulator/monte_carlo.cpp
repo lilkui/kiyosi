@@ -18,7 +18,7 @@ namespace {
 using SimulationStep = detail::CudaSimulationStep;
 
 struct InitialState {
-    double quantity;
+    double quantity{};
     std::optional<double> settlement;
 };
 

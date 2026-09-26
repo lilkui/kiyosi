@@ -11,6 +11,7 @@
 namespace kiyosi {
 using namespace detail;
 
+namespace {
 template <typename Option>
 Result<PricingResult> price_finite_difference(
     const Option& option, const PricingContext& context,
@@ -86,6 +87,7 @@ Result<PricingResult> price_finite_difference(
                                      "finite-difference pricing produced a non-finite result"});
     return output;
 }
+} // namespace
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_european(
     const EuropeanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const

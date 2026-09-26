@@ -115,8 +115,8 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
 
     struct Case {
         kiyosi::Date start;
-        double realized;
-        double expected;
+        double realized{};
+        double expected{};
     };
     const std::array cases{
         Case{effective, 80.0, 0.005141652127146822},

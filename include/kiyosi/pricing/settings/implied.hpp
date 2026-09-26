@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cstdint>
+
 namespace kiyosi {
 
 /// Determines whether a Snowball maturity coupon moves with its quoted knock-out coupon.
-enum class CouponQuoteConvention {
+enum class CouponQuoteConvention : std::uint8_t {
     shift_maturity_coupon,    ///< Shift the maturity coupon with the quoted knock-out coupon.
     preserve_maturity_coupon, ///< Keep the maturity coupon fixed while solving.
 };

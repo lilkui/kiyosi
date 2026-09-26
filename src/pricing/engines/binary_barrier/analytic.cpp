@@ -15,19 +15,19 @@ struct BinaryBarrierFormulaTerms {
 };
 
 struct BinaryBarrierContractView {
-    const BarrierTerms& barrier_terms;
+    const BarrierTerms* barrier_terms{};
     std::optional<OptionType> option_type;
-    double strike;
-    double payout;
-    bool asset_settlement;
-    kiyosi::SettlementTiming settlement_timing;
+    double strike{};
+    double payout{};
+    bool asset_settlement{};
+    kiyosi::SettlementTiming settlement_timing{};
 };
 
 BinaryBarrierContractView make_contract_view(const BinaryBarrierOption& option)
 {
     const bool asset = option.payoff_type() == PayoffType::asset;
     const auto* cash = std::get_if<CashOrNothingPayoff>(&option.payoff());
-    return {option.barrier_terms(), option.option_type(), option.strike(),
+    return {&option.barrier_terms(), option.option_type(), option.strike(),
             cash ? cash->payout() : option.barrier_level(), asset, SettlementTiming::at_expiry};
 }
 
@@ -35,7 +35,7 @@ BinaryBarrierContractView make_contract_view(const TouchOption& option)
 {
     const bool asset = option.payoff_type() == PayoffType::asset;
     const auto* cash = std::get_if<CashOrNothingPayoff>(&option.payoff());
-    return {option.barrier_terms(), std::nullopt, option.barrier_level(),
+    return {&option.barrier_terms(), std::nullopt, option.barrier_level(),
             cash ? cash->payout() : option.barrier_level(), asset, option.settlement_timing()};
 }
 
@@ -54,14 +54,14 @@ double vanilla_digital(const BinaryBarrierContractView& option, const PricingCon
 
 double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool touched)
 {
-    const auto& terms = option.barrier_terms;
+    const auto& terms = *option.barrier_terms;
     const bool in_money = !option.option_type || (*option.option_type == OptionType::call ? spot > option.strike : spot < option.strike);
     return terms.is_knock_in() == touched && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
 }
 
 Result<PricingResult> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
 {
-    const auto& terms = option.barrier_terms;
+    const auto& terms = *option.barrier_terms;
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), terms.effective_date(), terms.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     if (terms.observation_mode() == ObservationMode::scheduled) {

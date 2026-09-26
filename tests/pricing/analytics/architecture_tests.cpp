@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
+#include <numbers>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
@@ -141,7 +142,7 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
                                                        100.0, noon);
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, kiyosi::date_of(noon), expiry_date);
-    const double expected = 100.0 * std::erf(0.4 * std::sqrt(0.5 / 365.0) / (2.0 * std::sqrt(2.0)));
+    const double expected = 100.0 * std::erf(0.4 * std::sqrt(0.5 / 365.0) / (2.0 * std::numbers::sqrt2));
     const auto check = [&](const auto& engine, double tolerance) {
         const auto priced = engine.price(option, context);
         REQUIRE(priced);
@@ -155,13 +156,13 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
 }
 
 struct RecordingEngine {
-    std::vector<kiyosi::Timestamp>& moments;
+    std::vector<kiyosi::Timestamp>* moments{};
     kiyosi::Timestamp origin;
 
     kiyosi::Result<double> price(const kiyosi::EuropeanOption&,
                                  const kiyosi::PricingContext& context) const
     {
-        moments.push_back(context.valuation_time());
+        moments->push_back(context.valuation_time());
         const double elapsed_days = std::chrono::duration<double, std::ratio<86400>>{
             context.valuation_time() - origin}
                                         .count();
@@ -178,7 +179,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, effective_date, day(2026, 1, 1));
     std::vector<kiyosi::Timestamp> moments;
-    const RecordingEngine engine{moments, noon};
+    const RecordingEngine engine{&moments, noon};
     SECTION("numerical analytics")
     {
         const auto analytics = kiyosi::calculate_numerical_risk_measures(engine, option, context);
