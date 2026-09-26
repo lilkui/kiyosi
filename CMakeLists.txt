@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.28)
 
-project(kiyosi VERSION 0.5.0 LANGUAGES CXX)
+project(kiyosi VERSION 0.6.0 LANGUAGES CXX)
 
 include(GenerateExportHeader)
 
