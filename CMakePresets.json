@@ -87,7 +87,8 @@
                 "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_COMPILE_WARNING_AS_ERROR": true,
                 "KIYOSI_ENABLE_CLANG_FORMAT": true,
-                "KIYOSI_ENABLE_CLANG_TIDY": true
+                "KIYOSI_ENABLE_CLANG_TIDY": true,
+                "KIYOSI_BUILD_PYTHON": true
             }
         },
         {

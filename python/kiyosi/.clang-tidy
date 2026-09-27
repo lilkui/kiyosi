@@ -1,0 +1,7 @@
+InheritParentConfig: true
+# These fixes can change nanobind names or Python C API pointer types.
+Checks: >-
+  -misc-const-correctness,
+  -performance-unnecessary-value-param,
+  -readability-identifier-naming
+HeaderFilterRegex: '(^|[/\\])python[/\\]kiyosi[/\\]'

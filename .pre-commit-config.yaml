@@ -5,9 +5,9 @@ repos:
     hooks:
       - id: clang-tidy
         name: clang-tidy --fix
-        entry: clang-tidy -p=out/build/quality --fix
+        entry: clang-tidy -p=out/build/quality --fix --quiet
         language: unsupported
-        files: ^(src|tests|examples)/.*\.cpp$
+        files: ^(include|src|tests|examples|python/kiyosi)/.*\.(cpp|hpp)$
         require_serial: true
 
       - id: clang-format

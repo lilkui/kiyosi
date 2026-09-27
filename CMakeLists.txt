@@ -65,7 +65,10 @@ if(KIYOSI_ENABLE_CLANG_FORMAT)
     file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/python/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cu"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/tests/*.hpp"
@@ -258,7 +261,16 @@ if(KIYOSI_BUILD_PYTHON)
     endif()
 
     find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-    find_package(nanobind CONFIG REQUIRED)
+    find_package(nanobind CONFIG QUIET)
+    if(NOT nanobind_FOUND)
+        execute_process(
+            COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
+            OUTPUT_VARIABLE nanobind_ROOT
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            COMMAND_ERROR_IS_FATAL ANY
+        )
+        find_package(nanobind CONFIG REQUIRED)
+    endif()
 
     nanobind_add_module(_native
         python/kiyosi/_native.cpp
@@ -268,6 +280,13 @@ if(KIYOSI_BUILD_PYTHON)
         python/kiyosi/_pricing.cpp
     )
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)
+    if(KIYOSI_ENABLE_CLANG_TIDY)
+        # Keep compile commands usable by clang-tidy before the first build creates module maps.
+        set_target_properties(_native PROPERTIES
+            CXX_SCAN_FOR_MODULES OFF
+            CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}"
+        )
+    endif()
 
     nanobind_add_stub(kiyosi_python_stubs
         MODULE _native

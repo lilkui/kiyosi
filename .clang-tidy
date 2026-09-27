@@ -82,8 +82,8 @@ Checks: >-
   -modernize-use-trailing-return-type,
   -portability-avoid-pragma-once
 WarningsAsErrors: ''
-HeaderFilterRegex: '(^|[/\\])(include|src|tests)([/\\])'
-ExcludeHeaderFilterRegex: '(^|[/\\])(_deps|third_party|external|vendor)([/\\])'
+HeaderFilterRegex: '(^|[/\\])(include|src|tests|python)([/\\])'
+ExcludeHeaderFilterRegex: '(^|[/\\])(_deps|third_party|external|vendor|site-packages)([/\\])'
 SystemHeaders: false
 FormatStyle: file
 CheckOptions:
