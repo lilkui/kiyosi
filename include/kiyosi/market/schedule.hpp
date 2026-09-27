@@ -37,25 +37,6 @@ namespace detail {
     return {};
 }
 
-/// Validates one observation date against an instrument life and calendar.
-/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
-[[nodiscard]] inline Result<void> validate_observation_date(
-    Date observation_date, Date instrument_start, Date instrument_end, const TradingCalendar& calendar)
-{
-    auto life = validate_instrument_life(instrument_start, instrument_end);
-    if (!life) return life;
-    if (!is_supported_date(observation_date))
-        return std::unexpected(Error{ErrorCategory::invalid_date, "observation date is invalid"});
-    if (observation_date < instrument_start || instrument_end < observation_date)
-        return std::unexpected(Error{ErrorCategory::invalid_schedule,
-                                     "observation Date must be within the instrument life"});
-    if (!calendar.is_trading_day(observation_date)) {
-        return std::unexpected(Error{ErrorCategory::invalid_date,
-                                     "observation Date is not a trading day"});
-    }
-    return {};
-}
-
 /// Validates ordering, life bounds, and trading-day status for observation dates.
 /// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<void> validate_observation_dates(

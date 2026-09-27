@@ -229,7 +229,6 @@ using PythonTimestampObject = nb::typed<nb::object, PythonTimestampAnnotation>;
 using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
 using PythonDateIterator =
     nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
-using PythonStringIterator = nb::typed<nb::object, nb::typed<nb::iterator, std::string>>;
 using PythonOptionalReal = nb::typed<nb::object, std::optional<double>>;
 
 struct ReprField {

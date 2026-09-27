@@ -77,18 +77,10 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertFalse(hasattr(kiyosi, "GreeksLevel"))
         self.assertFalse(hasattr(pricing, "GreeksLevel"))
         result = AnalyticVanillaEngine().price_with_greeks(self.option, self.context, all_greeks=True)
-        self.assertEqual(len(result), 11)
-        self.assertEqual(result["price"], result.price)
-        self.assertEqual(result.keys(), ("price", *get_args(kiyosi.Greek)))
-        self.assertEqual(result.values()[0], result.price)
-        self.assertEqual(result.items()[0], ("price", result.price))
+        self.assertIs(type(result.price), float)
+        self.assertEqual(result.require("delta"), result.delta)
         with self.assertRaises(ValueError):
             result.require("price")
-        self.assertIn("speed", result)
-        self.assertNotIn("unknown", result)
-        self.assertNotIn(1, result)
-        self.assertNotIn(None, result)
-        self.assertNotIn([], result)
 
     def test_selected_greeks_preserve_native_values_and_scalar_price(self):
         engine = AnalyticVanillaEngine()

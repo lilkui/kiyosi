@@ -6,16 +6,7 @@ namespace kiyosi::python_binding {
 
 namespace {
 
-inline constexpr auto& greek_names = EnumNames<Greek>::values;
-static_assert(greek_names.size() == greek_count);
-inline constexpr std::size_t result_field_count = greek_count + 1;
-
-std::optional<Greek> measure_named(std::string_view name)
-{
-    for (const auto& [candidate, measure] : greek_names)
-        if (name == candidate) return measure;
-    return std::nullopt;
-}
+static_assert(EnumNames<Greek>::values.size() == greek_count);
 
 MonteCarloBackend monte_carlo_backend_value(nb::handle value)
 {
@@ -28,43 +19,6 @@ PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
     const auto value = result.get(measure);
     if (value && *value) return PythonOptionalReal{nb::float_(**value)};
     return PythonOptionalReal{nb::none()};
-}
-
-nb::tuple result_keys()
-{
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
-    nb::object price = nb::str("price");
-    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
-    for (std::size_t index = 0; index < greek_names.size(); ++index) {
-        nb::object value = nb::str(greek_names[index].first.data());
-        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
-    }
-    return output;
-}
-
-nb::tuple result_values(const PricingResult& result)
-{
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
-    nb::object price = nb::float_(result.price());
-    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
-    for (std::size_t index = 0; index < greek_names.size(); ++index) {
-        nb::object value = optional_value(result, greek_names[index].second);
-        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
-    }
-    return output;
-}
-
-nb::tuple result_items(const PricingResult& result)
-{
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
-    nb::object price = nb::make_tuple("price", result.price());
-    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
-    for (std::size_t index = 0; index < greek_names.size(); ++index) {
-        nb::object value = nb::make_tuple(greek_names[index].first.data(),
-                                          optional_value(result, greek_names[index].second));
-        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
-    }
-    return output;
 }
 
 NumericalShiftSettings numerical_settings(
@@ -576,7 +530,7 @@ void bind_results(nb::module_& module)
 {
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",
-        R"doc(Read-only mapping of price and the fixed Greek vocabulary.
+        R"doc(Read-only price and Greek result.
 
 Price uses instrument value units. Delta, gamma, and speed are per one spot unit,
 squared spot unit, and cubed spot unit. Vega, vanna, and zomma are price, delta,
@@ -597,61 +551,6 @@ vega, vanna, zomma : float or None
     Volatility-point changes in price, delta, and gamma.
 rho : float or None
     Price change per interest-rate percentage point.)doc")
-        .def("__len__", [](const PricingResult&) { return result_field_count; })
-        .def("__iter__", [](const PricingResult&) {
-            return PythonStringIterator{result_keys().attr("__iter__")()};
-        })
-        .def("__contains__", [](const PricingResult&, nb::handle key) {
-            if (!nb::isinstance<nb::str>(key)) return false;
-            const auto name = nb::cast<std::string>(key);
-            return name == "price" || measure_named(name).has_value();
-        }, nb::arg().none())
-        .def("__getitem__", [](const PricingResult& result, nb::str key) {
-            const std::string name = nb::cast<std::string>(key);
-            if (name == "price") return nb::object{nb::float_(result.price())};
-            const auto measure = measure_named(name);
-            if (!measure) throw nb::key_error(name.c_str());
-            return nb::object{optional_value(result, *measure)};
-        })
-        .def("get", [](const PricingResult& result, nb::str key, nb::object fallback) {
-            const auto name = nb::cast<std::string>(key);
-            if (name == "price") return nb::object{nb::float_(result.price())};
-            const auto measure = measure_named(name);
-            return measure ? nb::object{optional_value(result, *measure)} : fallback;
-        }, "key"_a, "default"_a = nb::none(), R"doc(Return price or a Greek by name.
-
-Parameters
-----------
-key : str
-    ``price`` or a lowercase Greek name.
-default : object, optional
-    Value returned when ``key`` is unknown.
-
-Returns
--------
-float, None, or object
-    Value, ``None`` when a Greek is unavailable, or ``default`` for an unknown key.)doc")
-        .def("keys", [](const PricingResult&) { return result_keys(); },
-             R"doc(Return price and Greek names in stable order.
-
-Returns
--------
-tuple[str, ...]
-    Fixed lowercase names, starting with price.)doc")
-        .def("values", [](const PricingResult& result) { return result_values(result); },
-             R"doc(Return price and Greek values in stable order.
-
-Returns
--------
-tuple[float or None, ...]
-    Values aligned with :meth:`keys`.)doc")
-        .def("items", [](const PricingResult& result) { return result_items(result); },
-             R"doc(Return name-value pairs in stable order.
-
-Returns
--------
-tuple[tuple[str, float or None], ...]
-    Pairs aligned with :meth:`keys`.)doc")
         .def("require", [](const PricingResult& result, Greek measure) {
             return unwrap(result.require(measure));
         }, "measure"_a, R"doc(Return a required Greek.
@@ -706,8 +605,6 @@ KiyosiError
                {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"},
                {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
                {"zomma", "zomma"}, {"rho", "rho"}});
-    nb::module_::import_("collections.abc").attr("Mapping").attr("register")(
-        module.attr("PricingResult"));
 }
 
 void bind_engines(nb::module_& module)

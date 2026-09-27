@@ -77,24 +77,6 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     return ExerciseBasedOption<Payoff, Exercise>{std::move(terms), std::move(payoff), std::move(exercise)};
 }
 
-namespace detail {
-
-template <OptionPayoff Payoff>
-[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, EuropeanExercise>> make_european_option(
-    OptionTerms terms, Payoff payoff)
-{
-    return detail::make_exercise_based_option(std::move(terms), std::move(payoff), EuropeanExercise{});
-}
-
-template <OptionPayoff Payoff>
-[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, AmericanExercise>> make_american_option(
-    OptionTerms terms, Payoff payoff)
-{
-    return detail::make_exercise_based_option(std::move(terms), std::move(payoff), AmericanExercise{});
-}
-
-} // namespace detail
-
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline Result<ExerciseBasedOption<Payoff, Exercise>> detail::make_option(
     OptionType option_type, double strike, Date effective_date, Date expiry_date, Payoff payoff, Exercise exercise)
