@@ -8,18 +8,19 @@ Latest report: [Windows CPU results, 2026-09-26](results/2026-09-26-windows.md),
 
 Install QuantLib C++ with its CMake package, then configure a Release build. CMake adds QuantLib comparisons automatically when it finds the package. QuantLib 1.43 matches the version used by the repository's reference tooling.
 
-On Windows with vcpkg `QuantLib:x64-windows-static`, run `run-benchmarks.bat C:\path\to\vcpkg` from the repository root (or set `VCPKG_ROOT` and run it without an argument). The script builds and runs every registered CPU benchmark, including the QuantLib comparisons, and writes `build\windows-benchmarks\benchmarks.json`. CUDA benchmarks require a separate CUDA-enabled build.
-
-For a matrix-only run or a manually installed QuantLib package, use these commands from a Visual Studio Developer PowerShell:
+On Windows with vcpkg `QuantLib:x64-windows-static`, run these commands from the repository root in a Visual Studio Developer PowerShell. They build and run every registered CPU benchmark, including the QuantLib comparisons. CUDA benchmarks require a separate CUDA-enabled build.
 
 ```powershell
-cmake --preset windows-release -DKIYOSI_BUILD_BENCHMARKS=ON -DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib
+$env:VCPKG_ROOT = 'C:/path/to/vcpkg'
+cmake --preset windows-release --fresh -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_TESTING=OFF -DKIYOSI_BUILD_EXAMPLES=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_TOOLCHAIN_FILE="${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
 cmake --build --preset windows-release --target kiyosi_benchmarks
-./out/build/windows-release/benchmarks/kiyosi_benchmarks.exe --benchmark_filter=^matrix/ --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=matrix.json --benchmark_out_format=json
-python benchmarks/compare.py matrix.json
+./out/build/windows-release/benchmarks/kiyosi_benchmarks.exe --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=out/build/windows-release/benchmarks.json --benchmark_out_format=json
+python benchmarks/compare.py out/build/windows-release/benchmarks.json
 ```
 
-Use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_benchmarks` on Linux. Without a QuantLib C++ package, CMake builds the Kiyosi cases alone. `compare.py` accepts either aggregate or individual Google Benchmark JSON results and prints median times, `QuantLib / Kiyosi` ratios, and warmup price differences. A ratio above 1 means Kiyosi took less CPU time in a paired case.
+For a manually installed QuantLib package, replace the toolchain and triplet arguments with `-DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib`. Add `--benchmark_filter=^matrix/` to the benchmark command for a matrix-only run.
+
+On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_benchmarks`, omitting the Windows-specific CMake options. Without a QuantLib C++ package, CMake builds the Kiyosi cases alone. `compare.py` accepts either aggregate or individual Google Benchmark JSON results and prints median times, `QuantLib / Kiyosi` ratios, and warmup price differences. A ratio above 1 means Kiyosi took less CPU time in a paired case.
 
 ## Scenario and interpretation
 
