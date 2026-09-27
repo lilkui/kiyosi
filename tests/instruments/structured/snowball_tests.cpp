@@ -372,6 +372,7 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
     const auto first = day(2025, 1, 2);
     const auto expiry = day(2025, 1, 6);
     const auto market = [&](kiyosi::Date valuation) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, valuation);
     };

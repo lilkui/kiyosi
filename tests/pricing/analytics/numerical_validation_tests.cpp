@@ -10,12 +10,12 @@
 
 namespace {
 
-kiyosi::Date day(int year, unsigned month, unsigned day_number)
+constexpr kiyosi::Date day(int year, unsigned month, unsigned day_number)
 {
     return kiyosi::Date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
 }
 
-const auto valuation = day(2025, 1, 6);
+constexpr auto valuation = day(2025, 1, 6);
 const auto expiry_date = valuation + std::chrono::days{365};
 
 kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
@@ -23,6 +23,7 @@ kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
                                kiyosi::Date value_date = valuation)
 {
     const auto parameters = *kiyosi::make_bsm_parameters(rate, dividend, volatility);
+    // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
     return *kiyosi::make_pricing_context(parameters, spot, value_date);
 }
 

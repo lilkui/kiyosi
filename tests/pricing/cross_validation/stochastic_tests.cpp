@@ -17,8 +17,8 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
-const auto effective_date = day(2025, 1, 6);
-const auto expiry_date = effective_date + std::chrono::days{91};
+constexpr auto effective_date = day(2025, 1, 6);
+constexpr auto expiry_date = effective_date + std::chrono::days{91};
 
 struct Scenario {
     const char* name;
@@ -34,6 +34,7 @@ T checked(Result<T> value)
 {
     INFO((value ? "valid result" : value.error().message));
     REQUIRE(value.has_value());
+    // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): T is returned by value.
     return *value;
 }
 

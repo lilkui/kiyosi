@@ -73,6 +73,7 @@ TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, expiry_date);
     };
     const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
@@ -169,6 +170,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
         },
         365);
     const auto context = [&](kiyosi::Date date, double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, date, calendar);
     };
@@ -223,6 +225,7 @@ TEST_CASE("Accumulator CUDA selection validates and preserves deterministic sett
                                                    .effective_date = valuation,
                                                    .expiry_date = expiry_date});
     const auto context = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), spot, valuation,
             kiyosi::all_days_calendar());

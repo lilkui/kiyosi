@@ -35,7 +35,7 @@ struct ReferenceProvenance {
     double explicit_tolerance = 0.0;
 };
 
-struct ReferenceCase {
+struct ReferenceCase { // NOLINT(bugprone-exception-escape): MSVC map moves may allocate in debug builds.
     std::string case_id;
     std::string instrument;
     std::string engine;

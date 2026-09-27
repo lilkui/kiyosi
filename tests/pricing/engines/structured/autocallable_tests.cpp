@@ -129,6 +129,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
                                              spot, expiry_date);
     };
@@ -174,6 +175,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
                                              spot, expiry_date);
     };
@@ -237,6 +239,7 @@ TEST_CASE("Binary snowball expiry_date settlement applies final observations")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
                                              spot, expiry_date);
     };
@@ -266,6 +269,7 @@ TEST_CASE("Ternary snowball expiry_date settlement applies final observations")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto market = [&](double spot) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 0.2),
                                              spot, expiry_date);
     };
@@ -801,6 +805,7 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     };
     const kiyosi::FiniteDifferenceSettings settings{40, 40};
     const auto context = [&](kiyosi::TradingCalendar calendar) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
         return *kiyosi::make_pricing_context(parameters, 100.0, valuation, std::move(calendar));
     };
 

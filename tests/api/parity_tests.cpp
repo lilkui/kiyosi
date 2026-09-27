@@ -15,7 +15,7 @@ namespace {
 
 using Fields = std::unordered_map<std::string, std::string>;
 
-struct ParityCase {
+struct ParityCase { // NOLINT(bugprone-exception-escape): MSVC map moves may allocate in debug builds.
     std::string id;
     std::string kind;
     Fields inputs;

@@ -11,12 +11,13 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
-const auto effective = day(2025, 1, 1);
-const auto valuation = day(2025, 7, 1);
-const auto expiry = day(2026, 1, 1);
+constexpr auto effective = day(2025, 1, 1);
+constexpr auto valuation = day(2025, 7, 1);
+constexpr auto expiry = day(2026, 1, 1);
 
 PricingContext market(double spot = 100.0, Date date = valuation)
 {
+    // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
     return *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), spot, date);
 }
 

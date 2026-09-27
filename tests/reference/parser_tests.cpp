@@ -215,7 +215,7 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         has_settlement |= value.inputs.contains("settlement");
         has_monitoring |= value.inputs.contains("monitoring");
         has_calendar |= value.inputs.contains("calendar");
-        if (value.engine.find("MonteCarlo") != std::string::npos)
+        if (value.engine.contains("MonteCarlo"))
             REQUIRE(value.monte_carlo.has_value());
         REQUIRE(value.outputs.contains("price"));
     }

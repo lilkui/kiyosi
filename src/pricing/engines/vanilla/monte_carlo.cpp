@@ -86,14 +86,12 @@ Result<std::vector<double>> simulate_paths(
     const auto size = static_cast<std::size_t>(path_count) * stride;
     std::vector<double> paths(size);
 
-    std::mt19937_64 generator;
-    if (settings.seed) {
-        generator.seed(*settings.seed);
-    } else {
+    std::mt19937_64 generator = [&] {
+        if (settings.seed) return std::mt19937_64{*settings.seed};
         std::random_device source;
         std::seed_seq seed{source(), source(), source(), source()};
-        generator.seed(seed);
-    }
+        return std::mt19937_64{seed};
+    }();
     std::normal_distribution<double> normal;
     const int half_count = path_count / 2;
     for (int path = 0; path < half_count; ++path) {

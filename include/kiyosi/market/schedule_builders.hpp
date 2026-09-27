@@ -75,8 +75,9 @@ namespace detail {
     const auto start_month = std::chrono::year_month_day{start};
     const auto end_month = std::chrono::year_month_day{end};
     const auto months_until_end =
-        (std::int64_t{int(end_month.year())} - int(start_month.year())) * 12 +
-        int(unsigned(end_month.month())) - int(unsigned(start_month.month()));
+        (std::int64_t{static_cast<int>(end_month.year())} - static_cast<int>(start_month.year())) * 12 +
+        static_cast<int>(static_cast<unsigned>(end_month.month())) -
+        static_cast<int>(static_cast<unsigned>(start_month.month()));
     std::vector<Date> dates;
     for (std::int64_t month = lock_up_months; month <= months_until_end; ++month) {
         const auto target = detail::add_months(start, static_cast<int>(month));

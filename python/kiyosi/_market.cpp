@@ -74,7 +74,7 @@ UNSUPPORTED_OPERATION
 void bind_market(nb::module_& module)
 {
     auto parameters = nb::class_<BlackScholesMertonParameters>(
-        module, "BlackScholesMertonParameters", R"doc(Validated Black-Scholes-Merton market parameters.
+                          module, "BlackScholesMertonParameters", R"doc(Validated Black-Scholes-Merton market parameters.
 
 Parameters are continuously compounded decimal rates and an annualized decimal
 volatility. Instances are immutable value objects.
@@ -87,15 +87,15 @@ dividend_yield : float
     Continuously compounded annual dividend yield.
 volatility : float
     Positive annualized volatility.)doc")
-        .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
-                        PythonReal volatility) {
-                 return unwrap(make_bsm_parameters(
-                     real_number(risk_free_rate, "risk_free_rate"),
-                     real_number(dividend_yield, "dividend_yield"),
-                     real_number(volatility, "volatility")));
-             }),
-             nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a,
-             R"doc(Create validated Black-Scholes-Merton parameters.
+                          .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
+                                           PythonReal volatility) {
+                                   return unwrap(make_bsm_parameters(
+                                       real_number(risk_free_rate, "risk_free_rate"),
+                                       real_number(dividend_yield, "dividend_yield"),
+                                       real_number(volatility, "volatility")));
+                               }),
+                               nb::kw_only(), "risk_free_rate"_a, "dividend_yield"_a, "volatility"_a,
+                               R"doc(Create validated Black-Scholes-Merton parameters.
 
 Parameters
 ----------
@@ -114,12 +114,12 @@ OverflowError
     If a value cannot be represented as a C++ ``double``.
 KiyosiError
     If a value is non-finite or volatility is not positive.)doc")
-        .def_prop_ro("risk_free_rate", &BlackScholesMertonParameters::risk_free_rate,
-                     "Continuously compounded annual risk-free rate.")
-        .def_prop_ro("dividend_yield", &BlackScholesMertonParameters::dividend_yield,
-                     "Continuously compounded annual dividend yield.")
-        .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility,
-                     "Positive annualized volatility.");
+                          .def_prop_ro("risk_free_rate", &BlackScholesMertonParameters::risk_free_rate,
+                                       "Continuously compounded annual risk-free rate.")
+                          .def_prop_ro("dividend_yield", &BlackScholesMertonParameters::dividend_yield,
+                                       "Continuously compounded annual dividend yield.")
+                          .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility,
+                                       "Positive annualized volatility.");
     bind_value_equality(parameters);
     bind_repr(parameters, "BlackScholesMertonParameters",
               {{"risk_free_rate", "risk_free_rate"},
@@ -127,8 +127,8 @@ KiyosiError
                {"volatility", "volatility"}});
 
     auto calendar = nb::class_<TradingCalendar>(
-        module, "TradingCalendar",
-        R"doc(Read-only trading-day calendar.
+                        module, "TradingCalendar",
+                        R"doc(Read-only trading-day calendar.
 
 Instances are created by :func:`all_days_calendar`, :func:`weekdays_calendar`,
 or :func:`sse_calendar`.
@@ -137,11 +137,7 @@ Attributes
 ----------
 trading_days_per_year : int
     Annualization denominator used for trading-year fractions.)doc")
-        .def("is_trading_day",
-             [](const TradingCalendar& calendar, PythonDate value) {
-                 return calendar.is_trading_day(calendar_date(value, "value"));
-             },
-             "value"_a, R"doc(Return whether a date is a trading day.
+                        .def("is_trading_day", [](const TradingCalendar& calendar, PythonDate value) { return calendar.is_trading_day(calendar_date(value, "value")); }, "value"_a, R"doc(Return whether a date is a trading day.
 
 Parameters
 ----------
@@ -157,19 +153,9 @@ Raises
 ------
 TypeError
     If ``value`` is not a :class:`datetime.date`.)doc")
-        .def("adjust",
-             [](const TradingCalendar& calendar, PythonDate nominal,
-                BusinessDayConvention convention) {
-                 return python_date(unwrap(calendar.adjust(calendar_date(nominal, "nominal"), convention)));
-             },
-             "nominal"_a, "convention"_a,
-             "Adjust a nominal date to a trading day using FOLLOWING or PRECEDING.")
-        .def("trading_days_between",
-             [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
-                 return unwrap(calendar.trading_days_between(
-                     calendar_date(start, "start"), calendar_date(end, "end")));
-             },
-             "start"_a, "end"_a, R"doc(Count trading days in the half-open interval ``[start, end)``.
+                        .def("adjust", [](const TradingCalendar& calendar, PythonDate nominal, BusinessDayConvention convention) { return python_date(unwrap(calendar.adjust(calendar_date(nominal, "nominal"), convention))); }, "nominal"_a, "convention"_a, "Adjust a nominal date to a trading day using FOLLOWING or PRECEDING.")
+                        .def("trading_days_between", [](const TradingCalendar& calendar, PythonDate start, PythonDate end) { return unwrap(calendar.trading_days_between(
+                                                                                                                                 calendar_date(start, "start"), calendar_date(end, "end"))); }, "start"_a, "end"_a, R"doc(Count trading days in the half-open interval ``[start, end)``.
 
 Parameters
 ----------
@@ -189,12 +175,8 @@ TypeError
     If either argument is not a :class:`datetime.date`.
 KiyosiError
     If the range is reversed.)doc")
-        .def("trading_year_fraction",
-             [](const TradingCalendar& calendar, PythonDate start, PythonDate end) {
-                 return unwrap(calendar.trading_year_fraction(
-                     calendar_date(start, "start"), calendar_date(end, "end")));
-             },
-             "start"_a, "end"_a, R"doc(Return the trading-year fraction for ``[start, end)``.
+                        .def("trading_year_fraction", [](const TradingCalendar& calendar, PythonDate start, PythonDate end) { return unwrap(calendar.trading_year_fraction(
+                                                                                                                                  calendar_date(start, "start"), calendar_date(end, "end"))); }, "start"_a, "end"_a, R"doc(Return the trading-year fraction for ``[start, end)``.
 
 Parameters
 ----------
@@ -214,13 +196,12 @@ TypeError
     If either argument is not a :class:`datetime.date`.
 KiyosiError
     If the range is reversed.)doc")
-        .def_prop_ro("trading_days_per_year", &TradingCalendar::trading_days_per_year,
-                     "Annualization denominator for trading-year fractions.");
+                        .def_prop_ro("trading_days_per_year", &TradingCalendar::trading_days_per_year, "Annualization denominator for trading-year fractions.");
     bind_repr(calendar, "TradingCalendar",
               {{"trading_days_per_year", "trading_days_per_year"}});
 
     auto schedule = nb::class_<ObservationSchedule>(
-        module, "ObservationSchedule", R"doc(Immutable ordered observation dates.
+                        module, "ObservationSchedule", R"doc(Immutable ordered observation dates.
 
 The sequence supports ``len(schedule)``, integer indexing, negative indexing,
 and iteration.
@@ -229,28 +210,28 @@ Attributes
 ----------
 dates : list[datetime.date]
     Copy of the ordered observation dates.)doc")
-        .def("__len__", &ObservationSchedule::size)
-        .def("__getitem__", [](const ObservationSchedule& schedule, nb::ssize_t index) {
-            const auto size = static_cast<nb::ssize_t>(schedule.size());
-            if (index < 0) index += size;
-            if (index < 0 || index >= size) throw nb::index_error();
-            return python_date(schedule[static_cast<std::size_t>(index)]);
-        })
-        .def("__iter__", [](const ObservationSchedule& schedule) {
+                        .def("__len__", &ObservationSchedule::size)
+                        .def("__getitem__", [](const ObservationSchedule& schedule, nb::ssize_t index) {
+                            const auto size = static_cast<nb::ssize_t>(schedule.size());
+                            if (index < 0) index += size;
+                            if (index < 0 || index >= size) throw nb::index_error();
+                            return python_date(schedule[static_cast<std::size_t>(index)]);
+                        })
+                        .def("__iter__", [](const ObservationSchedule& schedule) {
+                            PythonDateList output;
+                            for (const Date value : schedule.dates())
+                                output.append(python_date(value));
+                            return PythonDateIterator{output.attr("__iter__")()};
+                        })
+                        .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
             PythonDateList output;
             for (const Date value : schedule.dates()) output.append(python_date(value));
-            return PythonDateIterator{output.attr("__iter__")()};
-        })
-        .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
-            PythonDateList output;
-            for (const Date value : schedule.dates()) output.append(python_date(value));
-            return output;
-        }, "Copy of the ordered observation dates.");
+            return output; }, "Copy of the ordered observation dates.");
     bind_value_equality(schedule);
     bind_repr(schedule, "ObservationSchedule", {{"dates", "dates"}});
 
     auto context = nb::class_<PricingContext>(
-        module, "PricingContext", R"doc(Validated market state for a valuation instant.
+                       module, "PricingContext", R"doc(Validated market state for a valuation instant.
 
 Attributes
 ----------
@@ -264,15 +245,15 @@ valuation_time : datetime.datetime
     Timezone-aware valuation timestamp normalized to UTC.
 calendar : TradingCalendar
     Read-only calendar view tied to this context's lifetime.)doc")
-        .def(nb::new_([](const BlackScholesMertonParameters& parameters, PythonReal spot_price,
-                        PythonValuationTime time, const TradingCalendar& calendar) {
-                 return unwrap(make_pricing_context(
-                     parameters, real_number(spot_price, "spot_price"),
-                     valuation_time(time), calendar));
-             }),
-             nb::kw_only(), "model_parameters"_a, "spot_price"_a, "valuation_time"_a,
-             "calendar"_a = weekdays_calendar(),
-             R"doc(Create a validated pricing context.
+                       .def(nb::new_([](const BlackScholesMertonParameters& parameters, PythonReal spot_price,
+                                        PythonValuationTime time, const TradingCalendar& calendar) {
+                                return unwrap(make_pricing_context(
+                                    parameters, real_number(spot_price, "spot_price"),
+                                    valuation_time(time), calendar));
+                            }),
+                            nb::kw_only(), "model_parameters"_a, "spot_price"_a, "valuation_time"_a,
+                            "calendar"_a = weekdays_calendar(),
+                            R"doc(Create a validated pricing context.
 
 Parameters
 ----------
@@ -292,23 +273,16 @@ TypeError
     If an argument has an incompatible representation or a datetime is naive.
 KiyosiError
     If the core rejects the spot price or valuation state.)doc")
-        .def_prop_ro("model_parameters", &PricingContext::model_parameters,
-                     nb::rv_policy::reference_internal,
-                     "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
-        .def_prop_ro("spot_price", &PricingContext::spot_price,
-                     "Positive underlying spot price.")
-        .def_prop_ro("valuation_date", [](const PricingContext& context) {
-            return python_date(context.valuation_date());
-        }, "UTC date containing the valuation instant.")
-        .def_prop_ro("valuation_time", [](const PricingContext& context) {
-            return python_timestamp(context.valuation_time());
-        }, "Timezone-aware valuation timestamp normalized to UTC.")
-        .def_prop_ro("calendar", &PricingContext::calendar,
-                     nb::rv_policy::reference_internal,
-                     "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
+                       .def_prop_ro("model_parameters", &PricingContext::model_parameters,
+                                    nb::rv_policy::reference_internal,
+                                    "Read-only parameters view that keeps this context alive; concurrent reads are safe.")
+                       .def_prop_ro("spot_price", &PricingContext::spot_price,
+                                    "Positive underlying spot price.")
+                       .def_prop_ro("valuation_date", [](const PricingContext& context) { return python_date(context.valuation_date()); }, "UTC date containing the valuation instant.")
+                       .def_prop_ro("valuation_time", [](const PricingContext& context) { return python_timestamp(context.valuation_time()); }, "Timezone-aware valuation timestamp normalized to UTC.")
+                       .def_prop_ro("calendar", &PricingContext::calendar, nb::rv_policy::reference_internal, "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
     bind_repr(context, "PricingContext",
-              {{"model_parameters", "model_parameters"}, {"spot_price", "spot_price"},
-               {"valuation_time", "valuation_time"}, {"calendar", "calendar"}});
+              {{"model_parameters", "model_parameters"}, {"spot_price", "spot_price"}, {"valuation_time", "valuation_time"}, {"calendar", "calendar"}});
 
     module.def("all_days_calendar", &all_days_calendar, R"doc(Return a calendar in which every day is a trading day.
 

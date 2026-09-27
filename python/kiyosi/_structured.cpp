@@ -10,20 +10,15 @@ template <typename Note>
 void bind_note_properties(nb::class_<Note>& binding)
 {
     binding.def_prop_ro("knock_out_levels", &Note::knock_out_levels,
-                     "Knock-out level for each observation date.")
+                        "Knock-out level for each observation date.")
         .def_prop_ro("observation_dates", [](const Note& note) {
             PythonDateList output;
             for (const Date value : note.observation_dates()) output.append(python_date(value));
-            return output;
-        }, "Copy of the ordered observation dates.")
-        .def_prop_ro("principal_ratio", &Note::principal_ratio,
-                     "Normalized principal repayment component; coupons and downside are separate.")
-        .def_prop_ro("barrier_state", &Note::barrier_state,
-                     "State before valuation, or None when not supplied.")
-        .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); },
-                     "First date on which the note is effective.")
-        .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); },
-                     "Note expiry date.");
+            return output; }, "Copy of the ordered observation dates.")
+        .def_prop_ro("principal_ratio", &Note::principal_ratio, "Normalized principal repayment component; coupons and downside are separate.")
+        .def_prop_ro("barrier_state", &Note::barrier_state, "State before valuation, or None when not supplied.")
+        .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); }, "First date on which the note is effective.")
+        .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); }, "Note expiry date.");
     if constexpr (requires { &Note::initial_spot; &Note::upper_strike; &Note::lower_strike; })
         binding.def_prop_ro("initial_spot", &Note::initial_spot,
                             "Reference spot used to define relative terms.")
@@ -114,17 +109,16 @@ void bind_presets(nb::module_& module)
            PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_step_down_snowball({
-                .coupon_rate = real_number(coupon_rate, "coupon_rate"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .initial_knock_out_level = real_number(initial_knock_out_level, "initial_knock_out_level"),
-                .knock_out_level_decrement = real_number(knock_out_level_decrement, "knock_out_level_decrement"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_step_down_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
+                                                   .initial_spot = real_number(initial_spot, "initial_spot"),
+                                                   .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                                   .initial_knock_out_level = real_number(initial_knock_out_level, "initial_knock_out_level"),
+                                                   .knock_out_level_decrement = real_number(knock_out_level_decrement, "knock_out_level_decrement"),
+                                                   .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                                   .effective_date = calendar_date(effective_date, "effective_date"),
+                                                   .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                                   .barrier_state = barrier_state,
+                                                   .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
         "initial_knock_out_level"_a, "knock_out_level_decrement"_a, "observation_dates"_a, "effective_date"_a,
@@ -170,18 +164,17 @@ KiyosiError
            PythonReal knock_in_level, PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_both_down_snowball({
-                .initial_coupon_rate = real_number(initial_coupon_rate, "initial_coupon_rate"),
-                .coupon_rate_decrement = real_number(coupon_rate_decrement, "coupon_rate_decrement"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .initial_knock_out_level = real_number(initial_knock_out_level, "initial_knock_out_level"),
-                .knock_out_level_decrement = real_number(knock_out_level_decrement, "knock_out_level_decrement"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_both_down_snowball({.initial_coupon_rate = real_number(initial_coupon_rate, "initial_coupon_rate"),
+                                                   .coupon_rate_decrement = real_number(coupon_rate_decrement, "coupon_rate_decrement"),
+                                                   .initial_spot = real_number(initial_spot, "initial_spot"),
+                                                   .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                                   .initial_knock_out_level = real_number(initial_knock_out_level, "initial_knock_out_level"),
+                                                   .knock_out_level_decrement = real_number(knock_out_level_decrement, "knock_out_level_decrement"),
+                                                   .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                                   .effective_date = calendar_date(effective_date, "effective_date"),
+                                                   .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                                   .barrier_state = barrier_state,
+                                                   .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "initial_coupon_rate"_a, "coupon_rate_decrement"_a, "initial_spot"_a,
         "knock_in_level"_a, "initial_knock_out_level"_a, "knock_out_level_decrement"_a,
@@ -230,17 +223,16 @@ KiyosiError
            PythonReal initial_spot, PythonReal knock_in_level, PythonReal knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_dual_coupon_snowball({
-                .knock_out_coupon_rate = real_number(knock_out_coupon_rate, "knock_out_coupon_rate"),
-                .maturity_coupon_rate = real_number(maturity_coupon_rate, "maturity_coupon_rate"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .knock_out_level = real_number(knock_out_level, "knock_out_level"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_dual_coupon_snowball({.knock_out_coupon_rate = real_number(knock_out_coupon_rate, "knock_out_coupon_rate"),
+                                                     .maturity_coupon_rate = real_number(maturity_coupon_rate, "maturity_coupon_rate"),
+                                                     .initial_spot = real_number(initial_spot, "initial_spot"),
+                                                     .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                                     .knock_out_level = real_number(knock_out_level, "knock_out_level"),
+                                                     .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                                     .effective_date = calendar_date(effective_date, "effective_date"),
+                                                     .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                                     .barrier_state = barrier_state,
+                                                     .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "knock_out_coupon_rate"_a, "maturity_coupon_rate"_a,
         "initial_spot"_a, "knock_in_level"_a, "knock_out_level"_a,
@@ -287,17 +279,16 @@ KiyosiError
            PythonReal knock_out_level, PythonReal final_knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_parachute_snowball({
-                .coupon_rate = real_number(coupon_rate, "coupon_rate"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .knock_out_level = real_number(knock_out_level, "knock_out_level"),
-                .final_knock_out_level = real_number(final_knock_out_level, "final_knock_out_level"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_parachute_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
+                                                   .initial_spot = real_number(initial_spot, "initial_spot"),
+                                                   .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                                   .knock_out_level = real_number(knock_out_level, "knock_out_level"),
+                                                   .final_knock_out_level = real_number(final_knock_out_level, "final_knock_out_level"),
+                                                   .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                                   .effective_date = calendar_date(effective_date, "effective_date"),
+                                                   .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                                   .barrier_state = barrier_state,
+                                                   .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
         "knock_out_level"_a, "final_knock_out_level"_a, "observation_dates"_a,
@@ -343,17 +334,16 @@ KiyosiError
            PythonReal knock_out_level, PythonReal upper_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_otm_snowball({
-                .coupon_rate = real_number(coupon_rate, "coupon_rate"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .knock_out_level = real_number(knock_out_level, "knock_out_level"),
-                .upper_strike = real_number(upper_strike, "upper_strike"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_otm_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
+                                             .initial_spot = real_number(initial_spot, "initial_spot"),
+                                             .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                             .knock_out_level = real_number(knock_out_level, "knock_out_level"),
+                                             .upper_strike = real_number(upper_strike, "upper_strike"),
+                                             .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                             .effective_date = calendar_date(effective_date, "effective_date"),
+                                             .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                             .barrier_state = barrier_state,
+                                             .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
         "knock_out_level"_a, "upper_strike"_a, "observation_dates"_a, "effective_date"_a,
@@ -399,17 +389,16 @@ KiyosiError
            PythonReal knock_out_level, PythonReal lower_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
            std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
-            return unwrap(make_loss_capped_snowball({
-                .coupon_rate = real_number(coupon_rate, "coupon_rate"),
-                .initial_spot = real_number(initial_spot, "initial_spot"),
-                .knock_in_level = real_number(knock_in_level, "knock_in_level"),
-                .knock_out_level = real_number(knock_out_level, "knock_out_level"),
-                .lower_strike = real_number(lower_strike, "lower_strike"),
-                .observation_dates = date_sequence(observation_dates, "observation_dates"),
-                .effective_date = calendar_date(effective_date, "effective_date"),
-                .expiry_date = calendar_date(expiry_date, "expiry_date"),
-                .barrier_state = barrier_state,
-                .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
+            return unwrap(make_loss_capped_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
+                                                     .initial_spot = real_number(initial_spot, "initial_spot"),
+                                                     .knock_in_level = real_number(knock_in_level, "knock_in_level"),
+                                                     .knock_out_level = real_number(knock_out_level, "knock_out_level"),
+                                                     .lower_strike = real_number(lower_strike, "lower_strike"),
+                                                     .observation_dates = date_sequence(observation_dates, "observation_dates"),
+                                                     .effective_date = calendar_date(effective_date, "effective_date"),
+                                                     .expiry_date = calendar_date(expiry_date, "expiry_date"),
+                                                     .barrier_state = barrier_state,
+                                                     .principal_ratio = real_number(principal_ratio, "principal_ratio")}));
         },
         nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
         "knock_out_level"_a, "lower_strike"_a, "observation_dates"_a, "effective_date"_a,
@@ -456,7 +445,7 @@ KiyosiError
 void bind_structured_instruments(nb::module_& module)
 {
     auto snowball = nb::class_<SnowballOption>(
-        module, "SnowballOption", R"doc(Immutable validated snowball option.
+                        module, "SnowballOption", R"doc(Immutable validated snowball option.
 
 Attributes
 ----------
@@ -482,31 +471,30 @@ principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
-        .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
-                        PythonReal maturity_coupon_rate, PythonReal initial_spot,
-                        PythonReal knock_in_level, PythonRealSequence knock_out_levels,
-                        PythonReal upper_strike, PythonReal lower_strike,
-                        PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
-                        PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
-                 return unwrap(make_snowball_option({
-                     real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
-                     real_number(maturity_coupon_rate, "maturity_coupon_rate"),
-                     real_number(initial_spot, "initial_spot"),
-                     real_number(knock_in_level, "knock_in_level"),
-                     real_sequence(knock_out_levels, "knock_out_levels"),
-                     real_number(upper_strike, "upper_strike"),
-                     real_number(lower_strike, "lower_strike"),
-                     date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
-                     real_number(principal_ratio, "principal_ratio"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
-             }),
-             nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
-             "initial_spot"_a, "knock_in_level"_a, "knock_out_levels"_a,
-             "upper_strike"_a, "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
-             "barrier_state"_a = SnowballTerms{}.barrier_state,
-             "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a, R"doc(Create a validated snowball option.
+                        .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
+                                         PythonReal maturity_coupon_rate, PythonReal initial_spot,
+                                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
+                                         PythonReal upper_strike, PythonReal lower_strike,
+                                         PythonDateSequence observation_dates,
+                                         KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
+                                 return unwrap(make_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
+                                                                     real_number(maturity_coupon_rate, "maturity_coupon_rate"),
+                                                                     real_number(initial_spot, "initial_spot"),
+                                                                     real_number(knock_in_level, "knock_in_level"),
+                                                                     real_sequence(knock_out_levels, "knock_out_levels"),
+                                                                     real_number(upper_strike, "upper_strike"),
+                                                                     real_number(lower_strike, "lower_strike"),
+                                                                     date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
+                                                                     real_number(principal_ratio, "principal_ratio"),
+                                                                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
+                             }),
+                             nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
+                             "initial_spot"_a, "knock_in_level"_a, "knock_out_levels"_a,
+                             "upper_strike"_a, "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
+                             "barrier_state"_a = SnowballTerms{}.barrier_state,
+                             "principal_ratio"_a = SnowballTerms{}.principal_ratio,
+                             "effective_date"_a, "expiry_date"_a, R"doc(Create a validated snowball option.
 
 Parameters
 ----------
@@ -539,25 +527,29 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-        .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates,
-                     "Annualized coupon rate for each observation date.")
-        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate,
-                     "Annualized coupon rate used at maturity when applicable.");
+                        .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates,
+                                     "Annualized coupon rate for each observation date.")
+                        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate,
+                                     "Annualized coupon rate used at maturity when applicable.");
     bind_knock_in_properties(snowball);
     bind_value_equality(snowball);
     bind_repr(snowball, "SnowballOption",
               {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
                {"maturity_coupon_rate", "maturity_coupon_rate"},
-               {"initial_spot", "initial_spot"}, {"knock_in_level", "knock_in_level"},
+               {"initial_spot", "initial_spot"},
+               {"knock_in_level", "knock_in_level"},
                {"knock_out_levels", "knock_out_levels"},
-               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
+               {"upper_strike", "upper_strike"},
+               {"lower_strike", "lower_strike"},
                {"observation_dates", "observation_dates"},
-               {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"},
+               {"knock_in_observation_mode", "knock_in_observation_mode"},
+               {"barrier_state", "barrier_state"},
                {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+               {"effective_date", "effective_date"},
+               {"expiry_date", "expiry_date"}});
 
     auto binary = nb::class_<BinarySnowballOption>(
-        module, "BinarySnowballOption", R"doc(Immutable validated binary snowball option.
+                      module, "BinarySnowballOption", R"doc(Immutable validated binary snowball option.
 
 Attributes
 ----------
@@ -575,25 +567,24 @@ principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
-        .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
-                        PythonReal maturity_coupon_rate,
-                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
-                        std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio,
-                        PythonDate effective_date, PythonDate expiry_date) {
-                 return unwrap(make_binary_snowball_option({
-                     real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
-                     real_number(maturity_coupon_rate, "maturity_coupon_rate"),
-                     real_sequence(knock_out_levels, "knock_out_levels"),
-                     date_sequence(observation_dates, "observation_dates"), barrier_state,
-                     real_number(principal_ratio, "principal_ratio"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
-             }),
-             nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
-             "knock_out_levels"_a, "observation_dates"_a,
-             "barrier_state"_a = BinarySnowballTerms{}.barrier_state,
-             "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a,
-             R"doc(Create a validated binary snowball option.
+                      .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
+                                       PythonReal maturity_coupon_rate,
+                                       PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
+                                       std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio,
+                                       PythonDate effective_date, PythonDate expiry_date) {
+                               return unwrap(make_binary_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
+                                                                          real_number(maturity_coupon_rate, "maturity_coupon_rate"),
+                                                                          real_sequence(knock_out_levels, "knock_out_levels"),
+                                                                          date_sequence(observation_dates, "observation_dates"), barrier_state,
+                                                                          real_number(principal_ratio, "principal_ratio"),
+                                                                          calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
+                           }),
+                           nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
+                           "knock_out_levels"_a, "observation_dates"_a,
+                           "barrier_state"_a = BinarySnowballTerms{}.barrier_state,
+                           "principal_ratio"_a = BinarySnowballTerms{}.principal_ratio,
+                           "effective_date"_a, "expiry_date"_a,
+                           R"doc(Create a validated binary snowball option.
 
 Parameters
 ----------
@@ -618,22 +609,24 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-        .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates,
-                     "Annualized coupon rate for each observation date.")
-        .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate,
-                     "Annualized coupon rate used at maturity when applicable.");
+                      .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates,
+                                   "Annualized coupon rate for each observation date.")
+                      .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate,
+                                   "Annualized coupon rate used at maturity when applicable.");
     bind_note_properties(binary);
     bind_value_equality(binary);
     bind_repr(binary, "BinarySnowballOption",
               {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
                {"maturity_coupon_rate", "maturity_coupon_rate"},
                {"knock_out_levels", "knock_out_levels"},
-               {"observation_dates", "observation_dates"}, {"barrier_state", "barrier_state"},
+               {"observation_dates", "observation_dates"},
+               {"barrier_state", "barrier_state"},
                {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+               {"effective_date", "effective_date"},
+               {"expiry_date", "expiry_date"}});
 
     auto ternary = nb::class_<TernarySnowballOption>(
-        module, "TernarySnowballOption", R"doc(Immutable validated ternary snowball option.
+                       module, "TernarySnowballOption", R"doc(Immutable validated ternary snowball option.
 
 Attributes
 ----------
@@ -657,30 +650,29 @@ principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
-        .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
-                        PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
-                        PythonReal knock_in_level,
-                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
-                        PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
-                 return unwrap(make_ternary_snowball_option({
-                     real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
-                     real_number(maturity_coupon_rate, "maturity_coupon_rate"),
-                     real_number(minimum_coupon_rate, "minimum_coupon_rate"),
-                     real_number(knock_in_level, "knock_in_level"),
-                     real_sequence(knock_out_levels, "knock_out_levels"),
-                     date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
-                     real_number(principal_ratio, "principal_ratio"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
-             }),
-             nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
-             "minimum_coupon_rate"_a, "knock_in_level"_a,
-             "knock_out_levels"_a,
-             "observation_dates"_a, "knock_in_observation_mode"_a,
-             "barrier_state"_a = TernarySnowballTerms{}.barrier_state,
-             "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a,
-             R"doc(Create a validated ternary snowball option.
+                       .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
+                                        PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
+                                        PythonReal knock_in_level,
+                                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
+                                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                        PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
+                                return unwrap(make_ternary_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
+                                                                            real_number(maturity_coupon_rate, "maturity_coupon_rate"),
+                                                                            real_number(minimum_coupon_rate, "minimum_coupon_rate"),
+                                                                            real_number(knock_in_level, "knock_in_level"),
+                                                                            real_sequence(knock_out_levels, "knock_out_levels"),
+                                                                            date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
+                                                                            real_number(principal_ratio, "principal_ratio"),
+                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
+                            }),
+                            nb::kw_only(), "knock_out_coupon_rates"_a, "maturity_coupon_rate"_a,
+                            "minimum_coupon_rate"_a, "knock_in_level"_a,
+                            "knock_out_levels"_a,
+                            "observation_dates"_a, "knock_in_observation_mode"_a,
+                            "barrier_state"_a = TernarySnowballTerms{}.barrier_state,
+                            "principal_ratio"_a = TernarySnowballTerms{}.principal_ratio,
+                            "effective_date"_a, "expiry_date"_a,
+                            R"doc(Create a validated ternary snowball option.
 
 Parameters
 ----------
@@ -711,12 +703,12 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-        .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates,
-                     "Annualized coupon rate for each observation date.")
-        .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate,
-                     "Annualized coupon rate used at maturity when applicable.")
-        .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate,
-                     "Minimum annualized coupon rate for the third payoff region.");
+                       .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates,
+                                    "Annualized coupon rate for each observation date.")
+                       .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate,
+                                    "Annualized coupon rate used at maturity when applicable.")
+                       .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate,
+                                    "Minimum annualized coupon rate for the third payoff region.");
     bind_knock_in_properties(ternary);
     bind_value_equality(ternary);
     bind_repr(ternary, "TernarySnowballOption",
@@ -726,12 +718,14 @@ KiyosiError
                {"knock_in_level", "knock_in_level"},
                {"knock_out_levels", "knock_out_levels"},
                {"observation_dates", "observation_dates"},
-               {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"},
+               {"knock_in_observation_mode", "knock_in_observation_mode"},
+               {"barrier_state", "barrier_state"},
                {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+               {"effective_date", "effective_date"},
+               {"expiry_date", "expiry_date"}});
 
     auto phoenix = nb::class_<PhoenixOption>(
-        module, "PhoenixOption", R"doc(Immutable validated Phoenix autocallable option.
+                       module, "PhoenixOption", R"doc(Immutable validated Phoenix autocallable option.
 
 Attributes
 ----------
@@ -757,30 +751,29 @@ principal_ratio : float
     Principal repayment component in normalized payoff units; coupons are separate.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.)doc")
-        .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_spot,
-                        PythonReal knock_in_level, PythonRealSequence knock_out_levels,
-                        PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
-                        PythonReal lower_strike, PythonDateSequence observation_dates,
-                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
-                        PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
-                 return unwrap(make_phoenix_option({
-                     real_number(coupon_rate, "coupon_rate"),
-                     real_number(initial_spot, "initial_spot"),
-                     real_number(knock_in_level, "knock_in_level"),
-                     real_sequence(knock_out_levels, "knock_out_levels"),
-                     real_sequence(coupon_barrier_levels, "coupon_barrier_levels"),
-                     real_number(upper_strike, "upper_strike"),
-                     real_number(lower_strike, "lower_strike"),
-                     date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
-                     real_number(principal_ratio, "principal_ratio"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
-             }),
-             nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
-             "knock_out_levels"_a, "coupon_barrier_levels"_a, "upper_strike"_a,
-             "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
-             "barrier_state"_a = PhoenixTerms{}.barrier_state,
-             "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
-             "effective_date"_a, "expiry_date"_a, R"doc(Create a validated Phoenix option.
+                       .def(nb::new_([](PythonReal coupon_rate, PythonReal initial_spot,
+                                        PythonReal knock_in_level, PythonRealSequence knock_out_levels,
+                                        PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
+                                        PythonReal lower_strike, PythonDateSequence observation_dates,
+                                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                        PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
+                                return unwrap(make_phoenix_option({real_number(coupon_rate, "coupon_rate"),
+                                                                   real_number(initial_spot, "initial_spot"),
+                                                                   real_number(knock_in_level, "knock_in_level"),
+                                                                   real_sequence(knock_out_levels, "knock_out_levels"),
+                                                                   real_sequence(coupon_barrier_levels, "coupon_barrier_levels"),
+                                                                   real_number(upper_strike, "upper_strike"),
+                                                                   real_number(lower_strike, "lower_strike"),
+                                                                   date_sequence(observation_dates, "observation_dates"), knock_in_observation_mode, barrier_state,
+                                                                   real_number(principal_ratio, "principal_ratio"),
+                                                                   calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
+                            }),
+                            nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
+                            "knock_out_levels"_a, "coupon_barrier_levels"_a, "upper_strike"_a,
+                            "lower_strike"_a, "observation_dates"_a, "knock_in_observation_mode"_a,
+                            "barrier_state"_a = PhoenixTerms{}.barrier_state,
+                            "principal_ratio"_a = PhoenixTerms{}.principal_ratio,
+                            "effective_date"_a, "expiry_date"_a, R"doc(Create a validated Phoenix option.
 
 Parameters
 ----------
@@ -814,22 +807,14 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-        .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate,
-                     "Annualized coupon rate per observation period (Actual/365 Fixed).")
-        .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels,
-                     "Coupon barrier level for each observation date.");
+                       .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate,
+                                    "Annualized coupon rate per observation period (Actual/365 Fixed).")
+                       .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels,
+                                    "Coupon barrier level for each observation date.");
     bind_knock_in_properties(phoenix);
     bind_value_equality(phoenix);
     bind_repr(phoenix, "PhoenixOption",
-              {{"coupon_rate", "coupon_rate"}, {"initial_spot", "initial_spot"},
-               {"knock_in_level", "knock_in_level"},
-               {"knock_out_levels", "knock_out_levels"},
-               {"coupon_barrier_levels", "coupon_barrier_levels"},
-               {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"},
-               {"observation_dates", "observation_dates"},
-               {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"},
-               {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+              {{"coupon_rate", "coupon_rate"}, {"initial_spot", "initial_spot"}, {"knock_in_level", "knock_in_level"}, {"knock_out_levels", "knock_out_levels"}, {"coupon_barrier_levels", "coupon_barrier_levels"}, {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"}, {"observation_dates", "observation_dates"}, {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"}, {"principal_ratio", "principal_ratio"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
 
     bind_presets(module);
 }

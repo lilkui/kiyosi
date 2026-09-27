@@ -143,10 +143,8 @@ void bind_common_option_properties(nb::class_<Instrument>& binding, const char* 
     binding.def_prop_ro("option_type", &Instrument::option_type,
                         "Call or put payoff direction.")
         .def_prop_ro("strike", &Instrument::strike, "Positive strike price.")
-        .def_prop_ro("effective_date", [](const Instrument& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.");
+        .def_prop_ro("effective_date", [](const Instrument& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+        .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     std::vector<ReprField> fields{{"option_type", "option_type"}, {"strike", "strike"}};
     fields.insert(fields.end(), extra_fields.begin(), extra_fields.end());
@@ -160,7 +158,7 @@ void bind_average_option(
     Result<AverageOptionType> (*factory)(OptionType, double, Date, Date, Date, double))
 {
     auto binding = nb::class_<AverageOptionType>(
-        module, name, R"doc(Immutable validated average-price option.
+                       module, name, R"doc(Immutable validated average-price option.
 
 Attributes
 ----------
@@ -177,18 +175,18 @@ effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
     Contract expiry at 00:00 UTC.)doc")
-        .def(nb::new_([factory](OptionType type, PythonReal strike,
-                                PythonDate averaging_start_date, PythonDate effective_date,
-                                PythonDate expiry_date, PythonReal realized_average) {
-                 return unwrap(factory(
-                     type, real_number(strike, "strike"),
-                     calendar_date(averaging_start_date, "averaging_start_date"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                     real_number(realized_average, "realized_average")));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "averaging_start_date"_a, "effective_date"_a,
-             "expiry_date"_a, "realized_average"_a = default_realized_average,
-             R"doc(Create a validated average-price option.
+                       .def(nb::new_([factory](OptionType type, PythonReal strike,
+                                               PythonDate averaging_start_date, PythonDate effective_date,
+                                               PythonDate expiry_date, PythonReal realized_average) {
+                                return unwrap(factory(
+                                    type, real_number(strike, "strike"),
+                                    calendar_date(averaging_start_date, "averaging_start_date"),
+                                    calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                    real_number(realized_average, "realized_average")));
+                            }),
+                            nb::kw_only(), "option_type"_a, "strike"_a, "averaging_start_date"_a, "effective_date"_a,
+                            "expiry_date"_a, "realized_average"_a = default_realized_average,
+                            R"doc(Create a validated average-price option.
 
 Parameters
 ----------
@@ -211,24 +209,16 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the terms or date ordering.)doc")
-        .def_prop_ro("option_type", &AverageOptionType::option_type,
-                     "Call or put payoff direction.")
-        .def_prop_ro("strike", &AverageOptionType::strike, "Positive strike price.")
-        .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) {
-            return python_date(value.averaging_start_date());
-        }, "First date included in the averaging period.")
-        .def_prop_ro("realized_average", &AverageOptionType::realized_average,
-                     "Average realized before valuation.")
-        .def_prop_ro("effective_date", [](const AverageOptionType& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const AverageOptionType& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.");
+                       .def_prop_ro("option_type", &AverageOptionType::option_type,
+                                    "Call or put payoff direction.")
+                       .def_prop_ro("strike", &AverageOptionType::strike, "Positive strike price.")
+                       .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) { return python_date(value.averaging_start_date()); }, "First date included in the averaging period.")
+                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation.")
+                       .def_prop_ro("effective_date", [](const AverageOptionType& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+                       .def_prop_ro("expiry_date", [](const AverageOptionType& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     bind_repr(binding, name,
-              {{"option_type", "option_type"}, {"strike", "strike"},
-               {"averaging_start_date", "averaging_start_date"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"},
-               {"realized_average", "realized_average"}});
+              {{"option_type", "option_type"}, {"strike", "strike"}, {"averaging_start_date", "averaging_start_date"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"realized_average", "realized_average"}});
 }
 
 } // namespace
@@ -236,7 +226,7 @@ KiyosiError
 void bind_instruments(nb::module_& module)
 {
     auto european = nb::class_<EuropeanOption>(
-        module, "EuropeanOption", R"doc(Immutable validated European vanilla option.
+                        module, "EuropeanOption", R"doc(Immutable validated European vanilla option.
 
 The payoff can be exercised only at expiry.
 
@@ -250,14 +240,14 @@ effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
     Contract expiry at 00:00 UTC.)doc")
-        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
-                        PythonDate expiry_date) {
-                 return unwrap(make_european_option(
-                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                     calendar_date(expiry_date, "expiry_date")));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-             R"doc(Create a validated European option.
+                        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
+                                         PythonDate expiry_date) {
+                                 return unwrap(make_european_option(
+                                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                     calendar_date(expiry_date, "expiry_date")));
+                             }),
+                             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                             R"doc(Create a validated European option.
 
 Parameters
 ----------
@@ -279,7 +269,7 @@ KiyosiError
     bind_common_option_properties(european, "EuropeanOption");
 
     auto american = nb::class_<AmericanOption>(
-        module, "AmericanOption", R"doc(Immutable validated American vanilla option.
+                        module, "AmericanOption", R"doc(Immutable validated American vanilla option.
 
 The payoff may be exercised from the effective date through expiry.
 
@@ -293,14 +283,14 @@ effective_date : datetime.date
     First exercise date.
 expiry_date : datetime.date
     Last exercise date.)doc")
-        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
-                        PythonDate expiry_date) {
-                 return unwrap(make_american_option(
-                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                     calendar_date(expiry_date, "expiry_date")));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-             R"doc(Create a validated American option.
+                        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
+                                         PythonDate expiry_date) {
+                                 return unwrap(make_american_option(
+                                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                     calendar_date(expiry_date, "expiry_date")));
+                             }),
+                             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                             R"doc(Create a validated American option.
 
 Parameters
 ----------
@@ -322,7 +312,7 @@ KiyosiError
     bind_common_option_properties(american, "AmericanOption");
 
     auto cash = nb::class_<CashOrNothingOption>(
-        module, "CashOrNothingOption", R"doc(Immutable validated cash-or-nothing digital option.
+                    module, "CashOrNothingOption", R"doc(Immutable validated cash-or-nothing digital option.
 
 Attributes
 ----------
@@ -336,14 +326,14 @@ effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
     Contract expiry at 00:00 UTC.)doc")
-        .def(nb::new_([](OptionType type, PythonReal strike, PythonReal payout,
-                        PythonDate effective_date, PythonDate expiry_date) {
-                 return unwrap(make_cash_or_nothing_option(
-                     type, real_number(strike, "strike"), real_number(payout, "payout"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "payout"_a, "effective_date"_a,
-             "expiry_date"_a, R"doc(Create a validated cash-or-nothing option.
+                    .def(nb::new_([](OptionType type, PythonReal strike, PythonReal payout,
+                                     PythonDate effective_date, PythonDate expiry_date) {
+                             return unwrap(make_cash_or_nothing_option(
+                                 type, real_number(strike, "strike"), real_number(payout, "payout"),
+                                 calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")));
+                         }),
+                         nb::kw_only(), "option_type"_a, "strike"_a, "payout"_a, "effective_date"_a,
+                         "expiry_date"_a, R"doc(Create a validated cash-or-nothing option.
 
 Parameters
 ----------
@@ -364,12 +354,12 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the payoff terms or date ordering.)doc")
-        .def_prop_ro("payout", &CashOrNothingOption::payout,
-                     "Fixed in-the-money cash payout.");
+                    .def_prop_ro("payout", &CashOrNothingOption::payout,
+                                 "Fixed in-the-money cash payout.");
     bind_common_option_properties(cash, "CashOrNothingOption", {{"payout", "payout"}});
 
     auto asset = nb::class_<AssetOrNothingOption>(
-        module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.
+                     module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.
 
 Attributes
 ----------
@@ -381,14 +371,14 @@ effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
     Contract expiry at 00:00 UTC.)doc")
-        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
-                        PythonDate expiry_date) {
-                 return unwrap(make_asset_or_nothing_option(
-                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                     calendar_date(expiry_date, "expiry_date")));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-             R"doc(Create a validated asset-or-nothing option.
+                     .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
+                                      PythonDate expiry_date) {
+                              return unwrap(make_asset_or_nothing_option(
+                                  type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                  calendar_date(expiry_date, "expiry_date")));
+                          }),
+                          nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                          R"doc(Create a validated asset-or-nothing option.
 
 Parameters
 ----------
@@ -413,7 +403,7 @@ KiyosiError
     bind_average_option(module, "ArithmeticAveragePriceOption", &make_arithmetic_average_option);
 
     auto barrier = nb::class_<BarrierOption>(
-        module, "BarrierOption", R"doc(Immutable validated barrier option.
+                       module, "BarrierOption", R"doc(Immutable validated barrier option.
 
 Scheduled barriers are observed only on ``observation_dates``; continuous
 barriers require no schedule.
@@ -440,24 +430,23 @@ observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
 touch_state : BarrierTouchState or None
     Barrier touch history before valuation.)doc")
-        .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
-                        PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type,
-                        PythonReal rebate, RebateTiming rebate_timing,
-                        ObservationMode observation_mode, PythonDateSequence observation_dates,
-                        std::optional<BarrierTouchState> touch_state) {
-                 return unwrap(make_barrier_option({
-                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                     calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
-                     barrier_type, real_number(rebate, "rebate"), rebate_timing, observation_mode,
-                     date_sequence(observation_dates, "observation_dates"), touch_state}));
-             }),
-             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-             "barrier_level"_a, "barrier_type"_a, "rebate"_a = BarrierOptionTerms{}.rebate,
-             "rebate_timing"_a = BarrierOptionTerms{}.rebate_timing,
-             "observation_mode"_a = BarrierOptionTerms{}.observation_mode,
-             "observation_dates"_a = nb::make_tuple(),
-             "touch_state"_a = BarrierOptionTerms{}.touch_state,
-             R"doc(Create a validated barrier option.
+                       .def(nb::new_([](OptionType type, PythonReal strike, PythonDate effective_date,
+                                        PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type,
+                                        PythonReal rebate, RebateTiming rebate_timing,
+                                        ObservationMode observation_mode, PythonDateSequence observation_dates,
+                                        std::optional<BarrierTouchState> touch_state) {
+                                return unwrap(make_barrier_option({type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                                                   calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
+                                                                   barrier_type, real_number(rebate, "rebate"), rebate_timing, observation_mode,
+                                                                   date_sequence(observation_dates, "observation_dates"), touch_state}));
+                            }),
+                            nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                            "barrier_level"_a, "barrier_type"_a, "rebate"_a = BarrierOptionTerms{}.rebate,
+                            "rebate_timing"_a = BarrierOptionTerms{}.rebate_timing,
+                            "observation_mode"_a = BarrierOptionTerms{}.observation_mode,
+                            "observation_dates"_a = nb::make_tuple(),
+                            "touch_state"_a = BarrierOptionTerms{}.touch_state,
+                            R"doc(Create a validated barrier option.
 
 Parameters
 ----------
@@ -488,40 +477,27 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the payoff, barrier, dates, or observation schedule.)doc")
-        .def_prop_ro("option_type", &BarrierOption::option_type,
-                     "Call or put payoff direction.")
-        .def_prop_ro("strike", &BarrierOption::strike, "Positive strike price.")
-        .def_prop_ro("effective_date", [](const BarrierOption& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const BarrierOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.")
-        .def_prop_ro("barrier_level", &BarrierOption::barrier_level,
-                     "Positive barrier level.")
-        .def_prop_ro("barrier_type", &BarrierOption::barrier_type,
-                     "Barrier direction and activation behavior.")
-        .def_prop_ro("rebate", &BarrierOption::rebate, "Barrier rebate amount.")
-        .def_prop_ro("rebate_timing", &BarrierOption::rebate_timing,
-                     "Time at which the rebate is paid.")
-        .def_prop_ro("observation_mode", &BarrierOption::observation_mode,
-                     "Continuous or scheduled monitoring mode.")
-        .def_prop_ro("touch_state", &BarrierOption::touch_state,
-                     "Barrier touch history before valuation.")
-        .def_prop_ro("observation_dates", [](const BarrierOption& value) {
+                       .def_prop_ro("option_type", &BarrierOption::option_type,
+                                    "Call or put payoff direction.")
+                       .def_prop_ro("strike", &BarrierOption::strike, "Positive strike price.")
+                       .def_prop_ro("effective_date", [](const BarrierOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+                       .def_prop_ro("expiry_date", [](const BarrierOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
+                       .def_prop_ro("barrier_level", &BarrierOption::barrier_level, "Positive barrier level.")
+                       .def_prop_ro("barrier_type", &BarrierOption::barrier_type, "Barrier direction and activation behavior.")
+                       .def_prop_ro("rebate", &BarrierOption::rebate, "Barrier rebate amount.")
+                       .def_prop_ro("rebate_timing", &BarrierOption::rebate_timing, "Time at which the rebate is paid.")
+                       .def_prop_ro("observation_mode", &BarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
+                       .def_prop_ro("touch_state", &BarrierOption::touch_state, "Barrier touch history before valuation.")
+                       .def_prop_ro("observation_dates", [](const BarrierOption& value) {
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output;
-        }, "Copy of the scheduled observations at 00:00 UTC.");
+            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(barrier);
     bind_repr(barrier, "BarrierOption",
-              {{"option_type", "option_type"}, {"strike", "strike"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"},
-               {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"},
-               {"rebate", "rebate"}, {"rebate_timing", "rebate_timing"},
-               {"observation_mode", "observation_mode"},
-               {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {{"option_type", "option_type"}, {"strike", "strike"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"}, {"rebate", "rebate"}, {"rebate_timing", "rebate_timing"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
 
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
-        module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
+                              module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
 
 Instances are created by :func:`cash_binary_barrier_option` or
 :func:`asset_binary_barrier_option`.
@@ -548,59 +524,34 @@ observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
 touch_state : BarrierTouchState or None
     Barrier touch history before valuation.)doc")
-        .def_prop_ro("option_type", &BinaryBarrierOption::option_type,
-                     "Call or put payoff direction.")
-        .def_prop_ro("strike", &BinaryBarrierOption::strike, "Positive strike price.")
-        .def_prop_ro("effective_date", [](const BinaryBarrierOption& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const BinaryBarrierOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.")
-        .def_prop_ro("barrier_level", &BinaryBarrierOption::barrier_level,
-                     "Positive barrier level.")
-        .def_prop_ro("barrier_type", &BinaryBarrierOption::barrier_type,
-                     "Barrier direction and activation behavior.")
-        .def_prop_ro("payoff_type", &BinaryBarrierOption::payoff_type,
-                     "Cash or asset delivery form.")
-        .def_prop_ro("payout", [](const BinaryBarrierOption& value) -> std::optional<double> {
+                              .def_prop_ro("option_type", &BinaryBarrierOption::option_type,
+                                           "Call or put payoff direction.")
+                              .def_prop_ro("strike", &BinaryBarrierOption::strike, "Positive strike price.")
+                              .def_prop_ro("effective_date", [](const BinaryBarrierOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+                              .def_prop_ro("expiry_date", [](const BinaryBarrierOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
+                              .def_prop_ro("barrier_level", &BinaryBarrierOption::barrier_level, "Positive barrier level.")
+                              .def_prop_ro("barrier_type", &BinaryBarrierOption::barrier_type, "Barrier direction and activation behavior.")
+                              .def_prop_ro("payoff_type", &BinaryBarrierOption::payoff_type, "Cash or asset delivery form.")
+                              .def_prop_ro("payout", [](const BinaryBarrierOption& value) -> std::optional<double> {
             if (const auto* cash = std::get_if<CashOrNothingPayoff>(&value.payoff()))
                 return cash->payout();
-            return std::nullopt;
-        }, "Cash payout, or None for an asset payoff.")
-        .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode,
-                     "Continuous or scheduled monitoring mode.")
-        .def_prop_ro("touch_state", &BinaryBarrierOption::touch_state,
-                     "Barrier touch history before valuation.")
-        .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
+            return std::nullopt; }, "Cash payout, or None for an asset payoff.")
+                              .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
+                              .def_prop_ro("touch_state", &BinaryBarrierOption::touch_state, "Barrier touch history before valuation.")
+                              .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output;
-        }, "Copy of the scheduled observations at 00:00 UTC.");
+            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(binary_barrier);
     bind_repr(binary_barrier, "BinaryBarrierOption",
-               {{"option_type", "option_type"}, {"strike", "strike"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"},
-               {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"},
-               {"payoff_type", "payoff_type"}, {"payout", "payout"},
-               {"observation_mode", "observation_mode"},
-               {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {{"option_type", "option_type"}, {"strike", "strike"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"}, {"payoff_type", "payoff_type"}, {"payout", "payout"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
 
-    module.def("cash_binary_barrier_option",
-               [](OptionType type, PythonReal strike, PythonDate effective_date,
-                  PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type,
-                  PythonReal payout, ObservationMode observation_mode,
-                  PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_cash_binary_barrier_option(
-                       {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                        calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
-                        barrier_type, observation_mode, date_sequence(observation_dates, "observation_dates"),
-                        touch_state},
-                       real_number(payout, "payout")));
-               },
-               nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-               "barrier_level"_a, "barrier_type"_a, "payout"_a,
-               "observation_mode"_a = BinaryBarrierTerms{}.observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = BinaryBarrierTerms{}.touch_state,
+    module.def("cash_binary_barrier_option", [](OptionType type, PythonReal strike, PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type, PythonReal payout, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_cash_binary_barrier_option(
+                                                                                                                                                                                                                                                                                                                                    {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                                                                                                                                                                                                                                                                                                                     calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
+                                                                                                                                                                                                                                                                                                                                     barrier_type, observation_mode, date_sequence(observation_dates, "observation_dates"),
+                                                                                                                                                                                                                                                                                                                                     touch_state},
+                                                                                                                                                                                                                                                                                                                                    real_number(payout, "payout"))); }, nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "barrier_type"_a, "payout"_a, "observation_mode"_a = BinaryBarrierTerms{}.observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = BinaryBarrierTerms{}.touch_state,
                R"doc(Create a cash-or-nothing binary barrier option.
 
 Parameters
@@ -635,22 +586,11 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the payoff, barrier, dates, or observation schedule.)doc");
-    module.def("asset_binary_barrier_option",
-               [](OptionType type, PythonReal strike, PythonDate effective_date,
-                  PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_asset_binary_barrier_option(
-                       {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                        calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
-                        barrier_type, observation_mode, date_sequence(observation_dates, "observation_dates"),
-                        touch_state}));
-               },
-               nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-               "barrier_level"_a, "barrier_type"_a,
-               "observation_mode"_a = BinaryBarrierTerms{}.observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = BinaryBarrierTerms{}.touch_state,
+    module.def("asset_binary_barrier_option", [](OptionType type, PythonReal strike, PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, BarrierType barrier_type, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_asset_binary_barrier_option(
+                                                                                                                                                                                                                                                                                                                  {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
+                                                                                                                                                                                                                                                                                                                   calendar_date(expiry_date, "expiry_date"), real_number(barrier, "barrier_level"),
+                                                                                                                                                                                                                                                                                                                   barrier_type, observation_mode, date_sequence(observation_dates, "observation_dates"),
+                                                                                                                                                                                                                                                                                                                   touch_state})); }, nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "barrier_type"_a, "observation_mode"_a = BinaryBarrierTerms{}.observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = BinaryBarrierTerms{}.touch_state,
                R"doc(Create an asset-or-nothing binary barrier option.
 
 Parameters
@@ -685,7 +625,7 @@ KiyosiError
     If the core rejects the payoff, barrier, dates, or observation schedule.)doc");
 
     auto touch = nb::class_<TouchOption>(
-        module, "TouchOption", R"doc(Immutable validated one-touch or no-touch option.
+                     module, "TouchOption", R"doc(Immutable validated one-touch or no-touch option.
 
 Instances are created by the ``cash_*_touch_*`` and ``asset_*_touch_*``
 factory functions.
@@ -712,166 +652,64 @@ observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
 touch_state : BarrierTouchState or None
     Barrier touch history before valuation.)doc")
-        .def_prop_ro("effective_date", [](const TouchOption& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const TouchOption& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.")
-        .def_prop_ro("barrier_level", &TouchOption::barrier_level,
-                     "Positive barrier level.")
-        .def_prop_ro("is_one_touch", &TouchOption::is_one_touch,
-                     "Whether hitting the barrier activates the payoff.")
-        .def_prop_ro("is_up", &TouchOption::is_up,
-                     "Whether the contract uses an upper barrier.")
-        .def_prop_ro("payoff_type", &TouchOption::payoff_type,
-                     "Cash or asset delivery form.")
-        .def_prop_ro("payout", [](const TouchOption& value) -> std::optional<double> {
+                     .def_prop_ro("effective_date", [](const TouchOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+                     .def_prop_ro("expiry_date", [](const TouchOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
+                     .def_prop_ro("barrier_level", &TouchOption::barrier_level, "Positive barrier level.")
+                     .def_prop_ro("is_one_touch", &TouchOption::is_one_touch, "Whether hitting the barrier activates the payoff.")
+                     .def_prop_ro("is_up", &TouchOption::is_up, "Whether the contract uses an upper barrier.")
+                     .def_prop_ro("payoff_type", &TouchOption::payoff_type, "Cash or asset delivery form.")
+                     .def_prop_ro("payout", [](const TouchOption& value) -> std::optional<double> {
             if (const auto* cash = std::get_if<CashOrNothingPayoff>(&value.payoff()))
                 return cash->payout();
-            return std::nullopt;
-        }, "Cash payout, or None for an asset payoff.")
-        .def_prop_ro("settlement_timing", &TouchOption::settlement_timing,
-                     "Settlement time for a one-touch payoff.")
-        .def_prop_ro("observation_mode", &TouchOption::observation_mode,
-                     "Continuous or scheduled monitoring mode.")
-        .def_prop_ro("touch_state", &TouchOption::touch_state,
-                     "Barrier touch history before valuation.")
-        .def_prop_ro("observation_dates", [](const TouchOption& value) {
+            return std::nullopt; }, "Cash payout, or None for an asset payoff.")
+                     .def_prop_ro("settlement_timing", &TouchOption::settlement_timing, "Settlement time for a one-touch payoff.")
+                     .def_prop_ro("observation_mode", &TouchOption::observation_mode, "Continuous or scheduled monitoring mode.")
+                     .def_prop_ro("touch_state", &TouchOption::touch_state, "Barrier touch history before valuation.")
+                     .def_prop_ro("observation_dates", [](const TouchOption& value) {
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output;
-        }, "Copy of the scheduled observations at 00:00 UTC.");
+            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
     bind_repr(touch, "TouchOption",
-              {{"effective_date", "effective_date"}, {"expiry_date", "expiry_date"},
-               {"barrier_level", "barrier_level"}, {"is_one_touch", "is_one_touch"},
-               {"is_up", "is_up"}, {"payoff_type", "payoff_type"},
-               {"payout", "payout"}, {"settlement_timing", "settlement_timing"},
-               {"observation_mode", "observation_mode"},
-               {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {{"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"is_one_touch", "is_one_touch"}, {"is_up", "is_up"}, {"payoff_type", "payoff_type"}, {"payout", "payout"}, {"settlement_timing", "settlement_timing"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
 
-    module.def("cash_one_touch_up",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  PythonReal payout, SettlementTiming settlement_timing,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_cash_one_touch_up(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                       settlement_timing,
-                       observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "settlement_timing"_a = default_one_touch_settlement_timing,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               cash_one_touch_doc);
-    module.def("cash_one_touch_down",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  PythonReal payout, SettlementTiming settlement_timing,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_cash_one_touch_down(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                       settlement_timing,
-                       observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "settlement_timing"_a = default_one_touch_settlement_timing,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               cash_one_touch_doc);
-    module.def("cash_no_touch_up",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_cash_no_touch_up(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                       observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               cash_no_touch_doc);
-    module.def("cash_no_touch_down",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_cash_no_touch_down(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                       observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               cash_no_touch_doc);
-    module.def("asset_one_touch_up",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  SettlementTiming settlement_timing, ObservationMode observation_mode,
-                  PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_asset_one_touch_up(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
-                       date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "settlement_timing"_a = default_one_touch_settlement_timing,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               asset_one_touch_doc);
-    module.def("asset_one_touch_down",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  SettlementTiming settlement_timing, ObservationMode observation_mode,
-                  PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_asset_one_touch_down(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
-                       date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "settlement_timing"_a = default_one_touch_settlement_timing,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               asset_one_touch_doc);
-    module.def("asset_no_touch_up",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_asset_no_touch_up(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), observation_mode,
-                       date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               asset_no_touch_doc);
-    module.def("asset_no_touch_down",
-               [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier,
-                  ObservationMode observation_mode, PythonDateSequence observation_dates,
-                  std::optional<BarrierTouchState> touch_state) {
-                   return unwrap(make_asset_no_touch_down(
-                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
-                       real_number(barrier, "barrier_level"), observation_mode,
-                       date_sequence(observation_dates, "observation_dates"), touch_state));
-               },
-               nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a,
-               "observation_mode"_a = default_touch_observation_mode,
-               "observation_dates"_a = nb::make_tuple(),
-               "touch_state"_a = std::nullopt,
-               asset_no_touch_doc);
+    module.def("cash_one_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, SettlementTiming settlement_timing, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_cash_one_touch_up(
+                                                                                                                                                                                                                                                                                                 calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                                                 real_number(barrier, "barrier_level"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                                                                 settlement_timing,
+                                                                                                                                                                                                                                                                                                 observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc);
+    module.def("cash_one_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, SettlementTiming settlement_timing, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_cash_one_touch_down(
+                                                                                                                                                                                                                                                                                                   calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                                                   real_number(barrier, "barrier_level"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                                                                   settlement_timing,
+                                                                                                                                                                                                                                                                                                   observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc);
+    module.def("cash_no_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_cash_no_touch_up(
+                                                                                                                                                                                                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                            real_number(barrier, "barrier_level"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                            observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc);
+    module.def("cash_no_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_cash_no_touch_down(
+                                                                                                                                                                                                                                                              calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                              real_number(barrier, "barrier_level"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                              observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc);
+    module.def("asset_one_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, SettlementTiming settlement_timing, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_asset_one_touch_up(
+                                                                                                                                                                                                                                                                               calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                               real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
+                                                                                                                                                                                                                                                                               date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc);
+    module.def("asset_one_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, SettlementTiming settlement_timing, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_asset_one_touch_down(
+                                                                                                                                                                                                                                                                                 calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                                 real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
+                                                                                                                                                                                                                                                                                 date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc);
+    module.def("asset_no_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_asset_no_touch_up(
+                                                                                                                                                                                                                                          calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                          real_number(barrier, "barrier_level"), observation_mode,
+                                                                                                                                                                                                                                          date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc);
+    module.def("asset_no_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, ObservationMode observation_mode, PythonDateSequence observation_dates, std::optional<BarrierTouchState> touch_state) { return unwrap(make_asset_no_touch_down(
+                                                                                                                                                                                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                            real_number(barrier, "barrier_level"), observation_mode,
+                                                                                                                                                                                                                                            date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc);
 
     auto accumulator = nb::class_<Accumulator>(
-        module, "Accumulator", R"doc(Immutable validated accumulator contract.
+                           module, "Accumulator", R"doc(Immutable validated accumulator contract.
 
 Attributes
 ----------
@@ -887,21 +725,20 @@ accumulated_quantity : float
     Quantity already accumulated at valuation.
 effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.)doc")
-        .def(nb::new_([](PythonReal strike, PythonReal knock_out,
-                        PythonReal daily_quantity, PythonReal acceleration,
-                        PythonReal accumulated_quantity, PythonDate effective_date,
-                        PythonDate expiry_date) {
-                 return unwrap(make_accumulator({
-                     real_number(strike, "strike"), real_number(knock_out, "knock_out_level"),
-                     real_number(daily_quantity, "daily_quantity"),
-                     real_number(acceleration, "acceleration_factor"),
-                     real_number(accumulated_quantity, "accumulated_quantity"),
-                     calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
-             }),
-             nb::kw_only(), "strike"_a, "knock_out_level"_a, "daily_quantity"_a,
-             "acceleration_factor"_a,
-             "accumulated_quantity"_a = AccumulatorTerms{}.accumulated_quantity, "effective_date"_a,
-             "expiry_date"_a, R"doc(Create a validated accumulator contract.
+                           .def(nb::new_([](PythonReal strike, PythonReal knock_out,
+                                            PythonReal daily_quantity, PythonReal acceleration,
+                                            PythonReal accumulated_quantity, PythonDate effective_date,
+                                            PythonDate expiry_date) {
+                                    return unwrap(make_accumulator({real_number(strike, "strike"), real_number(knock_out, "knock_out_level"),
+                                                                    real_number(daily_quantity, "daily_quantity"),
+                                                                    real_number(acceleration, "acceleration_factor"),
+                                                                    real_number(accumulated_quantity, "accumulated_quantity"),
+                                                                    calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date")}));
+                                }),
+                                nb::kw_only(), "strike"_a, "knock_out_level"_a, "daily_quantity"_a,
+                                "acceleration_factor"_a,
+                                "accumulated_quantity"_a = AccumulatorTerms{}.accumulated_quantity, "effective_date"_a,
+                                "expiry_date"_a, R"doc(Create a validated accumulator contract.
 
 Parameters
 ----------
@@ -924,26 +761,20 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the quantities, levels, or date ordering.)doc")
-        .def_prop_ro("strike", &Accumulator::strike, "Positive purchase strike.")
-        .def_prop_ro("knock_out_level", &Accumulator::knock_out_level,
-                     "Positive upper knock-out level.")
-        .def_prop_ro("daily_quantity", &Accumulator::daily_quantity,
-                     "Base quantity accumulated per trading day.")
-        .def_prop_ro("acceleration_factor", &Accumulator::acceleration_factor,
-                     "Quantity multiplier applied below the strike.")
-        .def_prop_ro("accumulated_quantity", &Accumulator::accumulated_quantity,
-                     "Quantity already accumulated at valuation.")
-        .def_prop_ro("effective_date", [](const Accumulator& value) { return python_date(value.effective_date()); },
-                     "First date on which the contract is effective.")
-        .def_prop_ro("expiry_date", [](const Accumulator& value) { return python_date(value.expiry_date()); },
-                     "Contract expiry at 00:00 UTC.");
+                           .def_prop_ro("strike", &Accumulator::strike, "Positive purchase strike.")
+                           .def_prop_ro("knock_out_level", &Accumulator::knock_out_level,
+                                        "Positive upper knock-out level.")
+                           .def_prop_ro("daily_quantity", &Accumulator::daily_quantity,
+                                        "Base quantity accumulated per trading day.")
+                           .def_prop_ro("acceleration_factor", &Accumulator::acceleration_factor,
+                                        "Quantity multiplier applied below the strike.")
+                           .def_prop_ro("accumulated_quantity", &Accumulator::accumulated_quantity,
+                                        "Quantity already accumulated at valuation.")
+                           .def_prop_ro("effective_date", [](const Accumulator& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
+                           .def_prop_ro("expiry_date", [](const Accumulator& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(accumulator);
     bind_repr(accumulator, "Accumulator",
-              {{"strike", "strike"}, {"knock_out_level", "knock_out_level"},
-               {"daily_quantity", "daily_quantity"},
-               {"acceleration_factor", "acceleration_factor"},
-               {"accumulated_quantity", "accumulated_quantity"},
-               {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+              {{"strike", "strike"}, {"knock_out_level", "knock_out_level"}, {"daily_quantity", "daily_quantity"}, {"acceleration_factor", "acceleration_factor"}, {"accumulated_quantity", "accumulated_quantity"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
 
     bind_structured_instruments(module);
 }

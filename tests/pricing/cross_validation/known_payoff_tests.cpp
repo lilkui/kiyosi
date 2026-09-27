@@ -15,8 +15,8 @@ namespace {
 using kiyosi::AutocallableBarrierState;
 using kiyosi::test::day;
 
-const auto effective_date = day(2025, 1, 1);
-const auto expiry_date = day(2026, 1, 1); // Exactly one ACT/365 year.
+constexpr auto effective_date = day(2025, 1, 1);
+constexpr auto expiry_date = day(2026, 1, 1); // Exactly one ACT/365 year.
 
 auto market(double spot, kiyosi::Date valuation, double rate = 0.0, double sigma = 0.2)
 {

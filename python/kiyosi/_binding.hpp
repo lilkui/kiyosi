@@ -41,8 +41,7 @@ struct EnumNames<OptionType> {
 template <>
 struct EnumNames<BarrierType> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, BarrierType>>(
-        {{"up_and_in", BarrierType::up_and_in}, {"up_and_out", BarrierType::up_and_out},
-         {"down_and_in", BarrierType::down_and_in}, {"down_and_out", BarrierType::down_and_out}});
+        {{"up_and_in", BarrierType::up_and_in}, {"up_and_out", BarrierType::up_and_out}, {"down_and_in", BarrierType::down_and_in}, {"down_and_out", BarrierType::down_and_out}});
     static constexpr auto Name = nb::detail::const_name(
         "typing.Literal['up_and_in', 'up_and_out', 'down_and_in', 'down_and_out']");
 };
@@ -93,8 +92,7 @@ struct EnumNames<KnockInObservationMode> {
 template <>
 struct EnumNames<AutocallableBarrierState> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, AutocallableBarrierState>>(
-        {{"none", AutocallableBarrierState::none}, {"knocked_out", AutocallableBarrierState::knocked_out},
-         {"knocked_in", AutocallableBarrierState::knocked_in}});
+        {{"none", AutocallableBarrierState::none}, {"knocked_out", AutocallableBarrierState::knocked_out}, {"knocked_in", AutocallableBarrierState::knocked_in}});
     static constexpr auto Name = nb::detail::const_name("typing.Literal['none', 'knocked_out', 'knocked_in']");
 };
 
@@ -134,10 +132,7 @@ struct EnumNames<BusinessDayConvention> {
 template <>
 struct EnumNames<Greek> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, Greek>>(
-        {{"delta", Greek::delta}, {"gamma", Greek::gamma},
-         {"speed", Greek::speed}, {"theta", Greek::theta}, {"charm", Greek::charm},
-         {"color", Greek::color}, {"vega", Greek::vega}, {"vanna", Greek::vanna},
-         {"zomma", Greek::zomma}, {"rho", Greek::rho}});
+        {{"delta", Greek::delta}, {"gamma", Greek::gamma}, {"speed", Greek::speed}, {"theta", Greek::theta}, {"charm", Greek::charm}, {"color", Greek::color}, {"vega", Greek::vega}, {"vanna", Greek::vanna}, {"zomma", Greek::zomma}, {"rho", Greek::rho}});
     static constexpr auto Name = nb::detail::const_name(
         "typing.Literal['delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho']");
 };
@@ -173,25 +168,30 @@ struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
                     const_name("]")))
 };
 
-#define KIYOSI_STRING_ENUM_CASTER(Enum)                                             \
-    template <>                                                                      \
-    struct type_caster<kiyosi::Enum> {                                               \
+#define KIYOSI_STRING_ENUM_CASTER(Enum)                                                     \
+    template <>                                                                             \
+    struct type_caster<kiyosi::Enum> {                                                      \
         NB_TYPE_CASTER(kiyosi::Enum, kiyosi::python_binding::EnumNames<kiyosi::Enum>::Name) \
-        bool from_python(handle source, uint32_t, cleanup_list*) {                   \
-            if (!isinstance<str>(source)) return false;                             \
-            const std::string name = cast<std::string>(source);                     \
-            for (const auto& [candidate, member] :                                 \
-                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values) {         \
-                if (name == candidate) { value = member; return true; }             \
-            }                                                                        \
-            throw value_error(("unknown " #Enum " value: " + name).c_str());       \
-        }                                                                            \
-        static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*) {     \
-            for (const auto& [name, member] :                                        \
-                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values)           \
-                if (source == member) return str(name.data()).release();            \
-            throw std::logic_error("unmapped core " #Enum " value");               \
-        }                                                                            \
+        bool from_python(handle source, uint32_t, cleanup_list*)                            \
+        {                                                                                   \
+            if (!isinstance<str>(source)) return false;                                     \
+            const std::string name = cast<std::string>(source);                             \
+            for (const auto& [candidate, member] :                                          \
+                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values) {                 \
+                if (name == candidate) {                                                    \
+                    value = member;                                                         \
+                    return true;                                                            \
+                }                                                                           \
+            }                                                                               \
+            throw value_error(("unknown " #Enum " value: " + name).c_str());                \
+        }                                                                                   \
+        static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*)               \
+        {                                                                                   \
+            for (const auto& [name, member] :                                               \
+                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values)                   \
+                if (source == member) return str(name.data()).release();                    \
+            throw std::logic_error("unmapped core " #Enum " value");                        \
+        }                                                                                   \
     };
 
 KIYOSI_STRING_ENUM_CASTER(OptionType)
@@ -257,8 +257,7 @@ void bind_repr(nb::class_<T>& binding, const char* name,
 template <typename T>
 void bind_value_equality(nb::class_<T>& binding)
 {
-    binding.def("__eq__", [](const T& left, const T& right) { return left == right; },
-                nb::is_operator());
+    binding.def("__eq__", [](const T& left, const T& right) { return left == right; }, nb::is_operator());
     binding.attr("__hash__") = nb::none();
 }
 

@@ -19,7 +19,7 @@ bool print_price(std::string_view instrument, std::string_view engine,
 } // namespace
 
 int main()
-{
+try {
     const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
     const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
     const auto context = *kiyosi::make_pricing_context(
@@ -153,4 +153,6 @@ int main()
     }
 
     return ok ? 0 : 1;
+} catch (...) {
+    return 1;
 }

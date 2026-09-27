@@ -18,6 +18,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
     const auto expiry_date = day(2026, 1, 1);
     const auto midnight = kiyosi::start_of_day(expiry_date);
     const auto market = [&](kiyosi::Timestamp instant) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): auto returns the context by value.
         return *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.0, 0.2),
                                              110.0, instant);
     };

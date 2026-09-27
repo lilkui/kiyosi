@@ -7,7 +7,7 @@
 
 namespace kiyosi::test {
 
-inline kiyosi::Date day(int year, unsigned month, unsigned day_number)
+constexpr kiyosi::Date day(int year, unsigned month, unsigned day_number)
 {
     return kiyosi::Date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
 }

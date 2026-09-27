@@ -152,7 +152,7 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 {
     nb::class_<Engine> binding{
         module, name,
-R"doc(Finite-difference pricing engine with immutable configuration.
+        R"doc(Finite-difference pricing engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
 Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
@@ -171,7 +171,7 @@ asset_upper_boundary : float or None
     Explicit upper asset-grid boundary, or ``None`` for the core default.)doc"};
     binding
         .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
-                        FiniteDifferenceScheme scheme, PythonReal asset_upper_boundary) {
+                         FiniteDifferenceScheme scheme, PythonReal asset_upper_boundary) {
                  std::optional<double> boundary;
                  if (!asset_upper_boundary.is_none())
                      boundary = real_number(asset_upper_boundary, "asset_upper_boundary");
@@ -183,7 +183,7 @@ asset_upper_boundary : float or None
              "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
              "asset_upper_boundary"_a = nb::none(),
-R"doc(Store finite-difference settings.
+             R"doc(Store finite-difference settings.
 
 Settings are validated when price() is called.
 The engine-specific ranges are listed in the engine class documentation.
@@ -205,17 +205,12 @@ TypeError
     If a setting has an incompatible representation.
 OverflowError
     If an integer setting is outside the C++ ``int`` range.)doc")
-        .def_prop_ro("asset_step_count", [](const Engine& engine) { return engine.settings().asset_step_count; },
-                     "Number of spatial grid steps.")
-        .def_prop_ro("time_step_count", [](const Engine& engine) { return engine.settings().time_step_count; },
-                     "Number of time grid steps.")
-        .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; },
-                     "Finite-difference time-stepping scheme.")
-        .def_prop_ro("asset_upper_boundary", [](const Engine& engine) { return engine.settings().asset_upper_boundary; },
-                     "Explicit upper asset-grid boundary, or None for the core default.");
+        .def_prop_ro("asset_step_count", [](const Engine& engine) { return engine.settings().asset_step_count; }, "Number of spatial grid steps.")
+        .def_prop_ro("time_step_count", [](const Engine& engine) { return engine.settings().time_step_count; }, "Number of time grid steps.")
+        .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; }, "Finite-difference time-stepping scheme.")
+        .def_prop_ro("asset_upper_boundary", [](const Engine& engine) { return engine.settings().asset_upper_boundary; }, "Explicit upper asset-grid boundary, or None for the core default.");
     bind_repr(binding, name,
-              {{"asset_step_count", "asset_step_count"}, {"time_step_count", "time_step_count"},
-               {"scheme", "scheme"}, {"asset_upper_boundary", "asset_upper_boundary"}});
+              {{"asset_step_count", "asset_step_count"}, {"time_step_count", "time_step_count"}, {"scheme", "scheme"}, {"asset_upper_boundary", "asset_upper_boundary"}});
     return binding;
 }
 
@@ -224,7 +219,7 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
 {
     nb::class_<Engine> binding{
         module, name,
-R"doc(Trading-day Monte Carlo engine with immutable configuration.
+        R"doc(Trading-day Monte Carlo engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
 Accumulator and structured engines accept 1..10,000,000 paths.
@@ -265,12 +260,9 @@ TypeError
     If a setting has an incompatible representation.
 OverflowError
     If an integer is outside its C++ representation range.)doc")
-        .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; },
-                     "Number of simulated paths.")
-        .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; },
-                     "Non-negative random seed.")
-        .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; },
-                     "CPU or CUDA execution backend.");
+        .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
+        .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
+        .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(binding, name,
               {{"path_count", "path_count"}, {"seed", "seed"}, {"backend", "backend"}});
     return binding;
@@ -529,8 +521,8 @@ void bind_engine_analytics(nb::module_& module)
 void bind_results(nb::module_& module)
 {
     auto pricing_result = nb::class_<PricingResult>(
-        module, "PricingResult",
-        R"doc(Read-only price and Greek result.
+                              module, "PricingResult",
+                              R"doc(Read-only price and Greek result.
 
 Price uses instrument value units. Delta, gamma, and speed are per one spot unit,
 squared spot unit, and cubed spot unit. Vega, vanna, and zomma are price, delta,
@@ -551,9 +543,7 @@ vega, vanna, zomma : float or None
     Volatility-point changes in price, delta, and gamma.
 rho : float or None
     Price change per interest-rate percentage point.)doc")
-        .def("require", [](const PricingResult& result, Greek measure) {
-            return unwrap(result.require(measure));
-        }, "measure"_a, R"doc(Return a required Greek.
+                              .def("require", [](const PricingResult& result, Greek measure) { return unwrap(result.require(measure)); }, "measure"_a, R"doc(Return a required Greek.
 
 Parameters
 ----------
@@ -569,42 +559,19 @@ Raises
 ------
 KiyosiError
     If the requested Greek is unavailable.)doc")
-        .def_prop_ro("price", &PricingResult::price, "Instrument value.")
-        .def_prop_ro("delta", [](const PricingResult& result) {
-            return optional_value(result, Greek::delta);
-        }, "First spot derivative, or None when unavailable.")
-        .def_prop_ro("gamma", [](const PricingResult& result) {
-            return optional_value(result, Greek::gamma);
-        }, "Second spot derivative, or None when unavailable.")
-        .def_prop_ro("speed", [](const PricingResult& result) {
-            return optional_value(result, Greek::speed);
-        }, "Third spot derivative, or None when unavailable.")
-        .def_prop_ro("theta", [](const PricingResult& result) {
-            return optional_value(result, Greek::theta);
-        }, "Daily price decay, or None when unavailable.")
-        .def_prop_ro("charm", [](const PricingResult& result) {
-            return optional_value(result, Greek::charm);
-        }, "Daily change in delta, or None when unavailable.")
-        .def_prop_ro("color", [](const PricingResult& result) {
-            return optional_value(result, Greek::color);
-        }, "Daily change in gamma, or None when unavailable.")
-        .def_prop_ro("vega", [](const PricingResult& result) {
-            return optional_value(result, Greek::vega);
-        }, "Price change per volatility percentage point, or None.")
-        .def_prop_ro("vanna", [](const PricingResult& result) {
-            return optional_value(result, Greek::vanna);
-        }, "Delta change per volatility percentage point, or None.")
-        .def_prop_ro("zomma", [](const PricingResult& result) {
-            return optional_value(result, Greek::zomma);
-        }, "Gamma change per volatility percentage point, or None.")
-        .def_prop_ro("rho", [](const PricingResult& result) {
-            return optional_value(result, Greek::rho);
-        }, "Price change per interest-rate percentage point, or None.");
+                              .def_prop_ro("price", &PricingResult::price, "Instrument value.")
+                              .def_prop_ro("delta", [](const PricingResult& result) { return optional_value(result, Greek::delta); }, "First spot derivative, or None when unavailable.")
+                              .def_prop_ro("gamma", [](const PricingResult& result) { return optional_value(result, Greek::gamma); }, "Second spot derivative, or None when unavailable.")
+                              .def_prop_ro("speed", [](const PricingResult& result) { return optional_value(result, Greek::speed); }, "Third spot derivative, or None when unavailable.")
+                              .def_prop_ro("theta", [](const PricingResult& result) { return optional_value(result, Greek::theta); }, "Daily price decay, or None when unavailable.")
+                              .def_prop_ro("charm", [](const PricingResult& result) { return optional_value(result, Greek::charm); }, "Daily change in delta, or None when unavailable.")
+                              .def_prop_ro("color", [](const PricingResult& result) { return optional_value(result, Greek::color); }, "Daily change in gamma, or None when unavailable.")
+                              .def_prop_ro("vega", [](const PricingResult& result) { return optional_value(result, Greek::vega); }, "Price change per volatility percentage point, or None.")
+                              .def_prop_ro("vanna", [](const PricingResult& result) { return optional_value(result, Greek::vanna); }, "Delta change per volatility percentage point, or None.")
+                              .def_prop_ro("zomma", [](const PricingResult& result) { return optional_value(result, Greek::zomma); }, "Gamma change per volatility percentage point, or None.")
+                              .def_prop_ro("rho", [](const PricingResult& result) { return optional_value(result, Greek::rho); }, "Price change per interest-rate percentage point, or None.");
     bind_repr(pricing_result, "PricingResult",
-              {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"},
-               {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"},
-               {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"},
-               {"zomma", "zomma"}, {"rho", "rho"}});
+              {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"}, {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"}, {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"}, {"zomma", "zomma"}, {"rho", "rho"}});
 }
 
 void bind_engines(nb::module_& module)
@@ -616,8 +583,8 @@ void bind_engines(nb::module_& module)
         module, "QuadratureVanillaEngine");
     bind_engine_price<QuadratureVanillaEngine, EuropeanOption>(integral_vanilla);
     auto crr = nb::class_<CoxRossRubinsteinVanillaEngine>(
-        module, "CoxRossRubinsteinVanillaEngine",
-        R"doc(Cox-Ross-Rubinstein binomial vanilla-option engine.
+                   module, "CoxRossRubinsteinVanillaEngine",
+                   R"doc(Cox-Ross-Rubinstein binomial vanilla-option engine.
 
 Configuration is immutable. Settings are stored without domain validation and
 are validated when price() is called.
@@ -626,11 +593,11 @@ Attributes
 ----------
 step_count : int
     Number of binomial time steps.)doc")
-        .def(nb::new_([](PythonInteger step_count) {
-                 return CoxRossRubinsteinVanillaEngine{integer(step_count, "step_count")};
-             }),
-             "step_count"_a = BinomialSettings{}.step_count,
-             R"doc(Store Cox-Ross-Rubinstein settings.
+                   .def(nb::new_([](PythonInteger step_count) {
+                            return CoxRossRubinsteinVanillaEngine{integer(step_count, "step_count")};
+                        }),
+                        "step_count"_a = BinomialSettings{}.step_count,
+                        R"doc(Store Cox-Ross-Rubinstein settings.
 
 Parameters
 ----------
@@ -647,9 +614,7 @@ OverflowError
 Notes
 -----
 The setting is validated when price() is called.)doc")
-        .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) {
-            return engine.settings().step_count;
-        }, "Number of binomial time steps.");
+                   .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) { return engine.settings().step_count; }, "Number of binomial time steps.");
     bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {{"step_count", "step_count"}});
     bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(crr);
     bind_engine_price<CoxRossRubinsteinVanillaEngine, AmericanOption>(crr);
@@ -661,8 +626,8 @@ The setting is validated when price() is called.)doc")
     bind_engine_price<FiniteDifferenceVanillaEngine, EuropeanOption>(finite_vanilla);
     bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
-        module, "MonteCarloVanillaEngine",
-        R"doc(Monte Carlo vanilla-option engine with immutable configuration.
+                                   module, "MonteCarloVanillaEngine",
+                                   R"doc(Monte Carlo vanilla-option engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
 Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
@@ -678,17 +643,17 @@ seed : int or None
     Optional non-negative random seed.
 backend : MonteCarloBackend
     CPU or CUDA execution backend.)doc")
-        .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                        PythonInteger seed, PythonBackend backend) {
-                 return MonteCarloVanillaEngine{MonteCarloSettings{
-                     integer(path_count, "path_count"), integer(step_count, "step_count"),
-                     optional_seed(seed), monte_carlo_backend_value(backend)}};
-             }),
-             nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
-             "step_count"_a = MonteCarloSettings{}.step_count,
-             "seed"_a = nb::none(),
-             "backend"_a = MonteCarloSettings{}.backend,
-             R"doc(Store Monte Carlo settings.
+                                   .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
+                                                    PythonInteger seed, PythonBackend backend) {
+                                            return MonteCarloVanillaEngine{MonteCarloSettings{
+                                                integer(path_count, "path_count"), integer(step_count, "step_count"),
+                                                optional_seed(seed), monte_carlo_backend_value(backend)}};
+                                        }),
+                                        nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
+                                        "step_count"_a = MonteCarloSettings{}.step_count,
+                                        "seed"_a = nb::none(),
+                                        "backend"_a = MonteCarloSettings{}.backend,
+                                        R"doc(Store Monte Carlo settings.
 
 Parameters
 ----------
@@ -711,21 +676,12 @@ OverflowError
 Notes
 -----
 Settings are validated when price() is called.)doc")
-        .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) {
-            return engine.settings().path_count;
-        }, "Number of simulated paths.")
-        .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) {
-            return engine.settings().step_count;
-        }, "Number of time steps per path.")
-        .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) {
-            return engine.settings().seed;
-        }, "Optional non-negative random seed.")
-        .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) {
-            return engine.settings().backend;
-        }, "CPU or CUDA execution backend.");
+                                   .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
+                                   .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "Number of time steps per path.")
+                                   .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
+                                   .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
-              {{"path_count", "path_count"}, {"step_count", "step_count"},
-               {"seed", "seed"}, {"backend", "backend"}});
+              {{"path_count", "path_count"}, {"step_count", "step_count"}, {"seed", "seed"}, {"backend", "backend"}});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(monte_carlo_vanilla);
 

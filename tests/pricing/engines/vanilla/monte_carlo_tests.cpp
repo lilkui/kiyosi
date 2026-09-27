@@ -31,8 +31,7 @@ double legacy_european_price(const kiyosi::EuropeanOption& option,
                           context.model_parameters().dividend_yield() -
                           0.5 * volatility * volatility) *
                          dt;
-    std::mt19937_64 generator;
-    generator.seed(settings.seed.value_or(0));
+    std::mt19937_64 generator{settings.seed.value_or(0)};
     std::normal_distribution<double> normal;
     const int half_count = path_count / 2;
     for (int path = 0; path < half_count; ++path) {

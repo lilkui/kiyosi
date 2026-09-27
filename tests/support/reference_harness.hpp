@@ -13,6 +13,7 @@
 
 namespace kiyosi::test {
 
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization): test fixture lookup.
 inline const std::map<std::string, kiyosi::Greek> measures{
     {"delta", kiyosi::Greek::delta}, {"gamma", kiyosi::Greek::gamma}, {"speed", kiyosi::Greek::speed}, {"theta", kiyosi::Greek::theta}, {"charm", kiyosi::Greek::charm}, {"color", kiyosi::Greek::color}, {"vega", kiyosi::Greek::vega}, {"vanna", kiyosi::Greek::vanna}, {"zomma", kiyosi::Greek::zomma}, {"rho", kiyosi::Greek::rho}};
 
@@ -57,6 +58,7 @@ void check_price(const ReferenceCase& fixture, const PriceResult& priced)
           fixture.tolerances.at("price"));
 }
 
+// NOLINTNEXTLINE(bugprone-throwing-static-initialization): test fixture lookup.
 inline const std::map<std::string, kiyosi::BarrierType> barrier_kinds{
     {"up_and_in", kiyosi::BarrierType::up_and_in},
     {"up_and_out", kiyosi::BarrierType::up_and_out},
