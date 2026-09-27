@@ -1,4 +1,6 @@
 minimum_pre_commit_version: '4.4.0'
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
 
 repos:
   - repo: local
@@ -7,6 +9,7 @@ repos:
         name: clang-tidy --fix
         entry: clang-tidy -p=out/build/quality --fix --quiet
         language: unsupported
+        stages: [pre-push]
         files: ^(include|src|tests|examples|python/kiyosi)/.*\.(cpp|hpp)$
         require_serial: true
 
