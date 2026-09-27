@@ -1,18 +1,13 @@
 #pragma once
 
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-
 #include <array>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <map>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -180,7 +175,7 @@ inline std::map<std::string, double> numeric_attributes(std::string_view text, s
 
 } // namespace detail
 
-inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, char delimiter = '\0')
+inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
 {
     using namespace detail;
     constexpr std::array columns{"case_id", "instrument", "engine", "variant", "inputs", "outputs",
@@ -194,8 +189,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
         if (!line.empty() && line.back() == '\r') line.pop_back();
         if (line.empty() || line.front() == '#') continue;
         if (!header_read) {
-            if (delimiter == '\0') delimiter = line.find('\t') != std::string::npos ? '\t' : ',';
-            const auto header = split(line, delimiter);
+            const auto header = split(line, '\t');
             if (header.size() != columns.size())
                 throw FixtureParseError("fixture header: expected " + std::to_string(columns.size()) +
                                         " columns, got " + std::to_string(header.size()));
@@ -206,7 +200,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input, cha
             header_read = true;
             continue;
         }
-        const auto fields = split(line, delimiter);
+        const auto fields = split(line, '\t');
         if (fields.size() != columns.size())
             throw FixtureParseError("fixture row " + std::to_string(row) + ": expected " +
                                     std::to_string(columns.size()) + " columns, got " +
@@ -346,50 +340,6 @@ inline std::vector<ReferenceCase> load_reference_cases(const std::filesystem::pa
     std::ifstream input(path);
     if (!input) throw FixtureParseError("cannot open fixture '" + path.string() + "'");
     return parse_reference_cases(input);
-}
-
-struct FixtureFailure {
-    std::string case_id;
-    std::string output;
-    double expected;
-    double actual;
-    double tolerance;
-
-    std::string message() const
-    {
-        std::ostringstream text;
-        text << "case='" << case_id << "' output='" << output << "' expected="
-             << expected << " actual=" << actual << " tolerance=" << tolerance;
-        return text.str();
-    }
-};
-
-inline bool within_tolerance(double actual, double expected, double tolerance) noexcept
-{
-    return std::isfinite(actual) && std::isfinite(expected) && std::isfinite(tolerance) &&
-           tolerance >= 0.0 && std::abs(actual - expected) <= tolerance;
-}
-
-inline std::vector<FixtureFailure> compare_fixture(
-    const ReferenceCase& fixture, const std::map<std::string, double>& actual)
-{
-    std::vector<FixtureFailure> failures;
-    for (const auto& [name, expected] : fixture.outputs) {
-        const auto value = actual.at(name);
-        const auto tolerance = fixture.tolerances.at(name);
-        if (!within_tolerance(value, expected, tolerance)) {
-            failures.push_back(FixtureFailure{fixture.case_id, name, expected, value, tolerance});
-        }
-    }
-    return failures;
-}
-
-inline void check_fixture(const ReferenceCase& fixture, const std::map<std::string, double>& actual)
-{
-    for (const auto& failure : compare_fixture(fixture, actual)) {
-        INFO(failure.message());
-        CHECK_THAT(failure.actual, Catch::Matchers::WithinAbs(failure.expected, failure.tolerance));
-    }
 }
 
 } // namespace kiyosi::test

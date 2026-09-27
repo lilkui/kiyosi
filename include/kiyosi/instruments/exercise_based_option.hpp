@@ -1,13 +1,10 @@
 #pragma once
 
-#include <span>
 #include <utility>
 
 #include <kiyosi/instruments/exercise.hpp>
 #include <kiyosi/instruments/option_terms.hpp>
 #include <kiyosi/instruments/payoff.hpp>
-#include <kiyosi/market/calendar.hpp>
-#include <kiyosi/market/schedule.hpp>
 
 namespace kiyosi {
 
@@ -84,16 +81,6 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
     auto terms = detail::make_option_terms(option_type, strike, effective_date, expiry_date);
     if (!terms) return std::unexpected(terms.error());
     return detail::make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
-}
-
-/// Validates observation dates against an option's expiry and a trading calendar.
-/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
-template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline Result<void> validate_observation_dates(
-    std::span<const Date> observation_dates, Date valuation_date,
-    const ExerciseBasedOption<Payoff, Exercise>& option, const TradingCalendar& calendar)
-{
-    return validate_observation_dates(observation_dates, valuation_date, option.expiry_date(), calendar);
 }
 
 } // namespace kiyosi

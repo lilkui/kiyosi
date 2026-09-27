@@ -143,25 +143,6 @@ TEST_CASE("Reference fixture parser reports malformed rows")
                       Catch::Matchers::ContainsSubstring("valuation"));
 }
 
-TEST_CASE("Reference fixture tolerances are inclusive and mismatch reports are useful")
-{
-    CHECK(kiyosi::test::within_tolerance(2.0, 1.0, 1.0));
-    CHECK_FALSE(kiyosi::test::within_tolerance(2.000001, 1.0, 1.0));
-
-    auto fixture = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path()).front();
-    const auto actual = fixture.outputs;
-    CHECK(kiyosi::test::compare_fixture(fixture, actual).empty());
-    fixture.outputs.at("price") += fixture.tolerances.at("price") + 1.0;
-    const auto failures = kiyosi::test::compare_fixture(fixture, actual);
-    REQUIRE(failures.size() == 1);
-    const auto message = failures.front().message();
-    CHECK(message.find("case='" + fixture.case_id + "'") != std::string::npos);
-    CHECK(message.find("output='price'") != std::string::npos);
-    CHECK(message.find("expected=") != std::string::npos);
-    CHECK(message.find("actual=") != std::string::npos);
-    CHECK(message.find("tolerance=") != std::string::npos);
-}
-
 TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical metadata")
 {
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());

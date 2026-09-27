@@ -11,11 +11,6 @@
 
 namespace kiyosi::detail {
 
-inline Result<PricingResult> price_only_result(double value)
-{
-    return make_pricing_result(value);
-}
-
 /// Black-Scholes-Merton valuation of a European vanilla with selected analytic Greeks.
 /// The volatility is supplied separately so solvers can reprice without rebuilding the context.
 inline Result<PricingResult> price_at_volatility(
@@ -32,7 +27,6 @@ inline Result<PricingResult> price_at_volatility(
 
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
-        if (requested_output.empty()) return price_only_result(value);
         return make_pricing_result(value);
     }
 
@@ -52,7 +46,7 @@ inline Result<PricingResult> price_at_volatility(
         if (!std::isfinite(value))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "analytic pricing produced a non-finite result"});
-        if (requested_output.empty()) return price_only_result(value);
+        if (requested_output.empty()) return make_pricing_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
         return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt}});
     }
@@ -71,7 +65,7 @@ inline Result<PricingResult> price_at_volatility(
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});
-    if (requested_output.empty()) return price_only_result(value);
+    if (requested_output.empty()) return make_pricing_result(value);
 
     const auto want = [&](Greek greek) { return requested_output.has(greek); };
     const double density_d1 = normal_pdf(d1);
