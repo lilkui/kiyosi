@@ -8,7 +8,7 @@
 namespace kiyosi {
 using namespace detail;
 
-Result<PricingResult> QuadratureVanillaEngine::price_impl(const EuropeanOption& option, const PricingContext& context) const
+Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());

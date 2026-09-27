@@ -2,7 +2,6 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include <chrono>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -27,11 +26,6 @@ inline std::string fixture_text()
     std::ifstream input(fixture_path());
     REQUIRE(input.good());
     return {std::istreambuf_iterator<char>{input}, std::istreambuf_iterator<char>{}};
-}
-
-inline kiyosi::Date standard_expiry()
-{
-    return kiyosi::Date{std::chrono::year{2026} / 1 / 6};
 }
 
 /// Reads a scalar input column out of a fixture row.

@@ -35,15 +35,7 @@ public:
     }
 
 private:
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] Result<PricingResult> price_native(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
-    {
-        return price_impl(option, context);
-    }
-
-    [[nodiscard]] Result<PricingResult> price_impl(
         const AmericanOption&, const PricingContext&) const;
 };
 
