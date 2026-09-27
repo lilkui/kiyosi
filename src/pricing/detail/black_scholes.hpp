@@ -84,13 +84,13 @@ inline Result<PricingResult> price_at_volatility(
         if (want(Greek::speed)) speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
         if (want(Greek::theta)) theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) / 365.0;
         if (want(Greek::charm)) charm = -dividend_discount_factor *
-                                              (density_d1 * ((rate - dividend) / (volatility * sqrt_time) - 0.5 * d2 / year_fraction) -
-                                               sign * dividend * cumulative_d1) /
-                                              365.0;
+                                        (density_d1 * ((rate - dividend) / (volatility * sqrt_time) - 0.5 * d2 / year_fraction) -
+                                         sign * dividend * cumulative_d1) /
+                                        365.0;
         if (want(Greek::color)) color = gamma *
-                                              (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
-                                               (1.0 - d1 * d2) / (2.0 * year_fraction)) /
-                                              365.0;
+                                        (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
+                                         (1.0 - d1 * d2) / (2.0 * year_fraction)) /
+                                        365.0;
         if (want(Greek::vega)) vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_points_per_unit;
         if (want(Greek::vanna)) vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_points_per_unit);
         if (want(Greek::zomma)) zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_points_per_unit);

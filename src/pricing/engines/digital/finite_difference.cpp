@@ -77,7 +77,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
         return make_pricing_result(space->interpolate(old, spot));
 
     auto output = make_pricing_result(space->interpolate(old, spot), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-         {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+                                                                      {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "finite-difference pricing produced a non-finite result"});

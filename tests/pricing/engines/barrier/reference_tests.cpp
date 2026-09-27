@@ -63,7 +63,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             const auto numerical = kiyosi::calculate_numerical_greeks(engine, *option, *context, shifts);
             REQUIRE(numerical.has_value());
             CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
-                fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
+                                               fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(fixture.outputs.contains(name));

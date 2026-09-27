@@ -48,15 +48,15 @@ TEST_CASE("Pricing context and result preserve their values")
     REQUIRE(kiyosi::make_pricing_context(*parameters, 100.0, day(2025, 1, 1)).has_value());
 
     const auto result = kiyosi::make_pricing_result(1.0, {{kiyosi::Greek::delta, 2.0},
-                                                     {kiyosi::Greek::gamma, 3.0},
-                                                     {kiyosi::Greek::speed, 4.0},
-                                                     {kiyosi::Greek::theta, 5.0},
-                                                     {kiyosi::Greek::charm, 6.0},
-                                                     {kiyosi::Greek::color, 7.0},
-                                                     {kiyosi::Greek::vega, 8.0},
-                                                     {kiyosi::Greek::vanna, 9.0},
-                                                     {kiyosi::Greek::zomma, 10.0},
-                                                     {kiyosi::Greek::rho, 11.0}});
+                                                          {kiyosi::Greek::gamma, 3.0},
+                                                          {kiyosi::Greek::speed, 4.0},
+                                                          {kiyosi::Greek::theta, 5.0},
+                                                          {kiyosi::Greek::charm, 6.0},
+                                                          {kiyosi::Greek::color, 7.0},
+                                                          {kiyosi::Greek::vega, 8.0},
+                                                          {kiyosi::Greek::vanna, 9.0},
+                                                          {kiyosi::Greek::zomma, 10.0},
+                                                          {kiyosi::Greek::rho, 11.0}});
     REQUIRE(result.has_value());
     CHECK(result->price() == 1.0);
     const auto copy = *result;

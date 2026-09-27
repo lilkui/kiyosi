@@ -188,7 +188,7 @@ Result<PricingResult> complete_greeks(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(Greek::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
-                                                  (4.0 * h * vol_scale);
+                                            (4.0 * h * vol_scale);
 
             const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / (h * h);
             const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / (h * h);
@@ -288,10 +288,10 @@ Result<PricingResult> complete_greeks(
                     engine, option, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
                 if (need(Greek::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
-                                                      (2.0 * h * day_scale);
+                                                (2.0 * h * day_scale);
                 if (need(Greek::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
-                                                        (*d_before - 2.0 * *t_before + *d_before_low)) /
-                                                       (h * h * day_scale));
+                                                  (*d_before - 2.0 * *t_before + *d_before_low)) /
+                                                 (h * h * day_scale));
             }
         }
     }

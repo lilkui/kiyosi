@@ -63,14 +63,14 @@ double delta(kiyosi::OptionType type, double spot, double rate, double dividend,
              double volatility, kiyosi::Date value_date, kiyosi::Date option_expiry, double strike = 100.0)
 {
     return greek_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
-                      kiyosi::Greek::delta);
+                       kiyosi::Greek::delta);
 }
 
 double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
              double volatility, kiyosi::Date value_date, kiyosi::Date option_expiry, double strike = 100.0)
 {
     return greek_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
-                      kiyosi::Greek::gamma);
+                       kiyosi::Greek::gamma);
 }
 
 struct RejectingMixedBumpEngine {

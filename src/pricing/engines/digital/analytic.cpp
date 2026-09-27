@@ -51,11 +51,11 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     if (asset_settlement) {
         if (output.has(Greek::delta)) delta = div_df * (nd + sign * density / (sigma * root_t));
         if (output.has(Greek::gamma)) gamma = -div_df * sign * density * d1 / (spot * sigma * sigma * t) +
-                                                    div_df * sign * density / (spot * sigma * root_t);
+                                              div_df * sign * density / (spot * sigma * root_t);
     } else {
         if (output.has(Greek::delta)) delta = payout * rate_df * sign * density / (spot * sigma * root_t);
         if (output.has(Greek::gamma)) gamma = -payout * rate_df * sign * density *
-                                                    (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
+                                              (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
     auto result = make_price_delta_gamma_result(value, delta, gamma);
     if (!result) return std::unexpected(result.error());

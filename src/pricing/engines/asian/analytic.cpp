@@ -115,7 +115,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double sigma = context.model_parameters().volatility();
     if (tau == 0.0)
         return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot,
-                     strike));
+                                          strike));
     if (option.averaging_start_date() == option.expiry_date()) {
         return price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
@@ -155,7 +155,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     if (root < 1e-12) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
         return make_pricing_result(scale * std::exp(-rate * tau) *
-                  payoff(option.option_type(), forward, adjusted_strike));
+                                   payoff(option.option_type(), forward, adjusted_strike));
     }
     const double d1 = (std::log(spot / adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;

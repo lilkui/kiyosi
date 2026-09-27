@@ -24,8 +24,8 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double root = std::sqrt(tau);
     if (sigma < 1e-12)
         return make_pricing_result(std::exp(-rate * tau) *
-                  std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
-                           0.0));
+                                   std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
+                                            0.0));
     const double z_star = (std::log(strike / spot) - (rate - dividend - 0.5 * sigma * sigma) * tau) / (sigma * root);
     const double lower = sign > 0 ? std::max(z_star, -10.0) : -10.0;
     const double upper = sign > 0 ? 10.0 : std::min(z_star, 10.0);

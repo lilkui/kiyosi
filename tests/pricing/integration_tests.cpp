@@ -13,7 +13,6 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::greek_value;
 
 TEST_CASE("Digital contracts validate and expose pricing results")
 {

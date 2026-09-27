@@ -214,8 +214,8 @@ Result<PricingResult> price_autocallable_finite_difference(
 
     if constexpr (monitors_knock_in)
         return make_pricing_result(space->interpolate(note.barrier_state() == AutocallableBarrierState::knocked_in ? knocked_in
-                                                                                              : alive,
-                                 spot));
+                                                                                                                   : alive,
+                                                      spot));
     else
         return make_pricing_result(space->interpolate(alive, spot));
 }

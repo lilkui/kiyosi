@@ -137,7 +137,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     constexpr std::array names{"price", "delta", "gamma", "speed", "theta", "charm",
                                                "color", "vega", "vanna", "zomma", "rho"};
                     CHECK_THAT(joint->price(), Catch::Matchers::WithinAbs(
-                        std::stod(test.expected.at("price")), std::stod(test.tolerance)));
+                                                   std::stod(test.expected.at("price")), std::stod(test.tolerance)));
                     for (std::size_t i = 1; i < names.size(); ++i) {
                         INFO(names[i]);
                         const auto measure = static_cast<kiyosi::Greek>(i - 1);

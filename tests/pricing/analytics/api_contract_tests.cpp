@@ -92,7 +92,7 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     CHECK(greek_value(*basic, Greek::gamma) == Catch::Approx(2.0).margin(1e-5));
     calls.clear();
     const auto supplied = *make_pricing_result(10000.0, {{Greek::delta, 17.0},
-                                                {Greek::gamma, 0.0}});
+                                                         {Greek::gamma, 0.0}});
     const auto preserved = detail::complete_greeks(engine, option, context, GreeksRequest{Greek::delta, Greek::gamma}, {}, supplied);
     REQUIRE(preserved);
     CHECK(calls.empty());
@@ -132,7 +132,8 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
         });
     REQUIRE(rho);
     REQUIRE(calls.size() == 2);
-    for (const auto& context : calls) CHECK(context.spot_price() == 100.0);
+    for (const auto& context : calls)
+        CHECK(context.spot_price() == 100.0);
     CHECK(greek_value(*rho, Greek::rho) == 0.0);
     CHECK_FALSE(rho->has(Greek::gamma));
 
@@ -229,7 +230,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
     const auto result = calculate_numerical_greeks(RecordingPriceEngine{&calls}, option,
-                                                          market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
+                                                   market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
     REQUIRE(result);
     CHECK(greek_value(*result, Greek::theta) == 0.0);
     for (const auto& call : calls) {

@@ -56,7 +56,7 @@ public:
     /// Used internally for price-only valuations; invalid for price_with_greeks().
     GreeksRequest() = default;
     GreeksRequest(std::initializer_list<Greek> greeks) : GreeksRequest(std::span{greeks.begin(), greeks.size()}) {}
-    GreeksRequest(std::span<const Greek> greeks)
+    explicit GreeksRequest(std::span<const Greek> greeks)
     {
         for (const auto greek : greeks) {
             const auto index = greek_index(greek);
@@ -64,7 +64,8 @@ public:
             else selected_[*index] = true;
         }
     }
-    GreeksRequest(bool all_greeks)
+    // `true` is the documented shorthand for requesting every Greek.
+    GreeksRequest(bool all_greeks) // NOLINT(google-explicit-constructor)
     {
         if (all_greeks)
             for (std::size_t index = 0; index < greek_count; ++index)
@@ -81,7 +82,7 @@ public:
     }
     [[nodiscard]] bool empty() const noexcept
     {
-        for (bool selected : selected_)
+        for (const bool selected : selected_)
             if (selected) return false;
         return true;
     }

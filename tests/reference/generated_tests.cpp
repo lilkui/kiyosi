@@ -89,7 +89,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                 REQUIRE(fixture.outputs.contains("price"));
                 if (wrapped)
                     CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
-                        fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
+                                                       fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
                 std::size_t available = 0;
                 for (const auto& [name, measure] : measures) {
                     INFO("measure=" << name);

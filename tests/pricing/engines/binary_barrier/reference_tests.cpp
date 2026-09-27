@@ -61,7 +61,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                 engine, option, *context, shifts);
             REQUIRE(numerical);
             CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
-                fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
+                                               fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(numerical->has(measure));

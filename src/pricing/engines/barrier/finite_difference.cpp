@@ -109,9 +109,9 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
     if (*prior_touch || (touched && observed_now)) {
         if (!knock_in)
             return make_pricing_result(option.rebate_timing() == RebateTiming::at_hit
-                      ? (*prior_touch ? 0.0 : option.rebate())
-                      : option.rebate() *
-                            std::exp(-context.model_parameters().risk_free_rate() * t));
+                                           ? (*prior_touch ? 0.0 : option.rebate())
+                                           : option.rebate() *
+                                                 std::exp(-context.model_parameters().risk_free_rate() * t));
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
         return make_pricing_result(*vanilla);
@@ -122,6 +122,6 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
     auto vanilla = vanilla_price();
     if (!vanilla) return std::unexpected(vanilla.error());
     return make_pricing_result(*vanilla - *out +
-              option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
+                               option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
 }
 } // namespace kiyosi

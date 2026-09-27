@@ -124,7 +124,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     }
 
     return make_pricing_result(space->interpolate(slope, spot) * option.accumulated_quantity() +
-              space->interpolate(intercept, spot));
+                               space->interpolate(intercept, spot));
 }
 
 } // namespace kiyosi
