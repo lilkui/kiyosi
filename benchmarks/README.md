@@ -13,7 +13,7 @@ On Windows with vcpkg `QuantLib:x64-windows-static`, run `run-benchmarks.bat C:\
 For a matrix-only run or a manually installed QuantLib package, use these commands from a Visual Studio Developer PowerShell:
 
 ```powershell
-cmake --preset windows-release -DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib
+cmake --preset windows-release -DKIYOSI_BUILD_BENCHMARKS=ON -DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib
 cmake --build --preset windows-release --target kiyosi_benchmarks
 ./out/build/windows-release/benchmarks/kiyosi_benchmarks.exe --benchmark_filter=^matrix/ --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=matrix.json --benchmark_out_format=json
 python benchmarks/compare.py matrix.json

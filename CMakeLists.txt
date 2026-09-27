@@ -14,7 +14,7 @@ option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targe
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
-option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" ${PROJECT_IS_TOP_LEVEL})
+option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" OFF)
 option(KIYOSI_ENABLE_CUDA "Build the optional CUDA Monte Carlo backend" OFF)
 
 if(KIYOSI_ENABLE_CUDA)
