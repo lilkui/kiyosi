@@ -1,5 +1,7 @@
 """Pricing engines, analytics, and implied-value solvers."""
 
+from typing import Literal
+
 from ._native import (
     AnalyticBarrierEngine,
     AnalyticBinaryBarrierEngine,
@@ -7,19 +9,16 @@ from ._native import (
     AnalyticGeometricAveragePriceEngine,
     AnalyticVanillaEngine,
     BjerksundStenslandVanillaEngine,
-    CouponQuoteConvention,
     CoxRossRubinsteinVanillaEngine,
     FiniteDifferenceAccumulatorEngine,
     FiniteDifferenceBarrierEngine,
     FiniteDifferenceBinarySnowballEngine,
     FiniteDifferenceDigitalEngine,
     FiniteDifferencePhoenixEngine,
-    FiniteDifferenceScheme,
     FiniteDifferenceSnowballEngine,
     FiniteDifferenceTernarySnowballEngine,
     FiniteDifferenceVanillaEngine,
     MonteCarloAccumulatorEngine,
-    MonteCarloBackend,
     MonteCarloBinarySnowballEngine,
     MonteCarloPhoenixEngine,
     MonteCarloSnowballEngine,
@@ -32,6 +31,10 @@ from ._native import (
     implied_coupon,
     implied_volatility,
 )
+
+CouponQuoteConvention = Literal["shift_maturity_coupon", "preserve_maturity_coupon"]
+FiniteDifferenceScheme = Literal["explicit_euler", "implicit_euler", "crank_nicolson"]
+MonteCarloBackend = Literal["cpu", "cuda"]
 
 
 __all__ = [

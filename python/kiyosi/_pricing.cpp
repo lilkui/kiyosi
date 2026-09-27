@@ -1,21 +1,13 @@
 #include "_binding.hpp"
 
-#include <array>
-
 using namespace nb::literals;
 
 namespace kiyosi::python_binding {
 
 namespace {
 
-inline constexpr std::array<std::pair<const char*, RiskMeasure>, risk_measure_count> risk_measures{{
-    {"price", RiskMeasure::price}, {"delta", RiskMeasure::delta},
-    {"gamma", RiskMeasure::gamma}, {"speed", RiskMeasure::speed},
-    {"theta", RiskMeasure::theta}, {"charm", RiskMeasure::charm},
-    {"color", RiskMeasure::color}, {"vega", RiskMeasure::vega},
-    {"vanna", RiskMeasure::vanna}, {"zomma", RiskMeasure::zomma},
-    {"rho", RiskMeasure::rho},
-}};
+inline constexpr auto& risk_measures = EnumNames<RiskMeasure>::values;
+static_assert(risk_measures.size() == risk_measure_count);
 
 std::optional<RiskMeasure> measure_named(std::string_view name)
 {
@@ -26,8 +18,7 @@ std::optional<RiskMeasure> measure_named(std::string_view name)
 
 MonteCarloBackend monte_carlo_backend_value(nb::handle value)
 {
-    if (!nb::isinstance<MonteCarloBackend>(value))
-        type_error("backend", "a MonteCarloBackend");
+    if (!nb::isinstance<nb::str>(value)) type_error("backend", "a string");
     return nb::cast<MonteCarloBackend>(value);
 }
 
@@ -42,7 +33,7 @@ nb::tuple result_keys()
 {
     nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(risk_measure_count));
     for (std::size_t index = 0; index < risk_measures.size(); ++index) {
-        nb::object value = nb::str(risk_measures[index].first);
+        nb::object value = nb::str(risk_measures[index].first.data());
         PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
     }
     return output;
@@ -62,7 +53,7 @@ nb::tuple result_items(const PricingResult& result)
 {
     nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(risk_measure_count));
     for (std::size_t index = 0; index < risk_measures.size(); ++index) {
-        nb::object value = nb::make_tuple(risk_measures[index].first,
+        nb::object value = nb::make_tuple(risk_measures[index].first.data(),
                                           optional_value(result, risk_measures[index].second));
         PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
     }
@@ -76,7 +67,7 @@ NumericalShiftSettings numerical_settings(
 std::vector<RiskMeasure> requested_greeks(nb::handle value)
 {
     std::vector<RiskMeasure> selected;
-    if (nb::isinstance<RiskMeasure>(value)) {
+    if (nb::isinstance<nb::str>(value)) {
         selected.push_back(nb::cast<RiskMeasure>(value));
         return selected;
     }
@@ -84,12 +75,12 @@ std::vector<RiskMeasure> requested_greeks(nb::handle value)
     if (!iterator) {
         if (!PyErr_ExceptionMatches(PyExc_TypeError)) throw nb::python_error();
         PyErr_Clear();
-        type_error("greeks", "a RiskMeasure or an iterable of RiskMeasure values");
+        type_error("greeks", "a risk-measure name or an iterable of risk-measure names");
     }
     while (PyObject* item = PyIter_Next(iterator.ptr())) {
         nb::object greek = nb::steal<nb::object>(item);
-        if (!nb::isinstance<RiskMeasure>(greek))
-            type_error("greeks", "a RiskMeasure or an iterable of RiskMeasure values");
+        if (!nb::isinstance<nb::str>(greek))
+            type_error("greeks", "a risk-measure name or an iterable of risk-measure names");
         selected.push_back(nb::cast<RiskMeasure>(greek));
     }
     if (PyErr_Occurred()) throw nb::python_error();
@@ -127,7 +118,7 @@ KiyosiError
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           nb::handle greeks, nb::handle all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
+           PythonGreekRequest greeks, nb::handle all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
            PythonReal rate_shift, PythonInteger time_shift_days) {
             if (!PyBool_Check(all_greeks.ptr())) type_error("all_greeks", "a bool");
             const bool all = all_greeks.ptr() == Py_True;
@@ -148,7 +139,7 @@ KiyosiError
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
         R"doc(Compute price and the explicitly selected Greeks.
 
-Pass one RiskMeasure or an iterable of them, or set ``all_greeks=True`` to
+Pass one lowercase risk-measure name or an iterable of them, or set ``all_greeks=True`` to
 request all ten. These forms are mutually exclusive. Native values are reused;
 missing feasible measures use numerical price differences. Unrequested or
 undefined measures are None, never zero sentinels. At expiry or a monitored
@@ -286,7 +277,7 @@ seed : int or None
 backend : MonteCarloBackend
     CPU or CUDA execution backend.)doc"};
     binding
-        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, nb::handle backend) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonBackend backend) {
                  return Engine{TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
                      monte_carlo_backend_value(backend)}};
@@ -780,7 +771,7 @@ seed : int or None
 backend : MonteCarloBackend
     CPU or CUDA execution backend.)doc")
         .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                        PythonInteger seed, nb::handle backend) {
+                        PythonInteger seed, PythonBackend backend) {
                  return MonteCarloVanillaEngine{MonteCarloSettings{
                      integer(path_count, "path_count"), integer(step_count, "step_count"),
                      optional_seed(seed), monte_carlo_backend_value(backend)}};

@@ -32,14 +32,13 @@ Price a European call with the analytic Black-Scholes engine:
 ```python
 from datetime import date
 
-from kiyosi.instruments import EuropeanOption, OptionType
+from kiyosi.instruments import EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
-from kiyosi import RiskMeasure
 from kiyosi.pricing import AnalyticVanillaEngine
 
 valuation = date(2025, 1, 1)
 option = EuropeanOption(
-    option_type=OptionType.CALL,
+    option_type="call",
     strike=100.0,
     effective_date=valuation,
     expiry_date=date(2026, 1, 1),
@@ -57,14 +56,14 @@ context = PricingContext(
 engine = AnalyticVanillaEngine()
 print(engine.price(option, context))  # float; no Greeks are calculated
 
-selected = engine.price_with_greeks(option, context, [RiskMeasure.DELTA, RiskMeasure.GAMMA])
+selected = engine.price_with_greeks(option, context, ["delta", "gamma"])
 print(selected.price, selected.delta, selected.gamma)
 
 full = engine.price_with_greeks(option, context, all_greeks=True)
 print(full.vega, full.theta)
 ```
 
-Pass one `RiskMeasure` or an iterable of them to request one or more Greeks.
+Pass one lowercase risk-measure name or an iterable of them to request Greeks.
 `all_greeks=True` requests Delta, Gamma, Speed, Theta, Charm, Color, Vega,
 Vanna, Zomma, and Rho. The two request forms are mutually exclusive. Native
 Greeks are reused; missing feasible measures use numerical price differences.
@@ -90,11 +89,16 @@ The Python API is organized into three modules:
 Select the CUDA backend on any Monte Carlo engine:
 
 ```python
-from kiyosi.pricing import MonteCarloBackend, MonteCarloVanillaEngine
+from kiyosi.pricing import MonteCarloVanillaEngine
 
-engine = MonteCarloVanillaEngine(backend=MonteCarloBackend.CUDA)
+engine = MonteCarloVanillaEngine(backend="cuda")
 result = engine.price(option, context)
 ```
+
+Enum-like Python inputs use lowercase strings such as `"call"`, `"cuda"`, and
+`"crank_nicolson"`. Properties return the same strings. Public `OptionType`,
+`MonteCarloBackend`, and similar names are `typing.Literal` aliases for static
+type checking; `KiyosiError.category` remains an `ErrorCategory` Enum.
 
 ## Pricing coverage
 

@@ -6,6 +6,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <exception>
@@ -26,6 +27,120 @@ namespace kiyosi::python_binding {
 struct PythonDateAnnotation {};
 struct PythonTimestampAnnotation {};
 struct PythonValuationTimeAnnotation {};
+struct PythonGreekRequestAnnotation {};
+template <typename Enum>
+struct EnumNames;
+
+template <>
+struct EnumNames<OptionType> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, OptionType>>(
+        {{"call", OptionType::call}, {"put", OptionType::put}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['call', 'put']");
+};
+
+template <>
+struct EnumNames<BarrierType> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, BarrierType>>(
+        {{"up_and_in", BarrierType::up_and_in}, {"up_and_out", BarrierType::up_and_out},
+         {"down_and_in", BarrierType::down_and_in}, {"down_and_out", BarrierType::down_and_out}});
+    static constexpr auto Name = nb::detail::const_name(
+        "typing.Literal['up_and_in', 'up_and_out', 'down_and_in', 'down_and_out']");
+};
+
+template <>
+struct EnumNames<ObservationMode> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, ObservationMode>>(
+        {{"continuous", ObservationMode::continuous}, {"scheduled", ObservationMode::scheduled}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['continuous', 'scheduled']");
+};
+
+template <>
+struct EnumNames<BarrierTouchState> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, BarrierTouchState>>(
+        {{"untouched", BarrierTouchState::untouched}, {"touched", BarrierTouchState::touched}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['untouched', 'touched']");
+};
+
+template <>
+struct EnumNames<RebateTiming> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, RebateTiming>>(
+        {{"at_hit", RebateTiming::at_hit}, {"at_expiry", RebateTiming::at_expiry}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['at_hit', 'at_expiry']");
+};
+
+template <>
+struct EnumNames<SettlementTiming> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, SettlementTiming>>(
+        {{"at_hit", SettlementTiming::at_hit}, {"at_expiry", SettlementTiming::at_expiry}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['at_hit', 'at_expiry']");
+};
+
+template <>
+struct EnumNames<PayoffType> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, PayoffType>>(
+        {{"cash", PayoffType::cash}, {"asset", PayoffType::asset}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['cash', 'asset']");
+};
+
+template <>
+struct EnumNames<KnockInObservationMode> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, KnockInObservationMode>>(
+        {{"every_trading_day", KnockInObservationMode::every_trading_day},
+         {"at_expiry", KnockInObservationMode::at_expiry}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['every_trading_day', 'at_expiry']");
+};
+
+template <>
+struct EnumNames<AutocallableBarrierState> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, AutocallableBarrierState>>(
+        {{"none", AutocallableBarrierState::none}, {"knocked_out", AutocallableBarrierState::knocked_out},
+         {"knocked_in", AutocallableBarrierState::knocked_in}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['none', 'knocked_out', 'knocked_in']");
+};
+
+template <>
+struct EnumNames<FiniteDifferenceScheme> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, FiniteDifferenceScheme>>(
+        {{"explicit_euler", FiniteDifferenceScheme::explicit_euler},
+         {"implicit_euler", FiniteDifferenceScheme::implicit_euler},
+         {"crank_nicolson", FiniteDifferenceScheme::crank_nicolson}});
+    static constexpr auto Name = nb::detail::const_name(
+        "typing.Literal['explicit_euler', 'implicit_euler', 'crank_nicolson']");
+};
+
+template <>
+struct EnumNames<MonteCarloBackend> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, MonteCarloBackend>>(
+        {{"cpu", MonteCarloBackend::cpu}, {"cuda", MonteCarloBackend::cuda}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['cpu', 'cuda']");
+};
+
+template <>
+struct EnumNames<CouponQuoteConvention> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, CouponQuoteConvention>>(
+        {{"shift_maturity_coupon", CouponQuoteConvention::shift_maturity_coupon},
+         {"preserve_maturity_coupon", CouponQuoteConvention::preserve_maturity_coupon}});
+    static constexpr auto Name = nb::detail::const_name(
+        "typing.Literal['shift_maturity_coupon', 'preserve_maturity_coupon']");
+};
+
+template <>
+struct EnumNames<BusinessDayConvention> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, BusinessDayConvention>>(
+        {{"following", BusinessDayConvention::following}, {"preceding", BusinessDayConvention::preceding}});
+    static constexpr auto Name = nb::detail::const_name("typing.Literal['following', 'preceding']");
+};
+
+template <>
+struct EnumNames<RiskMeasure> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, RiskMeasure>>(
+        {{"price", RiskMeasure::price}, {"delta", RiskMeasure::delta}, {"gamma", RiskMeasure::gamma},
+         {"speed", RiskMeasure::speed}, {"theta", RiskMeasure::theta}, {"charm", RiskMeasure::charm},
+         {"color", RiskMeasure::color}, {"vega", RiskMeasure::vega}, {"vanna", RiskMeasure::vanna},
+         {"zomma", RiskMeasure::zomma}, {"rho", RiskMeasure::rho}});
+    static constexpr auto Name = nb::detail::const_name(
+        "typing.Literal['price', 'delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho']");
+};
 
 } // namespace kiyosi::python_binding
 
@@ -49,6 +164,53 @@ struct type_caster<kiyosi::python_binding::PythonValuationTimeAnnotation> {
                    const_name("datetime.date | datetime.datetime"))
 };
 
+template <>
+struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
+    NB_TYPE_CASTER(kiyosi::python_binding::PythonGreekRequestAnnotation,
+                   (kiyosi::python_binding::EnumNames<kiyosi::RiskMeasure>::Name +
+                    const_name(" | collections.abc.Iterable[") +
+                    kiyosi::python_binding::EnumNames<kiyosi::RiskMeasure>::Name +
+                    const_name("]")))
+};
+
+#define KIYOSI_STRING_ENUM_CASTER(Enum)                                             \
+    template <>                                                                      \
+    struct type_caster<kiyosi::Enum> {                                               \
+        NB_TYPE_CASTER(kiyosi::Enum, kiyosi::python_binding::EnumNames<kiyosi::Enum>::Name) \
+        bool from_python(handle source, uint32_t, cleanup_list*) {                   \
+            if (!isinstance<str>(source)) return false;                             \
+            const std::string name = cast<std::string>(source);                     \
+            for (const auto& [candidate, member] :                                 \
+                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values) {         \
+                if (name == candidate) { value = member; return true; }             \
+            }                                                                        \
+            throw value_error(("unknown " #Enum " value: " + name).c_str());       \
+        }                                                                            \
+        static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*) {     \
+            for (const auto& [name, member] :                                        \
+                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values)           \
+                if (source == member) return str(name.data()).release();            \
+            throw std::logic_error("unmapped core " #Enum " value");               \
+        }                                                                            \
+    };
+
+KIYOSI_STRING_ENUM_CASTER(OptionType)
+KIYOSI_STRING_ENUM_CASTER(BarrierType)
+KIYOSI_STRING_ENUM_CASTER(ObservationMode)
+KIYOSI_STRING_ENUM_CASTER(BarrierTouchState)
+KIYOSI_STRING_ENUM_CASTER(RebateTiming)
+KIYOSI_STRING_ENUM_CASTER(SettlementTiming)
+KIYOSI_STRING_ENUM_CASTER(PayoffType)
+KIYOSI_STRING_ENUM_CASTER(KnockInObservationMode)
+KIYOSI_STRING_ENUM_CASTER(AutocallableBarrierState)
+KIYOSI_STRING_ENUM_CASTER(FiniteDifferenceScheme)
+KIYOSI_STRING_ENUM_CASTER(MonteCarloBackend)
+KIYOSI_STRING_ENUM_CASTER(CouponQuoteConvention)
+KIYOSI_STRING_ENUM_CASTER(BusinessDayConvention)
+KIYOSI_STRING_ENUM_CASTER(RiskMeasure)
+
+#undef KIYOSI_STRING_ENUM_CASTER
+
 } // namespace nanobind::detail
 
 namespace kiyosi::python_binding {
@@ -57,10 +219,11 @@ using PythonReal = nb::typed<nb::handle, double>;
 using PythonInteger = nb::typed<nb::handle, int>;
 using PythonDate = nb::typed<nb::handle, PythonDateAnnotation>;
 using PythonValuationTime = nb::typed<nb::handle, PythonValuationTimeAnnotation>;
+using PythonGreekRequest = nb::typed<nb::handle, PythonGreekRequestAnnotation>;
+using PythonBackend = nb::typed<nb::handle, MonteCarloBackend>;
 using PythonRealSequence = nb::typed<nb::handle, nb::typed<nb::iterable, double>>;
 using PythonDateSequence =
     nb::typed<nb::handle, nb::typed<nb::iterable, PythonDateAnnotation>>;
-using PythonOptionType = nb::typed<nb::object, OptionType>;
 using PythonDateObject = nb::typed<nb::object, PythonDateAnnotation>;
 using PythonTimestampObject = nb::typed<nb::object, PythonTimestampAnnotation>;
 using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
@@ -252,7 +415,7 @@ inline std::vector<double> real_sequence(nb::handle values, std::string_view fie
     return output;
 }
 
-void bind_enums(nb::module_& module);
+void bind_error_category(nb::module_& module);
 void bind_market(nb::module_& module);
 void bind_instruments(nb::module_& module);
 void bind_structured_instruments(nb::module_& module);

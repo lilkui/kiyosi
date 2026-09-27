@@ -38,7 +38,7 @@ raise :class:`KiyosiError` with a stable :attr:`KiyosiError.category`.)doc";
                                 std::to_string(version_patch);
     module.attr("__version__") = nb::str(version.c_str());
 
-    bind_enums(module);
+    bind_error_category(module);
     nb::dict exception_attributes;
     exception_attributes["__doc__"] = R"doc(Core domain validation or pricing error.
 
