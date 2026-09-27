@@ -29,7 +29,7 @@ if __name__ == "__main__":
     generated = holidays()
     if arguments.check:
         match = re.search(
-            r"constexpr std::array sse_holidays\{([\d\s,]+)\};",
+            r"constexpr auto sse_holidays = std::to_array<int>\(\{([\d\s,]+)\}\);",
             target.read_text(encoding="utf-8"),
         )
         if (
@@ -40,7 +40,7 @@ if __name__ == "__main__":
             raise SystemExit("SSE calendar differs from QuantLib")
         print("SSE calendar matches QuantLib")
     else:
-        print("constexpr std::array sse_holidays{")
+        print("constexpr auto sse_holidays = std::to_array<int>({")
         for offset in range(0, len(generated), 12):
             print("    " + ", ".join(map(str, generated[offset : offset + 12])) + ",")
-        print("};")
+        print("});")

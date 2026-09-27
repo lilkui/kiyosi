@@ -79,10 +79,12 @@
             }
         },
         {
-            "name": "linux-quality",
-            "displayName": "Linux quality checks",
-            "inherits": "linux-debug",
+            "name": "quality",
+            "displayName": "Quality checks",
+            "inherits": "base",
             "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_CXX_COMPILER": "clang++",
                 "CMAKE_COMPILE_WARNING_AS_ERROR": true,
                 "KIYOSI_ENABLE_CLANG_FORMAT": true,
                 "KIYOSI_ENABLE_CLANG_TIDY": true
@@ -135,8 +137,8 @@
             "configurePreset": "linux-sanitizers"
         },
         {
-            "name": "linux-quality",
-            "configurePreset": "linux-quality",
+            "name": "quality",
+            "configurePreset": "quality",
             "targets": [
                 "all",
                 "kiyosi-format-check"
