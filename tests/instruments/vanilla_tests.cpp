@@ -85,7 +85,7 @@ TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
           kiyosi::ErrorCategory::invalid_time_range);
 }
 
-TEST_CASE("Exercise style and engine risk measures are explicit")
+TEST_CASE("Exercise style and engine Greeks are explicit")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry_date = valuation + std::chrono::days{365};
@@ -97,14 +97,14 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto european_result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, kiyosi::GreeksRequest{true});
     REQUIRE(european_result.has_value());
-    CHECK(european_result->has(kiyosi::RiskMeasure::price));
-    CHECK(european_result->has(kiyosi::RiskMeasure::vega));
+    CHECK(std::isfinite(european_result->price()));
+    CHECK(european_result->has(kiyosi::Greek::vega));
 
-    const auto american_result = kiyosi::CoxRossRubinsteinVanillaEngine{}.price_with_greeks(american, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
+    const auto american_result = kiyosi::CoxRossRubinsteinVanillaEngine{}.price_with_greeks(american, context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
     REQUIRE(american_result.has_value());
-    CHECK(american_result->has(kiyosi::RiskMeasure::price));
-    CHECK(american_result->has(kiyosi::RiskMeasure::gamma));
-    CHECK_FALSE(american_result->has(kiyosi::RiskMeasure::vega));
+    CHECK(std::isfinite(american_result->price()));
+    CHECK(american_result->has(kiyosi::Greek::gamma));
+    CHECK_FALSE(american_result->has(kiyosi::Greek::vega));
 }
 
 } // namespace

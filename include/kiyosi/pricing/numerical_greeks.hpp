@@ -50,9 +50,8 @@ template <typename Engine, typename Option>
 inline Result<double> price_value(const Result<PricingResult>& result)
 {
     if (!result) return std::unexpected(result.error());
-    const auto value = result->require(RiskMeasure::price);
-    if (!value) return std::unexpected(value.error());
-    if (!std::isfinite(*value))
+    const auto value = result->price();
+    if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
     return value;
 }
@@ -120,32 +119,31 @@ Result<PricingResult> complete_greeks(
     const double volatility = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
     const Timestamp valuation_time = context.valuation_time();
-    const auto p0 = native.require(RiskMeasure::price);
-    if (!p0) return std::unexpected(p0.error());
+    const Result<double> p0 = native.price();
     if (greeks_unavailable(option, context))
-        return make_pricing_result({{RiskMeasure::price, *p0}});
-    const auto need = [&](RiskMeasure measure) {
+        return make_pricing_result(*p0);
+    const auto need = [&](Greek measure) {
         return greeks.has(measure) && !native.has(measure);
     };
     const double h = settings.spot_shift;
     const bool spot_discontinuity = at_spot_discontinuity(option, context);
     const bool spot_stencil_available = !spot_discontinuity && spot > h &&
                                         std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
-    auto delta = *native.get(RiskMeasure::delta);
-    auto gamma = *native.get(RiskMeasure::gamma);
-    auto speed = *native.get(RiskMeasure::speed);
-    if (spot_stencil_available && (need(RiskMeasure::delta) || need(RiskMeasure::gamma) || need(RiskMeasure::speed))) {
+    auto delta = *native.get(Greek::delta);
+    auto gamma = *native.get(Greek::gamma);
+    auto speed = *native.get(Greek::speed);
+    if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) || need(Greek::speed))) {
         const auto p_up = detail::shifted_value(
             engine, option, context, spot + h, volatility, rate, valuation_time);
         if (!p_up) return std::unexpected(p_up.error());
         const auto p_down = detail::shifted_value(
             engine, option, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
-        if (need(RiskMeasure::delta)) delta = (*p_up - *p_down) / (2.0 * h);
-        if (need(RiskMeasure::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / (h * h);
+        if (need(Greek::delta)) delta = (*p_up - *p_down) / (2.0 * h);
+        if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / (h * h);
 
         const double two_h = 2.0 * h;
-        if (need(RiskMeasure::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h)) {
+        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h)) {
             const auto p_up2 = detail::shifted_value(
                 engine, option, context, spot + two_h, volatility, rate, valuation_time);
             if (!p_up2) return std::unexpected(p_up2.error());
@@ -157,15 +155,15 @@ Result<PricingResult> complete_greeks(
         }
     }
 
-    auto vega = *native.get(RiskMeasure::vega);
-    auto vanna = *native.get(RiskMeasure::vanna);
-    auto zomma = *native.get(RiskMeasure::zomma);
+    auto vega = *native.get(Greek::vega);
+    auto vanna = *native.get(Greek::vanna);
+    auto zomma = *native.get(Greek::zomma);
     const double vol_scale = 100.0 * settings.volatility_shift;
     const bool volatility_stencil_available =
         volatility > settings.volatility_shift &&
         std::isfinite(volatility + settings.volatility_shift) && std::isfinite(vol_scale);
     if (volatility_stencil_available &&
-        (need(RiskMeasure::vega) || need(RiskMeasure::vanna) || need(RiskMeasure::zomma))) {
+        (need(Greek::vega) || need(Greek::vanna) || need(Greek::zomma))) {
         const double volatility_high = volatility + settings.volatility_shift;
         const double volatility_low = volatility - settings.volatility_shift;
         const auto v_up = detail::shifted_value(
@@ -174,9 +172,9 @@ Result<PricingResult> complete_greeks(
         const auto v_down = detail::shifted_value(
             engine, option, context, spot, volatility_low, rate, valuation_time);
         if (!v_down) return std::unexpected(v_down.error());
-        if (need(RiskMeasure::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
+        if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
-        if (spot_stencil_available && (need(RiskMeasure::vanna) || need(RiskMeasure::zomma))) {
+        if (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))) {
             const auto d_up = detail::shifted_value(
                 engine, option, context, spot + h, volatility_high, rate, valuation_time);
             if (!d_up) return std::unexpected(d_up.error());
@@ -189,18 +187,18 @@ Result<PricingResult> complete_greeks(
             const auto d_down_low = detail::shifted_value(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
-            if (need(RiskMeasure::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
+            if (need(Greek::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                                                   (4.0 * h * vol_scale);
 
             const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / (h * h);
             const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / (h * h);
-            if (need(RiskMeasure::zomma)) zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
+            if (need(Greek::zomma)) zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
         }
     }
 
-    auto rho = *native.get(RiskMeasure::rho);
+    auto rho = *native.get(Greek::rho);
     const double rate_scale = 200.0 * settings.rate_shift;
-    if (need(RiskMeasure::rho) && std::isfinite(rate + settings.rate_shift) &&
+    if (need(Greek::rho) && std::isfinite(rate + settings.rate_shift) &&
         std::isfinite(rate - settings.rate_shift) && std::isfinite(rate_scale)) {
         const auto r_up = detail::shifted_value(
             engine, option, context, spot, volatility, rate + settings.rate_shift, valuation_time);
@@ -211,10 +209,10 @@ Result<PricingResult> complete_greeks(
         rho = (*r_up - *r_down) / rate_scale;
     }
 
-    auto theta = *native.get(RiskMeasure::theta);
-    auto charm = *native.get(RiskMeasure::charm);
-    auto color = *native.get(RiskMeasure::color);
-    if (need(RiskMeasure::theta) || need(RiskMeasure::charm) || need(RiskMeasure::color)) {
+    auto theta = *native.get(Greek::theta);
+    auto charm = *native.get(Greek::charm);
+    auto color = *native.get(Greek::color);
+    if (need(Greek::theta) || need(Greek::charm) || need(Greek::color)) {
         using Days = std::chrono::duration<double, std::ratio<86400>>;
         const auto valuation_days = Days{valuation_time.time_since_epoch()};
         auto lower_days = Days{Timestamp::min().time_since_epoch()};
@@ -261,7 +259,7 @@ Result<PricingResult> complete_greeks(
                     }
         }
         if (!spot_discontinuity && time_stencil_available &&
-            (need(RiskMeasure::theta) || need(RiskMeasure::charm) || need(RiskMeasure::color)) &&
+            (need(Greek::theta) || need(Greek::charm) || need(Greek::color)) &&
             (before_days != 0.0 || after_days != 0.0)) {
             const auto t_before = before_days == 0.0
                                       ? p0
@@ -274,9 +272,9 @@ Result<PricingResult> complete_greeks(
                                            engine, option, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
             const double day_scale = before_days + after_days;
-            if (need(RiskMeasure::theta)) theta = (*t_after - *t_before) / day_scale;
+            if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
 
-            if (spot_stencil_available && (need(RiskMeasure::charm) || need(RiskMeasure::color))) {
+            if (spot_stencil_available && (need(Greek::charm) || need(Greek::color))) {
                 const auto d_before = detail::shifted_value(
                     engine, option, context, spot + h, volatility, rate, before);
                 if (!d_before) return std::unexpected(d_before.error());
@@ -289,16 +287,15 @@ Result<PricingResult> complete_greeks(
                 const auto d_after_low = detail::shifted_value(
                     engine, option, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
-                if (need(RiskMeasure::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
+                if (need(Greek::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
                                                       (2.0 * h * day_scale);
-                if (need(RiskMeasure::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
+                if (need(Greek::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
                                                         (*d_before - 2.0 * *t_before + *d_before_low)) /
                                                        (h * h * day_scale));
             }
         }
     }
-    auto output = make_pricing_result(
-        {{RiskMeasure::price, *p0}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}, {RiskMeasure::speed, speed}, {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm}, {RiskMeasure::color, color}, {RiskMeasure::vega, vega}, {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma}, {RiskMeasure::rho, rho}});
+    auto output = make_pricing_result(*p0, {{Greek::delta, delta}, {Greek::gamma, gamma}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
     if (!output) return std::unexpected(output.error());
     *output = output->selected(greeks);
     if (!output->all_finite())
@@ -333,7 +330,7 @@ Result<PricingResult> price_with_greeks(
     if (!native->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
     if (greeks_unavailable(option, context))
-        return make_pricing_result({{RiskMeasure::price, *value}});
+        return make_pricing_result(*value);
     if (native_complete) return native;
     return complete_greeks(engine, option, context, greeks, settings, *native);
 }
@@ -344,9 +341,9 @@ Result<PricingResult> price_with_greeks(
 /// At expiry or a monitored barrier hit-state boundary, only price is available.
 /// Missing legal stencils leave individual measures empty; a failed feasible valuation
 /// fails the operation. Monte Carlo valuations share one seed per request.
-/// Shifts and units follow NumericalShiftSettings and RiskMeasure, respectively.
+/// Shifts and units follow NumericalShiftSettings and Greek, respectively.
 template <typename Engine, typename Option>
-[[nodiscard]] Result<PricingResult> calculate_numerical_risk_measures(
+[[nodiscard]] Result<PricingResult> calculate_numerical_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
@@ -354,7 +351,7 @@ template <typename Engine, typename Option>
                                      [&](const auto& seeded_engine) -> Result<PricingResult> {
                                          const auto value = detail::numerical_value(seeded_engine, option, context);
                                          if (!value) return std::unexpected(value.error());
-                                         return make_pricing_result({{RiskMeasure::price, *value}});
+                                         return make_pricing_result(*value);
                                      });
 }
 

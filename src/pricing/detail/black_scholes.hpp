@@ -13,7 +13,7 @@ namespace kiyosi::detail {
 
 inline Result<PricingResult> price_only_result(double value)
 {
-    return make_pricing_result({{RiskMeasure::price, value}});
+    return make_pricing_result(value);
 }
 
 /// Black-Scholes-Merton valuation of a European vanilla with selected analytic Greeks.
@@ -33,7 +33,7 @@ inline Result<PricingResult> price_at_volatility(
     if (year_fraction == 0.0) {
         const double value = std::max(sign * (spot - strike), 0.0);
         if (requested_output.empty()) return price_only_result(value);
-        return make_pricing_result({{RiskMeasure::price, value}});
+        return make_pricing_result(value);
     }
 
     const double rate = context.model_parameters().risk_free_rate();
@@ -54,8 +54,7 @@ inline Result<PricingResult> price_at_volatility(
                                          "analytic pricing produced a non-finite result"});
         if (requested_output.empty()) return price_only_result(value);
         const double delta = intrinsic > 0.0 ? sign * std::exp(-dividend * year_fraction) : 0.0;
-        return make_pricing_result(
-            {{RiskMeasure::price, value}, {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{delta} : std::nullopt}});
+        return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt}});
     }
 
     const double d1 = (std::log(spot / strike) +
@@ -74,47 +73,46 @@ inline Result<PricingResult> price_at_volatility(
                                      "analytic pricing produced a non-finite result"});
     if (requested_output.empty()) return price_only_result(value);
 
-    const auto want = [&](RiskMeasure greek) { return requested_output.has(greek); };
+    const auto want = [&](Greek greek) { return requested_output.has(greek); };
     const double density_d1 = normal_pdf(d1);
     const bool regular = density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2);
-    const bool needs_gamma = want(RiskMeasure::gamma) || want(RiskMeasure::speed) ||
-                             want(RiskMeasure::color) || want(RiskMeasure::zomma);
+    const bool needs_gamma = want(Greek::gamma) || want(Greek::speed) ||
+                             want(Greek::color) || want(Greek::zomma);
     const double gamma = needs_gamma && regular
                              ? dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time)
                              : 0.0;
     std::optional<double> speed, theta, charm, color, vega, vanna, zomma;
-    const double carry = want(RiskMeasure::theta)
+    const double carry = want(Greek::theta)
                              ? sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
                                    sign * rate * strike * rate_discount_factor * cumulative_d2
                              : 0.0;
     if (density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)) {
-        if (want(RiskMeasure::speed)) speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
-        if (want(RiskMeasure::theta)) theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) / 365.0;
-        if (want(RiskMeasure::charm)) charm = -dividend_discount_factor *
+        if (want(Greek::speed)) speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
+        if (want(Greek::theta)) theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) / 365.0;
+        if (want(Greek::charm)) charm = -dividend_discount_factor *
                                               (density_d1 * ((rate - dividend) / (volatility * sqrt_time) - 0.5 * d2 / year_fraction) -
                                                sign * dividend * cumulative_d1) /
                                               365.0;
-        if (want(RiskMeasure::color)) color = gamma *
+        if (want(Greek::color)) color = gamma *
                                               (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
                                                (1.0 - d1 * d2) / (2.0 * year_fraction)) /
                                               365.0;
-        if (want(RiskMeasure::vega)) vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_points_per_unit;
-        if (want(RiskMeasure::vanna)) vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_points_per_unit);
-        if (want(RiskMeasure::zomma)) zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_points_per_unit);
+        if (want(Greek::vega)) vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_points_per_unit;
+        if (want(Greek::vanna)) vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_points_per_unit);
+        if (want(Greek::zomma)) zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_points_per_unit);
     } else {
-        if (want(RiskMeasure::speed)) speed = 0.0;
-        if (want(RiskMeasure::theta)) theta = carry / 365.0;
-        if (want(RiskMeasure::charm)) charm = 0.0;
-        if (want(RiskMeasure::color)) color = 0.0;
-        if (want(RiskMeasure::vega)) vega = 0.0;
-        if (want(RiskMeasure::vanna)) vanna = 0.0;
-        if (want(RiskMeasure::zomma)) zomma = 0.0;
+        if (want(Greek::speed)) speed = 0.0;
+        if (want(Greek::theta)) theta = carry / 365.0;
+        if (want(Greek::charm)) charm = 0.0;
+        if (want(Greek::color)) color = 0.0;
+        if (want(Greek::vega)) vega = 0.0;
+        if (want(Greek::vanna)) vanna = 0.0;
+        if (want(Greek::zomma)) zomma = 0.0;
     }
-    const std::optional<double> rho = want(RiskMeasure::rho)
+    const std::optional<double> rho = want(Greek::rho)
                                           ? std::optional{sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_points_per_unit}
                                           : std::nullopt;
-    auto output = make_pricing_result(
-        {{RiskMeasure::price, value}, {RiskMeasure::delta, want(RiskMeasure::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {RiskMeasure::gamma, want(RiskMeasure::gamma) ? std::optional{gamma} : std::nullopt}, {RiskMeasure::speed, speed}, {RiskMeasure::theta, theta}, {RiskMeasure::charm, charm}, {RiskMeasure::color, color}, {RiskMeasure::vega, vega}, {RiskMeasure::vanna, vanna}, {RiskMeasure::zomma, zomma}, {RiskMeasure::rho, rho}});
+    auto output = make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite()) {
         return std::unexpected(Error{ErrorCategory::invalid_result,

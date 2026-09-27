@@ -12,7 +12,7 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
+using kiyosi::test::greek_value;
 
 TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
 {
@@ -47,29 +47,29 @@ TEST_CASE("Pricing context and result preserve their values")
     REQUIRE(context->valuation_date() == day(2025, 1, 1));
     REQUIRE(kiyosi::make_pricing_context(*parameters, 100.0, day(2025, 1, 1)).has_value());
 
-    const auto result = kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, 1.0},
-                                                     {kiyosi::RiskMeasure::delta, 2.0},
-                                                     {kiyosi::RiskMeasure::gamma, 3.0},
-                                                     {kiyosi::RiskMeasure::speed, 4.0},
-                                                     {kiyosi::RiskMeasure::theta, 5.0},
-                                                     {kiyosi::RiskMeasure::charm, 6.0},
-                                                     {kiyosi::RiskMeasure::color, 7.0},
-                                                     {kiyosi::RiskMeasure::vega, 8.0},
-                                                     {kiyosi::RiskMeasure::vanna, 9.0},
-                                                     {kiyosi::RiskMeasure::zomma, 10.0},
-                                                     {kiyosi::RiskMeasure::rho, 11.0}});
+    const auto result = kiyosi::make_pricing_result(1.0, {{kiyosi::Greek::delta, 2.0},
+                                                     {kiyosi::Greek::gamma, 3.0},
+                                                     {kiyosi::Greek::speed, 4.0},
+                                                     {kiyosi::Greek::theta, 5.0},
+                                                     {kiyosi::Greek::charm, 6.0},
+                                                     {kiyosi::Greek::color, 7.0},
+                                                     {kiyosi::Greek::vega, 8.0},
+                                                     {kiyosi::Greek::vanna, 9.0},
+                                                     {kiyosi::Greek::zomma, 10.0},
+                                                     {kiyosi::Greek::rho, 11.0}});
     REQUIRE(result.has_value());
+    CHECK(result->price() == 1.0);
     const auto copy = *result;
-    REQUIRE(risk_value(copy, kiyosi::RiskMeasure::rho) == 11.0);
+    REQUIRE(greek_value(copy, kiyosi::Greek::rho) == 11.0);
     STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::PricingResult>);
     STATIC_REQUIRE(std::is_copy_assignable_v<kiyosi::PricingResult>);
     STATIC_REQUIRE(std::is_copy_constructible_v<kiyosi::Error>);
 }
 
-TEST_CASE("Pricing result rejects unknown risk measures")
+TEST_CASE("Pricing result rejects unknown Greeks")
 {
-    const auto unknown = static_cast<kiyosi::RiskMeasure>(kiyosi::risk_measure_count);
-    const auto result = kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, 1.0}});
+    const auto unknown = static_cast<kiyosi::Greek>(kiyosi::greek_count);
+    const auto result = kiyosi::make_pricing_result(1.0);
     REQUIRE(result.has_value());
 
     CHECK_FALSE(result->has(unknown));
@@ -82,13 +82,13 @@ TEST_CASE("Pricing result rejects unknown risk measures")
     REQUIRE_FALSE(unknown_required.has_value());
     CHECK(unknown_required.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
-    const auto unavailable = result->get(kiyosi::RiskMeasure::delta);
+    const auto unavailable = result->get(kiyosi::Greek::delta);
     REQUIRE(unavailable.has_value());
     CHECK_FALSE(unavailable->has_value());
-    CHECK(result->require(kiyosi::RiskMeasure::delta).error().category ==
+    CHECK(result->require(kiyosi::Greek::delta).error().category ==
           kiyosi::ErrorCategory::invalid_result);
 
-    const auto invalid = kiyosi::make_pricing_result({{unknown, 1.0}});
+    const auto invalid = kiyosi::make_pricing_result(1.0, {{unknown, 1.0}});
     REQUIRE_FALSE(invalid.has_value());
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
     STATIC_REQUIRE_FALSE(noexcept(result->get(unknown)));

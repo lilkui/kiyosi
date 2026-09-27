@@ -29,8 +29,7 @@ Result<PricingResult> price_binomial(
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (time == 0.0) {
-        return make_pricing_result(
-            {{RiskMeasure::price, std::max(sign * (spot - strike), 0.0)}});
+        return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     }
 
     const double rate = context.model_parameters().risk_free_rate();
@@ -67,8 +66,8 @@ Result<PricingResult> price_binomial(
 
     std::array<double, 3> level_two{};
     std::array<double, 2> level_one{};
-    if (requested_output.has(RiskMeasure::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
-    if (requested_output.has(RiskMeasure::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
+    if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
+    if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
     node_spot = spot * std::pow(down, settings.step_count - 1);
     for (int level = settings.step_count - 1; level >= 0; --level) {
         if (level < settings.step_count - 1) node_spot *= up;
@@ -84,25 +83,25 @@ Result<PricingResult> price_binomial(
             }
             level_node_spot *= up_squared;
         }
-        if (requested_output.has(RiskMeasure::gamma) && level == 2) {
+        if (requested_output.has(Greek::gamma) && level == 2) {
             level_two = {values[0], values[1], values[2]};
-        } else if (requested_output.has(RiskMeasure::delta) && level == 1) {
+        } else if (requested_output.has(Greek::delta) && level == 1) {
             level_one = {values[0], values[1]};
         }
     }
 
-    if (!requested_output.has(RiskMeasure::delta) && !requested_output.has(RiskMeasure::gamma))
-        return make_pricing_result({{RiskMeasure::price, values[0]}});
+    if (!requested_output.has(Greek::delta) && !requested_output.has(Greek::gamma))
+        return make_pricing_result(values[0]);
 
     double delta = 0.0;
     double gamma = 0.0;
     bool gamma_available = false;
-    if (requested_output.has(RiskMeasure::delta) && settings.step_count >= 1) {
+    if (requested_output.has(Greek::delta) && settings.step_count >= 1) {
         const double denominator = spot * (up - down);
         if (std::isfinite(denominator) && denominator != 0.0)
             delta = (level_one[1] - level_one[0]) / denominator;
     }
-    if (requested_output.has(RiskMeasure::gamma) && settings.step_count >= 2) {
+    if (requested_output.has(Greek::gamma) && settings.step_count >= 2) {
         const double delta_up_denominator = spot * (up * up - 1.0);
         const double delta_down_denominator = spot * (1.0 - down * down);
         const double gamma_denominator = 0.5 * spot * (up * up - down * down);
@@ -114,10 +113,8 @@ Result<PricingResult> price_binomial(
         }
     }
 
-    auto output = make_pricing_result(
-        {{RiskMeasure::price, values[0]},
-         {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{delta} : std::nullopt},
-         {RiskMeasure::gamma,
+    auto output = make_pricing_result(values[0], {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt},
+         {Greek::gamma,
           gamma_available ? std::optional<double>{gamma} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite()) {

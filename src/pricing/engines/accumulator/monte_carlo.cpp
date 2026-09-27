@@ -134,7 +134,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
         if (!std::isfinite(value))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "structured pricing produced a non-finite result"});
-        return make_pricing_result({{RiskMeasure::price, value}});
+        return make_pricing_result(value);
     };
     const auto initial = initial_state(option, context);
     if (initial.settlement) return make_result(*initial.settlement);

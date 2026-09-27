@@ -62,10 +62,10 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     if (fixture.engine == "CrrEngine" || fixture.engine == "FiniteDifferenceEuropeanEngine" ||
                         fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
                         fixture.engine == "FiniteDifferenceDigitalEngine")
-                        return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
+                        return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
                     const auto value = engine.price(option, *context);
                     if (!value) return std::unexpected(value.error());
-                    return kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, *value}});
+                    return kiyosi::make_pricing_result(*value);
                 }();
                 check_price(fixture, native);
                 const bool expiry_boundary = (date("expiry_date") - date("valuation")).count() <= 2;
@@ -82,9 +82,14 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                               static_cast<int>(number("time_shift_days"))};
                 }
                 const auto numerical = wrapped
-                                           ? kiyosi::calculate_numerical_risk_measures(engine, option, *context, shifts)
+                                           ? kiyosi::calculate_numerical_greeks(engine, option, *context, shifts)
                                            : native;
                 REQUIRE(numerical.has_value());
+                REQUIRE(inputs.contains("unit_price"));
+                REQUIRE(fixture.outputs.contains("price"));
+                if (wrapped)
+                    CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
+                        fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
                 std::size_t available = 0;
                 for (const auto& [name, measure] : measures) {
                     INFO("measure=" << name);
@@ -97,7 +102,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                         continue;
                     }
                     ++available;
-                    const bool native_measure = analytic || name == "price" ||
+                    const bool native_measure = analytic ||
                                                 ((fixture.engine == "CrrEngine" ||
                                                   fixture.engine == "FiniteDifferenceEuropeanEngine" ||
                                                   fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
@@ -113,7 +118,7 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                         CHECK_THAT(*numerical->require(measure), Catch::Matchers::WithinAbs(expected, number("numerical_tolerance_" + name) + number("uncertainty_" + name)));
                     }
                 }
-                REQUIRE(fixture.outputs.size() == available);
+                REQUIRE(fixture.outputs.size() == available + 1);
             };
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
             using FiniteDifference = kiyosi::FiniteDifferenceVanillaEngine;

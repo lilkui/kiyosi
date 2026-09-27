@@ -6,12 +6,13 @@ namespace kiyosi::python_binding {
 
 namespace {
 
-inline constexpr auto& risk_measures = EnumNames<RiskMeasure>::values;
-static_assert(risk_measures.size() == risk_measure_count);
+inline constexpr auto& greek_names = EnumNames<Greek>::values;
+static_assert(greek_names.size() == greek_count);
+inline constexpr std::size_t result_field_count = greek_count + 1;
 
-std::optional<RiskMeasure> measure_named(std::string_view name)
+std::optional<Greek> measure_named(std::string_view name)
 {
-    for (const auto& [candidate, measure] : risk_measures)
+    for (const auto& [candidate, measure] : greek_names)
         if (name == candidate) return measure;
     return std::nullopt;
 }
@@ -22,7 +23,7 @@ MonteCarloBackend monte_carlo_backend_value(nb::handle value)
     return nb::cast<MonteCarloBackend>(value);
 }
 
-PythonOptionalReal optional_value(const PricingResult& result, RiskMeasure measure)
+PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
 {
     const auto value = result.get(measure);
     if (value && *value) return PythonOptionalReal{nb::float_(**value)};
@@ -31,31 +32,37 @@ PythonOptionalReal optional_value(const PricingResult& result, RiskMeasure measu
 
 nb::tuple result_keys()
 {
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(risk_measure_count));
-    for (std::size_t index = 0; index < risk_measures.size(); ++index) {
-        nb::object value = nb::str(risk_measures[index].first.data());
-        PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
+    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
+    nb::object price = nb::str("price");
+    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
+    for (std::size_t index = 0; index < greek_names.size(); ++index) {
+        nb::object value = nb::str(greek_names[index].first.data());
+        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
     }
     return output;
 }
 
 nb::tuple result_values(const PricingResult& result)
 {
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(risk_measure_count));
-    for (std::size_t index = 0; index < risk_measures.size(); ++index) {
-        nb::object value = optional_value(result, risk_measures[index].second);
-        PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
+    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
+    nb::object price = nb::float_(result.price());
+    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
+    for (std::size_t index = 0; index < greek_names.size(); ++index) {
+        nb::object value = optional_value(result, greek_names[index].second);
+        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
     }
     return output;
 }
 
 nb::tuple result_items(const PricingResult& result)
 {
-    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(risk_measure_count));
-    for (std::size_t index = 0; index < risk_measures.size(); ++index) {
-        nb::object value = nb::make_tuple(risk_measures[index].first.data(),
-                                          optional_value(result, risk_measures[index].second));
-        PyTuple_SET_ITEM(output.ptr(), index, value.release().ptr());
+    nb::tuple output = nb::steal<nb::tuple>(PyTuple_New(result_field_count));
+    nb::object price = nb::make_tuple("price", result.price());
+    PyTuple_SET_ITEM(output.ptr(), 0, price.release().ptr());
+    for (std::size_t index = 0; index < greek_names.size(); ++index) {
+        nb::object value = nb::make_tuple(greek_names[index].first.data(),
+                                          optional_value(result, greek_names[index].second));
+        PyTuple_SET_ITEM(output.ptr(), index + 1, value.release().ptr());
     }
     return output;
 }
@@ -64,24 +71,24 @@ NumericalShiftSettings numerical_settings(
     nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days);
 
-std::vector<RiskMeasure> requested_greeks(nb::handle value)
+std::vector<Greek> requested_greeks(nb::handle value)
 {
-    std::vector<RiskMeasure> selected;
+    std::vector<Greek> selected;
     if (nb::isinstance<nb::str>(value)) {
-        selected.push_back(nb::cast<RiskMeasure>(value));
+        selected.push_back(nb::cast<Greek>(value));
         return selected;
     }
     nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(value.ptr()));
     if (!iterator) {
         if (!PyErr_ExceptionMatches(PyExc_TypeError)) throw nb::python_error();
         PyErr_Clear();
-        type_error("greeks", "a risk-measure name or an iterable of risk-measure names");
+        type_error("greeks", "a Greek name or an iterable of Greek names");
     }
     while (PyObject* item = PyIter_Next(iterator.ptr())) {
         nb::object greek = nb::steal<nb::object>(item);
         if (!nb::isinstance<nb::str>(greek))
-            type_error("greeks", "a risk-measure name or an iterable of risk-measure names");
-        selected.push_back(nb::cast<RiskMeasure>(greek));
+            type_error("greeks", "a Greek name or an iterable of Greek names");
+        selected.push_back(nb::cast<Greek>(greek));
     }
     if (PyErr_Occurred()) throw nb::python_error();
     return selected;
@@ -124,8 +131,8 @@ KiyosiError
             const bool all = all_greeks.ptr() == Py_True;
             if (all && !greeks.is_none()) type_error("greeks", "omitted when all_greeks is True");
             if (!all && greeks.is_none()) type_error("greeks", "provided unless all_greeks is True");
-            const auto selected = all ? std::vector<RiskMeasure>{} : requested_greeks(greeks);
-            const GreeksRequest request = all ? GreeksRequest{true} : GreeksRequest{std::span<const RiskMeasure>{selected}};
+            const auto selected = all ? std::vector<Greek>{} : requested_greeks(greeks);
+            const GreeksRequest request = all ? GreeksRequest{true} : GreeksRequest{std::span<const Greek>{selected}};
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
@@ -139,7 +146,7 @@ KiyosiError
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
         R"doc(Compute price and the explicitly selected Greeks.
 
-Pass one lowercase risk-measure name or an iterable of them, or set ``all_greeks=True`` to
+Pass one lowercase Greek name or an iterable of them, or set ``all_greeks=True`` to
 request all ten. These forms are mutually exclusive. Native values are reused;
 missing feasible measures use numerical price differences. Unrequested or
 undefined measures are None, never zero sentinels. At expiry or a monitored
@@ -149,13 +156,13 @@ At current structured-product event thresholds, undefined spot and time
 sensitivities remain None while feasible rate and volatility sensitivities survive.
 
 Shift keyword arguments are absolute, use core-owned defaults, and follow
-calculate_numerical_risk_measures. Monte Carlo valuations share one seed per
+calculate_numerical_greeks. Monte Carlo valuations share one seed per
 request without changing the engine. Concurrent calls are safe.
 
 Returns
 -------
 PricingResult
-    Price and requested available Greeks, with RiskMeasure units.
+    Price and requested available Greeks, with Greek units.
 
 Raises
 ------
@@ -346,21 +353,21 @@ template <typename Engine, typename Instrument>
 void bind_analytics_pair(nb::module_& module)
 {
     module.def(
-        "calculate_numerical_risk_measures",
+        "calculate_numerical_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
            PythonInteger time_shift_days) {
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
-            return unwrap(kiyosi::calculate_numerical_risk_measures(engine, instrument, context, settings));
+            return unwrap(kiyosi::calculate_numerical_greeks(engine, instrument, context, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
-        R"doc(Compute price and every feasible numerical risk measure.
+        R"doc(Compute price and every feasible numerical Greek.
 
 Shifts are absolute. Omitted shifts use core-owned defaults. A measure with no
 valid finite-difference stencil inside a model boundary is ``None`` while other
@@ -569,64 +576,70 @@ void bind_results(nb::module_& module)
 {
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",
-        R"doc(Read-only mapping over the fixed risk-measure vocabulary.
+        R"doc(Read-only mapping of price and the fixed Greek vocabulary.
 
 Price uses instrument value units. Delta, gamma, and speed are per one spot unit,
 squared spot unit, and cubed spot unit. Vega, vanna, and zomma are price, delta,
 and gamma changes per one volatility percentage point (an absolute change of
 0.01). Rho is per one interest-rate percentage point. Theta, charm, and color
 are price, delta, and gamma changes per calendar day as valuation time moves
-forward. Undefined or unsupported measures are None, never a zero sentinel.
+forward. Undefined or unsupported Greeks are None, never a zero sentinel.
 
 Attributes
 ----------
-price, delta, gamma, speed : float or None
-    Price and first three spot derivatives.
+price : float
+    Instrument value.
+delta, gamma, speed : float or None
+    First three spot derivatives.
 theta, charm, color : float or None
     Daily changes in price, delta, and gamma.
 vega, vanna, zomma : float or None
     Volatility-point changes in price, delta, and gamma.
 rho : float or None
     Price change per interest-rate percentage point.)doc")
-        .def("__len__", [](const PricingResult&) { return risk_measure_count; })
+        .def("__len__", [](const PricingResult&) { return result_field_count; })
         .def("__iter__", [](const PricingResult&) {
             return PythonStringIterator{result_keys().attr("__iter__")()};
         })
         .def("__contains__", [](const PricingResult&, nb::handle key) {
-            return nb::isinstance<nb::str>(key) &&
-                   measure_named(nb::cast<std::string>(key)).has_value();
+            if (!nb::isinstance<nb::str>(key)) return false;
+            const auto name = nb::cast<std::string>(key);
+            return name == "price" || measure_named(name).has_value();
         }, nb::arg().none())
         .def("__getitem__", [](const PricingResult& result, nb::str key) {
             const std::string name = nb::cast<std::string>(key);
+            if (name == "price") return nb::object{nb::float_(result.price())};
             const auto measure = measure_named(name);
             if (!measure) throw nb::key_error(name.c_str());
-            return optional_value(result, *measure);
+            return nb::object{optional_value(result, *measure)};
         })
         .def("get", [](const PricingResult& result, nb::str key, nb::object fallback) {
-            const auto measure = measure_named(nb::cast<std::string>(key));
-            return measure ? optional_value(result, *measure) : fallback;
-        }, "key"_a, "default"_a = nb::none(), R"doc(Return a measure by name.
+            const auto name = nb::cast<std::string>(key);
+            if (name == "price") return nb::object{nb::float_(result.price())};
+            const auto measure = measure_named(name);
+            return measure ? nb::object{optional_value(result, *measure)} : fallback;
+        }, "key"_a, "default"_a = nb::none(), R"doc(Return price or a Greek by name.
 
 Parameters
 ----------
 key : str
-    Lowercase risk-measure name.
+    ``price`` or a lowercase Greek name.
 default : object, optional
     Value returned when ``key`` is unknown.
 
 Returns
 -------
 float, None, or object
-    Measure value, ``None`` when unavailable, or ``default`` for an unknown key.)doc")
+    Value, ``None`` when a Greek is unavailable, or ``default`` for an unknown key.)doc")
         .def("keys", [](const PricingResult&) { return result_keys(); },
-             R"doc(Return risk-measure names in stable order.
+             R"doc(Return price and Greek names in stable order.
 
 Returns
 -------
 tuple[str, ...]
-    Fixed lowercase risk-measure names.)doc")
+    Fixed lowercase names, starting with price.)doc")
         .def("values", [](const PricingResult& result) { return result_values(result); },
-             R"doc(Return risk-measure values in stable order.
+             R"doc(Return price and Greek values in stable order.
 
 Returns
 -------
@@ -639,56 +652,54 @@ Returns
 -------
 tuple[tuple[str, float or None], ...]
     Pairs aligned with :meth:`keys`.)doc")
-        .def("require", [](const PricingResult& result, RiskMeasure measure) {
+        .def("require", [](const PricingResult& result, Greek measure) {
             return unwrap(result.require(measure));
-        }, "measure"_a, R"doc(Return a required risk measure.
+        }, "measure"_a, R"doc(Return a required Greek.
 
 Parameters
 ----------
-measure : RiskMeasure
-    Measure to retrieve.
+measure : Greek
+    Greek to retrieve.
 
 Returns
 -------
 float
-    Available measure value.
+    Available Greek value.
 
 Raises
 ------
 KiyosiError
-    If the requested measure is unavailable.)doc")
-        .def_prop_ro("price", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::price);
-        }, "Instrument value, or None when unavailable.")
+    If the requested Greek is unavailable.)doc")
+        .def_prop_ro("price", &PricingResult::price, "Instrument value.")
         .def_prop_ro("delta", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::delta);
+            return optional_value(result, Greek::delta);
         }, "First spot derivative, or None when unavailable.")
         .def_prop_ro("gamma", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::gamma);
+            return optional_value(result, Greek::gamma);
         }, "Second spot derivative, or None when unavailable.")
         .def_prop_ro("speed", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::speed);
+            return optional_value(result, Greek::speed);
         }, "Third spot derivative, or None when unavailable.")
         .def_prop_ro("theta", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::theta);
+            return optional_value(result, Greek::theta);
         }, "Daily price decay, or None when unavailable.")
         .def_prop_ro("charm", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::charm);
+            return optional_value(result, Greek::charm);
         }, "Daily change in delta, or None when unavailable.")
         .def_prop_ro("color", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::color);
+            return optional_value(result, Greek::color);
         }, "Daily change in gamma, or None when unavailable.")
         .def_prop_ro("vega", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::vega);
+            return optional_value(result, Greek::vega);
         }, "Price change per volatility percentage point, or None.")
         .def_prop_ro("vanna", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::vanna);
+            return optional_value(result, Greek::vanna);
         }, "Delta change per volatility percentage point, or None.")
         .def_prop_ro("zomma", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::zomma);
+            return optional_value(result, Greek::zomma);
         }, "Gamma change per volatility percentage point, or None.")
         .def_prop_ro("rho", [](const PricingResult& result) {
-            return optional_value(result, RiskMeasure::rho);
+            return optional_value(result, Greek::rho);
         }, "Price change per interest-rate percentage point, or None.");
     bind_repr(pricing_result, "PricingResult",
               {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"},

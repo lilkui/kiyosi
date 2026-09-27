@@ -12,7 +12,7 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
+using kiyosi::test::greek_value;
 
 TEST_CASE("Analytic European calls and puts obey BSM identities")
 {
@@ -28,15 +28,15 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
 
     const auto call_result = *engine.price_with_greeks(call, context, kiyosi::GreeksRequest{true});
     const auto put_result = *engine.price_with_greeks(put, context, kiyosi::GreeksRequest{true});
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::price) - risk_value(put_result, kiyosi::RiskMeasure::price),
+    CHECK_THAT((call_result).price() - (put_result).price(),
                WithinAbs(100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::delta) - risk_value(put_result, kiyosi::RiskMeasure::delta), WithinAbs(std::exp(-0.01), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::gamma), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::gamma), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::speed), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::speed), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::color), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::color), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::vega), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::vega), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::vanna), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::vanna), 1e-12));
-    CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::zomma), WithinAbs(risk_value(put_result, kiyosi::RiskMeasure::zomma), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::delta) - greek_value(put_result, kiyosi::Greek::delta), WithinAbs(std::exp(-0.01), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::gamma), WithinAbs(greek_value(put_result, kiyosi::Greek::gamma), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::speed), WithinAbs(greek_value(put_result, kiyosi::Greek::speed), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::color), WithinAbs(greek_value(put_result, kiyosi::Greek::color), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::vega), WithinAbs(greek_value(put_result, kiyosi::Greek::vega), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::vanna), WithinAbs(greek_value(put_result, kiyosi::Greek::vanna), 1e-12));
+    CHECK_THAT(greek_value(call_result, kiyosi::Greek::zomma), WithinAbs(greek_value(put_result, kiyosi::Greek::zomma), 1e-12));
 }
 
 TEST_CASE("Analytic European engine remains finite one day before expiry_date")
@@ -68,11 +68,11 @@ TEST_CASE("Analytic European engine returns intrinsic value and unavailable Gree
 
     const auto call_result = *engine.price_with_greeks(call, call_context, kiyosi::GreeksRequest{true});
     const auto put_result = *engine.price_with_greeks(put, put_context, kiyosi::GreeksRequest{true});
-    REQUIRE(risk_value(call_result, kiyosi::RiskMeasure::price) == 10.0);
-    REQUIRE(risk_value(put_result, kiyosi::RiskMeasure::price) == 10.0);
-    for (std::size_t index = 1; index < kiyosi::risk_measure_count; ++index) {
-        const auto measure = static_cast<kiyosi::RiskMeasure>(index);
-        INFO("risk measure index: " << index);
+    REQUIRE((call_result).price() == 10.0);
+    REQUIRE((put_result).price() == 10.0);
+    for (std::size_t index = 0; index < kiyosi::greek_count; ++index) {
+        const auto measure = static_cast<kiyosi::Greek>(index);
+        INFO("Greek index: " << index);
         CHECK_FALSE(call_result.has(measure));
         CHECK_FALSE(put_result.has(measure));
     }
@@ -177,9 +177,9 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
 
     const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
-    CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::price)));
-    CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::delta)));
-    CHECK_FALSE(result->has(kiyosi::RiskMeasure::gamma));
+    CHECK(std::isfinite(result->price()));
+    CHECK(std::isfinite(greek_value(*result, kiyosi::Greek::delta)));
+    CHECK_FALSE(result->has(kiyosi::Greek::gamma));
 }
 
 TEST_CASE("Analytic European implied volatility recovers at-the-money volatility")
@@ -294,8 +294,8 @@ TEST_CASE("Analytic European engine remains finite for a short-dated low-volatil
 
     const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
-    CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::price)));
-    CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::delta)));
+    CHECK(std::isfinite(result->price()));
+    CHECK(std::isfinite(greek_value(*result, kiyosi::Greek::delta)));
 }
 
 } // namespace

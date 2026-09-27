@@ -131,14 +131,16 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     else REQUIRE(test.inputs.at("greeks") == "delta,gamma");
                     const auto request = all_greeks
                                              ? kiyosi::GreeksRequest{true}
-                                             : kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma};
+                                             : kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma};
                     const auto joint = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(*option, *context, request);
                     REQUIRE(joint);
                     constexpr std::array names{"price", "delta", "gamma", "speed", "theta", "charm",
                                                "color", "vega", "vanna", "zomma", "rho"};
-                    for (std::size_t i = 0; i < names.size(); ++i) {
+                    CHECK_THAT(joint->price(), Catch::Matchers::WithinAbs(
+                        std::stod(test.expected.at("price")), std::stod(test.tolerance)));
+                    for (std::size_t i = 1; i < names.size(); ++i) {
                         INFO(names[i]);
-                        const auto measure = static_cast<kiyosi::RiskMeasure>(i);
+                        const auto measure = static_cast<kiyosi::Greek>(i - 1);
                         const auto& expected = test.expected.at(names[i]);
                         if (expected == "none") CHECK_FALSE(joint->has(measure));
                         else {

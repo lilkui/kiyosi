@@ -179,7 +179,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
         if (!std::isfinite(value))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "structured pricing produced a non-finite result"});
-        return make_pricing_result({{RiskMeasure::price, value}});
+        return make_pricing_result(value);
     };
     const auto program = autocallable_program(note);
     const auto observation_indices = remaining_observation_indices(note, context.valuation_time());

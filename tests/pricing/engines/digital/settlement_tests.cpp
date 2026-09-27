@@ -29,7 +29,7 @@ TEST_CASE("Digital expiry_date settlement uses strict strikes without smooth Gre
             const auto result = engine.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
             REQUIRE(result.has_value());
 
-            CHECK(*result->require(kiyosi::RiskMeasure::price) == expected);
+            CHECK(result->price() == expected);
             for (const auto& [name, measure] : measures)
                 if (name != "price") CHECK_FALSE(result->has(measure));
         };

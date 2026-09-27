@@ -42,8 +42,7 @@ Result<PricingResult> terminal_value(const Accumulator& option, const PricingCon
     if (context.calendar().is_trading_day(option.expiry_date()) && value < option.knock_out_level())
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
-    return make_pricing_result(
-        {{RiskMeasure::price, quantity * (value - option.strike())}});
+    return make_pricing_result(quantity * (value - option.strike()));
 }
 
 } // namespace
@@ -124,10 +123,8 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept.swap(next_intercept);
     }
 
-    return make_pricing_result(
-        {{RiskMeasure::price,
-          space->interpolate(slope, spot) * option.accumulated_quantity() +
-              space->interpolate(intercept, spot)}});
+    return make_pricing_result(space->interpolate(slope, spot) * option.accumulated_quantity() +
+              space->interpolate(intercept, spot));
 }
 
 } // namespace kiyosi

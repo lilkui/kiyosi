@@ -4,8 +4,8 @@ from typing import Literal
 
 from ._native import ErrorCategory, KiyosiError, PricingResult, __version__
 
-RiskMeasure = Literal[
-    "price", "delta", "gamma", "speed", "theta", "charm", "color", "vega",
+Greek = Literal[
+    "delta", "gamma", "speed", "theta", "charm", "color", "vega",
     "vanna", "zomma", "rho",
 ]
 
@@ -13,6 +13,6 @@ __all__ = [
     "ErrorCategory",
     "KiyosiError",
     "PricingResult",
-    "RiskMeasure",
+    "Greek",
     "__version__",
 ]

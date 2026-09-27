@@ -104,28 +104,24 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
         auto vanilla = price_at_volatility(*make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),
                                            context, context.model_parameters().volatility(), GreeksRequest{});
         if (!vanilla) return std::unexpected(vanilla.error());
-        return *vanilla->require(RiskMeasure::price);
+        return vanilla->price();
     };
     if (*prior_touch || (touched && observed_now)) {
         if (!knock_in)
-            return make_pricing_result(
-                {{RiskMeasure::price,
-                  option.rebate_timing() == RebateTiming::at_hit
+            return make_pricing_result(option.rebate_timing() == RebateTiming::at_hit
                       ? (*prior_touch ? 0.0 : option.rebate())
                       : option.rebate() *
-                            std::exp(-context.model_parameters().risk_free_rate() * t)}});
+                            std::exp(-context.model_parameters().risk_free_rate() * t));
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
-        return make_pricing_result({{RiskMeasure::price, *vanilla}});
+        return make_pricing_result(*vanilla);
     }
     auto out = knockout_fd(option, context, settings_);
     if (!out) return std::unexpected(out.error());
-    if (!knock_in) return make_pricing_result({{RiskMeasure::price, *out}});
+    if (!knock_in) return make_pricing_result(*out);
     auto vanilla = vanilla_price();
     if (!vanilla) return std::unexpected(vanilla.error());
-    return make_pricing_result(
-        {{RiskMeasure::price,
-          *vanilla - *out +
-              option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t)}});
+    return make_pricing_result(*vanilla - *out +
+              option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
 }
 } // namespace kiyosi

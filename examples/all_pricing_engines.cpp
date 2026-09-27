@@ -140,7 +140,7 @@ int main()
     price("TernarySnowballOption", "FiniteDifferenceTernarySnowballEngine", kiyosi::FiniteDifferenceTernarySnowballEngine{80, 80}.price(ternary_snowball, context));
     price("TernarySnowballOption", "MonteCarloTernarySnowballEngine", kiyosi::MonteCarloTernarySnowballEngine{2'000, 42}.price(ternary_snowball, context));
 
-    for (const auto request : {kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma}, kiyosi::GreeksRequest{true}}) {
+    for (const auto request : {kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma}, kiyosi::GreeksRequest{true}}) {
         const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, request);
         if (!result) {
             std::cerr << result.error().message << '\n';
@@ -148,8 +148,8 @@ int main()
             continue;
         }
         std::cout << "EuropeanOption / analytic Greeks: delta="
-                  << *result->require(kiyosi::RiskMeasure::delta)
-                  << " gamma=" << *result->require(kiyosi::RiskMeasure::gamma) << '\n';
+                  << *result->require(kiyosi::Greek::delta)
+                  << " gamma=" << *result->require(kiyosi::Greek::gamma) << '\n';
     }
 
     return ok ? 0 : 1;

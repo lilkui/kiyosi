@@ -53,15 +53,17 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             const bool boundary = (date("expiry_date") - date("valuation")).count() <= 2;
             if (boundary) REQUIRE(inputs.at("wrapper") == "false");
             for (const auto& [name, value] : fixture.outputs)
-                REQUIRE(measures.contains(name));
+                REQUIRE((name == "price" || measures.contains(name)));
             if (inputs.at("wrapper") == "false") return;
             ++wrappers[fixture.engine];
             const kiyosi::NumericalShiftSettings shifts{number("spot_shift"), number("volatility_shift"),
                                                         number("rate_shift"), static_cast<int>(number("time_shift_days"))};
             // Three nested spot shifts are used by speed; keep every stencil in the same hit state.
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::calculate_numerical_risk_measures(engine, *option, *context, shifts);
+            const auto numerical = kiyosi::calculate_numerical_greeks(engine, *option, *context, shifts);
             REQUIRE(numerical.has_value());
+            CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
+                fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(fixture.outputs.contains(name));

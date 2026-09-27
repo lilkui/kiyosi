@@ -144,7 +144,7 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_impl(const American
                              : bjerksund_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
+    return make_pricing_result(std::max(value, 0.0));
 }
 
 } // namespace kiyosi

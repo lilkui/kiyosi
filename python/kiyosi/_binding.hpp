@@ -132,14 +132,14 @@ struct EnumNames<BusinessDayConvention> {
 };
 
 template <>
-struct EnumNames<RiskMeasure> {
-    static constexpr auto values = std::to_array<std::pair<std::string_view, RiskMeasure>>(
-        {{"price", RiskMeasure::price}, {"delta", RiskMeasure::delta}, {"gamma", RiskMeasure::gamma},
-         {"speed", RiskMeasure::speed}, {"theta", RiskMeasure::theta}, {"charm", RiskMeasure::charm},
-         {"color", RiskMeasure::color}, {"vega", RiskMeasure::vega}, {"vanna", RiskMeasure::vanna},
-         {"zomma", RiskMeasure::zomma}, {"rho", RiskMeasure::rho}});
+struct EnumNames<Greek> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, Greek>>(
+        {{"delta", Greek::delta}, {"gamma", Greek::gamma},
+         {"speed", Greek::speed}, {"theta", Greek::theta}, {"charm", Greek::charm},
+         {"color", Greek::color}, {"vega", Greek::vega}, {"vanna", Greek::vanna},
+         {"zomma", Greek::zomma}, {"rho", Greek::rho}});
     static constexpr auto Name = nb::detail::const_name(
-        "typing.Literal['price', 'delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho']");
+        "typing.Literal['delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho']");
 };
 
 } // namespace kiyosi::python_binding
@@ -167,9 +167,9 @@ struct type_caster<kiyosi::python_binding::PythonValuationTimeAnnotation> {
 template <>
 struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
     NB_TYPE_CASTER(kiyosi::python_binding::PythonGreekRequestAnnotation,
-                   (kiyosi::python_binding::EnumNames<kiyosi::RiskMeasure>::Name +
+                   (kiyosi::python_binding::EnumNames<kiyosi::Greek>::Name +
                     const_name(" | collections.abc.Iterable[") +
-                    kiyosi::python_binding::EnumNames<kiyosi::RiskMeasure>::Name +
+                    kiyosi::python_binding::EnumNames<kiyosi::Greek>::Name +
                     const_name("]")))
 };
 
@@ -207,7 +207,7 @@ KIYOSI_STRING_ENUM_CASTER(FiniteDifferenceScheme)
 KIYOSI_STRING_ENUM_CASTER(MonteCarloBackend)
 KIYOSI_STRING_ENUM_CASTER(CouponQuoteConvention)
 KIYOSI_STRING_ENUM_CASTER(BusinessDayConvention)
-KIYOSI_STRING_ENUM_CASTER(RiskMeasure)
+KIYOSI_STRING_ENUM_CASTER(Greek)
 
 #undef KIYOSI_STRING_ENUM_CASTER
 

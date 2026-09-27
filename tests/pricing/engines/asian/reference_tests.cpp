@@ -68,13 +68,15 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
                 return;
             }
             ++wrapped;
-            REQUIRE(fixture.outputs.size() == measures.size());
-            const auto numerical = kiyosi::calculate_numerical_risk_measures(
+            REQUIRE(fixture.outputs.size() == measures.size() + 1);
+            const auto numerical = kiyosi::calculate_numerical_greeks(
                 engine, *option, *context,
                 kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
                                                number("rate_shift"),
                                                static_cast<int>(number("time_shift_days"))});
             REQUIRE(numerical.has_value());
+            CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
+                fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(numerical->has(measure));
@@ -144,8 +146,8 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     REQUIRE(starting);
     const auto at_start = engine.price_with_greeks(*starting, *context, kiyosi::GreeksRequest{true});
     REQUIRE(at_start);
-    CHECK(at_start->has(kiyosi::RiskMeasure::delta));
-    CHECK_FALSE(at_start->has(kiyosi::RiskMeasure::theta));
+    CHECK(at_start->has(kiyosi::Greek::delta));
+    CHECK_FALSE(at_start->has(kiyosi::Greek::theta));
 
     const auto ending = kiyosi::make_geometric_average_option(
         kiyosi::OptionType::call, 100.0, effective, effective, expiry, 120.0);
@@ -271,7 +273,7 @@ TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has 
         REQUIRE_FALSE(invalid);
         CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
     }
-    const auto greeks = engine.price_with_greeks(*missing, *during, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
+    const auto greeks = engine.price_with_greeks(*missing, *during, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
     REQUIRE_FALSE(greeks);
     CHECK(greeks.error().category == kiyosi::ErrorCategory::invalid_parameter);
     const auto settled = engine.price(*known, *at_expiry);

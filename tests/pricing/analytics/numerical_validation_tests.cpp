@@ -41,7 +41,7 @@ double difference(double left, double right)
     return std::abs(left - right);
 }
 
-double risk_value(const kiyosi::PricingResult& result, kiyosi::RiskMeasure measure)
+double greek_value(const kiyosi::PricingResult& result, kiyosi::Greek measure)
 {
     return *result.require(measure);
 }
@@ -62,15 +62,15 @@ double value(kiyosi::OptionType type, double spot, double rate, double dividend,
 double delta(kiyosi::OptionType type, double spot, double rate, double dividend,
              double volatility, kiyosi::Date value_date, kiyosi::Date option_expiry, double strike = 100.0)
 {
-    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
-                      kiyosi::RiskMeasure::delta);
+    return greek_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
+                      kiyosi::Greek::delta);
 }
 
 double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
              double volatility, kiyosi::Date value_date, kiyosi::Date option_expiry, double strike = 100.0)
 {
-    return risk_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
-                      kiyosi::RiskMeasure::gamma);
+    return greek_value(analytic(type, spot, rate, dividend, volatility, value_date, option_expiry, strike),
+                      kiyosi::Greek::gamma);
 }
 
 struct RejectingMixedBumpEngine {
@@ -104,9 +104,9 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
                                 (2.0 * spot_step * spot_step * spot_step);
 
         const auto result = analytic(type);
-        check_close(risk_value(result, kiyosi::RiskMeasure::delta), delta_fd, 2e-7, 2e-4);
-        check_close(risk_value(result, kiyosi::RiskMeasure::gamma), gamma_fd, 2e-7, 2e-4);
-        check_close(risk_value(result, kiyosi::RiskMeasure::speed), speed_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::delta), delta_fd, 2e-7, 2e-4);
+        check_close(greek_value(result, kiyosi::Greek::gamma), gamma_fd, 2e-7, 2e-4);
+        check_close(greek_value(result, kiyosi::Greek::speed), speed_fd, 2e-6, 2e-3);
 
         const double theta_fd = (value(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry_date) -
                                  value(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry_date)) /
@@ -117,9 +117,9 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
         const double color_fd = (gamma(type, 100.0, 0.04, 0.01, 0.3, next_day, expiry_date) -
                                  gamma(type, 100.0, 0.04, 0.01, 0.3, previous_day, expiry_date)) /
                                 2.0;
-        check_close(risk_value(result, kiyosi::RiskMeasure::theta), theta_fd, 2e-6, 2e-3);
-        check_close(risk_value(result, kiyosi::RiskMeasure::charm), charm_fd, 2e-6, 2e-3);
-        check_close(risk_value(result, kiyosi::RiskMeasure::color), color_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::theta), theta_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::charm), charm_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::color), color_fd, 2e-6, 2e-3);
 
         const double vega_fd = (value(type, 100.0, 0.04, 0.01, 0.3 + volatility_step, valuation, expiry_date) -
                                 value(type, 100.0, 0.04, 0.01, 0.3 - volatility_step, valuation, expiry_date)) /
@@ -134,26 +134,26 @@ TEST_CASE("Analytic Greeks agree with central finite differences")
         const double rho_fd = (value(type, 100.0, 0.04 + rho_step, 0.01, 0.3, valuation, expiry_date) -
                                value(type, 100.0, 0.04 - rho_step, 0.01, 0.3, valuation, expiry_date)) /
                               (2.0 * rho_step * 100.0);
-        check_close(risk_value(result, kiyosi::RiskMeasure::vega), vega_fd, 2e-6, 2e-4);
-        check_close(risk_value(result, kiyosi::RiskMeasure::vanna), vanna_fd, 2e-6, 2e-3);
-        check_close(risk_value(result, kiyosi::RiskMeasure::zomma), zomma_fd, 2e-6, 2e-3);
-        check_close(risk_value(result, kiyosi::RiskMeasure::rho), rho_fd, 2e-6, 2e-4);
+        check_close(greek_value(result, kiyosi::Greek::vega), vega_fd, 2e-6, 2e-4);
+        check_close(greek_value(result, kiyosi::Greek::vanna), vanna_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::zomma), zomma_fd, 2e-6, 2e-3);
+        check_close(greek_value(result, kiyosi::Greek::rho), rho_fd, 2e-6, 2e-4);
     }
 }
 
-TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
+TEST_CASE("Analytic and numerical analytics share Greek conventions")
 {
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation - std::chrono::days{30}, expiry_date);
     const auto market = context();
     const kiyosi::AnalyticVanillaEngine engine;
     const auto analytic_result = *engine.price_with_greeks(option, market, kiyosi::GreeksRequest{true});
-    const auto numerical_result = *kiyosi::calculate_numerical_risk_measures(engine, option, market);
+    const auto numerical_result = *kiyosi::calculate_numerical_greeks(engine, option, market);
 
-    for (std::size_t index = 0; index < kiyosi::risk_measure_count; ++index) {
-        const auto measure = static_cast<kiyosi::RiskMeasure>(index);
-        INFO("risk measure index: " << index);
-        check_close(risk_value(numerical_result, measure), risk_value(analytic_result, measure),
+    for (std::size_t index = 0; index < kiyosi::greek_count; ++index) {
+        const auto measure = static_cast<kiyosi::Greek>(index);
+        INFO("Greek index: " << index);
+        check_close(greek_value(numerical_result, measure), greek_value(analytic_result, measure),
                     2e-6, 2e-3);
     }
 }
@@ -168,35 +168,35 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto market = context(100.0, 0.05, 0.02, 0.00005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_risk_measures(engine, option, market);
+        const auto result = kiyosi::calculate_numerical_greeks(engine, option, market);
 
         REQUIRE(result);
-        check_close(risk_value(*result, kiyosi::RiskMeasure::price),
+        check_close(result->price(),
                     direct);
-        CHECK(result->has(kiyosi::RiskMeasure::delta));
-        CHECK(result->has(kiyosi::RiskMeasure::rho));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::vega));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::vanna));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::zomma));
+        CHECK(result->has(kiyosi::Greek::delta));
+        CHECK(result->has(kiyosi::Greek::rho));
+        CHECK_FALSE(result->has(kiyosi::Greek::vega));
+        CHECK_FALSE(result->has(kiyosi::Greek::vanna));
+        CHECK_FALSE(result->has(kiyosi::Greek::zomma));
     }
 
     SECTION("low spot")
     {
         const auto market = context(0.005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_risk_measures(engine, option, market);
+        const auto result = kiyosi::calculate_numerical_greeks(engine, option, market);
 
         REQUIRE(result);
-        check_close(risk_value(*result, kiyosi::RiskMeasure::price),
+        check_close(result->price(),
                     direct);
-        CHECK(result->has(kiyosi::RiskMeasure::vega));
-        CHECK(result->has(kiyosi::RiskMeasure::theta));
-        CHECK(result->has(kiyosi::RiskMeasure::rho));
+        CHECK(result->has(kiyosi::Greek::vega));
+        CHECK(result->has(kiyosi::Greek::theta));
+        CHECK(result->has(kiyosi::Greek::rho));
         for (const auto measure : {
-                 kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma,
-                 kiyosi::RiskMeasure::speed, kiyosi::RiskMeasure::charm,
-                 kiyosi::RiskMeasure::color, kiyosi::RiskMeasure::vanna,
-                 kiyosi::RiskMeasure::zomma})
+                 kiyosi::Greek::delta, kiyosi::Greek::gamma,
+                 kiyosi::Greek::speed, kiyosi::Greek::charm,
+                 kiyosi::Greek::color, kiyosi::Greek::vanna,
+                 kiyosi::Greek::zomma})
             CHECK_FALSE(result->has(measure));
     }
 
@@ -204,13 +204,13 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto expiring = *kiyosi::make_european_option(
             kiyosi::OptionType::call, 100.0, valuation, valuation);
-        const auto result = kiyosi::calculate_numerical_risk_measures(engine, expiring, context());
+        const auto result = kiyosi::calculate_numerical_greeks(engine, expiring, context());
 
         REQUIRE(result);
-        CHECK(result->has(kiyosi::RiskMeasure::price));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::theta));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::charm));
-        CHECK_FALSE(result->has(kiyosi::RiskMeasure::color));
+        CHECK(std::isfinite(result->price()));
+        CHECK_FALSE(result->has(kiyosi::Greek::theta));
+        CHECK_FALSE(result->has(kiyosi::Greek::charm));
+        CHECK_FALSE(result->has(kiyosi::Greek::color));
     }
 }
 
@@ -218,7 +218,7 @@ TEST_CASE("Numerical analytics preserve feasible bump failures")
 {
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::calculate_numerical_risk_measures(
+    const auto result = kiyosi::calculate_numerical_greeks(
         RejectingMixedBumpEngine{}, option, context());
 
     REQUIRE_FALSE(result);
@@ -231,10 +231,10 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
     const auto call = analytic(kiyosi::OptionType::call);
     const auto put = analytic(kiyosi::OptionType::put);
     const double time = 1.0;
-    check_close(risk_value(call, kiyosi::RiskMeasure::price) - risk_value(put, kiyosi::RiskMeasure::price), 100.0 * std::exp(-0.01 * time) - 100.0 * std::exp(-0.04 * time), 1e-10, 1e-10);
-    check_close(risk_value(call, kiyosi::RiskMeasure::delta) - risk_value(put, kiyosi::RiskMeasure::delta), std::exp(-0.01 * time), 1e-10, 1e-10);
-    check_close(risk_value(call, kiyosi::RiskMeasure::gamma), risk_value(put, kiyosi::RiskMeasure::gamma), 1e-10, 1e-10);
-    check_close(risk_value(call, kiyosi::RiskMeasure::vega), risk_value(put, kiyosi::RiskMeasure::vega), 1e-10, 1e-10);
+    check_close((call).price() - (put).price(), 100.0 * std::exp(-0.01 * time) - 100.0 * std::exp(-0.04 * time), 1e-10, 1e-10);
+    check_close(greek_value(call, kiyosi::Greek::delta) - greek_value(put, kiyosi::Greek::delta), std::exp(-0.01 * time), 1e-10, 1e-10);
+    check_close(greek_value(call, kiyosi::Greek::gamma), greek_value(put, kiyosi::Greek::gamma), 1e-10, 1e-10);
+    check_close(greek_value(call, kiyosi::Greek::vega), greek_value(put, kiyosi::Greek::vega), 1e-10, 1e-10);
 
     const kiyosi::AnalyticDigitalEngine digital;
     for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
@@ -244,7 +244,7 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
         const auto cash_value = *digital.price(cash, context());
         const auto asset_value = *digital.price(asset, context());
         check_close(type == kiyosi::OptionType::call ? asset_value - cash_value : cash_value - asset_value,
-                    risk_value(vanilla, kiyosi::RiskMeasure::price), 2e-10, 2e-10);
+                    (vanilla).price(), 2e-10, 2e-10);
     }
 
     const kiyosi::AnalyticBarrierEngine barriers;
@@ -272,7 +272,7 @@ TEST_CASE("Analytic pricing satisfies no-arbitrage identities")
                                                           .barrier_type = paired_kind});
         check_close(*barriers.price(option, context()) +
                         *barriers.price(paired, context()),
-                    risk_value(analytic(kiyosi::OptionType::call), kiyosi::RiskMeasure::price), 2e-5, 2e-5);
+                    (analytic(kiyosi::OptionType::call)).price(), 2e-5, 2e-5);
     }
 }
 

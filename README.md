@@ -63,7 +63,7 @@ full = engine.price_with_greeks(option, context, all_greeks=True)
 print(full.vega, full.theta)
 ```
 
-Pass one lowercase risk-measure name or an iterable of them to request Greeks.
+Pass one lowercase Greek name or an iterable of them to request Greeks.
 `all_greeks=True` requests Delta, Gamma, Speed, Theta, Charm, Color, Vega,
 Vanna, Zomma, and Rho. The two request forms are mutually exclusive. Native
 Greeks are reused; missing feasible measures use numerical price differences.
@@ -71,12 +71,13 @@ Unrequested or undefined measures are `None`, including all Greeks at expiry.
 Shift keyword arguments (`spot_shift`, `volatility_shift`, `rate_shift`, and
 `time_shift_days`) control numerical supplementation. Monte Carlo base and
 bumped valuations share one seed per call without changing the engine settings.
-`calculate_numerical_risk_measures()` remains the forced numerical alternative.
+`calculate_numerical_greeks()` remains the forced numerical alternative.
 
 C++ uses the same contract: `price()` returns `Result<double>` and
-`price_with_greeks(option, context, {RiskMeasure::delta, RiskMeasure::vega})` returns
-`Result<PricingResult>`. Use `true` as the third argument for all ten Greeks and pass an
-optional `NumericalShiftSettings` as the final argument to customize shifts.
+`price_with_greeks(option, context, {Greek::delta, Greek::vega})` returns
+`Result<PricingResult>`, whose `price()` is always present. Use `true` as the
+third argument for all ten Greeks and pass an optional
+`NumericalShiftSettings` as the final argument to customize shifts.
 
 The Python API is organized into three modules:
 

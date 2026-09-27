@@ -13,7 +13,7 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
+using kiyosi::test::greek_value;
 
 TEST_CASE("Digital contracts validate and expose pricing results")
 {
@@ -27,15 +27,15 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     const auto cash_put = *kiyosi::make_cash_or_nothing_option(
         kiyosi::OptionType::put, 100.0, 10.0, valuation, expiry_date);
     const kiyosi::AnalyticDigitalEngine digital;
-    const auto call_value = digital.price_with_greeks(cash_call, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
+    const auto call_value = digital.price_with_greeks(cash_call, context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());
-    CHECK(call_value->has(kiyosi::RiskMeasure::price));
-    CHECK(call_value->has(kiyosi::RiskMeasure::delta));
-    CHECK(call_value->has(kiyosi::RiskMeasure::gamma));
-    CHECK_FALSE(call_value->has(kiyosi::RiskMeasure::vega));
-    CHECK_THAT(risk_value(*call_value, kiyosi::RiskMeasure::price) +
+    CHECK(std::isfinite(call_value->price()));
+    CHECK(call_value->has(kiyosi::Greek::delta));
+    CHECK(call_value->has(kiyosi::Greek::gamma));
+    CHECK_FALSE(call_value->has(kiyosi::Greek::vega));
+    CHECK_THAT(call_value->price() +
                    *put_value,
                WithinAbs(10.0 * std::exp(-0.04), 1e-10));
     CHECK_FALSE(kiyosi::make_cash_or_nothing_option(
@@ -124,7 +124,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     CHECK(*note_result > 0.0);
 }
 
-TEST_CASE("Numerical analytics expose shared risk measures")
+TEST_CASE("Numerical analytics expose shared Greeks")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry_date = day(2025, 7, 1);
@@ -134,11 +134,11 @@ TEST_CASE("Numerical analytics expose shared risk measures")
     auto option = kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     REQUIRE(option.has_value());
-    auto analytics = kiyosi::calculate_numerical_risk_measures(kiyosi::CoxRossRubinsteinVanillaEngine{64}, *option, *context);
+    auto analytics = kiyosi::calculate_numerical_greeks(kiyosi::CoxRossRubinsteinVanillaEngine{64}, *option, *context);
     REQUIRE(analytics.has_value());
-    CHECK(analytics->has(kiyosi::RiskMeasure::speed));
-    CHECK(analytics->has(kiyosi::RiskMeasure::rho));
-    CHECK(analytics->has(kiyosi::RiskMeasure::vega));
+    CHECK(analytics->has(kiyosi::Greek::speed));
+    CHECK(analytics->has(kiyosi::Greek::rho));
+    CHECK(analytics->has(kiyosi::Greek::vega));
 }
 
 } // namespace

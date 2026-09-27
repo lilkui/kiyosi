@@ -14,8 +14,8 @@
 
 namespace kiyosi::test {
 
-inline const std::map<std::string, kiyosi::RiskMeasure> measures{
-    {"price", kiyosi::RiskMeasure::price}, {"delta", kiyosi::RiskMeasure::delta}, {"gamma", kiyosi::RiskMeasure::gamma}, {"speed", kiyosi::RiskMeasure::speed}, {"theta", kiyosi::RiskMeasure::theta}, {"charm", kiyosi::RiskMeasure::charm}, {"color", kiyosi::RiskMeasure::color}, {"vega", kiyosi::RiskMeasure::vega}, {"vanna", kiyosi::RiskMeasure::vanna}, {"zomma", kiyosi::RiskMeasure::zomma}, {"rho", kiyosi::RiskMeasure::rho}};
+inline const std::map<std::string, kiyosi::Greek> measures{
+    {"delta", kiyosi::Greek::delta}, {"gamma", kiyosi::Greek::gamma}, {"speed", kiyosi::Greek::speed}, {"theta", kiyosi::Greek::theta}, {"charm", kiyosi::Greek::charm}, {"color", kiyosi::Greek::color}, {"vega", kiyosi::Greek::vega}, {"vanna", kiyosi::Greek::vanna}, {"zomma", kiyosi::Greek::zomma}, {"rho", kiyosi::Greek::rho}};
 
 inline std::filesystem::path fixture_path()
 {
@@ -56,7 +56,7 @@ void check_price(const ReferenceCase& fixture, const PriceResult& priced)
     REQUIRE(fixture.tolerances.contains("price"));
     const double value = [&] {
         if constexpr (std::is_same_v<typename PriceResult::value_type, double>) return *priced;
-        else return *priced->require(kiyosi::RiskMeasure::price);
+        else return priced->price();
     }();
     CAPTURE(value);
     CHECK(std::abs(value - fixture.outputs.at("price")) <=

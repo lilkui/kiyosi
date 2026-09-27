@@ -47,7 +47,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
             const auto native = engine.price(option, *context);
             check_price(fixture, native);
             for (const auto& [name, value] : fixture.outputs)
-                REQUIRE(measures.contains(name));
+                REQUIRE((name == "price" || measures.contains(name)));
             ++generated;
             REQUIRE(fixture.case_id.starts_with("ql-binary-"));
             REQUIRE(inputs.at("wrapper") == (boundary ? "false" : "true"));
@@ -57,9 +57,11 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                 number("spot_shift"), number("volatility_shift"), number("rate_shift"),
                 static_cast<int>(number("time_shift_days"))};
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::calculate_numerical_risk_measures(
+            const auto numerical = kiyosi::calculate_numerical_greeks(
                 engine, option, *context, shifts);
             REQUIRE(numerical);
+            CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
+                fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
             for (const auto& [name, measure] : measures) {
                 INFO("measure=" << name);
                 REQUIRE(numerical->has(measure));

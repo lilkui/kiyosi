@@ -64,8 +64,7 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized geometric average must match the elapsed averaging period"});
     if (tau == 0.0)
-        return make_pricing_result({{RiskMeasure::price,
-                                     payoff(option.option_type(), realized > 0.0 ? realized : spot, strike)}});
+        return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot, strike));
     const double sigma = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
     const double carry = rate - context.model_parameters().dividend_yield();
@@ -91,7 +90,7 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
                (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));
     }();
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
+    return make_pricing_result(std::max(value, 0.0));
 }
 
 Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
@@ -115,10 +114,8 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double carry = rate - dividend;
     const double sigma = context.model_parameters().volatility();
     if (tau == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              payoff(option.option_type(), realized > 0.0 ? realized : spot,
-                     strike)}});
+        return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot,
+                     strike));
     if (option.averaging_start_date() == option.expiry_date()) {
         return price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
@@ -138,11 +135,9 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
         scale = tau / average_period;
         if (adjusted_strike < 0.0) {
             if (sign < 0.0)
-                return make_pricing_result({{RiskMeasure::price, 0.0}});
+                return make_pricing_result(0.0);
             const double expected = realized * remaining / average_period + spot * m1 * tau / average_period;
-            return make_pricing_result(
-                {{RiskMeasure::price,
-                  std::max(expected - strike, 0.0) * std::exp(-rate * tau)}});
+            return make_pricing_result(std::max(expected - strike, 0.0) * std::exp(-rate * tau));
         }
     }
     const double vol2 = sigma * sigma;
@@ -159,15 +154,13 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double root = adjusted_vol * std::sqrt(tau);
     if (root < 1e-12) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              scale * std::exp(-rate * tau) *
-                  payoff(option.option_type(), forward, adjusted_strike)}});
+        return make_pricing_result(scale * std::exp(-rate * tau) *
+                  payoff(option.option_type(), forward, adjusted_strike));
     }
     const double d1 = (std::log(spot / adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
     const double value = scale * sign * (spot * std::exp((b_a - rate) * tau) * normal_cdf(sign * d1) - adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2));
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
+    return make_pricing_result(std::max(value, 0.0));
 }
 } // namespace kiyosi

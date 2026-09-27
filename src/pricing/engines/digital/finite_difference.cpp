@@ -33,8 +33,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     }();
     if (time == 0.0) {
         const bool in_the_money = sign * (spot - strike) > 0.0;
-        return make_pricing_result(
-            {{RiskMeasure::price, in_the_money ? (asset ? spot : payout) : 0.0}});
+        return make_pricing_result(in_the_money ? (asset ? spot : payout) : 0.0);
     }
 
     const double rate = context.model_parameters().risk_free_rate();
@@ -74,13 +73,11 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
                                         old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
-    if (!requested_output.has(RiskMeasure::delta) && !requested_output.has(RiskMeasure::gamma))
-        return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
+    if (!requested_output.has(Greek::delta) && !requested_output.has(Greek::gamma))
+        return make_pricing_result(space->interpolate(old, spot));
 
-    auto output = make_pricing_result(
-        {{RiskMeasure::price, space->interpolate(old, spot)},
-         {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-         {RiskMeasure::gamma, requested_output.has(RiskMeasure::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+    auto output = make_pricing_result(space->interpolate(old, spot), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+         {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "finite-difference pricing produced a non-finite result"});

@@ -18,9 +18,7 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double spot = context.spot_price();
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              sign * (spot - strike) > 0.0 ? (asset ? spot : payout) : 0.0}});
+        return make_pricing_result(sign * (spot - strike) > 0.0 ? (asset ? spot : payout) : 0.0);
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
@@ -29,7 +27,7 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double threshold = (std::log(strike / spot) - drift) / (volatility * root);
     const double lower = sign > 0.0 ? std::max(threshold, -12.0) : -12.0;
     const double upper = sign > 0.0 ? 12.0 : std::min(threshold, 12.0);
-    if (lower >= upper) return make_pricing_result({{RiskMeasure::price, 0.0}});
+    if (lower >= upper) return make_pricing_result(0.0);
     constexpr int panels = 2048;
     const double step = (upper - lower) / panels;
     auto integrand = [&](double z) {
@@ -42,7 +40,7 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
         sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);
     const double value = std::exp(-rate * time) * sum * step / 3.0;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, value}});
+    return make_pricing_result(value);
 }
 } // namespace
 

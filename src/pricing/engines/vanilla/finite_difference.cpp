@@ -29,8 +29,7 @@ Result<PricingResult> price_finite_difference(
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0) {
-        return make_pricing_result(
-            {{RiskMeasure::price, std::max(sign * (spot - strike), 0.0)}});
+        return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     }
 
     const double rate = context.model_parameters().risk_free_rate();
@@ -74,13 +73,11 @@ Result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
-    if (!requested_output.has(RiskMeasure::delta) && !requested_output.has(RiskMeasure::gamma))
-        return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
+    if (!requested_output.has(Greek::delta) && !requested_output.has(Greek::gamma))
+        return make_pricing_result(space->interpolate(old, spot));
 
-    auto output = make_pricing_result(
-        {{RiskMeasure::price, space->interpolate(old, spot)},
-         {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-         {RiskMeasure::gamma, requested_output.has(RiskMeasure::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+    auto output = make_pricing_result(space->interpolate(old, spot), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+         {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result,

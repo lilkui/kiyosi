@@ -17,22 +17,19 @@ Result<PricingResult> QuadratureVanillaEngine::price_impl(const EuropeanOption& 
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     if (tau == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price, std::max(sign * (spot - strike), 0.0)}});
+        return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     const double sigma = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double root = std::sqrt(tau);
     if (sigma < 1e-12)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              std::exp(-rate * tau) *
+        return make_pricing_result(std::exp(-rate * tau) *
                   std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
-                           0.0)}});
+                           0.0));
     const double z_star = (std::log(strike / spot) - (rate - dividend - 0.5 * sigma * sigma) * tau) / (sigma * root);
     const double lower = sign > 0 ? std::max(z_star, -10.0) : -10.0;
     const double upper = sign > 0 ? 10.0 : std::min(z_star, 10.0);
-    if (lower >= upper) return make_pricing_result({{RiskMeasure::price, 0.0}});
+    if (lower >= upper) return make_pricing_result(0.0);
     constexpr int panels = 1024;
     const double h = (upper - lower) / panels;
     auto integrand = [&](double z) {
@@ -44,7 +41,7 @@ Result<PricingResult> QuadratureVanillaEngine::price_impl(const EuropeanOption& 
         sum += (index % 2 ? 4.0 : 2.0) * integrand(lower + h * index);
     const double value = std::exp(-rate * tau) * sum * h / 3.0;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, value}});
+    return make_pricing_result(value);
 }
 
 } // namespace kiyosi

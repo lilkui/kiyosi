@@ -16,7 +16,7 @@ namespace {
 Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
                                                     std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}});
+    return make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
 }
 
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
@@ -73,7 +73,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
     if (touched) {
-        const double touched_value = *vanilla->require(RiskMeasure::price);
+        const double touched_value = vanilla->price();
         return make_price_delta_gamma_result(knock_in
                                                  ? touched_value
                                                  : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
@@ -82,7 +82,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     if (option.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
         return make_price_delta_gamma_result(knock_in ? option.rebate() * std::exp(-rate * t)
-                                                      : *vanilla->require(RiskMeasure::price));
+                                                      : vanilla->price());
     if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
@@ -93,8 +93,8 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                                          "barrier rebate discounting is numerically unstable"});
     }
     if (t == 0.0) {
-        return knock_in ? make_price_delta_gamma_result(touched ? *vanilla->require(RiskMeasure::price) : option.rebate())
-                        : make_price_delta_gamma_result(touched ? option.rebate() : *vanilla->require(RiskMeasure::price));
+        return knock_in ? make_price_delta_gamma_result(touched ? vanilla->price() : option.rebate())
+                        : make_price_delta_gamma_result(touched ? option.rebate() : vanilla->price());
     }
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);

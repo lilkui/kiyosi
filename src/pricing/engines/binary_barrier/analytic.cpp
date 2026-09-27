@@ -78,22 +78,17 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const bool touched_now = observed_now && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
     if (*prior_touch && option.settlement_timing == SettlementTiming::at_hit)
-        return make_pricing_result({{RiskMeasure::price, 0.0}});
+        return make_pricing_result(0.0);
     if (time == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price, terminal_payoff(option, spot, touched)}});
+        return make_pricing_result(terminal_payoff(option, spot, touched));
     if (touched) {
-        if (!knock_in) return make_pricing_result({{RiskMeasure::price, 0.0}});
+        if (!knock_in) return make_pricing_result(0.0);
         if (option.settlement_timing == SettlementTiming::at_hit)
-            return make_pricing_result(
-                {{RiskMeasure::price,
-                  option.asset_settlement ? terms.barrier_level() : option.payout}});
-        return make_pricing_result(
-            {{RiskMeasure::price, vanilla_digital(option, context, time)}});
+            return make_pricing_result(option.asset_settlement ? terms.barrier_level() : option.payout);
+        return make_pricing_result(vanilla_digital(option, context, time));
     }
     if (terms.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
-        return make_pricing_result({{RiskMeasure::price,
-                                     knock_in ? 0.0 : vanilla_digital(option, context, time)}});
+        return make_pricing_result(knock_in ? 0.0 : vanilla_digital(option, context, time));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier_level();
@@ -117,7 +112,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     };
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const auto formula_terms = common(upper ? -1.0 : 1.0, 0.0);
-        return make_pricing_result({{RiskMeasure::price, formula_terms.a5}});
+        return make_pricing_result(formula_terms.a5);
     }
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
@@ -150,7 +145,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
                           : (option.strike > barrier ? formula_terms.a2 - formula_terms.a4 : formula_terms.a1 - formula_terms.a3);
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, std::max(value, 0.0)}});
+    return make_pricing_result(std::max(value, 0.0));
 }
 } // namespace
 

@@ -10,7 +10,7 @@
 namespace {
 
 using kiyosi::test::day;
-using kiyosi::test::risk_value;
+using kiyosi::test::greek_value;
 
 TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[architecture]")
 {
@@ -182,10 +182,10 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     const RecordingEngine engine{&moments, noon};
     SECTION("numerical analytics")
     {
-        const auto analytics = kiyosi::calculate_numerical_risk_measures(engine, option, context);
+        const auto analytics = kiyosi::calculate_numerical_greeks(engine, option, context);
         REQUIRE(analytics);
-        CHECK(risk_value(*analytics, kiyosi::RiskMeasure::vega) == Catch::Approx(0.01));
-        CHECK(risk_value(*analytics, kiyosi::RiskMeasure::theta) == Catch::Approx(1.0));
+        CHECK(greek_value(*analytics, kiyosi::Greek::vega) == Catch::Approx(0.01));
+        CHECK(greek_value(*analytics, kiyosi::Greek::theta) == Catch::Approx(1.0));
         REQUIRE_FALSE(moments.empty());
         for (const auto moment : moments) {
             CHECK(moment - kiyosi::start_of_day(kiyosi::date_of(moment)) == std::chrono::hours{12});

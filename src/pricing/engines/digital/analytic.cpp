@@ -13,7 +13,7 @@ namespace {
 Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
                                                     std::optional<double> gamma = std::nullopt)
 {
-    return make_pricing_result({{RiskMeasure::price, value}, {RiskMeasure::delta, delta}, {RiskMeasure::gamma, gamma}});
+    return make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
 }
 
 Result<PricingResult> digital_price(double strike, OptionType type, double payout,
@@ -43,18 +43,18 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     const double value = scale * nd;
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    if (!output.has(RiskMeasure::delta) && !output.has(RiskMeasure::gamma))
+    if (!output.has(Greek::delta) && !output.has(Greek::gamma))
         return make_price_delta_gamma_result(value);
     const double density = normal_pdf(asset_settlement ? d1 : d2);
     std::optional<double> delta;
     std::optional<double> gamma;
     if (asset_settlement) {
-        if (output.has(RiskMeasure::delta)) delta = div_df * (nd + sign * density / (sigma * root_t));
-        if (output.has(RiskMeasure::gamma)) gamma = -div_df * sign * density * d1 / (spot * sigma * sigma * t) +
+        if (output.has(Greek::delta)) delta = div_df * (nd + sign * density / (sigma * root_t));
+        if (output.has(Greek::gamma)) gamma = -div_df * sign * density * d1 / (spot * sigma * sigma * t) +
                                                     div_df * sign * density / (spot * sigma * root_t);
     } else {
-        if (output.has(RiskMeasure::delta)) delta = payout * rate_df * sign * density / (spot * sigma * root_t);
-        if (output.has(RiskMeasure::gamma)) gamma = -payout * rate_df * sign * density *
+        if (output.has(Greek::delta)) delta = payout * rate_df * sign * density / (spot * sigma * root_t);
+        if (output.has(Greek::gamma)) gamma = -payout * rate_df * sign * density *
                                                     (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
     auto result = make_price_delta_gamma_result(value, delta, gamma);

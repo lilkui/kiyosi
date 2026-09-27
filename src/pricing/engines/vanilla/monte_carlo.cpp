@@ -210,9 +210,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_european(
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              payoff(option.option_type(), context.spot_price(), option.strike())}});
+        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
     const auto parameters = simulation_parameters(context, *time, settings_);
     if (!parameters) return std::unexpected(parameters.error());
     double sum = 0.0;
@@ -239,7 +237,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_european(
                          std::exp(-parameters->rate * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, value}});
+    return make_pricing_result(value);
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_american(
@@ -248,9 +246,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
-        return make_pricing_result(
-            {{RiskMeasure::price,
-              payoff(option.option_type(), context.spot_price(), option.strike())}});
+        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
     if (settings_.step_count < 3)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
@@ -322,7 +318,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_american(
                                   payoff(option.option_type(), context.spot_price(), option.strike()));
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
-    return make_pricing_result({{RiskMeasure::price, value}});
+    return make_pricing_result(value);
 }
 
 } // namespace kiyosi
