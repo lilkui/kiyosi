@@ -31,6 +31,12 @@ struct PythonGreekRequestAnnotation {};
 template <typename Enum>
 struct EnumNames;
 
+template <typename Enum>
+struct PythonChoice {
+    nb::handle source;
+    operator Enum() const; // NOLINT(google-explicit-constructor): validate when passed to the core
+};
+
 template <>
 struct EnumNames<OptionType> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, OptionType>>(
@@ -168,6 +174,23 @@ struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
                     const_name("]")))
 };
 
+template <typename Enum>
+struct type_caster<kiyosi::python_binding::PythonChoice<Enum>> {
+    NB_TYPE_CASTER(kiyosi::python_binding::PythonChoice<Enum>,
+                   kiyosi::python_binding::EnumNames<Enum>::Name)
+    bool from_python(handle source, uint32_t, cleanup_list*) noexcept
+    {
+        if (!isinstance<str>(source)) return false;
+        value.source = source;
+        return true;
+    }
+    static handle from_cpp(const kiyosi::python_binding::PythonChoice<Enum>& source,
+                           rv_policy, cleanup_list*) noexcept
+    {
+        return source.source.inc_ref();
+    }
+};
+
 #define KIYOSI_STRING_ENUM_CASTER(Enum)                                                     \
     template <>                                                                             \
     struct type_caster<kiyosi::Enum> {                                                      \
@@ -189,7 +212,6 @@ struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
                     return true;                                                            \
                 }                                                                           \
             }                                                                               \
-            PyErr_SetString(PyExc_ValueError, "unknown " #Enum " value");                   \
             return false;                                                                   \
         }                                                                                   \
         static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*)               \
@@ -297,6 +319,21 @@ inline void unwrap(Result<void> value)
 [[noreturn]] inline void type_error(std::string_view field, std::string_view expected)
 {
     throw nb::type_error((std::string{field} + " must be " + std::string{expected}).c_str());
+}
+
+template <typename Enum>
+Enum string_enum(nb::handle value, std::string_view field)
+{
+    if (!nb::isinstance<nb::str>(value)) type_error(field, "a string");
+    Enum result{};
+    if (!nb::try_cast(value, result, false)) throw nb::value_error("unknown string choice");
+    return result;
+}
+
+template <typename Enum>
+PythonChoice<Enum>::operator Enum() const
+{
+    return string_enum<Enum>(source, "choice");
 }
 
 inline double real_number(nb::handle value, std::string_view field)

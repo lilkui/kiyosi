@@ -46,7 +46,7 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         [factory](PythonReal coupon_rate, PythonReal initial_spot,
                   PythonReal knock_in_level, PythonReal knock_out_level,
                   PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-                  std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+                  std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(factory(Terms{
                 .coupon_rate = real_number(coupon_rate, "coupon_rate"),
                 .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -108,7 +108,7 @@ void bind_presets(nb::module_& module)
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_step_down_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
                                                    .initial_spot = real_number(initial_spot, "initial_spot"),
                                                    .knock_in_level = real_number(knock_in_level, "knock_in_level"),
@@ -163,7 +163,7 @@ KiyosiError
         [](PythonReal initial_coupon_rate, PythonReal coupon_rate_decrement, PythonReal initial_spot,
            PythonReal knock_in_level, PythonReal initial_knock_out_level, PythonReal knock_out_level_decrement,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_both_down_snowball({.initial_coupon_rate = real_number(initial_coupon_rate, "initial_coupon_rate"),
                                                    .coupon_rate_decrement = real_number(coupon_rate_decrement, "coupon_rate_decrement"),
                                                    .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -222,7 +222,7 @@ KiyosiError
         [](PythonReal knock_out_coupon_rate, PythonReal maturity_coupon_rate,
            PythonReal initial_spot, PythonReal knock_in_level, PythonReal knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_dual_coupon_snowball({.knock_out_coupon_rate = real_number(knock_out_coupon_rate, "knock_out_coupon_rate"),
                                                      .maturity_coupon_rate = real_number(maturity_coupon_rate, "maturity_coupon_rate"),
                                                      .initial_spot = real_number(initial_spot, "initial_spot"),
@@ -278,7 +278,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal final_knock_out_level,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_parachute_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
                                                    .initial_spot = real_number(initial_spot, "initial_spot"),
                                                    .knock_in_level = real_number(knock_in_level, "knock_in_level"),
@@ -333,7 +333,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal upper_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_otm_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
                                              .initial_spot = real_number(initial_spot, "initial_spot"),
                                              .knock_in_level = real_number(knock_in_level, "knock_in_level"),
@@ -388,7 +388,7 @@ KiyosiError
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
            PythonReal knock_out_level, PythonReal lower_strike,
            PythonDateSequence observation_dates, PythonDate effective_date, PythonDate expiry_date,
-           std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio) {
+           std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio) {
             return unwrap(make_loss_capped_snowball({.coupon_rate = real_number(coupon_rate, "coupon_rate"),
                                                      .initial_spot = real_number(initial_spot, "initial_spot"),
                                                      .knock_in_level = real_number(knock_in_level, "knock_in_level"),
@@ -476,7 +476,7 @@ effective_date, expiry_date : datetime.date
                                          PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                                          PythonReal upper_strike, PythonReal lower_strike,
                                          PythonDateSequence observation_dates,
-                                         KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                         PythonChoice<KnockInObservationMode> knock_in_observation_mode, std::optional<PythonChoice<AutocallableBarrierState>> barrier_state,
                                          PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                                  return unwrap(make_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
                                                                      real_number(maturity_coupon_rate, "maturity_coupon_rate"),
@@ -570,7 +570,7 @@ effective_date, expiry_date : datetime.date
                       .def(nb::new_([](PythonRealSequence knock_out_coupon_rates,
                                        PythonReal maturity_coupon_rate,
                                        PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
-                                       std::optional<AutocallableBarrierState> barrier_state, PythonReal principal_ratio,
+                                       std::optional<PythonChoice<AutocallableBarrierState>> barrier_state, PythonReal principal_ratio,
                                        PythonDate effective_date, PythonDate expiry_date) {
                                return unwrap(make_binary_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
                                                                           real_number(maturity_coupon_rate, "maturity_coupon_rate"),
@@ -654,7 +654,7 @@ effective_date, expiry_date : datetime.date
                                         PythonReal maturity_coupon_rate, PythonReal minimum_coupon_rate,
                                         PythonReal knock_in_level,
                                         PythonRealSequence knock_out_levels, PythonDateSequence observation_dates,
-                                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                        PythonChoice<KnockInObservationMode> knock_in_observation_mode, std::optional<PythonChoice<AutocallableBarrierState>> barrier_state,
                                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                                 return unwrap(make_ternary_snowball_option({real_sequence(knock_out_coupon_rates, "knock_out_coupon_rates"),
                                                                             real_number(maturity_coupon_rate, "maturity_coupon_rate"),
@@ -755,7 +755,7 @@ effective_date, expiry_date : datetime.date
                                         PythonReal knock_in_level, PythonRealSequence knock_out_levels,
                                         PythonRealSequence coupon_barrier_levels, PythonReal upper_strike,
                                         PythonReal lower_strike, PythonDateSequence observation_dates,
-                                        KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
+                                        PythonChoice<KnockInObservationMode> knock_in_observation_mode, std::optional<PythonChoice<AutocallableBarrierState>> barrier_state,
                                         PythonReal principal_ratio, PythonDate effective_date, PythonDate expiry_date) {
                                 return unwrap(make_phoenix_option({real_number(coupon_rate, "coupon_rate"),
                                                                    real_number(initial_spot, "initial_spot"),

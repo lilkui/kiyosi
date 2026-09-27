@@ -1738,7 +1738,7 @@ class KiyosiPythonTests(unittest.TestCase):
         engine = AnalyticBarrierEngine()
         self.assertEqual(get_args(BarrierTouchState), ("untouched", "touched"))
         self.assertIsNone(BarrierOption(**terms).touch_state)
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             BarrierOption(**terms, touch_state="invalid")
         with self.assertRaises(kiyosi.KiyosiError) as error:
             engine.price(BarrierOption(**terms, touch_state=None), context)

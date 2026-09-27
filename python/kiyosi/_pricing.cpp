@@ -10,8 +10,7 @@ static_assert(EnumNames<Greek>::values.size() == greek_count);
 
 MonteCarloBackend monte_carlo_backend_value(nb::handle value)
 {
-    if (!nb::isinstance<nb::str>(value)) type_error("backend", "a string");
-    return nb::cast<MonteCarloBackend>(value);
+    return string_enum<MonteCarloBackend>(value, "backend");
 }
 
 PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
@@ -29,7 +28,7 @@ std::vector<Greek> requested_greeks(nb::handle value)
 {
     std::vector<Greek> selected;
     if (nb::isinstance<nb::str>(value)) {
-        selected.push_back(nb::cast<Greek>(value));
+        selected.push_back(string_enum<Greek>(value, "greeks"));
         return selected;
     }
     nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(value.ptr()));
@@ -42,7 +41,7 @@ std::vector<Greek> requested_greeks(nb::handle value)
         nb::object greek = nb::steal<nb::object>(item);
         if (!nb::isinstance<nb::str>(greek))
             type_error("greeks", "a Greek name or an iterable of Greek names");
-        selected.push_back(nb::cast<Greek>(greek));
+        selected.push_back(string_enum<Greek>(greek, "greeks"));
     }
     if (PyErr_Occurred()) throw nb::python_error();
     return selected;
@@ -171,7 +170,7 @@ asset_upper_boundary : float or None
     Explicit upper asset-grid boundary, or ``None`` for the core default.)doc"};
     binding
         .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
-                         FiniteDifferenceScheme scheme, PythonReal asset_upper_boundary) {
+                         PythonChoice<FiniteDifferenceScheme> scheme, PythonReal asset_upper_boundary) {
                  std::optional<double> boundary;
                  if (!asset_upper_boundary.is_none())
                      boundary = real_number(asset_upper_boundary, "asset_upper_boundary");
@@ -458,7 +457,7 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
     module.def(
         "implied_coupon",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonReal observed_price, CouponQuoteConvention quote_convention,
+           PythonReal observed_price, PythonChoice<CouponQuoteConvention> quote_convention,
            PythonReal lower_bound, PythonReal upper_bound, PythonReal tolerance,
            PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
@@ -543,7 +542,7 @@ vega, vanna, zomma : float or None
     Volatility-point changes in price, delta, and gamma.
 rho : float or None
     Price change per interest-rate percentage point.)doc")
-                              .def("require", [](const PricingResult& result, Greek measure) { return unwrap(result.require(measure)); }, "measure"_a, R"doc(Return a required Greek.
+                              .def("require", [](const PricingResult& result, PythonChoice<Greek> measure) { return unwrap(result.require(measure)); }, "measure"_a, R"doc(Return a required Greek.
 
 Parameters
 ----------
