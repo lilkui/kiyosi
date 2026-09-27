@@ -35,7 +35,7 @@ from kiyosi.instruments import (
     standard_snowball,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext, fixed_interval_schedule, monthly_schedule
-from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, GreeksLevel, calculate_numerical_risk_measures, implied_coupon, implied_volatility
+from kiyosi.pricing import AnalyticBarrierEngine, AnalyticBinaryBarrierEngine, AnalyticDigitalEngine, AnalyticVanillaEngine, FiniteDifferenceScheme, calculate_numerical_risk_measures, implied_coupon, implied_volatility
 
 
 def parity_fields(value):
@@ -66,7 +66,9 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_explicit_pricing_result_surface(self):
         self.assertFalse(hasattr(kiyosi, "price"))
         self.assertFalse(hasattr(pricing, "price"))
-        result = AnalyticVanillaEngine().price_with_greeks(self.option, self.context, GreeksLevel.FULL)
+        self.assertFalse(hasattr(kiyosi, "GreeksLevel"))
+        self.assertFalse(hasattr(pricing, "GreeksLevel"))
+        result = AnalyticVanillaEngine().price_with_greeks(self.option, self.context, all_greeks=True)
         self.assertEqual(len(result), 11)
         self.assertEqual(result["price"], result.price)
         self.assertIn("speed", result)
@@ -75,21 +77,33 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertNotIn(None, result)
         self.assertNotIn([], result)
 
-    def test_pricing_levels_preserve_native_greeks_and_scalar_price(self):
+    def test_selected_greeks_preserve_native_values_and_scalar_price(self):
         engine = AnalyticVanillaEngine()
         context = PricingContext(
             model_parameters=self.parameters, spot_price=100,
             valuation_time=date(2025, 6, 1),
         )
         value = engine.price(self.option, context)
-        basic = engine.price_with_greeks(self.option, context, GreeksLevel.BASIC)
-        full = engine.price_with_greeks(self.option, context, GreeksLevel.FULL)
+        basic = engine.price_with_greeks(self.option, context, [kiyosi.RiskMeasure.DELTA, kiyosi.RiskMeasure.GAMMA])
+        full = engine.price_with_greeks(self.option, context, all_greeks=True)
         numerical = calculate_numerical_risk_measures(engine, self.option, context)
         self.assertIs(type(value), float)
         self.assertEqual(basic.price, value)
         self.assertEqual(full.price, value)
         self.assertEqual(basic.delta, full.delta)
         self.assertEqual(basic.gamma, full.gamma)
+        selected = engine.price_with_greeks(self.option, context, kiyosi.RiskMeasure.VEGA)
+        self.assertEqual(selected.price, value)
+        self.assertEqual(selected.vega, full.vega)
+        self.assertIsNone(selected.delta)
+        self.assertIsNone(selected.gamma)
+        pair = engine.price_with_greeks(self.option, context, [kiyosi.RiskMeasure.RHO, kiyosi.RiskMeasure.VEGA, kiyosi.RiskMeasure.RHO])
+        self.assertEqual(pair.rho, full.rho)
+        self.assertEqual(pair.vega, full.vega)
+        self.assertIsNone(pair.speed)
+        generated = engine.price_with_greeks(self.option, context, (greek for greek in (kiyosi.RiskMeasure.DELTA,)))
+        self.assertEqual(generated.delta, full.delta)
+        self.assertIsNone(generated.gamma)
         time = (self.option.expiry_date - date(2025, 6, 1)).days / 365
         d1 = (0.05 - 0.02 + 0.2**2 / 2) * time / (0.2 * math.sqrt(time))
         self.assertAlmostEqual(basic.delta, math.exp(-0.02 * time) * (1 + math.erf(d1 / math.sqrt(2))) / 2)
@@ -101,17 +115,27 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(measure=name):
                 self.assertIsNone(getattr(basic, name))
 
-    def test_joint_pricing_requires_explicit_enum_and_valid_shift_settings(self):
+    def test_joint_pricing_requires_explicit_greeks_and_valid_shift_settings(self):
         engine = AnalyticVanillaEngine()
         with self.assertRaises(TypeError):
             engine.price_with_greeks(self.option, self.context)
         for level in ("basic", True, 0, None):
             with self.subTest(level=level), self.assertRaises(TypeError):
                 engine.price_with_greeks(self.option, self.context, level)
+        for greeks in ([], [kiyosi.RiskMeasure.PRICE]):
+            with self.subTest(greeks=greeks), self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price_with_greeks(self.option, self.context, greeks)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         with self.assertRaises(TypeError):
-            engine.price_with_greeks(self.option, self.context, GreeksLevel.BASIC, spot_shift=True)
+            engine.price_with_greeks(self.option, self.context, [kiyosi.RiskMeasure.DELTA, 1])
+        with self.assertRaises(TypeError):
+            engine.price_with_greeks(self.option, self.context, kiyosi.RiskMeasure.DELTA, all_greeks=True)
+        with self.assertRaises(TypeError):
+            engine.price_with_greeks(self.option, self.context, all_greeks=1)
+        with self.assertRaises(TypeError):
+            engine.price_with_greeks(self.option, self.context, [kiyosi.RiskMeasure.DELTA, kiyosi.RiskMeasure.GAMMA], spot_shift=True)
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(self.option, self.context, GreeksLevel.FULL, spot_shift=0)
+            engine.price_with_greeks(self.option, self.context, all_greeks=True, spot_shift=0)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
     def test_joint_pricing_at_expiry_has_no_greeks(self):
@@ -122,9 +146,9 @@ class KiyosiPythonTests(unittest.TestCase):
         for engine in (AnalyticVanillaEngine(), pricing.FiniteDifferenceVanillaEngine(),
                        pricing.MonteCarloVanillaEngine(path_count=64, step_count=3, seed=73)):
             self.assertEqual(engine.price(self.option, context), 10)
-            for level in (GreeksLevel.BASIC, GreeksLevel.FULL):
-                with self.subTest(engine=type(engine).__name__, level=level):
-                    result = engine.price_with_greeks(self.option, context, level)
+            for kwargs in ({"greeks": kiyosi.RiskMeasure.DELTA}, {"all_greeks": True}):
+                with self.subTest(engine=type(engine).__name__, request=kwargs):
+                    result = engine.price_with_greeks(self.option, context, **kwargs)
                     self.assertEqual(result.price, 10)
                     for name in ("delta", "gamma", "speed", "theta", "charm", "color", "vega", "vanna", "zomma", "rho"):
                         self.assertIsNone(getattr(result, name))
@@ -139,9 +163,9 @@ class KiyosiPythonTests(unittest.TestCase):
             model_parameters=self.parameters, spot_price=100,
             valuation_time=date(2025, 6, 1),
         )
-        first = engine.price_with_greeks(self.option, context, GreeksLevel.FULL)
-        second = engine.price_with_greeks(self.option, context, GreeksLevel.FULL)
-        basic = engine.price_with_greeks(self.option, context, GreeksLevel.BASIC)
+        first = engine.price_with_greeks(self.option, context, all_greeks=True)
+        second = engine.price_with_greeks(self.option, context, all_greeks=True)
+        basic = engine.price_with_greeks(self.option, context, [kiyosi.RiskMeasure.DELTA, kiyosi.RiskMeasure.GAMMA])
         self.assertEqual(first.price, engine.price(self.option, context))
         self.assertEqual(first.delta, basic.delta)
         self.assertEqual(first.gamma, basic.gamma)
@@ -168,7 +192,7 @@ class KiyosiPythonTests(unittest.TestCase):
         note = standard_snowball(**note_terms)
         self.assertEqual(note, standard_snowball(**note_terms))
 
-        result = AnalyticVanillaEngine().price_with_greeks(self.option, self.context, GreeksLevel.FULL)
+        result = AnalyticVanillaEngine().price_with_greeks(self.option, self.context, all_greeks=True)
         cases = (
             (self.parameters, "BlackScholesMertonParameters(", "volatility=0.2"),
             (self.option, "EuropeanOption(", "strike=100.0"),
@@ -691,7 +715,7 @@ class KiyosiPythonTests(unittest.TestCase):
             engine.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE)
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(self.option, self.context, GreeksLevel.FULL)
+            engine.price_with_greeks(self.option, self.context, all_greeks=True)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE)
 
     def test_american_cuda_backend_unavailable_is_deferred_and_categorized(self):
@@ -792,7 +816,7 @@ class KiyosiPythonTests(unittest.TestCase):
             option_type=OptionType.CALL, strike=100, averaging_start_date=date(2025, 7, 1),
             effective_date=effective, expiry_date=expiry,
         )
-        greeks = engine.price_with_greeks(starting, context, GreeksLevel.FULL)
+        greeks = engine.price_with_greeks(starting, context, all_greeks=True)
         self.assertIsNotNone(greeks.delta)
         self.assertIsNone(greeks.theta)
 
@@ -868,7 +892,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 engine.price(missing, context)
             self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(missing, during, GreeksLevel.BASIC)
+            engine.price_with_greeks(missing, during, [kiyosi.RiskMeasure.DELTA, kiyosi.RiskMeasure.GAMMA])
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         self.assertEqual(engine.price(known, at_expiry), 10)
 
@@ -918,7 +942,7 @@ class KiyosiPythonTests(unittest.TestCase):
             engine.price(self.option, self.context)
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(self.option, self.context, GreeksLevel.BASIC)
+            engine.price_with_greeks(self.option, self.context, [kiyosi.RiskMeasure.DELTA, kiyosi.RiskMeasure.GAMMA])
         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
     def test_calculate_numerical_risk_measures_retains_valid_boundary_results(self):
@@ -1063,7 +1087,7 @@ class KiyosiPythonTests(unittest.TestCase):
             barrier_level=120, barrier_type=BarrierType.UP_AND_OUT,
         )
         result = AnalyticBarrierEngine().price_with_greeks(
-            barrier, self.context, GreeksLevel.FULL,
+            barrier, self.context, all_greeks=True,
         )
         self.assertIsNotNone(result.price)
         self.assertIsNotNone(result.delta)
@@ -1128,9 +1152,10 @@ class KiyosiPythonTests(unittest.TestCase):
                     result = AnalyticVanillaEngine().price(option, context)
                     self.assertAlmostEqual(result, float(expected["price"]), delta=float(case["tolerance"]))
                     if kind == "pricing_greeks":
-                        result = AnalyticVanillaEngine().price_with_greeks(
-                            option, context, getattr(GreeksLevel, values["level"].upper())
-                        )
+                        kwargs = {"all_greeks": True} if values.get("all_greeks") == "true" else {
+                            "greeks": [getattr(kiyosi.RiskMeasure, name.upper()) for name in values["greeks"].split(",")]
+                        }
+                        result = AnalyticVanillaEngine().price_with_greeks(option, context, **kwargs)
                         for name, value in expected.items():
                             with self.subTest(measure=name):
                                 if value == "none":

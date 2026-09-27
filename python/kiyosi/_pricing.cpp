@@ -73,6 +73,29 @@ NumericalShiftSettings numerical_settings(
     nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days);
 
+std::vector<RiskMeasure> requested_greeks(nb::handle value)
+{
+    std::vector<RiskMeasure> selected;
+    if (nb::isinstance<RiskMeasure>(value)) {
+        selected.push_back(nb::cast<RiskMeasure>(value));
+        return selected;
+    }
+    nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(value.ptr()));
+    if (!iterator) {
+        if (!PyErr_ExceptionMatches(PyExc_TypeError)) throw nb::python_error();
+        PyErr_Clear();
+        type_error("greeks", "a RiskMeasure or an iterable of RiskMeasure values");
+    }
+    while (PyObject* item = PyIter_Next(iterator.ptr())) {
+        nb::object greek = nb::steal<nb::object>(item);
+        if (!nb::isinstance<RiskMeasure>(greek))
+            type_error("greeks", "a RiskMeasure or an iterable of RiskMeasure values");
+        selected.push_back(nb::cast<RiskMeasure>(greek));
+    }
+    if (PyErr_Occurred()) throw nb::python_error();
+    return selected;
+}
+
 template <typename Engine, typename Instrument>
 void bind_engine_price(nb::class_<Engine>& binding)
 {
@@ -104,25 +127,33 @@ KiyosiError
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           GreeksLevel level, PythonReal spot_shift, PythonReal volatility_shift,
+           nb::handle greeks, nb::handle all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
            PythonReal rate_shift, PythonInteger time_shift_days) {
+            if (!PyBool_Check(all_greeks.ptr())) type_error("all_greeks", "a bool");
+            const bool all = all_greeks.ptr() == Py_True;
+            if (all && !greeks.is_none()) type_error("greeks", "omitted when all_greeks is True");
+            if (!all && greeks.is_none()) type_error("greeks", "provided unless all_greeks is True");
+            const auto selected = all ? std::vector<RiskMeasure>{} : requested_greeks(greeks);
+            const GreeksRequest request = all ? GreeksRequest{true} : GreeksRequest{std::span<const RiskMeasure>{selected}};
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
-            return unwrap(engine.price_with_greeks(instrument, context, level, settings));
+            return unwrap(engine.price_with_greeks(instrument, context, request, settings));
         },
-        "instrument"_a, "context"_a, "level"_a.noconvert(), nb::kw_only(),
+        "instrument"_a, "context"_a, "greeks"_a = nb::none(), nb::kw_only(),
+        "all_greeks"_a = false,
         "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
-        R"doc(Compute price and the explicitly selected Greeks tier.
+        R"doc(Compute price and the explicitly selected Greeks.
 
-``GreeksLevel.BASIC`` requests delta and gamma; ``GreeksLevel.FULL`` requests
-all ten Greeks. Native values are reused and missing feasible measures use
-numerical price differences. Unrequested or undefined measures are None, never
-zero sentinels. At expiry or a monitored barrier hit-state boundary, only price
-is available. Feasible bumped valuation failures fail the entire operation.
+Pass one RiskMeasure or an iterable of them, or set ``all_greeks=True`` to
+request all ten. These forms are mutually exclusive. Native values are reused;
+missing feasible measures use numerical price differences. Unrequested or
+undefined measures are None, never zero sentinels. At expiry or a monitored
+barrier hit-state boundary, only price is available. Feasible bumped valuation
+failures fail the entire operation.
 At current structured-product event thresholds, undefined spot and time
 sensitivities remain None while feasible rate and volatility sensitivities survive.
 
@@ -138,11 +169,11 @@ PricingResult
 Raises
 ------
 TypeError
-    If level, engine/instrument pairing, or a shift representation is incompatible.
+    If a Greek representation, engine/instrument pairing, or shift representation is incompatible.
 OverflowError
     If time_shift_days is outside the C++ int range.
 KiyosiError
-    If settings are invalid or a required valuation fails.)doc");
+    If the Greek request or settings are invalid, or a required valuation fails.)doc");
 }
 
 template <typename Engine>
@@ -545,11 +576,6 @@ void bind_engine_analytics(nb::module_& module)
 
 void bind_results(nb::module_& module)
 {
-    nb::enum_<GreeksLevel>(module, "GreeksLevel",
-        "Explicit Greeks calculation tier; BASIC is delta/gamma, FULL is all ten Greeks.")
-        .value("BASIC", GreeksLevel::basic)
-        .value("FULL", GreeksLevel::full);
-
     auto pricing_result = nb::class_<PricingResult>(
         module, "PricingResult",
         R"doc(Read-only mapping over the fixed risk-measure vocabulary.

@@ -33,23 +33,29 @@ struct RecordingPriceEngine {
 };
 
 template <typename Engine>
-concept ImplicitGreeksLevel = requires(const Engine& engine, const EuropeanOption& option,
-                                       const PricingContext& context) {
+concept ImplicitGreeksRequest = requires(const Engine& engine, const EuropeanOption& option,
+                                         const PricingContext& context) {
     engine.price_with_greeks(option, context);
 };
-static_assert(!ImplicitGreeksLevel<AnalyticVanillaEngine>);
+static_assert(!ImplicitGreeksRequest<AnalyticVanillaEngine>);
+template <typename Engine>
+concept IntegerGreeksRequest = requires(const Engine& engine, const EuropeanOption& option,
+                                        const PricingContext& context) {
+    engine.price_with_greeks(option, context, 1);
+};
+static_assert(!IntegerGreeksRequest<AnalyticVanillaEngine>);
 static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
                                  std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
                              Result<double>>);
 
-TEST_CASE("Pricing API separates scalar basic and full outputs", "[pricing-api]")
+TEST_CASE("Pricing API separates scalar selected and all-Greek outputs", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto context = market();
     const AnalyticVanillaEngine engine;
     const auto scalar = engine.price(option, context);
-    const auto basic = engine.price_with_greeks(option, context, GreeksLevel::basic);
-    const auto full = engine.price_with_greeks(option, context, GreeksLevel::full);
+    const auto basic = engine.price_with_greeks(option, context, GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma});
+    const auto full = engine.price_with_greeks(option, context, GreeksRequest{true});
     REQUIRE(scalar);
     REQUIRE(basic);
     REQUIRE(full);
@@ -65,14 +71,14 @@ TEST_CASE("Pricing API separates scalar basic and full outputs", "[pricing-api]"
     }
 }
 
-TEST_CASE("Basic Greek completion uses only missing spot differences", "[pricing-api]")
+TEST_CASE("Selected Greek completion uses only missing spot differences", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto context = market();
     std::vector<PricingContext> calls;
     const RecordingPriceEngine engine{&calls};
     const auto native = *make_pricing_result({{RiskMeasure::price, 10000.0}});
-    const auto basic = detail::complete_greeks(engine, option, context, GreeksLevel::basic, {}, native);
+    const auto basic = detail::complete_greeks(engine, option, context, GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, {}, native);
     REQUIRE(basic);
     REQUIRE(calls.size() == 2);
     CHECK(calls[0].spot_price() == 100.0 + NumericalShiftSettings{}.spot_shift);
@@ -88,12 +94,12 @@ TEST_CASE("Basic Greek completion uses only missing spot differences", "[pricing
     const auto supplied = *make_pricing_result({{RiskMeasure::price, 10000.0},
                                                 {RiskMeasure::delta, 17.0},
                                                 {RiskMeasure::gamma, 0.0}});
-    const auto preserved = detail::complete_greeks(engine, option, context, GreeksLevel::basic, {}, supplied);
+    const auto preserved = detail::complete_greeks(engine, option, context, GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, {}, supplied);
     REQUIRE(preserved);
     CHECK(calls.empty());
     CHECK(risk_value(*preserved, RiskMeasure::delta) == 17.0);
     CHECK(risk_value(*preserved, RiskMeasure::gamma) == 0.0);
-    const auto full = detail::complete_greeks(engine, option, context, GreeksLevel::full, {}, supplied);
+    const auto full = detail::complete_greeks(engine, option, context, GreeksRequest{true}, {}, supplied);
     REQUIRE(full);
     CHECK_FALSE(calls.empty());
     CHECK(risk_value(*full, RiskMeasure::delta) == 17.0);
@@ -102,18 +108,64 @@ TEST_CASE("Basic Greek completion uses only missing spot differences", "[pricing
     CHECK(risk_value(*full, RiskMeasure::rho) == 0.0);
 }
 
+TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    std::vector<PricingContext> calls;
+    const RecordingPriceEngine engine{&calls};
+    const auto gamma = detail::price_with_greeks(
+        engine, option, market(), GreeksRequest{RiskMeasure::gamma}, {},
+        [&](const auto&) -> Result<PricingResult> {
+            return make_pricing_result({{RiskMeasure::price, 10000.0}});
+        });
+    REQUIRE(gamma);
+    CHECK(calls.size() == 2);
+    CHECK(gamma->has(RiskMeasure::price));
+    CHECK(gamma->has(RiskMeasure::gamma));
+    CHECK_FALSE(gamma->has(RiskMeasure::delta));
+    CHECK_FALSE(gamma->has(RiskMeasure::vega));
+
+    calls.clear();
+    const auto rho = detail::price_with_greeks(
+        engine, option, market(), GreeksRequest{RiskMeasure::rho}, {},
+        [&](const auto&) -> Result<PricingResult> {
+            return make_pricing_result({{RiskMeasure::price, 10000.0}});
+        });
+    REQUIRE(rho);
+    REQUIRE(calls.size() == 2);
+    for (const auto& context : calls) CHECK(context.spot_price() == 100.0);
+    CHECK(risk_value(*rho, RiskMeasure::rho) == 0.0);
+    CHECK_FALSE(rho->has(RiskMeasure::gamma));
+
+    calls.clear();
+    const auto analytic = AnalyticVanillaEngine{}.price_with_greeks(
+        option, market(), {RiskMeasure::vega, RiskMeasure::rho, RiskMeasure::vega});
+    REQUIRE(analytic);
+    CHECK(analytic->has(RiskMeasure::vega));
+    CHECK(analytic->has(RiskMeasure::rho));
+    CHECK_FALSE(analytic->has(RiskMeasure::delta));
+    CHECK_FALSE(analytic->has(RiskMeasure::gamma));
+    CHECK(calls.empty());
+    REQUIRE(AnalyticVanillaEngine{}.price_with_greeks(option, market(), true));
+}
+
 TEST_CASE("Joint pricing validates discriminators and every shift", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const AnalyticVanillaEngine engine;
-    const auto invalid_level = engine.price_with_greeks(option, market(), static_cast<GreeksLevel>(99));
-    REQUIRE_FALSE(invalid_level);
-    CHECK(invalid_level.error().category == ErrorCategory::invalid_parameter);
+    const auto invalid_request = engine.price_with_greeks(option, market(), {static_cast<RiskMeasure>(99)});
+    REQUIRE_FALSE(invalid_request);
+    CHECK(invalid_request.error().category == ErrorCategory::invalid_parameter);
+    for (const auto request : {GreeksRequest{}, GreeksRequest{false}, GreeksRequest{RiskMeasure::price}}) {
+        const auto invalid = engine.price_with_greeks(option, market(), request);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    }
     for (const auto shifts : {NumericalShiftSettings{0.0},
                               NumericalShiftSettings{.volatility_shift = -0.1},
                               NumericalShiftSettings{.rate_shift = std::numeric_limits<double>::infinity()},
                               NumericalShiftSettings{.time_shift_days = 0}}) {
-        const auto result = engine.price_with_greeks(option, market(), GreeksLevel::basic, shifts);
+        const auto result = engine.price_with_greeks(option, market(), GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, shifts);
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_parameter);
     }
@@ -125,25 +177,25 @@ TEST_CASE("Joint completion keeps unavailable stencils and propagates feasible f
     std::vector<PricingContext> calls;
     const auto native = *make_pricing_result({{RiskMeasure::price, 10000.0}});
     const auto unavailable = detail::complete_greeks(RecordingPriceEngine{&calls}, option,
-                                                     market(), GreeksLevel::basic, NumericalShiftSettings{.spot_shift = 100.0}, native);
+                                                     market(), GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, NumericalShiftSettings{.spot_shift = 100.0}, native);
     REQUIRE(unavailable);
     CHECK(risk_value(*unavailable, RiskMeasure::price) == 10000.0);
     CHECK_FALSE(unavailable->has(RiskMeasure::delta));
     CHECK_FALSE(unavailable->has(RiskMeasure::gamma));
     CHECK(calls.empty());
     const auto rejected = detail::complete_greeks(RecordingPriceEngine{&calls, true}, option,
-                                                  market(), GreeksLevel::basic, {}, native);
+                                                  market(), GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, {}, native);
     REQUIRE_FALSE(rejected);
     CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
     CHECK(rejected.error().message == "bump rejected");
     CHECK(calls.size() == 1);
 }
 
-TEST_CASE("Expiry suppresses all Greeks for every requested tier", "[pricing-api]")
+TEST_CASE("Expiry suppresses all requested Greeks", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto check = [&](const auto& engine) {
-        for (const auto level : {GreeksLevel::basic, GreeksLevel::full}) {
+        for (const auto level : {GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, GreeksRequest{true}}) {
             const auto result = engine.price_with_greeks(option, market(110.0, expiry), level);
             REQUIRE(result);
             CHECK(risk_value(*result, RiskMeasure::price) == 10.0);
@@ -164,7 +216,7 @@ TEST_CASE("Monitored barrier equality leaves all Greeks unavailable", "[pricing-
     const AnalyticBarrierEngine engine;
     const auto scalar = engine.price(option, market());
     REQUIRE(scalar);
-    for (const auto level : {GreeksLevel::basic, GreeksLevel::full}) {
+    for (const auto level : {GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, GreeksRequest{true}}) {
         const auto result = engine.price_with_greeks(option, market(), level);
         REQUIRE(result);
         CHECK(risk_value(*result, RiskMeasure::price) == *scalar);
@@ -193,7 +245,7 @@ TEST_CASE("Seeded Monte Carlo joint pricing is reproducible and matches scalar p
     const MonteCarloVanillaEngine engine{256, 4, 73};
     const auto scalar = engine.price(option, market());
     REQUIRE(scalar);
-    for (const auto level : {GreeksLevel::basic, GreeksLevel::full}) {
+    for (const auto level : {GreeksRequest{RiskMeasure::delta, RiskMeasure::gamma}, GreeksRequest{true}}) {
         const auto first = engine.price_with_greeks(option, market(), level);
         const auto second = engine.price_with_greeks(option, market(), level);
         REQUIRE(first);
@@ -213,13 +265,17 @@ TEST_CASE("Scalar and basic analytic pricing avoid overflowing higher Greeks", "
     const kiyosi::AnalyticVanillaEngine engine;
     const auto context = market(1e-160);
     const auto scalar = engine.price(option, context);
-    const auto basic = engine.price_with_greeks(option, context, kiyosi::GreeksLevel::basic);
-    const auto full = engine.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+    const auto basic = engine.price_with_greeks(option, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
+    const auto full = engine.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(scalar);
     REQUIRE(basic);
     CHECK(*scalar > 0.0);
     CHECK(risk_value(*basic, kiyosi::RiskMeasure::price) == *scalar);
     CHECK(risk_value(*basic, kiyosi::RiskMeasure::gamma) > 1e150);
+    const auto rho_only = engine.price_with_greeks(option, context, {kiyosi::RiskMeasure::rho});
+    REQUIRE(rho_only);
+    CHECK(rho_only->has(kiyosi::RiskMeasure::rho));
+    CHECK_FALSE(rho_only->has(kiyosi::RiskMeasure::gamma));
     REQUIRE_FALSE(full);
     CHECK(full.error().category == kiyosi::ErrorCategory::invalid_result);
 }
@@ -244,7 +300,7 @@ TEST_CASE("Unseeded joint pricing selects one seed without changing the engine",
     std::vector<std::optional<unsigned>> calls;
     const SeedRecordingEngine engine{{std::nullopt, &calls}};
     const auto result = kiyosi::detail::price_with_greeks(engine, option, market(),
-                                                          kiyosi::GreeksLevel::basic, {}, [&](const auto& seeded) -> kiyosi::Result<kiyosi::PricingResult> {
+                                                          kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma}, {}, [&](const auto& seeded) -> kiyosi::Result<kiyosi::PricingResult> {
                                                               const auto value = seeded.price(option, market());
                                                               if (!value) return std::unexpected(value.error());
                                                               return kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, *value}});
@@ -316,7 +372,7 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
                                                                 .effective_date = effective,
                                                                 .expiry_date = expiry});
     const auto check = [&](const auto& engine, const auto& option) {
-        const auto result = engine.price_with_greeks(option, market(), kiyosi::GreeksLevel::full);
+        const auto result = engine.price_with_greeks(option, market(), kiyosi::GreeksRequest{true});
         REQUIRE(result);
         CHECK(risk_value(*result, kiyosi::RiskMeasure::price) == *engine.price(option, market()));
         CHECK(risk_value(*result, kiyosi::RiskMeasure::vega) == 0.0);
@@ -327,7 +383,7 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
             CHECK_FALSE(result->has(measure));
         const auto noon = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.04, 0.01, 0.3),
                                                         100.0, kiyosi::start_of_day(valuation) + std::chrono::hours{12});
-        const auto after = engine.price_with_greeks(option, noon, kiyosi::GreeksLevel::basic);
+        const auto after = engine.price_with_greeks(option, noon, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
         REQUIRE(after);
         REQUIRE(after->has(kiyosi::RiskMeasure::delta));
         REQUIRE(after->has(kiyosi::RiskMeasure::gamma));
@@ -346,7 +402,7 @@ TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[p
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     const auto result = kiyosi::AnalyticBarrierEngine{}.price_with_greeks(
-        option, context, kiyosi::GreeksLevel::full);
+        option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result);
     CHECK(result->has(kiyosi::RiskMeasure::price));
     CHECK(result->has(kiyosi::RiskMeasure::delta));

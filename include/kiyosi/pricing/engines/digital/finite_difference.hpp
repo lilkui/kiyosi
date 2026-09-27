@@ -29,7 +29,7 @@ public:
     [[nodiscard]] Result<double> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return detail::price_value(price_native(option, context, detail::RiskMeasureOutput::price_only));
+        return detail::price_value(price_native(option, context, GreeksRequest{}));
     }
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
@@ -39,11 +39,11 @@ public:
                 std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price_with_greeks(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
-        return detail::price_with_greeks(*this, option, context, level, settings,
+        return detail::price_with_greeks(*this, option, context, greeks, settings,
                                          [&](const auto& engine) {
-                                             return engine.price_native(option, context, level == GreeksLevel::basic ? detail::RiskMeasureOutput::basic : detail::RiskMeasureOutput::all);
+                                             return engine.price_native(option, context, greeks);
                                          });
     }
 
@@ -56,7 +56,7 @@ private:
                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
                 std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price_native(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context, GreeksRequest output) const
     {
         if constexpr (std::same_as<Payoff, CashOrNothingPayoff>)
             return price_cash_or_nothing(option, context, output);
@@ -64,9 +64,9 @@ private:
             return price_asset_or_nothing(option, context, output);
     }
     [[nodiscard]] Result<PricingResult> price_cash_or_nothing(
-        const CashOrNothingOption&, const PricingContext&, detail::RiskMeasureOutput) const;
+        const CashOrNothingOption&, const PricingContext&, GreeksRequest) const;
     [[nodiscard]] Result<PricingResult> price_asset_or_nothing(
-        const AssetOrNothingOption&, const PricingContext&, detail::RiskMeasureOutput) const;
+        const AssetOrNothingOption&, const PricingContext&, GreeksRequest) const;
     FiniteDifferenceSettings settings_;
 };
 

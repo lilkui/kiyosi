@@ -26,7 +26,7 @@ TEST_CASE("Digital expiry_date settlement uses strict strikes without smooth Gre
         const auto cash = *kiyosi::make_cash_or_nothing_option(item.type, 100, 10, expiry_date, expiry_date);
         const auto asset = *kiyosi::make_asset_or_nothing_option(item.type, 100, expiry_date, expiry_date);
         const auto check = [&](const auto& engine, const auto& option, double expected) {
-            const auto result = engine.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+            const auto result = engine.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
             REQUIRE(result.has_value());
 
             CHECK(*result->require(kiyosi::RiskMeasure::price) == expected);

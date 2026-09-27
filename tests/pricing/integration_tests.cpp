@@ -27,7 +27,7 @@ TEST_CASE("Digital contracts validate and expose pricing results")
     const auto cash_put = *kiyosi::make_cash_or_nothing_option(
         kiyosi::OptionType::put, 100.0, 10.0, valuation, expiry_date);
     const kiyosi::AnalyticDigitalEngine digital;
-    const auto call_value = digital.price_with_greeks(cash_call, context, kiyosi::GreeksLevel::basic);
+    const auto call_value = digital.price_with_greeks(cash_call, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
     const auto put_value = digital.price(cash_put, context);
     REQUIRE(call_value.has_value());
     REQUIRE(put_value.has_value());

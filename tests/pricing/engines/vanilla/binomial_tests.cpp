@@ -45,7 +45,7 @@ TEST_CASE("Binomial American engine supplements gamma below two steps")
     const auto option = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
 
-    const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1}}.price_with_greeks(option, context, kiyosi::GreeksLevel::basic);
+    const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1}}.price_with_greeks(option, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
     REQUIRE(result.has_value());
     CHECK(result->has(kiyosi::RiskMeasure::price));
     CHECK(result->has(kiyosi::RiskMeasure::delta));
@@ -80,7 +80,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
           *european_put);
 
     const auto at_the_money_context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto american_call = engine.price_with_greeks(american_call_option, at_the_money_context, kiyosi::GreeksLevel::basic);
+    const auto american_call = engine.price_with_greeks(american_call_option, at_the_money_context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
     const auto european_call = kiyosi::AnalyticVanillaEngine{}.price(call, at_the_money_context);
     REQUIRE(american_call.has_value());
     REQUIRE(european_call.has_value());

@@ -95,12 +95,12 @@ TEST_CASE("Exercise style and engine risk measures are explicit")
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto american = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto european_result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, kiyosi::GreeksLevel::full);
+    const auto european_result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, kiyosi::GreeksRequest{true});
     REQUIRE(european_result.has_value());
     CHECK(european_result->has(kiyosi::RiskMeasure::price));
     CHECK(european_result->has(kiyosi::RiskMeasure::vega));
 
-    const auto american_result = kiyosi::CoxRossRubinsteinVanillaEngine{}.price_with_greeks(american, context, kiyosi::GreeksLevel::basic);
+    const auto american_result = kiyosi::CoxRossRubinsteinVanillaEngine{}.price_with_greeks(american, context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
     REQUIRE(american_result.has_value());
     CHECK(american_result->has(kiyosi::RiskMeasure::price));
     CHECK(american_result->has(kiyosi::RiskMeasure::gamma));

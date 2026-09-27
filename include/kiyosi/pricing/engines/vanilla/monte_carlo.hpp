@@ -40,9 +40,9 @@ public:
                  (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
     [[nodiscard]] Result<PricingResult> price_with_greeks(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
-        return detail::price_with_greeks(*this, option, context, level, settings,
+        return detail::price_with_greeks(*this, option, context, greeks, settings,
                                          [&](const auto& engine) {
                                              return engine.price_native(option, context);
                                          });

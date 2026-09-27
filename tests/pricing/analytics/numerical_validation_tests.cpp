@@ -33,7 +33,7 @@ kiyosi::PricingResult analytic(kiyosi::OptionType type, double spot = 100.0, dou
 {
     const auto option = *kiyosi::make_european_option(type, strike, value_date, option_expiry);
     return *kiyosi::AnalyticVanillaEngine{}.price_with_greeks(
-        option, context(spot, rate, dividend, volatility, value_date), kiyosi::GreeksLevel::full);
+        option, context(spot, rate, dividend, volatility, value_date), kiyosi::GreeksRequest{true});
 }
 
 double difference(double left, double right)
@@ -147,7 +147,7 @@ TEST_CASE("Analytic and numerical analytics share risk-measure conventions")
         kiyosi::OptionType::call, 100.0, valuation - std::chrono::days{30}, expiry_date);
     const auto market = context();
     const kiyosi::AnalyticVanillaEngine engine;
-    const auto analytic_result = *engine.price_with_greeks(option, market, kiyosi::GreeksLevel::full);
+    const auto analytic_result = *engine.price_with_greeks(option, market, kiyosi::GreeksRequest{true});
     const auto numerical_result = *kiyosi::calculate_numerical_risk_measures(engine, option, market);
 
     for (std::size_t index = 0; index < kiyosi::risk_measure_count; ++index) {

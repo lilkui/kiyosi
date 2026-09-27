@@ -2,26 +2,16 @@
 
 #include <array>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <utility>
 #include <kiyosi/core/error.hpp>
 
 namespace kiyosi {
-
-/// Explicit work requested by price_with_greeks(); no default tier is implied.
-enum class GreeksLevel : std::uint8_t {
-    basic, ///< Price, delta, and gamma.
-    full,  ///< Price and all ten defined Greeks, where available.
-};
-
-namespace detail {
-enum class RiskMeasureOutput : std::uint8_t { price_only,
-                                              basic,
-                                              all };
-}
 
 /// Public risk-measure contract:
 /// - price uses the instrument's value units;
@@ -58,6 +48,56 @@ inline constexpr std::size_t risk_measure_count = static_cast<std::size_t>(RiskM
     const auto index = static_cast<std::size_t>(measure);
     return index < risk_measure_count ? std::optional{index} : std::nullopt;
 }
+
+/// Greeks requested from a joint valuation. Price is always included separately.
+/// Construct from one or more RiskMeasure values, or from true for every Greek.
+/// Duplicates are ignored; empty requests, price, and unknown values are rejected
+/// by price_with_greeks() with an invalid_parameter error.
+class GreeksRequest {
+public:
+    /// Used internally for price-only valuations; invalid for price_with_greeks().
+    GreeksRequest() = default;
+    GreeksRequest(std::initializer_list<RiskMeasure> greeks) : GreeksRequest(std::span{greeks.begin(), greeks.size()}) {}
+    GreeksRequest(std::span<const RiskMeasure> greeks)
+    {
+        for (const auto greek : greeks) {
+            const auto index = risk_measure_index(greek);
+            if (!index || greek == RiskMeasure::price) invalid_ = true;
+            else selected_[*index] = true;
+        }
+    }
+    GreeksRequest(bool all_greeks)
+    {
+        if (all_greeks)
+            for (std::size_t index = 1; index < risk_measure_count; ++index)
+                selected_[index] = true;
+    }
+    template <std::integral T>
+        requires(!std::same_as<T, bool>)
+    GreeksRequest(T) = delete;
+
+    [[nodiscard]] bool has(RiskMeasure greek) const noexcept
+    {
+        const auto index = risk_measure_index(greek);
+        return index && selected_[*index];
+    }
+    [[nodiscard]] bool empty() const noexcept
+    {
+        for (bool selected : selected_)
+            if (selected) return false;
+        return true;
+    }
+    [[nodiscard]] Result<void> validate() const
+    {
+        if (invalid_ || empty())
+            return std::unexpected(Error{ErrorCategory::invalid_parameter, "invalid Greeks request"});
+        return {};
+    }
+
+private:
+    std::array<bool, risk_measure_count> selected_{};
+    bool invalid_ = false;
+};
 
 /// Fixed-size collection of optional pricing and risk measures.
 class PricingResult {
@@ -100,6 +140,15 @@ public:
     /// Returns a read-only view of all measure slots.
     /// @note The reference remains valid until this result is destroyed, moved from, or assigned.
     [[nodiscard]] const MeasureValues& values_view() const noexcept { return values_; }
+
+    /// Returns price and only the requested Greeks.
+    [[nodiscard]] PricingResult selected(GreeksRequest greeks) const noexcept
+    {
+        PricingResult output = *this;
+        for (std::size_t index = 1; index < risk_measure_count; ++index)
+            if (!greeks.has(static_cast<RiskMeasure>(index))) output.values_[index].reset();
+        return output;
+    }
 
     /// Tests whether every available measure is finite.
     [[nodiscard]] bool all_finite() const noexcept

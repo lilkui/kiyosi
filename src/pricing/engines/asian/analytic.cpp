@@ -122,7 +122,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     if (option.averaging_start_date() == option.expiry_date()) {
         return price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
-            context, sigma, RiskMeasureOutput::price_only);
+            context, sigma, GreeksRequest{});
     }
     const double average_period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
     const double t1 = std::max(0.0, tau - average_period);

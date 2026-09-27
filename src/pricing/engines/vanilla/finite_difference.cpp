@@ -15,7 +15,7 @@ namespace {
 template <typename Option>
 Result<PricingResult> price_finite_difference(
     const Option& option, const PricingContext& context,
-    FiniteDifferenceSettings settings, bool american, RiskMeasureOutput requested_output)
+    FiniteDifferenceSettings settings, bool american, GreeksRequest requested_output)
 {
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
@@ -74,13 +74,13 @@ Result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
-    if (requested_output == RiskMeasureOutput::price_only)
+    if (!requested_output.has(RiskMeasure::delta) && !requested_output.has(RiskMeasure::gamma))
         return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
 
     auto output = make_pricing_result(
         {{RiskMeasure::price, space->interpolate(old, spot)},
-         {RiskMeasure::delta, space->delta(old, spot)},
-         {RiskMeasure::gamma, space->gamma(old, spot)}});
+         {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+         {RiskMeasure::gamma, requested_output.has(RiskMeasure::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result,
@@ -90,13 +90,13 @@ Result<PricingResult> price_finite_difference(
 } // namespace
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_european(
-    const EuropeanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+    const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_finite_difference(option, context, settings_, false, output);
 }
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_american(
-    const AmericanOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+    const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_finite_difference(option, context, settings_, true, output);
 }

@@ -20,7 +20,7 @@ public:
     [[nodiscard]] Result<double> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return detail::price_value(price_native(option, context, detail::RiskMeasureOutput::price_only));
+        return detail::price_value(price_native(option, context, GreeksRequest{}));
     }
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
@@ -30,11 +30,11 @@ public:
                 std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price_with_greeks(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        GreeksLevel level, NumericalShiftSettings settings = {}) const
+        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
-        return detail::price_with_greeks(*this, option, context, level, settings,
+        return detail::price_with_greeks(*this, option, context, greeks, settings,
                                          [&](const auto& engine) {
-                                             return engine.price_native(option, context, level == GreeksLevel::basic ? detail::RiskMeasureOutput::basic : detail::RiskMeasureOutput::all);
+                                             return engine.price_native(option, context, greeks);
                                          });
     }
 
@@ -44,7 +44,7 @@ private:
                  std::same_as<Payoff, AssetOrNothingPayoff>) &&
                 std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price_native(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context, GreeksRequest output) const
     {
         if constexpr (std::same_as<Payoff, AssetOrNothingPayoff>)
             return price_impl(option.option_type(), option.strike(), 1.0, true, option.effective_date(),
@@ -55,7 +55,7 @@ private:
     }
 
     [[nodiscard]] Result<PricingResult> price_impl(
-        OptionType, double, double, bool, Date, Date, const PricingContext&, detail::RiskMeasureOutput) const;
+        OptionType, double, double, bool, Date, Date, const PricingContext&, GreeksRequest) const;
 };
 
 } // namespace kiyosi

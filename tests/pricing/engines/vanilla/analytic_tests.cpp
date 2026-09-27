@@ -26,8 +26,8 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const kiyosi::AnalyticVanillaEngine engine;
 
-    const auto call_result = *engine.price_with_greeks(call, context, kiyosi::GreeksLevel::full);
-    const auto put_result = *engine.price_with_greeks(put, context, kiyosi::GreeksLevel::full);
+    const auto call_result = *engine.price_with_greeks(call, context, kiyosi::GreeksRequest{true});
+    const auto put_result = *engine.price_with_greeks(put, context, kiyosi::GreeksRequest{true});
     CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::price) - risk_value(put_result, kiyosi::RiskMeasure::price),
                WithinAbs(100.0 * std::exp(-0.01) - 100.0 * std::exp(-0.04), 1e-12));
     CHECK_THAT(risk_value(call_result, kiyosi::RiskMeasure::delta) - risk_value(put_result, kiyosi::RiskMeasure::delta), WithinAbs(std::exp(-0.01), 1e-12));
@@ -47,7 +47,7 @@ TEST_CASE("Analytic European engine remains finite one day before expiry_date")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
@@ -66,8 +66,8 @@ TEST_CASE("Analytic European engine returns intrinsic value and unavailable Gree
     const auto put_context = *kiyosi::make_pricing_context(parameters, 90.0, expiry_date);
     const kiyosi::AnalyticVanillaEngine engine;
 
-    const auto call_result = *engine.price_with_greeks(call, call_context, kiyosi::GreeksLevel::full);
-    const auto put_result = *engine.price_with_greeks(put, put_context, kiyosi::GreeksLevel::full);
+    const auto call_result = *engine.price_with_greeks(call, call_context, kiyosi::GreeksRequest{true});
+    const auto put_result = *engine.price_with_greeks(put, put_context, kiyosi::GreeksRequest{true});
     REQUIRE(risk_value(call_result, kiyosi::RiskMeasure::price) == 10.0);
     REQUIRE(risk_value(put_result, kiyosi::RiskMeasure::price) == 10.0);
     for (std::size_t index = 1; index < kiyosi::risk_measure_count; ++index) {
@@ -175,7 +175,7 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 1e-12);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
     CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::price)));
     CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::delta)));
@@ -275,7 +275,7 @@ TEST_CASE("Analytic European engine remains finite in deep tails")
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
     for (const auto& item : result->values_view()) {
         REQUIRE(item.has_value());
@@ -292,7 +292,7 @@ TEST_CASE("Analytic European engine remains finite for a short-dated low-volatil
     const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.05);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
 
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksLevel::full);
+    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
     CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::price)));
     CHECK(std::isfinite(risk_value(*result, kiyosi::RiskMeasure::delta)));

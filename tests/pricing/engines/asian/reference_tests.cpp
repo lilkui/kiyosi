@@ -142,7 +142,7 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     const auto starting = kiyosi::make_geometric_average_option(
         kiyosi::OptionType::call, 100.0, valuation, effective, expiry);
     REQUIRE(starting);
-    const auto at_start = engine.price_with_greeks(*starting, *context, kiyosi::GreeksLevel::full);
+    const auto at_start = engine.price_with_greeks(*starting, *context, kiyosi::GreeksRequest{true});
     REQUIRE(at_start);
     CHECK(at_start->has(kiyosi::RiskMeasure::delta));
     CHECK_FALSE(at_start->has(kiyosi::RiskMeasure::theta));
@@ -271,7 +271,7 @@ TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has 
         REQUIRE_FALSE(invalid);
         CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
     }
-    const auto greeks = engine.price_with_greeks(*missing, *during, kiyosi::GreeksLevel::basic);
+    const auto greeks = engine.price_with_greeks(*missing, *during, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
     REQUIRE_FALSE(greeks);
     CHECK(greeks.error().category == kiyosi::ErrorCategory::invalid_parameter);
     const auto settled = engine.price(*known, *at_expiry);

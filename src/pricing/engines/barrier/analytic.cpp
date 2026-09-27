@@ -53,7 +53,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     const auto vanilla = price_at_volatility(
         *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
-        context.model_parameters().volatility(), RiskMeasureOutput::price_only);
+        context.model_parameters().volatility(), GreeksRequest{});
     if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();

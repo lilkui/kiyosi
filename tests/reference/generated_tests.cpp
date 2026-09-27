@@ -58,11 +58,11 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
             const auto check_engine = [&](const auto& engine) {
                 const auto native = [&]() -> kiyosi::Result<kiyosi::PricingResult> {
                     if (fixture.engine == "AnalyticEuropeanEngine")
-                        return engine.price_with_greeks(option, *context, kiyosi::GreeksLevel::full);
+                        return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{true});
                     if (fixture.engine == "CrrEngine" || fixture.engine == "FiniteDifferenceEuropeanEngine" ||
                         fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
                         fixture.engine == "FiniteDifferenceDigitalEngine")
-                        return engine.price_with_greeks(option, *context, kiyosi::GreeksLevel::basic);
+                        return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{kiyosi::RiskMeasure::delta, kiyosi::RiskMeasure::gamma});
                     const auto value = engine.price(option, *context);
                     if (!value) return std::unexpected(value.error());
                     return kiyosi::make_pricing_result({{kiyosi::RiskMeasure::price, *value}});

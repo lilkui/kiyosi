@@ -14,7 +14,7 @@ using namespace detail;
 namespace {
 template <typename Option>
 Result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
-                                       FiniteDifferenceSettings settings, bool asset, RiskMeasureOutput requested_output)
+                                       FiniteDifferenceSettings settings, bool asset, GreeksRequest requested_output)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -74,13 +74,13 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
                                         old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
-    if (requested_output == RiskMeasureOutput::price_only)
+    if (!requested_output.has(RiskMeasure::delta) && !requested_output.has(RiskMeasure::gamma))
         return make_pricing_result({{RiskMeasure::price, space->interpolate(old, spot)}});
 
     auto output = make_pricing_result(
         {{RiskMeasure::price, space->interpolate(old, spot)},
-         {RiskMeasure::delta, space->delta(old, spot)},
-         {RiskMeasure::gamma, space->gamma(old, spot)}});
+         {RiskMeasure::delta, requested_output.has(RiskMeasure::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+         {RiskMeasure::gamma, requested_output.has(RiskMeasure::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
     if (!output) return std::unexpected(output.error());
     if (!output->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "finite-difference pricing produced a non-finite result"});
@@ -90,12 +90,12 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 } // namespace
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
-    const CashOrNothingOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+    const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, false, output);
 }
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_asset_or_nothing(
-    const AssetOrNothingOption& option, const PricingContext& context, detail::RiskMeasureOutput output) const
+    const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, true, output);
 }
