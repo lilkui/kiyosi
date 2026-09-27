@@ -1,7 +1,5 @@
 #pragma once
 
-#include <concepts>
-
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
@@ -13,19 +11,15 @@ class KIYOSI_EXPORT BjerksundStenslandVanillaEngine {
 public:
     /// Prices an American vanilla option with the two-step approximation.
     /// @return Price, or a contract or context error.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] Result<double> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
+        const AmericanOption& option, const PricingContext& context) const
     {
         return detail::price_value(price_native(option, context));
     }
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires std::same_as<Payoff, VanillaPayoff> && std::same_as<Exercise, AmericanExercise>
     [[nodiscard]] Result<PricingResult> price_with_greeks(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
+        const AmericanOption& option, const PricingContext& context,
         GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
         return detail::price_with_greeks(*this, option, context, greeks, settings,

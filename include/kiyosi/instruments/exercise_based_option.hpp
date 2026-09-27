@@ -14,10 +14,6 @@ class ExerciseBasedOption;
 namespace detail {
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] Result<ExerciseBasedOption<Payoff, Exercise>> make_exercise_based_option(
-    OptionTerms, Payoff, Exercise);
-
-template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] Result<ExerciseBasedOption<Payoff, Exercise>> make_option(
     OptionType, double, Date, Date, Payoff, Exercise);
 
@@ -63,16 +59,9 @@ private:
     Exercise exercise_;
 
     template <OptionPayoff OtherPayoff, OptionExercise OtherExercise>
-    friend Result<ExerciseBasedOption<OtherPayoff, OtherExercise>> detail::make_exercise_based_option(
-        OptionTerms, OtherPayoff, OtherExercise);
+    friend Result<ExerciseBasedOption<OtherPayoff, OtherExercise>> detail::make_option(
+        OptionType, double, Date, Date, OtherPayoff, OtherExercise);
 };
-
-template <OptionPayoff Payoff, OptionExercise Exercise>
-[[nodiscard]] inline Result<ExerciseBasedOption<Payoff, Exercise>> detail::make_exercise_based_option(
-    OptionTerms terms, Payoff payoff, Exercise exercise)
-{
-    return ExerciseBasedOption<Payoff, Exercise>{std::move(terms), std::move(payoff), std::move(exercise)};
-}
 
 template <OptionPayoff Payoff, OptionExercise Exercise>
 [[nodiscard]] inline Result<ExerciseBasedOption<Payoff, Exercise>> detail::make_option(
@@ -80,7 +69,7 @@ template <OptionPayoff Payoff, OptionExercise Exercise>
 {
     auto terms = detail::make_option_terms(option_type, strike, effective_date, expiry_date);
     if (!terms) return std::unexpected(terms.error());
-    return detail::make_exercise_based_option(*terms, std::move(payoff), std::move(exercise));
+    return ExerciseBasedOption<Payoff, Exercise>{std::move(*terms), std::move(payoff), std::move(exercise)};
 }
 
 } // namespace kiyosi
