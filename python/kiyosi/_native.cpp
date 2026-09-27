@@ -23,7 +23,7 @@ void translate_domain_exception(const std::exception_ptr& pointer, void* payload
 
 } // namespace kiyosi::python_binding
 
-NB_MODULE(_native, module)
+NB_MODULE(_native, module) // NOLINT(cppcoreguidelines-pro-type-vararg,cppcoreguidelines-avoid-non-const-global-variables)
 {
     using namespace kiyosi;
     using namespace kiyosi::python_binding;

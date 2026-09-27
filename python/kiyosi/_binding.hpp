@@ -172,10 +172,16 @@ struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
     template <>                                                                             \
     struct type_caster<kiyosi::Enum> {                                                      \
         NB_TYPE_CASTER(kiyosi::Enum, kiyosi::python_binding::EnumNames<kiyosi::Enum>::Name) \
-        bool from_python(handle source, uint32_t, cleanup_list*)                            \
+        bool from_python(handle source, uint32_t, cleanup_list*) noexcept                   \
         {                                                                                   \
             if (!isinstance<str>(source)) return false;                                     \
-            const std::string name = cast<std::string>(source);                             \
+            Py_ssize_t size;                                                                \
+            const char* data = PyUnicode_AsUTF8AndSize(source.ptr(), &size);                \
+            if (!data) {                                                                    \
+                PyErr_Clear();                                                              \
+                return false;                                                               \
+            }                                                                               \
+            const std::string_view name{data, static_cast<std::size_t>(size)};              \
             for (const auto& [candidate, member] :                                          \
                  kiyosi::python_binding::EnumNames<kiyosi::Enum>::values) {                 \
                 if (name == candidate) {                                                    \
@@ -183,14 +189,18 @@ struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
                     return true;                                                            \
                 }                                                                           \
             }                                                                               \
-            throw value_error(("unknown " #Enum " value: " + name).c_str());                \
+            PyErr_SetString(PyExc_ValueError, "unknown " #Enum " value");                   \
+            return false;                                                                   \
         }                                                                                   \
         static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*)               \
         {                                                                                   \
             for (const auto& [name, member] :                                               \
                  kiyosi::python_binding::EnumNames<kiyosi::Enum>::values)                   \
-                if (source == member) return str(name.data()).release();                    \
-            throw std::logic_error("unmapped core " #Enum " value");                        \
+                if (source == member)                                                       \
+                    return PyUnicode_FromStringAndSize(                                     \
+                        name.data(), static_cast<Py_ssize_t>(name.size()));                 \
+            PyErr_SetString(PyExc_RuntimeError, "unmapped core " #Enum " value");           \
+            return {};                                                                      \
         }                                                                                   \
     };
 
@@ -242,7 +252,7 @@ void bind_repr(nb::class_<T>& binding, const char* name,
 {
     const std::string type_name{name};
     const std::vector<ReprField> attributes{std::move(fields)};
-    binding.def("__repr__", [type_name, attributes](const T& value) {
+    binding.def("__repr__", [type_name, attributes](const T& value) { // NOLINT(bugprone-exception-escape)
         const nb::object self = nb::cast(&value, nb::rv_policy::reference);
         nb::list parts;
         for (const auto& [field, attribute] : attributes) {
@@ -264,7 +274,7 @@ void bind_value_equality(nb::class_<T>& binding)
 class DomainException final : public std::runtime_error {
 public:
     explicit DomainException(Error error)
-        : std::runtime_error(std::move(error.message)), category_(error.category) {}
+        : std::runtime_error(error.message), category_(error.category) {}
 
     ErrorCategory category() const noexcept { return category_; }
 
@@ -348,7 +358,7 @@ inline PythonDateObject python_date(Date value)
     const auto parts = std::chrono::year_month_day{value};
     const nb::object datetime = nb::module_::import_("datetime");
     return PythonDateObject{datetime.attr("date")(
-        int(parts.year()), static_cast<unsigned>(parts.month()),
+        static_cast<int>(parts.year()), static_cast<unsigned>(parts.month()),
         static_cast<unsigned>(parts.day()))};
 }
 
@@ -360,7 +370,7 @@ inline PythonTimestampObject python_timestamp(Timestamp value)
     const auto parts = std::chrono::year_month_day{day};
     const nb::object datetime = nb::module_::import_("datetime");
     return PythonTimestampObject{datetime.attr("datetime")(
-        int(parts.year()), static_cast<unsigned>(parts.month()),
+        static_cast<int>(parts.year()), static_cast<unsigned>(parts.month()),
         static_cast<unsigned>(parts.day()), time.hours().count(), time.minutes().count(),
         time.seconds().count(), time.subseconds().count(),
         datetime.attr("timezone").attr("utc"))};
