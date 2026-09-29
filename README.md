@@ -121,7 +121,7 @@ The current pricing models use a Black-Scholes-Merton market context with spot a
 
 ## Validation
 
-Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md) and [SSE calendar maintenance script](tools/calendar_data.py); it is not a build or runtime dependency of the C++ core.
+Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md); it is not a build or runtime dependency of the C++ core. The [SSE calendar generator](tools/generate_sse_calendar.py) fetches XSHG's recorded closures and adds a documented forecast through 2099.
 
 For performance comparisons against QuantLib C++, see the [pricing benchmark matrix](benchmarks/README.md).
 

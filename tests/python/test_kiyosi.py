@@ -580,12 +580,12 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertFalse(hasattr(missing, "lower_strike"))
 
     def test_public_api_has_targeted_docstrings(self):
-        self.assertEqual(market.sse_calendar_data_first_year, 1901)
-        self.assertEqual(market.sse_calendar_data_last_year, 2199)
-        self.assertEqual(market.sse_calendar_data_version, "QuantLib 1.43")
+        self.assertFalse(hasattr(market, "sse_calendar_data_first_year"))
+        self.assertFalse(hasattr(market, "sse_calendar_data_last_year"))
+        self.assertFalse(hasattr(market, "sse_calendar_data_version"))
         self.assertEqual(
-            market.sse_calendar().is_trading_day(date(2200, 1, 1)),
-            market.weekdays_calendar().is_trading_day(date(2200, 1, 1)),
+            market.sse_calendar().is_trading_day(date(2100, 2, 8)),
+            market.weekdays_calendar().is_trading_day(date(2100, 2, 8)),
         )
         self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
         self.assertIn("weekdays", market.weekdays_calendar.__doc__.lower())

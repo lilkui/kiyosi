@@ -16,14 +16,3 @@ The eight TSV columns are `case_id`, `instrument`, `engine`, `variant`, `inputs`
 Reference stability limits are independent of engine error budgets. Analytic references compare native Greeks with price differences and two bump sizes; American references also compare refined finite-difference grids. The recorded uncertainty is empirical, not a rigorous bound. Arithmetic Asian references measure agreement with the same Levy approximation, not error against the true arithmetic-average value.
 
 Scenario JSON and product row builders own explicit test configurations. Native budgets cover analytic roundoff, quadrature, grid error, approximation error or sampling error as applicable. Numerical budgets additionally allow finite-stencil truncation and interpolation error. The `wrapper` field selects scenarios exercising Kiyosi's numerical sensitivities; it does not affect reference calculation. Changing a budget or coverage selection must not change the underlying reference or its stability metadata.
-
-## SSE calendar data
-
-Production calendar maintenance has a separate entry point and shares only the pinned dependency environment:
-
-```sh
-uv run --frozen --project tools/quantlib-oracle python tools/calendar_data.py --check
-uv run --frozen --project tools/quantlib-oracle python tools/calendar_data.py
-```
-
-`--check` compares holiday values with the actual table in `src/market/calendars/sse.cpp`, independent of formatting. Without it, the script prints the replacement array declaration for review. It does not write production source files.
