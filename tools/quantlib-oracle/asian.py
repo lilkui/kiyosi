@@ -128,7 +128,6 @@ def scenarios():
                         "realized_average": 101 if elapsed else 0,
                         "averaging": kind,
                         "monitoring": "continuous",
-                        "calendar": "null",
                     }
                     yield (
                         f"ql-asian-{kind}-{direction}-{spot}-{days}d-{elapsed}elapsed",
@@ -150,7 +149,6 @@ def scenarios():
                         "realized_average": average,
                         "averaging": kind,
                         "monitoring": "continuous",
-                        "calendar": "null",
                     }
                     yield f"ql-asian-{kind}-{direction}-expiry_date-{average}", inputs
 
@@ -212,7 +210,7 @@ def check_bindings():
         curve(0.01),
         curve(0.04),
         ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(valuation, ql.NullCalendar(), 0.3, ql.Actual365Fixed())
+            ql.BlackConstantVol(valuation, ql.WeekendsOnly(), 0.3, ql.Actual365Fixed())
         ),
     )
     payoff = ql.PlainVanillaPayoff(ql.Option.Call, 100)

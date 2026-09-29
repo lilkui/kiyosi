@@ -43,7 +43,8 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         REQUIRE(option.has_value());
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
+        const auto context = kiyosi::make_pricing_context(
+            *parameters, number("spot"), date("valuation"), kiyosi::weekdays_calendar());
         REQUIRE(context.has_value());
         const auto check = [&](const auto& engine) {
             const auto native = engine.price(*option, *context);

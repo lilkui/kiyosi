@@ -19,8 +19,8 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
     for (const auto identifier : {"ql-european-call-100-1d\t",
                                   "ql-digital-cash-call-100-1d-analyticdigitalengine\t",
                                   "ql-digital-asset-put-100-1d-analyticdigitalengine\t",
-                                  "ql-barrier-call-up-and-out-at-expiry_date-110-1d-analyticbarrierengine\t",
-                                  "ql-binary-cash-call-up-and-in-at-expiry_date-110-100-1d\t"}) {
+                                  "ql-barrier-call-up-and-out-at-expiry-110-1d-analyticbarrierengine\t",
+                                  "ql-binary-cash-call-up-and-in-at-expiry-110-100-1d\t"}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
@@ -97,8 +97,8 @@ TEST_CASE("Binary boundary declarations reject missing or invented sensitivities
 {
     const auto original = fixture_text();
     for (const auto& [identifier, reason] : std::array{
-             std::pair{"ql-binary-cash-none-up-and-in-at-expiry_date-130-100-365d\t", "spot equals barrier: hit-state boundary"},
-             std::pair{"ql-binary-cash-call-up-and-in-at-expiry_date-100-100-0d\t", "terminal payoff: no smooth sensitivities"}}) {
+             std::pair{"ql-binary-cash-none-up-and-in-at-expiry-130-100-365d\t", "spot equals barrier: hit-state boundary"},
+             std::pair{"ql-binary-cash-call-up-and-in-at-expiry-100-100-0d\t", "terminal payoff: no smooth sensitivities"}}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
@@ -207,14 +207,13 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     std::set<std::string> actual_pairs;
     bool has_settlement = false;
     bool has_monitoring = false;
-    bool has_calendar = false;
     for (const auto& value : cases) {
         actual_engines.insert(value.engine);
         actual_instruments.insert(value.instrument);
         actual_pairs.insert(value.instrument + "/" + value.engine);
         has_settlement |= value.inputs.contains("settlement");
         has_monitoring |= value.inputs.contains("monitoring");
-        has_calendar |= value.inputs.contains("calendar");
+        REQUIRE(value.inputs.at("calendar") == "weekends_only");
         if (value.engine.contains("MonteCarlo"))
             REQUIRE(value.monte_carlo.has_value());
         REQUIRE(value.outputs.contains("price"));
@@ -224,7 +223,6 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     CHECK(actual_pairs == required_pairs);
     CHECK(has_settlement);
     CHECK(has_monitoring);
-    CHECK(has_calendar);
 }
 
 TEST_CASE("Pricing reference manifest rejects incomplete output tolerances")

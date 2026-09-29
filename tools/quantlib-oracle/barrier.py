@@ -91,7 +91,7 @@ def price(items):
     def cash():
         bond = ql.ZeroCouponBond(
             0,
-            ql.NullCalendar(),
+            ql.WeekendsOnly(),
             inputs["rebate"],
             expiry_date,
             ql.Unadjusted,
@@ -221,7 +221,7 @@ def check_bindings():
         curve(0.01),
         curve(0.04),
         ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(valuation, ql.NullCalendar(), 0.3, ql.Actual365Fixed())
+            ql.BlackConstantVol(valuation, ql.WeekendsOnly(), 0.3, ql.Actual365Fixed())
         ),
     )
     vanilla = ql.PlainVanillaPayoff(ql.Option.Call, 100)

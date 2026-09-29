@@ -147,7 +147,7 @@ def market_process(inputs):
         curve(inputs["rate"]),
         ql.BlackVolTermStructureHandle(
             ql.BlackConstantVol(
-                valuation, ql.NullCalendar(), inputs["volatility"], day_count
+                valuation, ql.WeekendsOnly(), inputs["volatility"], day_count
             )
         ),
     )
@@ -320,6 +320,7 @@ def reference_row(identifier, inputs, reference, tolerances, numerical_tolerance
         source_revision=f"QuantLib-{ql.__version__}",
         source_symbol="QuantLib.AnalyticEuropeanEngine",
         convention=CONVENTION,
+        calendar="weekends_only",
         reference_kind="analytic",
         reference_classification="independent-analytic",
         quantlib=version("QuantLib"),

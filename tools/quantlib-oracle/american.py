@@ -132,6 +132,7 @@ def provenance(inputs):
         source_revision=f"QuantLib-{ql.__version__}",
         source_symbol="QuantLib.FdBlackScholesVanillaEngine",
         convention=g.CONVENTION,
+        calendar="weekends_only",
         reference_kind="discretized",
         reference_classification="convergence-verified-contract",
         quantlib=version("QuantLib"),

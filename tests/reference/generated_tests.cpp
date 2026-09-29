@@ -52,7 +52,8 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
         REQUIRE(date("valuation") < date("expiry_date"));
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
-        const auto context = kiyosi::make_pricing_context(*parameters, number("spot"), date("valuation"));
+        const auto context = kiyosi::make_pricing_context(
+            *parameters, number("spot"), date("valuation"), kiyosi::weekdays_calendar());
         REQUIRE(context.has_value());
         const auto check_contract = [&](const auto& option) {
             const auto check_engine = [&](const auto& engine) {

@@ -250,7 +250,7 @@ def check_bindings():
         curve(0.01),
         curve(0.04),
         ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(valuation, ql.NullCalendar(), 0.3, ql.Actual365Fixed())
+            ql.BlackConstantVol(valuation, ql.WeekendsOnly(), 0.3, ql.Actual365Fixed())
         ),
     )
     for engine in (ql.AnalyticBinaryBarrierEngine, ql.AnalyticDigitalAmericanEngine):
@@ -262,7 +262,7 @@ def check_bindings():
                 (ql.EuropeanExercise(expiry_date), "non-American exercise given"),
                 (
                     ql.AmericanExercise(valuation, expiry_date, False),
-                    "payoff must be at expiry_date"
+                    "payoff must be at expiry"
                     if engine == ql.AnalyticBinaryBarrierEngine
                     else None,
                 ),

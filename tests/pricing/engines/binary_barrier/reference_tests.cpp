@@ -38,7 +38,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
             number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters);
         const auto context = kiyosi::make_pricing_context(
-            *parameters, number("spot"), date("valuation"));
+            *parameters, number("spot"), date("valuation"), kiyosi::weekdays_calendar());
         REQUIRE(context);
         const kiyosi::AnalyticBinaryBarrierEngine engine;
         const bool boundary = number("spot") == number("barrier") ||

@@ -33,7 +33,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         REQUIRE(inputs.at("settlement") == "expiry_date");
         REQUIRE(inputs.at("date_roll") == "none");
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
-        REQUIRE((inputs.at("calendar") == "null" || inputs.at("calendar") == "sse"));
+        REQUIRE(inputs.at("calendar") == "weekends_only");
         REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
         const auto type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put;
         REQUIRE(date("effective_date") <= date("valuation"));
@@ -52,8 +52,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
         REQUIRE(parameters.has_value());
         const auto context = kiyosi::make_pricing_context(
-            *parameters, number("spot"), date("valuation"),
-            inputs.at("calendar") == "sse" ? kiyosi::sse_calendar() : kiyosi::all_days_calendar());
+            *parameters, number("spot"), date("valuation"), kiyosi::weekdays_calendar());
         REQUIRE(context.has_value());
         const auto check = [&](const auto& option, const auto& engine) {
             REQUIRE(option.has_value());
