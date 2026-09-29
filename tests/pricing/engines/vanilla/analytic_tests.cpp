@@ -149,6 +149,21 @@ TEST_CASE("Analytic European engine reports invalid expiry_date")
     CHECK(invalid_time_range.error().category == kiyosi::ErrorCategory::invalid_time_range);
 }
 
+TEST_CASE("Analytic European expiry uses the validated timestamp boundary")
+{
+    const auto expiry = day(2025, 1, 6);
+    const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, expiry, expiry);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
+    const auto midnight = *kiyosi::make_pricing_context(parameters, 110.0, kiyosi::start_of_day(expiry));
+    const auto noon = *kiyosi::make_pricing_context(parameters, 110.0, kiyosi::start_of_day(expiry) + std::chrono::hours{12});
+    const kiyosi::AnalyticVanillaEngine engine;
+
+    CHECK(*engine.price(option, midnight) == 10.0);
+    const auto expired = engine.price(option, noon);
+    REQUIRE_FALSE(expired);
+    CHECK(expired.error().category == kiyosi::ErrorCategory::invalid_time_range);
+}
+
 TEST_CASE("Analytic European engine reports non-finite pricing and solver results")
 {
     const auto valuation = day(2025, 1, 6);

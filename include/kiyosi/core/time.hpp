@@ -72,7 +72,9 @@ using Timestamp = std::chrono::sys_time<std::chrono::microseconds>;
 {
     auto valid = validate_valuation_within_instrument_life(date_of(valuation_time), effective_date, expiry_date);
     if (!valid) return valid;
-    return validate_valuation_not_after_expiry(valuation_time, expiry_date);
+    if (valuation_time > start_of_day(expiry_date))
+        return std::unexpected(Error{ErrorCategory::invalid_time_range, "expiry date must not precede the valuation time"});
+    return {};
 }
 
 } // namespace kiyosi

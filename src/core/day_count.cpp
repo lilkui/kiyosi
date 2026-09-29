@@ -10,7 +10,7 @@ Result<double> year_fraction(Date start, Date end, DayCountConvention convention
         return std::unexpected(Error{ErrorCategory::invalid_time_range, "day-count end must not precede start"});
     if (convention != DayCountConvention::actual_365_fixed)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "unsupported day-count convention"});
-    return static_cast<double>((end - start).count()) / 365.0;
+    return detail::actual_365_fixed_year_fraction(start, end);
 }
 
 Result<double> year_fraction(Timestamp start, Timestamp end, DayCountConvention convention)
@@ -21,7 +21,7 @@ Result<double> year_fraction(Timestamp start, Timestamp end, DayCountConvention 
         return std::unexpected(Error{ErrorCategory::invalid_time_range, "day-count end must not precede start"});
     if (convention != DayCountConvention::actual_365_fixed)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "unsupported day-count convention"});
-    return std::chrono::duration<double, std::ratio<31'536'000>>{end - start}.count();
+    return detail::actual_365_fixed_year_fraction(start, end);
 }
 
 } // namespace kiyosi
