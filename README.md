@@ -1,33 +1,33 @@
 # Kiyosi
 
-Kiyosi is a modern C++23 derivatives-pricing library with Python bindings, offering consistent APIs for vanilla, exotic, and structured products.
+Kiyosi is a C++23 library for pricing vanilla, exotic, and structured derivatives, with Python bindings.
 
 [![PyPI](https://img.shields.io/pypi/v/kiyosi.svg)](https://pypi.org/project/kiyosi/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
 > [!IMPORTANT]
-> Kiyosi is alpha software. Its API may change without backward-compatibility guarantees.
+> Kiyosi is in alpha. Its APIs may change without backward-compatibility guarantees.
 
 ## Features
 
 - Vanilla, digital, Asian, barrier, accumulator, snowball, and phoenix instruments
-- Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines with CPU and CUDA backends
-- Price-only valuation and on-demand calculation of selected Greeks
-- Numerical analytics, implied volatility, and implied coupon solvers
-- Trading calendars and observation schedule builders, including SSE holidays
-- A native C++ core exposed through a Python-first API
+- Analytic, tree-based, finite-difference, integral, and Monte Carlo pricing engines, with optional CUDA support for Monte Carlo
+- Price-only valuation or on-demand calculation of selected Greeks
+- Numerical analytics and solvers for implied volatility and coupons
+- Trading calendars and observation schedule builders, including the SSE calendar
+- A C++ core that builds independently of the Python bindings
 
 ## Quick start with Python
 
-Kiyosi requires Python 3.11 or newer:
+Install Kiyosi from PyPI with Python 3.11 or newer:
 
 ```bash
 python -m pip install kiyosi
 ```
 
-PyPI provides prebuilt x64 wheels for Windows and Linux, including CUDA acceleration for Monte Carlo engines. CPU remains the default; using CUDA requires a compatible NVIDIA GPU and driver. On other platforms, installation builds from source and requires CMake 3.28 or newer, Ninja, and a C++23 compiler.
+Prebuilt x64 wheels are available for Windows and Linux. Installation on other platforms builds from source and requires CMake 3.28 or newer, Ninja, and a C++23 compiler.
 
-Price a European call with the analytic Black-Scholes engine:
+Calculate the price of a European call with the analytic Black-Scholes engine:
 
 ```python
 from datetime import date
@@ -54,96 +54,32 @@ context = PricingContext(
 )
 
 engine = AnalyticVanillaEngine()
-print(engine.price(option, context))  # float; no Greeks are calculated
-
-selected = engine.price_with_greeks(option, context, ["delta", "gamma"])
-print(selected.price, selected.delta, selected.gamma)
-
-full = engine.price_with_greeks(option, context, all_greeks=True)
-print(full.vega, full.theta)
+print(engine.price(option, context))
 ```
-
-Pass one lowercase Greek name or an iterable of them to request Greeks.
-`all_greeks=True` requests Delta, Gamma, Speed, Theta, Charm, Color, Vega,
-Vanna, Zomma, and Rho. The two request forms are mutually exclusive. Native
-Greeks are reused; missing feasible measures use numerical price differences.
-Unrequested or undefined measures are `None`, including all Greeks at expiry.
-Shift keyword arguments (`spot_shift`, `volatility_shift`, `rate_shift`, and
-`time_shift_days`) control numerical supplementation. Monte Carlo base and
-bumped valuations share one seed per call without changing the engine settings.
-`calculate_numerical_greeks()` remains the forced numerical alternative.
-
-C++ uses the same contract: `price()` returns `Result<double>` and
-`price_with_greeks(option, context, {Greek::delta, Greek::vega})` returns
-`Result<PricingResult>`, whose `price()` is always present. Use `true` as the
-third argument for all ten Greeks and pass an optional
-`NumericalShiftSettings` as the final argument to customize shifts.
-
-The Python API is organized into three modules:
-
-| Module | Contents |
-| --- | --- |
-| `kiyosi.instruments` | Derivative instruments and structured-product presets |
-| `kiyosi.market` | Model parameters, valuation contexts, calendars, and schedules |
-| `kiyosi.pricing` | Pricing engines, analytics, scenarios, and implied-value solvers |
-
-Select the CUDA backend on any Monte Carlo engine:
-
-```python
-from kiyosi.pricing import MonteCarloVanillaEngine
-
-engine = MonteCarloVanillaEngine(backend="cuda")
-result = engine.price(option, context)
-```
-
-Enum-like Python inputs use lowercase strings such as `"call"`, `"cuda"`, and
-`"crank_nicolson"`. Properties return the same strings. Public `OptionType`,
-`MonteCarloBackend`, and similar names are `typing.Literal` aliases for static
-type checking; `KiyosiError.category` remains an `ErrorCategory` Enum.
-
-## Pricing coverage
-
-| Instrument family | Available engines |
-| --- | --- |
-| European vanilla | Analytic, CRR binomial, finite difference, integral, Monte Carlo |
-| American vanilla | Bjerksund-Stensland, CRR binomial, finite difference, Monte Carlo |
-| Cash-or-nothing and asset-or-nothing digital | Analytic, finite difference, integral |
-| Barrier | Analytic, finite difference |
-| Binary barrier and touch | Analytic |
-| Geometric-average Asian | Closed form |
-| Arithmetic-average Asian | Turnbull-Wakeman approximation |
-| Accumulator | Finite difference, Monte Carlo |
-| Phoenix and snowball variants | Finite difference, Monte Carlo |
-
-### Model scope
-
-The current pricing models use a Black-Scholes-Merton market context with spot and flat risk-free rate, dividend yield, and volatility parameters. Volatility surfaces and rate curves are not part of the current API.
-
-## Validation
-
-Kiyosi's pricing tests compare results with reference values generated independently of Kiyosi using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md); it is not a build or runtime dependency of the C++ core. The [SSE calendar generator](tools/generate_sse_calendar.py) fetches XSHG's recorded closures and adds a documented forecast through 2099.
-
-For performance comparisons against QuantLib C++, see the [pricing benchmark matrix](benchmarks/README.md).
 
 ## C++ library
 
-Building the C++ core requires CMake 3.28 or newer, Ninja, and a C++23 compiler. On Linux, configure, build, test, and install with:
+The C++ core requires CMake 3.28 or newer, Ninja, and a C++23 compiler. On Linux, build, test, and install it with:
 
 ```bash
 cmake --workflow --preset linux-release
 cmake --install out/build/linux-release
 ```
 
-On Windows, run the commands from a Visual Studio Developer PowerShell and replace `linux-release` with `windows-release`.
+On Windows, run the commands in a Visual Studio Developer PowerShell, replacing `linux-release` with `windows-release`.
 
-After installation, consume the exported CMake target:
+After installation, link the exported CMake target:
 
 ```cmake
 find_package(kiyosi CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE kiyosi::kiyosi)
 ```
 
-Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. See [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp) for a broader example covering the available instrument and engine families.
+Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. For examples of additional instruments and pricing engines, see [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp).
+
+## Validation
+
+Pricing tests compare Kiyosi's results with reference values generated independently using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md) and is not required to build or run the C++ core. See the [pricing benchmark matrix](benchmarks/README.md) for performance comparisons.
 
 ## License
 
