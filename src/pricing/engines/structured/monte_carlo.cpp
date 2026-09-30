@@ -1,5 +1,6 @@
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <optional>
@@ -32,31 +33,33 @@ struct InitialState {
 
 template <typename Note>
 InitialState initial_state(const Note& note, const PricingContext& context,
-                           const AutocallableProgram& program,
-                           const std::vector<std::size_t>& schedule)
+                           const AutocallableProgram& program)
 {
     if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return {.settlement = 0.0};
 
     const Timestamp valuation = context.valuation_time();
     const double value = context.spot_price();
+    const auto& dates = note.observation_dates();
     InitialState initial{
         .path = {.coupons = 0.0,
-                 .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in}};
+                 .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in},
+        .next_observation = static_cast<std::size_t>(
+            std::lower_bound(dates.begin(), dates.end(), valuation) - dates.begin())};
     if (valuation == start_of_day(date_of(valuation)) &&
         context.calendar().is_trading_day(date_of(valuation)))
         initial.path.knocked_in = program_knocked_in(
             program, value, initial.path.knocked_in, valuation == note.expiry_date());
 
-    if (!schedule.empty() && note.observation_dates()[schedule.front()] == valuation) {
-        const auto event = autocallable_event(note, schedule.front());
+    if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation) {
+        const auto event = autocallable_event(note, initial.next_observation);
         const double coupon = program_observation_coupon(event, value);
         if (value >= event.knock_out_level)
             return {.path = initial.path,
-                    .next_observation = 1,
+                    .next_observation = initial.next_observation + 1,
                     .settlement = program.principal_ratio + coupon};
         if (program.carries_observation_coupon) initial.path.coupons = coupon;
-        initial.next_observation = 1;
+        ++initial.next_observation;
     }
     if (valuation == note.expiry_date()) {
         initial.path.knocked_in =
@@ -70,8 +73,7 @@ InitialState initial_state(const Note& note, const PricingContext& context,
 
 template <typename Note>
 SimulationInputs prepare_simulation(
-    const Note& note, const PricingContext& context,
-    const std::vector<std::size_t>& remaining_observation_indices, std::size_t next_observation)
+    const Note& note, const PricingContext& context, std::size_t next_observation)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
@@ -84,9 +86,9 @@ SimulationInputs prepare_simulation(
     for (const Date current : dates) {
         const double dt = actual_365_fixed_year_fraction(previous, current);
         AutocallableEvent event{};
-        if (next_observation < remaining_observation_indices.size() &&
-            note.observation_dates()[remaining_observation_indices[next_observation]] == current) {
-            event = autocallable_event(note, remaining_observation_indices[next_observation]);
+        if (next_observation < note.observation_dates().size() &&
+            note.observation_dates()[next_observation] == current) {
+            event = autocallable_event(note, next_observation);
             ++next_observation;
         }
         steps.push_back({{(rate - dividend - 0.5 * sigma * sigma) * dt,
@@ -147,12 +149,10 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
     const auto program = autocallable_program(note);
-    const auto observation_indices = remaining_observation_indices(note, context.valuation_time());
-    const auto initial = initial_state(note, context, program, observation_indices);
+    const auto initial = initial_state(note, context, program);
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
-    const auto inputs = prepare_simulation(
-        note, context, observation_indices, initial.next_observation);
+    const auto inputs = prepare_simulation(note, context, initial.next_observation);
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto sum = cuda_sum(cuda_structured_price(

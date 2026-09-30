@@ -331,6 +331,14 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     CHECK(*first == *second);
     CHECK(*first ==
           Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective_date, valuation).value()).margin(1e-10));
+    for (const auto elapsed : {std::chrono::hours{12}, std::chrono::hours{24}}) {
+        const auto later_context = *kiyosi::make_pricing_context(
+            context.model_parameters(), 100.0, kiyosi::start_of_day(valuation) + elapsed);
+        const auto later = engine.price(note, later_context);
+        REQUIRE(later);
+        CHECK(*later == Catch::Approx(
+            1.0 + 0.10 * kiyosi::year_fraction(effective_date, expiry_date).value()).margin(1e-10));
+    }
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                          .maturity_coupon_rate = 0.05,
                                                          .initial_spot = 100.0,

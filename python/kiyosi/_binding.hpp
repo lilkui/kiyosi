@@ -260,7 +260,6 @@ using PythonTimestampObject = nb::typed<nb::object, PythonTimestampAnnotation>;
 using PythonDateList = nb::typed<nb::list, PythonDateAnnotation>;
 using PythonDateIterator =
     nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
-using PythonOptionalReal = nb::typed<nb::object, std::optional<double>>;
 
 template <typename T>
 void bind_repr(nb::class_<T>& binding, const char* name,

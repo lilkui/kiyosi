@@ -8,13 +8,6 @@ namespace {
 
 static_assert(EnumNames<Greek>::values.size() == greek_count);
 
-PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
-{
-    const auto value = unwrap(result.get(measure));
-    if (value) return PythonOptionalReal{nb::float_(*value)};
-    return PythonOptionalReal{nb::none()};
-}
-
 NumericalShiftSettings numerical_settings(
     nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days);
@@ -557,16 +550,16 @@ Raises
 KiyosiError
     If the requested Greek is unavailable.)doc")
                               .def_prop_ro("price", &PricingResult::price, "Instrument value.")
-                              .def_prop_ro("delta", [](const PricingResult& result) { return optional_value(result, Greek::delta); }, "First spot derivative, or None when unavailable.")
-                              .def_prop_ro("gamma", [](const PricingResult& result) { return optional_value(result, Greek::gamma); }, "Second spot derivative, or None when unavailable.")
-                              .def_prop_ro("speed", [](const PricingResult& result) { return optional_value(result, Greek::speed); }, "Third spot derivative, or None when unavailable.")
-                              .def_prop_ro("theta", [](const PricingResult& result) { return optional_value(result, Greek::theta); }, "Daily price decay, or None when unavailable.")
-                              .def_prop_ro("charm", [](const PricingResult& result) { return optional_value(result, Greek::charm); }, "Daily change in delta, or None when unavailable.")
-                              .def_prop_ro("color", [](const PricingResult& result) { return optional_value(result, Greek::color); }, "Daily change in gamma, or None when unavailable.")
-                              .def_prop_ro("vega", [](const PricingResult& result) { return optional_value(result, Greek::vega); }, "Price change per volatility percentage point, or None.")
-                              .def_prop_ro("vanna", [](const PricingResult& result) { return optional_value(result, Greek::vanna); }, "Delta change per volatility percentage point, or None.")
-                              .def_prop_ro("zomma", [](const PricingResult& result) { return optional_value(result, Greek::zomma); }, "Gamma change per volatility percentage point, or None.")
-                              .def_prop_ro("rho", [](const PricingResult& result) { return optional_value(result, Greek::rho); }, "Price change per interest-rate percentage point, or None.");
+                              .def_prop_ro("delta", [](const PricingResult& result) { return unwrap(result.get(Greek::delta)); }, "First spot derivative, or None when unavailable.")
+                              .def_prop_ro("gamma", [](const PricingResult& result) { return unwrap(result.get(Greek::gamma)); }, "Second spot derivative, or None when unavailable.")
+                              .def_prop_ro("speed", [](const PricingResult& result) { return unwrap(result.get(Greek::speed)); }, "Third spot derivative, or None when unavailable.")
+                              .def_prop_ro("theta", [](const PricingResult& result) { return unwrap(result.get(Greek::theta)); }, "Daily price decay, or None when unavailable.")
+                              .def_prop_ro("charm", [](const PricingResult& result) { return unwrap(result.get(Greek::charm)); }, "Daily change in delta, or None when unavailable.")
+                              .def_prop_ro("color", [](const PricingResult& result) { return unwrap(result.get(Greek::color)); }, "Daily change in gamma, or None when unavailable.")
+                              .def_prop_ro("vega", [](const PricingResult& result) { return unwrap(result.get(Greek::vega)); }, "Price change per volatility percentage point, or None.")
+                              .def_prop_ro("vanna", [](const PricingResult& result) { return unwrap(result.get(Greek::vanna)); }, "Delta change per volatility percentage point, or None.")
+                              .def_prop_ro("zomma", [](const PricingResult& result) { return unwrap(result.get(Greek::zomma)); }, "Gamma change per volatility percentage point, or None.")
+                              .def_prop_ro("rho", [](const PricingResult& result) { return unwrap(result.get(Greek::rho)); }, "Price change per interest-rate percentage point, or None.");
     bind_repr(pricing_result, "PricingResult",
               {"price", "delta", "gamma", "speed", "theta", "charm", "color", "vega", "vanna", "zomma", "rho"});
 }

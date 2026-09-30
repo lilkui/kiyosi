@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <vector>
 
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
@@ -74,17 +73,6 @@ template <typename Note>
 double observation_coupon(const Note& note, std::size_t index, double spot)
 {
     return program_observation_coupon(autocallable_event(note, index), spot);
-}
-
-/// Indices of the observation dates still ahead of `valuation`.
-template <typename Note>
-std::vector<std::size_t> remaining_observation_indices(const Note& note, Timestamp valuation)
-{
-    std::vector<std::size_t> schedule;
-    const auto& dates = note.observation_dates();
-    for (std::size_t index = 0; index < dates.size(); ++index)
-        if (dates[index] >= valuation) schedule.push_back(index);
-    return schedule;
 }
 
 template <typename Note>

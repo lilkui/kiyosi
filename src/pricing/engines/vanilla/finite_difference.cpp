@@ -73,9 +73,6 @@ Result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
-    if (!requested_output.has(Greek::delta) && !requested_output.has(Greek::gamma))
-        return make_pricing_result(space->interpolate(old, spot));
-
     return make_pricing_result(space->interpolate(old, spot), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
                                                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
 }
