@@ -114,10 +114,6 @@ Result<double> cuda_sum(detail::CudaPricingResult cuda_result)
 Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     const Accumulator& option, const PricingContext& context) const
 {
-    auto contract = make_accumulator({option.strike(), option.knock_out_level(), option.daily_quantity(),
-                                      option.acceleration_factor(), option.accumulated_quantity(),
-                                      option.effective_date(), option.expiry_date()});
-    if (!contract) return std::unexpected(contract.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     if (settings_.path_count <= 0 || settings_.path_count > maximum_monte_carlo_path_count)
