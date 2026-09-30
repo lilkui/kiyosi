@@ -23,13 +23,19 @@ TEST_CASE("Binary barrier factories reject invalid contracts")
                                                   .barrier_type = kiyosi::BarrierType::down_and_in};
     auto invalid = terms;
     invalid.option_type = static_cast<kiyosi::OptionType>(99);
-    CHECK(kiyosi::make_cash_binary_barrier_option(invalid, 10.0).error().category ==
+    const auto invalid_type = kiyosi::make_cash_binary_barrier_option(invalid, 10.0);
+    REQUIRE_FALSE(invalid_type.has_value());
+    CHECK(invalid_type.error().category ==
           kiyosi::ErrorCategory::invalid_option);
-    CHECK(kiyosi::make_cash_binary_barrier_option(terms, -1.0).error().category ==
+    const auto invalid_payout = kiyosi::make_cash_binary_barrier_option(terms, -1.0);
+    REQUIRE_FALSE(invalid_payout.has_value());
+    CHECK(invalid_payout.error().category ==
           kiyosi::ErrorCategory::invalid_parameter);
     invalid = terms;
     invalid.observation_mode = kiyosi::ObservationMode::scheduled;
-    CHECK(kiyosi::make_asset_binary_barrier_option(invalid).error().category ==
+    const auto invalid_schedule = kiyosi::make_asset_binary_barrier_option(invalid);
+    REQUIRE_FALSE(invalid_schedule.has_value());
+    CHECK(invalid_schedule.error().category ==
           kiyosi::ErrorCategory::invalid_schedule);
 }
 

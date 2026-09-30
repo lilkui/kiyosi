@@ -16,26 +16,26 @@ TEST_CASE("Asian option terms reject invalid averaging windows")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const auto averaging_start_date = day(2025, 7, 1);
-    CHECK(kiyosi::make_geometric_average_option(
-              static_cast<kiyosi::OptionType>(99), 100.0, effective_date, averaging_start_date, expiry_date)
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_option);
-    CHECK(kiyosi::make_geometric_average_option(
-              kiyosi::OptionType::call, 0.0, effective_date, averaging_start_date, expiry_date)
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_strike);
-    CHECK(kiyosi::make_geometric_average_option(
-              kiyosi::OptionType::call, 100.0, effective_date, averaging_start_date, expiry_date, -1.0)
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK(kiyosi::make_geometric_average_option(
-              kiyosi::OptionType::call, 100.0, effective_date, effective_date - std::chrono::days{1}, expiry_date)
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_schedule);
-    CHECK(kiyosi::make_geometric_average_option(
-              kiyosi::OptionType::call, 100.0, effective_date, expiry_date + std::chrono::days{1}, expiry_date)
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_schedule);
+    const auto invalid_type = kiyosi::make_geometric_average_option(
+        static_cast<kiyosi::OptionType>(99), 100.0, effective_date, averaging_start_date, expiry_date);
+    REQUIRE_FALSE(invalid_type.has_value());
+    CHECK(invalid_type.error().category == kiyosi::ErrorCategory::invalid_option);
+    const auto invalid_strike = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 0.0, effective_date, averaging_start_date, expiry_date);
+    REQUIRE_FALSE(invalid_strike.has_value());
+    CHECK(invalid_strike.error().category == kiyosi::ErrorCategory::invalid_strike);
+    const auto invalid_average = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, effective_date, averaging_start_date, expiry_date, -1.0);
+    REQUIRE_FALSE(invalid_average.has_value());
+    CHECK(invalid_average.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    const auto early_averaging = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, effective_date, effective_date - std::chrono::days{1}, expiry_date);
+    REQUIRE_FALSE(early_averaging.has_value());
+    CHECK(early_averaging.error().category == kiyosi::ErrorCategory::invalid_schedule);
+    const auto late_averaging = kiyosi::make_geometric_average_option(
+        kiyosi::OptionType::call, 100.0, effective_date, expiry_date + std::chrono::days{1}, expiry_date);
+    REQUIRE_FALSE(late_averaging.has_value());
+    CHECK(late_averaging.error().category == kiyosi::ErrorCategory::invalid_schedule);
 }
 
 TEST_CASE("Average option factories build distinct geometric and arithmetic variants")

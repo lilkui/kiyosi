@@ -34,9 +34,13 @@ TEST_CASE("European option factories reject invalid terms")
 {
     const auto expiry_date = day(2030, 1, 1);
     const auto effective_date = day(2029, 1, 1);
-    REQUIRE(kiyosi::make_european_option(kiyosi::OptionType::call, 0.0, effective_date, expiry_date).error().category ==
+    const auto zero_strike = kiyosi::make_european_option(kiyosi::OptionType::call, 0.0, effective_date, expiry_date);
+    REQUIRE_FALSE(zero_strike.has_value());
+    REQUIRE(zero_strike.error().category ==
             kiyosi::ErrorCategory::invalid_strike);
-    REQUIRE(kiyosi::make_european_option(kiyosi::OptionType::call, -1.0, effective_date, expiry_date).error().message.contains("strike"));
+    const auto negative_strike = kiyosi::make_european_option(kiyosi::OptionType::call, -1.0, effective_date, expiry_date);
+    REQUIRE_FALSE(negative_strike.has_value());
+    REQUIRE(negative_strike.error().message.contains("strike"));
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::OptionType::call,
                                                std::numeric_limits<double>::infinity(), effective_date, expiry_date)
                       .has_value());
@@ -80,7 +84,9 @@ TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
                                                     .expiry_date = end});
     });
 
-    CHECK(kiyosi::validate_date_schedule({&later, 1}, later, earlier).error().category ==
+    const auto reversed_schedule = kiyosi::validate_date_schedule({&later, 1}, later, earlier);
+    REQUIRE_FALSE(reversed_schedule.has_value());
+    CHECK(reversed_schedule.error().category ==
           kiyosi::ErrorCategory::invalid_time_range);
 }
 

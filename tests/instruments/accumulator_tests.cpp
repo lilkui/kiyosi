@@ -27,33 +27,45 @@ TEST_CASE("Accumulator factory rejects invalid contracts")
                                                 .expiry_date = expiry_date};
     auto invalid = terms;
     invalid.strike = 0.0;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_strike = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_strike.has_value());
+    CHECK((invalid_strike.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_strike,
                          "strike must be finite and positive"}));
     invalid = terms;
     invalid.knock_out_level = 0.0;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_level = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_level.has_value());
+    CHECK((invalid_level.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_parameter,
                          "knock-out level must be finite and positive"}));
     invalid = terms;
     invalid.daily_quantity = -1.0;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_daily_quantity = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_daily_quantity.has_value());
+    CHECK((invalid_daily_quantity.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_parameter,
                          "daily quantity must be finite and non-negative"}));
     invalid = terms;
     invalid.acceleration_factor = -1.0;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_acceleration = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_acceleration.has_value());
+    CHECK((invalid_acceleration.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_parameter,
                          "acceleration factor must be finite and non-negative"}));
     invalid = terms;
     invalid.accumulated_quantity = -1.0;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_quantity = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_quantity.has_value());
+    CHECK((invalid_quantity.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_parameter,
                          "accumulated quantity must be finite and non-negative"}));
     invalid = terms;
     invalid.effective_date = expiry_date;
     invalid.expiry_date = effective_date;
-    CHECK((kiyosi::make_accumulator(invalid).error() ==
+    const auto invalid_life = kiyosi::make_accumulator(invalid);
+    REQUIRE_FALSE(invalid_life.has_value());
+    CHECK((invalid_life.error() ==
            kiyosi::Error{kiyosi::ErrorCategory::invalid_time_range,
                          "expiry date must not precede the effective date"}));
 }

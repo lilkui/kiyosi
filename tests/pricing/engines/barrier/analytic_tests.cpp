@@ -125,33 +125,49 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
     const auto effective = day(2025, 1, 1);
     const auto valuation = day(2025, 7, 1);
     const auto expiry = day(2026, 1, 1);
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, valuation);
+    const auto parameters = kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
+    REQUIRE(parameters);
+    const auto context_checked = kiyosi::make_pricing_context(
+        *parameters, 100.0, valuation);
+    REQUIRE(context_checked);
+    const auto context = *context_checked;
     auto terms = kiyosi::BarrierOptionTerms{.option_type = kiyosi::OptionType::call,
                                             .strike = 100.0,
                                             .effective_date = effective,
                                             .expiry_date = expiry,
                                             .barrier_level = 120.0,
                                             .barrier_type = kiyosi::BarrierType::up_and_out};
-    const auto missing = *kiyosi::make_barrier_option(terms);
+    const auto missing_checked = kiyosi::make_barrier_option(terms);
+    REQUIRE(missing_checked);
+    const auto missing = *missing_checked;
     CHECK_FALSE(missing.touch_state());
     const auto missing_result = kiyosi::AnalyticBarrierEngine{}.price(missing, context);
     REQUIRE_FALSE(missing_result);
     CHECK(missing_result.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK(kiyosi::FiniteDifferenceBarrierEngine{}.price(missing, context).error().category ==
+    const auto missing_fd = kiyosi::FiniteDifferenceBarrierEngine{}.price(missing, context);
+    REQUIRE_FALSE(missing_fd.has_value());
+    CHECK(missing_fd.error().category ==
           kiyosi::ErrorCategory::invalid_parameter);
 
     terms.touch_state = kiyosi::BarrierTouchState::untouched;
-    const auto untouched = *kiyosi::make_barrier_option(terms);
+    const auto untouched_checked = kiyosi::make_barrier_option(terms);
+    REQUIRE(untouched_checked);
+    const auto untouched = *untouched_checked;
     terms.touch_state = kiyosi::BarrierTouchState::touched;
-    const auto touched = *kiyosi::make_barrier_option(terms);
+    const auto touched_checked = kiyosi::make_barrier_option(terms);
+    REQUIRE(touched_checked);
+    const auto touched = *touched_checked;
     CHECK(*kiyosi::AnalyticBarrierEngine{}.price(untouched, context) > 0.0);
     CHECK(*kiyosi::AnalyticBarrierEngine{}.price(touched, context) == 0.0);
     CHECK(*kiyosi::FiniteDifferenceBarrierEngine{}.price(touched, context) == 0.0);
 
     terms.barrier_type = kiyosi::BarrierType::up_and_in;
-    const auto knocked_in = *kiyosi::make_barrier_option(terms);
-    const auto vanilla = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
+    const auto knocked_in_checked = kiyosi::make_barrier_option(terms);
+    REQUIRE(knocked_in_checked);
+    const auto knocked_in = *knocked_in_checked;
+    const auto vanilla_checked = kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
+    REQUIRE(vanilla_checked);
+    const auto vanilla = *vanilla_checked;
     CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(knocked_in, context),
                Catch::Matchers::WithinAbs(*kiyosi::AnalyticVanillaEngine{}.price(vanilla, context), 1e-12));
 

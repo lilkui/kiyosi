@@ -1,5 +1,7 @@
 #pragma once
 
+#include <catch2/catch_test_macros.hpp>
+
 #include <chrono>
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
@@ -14,7 +16,9 @@ constexpr kiyosi::Date day(int year, unsigned month, unsigned day_number)
 
 inline double greek_value(const kiyosi::PricingResult& result, kiyosi::Greek measure)
 {
-    return *result.require(measure);
+    const auto value = result.require(measure);
+    REQUIRE(value.has_value());
+    return *value;
 }
 
 } // namespace kiyosi::test

@@ -22,7 +22,9 @@ TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
     REQUIRE(valid->dividend_yield() == 0.02);
     REQUIRE(valid->volatility() == 0.2);
 
-    REQUIRE(kiyosi::make_bsm_parameters(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.2).error().category ==
+    const auto invalid_rate = kiyosi::make_bsm_parameters(std::numeric_limits<double>::quiet_NaN(), 0.0, 0.2);
+    REQUIRE_FALSE(invalid_rate.has_value());
+    REQUIRE(invalid_rate.error().category ==
             kiyosi::ErrorCategory::invalid_risk_free_rate);
     REQUIRE_FALSE(kiyosi::make_bsm_parameters(0.0, std::numeric_limits<double>::infinity(), 0.2).has_value());
     REQUIRE_FALSE(kiyosi::make_bsm_parameters(0.0, 0.0, 0.0).has_value());
@@ -30,7 +32,9 @@ TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
 
     const auto valuation = day(2025, 1, 1);
     REQUIRE(kiyosi::make_pricing_context(*valid, 100.0, valuation).has_value());
-    REQUIRE(kiyosi::make_pricing_context(*valid, 0.0, valuation).error().category ==
+    const auto invalid_spot = kiyosi::make_pricing_context(*valid, 0.0, valuation);
+    REQUIRE_FALSE(invalid_spot.has_value());
+    REQUIRE(invalid_spot.error().category ==
             kiyosi::ErrorCategory::invalid_spot_price);
     REQUIRE_FALSE(kiyosi::make_pricing_context(*valid, -1.0, valuation).has_value());
     REQUIRE_FALSE(kiyosi::make_pricing_context(
@@ -41,6 +45,7 @@ TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
 TEST_CASE("Pricing context and result preserve their values")
 {
     auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    REQUIRE(parameters.has_value());
     auto context = kiyosi::make_pricing_context(*parameters, 100.0, day(2025, 1, 1));
     REQUIRE(context.has_value());
     REQUIRE(context->spot_price() == 100.0);
@@ -85,7 +90,9 @@ TEST_CASE("Pricing result rejects unknown Greeks")
     const auto unavailable = result->get(kiyosi::Greek::delta);
     REQUIRE(unavailable.has_value());
     CHECK_FALSE(unavailable->has_value());
-    CHECK(result->require(kiyosi::Greek::delta).error().category ==
+    const auto missing_delta = result->require(kiyosi::Greek::delta);
+    REQUIRE_FALSE(missing_delta.has_value());
+    CHECK(missing_delta.error().category ==
           kiyosi::ErrorCategory::invalid_result);
 
     const auto invalid = kiyosi::make_pricing_result(1.0, {{unknown, 1.0}});

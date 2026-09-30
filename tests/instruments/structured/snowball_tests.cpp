@@ -109,11 +109,14 @@ TEST_CASE("Autocallable factories preserve validation error categories")
     const auto check = [](auto factory, auto terms) {
         if constexpr (requires { terms.initial_spot; }) terms.initial_spot = 0.0;
         else terms.principal_ratio = -1.0;
-        CHECK(factory(terms).error().category == kiyosi::ErrorCategory::invalid_parameter);
+        const auto invalid_parameter = factory(terms);
+        REQUIRE_FALSE(invalid_parameter.has_value());
+        CHECK(invalid_parameter.error().category == kiyosi::ErrorCategory::invalid_parameter);
         if constexpr (requires { terms.initial_spot; }) terms.initial_spot = 100.0;
         else terms.principal_ratio = 1.0;
         terms.observation_dates.clear();
         const auto invalid_schedule = factory(std::move(terms));
+        REQUIRE_FALSE(invalid_schedule.has_value());
         CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
     };
 
@@ -197,22 +200,22 @@ TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons
         .effective_date = effective_date,
         .expiry_date = expiry_date});
     REQUIRE(note);
-    CHECK(kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-                                           .knock_out_coupon_rates = {0.1},
-                                           .maturity_coupon_rate = 0.05,
-                                           .initial_spot = 100.0,
-                                           .knock_in_level = 60.0,
-                                           .knock_out_levels = {110.0},
-                                           .upper_strike = 100.0,
-                                           .lower_strike = 60.0,
-                                           .observation_dates = {expiry_date, effective_date},
-                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                           .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                           .principal_ratio = 1.0,
-                                           .effective_date = effective_date,
-                                           .expiry_date = expiry_date})
-              .error()
-              .category == kiyosi::ErrorCategory::invalid_schedule);
+    const auto invalid_schedule = kiyosi::make_snowball_option(kiyosi::SnowballTerms{
+        .knock_out_coupon_rates = {0.1},
+        .maturity_coupon_rate = 0.05,
+        .initial_spot = 100.0,
+        .knock_in_level = 60.0,
+        .knock_out_levels = {110.0},
+        .upper_strike = 100.0,
+        .lower_strike = 60.0,
+        .observation_dates = {expiry_date, effective_date},
+        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+        .barrier_state = kiyosi::AutocallableBarrierState::none,
+        .principal_ratio = 1.0,
+        .effective_date = effective_date,
+        .expiry_date = expiry_date});
+    REQUIRE_FALSE(invalid_schedule.has_value());
+    CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
 }
 
 TEST_CASE("Named Snowball factories build DerivaSharp variants")
@@ -394,12 +397,17 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
     const auto expiry = day(2025, 1, 6);
     const auto market = [&](kiyosi::Date valuation) {
         // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
-        return *kiyosi::make_pricing_context(
-            *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, valuation);
+        const auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+        REQUIRE(parameters);
+        const auto result = kiyosi::make_pricing_context(*parameters, 100.0, valuation);
+        REQUIRE(result);
+        return *result;
     };
     const auto note = [&](std::optional<kiyosi::AutocallableBarrierState> state) {
-        return *kiyosi::make_snowball_option(
+        const auto result = kiyosi::make_snowball_option(
             {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {first, expiry}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective, .expiry_date = expiry});
+        REQUIRE(result);
+        return *result;
     };
     const kiyosi::MonteCarloSnowballEngine mc{{32, 1}};
     const kiyosi::FiniteDifferenceSnowballEngine fd{{40, 40}};
@@ -407,13 +415,17 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
     const auto missing = mc.price(note(std::nullopt), market(day(2025, 1, 3)));
     REQUIRE_FALSE(missing);
     CHECK(missing.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK(fd.price(note(std::nullopt), market(day(2025, 1, 3))).error().category ==
+    const auto missing_fd = fd.price(note(std::nullopt), market(day(2025, 1, 3)));
+    REQUIRE_FALSE(missing_fd.has_value());
+    CHECK(missing_fd.error().category ==
           kiyosi::ErrorCategory::invalid_parameter);
     CHECK(mc.price(note(kiyosi::AutocallableBarrierState::none), market(day(2025, 1, 3))).has_value());
     const auto premature = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(effective));
     REQUIRE_FALSE(premature);
     CHECK(premature.error().category == kiyosi::ErrorCategory::invalid_option);
-    CHECK(*mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(day(2025, 1, 3))) == 0.0);
+    const auto settled = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(day(2025, 1, 3)));
+    REQUIRE(settled);
+    CHECK(*settled == 0.0);
 }
 
 TEST_CASE("Negative Binary Snowball coupon can be implied")
