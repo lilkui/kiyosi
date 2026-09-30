@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 
 #include <array>
 #include <limits>
@@ -22,9 +23,9 @@ TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying 
 
 TEST_CASE("Paired finite-difference advances match independent layers")
 {
-    constexpr std::size_t size = 7;
+    const auto size = GENERATE(std::size_t{4}, std::size_t{7});
     constexpr double upper = 240.0;
-    constexpr double spacing = upper / static_cast<double>(size - 1);
+    const double spacing = upper / static_cast<double>(size - 1);
     const std::array time_step_count{0.17, 0.03, 0.11};
 
     for (const double theta : {0.0, 1.0, 0.5}) {
@@ -36,6 +37,8 @@ TEST_CASE("Paired finite-difference advances match independent layers")
         kiyosi::detail::LinearBoundaryStepper second_independent{size, upper, spacing, parameters};
         std::vector<double> first{0.2, 0.8, 1.7, 3.1, 5.2, 8.0, 11.5};
         std::vector<double> second{-3.0, -2.2, -0.7, 1.6, 4.8, 9.0, 14.3};
+        first.resize(size);
+        second.resize(size);
         auto expected_first = first;
         auto expected_second = second;
         std::vector<double> next_first(size), next_second(size);

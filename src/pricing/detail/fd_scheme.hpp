@@ -27,6 +27,7 @@ struct Boundaries {
 /// Reuses its coefficient buffers so a full backward march allocates once.
 class FiniteDifferenceStep {
 public:
+    /// Requires size >= 4 from validated grid settings; every layer must have this size.
     explicit FiniteDifferenceStep(std::size_t size)
         : lower_(size - 2), diagonal_(size - 2), upper_diagonal_(size - 2), rhs_(size - 2) {}
 
@@ -73,7 +74,7 @@ public:
             diagonal_[index] -= factor * upper_diagonal_[index - 1];
             rhs_[index] -= factor * rhs_[index - 1];
         }
-        if (diagonal_.empty() || !std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
+        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
         rhs_.back() /= diagonal_.back();
         for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
             rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
@@ -146,7 +147,7 @@ public:
             rhs_[index] -= factor * rhs_[index - 1];
             paired_rhs_[index] -= factor * paired_rhs_[index - 1];
         }
-        if (diagonal_.empty() || !std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0)
+        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0)
             return false;
         rhs_.back() /= diagonal_.back();
         paired_rhs_.back() /= diagonal_.back();

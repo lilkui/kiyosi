@@ -92,10 +92,8 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
     }
-    if (t == 0.0) {
-        return knock_in ? make_price_delta_gamma_result(touched ? vanilla->price() : option.rebate())
-                        : make_price_delta_gamma_result(touched ? option.rebate() : vanilla->price());
-    }
+    if (t == 0.0)
+        return make_price_delta_gamma_result(knock_in ? option.rebate() : vanilla->price());
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
     const double lambda = std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma));

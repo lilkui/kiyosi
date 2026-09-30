@@ -14,6 +14,45 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barriers settle at expiry for every touch and knock state")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2), 100.0, expiry);
+    for (const auto type : {kiyosi::BarrierType::up_and_in, kiyosi::BarrierType::up_and_out}) {
+        for (const auto state : {kiyosi::BarrierTouchState::untouched, kiyosi::BarrierTouchState::touched}) {
+            for (const double level : {90.0, 120.0}) {
+                for (const auto timing : {kiyosi::RebateTiming::at_hit, kiyosi::RebateTiming::at_expiry}) {
+                    if (type == kiyosi::BarrierType::up_and_in && timing == kiyosi::RebateTiming::at_hit)
+                        continue;
+                    CAPTURE(type, state, level, timing);
+                    const auto option = kiyosi::make_barrier_option(
+                        {.option_type = kiyosi::OptionType::call,
+                         .strike = 80.0,
+                         .effective_date = effective,
+                         .expiry_date = expiry,
+                         .barrier_level = level,
+                         .barrier_type = type,
+                         .rebate = 7.0,
+                         .rebate_timing = timing,
+                         .touch_state = state});
+                    REQUIRE(option);
+                    const bool prior_touch = state == kiyosi::BarrierTouchState::touched;
+                    const bool touched = prior_touch || level <= 100.0;
+                    const double unpaid_rebate = prior_touch && timing == kiyosi::RebateTiming::at_hit ? 0.0 : 7.0;
+                    const double expected = type == kiyosi::BarrierType::up_and_in
+                                                ? (touched ? 20.0 : 7.0)
+                                                : (touched ? unpaid_rebate : 20.0);
+                    const auto result = kiyosi::AnalyticBarrierEngine{}.price(*option, context);
+                    REQUIRE(result);
+                    CHECK(*result == expected);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Already-hit barrier rebates respect expiry_date payment timing")
 {
     const auto valuation = day(2025, 1, 6);
