@@ -10,12 +10,6 @@ using namespace detail;
 
 namespace {
 
-Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
-                                                    std::optional<double> gamma = std::nullopt)
-{
-    return make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
-}
-
 Result<PricingResult> digital_price(double strike, OptionType type, double payout,
                                     bool asset_settlement, Date effective_date, Date expiry_date, const PricingContext& context, GreeksRequest output)
 {
@@ -26,7 +20,7 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (t == 0.0) {
         const bool exercised = sign * (spot - strike) > 0.0;
-        return make_price_delta_gamma_result(exercised ? (asset_settlement ? spot : payout) : 0.0);
+        return make_pricing_result(exercised ? (asset_settlement ? spot : payout) : 0.0);
     }
     const double sigma = context.model_parameters().volatility();
     const double root_t = std::sqrt(t);
@@ -44,7 +38,7 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     if (!output.has(Greek::delta) && !output.has(Greek::gamma))
-        return make_price_delta_gamma_result(value);
+        return make_pricing_result(value);
     const double density = normal_pdf(asset_settlement ? d1 : d2);
     std::optional<double> delta;
     std::optional<double> gamma;
@@ -57,7 +51,7 @@ Result<PricingResult> digital_price(double strike, OptionType type, double payou
         if (output.has(Greek::gamma)) gamma = -payout * rate_df * sign * density *
                                               (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
     }
-    auto result = make_price_delta_gamma_result(value, delta, gamma);
+    auto result = make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
     if (!result) return std::unexpected(result.error());
     if (!result->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});

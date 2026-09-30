@@ -146,16 +146,10 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
-    const auto make_result = [](double value) -> Result<PricingResult> {
-        if (!std::isfinite(value))
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "structured pricing produced a non-finite result"});
-        return make_pricing_result(value);
-    };
     const auto program = autocallable_program(note);
     const auto observation_indices = remaining_observation_indices(note, context.valuation_time());
     const auto initial = initial_state(note, context, program, observation_indices);
-    if (initial.settlement) return make_result(*initial.settlement);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const auto inputs = prepare_simulation(
         note, context, observation_indices, initial.next_observation);
@@ -166,7 +160,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
              context.spot_price(), inputs.terminal_discount, program, initial.path},
             inputs.step_count));
         if (!sum) return std::unexpected(sum.error());
-        return make_result(*sum / static_cast<double>(settings_.path_count));
+        return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -177,7 +171,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)
         sum += path_payoff(context.spot_price(), program, inputs, initial.path, generator);
-    return make_result(sum / static_cast<double>(settings_.path_count));
+    return make_pricing_result(sum / static_cast<double>(settings_.path_count));
 }
 
 template class MonteCarloAutocallableEngine<PhoenixOption>;

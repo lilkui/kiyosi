@@ -63,22 +63,17 @@ double path_payoff(const Accumulator& option, const PricingContext& context,
                    std::mt19937_64& generator)
 {
     double value = context.spot_price();
-    double terminal = value;
 
     std::normal_distribution<double> normal;
     double discount = 1.0;
     for (const auto& step : steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
         discount = step.discount;
-        if (value >= option.knock_out_level()) {
-            terminal = value;
-            break;
-        }
+        if (value >= option.knock_out_level()) break;
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
-        terminal = value;
     }
-    return quantity * (terminal - option.strike()) * discount;
+    return quantity * (value - option.strike()) * discount;
 }
 
 } // namespace
@@ -98,14 +93,8 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
-    const auto make_result = [](double value) -> Result<PricingResult> {
-        if (!std::isfinite(value))
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "structured pricing produced a non-finite result"});
-        return make_pricing_result(value);
-    };
     const auto initial = initial_state(option, context);
-    if (initial.settlement) return make_result(*initial.settlement);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const auto steps = prepare_simulation(option, context);
     if (settings_.backend == MonteCarloBackend::cuda) {
@@ -116,7 +105,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
             steps));
         if (!sum) return std::unexpected(sum.error());
-        return make_result(*sum / static_cast<double>(settings_.path_count));
+        return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -126,7 +115,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path)
         sum += path_payoff(option, context, steps, initial.quantity, generator);
-    return make_result(sum / static_cast<double>(settings_.path_count));
+    return make_pricing_result(sum / static_cast<double>(settings_.path_count));
 }
 
 } // namespace kiyosi
