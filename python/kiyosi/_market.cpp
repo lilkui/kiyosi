@@ -122,9 +122,9 @@ KiyosiError
                                        "Positive annualized volatility.");
     bind_value_equality(parameters);
     bind_repr(parameters, "BlackScholesMertonParameters",
-              {{"risk_free_rate", "risk_free_rate"},
-               {"dividend_yield", "dividend_yield"},
-               {"volatility", "volatility"}});
+              {"risk_free_rate",
+               "dividend_yield",
+               "volatility"});
 
     auto calendar = nb::class_<TradingCalendar>(
                         module, "TradingCalendar",
@@ -198,7 +198,7 @@ KiyosiError
     If the range is reversed.)doc")
                         .def_prop_ro("trading_days_per_year", &TradingCalendar::trading_days_per_year, "Annualization denominator for trading-year fractions.");
     bind_repr(calendar, "TradingCalendar",
-              {{"trading_days_per_year", "trading_days_per_year"}});
+              {"trading_days_per_year"});
 
     auto schedule = nb::class_<ObservationSchedule>(
                         module, "ObservationSchedule", R"doc(Immutable ordered observation dates.
@@ -228,7 +228,7 @@ dates : list[datetime.date]
             for (const Date value : schedule.dates()) output.append(python_date(value));
             return output; }, "Copy of the ordered observation dates.");
     bind_value_equality(schedule);
-    bind_repr(schedule, "ObservationSchedule", {{"dates", "dates"}});
+    bind_repr(schedule, "ObservationSchedule", {"dates"});
 
     auto context = nb::class_<PricingContext>(
                        module, "PricingContext", R"doc(Validated market state for a valuation instant.
@@ -282,7 +282,7 @@ KiyosiError
                        .def_prop_ro("valuation_time", [](const PricingContext& context) { return python_timestamp(context.valuation_time()); }, "Timezone-aware valuation timestamp normalized to UTC.")
                        .def_prop_ro("calendar", &PricingContext::calendar, nb::rv_policy::reference_internal, "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
     bind_repr(context, "PricingContext",
-              {{"model_parameters", "model_parameters"}, {"spot_price", "spot_price"}, {"valuation_time", "valuation_time"}, {"calendar", "calendar"}});
+              {"model_parameters", "spot_price", "valuation_time", "calendar"});
 
     module.def("all_days_calendar", &all_days_calendar, R"doc(Return a calendar in which every day is a trading day.
 

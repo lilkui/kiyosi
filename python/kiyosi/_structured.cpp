@@ -534,19 +534,19 @@ KiyosiError
     bind_knock_in_properties(snowball);
     bind_value_equality(snowball);
     bind_repr(snowball, "SnowballOption",
-              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
-               {"maturity_coupon_rate", "maturity_coupon_rate"},
-               {"initial_spot", "initial_spot"},
-               {"knock_in_level", "knock_in_level"},
-               {"knock_out_levels", "knock_out_levels"},
-               {"upper_strike", "upper_strike"},
-               {"lower_strike", "lower_strike"},
-               {"observation_dates", "observation_dates"},
-               {"knock_in_observation_mode", "knock_in_observation_mode"},
-               {"barrier_state", "barrier_state"},
-               {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"},
-               {"expiry_date", "expiry_date"}});
+              {"knock_out_coupon_rates",
+               "maturity_coupon_rate",
+               "initial_spot",
+               "knock_in_level",
+               "knock_out_levels",
+               "upper_strike",
+               "lower_strike",
+               "observation_dates",
+               "knock_in_observation_mode",
+               "barrier_state",
+               "principal_ratio",
+               "effective_date",
+               "expiry_date"});
 
     auto binary = nb::class_<BinarySnowballOption>(
                       module, "BinarySnowballOption", R"doc(Immutable validated binary snowball option.
@@ -616,14 +616,14 @@ KiyosiError
     bind_note_properties(binary);
     bind_value_equality(binary);
     bind_repr(binary, "BinarySnowballOption",
-              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
-               {"maturity_coupon_rate", "maturity_coupon_rate"},
-               {"knock_out_levels", "knock_out_levels"},
-               {"observation_dates", "observation_dates"},
-               {"barrier_state", "barrier_state"},
-               {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"},
-               {"expiry_date", "expiry_date"}});
+              {"knock_out_coupon_rates",
+               "maturity_coupon_rate",
+               "knock_out_levels",
+               "observation_dates",
+               "barrier_state",
+               "principal_ratio",
+               "effective_date",
+               "expiry_date"});
 
     auto ternary = nb::class_<TernarySnowballOption>(
                        module, "TernarySnowballOption", R"doc(Immutable validated ternary snowball option.
@@ -712,17 +712,17 @@ KiyosiError
     bind_knock_in_properties(ternary);
     bind_value_equality(ternary);
     bind_repr(ternary, "TernarySnowballOption",
-              {{"knock_out_coupon_rates", "knock_out_coupon_rates"},
-               {"maturity_coupon_rate", "maturity_coupon_rate"},
-               {"minimum_coupon_rate", "minimum_coupon_rate"},
-               {"knock_in_level", "knock_in_level"},
-               {"knock_out_levels", "knock_out_levels"},
-               {"observation_dates", "observation_dates"},
-               {"knock_in_observation_mode", "knock_in_observation_mode"},
-               {"barrier_state", "barrier_state"},
-               {"principal_ratio", "principal_ratio"},
-               {"effective_date", "effective_date"},
-               {"expiry_date", "expiry_date"}});
+              {"knock_out_coupon_rates",
+               "maturity_coupon_rate",
+               "minimum_coupon_rate",
+               "knock_in_level",
+               "knock_out_levels",
+               "observation_dates",
+               "knock_in_observation_mode",
+               "barrier_state",
+               "principal_ratio",
+               "effective_date",
+               "expiry_date"});
 
     auto phoenix = nb::class_<PhoenixOption>(
                        module, "PhoenixOption", R"doc(Immutable validated Phoenix autocallable option.
@@ -814,7 +814,7 @@ KiyosiError
     bind_knock_in_properties(phoenix);
     bind_value_equality(phoenix);
     bind_repr(phoenix, "PhoenixOption",
-              {{"coupon_rate", "coupon_rate"}, {"initial_spot", "initial_spot"}, {"knock_in_level", "knock_in_level"}, {"knock_out_levels", "knock_out_levels"}, {"coupon_barrier_levels", "coupon_barrier_levels"}, {"upper_strike", "upper_strike"}, {"lower_strike", "lower_strike"}, {"observation_dates", "observation_dates"}, {"knock_in_observation_mode", "knock_in_observation_mode"}, {"barrier_state", "barrier_state"}, {"principal_ratio", "principal_ratio"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+              {"coupon_rate", "initial_spot", "knock_in_level", "knock_out_levels", "coupon_barrier_levels", "upper_strike", "lower_strike", "observation_dates", "knock_in_observation_mode", "barrier_state", "principal_ratio", "effective_date", "expiry_date"});
 
     bind_presets(module);
 }

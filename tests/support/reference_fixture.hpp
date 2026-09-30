@@ -76,10 +76,10 @@ inline std::string field(const std::vector<std::string>& fields, std::size_t ind
     return fields[index];
 }
 
-inline double number(const std::vector<std::string>& fields, std::size_t& index,
-                     std::size_t row, std::string_view name)
+inline double number(const std::string& text, std::size_t row, std::string_view name)
 {
-    const auto text = field(fields, index++, row, name);
+    if (text.empty())
+        throw FixtureParseError("fixture row " + std::to_string(row) + ": empty " + std::string{name});
     std::size_t parsed = 0;
     double value = 0.0;
     try {
@@ -98,10 +98,10 @@ inline double number(const std::vector<std::string>& fields, std::size_t& index,
     return value;
 }
 
-inline Date calendar_date(const std::vector<std::string>& fields, std::size_t& index,
-                          std::size_t row, std::string_view name)
+inline Date calendar_date(const std::string& text, std::size_t row, std::string_view name)
 {
-    const auto text = field(fields, index++, row, name);
+    if (text.empty())
+        throw FixtureParseError("fixture row " + std::to_string(row) + ": empty " + std::string{name});
     if (text.size() != 10 || text[4] != '-' || text[7] != '-') {
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
                                 std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
@@ -161,24 +161,8 @@ inline std::map<std::string, double> numeric_attributes(std::string_view text, s
                                                         std::string_view name)
 {
     std::map<std::string, double> result;
-    for (const auto& [key, value] : attributes(text, row, name)) {
-        std::size_t parsed = 0;
-        double number = 0.0;
-        try {
-            number = std::stod(value, &parsed);
-        } catch (const std::invalid_argument&) {
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                    std::string{name} + " value '" + value + "'");
-        } catch (const std::out_of_range&) {
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                    std::string{name} + " value '" + value + "'");
-        }
-        if (parsed != value.size() || !std::isfinite(number)) {
-            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                    std::string{name} + " value '" + value + "'");
-        }
-        result.emplace(key, number);
-    }
+    for (const auto& [key, value] : attributes(text, row, name))
+        result.emplace(key, number(value, row, std::string{name} + " value"));
     return result;
 }
 
@@ -266,29 +250,22 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
             };
             const std::map<std::string, std::string> units{
                 {"price", "price"}, {"delta", "price/spot"}, {"gamma", "price/spot^2"}, {"speed", "price/spot^3"}, {"theta", "price/day"}, {"charm", "delta/day"}, {"color", "gamma/day"}, {"vega", "price/volatility-pp"}, {"vanna", "delta/volatility-pp"}, {"zomma", "gamma/volatility-pp"}, {"rho", "price/rate-pp"}};
-            std::size_t index = 0;
-            const auto expiry_date = calendar_date({required_input("expiry_date")}, index, row, "expiry_date");
-            index = 0;
-            const auto valuation = calendar_date({required_input("valuation")}, index, row, "valuation");
+            const auto expiry_date = calendar_date(required_input("expiry_date"), row, "expiry_date");
+            const auto valuation = calendar_date(required_input("valuation"), row, "valuation");
             const bool expiry_boundary = (expiry_date - valuation).count() <= 2;
-            index = 0;
             const bool exercise_boundary = value.instrument == "AmericanOption" &&
-                                           (valuation - calendar_date({required_input("effective_date")}, index, row, "effective_date")).count() < 2;
+                                           (valuation - calendar_date(required_input("effective_date"), row, "effective_date")).count() < 2;
             const bool boundary = expiry_boundary || exercise_boundary;
             const bool binary_product = value.instrument == "BinaryBarrierOption" ||
                                         value.instrument == "TouchOption";
             const bool binary_expiry = binary_product && expiry_date == valuation;
             const bool asian = value.instrument == "GeometricAveragePriceOption" || value.instrument == "ArithmeticAveragePriceOption";
             const bool asian_expiry = asian && expiry_date == valuation;
-            index = 0;
             const bool asian_start = asian &&
-                                     (valuation - calendar_date({required_input("averaging_start_date")}, index, row, "averaging_start_date")).count() <= 2;
-            index = 0;
+                                     (valuation - calendar_date(required_input("averaging_start_date"), row, "averaging_start_date")).count() <= 2;
             const bool binary_boundary = binary_product &&
-                                         number({required_input("spot")}, index, row, "spot") == [&] {
-                                             std::size_t position = 0;
-                                             return number({required_input("barrier")}, position, row, "barrier");
-                                         }();
+                                         number(required_input("spot"), row, "spot") ==
+                                             number(required_input("barrier"), row, "barrier");
             std::size_t available = 0;
             for (const auto& [name, unit] : units) {
                 const bool unavailable = ((binary_boundary || binary_expiry || asian_expiry || asian_start) && name != "price") ||
@@ -307,8 +284,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                 }
                 ++available;
                 const auto read = [&](const std::string& prefix) {
-                    std::size_t position = 0;
-                    const double result = number({required_input(prefix + name)}, position, row, prefix + name);
+                    const double result = number(required_input(prefix + name), row, prefix + name);
                     check_tolerance(result, row, prefix + name);
                     return result;
                 };

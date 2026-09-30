@@ -138,7 +138,7 @@ KiyosiError
 
 template <typename Instrument>
 void bind_common_option_properties(nb::class_<Instrument>& binding, const char* name,
-                                   std::initializer_list<ReprField> extra_fields = {})
+                                   std::initializer_list<const char*> extra_fields = {})
 {
     binding.def_prop_ro("option_type", &Instrument::option_type,
                         "Call or put payoff direction.")
@@ -146,9 +146,9 @@ void bind_common_option_properties(nb::class_<Instrument>& binding, const char* 
         .def_prop_ro("effective_date", [](const Instrument& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
-    std::vector<ReprField> fields{{"option_type", "option_type"}, {"strike", "strike"}};
+    std::vector<const char*> fields{"option_type", "strike"};
     fields.insert(fields.end(), extra_fields.begin(), extra_fields.end());
-    fields.insert(fields.end(), {{"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+    fields.insert(fields.end(), {"effective_date", "expiry_date"});
     bind_repr(binding, name, fields);
 }
 
@@ -218,7 +218,7 @@ KiyosiError
                        .def_prop_ro("expiry_date", [](const AverageOptionType& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     bind_repr(binding, name,
-              {{"option_type", "option_type"}, {"strike", "strike"}, {"averaging_start_date", "averaging_start_date"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"realized_average", "realized_average"}});
+              {"option_type", "strike", "averaging_start_date", "effective_date", "expiry_date", "realized_average"});
 }
 
 } // namespace
@@ -356,7 +356,7 @@ KiyosiError
     If the core rejects the payoff terms or date ordering.)doc")
                     .def_prop_ro("payout", &CashOrNothingOption::payout,
                                  "Fixed in-the-money cash payout.");
-    bind_common_option_properties(cash, "CashOrNothingOption", {{"payout", "payout"}});
+    bind_common_option_properties(cash, "CashOrNothingOption", {"payout"});
 
     auto asset = nb::class_<AssetOrNothingOption>(
                      module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.
@@ -494,7 +494,7 @@ KiyosiError
             return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(barrier);
     bind_repr(barrier, "BarrierOption",
-              {{"option_type", "option_type"}, {"strike", "strike"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"}, {"rebate", "rebate"}, {"rebate_timing", "rebate_timing"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
                               module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
@@ -544,7 +544,7 @@ touch_state : {'untouched', 'touched'} or None
             return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(binary_barrier);
     bind_repr(binary_barrier, "BinaryBarrierOption",
-              {{"option_type", "option_type"}, {"strike", "strike"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"barrier_type", "barrier_type"}, {"payoff_type", "payoff_type"}, {"payout", "payout"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
 
     module.def("cash_binary_barrier_option", [](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<BarrierType> barrier_type, PythonReal payout, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_binary_barrier_option(
                                                                                                                                                                                                                                                                                                                                                                                             {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
@@ -671,7 +671,7 @@ touch_state : {'untouched', 'touched'} or None
             return output; }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
     bind_repr(touch, "TouchOption",
-              {{"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}, {"barrier_level", "barrier_level"}, {"is_one_touch", "is_one_touch"}, {"is_up", "is_up"}, {"payoff_type", "payoff_type"}, {"payout", "payout"}, {"settlement_timing", "settlement_timing"}, {"observation_mode", "observation_mode"}, {"observation_dates", "observation_dates"}, {"touch_state", "touch_state"}});
+              {"effective_date", "expiry_date", "barrier_level", "is_one_touch", "is_up", "payoff_type", "payout", "settlement_timing", "observation_mode", "observation_dates", "touch_state"});
 
     module.def("cash_one_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, PythonChoice<SettlementTiming> settlement_timing, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_one_touch_up(
                                                                                                                                                                                                                                                                                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
@@ -774,7 +774,7 @@ KiyosiError
                            .def_prop_ro("expiry_date", [](const Accumulator& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(accumulator);
     bind_repr(accumulator, "Accumulator",
-              {{"strike", "strike"}, {"knock_out_level", "knock_out_level"}, {"daily_quantity", "daily_quantity"}, {"acceleration_factor", "acceleration_factor"}, {"accumulated_quantity", "accumulated_quantity"}, {"effective_date", "effective_date"}, {"expiry_date", "expiry_date"}});
+              {"strike", "knock_out_level", "daily_quantity", "acceleration_factor", "accumulated_quantity", "effective_date", "expiry_date"});
 
     bind_structured_instruments(module);
 }

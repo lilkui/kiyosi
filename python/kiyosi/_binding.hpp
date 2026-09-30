@@ -252,7 +252,6 @@ using PythonInteger = nb::typed<nb::handle, int>;
 using PythonDate = nb::typed<nb::handle, PythonDateAnnotation>;
 using PythonValuationTime = nb::typed<nb::handle, PythonValuationTimeAnnotation>;
 using PythonGreekRequest = nb::typed<nb::handle, PythonGreekRequestAnnotation>;
-using PythonBackend = nb::typed<nb::handle, MonteCarloBackend>;
 using PythonRealSequence = nb::typed<nb::handle, nb::typed<nb::iterable, double>>;
 using PythonDateSequence =
     nb::typed<nb::handle, nb::typed<nb::iterable, PythonDateAnnotation>>;
@@ -263,23 +262,18 @@ using PythonDateIterator =
     nb::typed<nb::object, nb::typed<nb::iterator, PythonDateAnnotation>>;
 using PythonOptionalReal = nb::typed<nb::object, std::optional<double>>;
 
-struct ReprField {
-    const char* name;
-    const char* attribute;
-};
-
 template <typename T>
 void bind_repr(nb::class_<T>& binding, const char* name,
-               std::vector<ReprField> fields)
+               std::vector<const char*> fields)
 {
     const std::string type_name{name};
-    const std::vector<ReprField> attributes{std::move(fields)};
+    const std::vector<const char*> attributes{std::move(fields)};
     binding.def("__repr__", [type_name, attributes](const T& value) { // NOLINT(bugprone-exception-escape)
         const nb::object self = nb::cast(&value, nb::rv_policy::reference);
         nb::list parts;
-        for (const auto& [field, attribute] : attributes) {
+        for (const auto* field : attributes) {
             parts.append(nb::str("{}={!r}").attr("format")(
-                nb::str(field), self.attr(attribute)));
+                nb::str(field), self.attr(field)));
         }
         return nb::str("{}({})").attr("format")(
             nb::str(type_name.c_str()), nb::str(", ").attr("join")(parts));

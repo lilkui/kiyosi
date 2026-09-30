@@ -8,11 +8,6 @@ namespace {
 
 static_assert(EnumNames<Greek>::values.size() == greek_count);
 
-MonteCarloBackend monte_carlo_backend_value(nb::handle value)
-{
-    return string_enum<MonteCarloBackend>(value, "backend");
-}
-
 PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
 {
     const auto value = unwrap(result.get(measure));
@@ -209,7 +204,7 @@ OverflowError
         .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; }, "Finite-difference time-stepping scheme.")
         .def_prop_ro("asset_upper_boundary", [](const Engine& engine) { return engine.settings().asset_upper_boundary; }, "Explicit upper asset-grid boundary, or None for the core default.");
     bind_repr(binding, name,
-              {{"asset_step_count", "asset_step_count"}, {"time_step_count", "time_step_count"}, {"scheme", "scheme"}, {"asset_upper_boundary", "asset_upper_boundary"}});
+              {"asset_step_count", "time_step_count", "scheme", "asset_upper_boundary"});
     return binding;
 }
 
@@ -232,10 +227,10 @@ seed : int or None
 backend : {'cpu', 'cuda'}
     CPU or CUDA execution backend.)doc"};
     binding
-        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonBackend backend) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                  return Engine{TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
-                     monte_carlo_backend_value(backend)}};
+                     backend}};
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
              "seed"_a.none() = TradingDayMonteCarloSettings{}.seed,
@@ -263,7 +258,7 @@ OverflowError
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
         .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(binding, name,
-              {{"path_count", "path_count"}, {"seed", "seed"}, {"backend", "backend"}});
+              {"path_count", "seed", "backend"});
     return binding;
 }
 
@@ -584,7 +579,7 @@ KiyosiError
                               .def_prop_ro("zomma", [](const PricingResult& result) { return optional_value(result, Greek::zomma); }, "Gamma change per volatility percentage point, or None.")
                               .def_prop_ro("rho", [](const PricingResult& result) { return optional_value(result, Greek::rho); }, "Price change per interest-rate percentage point, or None.");
     bind_repr(pricing_result, "PricingResult",
-              {{"price", "price"}, {"delta", "delta"}, {"gamma", "gamma"}, {"speed", "speed"}, {"theta", "theta"}, {"charm", "charm"}, {"color", "color"}, {"vega", "vega"}, {"vanna", "vanna"}, {"zomma", "zomma"}, {"rho", "rho"}});
+              {"price", "delta", "gamma", "speed", "theta", "charm", "color", "vega", "vanna", "zomma", "rho"});
 }
 
 void bind_engines(nb::module_& module)
@@ -628,7 +623,7 @@ Notes
 -----
 The setting is validated when price() is called.)doc")
                    .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) { return engine.settings().step_count; }, "Number of binomial time steps.");
-    bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {{"step_count", "step_count"}});
+    bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {"step_count"});
     bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(crr);
     bind_engine_price<CoxRossRubinsteinVanillaEngine, AmericanOption>(crr);
     auto bjerksund = bind_stateless_engine<BjerksundStenslandVanillaEngine>(
@@ -657,10 +652,10 @@ seed : int or None
 backend : {'cpu', 'cuda'}
     CPU or CUDA execution backend.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                                                    PythonInteger seed, PythonBackend backend) {
+                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                                             return MonteCarloVanillaEngine{MonteCarloSettings{
                                                 integer(path_count, "path_count"), integer(step_count, "step_count"),
-                                                optional_seed(seed), monte_carlo_backend_value(backend)}};
+                                                optional_seed(seed), backend}};
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
@@ -694,7 +689,7 @@ Settings are validated when price() is called.)doc")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
                                    .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
-              {{"path_count", "path_count"}, {"step_count", "step_count"}, {"seed", "seed"}, {"backend", "backend"}});
+              {"path_count", "step_count", "seed", "backend"});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(monte_carlo_vanilla);
 

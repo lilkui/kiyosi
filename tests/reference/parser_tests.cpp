@@ -138,16 +138,14 @@ TEST_CASE("Reference fixture parser reports malformed rows")
     text.replace(tolerance + 1, text.find_first_of(";\t", tolerance + 1) - tolerance - 1, "price=-1");
     CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("non-negative"));
 
-    std::size_t index = 0;
-    CHECK_THROWS_WITH(kiyosi::test::detail::calendar_date({"2025-0x-06"}, index, 0, "valuation"),
+    CHECK_THROWS_WITH(kiyosi::test::detail::calendar_date("2025-0x-06", 0, "valuation"),
                       Catch::Matchers::ContainsSubstring("valuation"));
 }
 
 TEST_CASE("Reference fixture conversions retain field diagnostics for format and range errors")
 {
     for (const std::string text : {"oops", "1e999"}) {
-        std::size_t index = 0;
-        CHECK_THROWS_WITH(kiyosi::test::detail::number({text}, index, 7, "spot"),
+        CHECK_THROWS_WITH(kiyosi::test::detail::number(text, 7, "spot"),
                           "fixture row 7: invalid spot '" + text + "'");
         CHECK_THROWS_WITH(kiyosi::test::detail::numeric_attributes("price=" + text, 7, "outputs"),
                           "fixture row 7: invalid outputs value '" + text + "'");

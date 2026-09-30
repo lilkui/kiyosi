@@ -32,14 +32,12 @@ inline std::string fixture_text()
 /// Reads a scalar input column out of a fixture row.
 inline double fixture_number(const ReferenceCase& fixture, const std::string& key)
 {
-    std::size_t index = 0;
-    return detail::number({fixture.inputs.at(key)}, index, 0, key);
+    return detail::number(fixture.inputs.at(key), 0, key);
 }
 
 inline kiyosi::Date fixture_date(const ReferenceCase& fixture, const std::string& key)
 {
-    std::size_t index = 0;
-    return detail::calendar_date({fixture.inputs.at(key)}, index, 0, key);
+    return detail::calendar_date(fixture.inputs.at(key), 0, key);
 }
 
 template <typename PriceResult>
