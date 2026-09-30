@@ -23,6 +23,32 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Structured engines validate observation dates against each market calendar")
+{
+    const auto effective = day(2025, 1, 3);
+    const auto expiry = day(2025, 1, 6);
+    const auto note = *kiyosi::make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
+         .knock_out_levels = {120.0}, .observation_dates = {day(2025, 1, 4)},
+         .effective_date = effective, .expiry_date = expiry});
+    for (const auto& calendar : {kiyosi::all_days_calendar(), kiyosi::weekdays_calendar()}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 100.0, effective, calendar);
+        for (const auto& result : {
+                 kiyosi::MonteCarloBinarySnowballEngine{{32, 7}}.price(note, context),
+                 kiyosi::FiniteDifferenceBinarySnowballEngine{{40, 40}}.price(note, context)}) {
+            if (calendar.is_trading_day(day(2025, 1, 4))) {
+                REQUIRE(result);
+                CHECK(std::isfinite(*result));
+            } else {
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == kiyosi::ErrorCategory::invalid_date);
+                CHECK(result.error().message == "observation Date is not a trading day");
+            }
+        }
+    }
+}
+
 TEST_CASE("Structured engines reject nominal weekend expiry and accept adjusted expiry")
 {
     const auto nominal = day(2025, 1, 5);

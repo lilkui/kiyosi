@@ -76,8 +76,7 @@ Result<PricingResult> price_autocallable_finite_difference(
                                      "finite-difference grid dimensions are out of range"});
     auto note_validation = validate_autocallable_note(note);
     if (!note_validation) return std::unexpected(note_validation.error());
-    auto schedule = validate_observation_dates(note.observation_dates(), note.effective_date(),
-                                               note.expiry_date(), context.calendar());
+    auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
     if (!schedule) return std::unexpected(schedule.error());
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());

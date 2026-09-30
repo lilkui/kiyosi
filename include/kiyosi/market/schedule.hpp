@@ -15,6 +15,17 @@ namespace detail {
 [[nodiscard]] Result<ObservationSchedule> make_date_schedule(std::vector<Date>, Date, Date);
 [[nodiscard]] Result<ObservationSchedule> make_observation_schedule(
     std::vector<Date>, Date, Date, const TradingCalendar&);
+
+// Requires dates whose range and ordering have already been validated.
+[[nodiscard]] inline Result<void> validate_observation_trading_days(
+    std::span<const Date> observation_dates, const TradingCalendar& calendar)
+{
+    for (const Date observation_date : observation_dates)
+        if (!calendar.is_trading_day(observation_date))
+            return std::unexpected(Error{ErrorCategory::invalid_date,
+                                         "observation Date is not a trading day"});
+    return {};
+}
 } // namespace detail
 
 /// Validates ordering and instrument-life bounds for a date schedule.
@@ -45,11 +56,7 @@ namespace detail {
 {
     auto schedule = validate_date_schedule(observation_dates, instrument_start, instrument_end);
     if (!schedule) return schedule;
-    for (const Date observation_date : observation_dates)
-        if (!calendar.is_trading_day(observation_date))
-            return std::unexpected(Error{ErrorCategory::invalid_date,
-                                         "observation Date is not a trading day"});
-    return {};
+    return detail::validate_observation_trading_days(observation_dates, calendar);
 }
 
 /// Immutable, strictly ordered collection of contract observation dates.
