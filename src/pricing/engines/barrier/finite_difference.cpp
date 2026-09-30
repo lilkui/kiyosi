@@ -12,14 +12,9 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
+// Valuation time and observation dates have been validated by price_native.
 Result<double> knockout_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
-    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
-    if (!valid) return std::unexpected(valid.error());
-    if (option.observation_mode() == ObservationMode::scheduled) {
-        auto schedule = validate_observation_dates(option.observation_dates(), option.effective_date(), option.expiry_date(), context.calendar());
-        if (!schedule) return std::unexpected(schedule.error());
-    }
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
     if (time_to_expiry == 0.0) return std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
@@ -37,7 +32,7 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         for (auto value : option.observation_dates()) {
             if (value < context.valuation_time()) continue;
             const double event_time = actual_365_fixed_year_fraction(context.valuation_time(), value);
-            if (event_time >= 0.0 && event_time <= time_to_expiry) observation_times.push_back(event_time);
+            observation_times.push_back(event_time);
         }
     }
     const auto grid = make_finite_difference_time_grid(time_to_expiry, time_step_count, observation_times);
@@ -45,7 +40,6 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         !stable)
         return std::unexpected(stable.error());
     auto active = [&](double time) { return option.observation_mode() == ObservationMode::continuous || std::ranges::binary_search(observation_times, time); };
-    std::ranges::sort(observation_times);
     auto payoff = [&](double asset) { return std::max((option.option_type() == OptionType::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
     auto rebate_value = [&](double tau) { return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
