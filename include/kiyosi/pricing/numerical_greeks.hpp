@@ -265,7 +265,6 @@ Result<PricingResult> complete_greeks(
                     }
         }
         if (!spot_discontinuity && time_stencil_available &&
-            (need(Greek::theta) || need(Greek::charm) || need(Greek::color)) &&
             (before_days != 0.0 || after_days != 0.0)) {
             const auto t_before = before_days == 0.0
                                       ? p0
