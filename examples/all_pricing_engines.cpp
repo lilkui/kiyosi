@@ -47,9 +47,9 @@ try {
         10.0);
     const auto averaging_start_date = effective_date;
     const auto geometric_asian = *kiyosi::make_geometric_average_option(
-        kiyosi::OptionType::call, 100.0, averaging_start_date, effective_date, expiry_date);
+        kiyosi::OptionType::call, 100.0, effective_date, averaging_start_date, expiry_date);
     const auto arithmetic_asian = *kiyosi::make_arithmetic_average_option(
-        kiyosi::OptionType::call, 100.0, averaging_start_date, effective_date, expiry_date);
+        kiyosi::OptionType::call, 100.0, effective_date, averaging_start_date, expiry_date);
 
     const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
                                                         .knock_out_level = 110.0,

@@ -239,8 +239,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
             } else if (test.kind == "date_round_trip") {
                 const auto option = kiyosi::make_geometric_average_option(
                     option_type(test.inputs), std::stod(test.inputs.at("strike")),
-                    parse_date(test.inputs.at("averaging_start_date")),
-                    parse_date(test.inputs.at("effective_date")), parse_date(test.inputs.at("expiry_date")));
+                    parse_date(test.inputs.at("effective_date")),
+                    parse_date(test.inputs.at("averaging_start_date")), parse_date(test.inputs.at("expiry_date")));
                 REQUIRE(option);
                 CHECK(option->averaging_start_date() == parse_date(test.expected.at("averaging_start_date")));
                 CHECK(option->effective_date() == parse_date(test.expected.at("effective_date")));

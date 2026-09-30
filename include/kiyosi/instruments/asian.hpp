@@ -130,14 +130,14 @@ using GeometricAveragePriceOption = AveragePriceOption<GeometricAveraging>;
 /// Average-price option using arithmetic averaging.
 using ArithmeticAveragePriceOption = AveragePriceOption<ArithmeticAveraging>;
 
-/// Date arguments are ordered `averaging_start_date`, `effective_date`, `expiry_date`; valid terms satisfy
+/// Date arguments are ordered `effective_date`, `averaging_start_date`, `expiry_date`; valid terms satisfy
 /// `effective_date <= averaging_start_date <= expiry_date`.
 /// Equal averaging start and expiry dates denote a single fixing at expiry.
 /// @tparam Averaging GeometricAveraging or ArithmeticAveraging.
 /// @return The option, or an input-validation error.
 template <typename Averaging>
 [[nodiscard]] inline Result<AveragePriceOption<Averaging>> make_average_option(
-    OptionType option_type, double strike, Date averaging_start_date, Date effective_date, Date expiry_date,
+    OptionType option_type, double strike, Date effective_date, Date averaging_start_date, Date expiry_date,
     double realized_average = default_realized_average)
 {
     auto terms = detail::make_asian_option_terms(option_type, strike, averaging_start_date, realized_average,
@@ -149,20 +149,20 @@ template <typename Averaging>
 /// Creates a geometric-average option; dates follow make_average_option ordering.
 /// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<GeometricAveragePriceOption> make_geometric_average_option(
-    OptionType option_type, double strike, Date averaging_start_date, Date effective_date, Date expiry_date,
+    OptionType option_type, double strike, Date effective_date, Date averaging_start_date, Date expiry_date,
     double realized_average = default_realized_average)
 {
-    return make_average_option<GeometricAveraging>(option_type, strike, averaging_start_date, effective_date, expiry_date,
+    return make_average_option<GeometricAveraging>(option_type, strike, effective_date, averaging_start_date, expiry_date,
                                                    realized_average);
 }
 
 /// Creates an arithmetic-average option; dates follow make_average_option ordering.
 /// @return The option, or an input-validation error.
 [[nodiscard]] inline Result<ArithmeticAveragePriceOption> make_arithmetic_average_option(
-    OptionType option_type, double strike, Date averaging_start_date, Date effective_date, Date expiry_date,
+    OptionType option_type, double strike, Date effective_date, Date averaging_start_date, Date expiry_date,
     double realized_average = default_realized_average)
 {
-    return make_average_option<ArithmeticAveraging>(option_type, strike, averaging_start_date, effective_date, expiry_date,
+    return make_average_option<ArithmeticAveraging>(option_type, strike, effective_date, averaging_start_date, expiry_date,
                                                     realized_average);
 }
 

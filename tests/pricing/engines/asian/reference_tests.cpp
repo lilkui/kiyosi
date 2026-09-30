@@ -87,14 +87,14 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
         };
         if (geometric) {
             REQUIRE(fixture.engine == "AnalyticGeometricAveragePriceEngine");
-            check(kiyosi::make_geometric_average_option(type, number("strike"), date("averaging_start_date"),
-                                                        date("effective_date"), date("expiry_date"),
+            check(kiyosi::make_geometric_average_option(type, number("strike"), date("effective_date"),
+                                                        date("averaging_start_date"), date("expiry_date"),
                                                         number("realized_average")),
                   kiyosi::AnalyticGeometricAveragePriceEngine{});
         } else {
             REQUIRE(fixture.engine == "TurnbullWakemanArithmeticAveragePriceEngine");
-            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("averaging_start_date"),
-                                                         date("effective_date"), date("expiry_date"),
+            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("effective_date"),
+                                                         date("averaging_start_date"), date("expiry_date"),
                                                          number("realized_average")),
                   kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{});
         }
@@ -126,7 +126,7 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     };
     for (const auto& test : cases) {
         const auto option = kiyosi::make_geometric_average_option(
-            kiyosi::OptionType::call, 100.0, test.start, effective, expiry, test.realized);
+            kiyosi::OptionType::call, 100.0, effective, test.start, expiry, test.realized);
         REQUIRE(option);
         const auto price = engine.price(*option, *context);
         REQUIRE(price);
@@ -141,7 +141,7 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     CHECK(missing_price.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
     const auto starting = kiyosi::make_geometric_average_option(
-        kiyosi::OptionType::call, 100.0, valuation, effective, expiry);
+        kiyosi::OptionType::call, 100.0, effective, valuation, expiry);
     REQUIRE(starting);
     const auto at_start = engine.price_with_greeks(*starting, *context, kiyosi::GreeksRequest{true});
     REQUIRE(at_start);
@@ -174,7 +174,7 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
     const kiyosi::AnalyticVanillaEngine vanilla_engine;
 
     for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
-        const auto asian = kiyosi::make_arithmetic_average_option(type, 100.0, expiry, effective, expiry);
+        const auto asian = kiyosi::make_arithmetic_average_option(type, 100.0, effective, expiry, expiry);
         const auto vanilla = kiyosi::make_european_option(type, 100.0, effective, expiry);
         REQUIRE(asian);
         REQUIRE(vanilla);
@@ -192,7 +192,7 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
     }
 
     const auto future_fixing = kiyosi::make_arithmetic_average_option(
-        kiyosi::OptionType::call, 100.0, expiry, effective, expiry, 110.0);
+        kiyosi::OptionType::call, 100.0, effective, expiry, expiry, 110.0);
     const auto before_expiry = kiyosi::make_pricing_context(*parameters, 100.0, effective);
     const auto at_expiry = kiyosi::make_pricing_context(*parameters, 110.0, expiry);
     REQUIRE(future_fixing);
@@ -205,7 +205,7 @@ TEST_CASE("A single arithmetic fixing at expiry has European time value")
     REQUIRE_FALSE(settled);
     CHECK(settled.error().category == kiyosi::ErrorCategory::invalid_parameter);
     const auto valid_single = kiyosi::make_arithmetic_average_option(
-        kiyosi::OptionType::call, 100.0, expiry, effective, expiry);
+        kiyosi::OptionType::call, 100.0, effective, expiry, expiry);
     REQUIRE(valid_single);
     CHECK(*asian_engine.price(*valid_single, *at_expiry) == 10.0);
 }
@@ -246,9 +246,9 @@ TEST_CASE("Arithmetic averaging requires the elapsed average once averaging has 
     const auto parameters = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     REQUIRE(parameters);
     const auto missing = kiyosi::make_arithmetic_average_option(
-        kiyosi::OptionType::call, 100.0, start, effective, expiry);
+        kiyosi::OptionType::call, 100.0, effective, start, expiry);
     const auto known = kiyosi::make_arithmetic_average_option(
-        kiyosi::OptionType::call, 100.0, start, effective, expiry, 110.0);
+        kiyosi::OptionType::call, 100.0, effective, start, expiry, 110.0);
     REQUIRE(missing);
     REQUIRE(known);
     const kiyosi::TurnbullWakemanArithmeticAveragePriceEngine engine;

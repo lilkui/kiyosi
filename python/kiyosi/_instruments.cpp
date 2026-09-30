@@ -180,8 +180,8 @@ expiry_date : datetime.date
                                                PythonDate expiry_date, PythonReal realized_average) {
                                 return unwrap(factory(
                                     type, real_number(strike, "strike"),
-                                    calendar_date(averaging_start_date, "averaging_start_date"),
-                                    calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                    calendar_date(effective_date, "effective_date"),
+                                    calendar_date(averaging_start_date, "averaging_start_date"), calendar_date(expiry_date, "expiry_date"),
                                     real_number(realized_average, "realized_average")));
                             }),
                             nb::kw_only(), "option_type"_a, "strike"_a, "averaging_start_date"_a, "effective_date"_a,
