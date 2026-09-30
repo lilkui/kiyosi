@@ -94,11 +94,13 @@ static_assert(kiyosi::NumericalShiftSettings{}.rate_shift == 1e-4);
 static_assert(kiyosi::NumericalShiftSettings{}.time_shift_days == 1);
 static_assert(kiyosi::ImpliedVolatilitySettings{}.lower_bound == 0.0001);
 static_assert(kiyosi::ImpliedVolatilitySettings{}.upper_bound == 4.0);
-static_assert(kiyosi::ImpliedVolatilitySettings{}.tolerance == 1e-8);
+static_assert(kiyosi::ImpliedVolatilitySettings{}.price_tolerance == 1e-8);
+static_assert(kiyosi::ImpliedVolatilitySettings{}.parameter_tolerance == 1e-8);
 static_assert(kiyosi::ImpliedVolatilitySettings{}.max_iterations == 100);
 static_assert(kiyosi::ImpliedCouponSettings{}.lower_bound == 0.0);
 static_assert(kiyosi::ImpliedCouponSettings{}.upper_bound == 2.0);
-static_assert(kiyosi::ImpliedCouponSettings{}.tolerance == 1e-8);
+static_assert(kiyosi::ImpliedCouponSettings{}.price_tolerance == 1e-8);
+static_assert(kiyosi::ImpliedCouponSettings{}.parameter_tolerance == 1e-8);
 static_assert(kiyosi::ImpliedCouponSettings{}.max_iterations == 100);
 static_assert(kiyosi::BinomialSettings{}.step_count == 256);
 

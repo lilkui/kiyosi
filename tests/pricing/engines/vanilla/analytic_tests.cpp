@@ -130,7 +130,7 @@ TEST_CASE("Analytic European implied volatility reports solver failures")
 
     const auto unconverged = kiyosi::implied_volatility(
         engine, option, context, price,
-        kiyosi::ImpliedVolatilitySettings{.tolerance = 1e-15, .max_iterations = 1});
+        kiyosi::ImpliedVolatilitySettings{.price_tolerance = 1e-15, .parameter_tolerance = 1e-15, .max_iterations = 1});
     REQUIRE_FALSE(unconverged.has_value());
     CHECK(unconverged.error().category == kiyosi::ErrorCategory::solver_non_convergence);
 }

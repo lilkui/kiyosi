@@ -11,18 +11,22 @@ enum class CouponQuoteConvention : std::uint8_t {
 };
 
 /// Bracketing bounds and convergence controls for the implied-volatility solver.
+/// Stops when either the price error or the parameter interval meets its own tolerance.
 struct ImpliedVolatilitySettings {
     double lower_bound = 0.0001; ///< Positive lower volatility bound.
     double upper_bound = 4.0;    ///< Upper volatility bound, greater than the lower bound.
-    double tolerance = 1e-8;     ///< Positive price and interval convergence tolerance.
+    double price_tolerance = 1e-8;     ///< Positive absolute price-error tolerance.
+    double parameter_tolerance = 1e-8; ///< Positive absolute volatility-interval tolerance.
     int max_iterations = 100;    ///< Positive maximum bisection iteration count.
 };
 
 /// Bracketing bounds and convergence controls for the implied-coupon solver.
+/// Stops when either the price error or the parameter interval meets its own tolerance.
 struct ImpliedCouponSettings {
     double lower_bound = 0.0; ///< Finite lower coupon bound.
     double upper_bound = 2.0; ///< Finite upper coupon bound, greater than the lower bound.
-    double tolerance = 1e-8;  ///< Positive price and interval convergence tolerance.
+    double price_tolerance = 1e-8;     ///< Positive absolute price-error tolerance.
+    double parameter_tolerance = 1e-8; ///< Positive absolute coupon-interval tolerance.
     int max_iterations = 100; ///< Positive maximum bisection iteration count.
 };
 

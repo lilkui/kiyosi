@@ -277,20 +277,22 @@ NumericalShiftSettings numerical_settings(
 }
 
 ImpliedVolatilitySettings volatility_settings(
-    nb::handle lower_bound, nb::handle upper_bound, nb::handle tolerance,
+    nb::handle lower_bound, nb::handle upper_bound, nb::handle price_tolerance, nb::handle parameter_tolerance,
     nb::handle max_iterations)
 {
     return {real_number(lower_bound, "lower_bound"),
-            real_number(upper_bound, "upper_bound"), real_number(tolerance, "tolerance"),
+            real_number(upper_bound, "upper_bound"), real_number(price_tolerance, "price_tolerance"),
+            real_number(parameter_tolerance, "parameter_tolerance"),
             integer(max_iterations, "max_iterations")};
 }
 
 ImpliedCouponSettings coupon_settings(
-    nb::handle lower_bound, nb::handle upper_bound, nb::handle tolerance,
+    nb::handle lower_bound, nb::handle upper_bound, nb::handle price_tolerance, nb::handle parameter_tolerance,
     nb::handle max_iterations)
 {
     return {real_number(lower_bound, "lower_bound"),
-            real_number(upper_bound, "upper_bound"), real_number(tolerance, "tolerance"),
+            real_number(upper_bound, "upper_bound"), real_number(price_tolerance, "price_tolerance"),
+            real_number(parameter_tolerance, "parameter_tolerance"),
             integer(max_iterations, "max_iterations")};
 }
 
@@ -350,10 +352,10 @@ KiyosiError
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
-           PythonReal tolerance, PythonInteger max_iterations) {
+           PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
             const auto settings = volatility_settings(
-                lower_bound, upper_bound, tolerance, max_iterations);
+                lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_volatility(
                 engine, instrument, context, observed, settings));
@@ -361,7 +363,8 @@ KiyosiError
         "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
         "lower_bound"_a = ImpliedVolatilitySettings{}.lower_bound,
         "upper_bound"_a = ImpliedVolatilitySettings{}.upper_bound,
-        "tolerance"_a = ImpliedVolatilitySettings{}.tolerance,
+        "price_tolerance"_a = ImpliedVolatilitySettings{}.price_tolerance,
+        "parameter_tolerance"_a = ImpliedVolatilitySettings{}.parameter_tolerance,
         "max_iterations"_a = ImpliedVolatilitySettings{}.max_iterations,
         R"doc(Solve for the volatility that matches an observed price.
 
@@ -377,8 +380,11 @@ observed_price : float
     Target instrument price.
 lower_bound, upper_bound : float, optional
     Volatility search interval. Omitted values use core defaults.
-tolerance : float, optional
-    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
+price_tolerance : float, optional
+    Absolute price-error tolerance; Monte Carlo sampling error is not bounded.
+parameter_tolerance : float, optional
+    Absolute search-interval tolerance in volatility or coupon-rate units.
+    The solver stops when either tolerance is met.
 max_iterations : int, optional
     Maximum solver iterations.
 
@@ -404,10 +410,10 @@ void bind_implied_coupon_pair(nb::module_& module)
         "implied_coupon",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
-           PythonReal tolerance, PythonInteger max_iterations) {
+           PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
             const auto settings = coupon_settings(
-                lower_bound, upper_bound, tolerance, max_iterations);
+                lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_coupon(
                 engine, instrument, context, observed, settings));
@@ -415,7 +421,8 @@ void bind_implied_coupon_pair(nb::module_& module)
         "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
         "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
         "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
-        "tolerance"_a = ImpliedCouponSettings{}.tolerance,
+        "price_tolerance"_a = ImpliedCouponSettings{}.price_tolerance,
+        "parameter_tolerance"_a = ImpliedCouponSettings{}.parameter_tolerance,
         "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
         R"doc(Solve for a Phoenix coupon rate that matches an observed price.
 
@@ -431,8 +438,11 @@ observed_price : float
     Target instrument price.
 lower_bound, upper_bound : float, optional
     Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
-tolerance : float, optional
-    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
+price_tolerance : float, optional
+    Absolute price-error tolerance; Monte Carlo sampling error is not bounded.
+parameter_tolerance : float, optional
+    Absolute search-interval tolerance in volatility or coupon-rate units.
+    The solver stops when either tolerance is met.
 max_iterations : int, optional
     Maximum solver iterations.
 
@@ -458,11 +468,11 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
         "implied_coupon",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
            PythonReal observed_price, PythonChoice<CouponQuoteConvention> quote_convention,
-           PythonReal lower_bound, PythonReal upper_bound, PythonReal tolerance,
+           PythonReal lower_bound, PythonReal upper_bound, PythonReal price_tolerance, PythonReal parameter_tolerance,
            PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
             const auto settings = coupon_settings(
-                lower_bound, upper_bound, tolerance, max_iterations);
+                lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_coupon(
                 engine, instrument, context, observed, quote_convention, settings));
@@ -471,7 +481,8 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
         "quote_convention"_a,
         "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
         "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
-        "tolerance"_a = ImpliedCouponSettings{}.tolerance,
+        "price_tolerance"_a = ImpliedCouponSettings{}.price_tolerance,
+        "parameter_tolerance"_a = ImpliedCouponSettings{}.parameter_tolerance,
         "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
         R"doc(Solve for a snowball coupon rate that matches an observed price.
 
@@ -489,8 +500,11 @@ quote_convention : {'shift_maturity_coupon', 'preserve_maturity_coupon'}
     Whether the maturity coupon shifts with quoted knock-out coupons.
 lower_bound, upper_bound : float, optional
     Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
-tolerance : float, optional
-    Solver convergence tolerance. With Monte Carlo, this applies to the sampled price curve, not sampling error.
+price_tolerance : float, optional
+    Absolute price-error tolerance; Monte Carlo sampling error is not bounded.
+parameter_tolerance : float, optional
+    Absolute search-interval tolerance in volatility or coupon-rate units.
+    The solver stops when either tolerance is met.
 max_iterations : int, optional
     Maximum solver iterations.
 

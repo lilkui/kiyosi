@@ -35,7 +35,8 @@ template <typename Engine, typename Option>
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "observed price must be finite"});
     if (!std::isfinite(settings.lower_bound) || !std::isfinite(settings.upper_bound) ||
         settings.lower_bound <= 0.0 || settings.lower_bound >= settings.upper_bound ||
-        !std::isfinite(settings.tolerance) || settings.tolerance <= 0.0 || settings.max_iterations <= 0)
+        !std::isfinite(settings.price_tolerance) || settings.price_tolerance <= 0.0 || !std::isfinite(settings.parameter_tolerance) ||
+        settings.parameter_tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-volatility settings are invalid"});
     if constexpr (requires { engine.settings().seed; }) {
@@ -89,8 +90,8 @@ template <typename Engine, typename Option>
     if (!identifiable)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "volatility does not affect the remaining cashflows"});
-    if (std::abs(elo) <= settings.tolerance) return lo;
-    if (std::abs(ehi) <= settings.tolerance) return hi;
+    if (std::abs(elo) <= settings.price_tolerance) return lo;
+    if (std::abs(ehi) <= settings.price_tolerance) return hi;
     if ((elo < 0.0) == (ehi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
                                      "price is not bracketed by volatility bounds"});
@@ -99,7 +100,7 @@ template <typename Engine, typename Option>
         auto fm = evaluate(mid);
         if (!fm) return std::unexpected(fm.error());
         const double em = *fm - observed_price;
-        if (std::abs(em) <= settings.tolerance || hi - lo <= settings.tolerance) return mid;
+        if (std::abs(em) <= settings.price_tolerance || hi - lo <= settings.parameter_tolerance) return mid;
         if ((elo < 0.0) == (em < 0.0)) {
             lo = mid;
             elo = em;
@@ -220,8 +221,9 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
         !std::isfinite(settings.upper_bound) ||
-        settings.lower_bound >= settings.upper_bound || !std::isfinite(settings.tolerance) ||
-        settings.tolerance <= 0.0 || settings.max_iterations <= 0)
+        settings.lower_bound >= settings.upper_bound || !std::isfinite(settings.price_tolerance) ||
+        settings.price_tolerance <= 0.0 || !std::isfinite(settings.parameter_tolerance) ||
+        settings.parameter_tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-coupon settings are invalid"});
     if constexpr (requires { engine.settings().seed; }) {
@@ -270,8 +272,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     if (option.barrier_state() == AutocallableBarrierState::knocked_out || !remaining_coupon)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "coupon does not affect the remaining cashflows"});
-    if (std::abs(*flo) <= settings.tolerance) return lo;
-    if (std::abs(*fhi) <= settings.tolerance) return hi;
+    if (std::abs(*flo) <= settings.price_tolerance) return lo;
+    if (std::abs(*fhi) <= settings.price_tolerance) return hi;
     if ((*flo < 0.0) == (*fhi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_coupon,
                                      "price is not bracketed by coupon bounds"});
@@ -279,7 +281,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         const double mid = std::midpoint(lo, hi);
         auto fm = evaluate(mid);
         if (!fm) return std::unexpected(fm.error());
-        if (std::abs(*fm) <= settings.tolerance || hi - lo <= settings.tolerance) return mid;
+        if (std::abs(*fm) <= settings.price_tolerance || hi - lo <= settings.parameter_tolerance) return mid;
         if ((*flo < 0.0) == (*fm < 0.0)) {
             lo = mid;
             flo = fm;

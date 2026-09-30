@@ -426,7 +426,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     self.context,
                     engine.price(target, self.context),
                     quote_convention=convention,
-                    tolerance=1e-6,
+                    price_tolerance=1e-6,
+                    parameter_tolerance=1e-6,
                 )
                 self.assertAlmostEqual(implied, 0.12, places=5)
 
@@ -1787,6 +1788,21 @@ class KiyosiPythonTests(unittest.TestCase):
             ),
             10 * math.exp(-0.04 * 184 / 365),
         )
+
+    def test_implied_solver_tolerances_have_separate_units(self):
+        option = EuropeanOption(option_type="call", strike=100,
+                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+        context = PricingContext(model_parameters=self.parameters, spot_price=100,
+                                 valuation_time=date(2025, 7, 1))
+        engine = AnalyticVanillaEngine()
+        quote = engine.price(option, context)
+        result = implied_volatility(engine, option, context, quote,
+                                    price_tolerance=1e-12, parameter_tolerance=1e-10)
+        self.assertAlmostEqual(result, 0.2, delta=1e-10)
+        for name in ("price_tolerance", "parameter_tolerance"):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                implied_volatility(engine, option, context, quote, **{name: 0})
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
 
     def test_unrepresentable_numerical_shifts(self):
         option = EuropeanOption(option_type="call", strike=100,

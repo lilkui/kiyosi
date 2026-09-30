@@ -353,6 +353,37 @@ struct SolverSeedRecordingEngine {
     }
 };
 
+TEST_CASE("Implied solvers control price and parameter tolerances separately", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0,
+        .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0},
+        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry},
+        .effective_date = effective, .expiry_date = expiry});
+    std::vector<std::optional<unsigned>> calls;
+    const SolverSeedRecordingEngine engine{{1, &calls}};
+    for (const auto [price_tolerance, parameter_tolerance] :
+         {std::pair{1e-12, 1e-12}, std::pair{0.15, 1e-12}, std::pair{1e-12, 1.0},
+          std::pair{0.0, 1e-12}, std::pair{1e-12, 0.0}}) {
+        const auto vol = kiyosi::implied_volatility(engine, option, market(), 0.37,
+            {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
+        const auto coupon = kiyosi::implied_coupon(engine, phoenix, market(), 0.37,
+            {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
+        for (const auto& result : {vol, coupon}) {
+            if (price_tolerance == 0.0 || parameter_tolerance == 0.0) {
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == ErrorCategory::invalid_parameter);
+            } else if (price_tolerance == parameter_tolerance) {
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == ErrorCategory::solver_non_convergence);
+            } else {
+                REQUIRE(result);
+                CHECK(*result == 0.5);
+            }
+        }
+    }
+}
+
 TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
