@@ -84,7 +84,10 @@ inline double number(const std::vector<std::string>& fields, std::size_t& index,
     double value = 0.0;
     try {
         value = std::stod(text, &parsed);
-    } catch (const std::exception&) {
+    } catch (const std::invalid_argument&) {
+        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                                std::string{name} + " '" + text + "'");
+    } catch (const std::out_of_range&) {
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
                                 std::string{name} + " '" + text + "'");
     }
@@ -117,7 +120,10 @@ inline Date calendar_date(const std::vector<std::string>& fields, std::size_t& i
                          std::chrono::day{day_number}};
         if (!is_supported_date(value)) throw std::invalid_argument("Date");
         return value;
-    } catch (const std::exception&) {
+    } catch (const std::invalid_argument&) {
+        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                                std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
+    } catch (const std::out_of_range&) {
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
                                 std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
     }
@@ -160,7 +166,10 @@ inline std::map<std::string, double> numeric_attributes(std::string_view text, s
         double number = 0.0;
         try {
             number = std::stod(value, &parsed);
-        } catch (const std::exception&) {
+        } catch (const std::invalid_argument&) {
+            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                                    std::string{name} + " value '" + value + "'");
+        } catch (const std::out_of_range&) {
             throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
                                     std::string{name} + " value '" + value + "'");
         }
@@ -233,7 +242,10 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
             if (parsed != tolerance_text.size() || !std::isfinite(value.provenance.explicit_tolerance) ||
                 value.provenance.explicit_tolerance < 0.0)
                 throw std::invalid_argument("tolerance");
-        } catch (const std::exception&) {
+        } catch (const std::invalid_argument&) {
+            throw FixtureParseError("fixture row " + std::to_string(row) +
+                                    ": provenance tolerance must be finite and non-negative");
+        } catch (const std::out_of_range&) {
             throw FixtureParseError("fixture row " + std::to_string(row) +
                                     ": provenance tolerance must be finite and non-negative");
         }
@@ -324,7 +336,9 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                 if (paths == 0 || steps == 0 || parsed != parts[3].size() || !std::isfinite(tolerance) || tolerance < 0.0)
                     throw std::invalid_argument("tolerance");
                 value.monte_carlo = MonteCarloMetadata{seed, paths, steps, tolerance};
-            } catch (const std::exception&) {
+            } catch (const std::invalid_argument&) {
+                throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid Monte Carlo metadata");
+            } catch (const std::out_of_range&) {
                 throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid Monte Carlo metadata");
             }
         }

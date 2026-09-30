@@ -143,6 +143,31 @@ TEST_CASE("Reference fixture parser reports malformed rows")
                       Catch::Matchers::ContainsSubstring("valuation"));
 }
 
+TEST_CASE("Reference fixture conversions retain field diagnostics for format and range errors")
+{
+    for (const std::string text : {"oops", "1e999"}) {
+        std::size_t index = 0;
+        CHECK_THROWS_WITH(kiyosi::test::detail::number({text}, index, 7, "spot"),
+                          "fixture row 7: invalid spot '" + text + "'");
+        CHECK_THROWS_WITH(kiyosi::test::detail::numeric_attributes("price=" + text, 7, "outputs"),
+                          "fixture row 7: invalid outputs value '" + text + "'");
+    }
+    const auto parse = [](const std::string& tolerance, const std::string& metadata) {
+        std::istringstream input{
+            "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
+            "test\tOption\tEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
+            "reference_kind=statistical;tolerance=" + tolerance +
+            "\tprice=1\tprice=0.1\t" + metadata + "\n"};
+        return kiyosi::test::parse_reference_cases(input);
+    };
+    for (const std::string text : {"oops", "1e999"})
+        CHECK_THROWS_WITH(parse(text, "-"),
+                          "fixture row 2: provenance tolerance must be finite and non-negative");
+    for (const std::string text : {"oops", "18446744073709551616"})
+        CHECK_THROWS_WITH(parse("0.1", text + "|32|3|0.1"),
+                          "fixture row 2: invalid Monte Carlo metadata");
+}
+
 TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical metadata")
 {
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
