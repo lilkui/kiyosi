@@ -20,6 +20,22 @@ permissions:
   contents: read
 
 jobs:
+  test-cpu:
+    name: Test Python with CUDA disabled
+    runs-on: ubuntu-24.04
+    env:
+      CMAKE_ARGS: -DKIYOSI_ENABLE_CUDA=OFF
+      KIYOSI_TEST_CUDA: disabled
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests/python -p test_kiyosi.py
+
   build:
     name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -75,7 +91,7 @@ jobs:
   publish:
     name: Publish distributions to PyPI
     if: github.event_name == 'release'
-    needs: build
+    needs: [build, test-cpu]
     runs-on: ubuntu-24.04
     environment:
       name: pypi

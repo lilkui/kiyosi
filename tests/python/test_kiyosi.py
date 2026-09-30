@@ -1,11 +1,16 @@
 import csv
 import math
+import os
 import unittest
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import get_args
 
 import kiyosi
+
+# Jobs set KIYOSI_TEST_CUDA=disabled only after building with KIYOSI_ENABLE_CUDA=OFF,
+# or enabled after building with CUDA support on a host with a usable GPU.
+# Unset runs the portable tests, including CUDA validation and expiry settlement.
 from kiyosi import market, pricing
 from kiyosi.instruments import (
     Accumulator,
@@ -1117,6 +1122,10 @@ class KiyosiPythonTests(unittest.TestCase):
                     with self.assertRaises(OverflowError):
                         engine_type(seed=invalid)
 
+    @unittest.skipUnless(
+        os.environ.get("KIYOSI_TEST_CUDA") == "disabled",
+        "requires a job built with KIYOSI_ENABLE_CUDA=OFF",
+    )
     def test_cuda_backend_unavailable_is_deferred_and_categorized(self):
         engine = pricing.MonteCarloVanillaEngine(
             path_count=20,
@@ -1137,6 +1146,10 @@ class KiyosiPythonTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE
         )
 
+    @unittest.skipUnless(
+        os.environ.get("KIYOSI_TEST_CUDA") == "disabled",
+        "requires a job built with KIYOSI_ENABLE_CUDA=OFF",
+    )
     def test_american_cuda_backend_unavailable_is_deferred_and_categorized(self):
         option = AmericanOption(
             option_type="put",
@@ -1156,6 +1169,32 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.BACKEND_UNAVAILABLE
         )
+
+    @unittest.skipUnless(
+        os.environ.get("KIYOSI_TEST_CUDA") == "enabled",
+        "requires a CUDA-enabled build and a usable GPU",
+    )
+    def test_cuda_prices_pre_expiry_known_cashflow(self):
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.0, volatility=1e-8
+            ),
+            spot_price=100.0,
+            valuation_time=date(2025, 1, 1),
+        )
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=4096, step_count=3, seed=42, backend="cuda"
+        )
+        # With negligible volatility and no dividends, neither call exercises early.
+        # One year's deterministic growth gives S - K exp(-rT).
+        expected = 100.0 * (1.0 - math.exp(-0.05))
+        for option_type in (EuropeanOption, AmericanOption):
+            with self.subTest(option=option_type.__name__):
+                option = option_type(
+                    option_type="call", strike=100.0,
+                    effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+                )
+                self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-6)
 
     def test_american_cuda_validates_before_backend_and_prices_expiry(self):
         option = AmericanOption(
