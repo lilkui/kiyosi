@@ -16,15 +16,13 @@ namespace {
 
 /// Value at expiry_date per unit of the affine decomposition: `slope` multiplies the quantity already
 /// accumulated, `intercept` holds the value of the quantity still to be bought.
-void seed_expiry_layers(const Accumulator& option, const PricingContext& context,
-                        const SpatialGrid& space, std::vector<double>& slope,
+void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std::vector<double>& slope,
                         std::vector<double>& intercept)
 {
-    const bool expiry_trading = context.calendar().is_trading_day(option.expiry_date());
     for (std::size_t index = 0; index < space.size(); ++index) {
         const double asset = space.spacing * static_cast<double>(index);
         slope[index] = asset - option.strike();
-        if (!expiry_trading || asset >= option.knock_out_level()) {
+        if (asset >= option.knock_out_level()) {
             intercept[index] = 0.0;
             continue;
         }
@@ -39,7 +37,7 @@ Result<PricingResult> terminal_value(const Accumulator& option, const PricingCon
 {
     double quantity = option.accumulated_quantity();
     const double value = context.spot_price();
-    if (context.calendar().is_trading_day(option.expiry_date()) && value < option.knock_out_level())
+    if (value < option.knock_out_level())
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
     return make_pricing_result(quantity * (value - option.strike()));
@@ -89,7 +87,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
 
     const std::size_t size = space->size();
     std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
-    seed_expiry_layers(option, context, *space, slope, intercept);
+    seed_expiry_layers(option, *space, slope, intercept);
 
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
