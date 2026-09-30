@@ -112,7 +112,8 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context)
     return false;
 }
 
-// Fills only missing requested measures. A supplied native value is never overwritten.
+// Enforces boundary availability, then fills only missing requested measures.
+// Away from unavailable boundaries, a supplied native value is never overwritten.
 template <typename Engine, typename Option>
 Result<PricingResult> complete_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
@@ -334,9 +335,11 @@ Result<PricingResult> price_with_greeks(
     *native = native->selected(greeks);
     if (!native->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-    if (greeks_unavailable(option, context))
-        return make_pricing_result(*value);
-    if (native_complete) return native;
+    if (native_complete) {
+        if (greeks_unavailable(option, context))
+            return make_pricing_result(*value);
+        return native;
+    }
     return complete_greeks(engine, option, context, greeks, settings, *native);
 }
 

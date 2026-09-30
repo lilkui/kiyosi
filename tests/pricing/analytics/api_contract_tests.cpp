@@ -232,6 +232,24 @@ TEST_CASE("Expiry suppresses all requested Greeks", "[pricing-api]")
     check(CoxRossRubinsteinVanillaEngine{8});
     check(FiniteDifferenceVanillaEngine{20, 20});
     check(MonteCarloVanillaEngine{32, 2, 7});
+
+    std::vector<PricingContext> calls;
+    const RecordingPriceEngine engine{&calls};
+    const auto native = *make_pricing_result(10.0, {{Greek::delta, 1.0}});
+    const auto completed = detail::complete_greeks(
+        engine, option, market(110.0, expiry), true, {}, native);
+    REQUIRE(completed);
+    CHECK(completed->price() == 10.0);
+    CHECK_FALSE(completed->has(Greek::delta));
+    for (const bool native_complete : {false, true}) {
+        const auto result = detail::price_with_greeks(
+            engine, option, market(110.0, expiry), true, {},
+            [&](const auto&) -> Result<PricingResult> { return native; }, native_complete);
+        REQUIRE(result);
+        CHECK(result->price() == 10.0);
+        CHECK_FALSE(result->has(Greek::delta));
+    }
+    CHECK(calls.empty());
 }
 
 TEST_CASE("Monitored barrier equality leaves all Greeks unavailable", "[pricing-api]")
