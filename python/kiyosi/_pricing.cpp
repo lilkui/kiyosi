@@ -181,7 +181,7 @@ asset_upper_boundary : float or None
              nb::kw_only(), "asset_step_count"_a = FiniteDifferenceSettings{}.asset_step_count,
              "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
-             "asset_upper_boundary"_a = nb::none(),
+             "asset_upper_boundary"_a.none() = FiniteDifferenceSettings{}.asset_upper_boundary,
              R"doc(Store finite-difference settings.
 
 Settings are validated when price() is called.
@@ -650,7 +650,7 @@ backend : MonteCarloBackend
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
-                                        "seed"_a = nb::none(),
+                                        "seed"_a.none() = MonteCarloSettings{}.seed,
                                         "backend"_a = MonteCarloSettings{}.backend,
                                         R"doc(Store Monte Carlo settings.
 
