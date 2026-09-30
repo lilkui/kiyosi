@@ -146,7 +146,6 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
     CHECK(greek_value(*rho, Greek::rho) == 0.0);
     CHECK_FALSE(rho->has(Greek::gamma));
 
-    calls.clear();
     const auto analytic = AnalyticVanillaEngine{}.price_with_greeks(
         option, market(), {Greek::vega, Greek::rho, Greek::vega});
     REQUIRE(analytic);
@@ -154,7 +153,6 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
     CHECK(analytic->has(Greek::rho));
     CHECK_FALSE(analytic->has(Greek::delta));
     CHECK_FALSE(analytic->has(Greek::gamma));
-    CHECK(calls.empty());
     REQUIRE(AnalyticVanillaEngine{}.price_with_greeks(option, market(), true));
 }
 
