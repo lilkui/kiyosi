@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstddef>
-#include <new>
 #include <optional>
 #include <random>
 #include <utility>
@@ -13,7 +12,7 @@
 #include "../../detail/autocallable_traits.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
-#include "../monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda_host.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -122,33 +121,6 @@ double path_payoff(double initial_spot, const AutocallableProgram& program,
     return state.coupons + inputs.terminal_discount *
                                program_terminal_settlement(program, value, state.knocked_in);
 }
-
-#if KIYOSI_HAS_CUDA
-std::uint64_t random_seed()
-{
-    std::random_device source;
-    return (static_cast<std::uint64_t>(source()) << 32U) ^
-           static_cast<std::uint64_t>(source());
-}
-
-Result<double> cuda_sum(CudaPricingResult cuda_result)
-{
-    switch (cuda_result.status) {
-    case CudaPricingStatus::success:
-        return cuda_result.payoff_sum;
-    case CudaPricingStatus::unavailable:
-        return std::unexpected(Error{ErrorCategory::backend_unavailable, cuda_result.message});
-    case CudaPricingStatus::failure:
-        return std::unexpected(Error{ErrorCategory::backend_failure, cuda_result.message});
-    case CudaPricingStatus::out_of_memory:
-        throw std::bad_alloc{};
-    case CudaPricingStatus::invalid_result:
-        return std::unexpected(Error{ErrorCategory::invalid_result, cuda_result.message});
-    }
-    return std::unexpected(Error{ErrorCategory::backend_failure,
-                                 "CUDA Monte Carlo returned an unknown status"});
-}
-#endif
 
 } // namespace
 

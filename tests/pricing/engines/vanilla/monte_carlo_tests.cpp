@@ -11,6 +11,26 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "pricing/engines/monte_carlo_cuda_host.hpp"
+
+TEST_CASE("CUDA host adapter preserves results and failure categories")
+{
+    using namespace kiyosi;
+    using namespace kiyosi::detail;
+    REQUIRE(cuda_sum({CudaPricingStatus::success, 42.0, nullptr}).value() == 42.0);
+    for (const auto [status, category] : {
+             std::pair{CudaPricingStatus::unavailable, ErrorCategory::backend_unavailable},
+             std::pair{CudaPricingStatus::failure, ErrorCategory::backend_failure},
+             std::pair{CudaPricingStatus::invalid_result, ErrorCategory::invalid_result}}) {
+        const auto result = cuda_sum({status, 0.0, "backend diagnostic"});
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(result.error() == Error{category, "backend diagnostic"});
+    }
+    REQUIRE_THROWS_AS(cuda_sum({CudaPricingStatus::out_of_memory, 0.0, nullptr}), std::bad_alloc);
+    const auto unknown = cuda_sum({static_cast<CudaPricingStatus>(255), 0.0, nullptr});
+    REQUIRE_FALSE(unknown.has_value());
+    REQUIRE(unknown.error().category == ErrorCategory::backend_failure);
+}
 
 namespace {
 

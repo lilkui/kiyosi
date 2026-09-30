@@ -4,7 +4,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <new>
 #include <random>
 #include <vector>
 
@@ -13,7 +12,7 @@
 #include "monte_carlo_regression.hpp"
 
 #if KIYOSI_HAS_CUDA
-#include "../monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda_host.hpp"
 #endif
 
 namespace kiyosi {
@@ -128,34 +127,6 @@ double payoff(OptionType type, double spot, double strike)
 }
 
 #if KIYOSI_HAS_CUDA
-std::uint64_t random_seed()
-{
-    std::random_device source;
-    return (static_cast<std::uint64_t>(source()) << 32U) ^
-           static_cast<std::uint64_t>(source());
-}
-
-Result<double> cuda_sum(detail::CudaPricingResult cuda_result)
-{
-    switch (cuda_result.status) {
-    case detail::CudaPricingStatus::success:
-        return cuda_result.payoff_sum;
-    case detail::CudaPricingStatus::unavailable:
-        return std::unexpected(Error{ErrorCategory::backend_unavailable,
-                                     cuda_result.message});
-    case detail::CudaPricingStatus::failure:
-        return std::unexpected(Error{ErrorCategory::backend_failure,
-                                     cuda_result.message});
-    case detail::CudaPricingStatus::out_of_memory:
-        throw std::bad_alloc{};
-    case detail::CudaPricingStatus::invalid_result:
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     cuda_result.message});
-    }
-    return std::unexpected(Error{ErrorCategory::backend_failure,
-                                 "CUDA Monte Carlo returned an unknown status"});
-}
-
 Result<double> cuda_payoff_sum(const EuropeanOption& option,
                                SimulationParameters parameters,
                                MonteCarloSettings settings)
@@ -163,10 +134,10 @@ Result<double> cuda_payoff_sum(const EuropeanOption& option,
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
-    return cuda_sum(detail::cuda_european_price({
+    return detail::cuda_sum(detail::cuda_european_price({
         path_count,
         settings.step_count,
-        settings.seed ? *settings.seed : random_seed(),
+        settings.seed ? *settings.seed : detail::random_seed(),
         parameters.spot,
         option.strike(),
         parameters.drift,
@@ -183,10 +154,10 @@ Result<double> cuda_american_cash_flow_sum(const AmericanOption& option,
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
-    return cuda_sum(detail::cuda_american_price({
+    return detail::cuda_sum(detail::cuda_american_price({
         path_count,
         settings.step_count,
-        settings.seed ? *settings.seed : random_seed(),
+        settings.seed ? *settings.seed : detail::random_seed(),
         parameters.spot,
         option.strike(),
         parameters.drift,

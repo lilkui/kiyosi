@@ -11,9 +11,6 @@ namespace kiyosi::detail {
 inline constexpr double percentage_points_per_unit = 100.0;
 inline constexpr double inverse_sqrt_two = 1.0 / std::numbers::sqrt2;
 inline constexpr double inverse_sqrt_two_pi = std::numbers::inv_sqrtpi * inverse_sqrt_two;
-inline constexpr double solver_derivative_step_fraction = 1e-3;
-inline constexpr double solver_bracket_step_fraction = 1e-2;
-inline constexpr double solver_minimum_derivative_step = 1e-6;
 // Broadie-Glasserman-Kou discrete-barrier shift constant, -zeta(1/2)/sqrt(2*pi).
 inline constexpr double bgk_beta = 0.5825971579390107;
 

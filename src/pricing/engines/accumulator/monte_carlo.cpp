@@ -1,14 +1,13 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
 #include <cmath>
-#include <new>
 #include <optional>
 #include <random>
 #include <vector>
 
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
-#include "../monte_carlo_cuda.hpp"
+#include "../monte_carlo_cuda_host.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -81,33 +80,6 @@ double path_payoff(const Accumulator& option, const PricingContext& context,
     }
     return quantity * (terminal - option.strike()) * discount;
 }
-
-#if KIYOSI_HAS_CUDA
-std::uint64_t random_seed()
-{
-    std::random_device source;
-    return (static_cast<std::uint64_t>(source()) << 32U) ^
-           static_cast<std::uint64_t>(source());
-}
-
-Result<double> cuda_sum(detail::CudaPricingResult cuda_result)
-{
-    switch (cuda_result.status) {
-    case detail::CudaPricingStatus::success:
-        return cuda_result.payoff_sum;
-    case detail::CudaPricingStatus::unavailable:
-        return std::unexpected(Error{ErrorCategory::backend_unavailable, cuda_result.message});
-    case detail::CudaPricingStatus::failure:
-        return std::unexpected(Error{ErrorCategory::backend_failure, cuda_result.message});
-    case detail::CudaPricingStatus::out_of_memory:
-        throw std::bad_alloc{};
-    case detail::CudaPricingStatus::invalid_result:
-        return std::unexpected(Error{ErrorCategory::invalid_result, cuda_result.message});
-    }
-    return std::unexpected(Error{ErrorCategory::backend_failure,
-                                 "CUDA Monte Carlo returned an unknown status"});
-}
-#endif
 
 } // namespace
 
