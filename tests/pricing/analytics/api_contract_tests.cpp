@@ -45,6 +45,14 @@ concept IntegerGreeksRequest = requires(const Engine& engine, const EuropeanOpti
     engine.price_with_greeks(option, context, 1);
 };
 static_assert(!IntegerGreeksRequest<AnalyticVanillaEngine>);
+static_assert(std::is_convertible_v<bool, GreeksRequest>);
+static_assert(std::is_constructible_v<GreeksRequest, const bool&>);
+static_assert(!std::is_constructible_v<GreeksRequest, int>);
+static_assert(!std::is_constructible_v<GreeksRequest, double>);
+static_assert(!std::is_constructible_v<GreeksRequest, const char*>);
+static_assert(!std::is_constructible_v<GreeksRequest, void*>);
+static_assert(!std::is_constructible_v<GreeksRequest, std::nullptr_t>);
+static_assert(std::is_constructible_v<GreeksRequest, std::initializer_list<Greek>>);
 static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
                                  std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
                              Result<double>>);

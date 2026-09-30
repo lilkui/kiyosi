@@ -65,15 +65,13 @@ public:
         }
     }
     // `true` is the documented shorthand for requesting every Greek.
-    GreeksRequest(bool all_greeks) // NOLINT(google-explicit-constructor)
+    template <std::same_as<bool> T>
+    GreeksRequest(T all_greeks) // NOLINT(google-explicit-constructor)
     {
         if (all_greeks)
             for (std::size_t index = 0; index < greek_count; ++index)
                 selected_[index] = true;
     }
-    template <std::integral T>
-        requires(!std::same_as<T, bool>)
-    GreeksRequest(T) = delete;
 
     [[nodiscard]] bool has(Greek greek) const noexcept
     {
