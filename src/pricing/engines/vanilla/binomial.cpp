@@ -96,7 +96,7 @@ Result<PricingResult> price_binomial(
     double delta = 0.0;
     double gamma = 0.0;
     bool gamma_available = false;
-    if (requested_output.has(Greek::delta) && settings.step_count >= 1) {
+    if (requested_output.has(Greek::delta)) {
         const double denominator = spot * (up - down);
         if (std::isfinite(denominator) && denominator != 0.0)
             delta = (level_one[1] - level_one[0]) / denominator;
