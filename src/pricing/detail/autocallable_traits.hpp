@@ -49,14 +49,6 @@ struct AutocallableTraits<SnowballOption> {
                 AutocallableTerminalKind::downside_if_knocked_in, true,
                 note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
     }
-
-    static AutocallableEvent event(const SnowballOption& note, std::size_t index)
-    {
-        return {note.knock_out_levels()[index],
-                note.knock_out_coupon_rates()[index] *
-                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
-                0.0, false, true};
-    }
 };
 
 template <>
@@ -70,14 +62,6 @@ struct AutocallableTraits<TernarySnowballOption> {
                 0.0, note.knock_in_level(), note.maturity_coupon_rate() * term,
                 note.minimum_coupon_rate() * term, AutocallableTerminalKind::fixed, true,
                 note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day, false};
-    }
-
-    static AutocallableEvent event(const TernarySnowballOption& note, std::size_t index)
-    {
-        return {note.knock_out_levels()[index],
-                note.knock_out_coupon_rates()[index] *
-                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
-                0.0, false, true};
     }
 };
 
@@ -93,14 +77,6 @@ struct AutocallableTraits<BinarySnowballOption> {
                 0.0, 0.0, coupon, coupon,
                 AutocallableTerminalKind::fixed, false, false, false};
     }
-
-    static AutocallableEvent event(const BinarySnowballOption& note, std::size_t index)
-    {
-        return {note.knock_out_levels()[index],
-                note.knock_out_coupon_rates()[index] *
-                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
-                0.0, false, true};
-    }
 };
 
 template <typename Note>
@@ -112,7 +88,13 @@ AutocallableProgram autocallable_program(const Note& note)
 template <typename Note>
 AutocallableEvent autocallable_event(const Note& note, std::size_t index)
 {
-    return AutocallableTraits<Note>::event(note, index);
+    if constexpr (AutocallableTraits<Note>::carries_observation_coupon)
+        return AutocallableTraits<Note>::event(note, index);
+    else
+        return {note.knock_out_levels()[index],
+                note.knock_out_coupon_rates()[index] *
+                    actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
+                0.0, false, true};
 }
 
 template <typename Note>

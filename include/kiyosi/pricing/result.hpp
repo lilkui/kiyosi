@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <concepts>
@@ -68,9 +69,7 @@ public:
     template <std::same_as<bool> T>
     GreeksRequest(T all_greeks) // NOLINT(google-explicit-constructor)
     {
-        if (all_greeks)
-            for (std::size_t index = 0; index < greek_count; ++index)
-                selected_[index] = true;
+        selected_.fill(all_greeks);
     }
 
     [[nodiscard]] bool has(Greek greek) const noexcept
@@ -80,9 +79,7 @@ public:
     }
     [[nodiscard]] bool empty() const noexcept
     {
-        for (const bool selected : selected_)
-            if (selected) return false;
-        return true;
+        return !std::ranges::contains(selected_, true);
     }
     [[nodiscard]] Result<void> validate() const
     {

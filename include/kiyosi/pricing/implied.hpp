@@ -13,6 +13,32 @@
 
 namespace kiyosi {
 
+namespace detail {
+
+// Callers validate settings, endpoint residuals, and identifiability before iterating.
+template <typename Settings, typename Evaluate>
+Result<double> bisect_implied(const Settings& settings, double lower_residual,
+                              const Evaluate& evaluate, const char* failure_message)
+{
+    double lo = settings.lower_bound;
+    double hi = settings.upper_bound;
+    for (int iteration = 0; iteration < settings.max_iterations; ++iteration) {
+        const double mid = std::midpoint(lo, hi);
+        auto residual = evaluate(mid);
+        if (!residual) return std::unexpected(residual.error());
+        if (std::abs(*residual) <= settings.price_tolerance || hi - lo <= settings.parameter_tolerance) return mid;
+        if ((lower_residual < 0.0) == (*residual < 0.0)) {
+            lo = mid;
+            lower_residual = *residual;
+        } else {
+            hi = mid;
+        }
+    }
+    return std::unexpected(Error{ErrorCategory::solver_non_convergence, failure_message});
+}
+
+} // namespace detail
+
 /// Bisects the engine's price curve in volatility; the caller's bounds must bracket the quote.
 /// @tparam Engine Pricing engine providing `price(option, context)`.
 /// @tparam Option Instrument accepted by the engine.
@@ -52,17 +78,19 @@ template <typename Engine, typename Option>
                                                context.model_parameters().risk_free_rate(),
                                                context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
-        return detail::numerical_value(engine, option, *shifted);
+        auto priced = detail::numerical_value(engine, option, *shifted);
+        if (!priced) return std::unexpected(priced.error());
+        return *priced - observed_price;
     };
 
-    double lo = settings.lower_bound;
-    double hi = settings.upper_bound;
+    const double lo = settings.lower_bound;
+    const double hi = settings.upper_bound;
     auto flo = evaluate(lo);
     if (!flo) return std::unexpected(flo.error());
     auto fhi = evaluate(hi);
     if (!fhi) return std::unexpected(fhi.error());
-    double elo = *flo - observed_price;
-    const double ehi = *fhi - observed_price;
+    const double elo = *flo;
+    const double ehi = *fhi;
     // Pricing above validates the contract and history before these state checks.
     bool identifiable = context.valuation_time() != start_of_day(option.expiry_date());
     if constexpr (requires { option.barrier_state(); }) {
@@ -95,21 +123,8 @@ template <typename Engine, typename Option>
     if ((elo < 0.0) == (ehi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
                                      "price is not bracketed by volatility bounds"});
-    for (int iteration = 0; iteration < settings.max_iterations; ++iteration) {
-        const double mid = std::midpoint(lo, hi);
-        auto fm = evaluate(mid);
-        if (!fm) return std::unexpected(fm.error());
-        const double em = *fm - observed_price;
-        if (std::abs(em) <= settings.price_tolerance || hi - lo <= settings.parameter_tolerance) return mid;
-        if ((elo < 0.0) == (em < 0.0)) {
-            lo = mid;
-            elo = em;
-        } else {
-            hi = mid;
-        }
-    }
-    return std::unexpected(Error{ErrorCategory::solver_non_convergence,
-                                 "implied-volatility solver did not converge"});
+    return detail::bisect_implied(settings, elo, evaluate,
+                                  "implied-volatility solver did not converge");
 }
 
 namespace detail {
@@ -245,8 +260,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         return *priced - observed_price;
     };
 
-    double lo = settings.lower_bound;
-    double hi = settings.upper_bound;
+    const double lo = settings.lower_bound;
+    const double hi = settings.upper_bound;
     auto flo = evaluate(lo);
     if (!flo) return std::unexpected(flo.error());
     auto fhi = evaluate(hi);
@@ -277,21 +292,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     if ((*flo < 0.0) == (*fhi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_coupon,
                                      "price is not bracketed by coupon bounds"});
-    for (int iteration = 0; iteration < settings.max_iterations; ++iteration) {
-        const double mid = std::midpoint(lo, hi);
-        auto fm = evaluate(mid);
-        if (!fm) return std::unexpected(fm.error());
-        if (std::abs(*fm) <= settings.price_tolerance || hi - lo <= settings.parameter_tolerance) return mid;
-        if ((*flo < 0.0) == (*fm < 0.0)) {
-            lo = mid;
-            flo = fm;
-        } else {
-            hi = mid;
-            fhi = fm;
-        }
-    }
-    return std::unexpected(Error{ErrorCategory::solver_non_convergence,
-                                 "implied-coupon solver did not converge"});
+    return detail::bisect_implied(settings, *flo, evaluate,
+                                  "implied-coupon solver did not converge");
 }
 
 } // namespace detail

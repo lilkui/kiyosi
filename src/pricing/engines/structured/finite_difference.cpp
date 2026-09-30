@@ -62,16 +62,16 @@ Result<PricingResult> terminal_value(const Note& note, const PricingContext& con
 } // namespace
 
 template <typename Note>
-Result<PricingResult> price_autocallable_finite_difference(
-    const Note& note, const PricingContext& context, FiniteDifferenceSettings settings)
+Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
+    const Note& note, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
-    auto settings_valid = validate_finite_difference_settings(settings);
+    auto settings_valid = validate_finite_difference_settings(settings_);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings.asset_step_count > trading_fd_max_steps || settings.time_step_count > trading_fd_max_steps)
+    if (settings_.asset_step_count > trading_fd_max_steps || settings_.time_step_count > trading_fd_max_steps)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference grid dimensions are out of range"});
     auto note_validation = validate_autocallable_note(note);
@@ -82,12 +82,12 @@ Result<PricingResult> price_autocallable_finite_difference(
     if (!history) return std::unexpected(history.error());
 
     // An up-touch has already autocalled the note, so nothing remains to discount.
-    if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings.asset_upper_boundary)
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings_.asset_upper_boundary)
         return make_pricing_result(0.0);
 
     const double spot = context.spot_price();
     const double relevant = highest_relevant_level(note, spot);
-    const auto space = make_spatial_grid(settings, std::max(4.0 * relevant, relevant + 1.0), {relevant});
+    const auto space = make_spatial_grid(settings_, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
     if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return make_pricing_result(0.0);
@@ -125,8 +125,8 @@ Result<PricingResult> price_autocallable_finite_difference(
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings.time_step_count, std::move(anchors));
-    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, settings.asset_step_count);
+    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, std::move(anchors));
+    if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 
@@ -168,7 +168,7 @@ Result<PricingResult> price_autocallable_finite_difference(
 
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
-        DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
+        DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
         const bool advanced = [&] {
@@ -219,13 +219,9 @@ Result<PricingResult> price_autocallable_finite_difference(
         return make_pricing_result(space->interpolate(alive, spot));
 }
 
-template Result<PricingResult> price_autocallable_finite_difference(
-    const PhoenixOption&, const PricingContext&, FiniteDifferenceSettings);
-template Result<PricingResult> price_autocallable_finite_difference(
-    const SnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template Result<PricingResult> price_autocallable_finite_difference(
-    const BinarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
-template Result<PricingResult> price_autocallable_finite_difference(
-    const TernarySnowballOption&, const PricingContext&, FiniteDifferenceSettings);
+template class FiniteDifferenceAutocallableEngine<PhoenixOption>;
+template class FiniteDifferenceAutocallableEngine<SnowballOption>;
+template class FiniteDifferenceAutocallableEngine<BinarySnowballOption>;
+template class FiniteDifferenceAutocallableEngine<TernarySnowballOption>;
 
 } // namespace kiyosi

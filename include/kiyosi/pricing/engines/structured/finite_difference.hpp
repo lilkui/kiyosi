@@ -8,12 +8,6 @@
 
 namespace kiyosi {
 
-/// Prices an autocallable note with the finite-difference implementation.
-/// @return Price, or a contract, context, or settings error.
-template <typename Note>
-[[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_autocallable_finite_difference(
-    const Note&, const PricingContext&, FiniteDifferenceSettings);
-
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
 /// Accepts 3..2,000 asset steps and 1..2,000 time steps.
@@ -48,10 +42,7 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const Note& option, const PricingContext& context) const
-    {
-        return price_autocallable_finite_difference(option, context, settings_);
-    }
+    [[nodiscard]] Result<PricingResult> price_native(const Note& note, const PricingContext& context) const;
     FiniteDifferenceSettings settings_;
 };
 
