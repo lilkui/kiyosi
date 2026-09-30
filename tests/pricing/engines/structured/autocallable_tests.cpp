@@ -686,7 +686,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
         kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0));
     REQUIRE(phoenix_result);
     CHECK(*phoenix_result ==
-          Catch::Approx(1.01).margin(1e-10));
+          Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-10).epsilon(0.0));
 
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08},
                                                          .maturity_coupon_rate = 0.06,
