@@ -43,8 +43,12 @@ std::vector<Greek> requested_greeks(nb::handle value)
 }
 
 template <typename Engine, typename Instrument>
-void bind_engine_price(nb::class_<Engine>& binding)
+void bind_analytics_pair(nb::module_& module);
+
+template <typename Engine, typename Instrument>
+void bind_engine_price(nb::module_& module, nb::class_<Engine>& binding)
 {
+    bind_analytics_pair<Engine, Instrument>(module);
     binding.def(
         "price",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context) {
@@ -518,12 +522,6 @@ KiyosiError
     If inputs are invalid, the target is not bracketed, or the solver fails.)doc");
 }
 
-template <typename Engine, typename... Instruments>
-void bind_engine_analytics(nb::module_& module)
-{
-    (bind_analytics_pair<Engine, Instruments>(module), ...);
-}
-
 } // namespace
 
 void bind_results(nb::module_& module)
@@ -586,10 +584,10 @@ void bind_engines(nb::module_& module)
 {
     auto analytic_vanilla = bind_stateless_engine<AnalyticVanillaEngine>(
         module, "AnalyticVanillaEngine");
-    bind_engine_price<AnalyticVanillaEngine, EuropeanOption>(analytic_vanilla);
+    bind_engine_price<AnalyticVanillaEngine, EuropeanOption>(module, analytic_vanilla);
     auto integral_vanilla = bind_stateless_engine<QuadratureVanillaEngine>(
         module, "QuadratureVanillaEngine");
-    bind_engine_price<QuadratureVanillaEngine, EuropeanOption>(integral_vanilla);
+    bind_engine_price<QuadratureVanillaEngine, EuropeanOption>(module, integral_vanilla);
     auto crr = nb::class_<CoxRossRubinsteinVanillaEngine>(
                    module, "CoxRossRubinsteinVanillaEngine",
                    R"doc(Cox-Ross-Rubinstein binomial vanilla-option engine.
@@ -624,15 +622,15 @@ Notes
 The setting is validated when price() is called.)doc")
                    .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) { return engine.settings().step_count; }, "Number of binomial time steps.");
     bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {"step_count"});
-    bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(crr);
-    bind_engine_price<CoxRossRubinsteinVanillaEngine, AmericanOption>(crr);
+    bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(module, crr);
+    bind_engine_price<CoxRossRubinsteinVanillaEngine, AmericanOption>(module, crr);
     auto bjerksund = bind_stateless_engine<BjerksundStenslandVanillaEngine>(
         module, "BjerksundStenslandVanillaEngine");
-    bind_engine_price<BjerksundStenslandVanillaEngine, AmericanOption>(bjerksund);
+    bind_engine_price<BjerksundStenslandVanillaEngine, AmericanOption>(module, bjerksund);
     auto finite_vanilla = bind_finite_difference_engine<FiniteDifferenceVanillaEngine>(
         module, "FiniteDifferenceVanillaEngine");
-    bind_engine_price<FiniteDifferenceVanillaEngine, EuropeanOption>(finite_vanilla);
-    bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(finite_vanilla);
+    bind_engine_price<FiniteDifferenceVanillaEngine, EuropeanOption>(module, finite_vanilla);
+    bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(module, finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
                                    module, "MonteCarloVanillaEngine",
                                    R"doc(Monte Carlo vanilla-option engine with immutable configuration.
@@ -690,103 +688,76 @@ Settings are validated when price() is called.)doc")
                                    .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
               {"path_count", "step_count", "seed", "backend"});
-    bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(monte_carlo_vanilla);
-    bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(monte_carlo_vanilla);
+    bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(module, monte_carlo_vanilla);
+    bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(module, monte_carlo_vanilla);
 
     auto analytic_digital = bind_stateless_engine<AnalyticDigitalEngine>(
         module, "AnalyticDigitalEngine");
-    bind_engine_price<AnalyticDigitalEngine, CashOrNothingOption>(analytic_digital);
-    bind_engine_price<AnalyticDigitalEngine, AssetOrNothingOption>(analytic_digital);
+    bind_engine_price<AnalyticDigitalEngine, CashOrNothingOption>(module, analytic_digital);
+    bind_engine_price<AnalyticDigitalEngine, AssetOrNothingOption>(module, analytic_digital);
     auto integral_digital = bind_stateless_engine<QuadratureDigitalEngine>(
         module, "QuadratureDigitalEngine");
-    bind_engine_price<QuadratureDigitalEngine, CashOrNothingOption>(integral_digital);
-    bind_engine_price<QuadratureDigitalEngine, AssetOrNothingOption>(integral_digital);
+    bind_engine_price<QuadratureDigitalEngine, CashOrNothingOption>(module, integral_digital);
+    bind_engine_price<QuadratureDigitalEngine, AssetOrNothingOption>(module, integral_digital);
     auto finite_digital = bind_finite_difference_engine<FiniteDifferenceDigitalEngine>(
         module, "FiniteDifferenceDigitalEngine");
-    bind_engine_price<FiniteDifferenceDigitalEngine, CashOrNothingOption>(finite_digital);
-    bind_engine_price<FiniteDifferenceDigitalEngine, AssetOrNothingOption>(finite_digital);
+    bind_engine_price<FiniteDifferenceDigitalEngine, CashOrNothingOption>(module, finite_digital);
+    bind_engine_price<FiniteDifferenceDigitalEngine, AssetOrNothingOption>(module, finite_digital);
 
     auto analytic_barrier = bind_stateless_engine<AnalyticBarrierEngine>(
         module, "AnalyticBarrierEngine");
-    bind_engine_price<AnalyticBarrierEngine, BarrierOption>(analytic_barrier);
+    bind_engine_price<AnalyticBarrierEngine, BarrierOption>(module, analytic_barrier);
     auto finite_barrier = bind_finite_difference_engine<FiniteDifferenceBarrierEngine>(
         module, "FiniteDifferenceBarrierEngine");
-    bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(finite_barrier);
+    bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(module, finite_barrier);
     auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
         module, "AnalyticBinaryBarrierEngine");
-    bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(analytic_binary);
-    bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(analytic_binary);
+    bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(module, analytic_binary);
+    bind_engine_price<AnalyticBinaryBarrierEngine, TouchOption>(module, analytic_binary);
 
     auto geometric = bind_stateless_engine<AnalyticGeometricAveragePriceEngine>(
         module, "AnalyticGeometricAveragePriceEngine");
-    bind_engine_price<AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption>(geometric);
+    bind_engine_price<AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption>(module, geometric);
     auto arithmetic = bind_stateless_engine<TurnbullWakemanArithmeticAveragePriceEngine>(
         module, "TurnbullWakemanArithmeticAveragePriceEngine");
-    bind_engine_price<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(arithmetic);
+    bind_engine_price<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(module, arithmetic);
 
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
         module, "FiniteDifferenceAccumulatorEngine");
-    bind_engine_price<FiniteDifferenceAccumulatorEngine, Accumulator>(finite_accumulator);
+    bind_engine_price<FiniteDifferenceAccumulatorEngine, Accumulator>(module, finite_accumulator);
     auto monte_carlo_accumulator = bind_structured_monte_carlo_engine<MonteCarloAccumulatorEngine>(
         module, "MonteCarloAccumulatorEngine");
-    bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(monte_carlo_accumulator);
+    bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
     auto finite_snowball = bind_finite_difference_engine<FiniteDifferenceSnowballEngine>(
         module, "FiniteDifferenceSnowballEngine");
-    bind_engine_price<FiniteDifferenceSnowballEngine, SnowballOption>(finite_snowball);
+    bind_engine_price<FiniteDifferenceSnowballEngine, SnowballOption>(module, finite_snowball);
     auto finite_binary = bind_finite_difference_engine<FiniteDifferenceBinarySnowballEngine>(
         module, "FiniteDifferenceBinarySnowballEngine");
-    bind_engine_price<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(finite_binary);
+    bind_engine_price<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module, finite_binary);
     auto finite_ternary = bind_finite_difference_engine<FiniteDifferenceTernarySnowballEngine>(
         module, "FiniteDifferenceTernarySnowballEngine");
-    bind_engine_price<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(finite_ternary);
+    bind_engine_price<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(module, finite_ternary);
     auto finite_phoenix = bind_finite_difference_engine<FiniteDifferencePhoenixEngine>(
         module, "FiniteDifferencePhoenixEngine");
-    bind_engine_price<FiniteDifferencePhoenixEngine, PhoenixOption>(finite_phoenix);
+    bind_engine_price<FiniteDifferencePhoenixEngine, PhoenixOption>(module, finite_phoenix);
 
     auto monte_carlo_snowball = bind_structured_monte_carlo_engine<MonteCarloSnowballEngine>(
         module, "MonteCarloSnowballEngine");
-    bind_engine_price<MonteCarloSnowballEngine, SnowballOption>(monte_carlo_snowball);
+    bind_engine_price<MonteCarloSnowballEngine, SnowballOption>(module, monte_carlo_snowball);
     auto monte_carlo_binary = bind_structured_monte_carlo_engine<MonteCarloBinarySnowballEngine>(
         module, "MonteCarloBinarySnowballEngine");
-    bind_engine_price<MonteCarloBinarySnowballEngine, BinarySnowballOption>(monte_carlo_binary);
+    bind_engine_price<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module, monte_carlo_binary);
     auto monte_carlo_ternary = bind_structured_monte_carlo_engine<MonteCarloTernarySnowballEngine>(
         module, "MonteCarloTernarySnowballEngine");
-    bind_engine_price<MonteCarloTernarySnowballEngine, TernarySnowballOption>(monte_carlo_ternary);
+    bind_engine_price<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module, monte_carlo_ternary);
     auto monte_carlo_phoenix = bind_structured_monte_carlo_engine<MonteCarloPhoenixEngine>(
         module, "MonteCarloPhoenixEngine");
-    bind_engine_price<MonteCarloPhoenixEngine, PhoenixOption>(monte_carlo_phoenix);
+    bind_engine_price<MonteCarloPhoenixEngine, PhoenixOption>(module, monte_carlo_phoenix);
 }
 
 void bind_analytics(nb::module_& module)
 {
-    bind_engine_analytics<AnalyticVanillaEngine, EuropeanOption>(module);
-    bind_engine_analytics<QuadratureVanillaEngine, EuropeanOption>(module);
-    bind_engine_analytics<CoxRossRubinsteinVanillaEngine, EuropeanOption, AmericanOption>(module);
-    bind_engine_analytics<BjerksundStenslandVanillaEngine, AmericanOption>(module);
-    bind_engine_analytics<FiniteDifferenceVanillaEngine, EuropeanOption, AmericanOption>(module);
-    bind_engine_analytics<MonteCarloVanillaEngine, EuropeanOption, AmericanOption>(module);
-    bind_engine_analytics<AnalyticDigitalEngine, CashOrNothingOption,
-                          AssetOrNothingOption>(module);
-    bind_engine_analytics<QuadratureDigitalEngine, CashOrNothingOption,
-                          AssetOrNothingOption>(module);
-    bind_engine_analytics<FiniteDifferenceDigitalEngine, CashOrNothingOption,
-                          AssetOrNothingOption>(module);
-    bind_engine_analytics<AnalyticBarrierEngine, BarrierOption>(module);
-    bind_engine_analytics<FiniteDifferenceBarrierEngine, BarrierOption>(module);
-    bind_engine_analytics<AnalyticBinaryBarrierEngine, BinaryBarrierOption, TouchOption>(module);
-    bind_engine_analytics<AnalyticGeometricAveragePriceEngine, GeometricAveragePriceOption>(module);
-    bind_engine_analytics<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(module);
-    bind_engine_analytics<FiniteDifferenceAccumulatorEngine, Accumulator>(module);
-    bind_engine_analytics<MonteCarloAccumulatorEngine, Accumulator>(module);
-    bind_engine_analytics<FiniteDifferenceSnowballEngine, SnowballOption>(module);
-    bind_engine_analytics<MonteCarloSnowballEngine, SnowballOption>(module);
-    bind_engine_analytics<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module);
-    bind_engine_analytics<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module);
-    bind_engine_analytics<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(module);
-    bind_engine_analytics<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module);
-    bind_engine_analytics<FiniteDifferencePhoenixEngine, PhoenixOption>(module);
-    bind_engine_analytics<MonteCarloPhoenixEngine, PhoenixOption>(module);
     bind_snowball_implied_coupon_pair<FiniteDifferenceSnowballEngine, SnowballOption>(module);
     bind_snowball_implied_coupon_pair<MonteCarloSnowballEngine, SnowballOption>(module);
     bind_snowball_implied_coupon_pair<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module);

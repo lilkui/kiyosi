@@ -53,7 +53,7 @@ Result<PricingResult> terminal_value(const Note& note, const PricingContext& con
     const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry_date();
     if (observed_at_expiry && spot >= note.knock_out_levels()[index])
         return make_pricing_result(note.principal_ratio() + observation_coupon(note, index, spot));
-    const double coupon = observed_at_expiry && carries_observation_coupon<Note>
+    const double coupon = observed_at_expiry && autocallable_program(note).carries_observation_coupon
                               ? observation_coupon(note, index, spot)
                               : 0.0;
     return make_pricing_result(terminal_settlement(note, spot, knocked_in) + coupon);
@@ -157,7 +157,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
                            observation_coupon(note, *expiry_observation, value);
             if constexpr (monitors_knock_in) knocked_in[index] = alive[index];
         } else {
-            const double coupon = expiry_observation && carries_observation_coupon<Note>
+            const double coupon = expiry_observation && autocallable_program(note).carries_observation_coupon
                                       ? observation_coupon(note, *expiry_observation, value)
                                       : 0.0;
             alive[index] = terminal_settlement(note, value, ki) + coupon;
@@ -192,7 +192,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
                                     observation_coupon(note, *observation_index, value);
                 if constexpr (monitors_knock_in) next_knocked_in[index] = next_alive[index];
             } else if (observation_index) {
-                const double coupon = carries_observation_coupon<Note>
+                const double coupon = autocallable_program(note).carries_observation_coupon
                                           ? observation_coupon(note, *observation_index, value)
                                           : 0.0;
                 if constexpr (monitors_knock_in) {
