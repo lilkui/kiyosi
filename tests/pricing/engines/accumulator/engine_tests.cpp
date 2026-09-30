@@ -288,31 +288,3 @@ TEST_CASE("Accumulator CUDA Monte Carlo preserves accrual and seeded execution")
     CHECK(first_price == Catch::Approx(-110.0).margin(1e-5));
 }
 #endif
-
-TEST_CASE("Accumulator finite-difference engine refines its event-aware BSM grid")
-{
-    const auto effective_date = day(2025, 1, 1);
-    const auto expiry_date = day(2026, 1, 1);
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
-    const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
-                                                        .knock_out_level = 110.0,
-                                                        .daily_quantity = 1.0,
-                                                        .acceleration_factor = 2.0,
-                                                        .accumulated_quantity = 3.0,
-                                                        .effective_date = effective_date,
-                                                        .expiry_date = expiry_date});
-    for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
-                              kiyosi::FiniteDifferenceScheme::implicit_euler,
-                              kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
-        const auto coarse = kiyosi::FiniteDifferenceAccumulatorEngine{{40, 512, scheme}}.price(accumulator, context);
-        const auto fine = kiyosi::FiniteDifferenceAccumulatorEngine{{80, 1024, scheme}}.price(accumulator, context);
-        REQUIRE(coarse);
-        REQUIRE(fine);
-        const double coarse_value = *coarse;
-        const double fine_value = *fine;
-        CHECK(std::isfinite(coarse_value));
-        CHECK(std::isfinite(fine_value));
-        CHECK(fine_value != coarse_value);
-    }
-}

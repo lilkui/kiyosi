@@ -132,24 +132,6 @@ double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
     return sum / static_cast<double>(settings.path_count);
 }
 
-template <typename Instrument>
-void check_structured_refinement(const Instrument& instrument, const kiyosi::PricingContext& context)
-{
-    for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
-                              kiyosi::FiniteDifferenceScheme::implicit_euler,
-                              kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
-        const auto coarse = kiyosi::FiniteDifferenceAutocallableEngine<Instrument>{{40, 512, scheme}}.price(instrument, context);
-        const auto fine = kiyosi::FiniteDifferenceAutocallableEngine<Instrument>{{80, 1024, scheme}}.price(instrument, context);
-        REQUIRE(coarse);
-        REQUIRE(fine);
-        const double coarse_value = *coarse;
-        const double fine_value = *fine;
-        CHECK(std::isfinite(coarse_value));
-        CHECK(std::isfinite(fine_value));
-        CHECK(fine_value != coarse_value);
-    }
-}
-
 TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
 {
     const auto effective_date = day(2025, 1, 1);
@@ -882,102 +864,6 @@ TEST_CASE("Structured finite difference enumerates dates only for daily monitori
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
     CHECK(calls->load() == 1);
-}
-
-TEST_CASE("Phoenix finite-difference engine refines its event-aware BSM grid")
-{
-    const auto effective_date = day(2025, 1, 1);
-    const auto expiry_date = day(2026, 1, 1);
-    const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                      day(2025, 10, 1), expiry_date};
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
-    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.02,
-                                                       .initial_spot = 100.0,
-                                                       .knock_in_level = 75.0,
-                                                       .knock_out_levels = knock_outs,
-                                                       .coupon_barrier_levels = {90.0, 90.0, 90.0, 90.0},
-                                                       .upper_strike = 100.0,
-                                                       .lower_strike = 60.0,
-                                                       .observation_dates = observation_dates,
-                                                       .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                       .principal_ratio = 1.0,
-                                                       .effective_date = effective_date,
-                                                       .expiry_date = expiry_date});
-    check_structured_refinement(phoenix, context);
-}
-
-TEST_CASE("Snowball finite-difference engine refines its event-aware BSM grid")
-{
-    const auto effective_date = day(2025, 1, 1);
-    const auto expiry_date = day(2026, 1, 1);
-    const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                      day(2025, 10, 1), expiry_date};
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
-    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = coupons,
-                                                         .maturity_coupon_rate = 0.08,
-                                                         .initial_spot = 100.0,
-                                                         .knock_in_level = 75.0,
-                                                         .knock_out_levels = knock_outs,
-                                                         .upper_strike = 100.0,
-                                                         .lower_strike = 60.0,
-                                                         .observation_dates = observation_dates,
-                                                         .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                         .principal_ratio = 1.0,
-                                                         .effective_date = effective_date,
-                                                         .expiry_date = expiry_date});
-    check_structured_refinement(snowball, context);
-}
-
-TEST_CASE("Binary snowball finite-difference engine refines its event-aware BSM grid")
-{
-    const auto effective_date = day(2025, 1, 1);
-    const auto expiry_date = day(2026, 1, 1);
-    const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                      day(2025, 10, 1), expiry_date};
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
-    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = coupons,
-                                                              .maturity_coupon_rate = 0.08,
-                                                              .knock_out_levels = knock_outs,
-                                                              .observation_dates = observation_dates,
-                                                              .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                              .principal_ratio = 1.0,
-                                                              .effective_date = effective_date,
-                                                              .expiry_date = expiry_date});
-    check_structured_refinement(binary, context);
-}
-
-TEST_CASE("Ternary snowball finite-difference engine refines its event-aware BSM grid")
-{
-    const auto effective_date = day(2025, 1, 1);
-    const auto expiry_date = day(2026, 1, 1);
-    const std::vector<kiyosi::Date> observation_dates{day(2025, 4, 1), day(2025, 7, 1),
-                                                      day(2025, 10, 1), expiry_date};
-    const auto context = *kiyosi::make_pricing_context(
-        *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
-    const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
-    const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
-    const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = coupons,
-                                                                .maturity_coupon_rate = 0.08,
-                                                                .minimum_coupon_rate = 0.02,
-                                                                .knock_in_level = 75.0,
-                                                                .knock_out_levels = knock_outs,
-                                                                .observation_dates = observation_dates,
-                                                                .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                                .principal_ratio = 1.0,
-                                                                .effective_date = effective_date,
-                                                                .expiry_date = expiry_date});
-    check_structured_refinement(ternary, context);
 }
 
 TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit grids")

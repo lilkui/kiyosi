@@ -31,7 +31,8 @@ auto market(double spot, kiyosi::Date valuation, double rate = 0.0, double sigma
 
 template <typename Instrument>
 void check_known_price(const Instrument& instrument, const kiyosi::PricingContext& context,
-                       double expected, double tolerance = 1e-12)
+                       double expected, double tolerance = 1e-12,
+                       kiyosi::FiniteDifferenceScheme scheme = kiyosi::FiniteDifferenceScheme::crank_nicolson)
 {
     const auto check = [&](const auto& engine) {
         const auto result = engine.price(instrument, context);
@@ -42,7 +43,7 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
     };
     // The explicit domain puts all integer levels on nodes for the limiting cases.
     const kiyosi::FiniteDifferenceSettings grid{
-        400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0};
+        400, 400, scheme, 400.0};
     if constexpr (std::is_same_v<Instrument, kiyosi::Accumulator>) {
         {
             INFO("FD");
@@ -188,21 +189,26 @@ TEST_CASE("FD-MC pre-expiry_date prices approach independently known constant-pa
 {
     // Zero volatility is outside the model API. At 1e-8 these spots cannot practically
     // cross any barrier; tolerance also covers the residual MC path displacement.
-    const auto context = market(100.0, effective_date, 0.0, 1e-8);
-    const auto check = [&](const auto& note, double expected) {
-        REQUIRE(note);
-        check_known_price(*note, context, expected, 1e-6);
-    };
-    check(snowball(AutocallableBarrierState::none), 1.12);
-    check(ternary(AutocallableBarrierState::none), 1.12);
-    check(binary(AutocallableBarrierState::none), 1.12);
-    check(phoenix(AutocallableBarrierState::none), 1.08);
+    for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
+                              kiyosi::FiniteDifferenceScheme::implicit_euler,
+                              kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
+        CAPTURE(scheme);
+        const auto context = market(100.0, effective_date, 0.0, 1e-8);
+        const auto check = [&](const auto& note, double expected) {
+            REQUIRE(note);
+            check_known_price(*note, context, expected, 1e-6, scheme);
+        };
+        check(snowball(AutocallableBarrierState::none), 1.12);
+        check(ternary(AutocallableBarrierState::none), 1.12);
+        check(binary(AutocallableBarrierState::none), 1.12);
+        check(phoenix(AutocallableBarrierState::none), 1.08);
 
-    const auto option = kiyosi::make_accumulator(
-        {100.0, 110.0, 1.0, 2.0, 3.0, effective_date, day(2025, 1, 6)});
-    REQUIRE(option);
-    // Six trading observations (including valuation and expiry_date): (3 + 6*2)*(90-100).
-    check_known_price(*option, market(90.0, effective_date, 0.0, 1e-8), -150.0, 1e-5);
+        const auto option = kiyosi::make_accumulator(
+            {100.0, 110.0, 1.0, 2.0, 3.0, effective_date, day(2025, 1, 6)});
+        REQUIRE(option);
+        // Six trading observations (including valuation and expiry_date): (3 + 6*2)*(90-100).
+        check_known_price(*option, market(90.0, effective_date, 0.0, 1e-8), -150.0, 1e-5, scheme);
+    }
 }
 
 TEST_CASE("FD-MC binary snowball discounts a known fixed terminal cashflow", "[cross-validation]")
