@@ -78,7 +78,7 @@ KiyosiError
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonGreekRequest greeks, nb::handle all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
+           PythonGreekRequest greeks, nb::typed<nb::handle, bool> all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
            PythonReal rate_shift, PythonInteger time_shift_days) {
             if (!PyBool_Check(all_greeks.ptr())) type_error("all_greeks", "a bool");
             const bool all = all_greeks.ptr() == Py_True;

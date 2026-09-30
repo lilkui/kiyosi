@@ -593,6 +593,7 @@ class KiyosiPythonTests(unittest.TestCase):
             "reversed", market.TradingCalendar.trading_days_between.__doc__.lower()
         )
         self.assertIn("price", AnalyticVanillaEngine.price.__doc__.lower())
+        self.assertIn("all_greeks: bool = False", AnalyticVanillaEngine.price_with_greeks.__doc__)
         self.assertIn("greek", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
