@@ -33,10 +33,7 @@ Result<double> simulation_time(const PricingContext& context, Date effective_dat
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    const auto time = year_fraction(context.valuation_time(), start_of_day(expiry_date));
-    if (!time || !std::isfinite(*time) || *time < 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_time_range, "expiry_date produces an invalid simulation time"});
-    return *time;
+    return detail::actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
 }
 
 Result<void> validate_settings(MonteCarloSettings settings)

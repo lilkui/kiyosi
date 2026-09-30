@@ -97,6 +97,45 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry_date")
     CHECK(*result == 10.0);
 }
 
+TEST_CASE("Monte Carlo engines preserve timestamp and supported date boundaries")
+{
+    const auto first = kiyosi::Date{std::chrono::year::min() / std::chrono::January / 1};
+    const auto last = kiyosi::Date{std::chrono::year::max() / std::chrono::December / 31};
+    const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
+    const kiyosi::MonteCarloVanillaEngine engine{32, 3, 7};
+    for (const auto effective : {first, day(2025, 1, 1), last - std::chrono::days{1}}) {
+        const auto expiry = effective + std::chrono::days{1};
+        const auto european = *kiyosi::make_european_option(
+            kiyosi::OptionType::call, 100.0, effective, expiry);
+        const auto american = *kiyosi::make_american_option(
+            kiyosi::OptionType::call, 100.0, effective, expiry);
+        const auto check = [&](const auto& option) {
+            for (const auto time : {kiyosi::start_of_day(effective),
+                                    kiyosi::start_of_day(effective) + std::chrono::hours{12},
+                                    kiyosi::start_of_day(expiry)}) {
+                const auto context = *kiyosi::make_pricing_context(parameters, 110.0, time);
+                const auto result = engine.price(option, context);
+                REQUIRE(result);
+                CHECK(std::isfinite(*result));
+                if (time == expiry) CHECK(*result == 10.0);
+            }
+            for (const auto time : {kiyosi::start_of_day(effective) - std::chrono::microseconds{1},
+                                    kiyosi::start_of_day(expiry) + std::chrono::hours{12}}) {
+                const auto context = kiyosi::make_pricing_context(parameters, 110.0, time);
+                if (!context) {
+                    CHECK(context.error().category == kiyosi::ErrorCategory::invalid_date);
+                    continue;
+                }
+                const auto result = engine.price(option, *context);
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == kiyosi::ErrorCategory::invalid_time_range);
+            }
+        };
+        check(european);
+        check(american);
+    }
+}
+
 TEST_CASE("European Monte Carlo terminal retention preserves full-path seeded results")
 {
     const auto valuation = day(2025, 1, 1);
