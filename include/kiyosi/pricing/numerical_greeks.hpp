@@ -102,8 +102,11 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context)
             if (spot > option.knock_out_levels()[index]) return false;
         }
         if constexpr (requires { option.knock_in_level(); })
-            return option.barrier_state() == AutocallableBarrierState::none &&
+            // Native pricing has already validated history; absent initial history
+            // therefore means not knocked in, just as in the pricing engines.
+            return option.barrier_state() != AutocallableBarrierState::knocked_in &&
                    option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
+                   context.calendar().is_trading_day(context.valuation_date()) &&
                    spot == option.knock_in_level();
     }
     return false;

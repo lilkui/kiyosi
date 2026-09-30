@@ -90,7 +90,7 @@ kiyosi::BlackScholesMertonParameters parameters(const Fields& values)
 TEST_CASE("C++ public API matches the shared language parity cases", "[api][parity]")
 {
     const auto cases = parity_cases();
-    REQUIRE(cases.size() == 10);
+    REQUIRE_FALSE(cases.empty());
 
     for (const auto& test : cases) {
         DYNAMIC_SECTION(test.id)
@@ -150,6 +150,41 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                         }
                     }
                 }
+            } else if (test.kind == "initial_snowball_history") {
+                const auto start = parse_date(test.inputs.at("effective_date"));
+                const auto end = parse_date(test.inputs.at("expiry_date"));
+                auto terms = kiyosi::StandardSnowballTerms{
+                    .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0,
+                    .knock_out_level = 110.0, .observation_dates = {end},
+                    .effective_date = start, .expiry_date = end};
+                const auto absent = kiyosi::make_standard_snowball(terms);
+                terms.barrier_state = kiyosi::AutocallableBarrierState::none;
+                const auto explicit_none = kiyosi::make_standard_snowball(terms);
+                const auto context = kiyosi::make_pricing_context(
+                    *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0,
+                    parse_date(test.inputs.at("valuation_date")));
+                REQUIRE(absent);
+                REQUIRE(explicit_none);
+                REQUIRE(context);
+                const auto check = [&](const auto& engine) {
+                    const auto a = engine.price_with_greeks(*absent, *context, true);
+                    const auto b = engine.price_with_greeks(*explicit_none, *context, true);
+                    REQUIRE(b);
+                    if (test.expected.contains("category")) {
+                        REQUIRE_FALSE(a);
+                        CHECK(a.error().category == kiyosi::ErrorCategory::invalid_parameter);
+                        return;
+                    }
+                    REQUIRE(a);
+                    CHECK(a->price() == b->price());
+                    for (std::size_t i = 0; i < kiyosi::greek_count; ++i) {
+                        const auto greek = static_cast<kiyosi::Greek>(i);
+                        CHECK(a->get(greek) == b->get(greek));
+                    }
+                    CHECK(a->has(kiyosi::Greek::delta) == (test.expected.at("delta") == "available"));
+                };
+                check(kiyosi::MonteCarloSnowballEngine{kiyosi::TradingDayMonteCarloSettings{64, 1}});
+                check(kiyosi::FiniteDifferenceSnowballEngine{});
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
                     std::stod(test.inputs.at("risk_free_rate")),

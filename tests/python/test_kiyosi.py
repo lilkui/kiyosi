@@ -1789,7 +1789,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_public_api_matches_shared_language_parity_cases(self):
         cases = parity_cases()
-        self.assertEqual(len(cases), 10)
+        self.assertTrue(cases)
         for case in cases:
             with self.subTest(case=case["case_id"]):
                 values = case["inputs"]
@@ -1862,6 +1862,35 @@ class KiyosiPythonTests(unittest.TestCase):
                                         float(value),
                                         delta=float(case["tolerance"]),
                                     )
+                elif kind == "initial_snowball_history":
+                    terms = dict(
+                        coupon_rate=0.1, initial_spot=100, knock_in_level=80,
+                        knock_out_level=110,
+                        observation_dates=[date.fromisoformat(values["expiry_date"])],
+                        effective_date=date.fromisoformat(values["effective_date"]),
+                        expiry_date=date.fromisoformat(values["expiry_date"]),
+                    )
+                    absent = standard_snowball(**terms)
+                    explicit_none = standard_snowball(**terms, barrier_state="none")
+                    context = PricingContext(
+                        model_parameters=self.parameters, spot_price=80,
+                        valuation_time=date.fromisoformat(values["valuation_date"]),
+                    )
+                    for engine in (
+                        pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
+                        pricing.FiniteDifferenceSnowballEngine(),
+                    ):
+                        b = engine.price_with_greeks(explicit_none, context, all_greeks=True)
+                        if "category" in expected:
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                engine.price_with_greeks(absent, context, all_greeks=True)
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                            continue
+                        a = engine.price_with_greeks(absent, context, all_greeks=True)
+                        for name in ("price", "delta", "gamma", "speed", "theta", "charm",
+                                     "color", "vega", "vanna", "zomma", "rho"):
+                            self.assertEqual(getattr(a, name), getattr(b, name))
+                        self.assertEqual(a.delta is not None, expected["delta"] == "available")
                 elif kind == "domain_error":
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         BlackScholesMertonParameters(
