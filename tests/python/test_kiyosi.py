@@ -1787,6 +1787,20 @@ class KiyosiPythonTests(unittest.TestCase):
             10 * math.exp(-0.04 * 184 / 365),
         )
 
+    def test_unrepresentable_numerical_shifts(self):
+        option = EuropeanOption(option_type="call", strike=100,
+                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+        context = PricingContext(model_parameters=self.parameters, spot_price=100,
+                                 valuation_time=date(2025, 7, 1))
+        normal = calculate_numerical_greeks(AnalyticVanillaEngine(), option, context)
+        self.assertGreater(normal.vega, 0)
+        self.assertGreater(normal.rho, 0)
+        tiny = calculate_numerical_greeks(AnalyticVanillaEngine(), option, context,
+                                        volatility_shift=1e-20, rate_shift=1e-20)
+        for name in ("vega", "vanna", "zomma", "rho"):
+            self.assertIsNone(getattr(tiny, name))
+        self.assertIsNotNone(tiny.delta)
+
     def test_public_api_matches_shared_language_parity_cases(self):
         cases = parity_cases()
         self.assertTrue(cases)

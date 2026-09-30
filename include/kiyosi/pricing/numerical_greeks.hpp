@@ -164,6 +164,8 @@ Result<PricingResult> complete_greeks(
     const double vol_scale = 100.0 * settings.volatility_shift;
     const bool volatility_stencil_available =
         volatility > settings.volatility_shift &&
+        volatility + settings.volatility_shift > volatility &&
+        volatility - settings.volatility_shift < volatility &&
         std::isfinite(volatility + settings.volatility_shift) && std::isfinite(vol_scale);
     if (volatility_stencil_available &&
         (need(Greek::vega) || need(Greek::vanna) || need(Greek::zomma))) {
@@ -202,6 +204,7 @@ Result<PricingResult> complete_greeks(
     auto rho = *native.get(Greek::rho);
     const double rate_scale = 200.0 * settings.rate_shift;
     if (need(Greek::rho) && std::isfinite(rate + settings.rate_shift) &&
+        rate + settings.rate_shift > rate && rate - settings.rate_shift < rate &&
         std::isfinite(rate - settings.rate_shift) && std::isfinite(rate_scale)) {
         const auto r_up = detail::shifted_value(
             engine, option, context, spot, volatility, rate + settings.rate_shift, valuation_time);

@@ -150,6 +150,21 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
     REQUIRE(AnalyticVanillaEngine{}.price_with_greeks(option, market(), true));
 }
 
+TEST_CASE("Unrepresentable shifts leave numerical sensitivities unavailable", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto normal = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market());
+    REQUIRE(normal);
+    CHECK(greek_value(*normal, Greek::vega) > 0.0);
+    CHECK(greek_value(*normal, Greek::rho) > 0.0);
+    const auto tiny = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market(),
+        {.volatility_shift = 1e-20, .rate_shift = 1e-20});
+    REQUIRE(tiny);
+    for (const auto greek : {Greek::vega, Greek::vanna, Greek::zomma, Greek::rho})
+        CHECK_FALSE(tiny->has(greek));
+    CHECK(tiny->has(Greek::delta));
+}
+
 TEST_CASE("Joint pricing validates discriminators and every shift", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
