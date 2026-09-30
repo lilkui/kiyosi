@@ -213,3 +213,17 @@ TEST_CASE("Effective dates, schedules, and SSE calendar semantics")
 }
 
 } // namespace
+
+TEST_CASE("Schedule builders merge collisions after a long market closure", "[schedule]")
+{
+    const auto reopening = day(2025, 4, 1);
+    const auto calendar = *kiyosi::make_trading_calendar(
+        [reopening](kiyosi::Date date) { return date >= reopening; }, 252);
+    const auto monthly = kiyosi::make_monthly_schedule(day(2025, 1, 1), day(2025, 4, 2), 1, calendar);
+    const auto fixed = kiyosi::make_fixed_interval_schedule(
+        day(2025, 1, 1), day(2025, 4, 2), std::chrono::days{31}, calendar);
+    REQUIRE(monthly);
+    REQUIRE(fixed);
+    CHECK(monthly->dates() == std::vector<kiyosi::Date>{reopening});
+    CHECK(monthly->dates() == fixed->dates());
+}

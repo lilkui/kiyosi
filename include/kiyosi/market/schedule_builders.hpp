@@ -59,7 +59,8 @@ namespace detail {
 
 /// Builds monthly candidates beginning at `start + lock_up_months`; `start` is excluded and `end`
 /// is an inclusive upper bound. The start day is clamped to each target month's last day, then each
-/// candidate moves forward to the next trading day. Generation stops rather than crossing `end`,
+/// candidate moves forward to the next trading day, and duplicate adjusted dates are removed.
+/// Generation stops rather than crossing `end`,
 /// so `end` is not guaranteed to be an observation Date. For example, the weekdays calendar maps
 /// 2025-01-01 through 2025-03-01 with one lock-up month to [2025-02-03]; the Saturday end candidate
 /// would adjust past the bound. Supply explicit observation dates to an instrument factory when
@@ -84,7 +85,7 @@ namespace detail {
         if (target > end) break;
         auto adjusted = detail::following_date(target, end, calendar);
         if (!adjusted) break;
-        dates.push_back(*adjusted);
+        if (dates.empty() || dates.back() != *adjusted) dates.push_back(*adjusted);
     }
     return detail::make_observation_schedule(std::move(dates), start, end, calendar);
 }

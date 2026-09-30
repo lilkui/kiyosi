@@ -368,6 +368,7 @@ interval produces 2025-01-06 and 2025-01-07. Supply explicit
 Monthly candidates begin at ``start + lock_up_months``. ``start`` is excluded
 and ``end`` is an inclusive bound. The start day is clamped to each target
 month's last day, then candidates use following trading-day adjustment.
+Duplicate adjusted dates are merged, as in fixed-interval schedules.
 Generation stops rather than crossing ``end``, so ``end`` is not guaranteed.
 
 Parameters
