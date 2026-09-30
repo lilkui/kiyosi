@@ -377,40 +377,15 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
     DeviceMemory payoffs;
     DeviceMemory invalid;
     DeviceMemory total;
-    auto allocation = allocate(
-        payoffs, static_cast<std::size_t>(pair_count) * sizeof(double));
-    if (allocation.status != CudaPricingStatus::success) return allocation;
-    allocation = allocate(invalid, sizeof(int));
-    if (allocation.status != CudaPricingStatus::success) return allocation;
-    allocation = allocate(total, sizeof(double));
+    const auto allocation = allocate_path_outputs(pair_count, payoffs, invalid, total);
     if (allocation.status != CudaPricingStatus::success) return allocation;
 
-    cudaError_t status = cudaMemset(invalid.get(), 0, sizeof(int));
-    if (status != cudaSuccess) return error_result(status);
     const int block_count = (pair_count + threads_per_block - 1) / threads_per_block;
     simulate_payoff_pairs<<<block_count, threads_per_block>>>(
         request, pair_count, static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
-    status = cudaGetLastError();
+    const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    reduce_payoffs<<<1, threads_per_block>>>(
-        static_cast<const double*>(payoffs.get()), pair_count, static_cast<double*>(total.get()));
-    status = cudaGetLastError();
-    if (status != cudaSuccess) return error_result(status);
-
-    int invalid_result = 0;
-    status = cudaMemcpy(&invalid_result, invalid.get(), sizeof(int), cudaMemcpyDeviceToHost);
-    if (status != cudaSuccess) return error_result(status);
-    if (invalid_result != 0)
-        return {CudaPricingStatus::invalid_result, 0.0,
-                "CUDA Monte Carlo simulation produced a non-finite path"};
-
-    double payoff_sum = 0.0;
-    status = cudaMemcpy(&payoff_sum, total.get(), sizeof(double), cudaMemcpyDeviceToHost);
-    if (status != cudaSuccess) return error_result(status);
-    if (!std::isfinite(payoff_sum))
-        return {CudaPricingStatus::invalid_result, 0.0,
-                "CUDA Monte Carlo reduction produced a non-finite result"};
-    return {CudaPricingStatus::success, payoff_sum, nullptr};
+    return finish_path_simulation(payoffs, invalid, total, pair_count);
 }
 
 CudaPricingResult cuda_american_price(CudaAmericanRequest request)
