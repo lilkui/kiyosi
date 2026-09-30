@@ -12,3 +12,6 @@ analytic-joint-expiry	pricing_greeks	type=call;strike=100;effective_date=2024-12
 snowball-history-first-monitor	initial_snowball_history	effective_date=2025-01-01;expiry_date=2026-01-01;valuation_date=2025-01-01	delta=none	0
 snowball-history-weekend	initial_snowball_history	effective_date=2025-01-04;expiry_date=2026-01-01;valuation_date=2025-01-04	delta=available	0
 snowball-history-missing-past	initial_snowball_history	effective_date=2025-01-01;expiry_date=2026-01-01;valuation_date=2025-01-02	category=invalid_parameter	0
+fixed-touch-current	unidentifiable_touch	effective_date=2025-01-01;expiry_date=2026-01-01;valuation_date=2025-01-01;history=absent	category=unsupported_operation	-
+fixed-touch-past	unidentifiable_touch	effective_date=2025-01-01;expiry_date=2026-01-01;valuation_date=2025-07-01;history=touched	category=unsupported_operation	-
+expired-coupon-exposure	unidentifiable_coupon	effective_date=2025-01-01;expiry_date=2026-01-01;valuation_date=2025-07-01;observation_date=2025-06-02	category=unsupported_operation	-

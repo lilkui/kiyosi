@@ -1891,6 +1891,39 @@ class KiyosiPythonTests(unittest.TestCase):
                                      "color", "vega", "vanna", "zomma", "rho"):
                             self.assertEqual(getattr(a, name), getattr(b, name))
                         self.assertEqual(a.delta is not None, expected["delta"] == "available")
+                elif kind in ("unidentifiable_touch", "unidentifiable_coupon"):
+                    start = date.fromisoformat(values["effective_date"])
+                    end = date.fromisoformat(values["expiry_date"])
+                    context = PricingContext(
+                        model_parameters=self.parameters, spot_price=100,
+                        valuation_time=date.fromisoformat(values["valuation_date"]),
+                    )
+                    if kind == "unidentifiable_touch":
+                        option = cash_one_touch_up(
+                            effective_date=start, expiry_date=end, barrier_level=90, payout=10,
+                            touch_state=None if values["history"] == "absent" else "touched",
+                        )
+                        engine = AnalyticBinaryBarrierEngine()
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(engine, option, context, engine.price(option, context))
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                    else:
+                        option = BinarySnowballOption(
+                            knock_out_coupon_rates=[0.1], maturity_coupon_rate=0.1,
+                            knock_out_levels=[110],
+                            observation_dates=[date.fromisoformat(values["observation_date"])],
+                            barrier_state="none", effective_date=start, expiry_date=end,
+                        )
+                        for engine in (pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1),
+                                       pricing.FiniteDifferenceBinarySnowballEngine()):
+                            price = engine.price(option, context)
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                implied_coupon(engine, option, context, price,
+                                               quote_convention="preserve_maturity_coupon")
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                            self.assertAlmostEqual(implied_coupon(
+                                engine, option, context, price,
+                                quote_convention="shift_maturity_coupon"), 0.1, delta=1e-6)
                 elif kind == "domain_error":
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         BlackScholesMertonParameters(

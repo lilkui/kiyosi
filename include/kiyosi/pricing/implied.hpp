@@ -24,7 +24,7 @@ namespace kiyosi {
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
 /// A root is not guaranteed unique; expiry payoffs and terminated knock-out contracts
-/// independent of volatility are rejected.
+/// independent of volatility, including fixed touch payments, are rejected.
 /// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
@@ -62,21 +62,33 @@ template <typename Engine, typename Option>
     if (!fhi) return std::unexpected(fhi.error());
     double elo = *flo - observed_price;
     const double ehi = *fhi - observed_price;
-    const bool matches_both_bounds =
-        std::abs(elo) <= settings.tolerance && std::abs(ehi) <= settings.tolerance;
-    if constexpr (requires { option.expiry_date(); })
-        if (context.valuation_time() == start_of_day(option.expiry_date()) && matches_both_bounds)
-            return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                         "volatility is not identifiable at expiry"});
-    if constexpr (requires { option.barrier_state(); })
-        if (option.barrier_state() == AutocallableBarrierState::knocked_out && matches_both_bounds)
-            return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                         "volatility is not identifiable after knock-out"});
-    if constexpr (requires { option.barrier_terms(); })
-        if (option.barrier_terms().touch_state() == BarrierTouchState::touched &&
-            !option.barrier_terms().is_knock_in() && matches_both_bounds)
-            return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                         "volatility is not identifiable after knock-out"});
+    // Pricing above validates the contract and history before these state checks.
+    bool identifiable = context.valuation_time() != start_of_day(option.expiry_date());
+    if constexpr (requires { option.barrier_state(); }) {
+        identifiable = identifiable && option.barrier_state() != AutocallableBarrierState::knocked_out;
+        for (std::size_t i = 0; i < option.observation_dates().size(); ++i)
+            if (context.valuation_time() == start_of_day(option.observation_dates()[i]) &&
+                context.spot_price() >= option.knock_out_levels()[i])
+                identifiable = false;
+        if constexpr (std::same_as<Option, BinarySnowballOption>)
+            identifiable = identifiable && start_of_day(option.observation_dates().back()) >= context.valuation_time();
+    }
+    if constexpr (requires { option.barrier_terms(); }) {
+        const auto& terms = option.barrier_terms();
+        const bool touched = *terms.was_touched_before(context.valuation_time()) ||
+                             (terms.is_monitored_at(context.valuation_time()) &&
+                              terms.is_breached_by(context.spot_price()));
+        const bool monitoring_finished = !terms.is_continuous() &&
+                                        !terms.has_remaining_observation(context.valuation_time());
+        if constexpr (requires { option.is_one_touch(); })
+            identifiable = identifiable && !touched && !monitoring_finished;
+        else
+            identifiable = identifiable && !(touched && !terms.is_knock_in()) &&
+                           !(!touched && monitoring_finished && terms.is_knock_in());
+    }
+    if (!identifiable)
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "volatility does not affect the remaining cashflows"});
     if (std::abs(elo) <= settings.tolerance) return lo;
     if (std::abs(ehi) <= settings.tolerance) return hi;
     if ((elo < 0.0) == (ehi < 0.0))
@@ -204,7 +216,7 @@ inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double 
 template <typename Engine, typename Option, typename ReplaceCoupon>
 [[nodiscard]] Result<double> solve_implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon)
+    ImpliedCouponSettings settings, bool shifts_maturity_coupon, const ReplaceCoupon& replace_coupon)
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
         !std::isfinite(settings.upper_bound) ||
@@ -216,7 +228,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
-            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon);
+            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, shifts_maturity_coupon, replace_coupon);
         }
     }
 
@@ -237,11 +249,27 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     if (!flo) return std::unexpected(flo.error());
     auto fhi = evaluate(hi);
     if (!fhi) return std::unexpected(fhi.error());
-    if constexpr (requires { option.barrier_state(); })
-        if (option.barrier_state() == AutocallableBarrierState::knocked_out &&
-            std::abs(*flo) <= settings.tolerance && std::abs(*fhi) <= settings.tolerance)
-            return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                         "coupon is not identifiable after knock-out"});
+    // A coupon needs an unsettled accrual period or a maturity coupon that moves.
+    bool remaining_coupon = false;
+    for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
+        const auto date = option.observation_dates()[i];
+        const auto period_start = [&] {
+            if constexpr (requires { option.coupon_barrier_levels(); })
+                if (i > 0) return option.observation_dates()[i - 1];
+            return option.effective_date();
+        }();
+        if (start_of_day(date) >= context.valuation_time() && date > period_start)
+            remaining_coupon = true;
+    }
+    if constexpr (requires { option.maturity_coupon_rate(); }) {
+        bool maturity_coupon_payable = true;
+        if constexpr (requires { option.knock_in_level(); })
+            maturity_coupon_payable = option.barrier_state() != AutocallableBarrierState::knocked_in;
+        remaining_coupon = remaining_coupon || (shifts_maturity_coupon && maturity_coupon_payable);
+    }
+    if (option.barrier_state() == AutocallableBarrierState::knocked_out || !remaining_coupon)
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "coupon does not affect the remaining cashflows"});
     if (std::abs(*flo) <= settings.tolerance) return lo;
     if (std::abs(*fhi) <= settings.tolerance) return hi;
     if ((*flo < 0.0) == (*fhi < 0.0))
@@ -275,7 +303,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// A root is not guaranteed unique; an already knocked-out note is rejected.
+/// A root is not guaranteed unique; states with no remaining quoted coupon exposure are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
@@ -287,7 +315,7 @@ template <typename Engine, typename Option>
 {
     return detail::solve_implied_coupon(
         engine, option, context, observed_price, settings,
-        [convention](const Option& value, double coupon) {
+        convention == CouponQuoteConvention::shift_maturity_coupon, [convention](const Option& value, double coupon) {
             return detail::replace_coupon(value, coupon, convention);
         });
 }
@@ -303,7 +331,7 @@ template <typename Engine, typename Option>
     requires requires(const Option& value, double coupon) { detail::replace_coupon(value, coupon); }
 {
     return detail::solve_implied_coupon(
-        engine, option, context, observed_price, settings,
+        engine, option, context, observed_price, settings, false,
         [](const Option& value, double coupon) { return detail::replace_coupon(value, coupon); });
 }
 
