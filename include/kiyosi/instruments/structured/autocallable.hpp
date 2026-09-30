@@ -34,6 +34,10 @@ enum class AutocallableBarrierState : std::uint8_t {
 /// principal_ratio 2 plus a -0.2 downside component pays 1.8.
 class AutocallableNote {
 public:
+    AutocallableNote(const AutocallableNote&) = default;
+    AutocallableNote(AutocallableNote&&) = default;
+    ~AutocallableNote() = default;
+
     /// Returns the reference spot used to normalize contract levels.
     double initial_spot() const noexcept { return terms_.initial_spot; }
     /// Returns one positive knock-out level per observation date.
@@ -54,6 +58,11 @@ public:
     std::optional<AutocallableBarrierState> barrier_state() const noexcept { return terms_.barrier_state; }
     /// Compares all shared autocallable terms.
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
+
+protected:
+    // Only complete products may replace shared terms and their matching coupon arrays.
+    AutocallableNote& operator=(const AutocallableNote&) = default;
+    AutocallableNote& operator=(AutocallableNote&&) = default;
 
 private:
     AutocallableNote(double initial_spot, std::vector<double> knock_out_levels, double upper_strike,
@@ -82,6 +91,10 @@ private:
 /// An autocallable note carrying a downside knock-in barrier.
 class KnockInAutocallableNote {
 public:
+    KnockInAutocallableNote(const KnockInAutocallableNote&) = default;
+    KnockInAutocallableNote(KnockInAutocallableNote&&) = default;
+    ~KnockInAutocallableNote() = default;
+
     /// Returns the reference spot used to normalize contract levels.
     double initial_spot() const noexcept { return note_.initial_spot(); }
     /// Returns one positive knock-out level per observation date.
@@ -106,6 +119,11 @@ public:
     KnockInObservationMode knock_in_observation_mode() const noexcept { return knock_in_observation_mode_; }
     /// Compares all shared terms and knock-in terms.
     friend bool operator==(const KnockInAutocallableNote&, const KnockInAutocallableNote&) = default;
+
+protected:
+    // Only complete products may replace shared terms and their matching coupon arrays.
+    KnockInAutocallableNote& operator=(const KnockInAutocallableNote&) = default;
+    KnockInAutocallableNote& operator=(KnockInAutocallableNote&&) = default;
 
 private:
     KnockInAutocallableNote(double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,

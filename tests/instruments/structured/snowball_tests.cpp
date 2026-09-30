@@ -72,6 +72,27 @@ private:
 };
 } // namespace
 
+static_assert(!std::is_copy_assignable_v<kiyosi::AutocallableNote>);
+static_assert(!std::is_move_assignable_v<kiyosi::AutocallableNote>);
+static_assert(!std::is_copy_assignable_v<kiyosi::KnockInAutocallableNote>);
+static_assert(!std::is_move_assignable_v<kiyosi::KnockInAutocallableNote>);
+static_assert(std::is_copy_constructible_v<kiyosi::SnowballOption>);
+static_assert(std::is_copy_assignable_v<kiyosi::SnowballOption>);
+static_assert(std::is_move_constructible_v<kiyosi::SnowballOption>);
+static_assert(std::is_move_assignable_v<kiyosi::SnowballOption>);
+static_assert(std::is_copy_constructible_v<kiyosi::BinarySnowballOption>);
+static_assert(std::is_copy_assignable_v<kiyosi::BinarySnowballOption>);
+static_assert(std::is_move_constructible_v<kiyosi::BinarySnowballOption>);
+static_assert(std::is_move_assignable_v<kiyosi::BinarySnowballOption>);
+static_assert(std::is_copy_constructible_v<kiyosi::TernarySnowballOption>);
+static_assert(std::is_copy_assignable_v<kiyosi::TernarySnowballOption>);
+static_assert(std::is_move_constructible_v<kiyosi::TernarySnowballOption>);
+static_assert(std::is_move_assignable_v<kiyosi::TernarySnowballOption>);
+static_assert(std::is_copy_constructible_v<kiyosi::PhoenixOption>);
+static_assert(std::is_copy_assignable_v<kiyosi::PhoenixOption>);
+static_assert(std::is_move_constructible_v<kiyosi::PhoenixOption>);
+static_assert(std::is_move_assignable_v<kiyosi::PhoenixOption>);
+
 TEST_CASE("Autocallable validation does not copy its input")
 {
     int copies = 0;
