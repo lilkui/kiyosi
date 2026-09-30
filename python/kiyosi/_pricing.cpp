@@ -15,8 +15,8 @@ MonteCarloBackend monte_carlo_backend_value(nb::handle value)
 
 PythonOptionalReal optional_value(const PricingResult& result, Greek measure)
 {
-    const auto value = result.get(measure);
-    if (value && *value) return PythonOptionalReal{nb::float_(**value)};
+    const auto value = unwrap(result.get(measure));
+    if (value) return PythonOptionalReal{nb::float_(*value)};
     return PythonOptionalReal{nb::none()};
 }
 
