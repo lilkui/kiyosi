@@ -104,7 +104,7 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
     if (!std::isfinite(beta) || beta <= 1.0) return european_call(spot, strike, time, rate, dividend, volatility);
     const double b_inf = beta / (beta - 1.0) * strike;
     const double carry = rate - dividend;
-    const double b_zero = dividend > 0.0 ? std::max(strike, rate / dividend * strike) : strike;
+    const double b_zero = std::max(strike, rate / dividend * strike);
     const double split_time = 0.5 * (std::sqrt(5.0) - 1.0) * time;
     const double scale = strike * strike / ((b_inf - b_zero) * b_zero);
     const double h1 = -(carry * split_time + 2.0 * volatility * std::sqrt(split_time)) * scale;
