@@ -275,17 +275,8 @@ NumericalShiftSettings numerical_settings(
             real_number(rate_shift, "rate_shift"), integer(time_shift_days, "time_shift_days")};
 }
 
-ImpliedVolatilitySettings volatility_settings(
-    nb::handle lower_bound, nb::handle upper_bound, nb::handle price_tolerance, nb::handle parameter_tolerance,
-    nb::handle max_iterations)
-{
-    return {real_number(lower_bound, "lower_bound"),
-            real_number(upper_bound, "upper_bound"), real_number(price_tolerance, "price_tolerance"),
-            real_number(parameter_tolerance, "parameter_tolerance"),
-            integer(max_iterations, "max_iterations")};
-}
-
-ImpliedCouponSettings coupon_settings(
+template <typename Settings>
+Settings implied_settings(
     nb::handle lower_bound, nb::handle upper_bound, nb::handle price_tolerance, nb::handle parameter_tolerance,
     nb::handle max_iterations)
 {
@@ -353,7 +344,7 @@ KiyosiError
            PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
            PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
-            const auto settings = volatility_settings(
+            const auto settings = implied_settings<ImpliedVolatilitySettings>(
                 lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_volatility(
@@ -411,7 +402,7 @@ void bind_implied_coupon_pair(nb::module_& module)
            PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
            PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
-            const auto settings = coupon_settings(
+            const auto settings = implied_settings<ImpliedCouponSettings>(
                 lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_coupon(
@@ -470,7 +461,7 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
            PythonReal lower_bound, PythonReal upper_bound, PythonReal price_tolerance, PythonReal parameter_tolerance,
            PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
-            const auto settings = coupon_settings(
+            const auto settings = implied_settings<ImpliedCouponSettings>(
                 lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_coupon(

@@ -39,7 +39,6 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                                                                                 : "ql-european-"));
 
         REQUIRE(fixture.outputs.contains("price"));
-        REQUIRE(fixture.monte_carlo.has_value() == (fixture.engine == "MonteCarloEuropeanEngine" || fixture.engine == "MonteCarloAmericanEngine"));
         REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
         REQUIRE(fixture.provenance.reference_kind == (american ? "discretized" : "analytic"));
         REQUIRE(fixture.provenance.source_symbol == (american ? "QuantLib.FdBlackScholesVanillaEngine" : "QuantLib.AnalyticEuropeanEngine"));
@@ -167,12 +166,10 @@ TEST_CASE("QuantLib generated references validate all Greeks and boundary declar
                     check_engine(FiniteDifference{{static_cast<int>(number("asset_step_count")),
                                                    static_cast<int>(number("time_step_count")), schemes.at(inputs.at("scheme")), number("asset_upper_boundary")}});
                 } else if (fixture.engine == (american ? "MonteCarloAmericanEngine" : "MonteCarloEuropeanEngine")) {
-                    const auto& mc = *fixture.monte_carlo;
-                    REQUIRE(mc.tolerance == fixture.tolerances.at("price"));
-                    REQUIRE(number("seed") == mc.seed);
-                    REQUIRE(number("paths") == mc.paths);
-                    REQUIRE(number("steps") == mc.step_count);
-                    check_engine(MonteCarlo{static_cast<int>(mc.paths), static_cast<int>(mc.step_count), mc.seed});
+                    check_engine(MonteCarlo{
+                        kiyosi::test::detail::integer<int>(inputs.at("paths"), 0, "paths"),
+                        kiyosi::test::detail::integer<int>(inputs.at("steps"), 0, "steps"),
+                        kiyosi::test::detail::integer<std::uint64_t>(inputs.at("seed"), 0, "seed")});
                 } else {
                     FAIL("Unknown generated engine: " << fixture.engine);
                 }

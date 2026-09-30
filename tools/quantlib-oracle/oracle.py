@@ -16,7 +16,6 @@ HEADER = [
     "inputs",
     "outputs",
     "tolerances",
-    "monte_carlo",
 ]
 INPUTS = {
     "option",
@@ -341,7 +340,6 @@ def reference_row(identifier, inputs, reference, tolerances, numerical_tolerance
         "inputs": provenance,
         "outputs": dict(outputs),
         "tolerances": {name: tolerances[name] for name in outputs},
-        "monte_carlo": "-",
     }
 
 

@@ -124,7 +124,7 @@ TEST_CASE("Reference fixture parser reports malformed rows")
     auto text = fixture_text();
     const auto output = text.find("\tprice=");
     REQUIRE(output != std::string::npos);
-    text.replace(output + 1, text.find_first_of(";\t", output + 1) - output - 1, "price=oops");
+    text.replace(output + 1, text.find_first_of(";\t\n", output + 1) - output - 1, "price=oops");
     auto parse = [&] {
         std::istringstream input{text};
         return kiyosi::test::parse_reference_cases(input);
@@ -135,7 +135,7 @@ TEST_CASE("Reference fixture parser reports malformed rows")
     text = fixture_text();
     const auto tolerance = text.find("\tprice=", text.find('\t', text.find("\tprice=") + 1));
     REQUIRE(tolerance != std::string::npos);
-    text.replace(tolerance + 1, text.find_first_of(";\t", tolerance + 1) - tolerance - 1, "price=-1");
+    text.replace(tolerance + 1, text.find_first_of(";\t\n", tolerance + 1) - tolerance - 1, "price=-1");
     CHECK_THROWS_WITH(parse(), Catch::Matchers::ContainsSubstring("non-negative"));
 
     CHECK_THROWS_WITH(kiyosi::test::detail::calendar_date("2025-0x-06", 0, "valuation"),
@@ -150,20 +150,28 @@ TEST_CASE("Reference fixture conversions retain field diagnostics for format and
         CHECK_THROWS_WITH(kiyosi::test::detail::numeric_attributes("price=" + text, 7, "outputs"),
                           "fixture row 7: invalid outputs value '" + text + "'");
     }
-    const auto parse = [](const std::string& tolerance, const std::string& metadata) {
+    const auto parse = [](const std::string& tolerance, const std::string& settings) {
         std::istringstream input{
-            "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
-            "test\tOption\tEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
+            "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\n"
+            "test\tOption\tMonteCarloEuropeanEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
             "reference_kind=statistical;tolerance=" + tolerance +
-            "\tprice=1\tprice=0.1\t" + metadata + "\n"};
+            ";" + settings + "\tprice=1\tprice=0.1\n"};
         return kiyosi::test::parse_reference_cases(input);
     };
     for (const std::string text : {"oops", "1e999"})
-        CHECK_THROWS_WITH(parse(text, "-"),
+        CHECK_THROWS_WITH(parse(text, "seed=42;paths=32;steps=3"),
                           "fixture row 2: provenance tolerance must be finite and non-negative");
-    for (const std::string text : {"oops", "18446744073709551616"})
-        CHECK_THROWS_WITH(parse("0.1", text + "|32|3|0.1"),
-                          "fixture row 2: invalid Monte Carlo metadata");
+    for (const std::string text : {"oops", "18446744073709551616", "-1", "1.5", "42x"})
+        CHECK_THROWS_WITH(parse("0.1", "seed=" + text + ";paths=32;steps=3"),
+                          "fixture row 2: invalid seed '" + text + "'");
+    const auto valid = parse("0.1", "seed=18446744073709551615;paths=32;steps=3");
+    REQUIRE(valid.size() == 1);
+    CHECK(kiyosi::test::detail::integer<std::uint64_t>(valid[0].inputs.at("seed"), 2, "seed") == UINT64_MAX);
+    for (const std::string settings : {"paths=32;steps=3", "seed=42;steps=3", "seed=42;paths=32",
+                                       "seed=42;paths=0;steps=3", "seed=42;paths=32;steps=-1",
+                                       "seed=42;paths=1.5;steps=3", "seed=42;paths=32;steps=3x",
+                                       "seed=42;paths=2147483648;steps=3", "seed=42;paths=32;steps=2147483648"})
+        CHECK_THROWS_AS(parse("0.1", settings), kiyosi::test::FixtureParseError);
 }
 
 TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical metadata")
@@ -193,7 +201,6 @@ TEST_CASE("Pricing reference manifest covers instruments, engines, and numerical
         }
     }
     CHECK(std::ranges::any_of(names, [](const auto& name) { return name == "BarrierOption/FiniteDifferenceBarrierEngine"; }));
-    CHECK(std::ranges::any_of(cases, [](const auto& value) { return value.monte_carlo.has_value(); }));
 }
 
 TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and contracts")
@@ -237,8 +244,6 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
         has_settlement |= value.inputs.contains("settlement");
         has_monitoring |= value.inputs.contains("monitoring");
         REQUIRE(value.inputs.at("calendar") == "weekends_only");
-        if (value.engine.contains("MonteCarlo"))
-            REQUIRE(value.monte_carlo.has_value());
         REQUIRE(value.outputs.contains("price"));
     }
     CHECK(actual_engines == required_engines);
@@ -251,16 +256,16 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
 TEST_CASE("Pricing reference manifest rejects incomplete output tolerances")
 {
     std::istringstream input{
-        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
-        "broken\tOption\tEngine\tcall\tspot=100;source_revision=test;source_symbol=test;convention=Actual/365,BSM;reference_kind=analytic;tolerance=0.1\tprice=1;delta=2\tprice=0.1\t-\n"};
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\n"
+        "broken\tOption\tEngine\tcall\tspot=100;source_revision=test;source_symbol=test;convention=Actual/365,BSM;reference_kind=analytic;tolerance=0.1\tprice=1;delta=2\tprice=0.1\n"};
     CHECK_THROWS_WITH(kiyosi::test::parse_reference_cases(input), Catch::Matchers::ContainsSubstring("matching keys"));
 }
 
 TEST_CASE("Pricing reference manifest requires complete reference provenance")
 {
     std::istringstream input{
-        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\tmonte_carlo\n"
-        "broken\tEuropeanOption\tAnalyticEuropeanEngine\tcall\tspot=100\tprice=1\tprice=0.1\t-\n"};
+        "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\n"
+        "broken\tEuropeanOption\tAnalyticEuropeanEngine\tcall\tspot=100\tprice=1\tprice=0.1\n"};
     CHECK_THROWS_WITH(kiyosi::test::parse_reference_cases(input),
                       Catch::Matchers::ContainsSubstring("source_revision"));
 }

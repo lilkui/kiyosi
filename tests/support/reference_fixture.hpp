@@ -1,13 +1,14 @@
 #pragma once
 
 #include <array>
+#include <charconv>
 #include <chrono>
+#include <concepts>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <map>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -19,13 +20,6 @@
 namespace kiyosi::test {
 
 using FixtureAttributes = std::map<std::string, std::string>;
-
-struct MonteCarloMetadata {
-    std::uint64_t seed = 0;
-    std::size_t paths = 0;
-    std::size_t step_count = 0;
-    double tolerance = 0.0;
-};
 
 struct ReferenceProvenance {
     std::string source_revision;
@@ -44,7 +38,6 @@ struct ReferenceCase { // NOLINT(bugprone-exception-escape): MSVC map moves may 
     ReferenceProvenance provenance;
     std::map<std::string, double> outputs;
     std::map<std::string, double> tolerances;
-    std::optional<MonteCarloMetadata> monte_carlo;
 };
 
 class FixtureParseError : public std::runtime_error {
@@ -95,6 +88,17 @@ inline double number(const std::string& text, std::size_t row, std::string_view 
         throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
                                 std::string{name} + " '" + text + "'");
     }
+    return value;
+}
+
+template <std::integral Integer>
+Integer integer(std::string_view text, std::size_t row, std::string_view name)
+{
+    Integer value{};
+    const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+    if (error != std::errc{} || end != text.data() + text.size())
+        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                                std::string{name} + " '" + std::string{text} + "'");
     return value;
 }
 
@@ -172,7 +176,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
 {
     using namespace detail;
     constexpr std::array columns{"case_id", "instrument", "engine", "variant", "inputs", "outputs",
-                                 "tolerances", "monte_carlo"};
+                                 "tolerances"};
     std::string line;
     std::size_t row = 0;
     std::vector<ReferenceCase> cases;
@@ -296,27 +300,11 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                 if (name.starts_with("unavailable_") && !units.contains(name.substr(12))) throw invalid();
             }
         }
-        if (!fields[7].empty() && fields[7] != "-") {
-            const auto parts = split(fields[7], '|');
-            if (parts.size() != 4)
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": Monte Carlo must be seed|paths|steps|tolerance");
-            std::size_t seed = 0, paths = 0, steps = 0, parsed = 0;
-            try {
-                seed = std::stoull(parts[0], &parsed);
-                if (parsed != parts[0].size()) throw std::invalid_argument("seed");
-                paths = std::stoull(parts[1], &parsed);
-                if (parsed != parts[1].size()) throw std::invalid_argument("paths");
-                steps = std::stoull(parts[2], &parsed);
-                if (parsed != parts[2].size()) throw std::invalid_argument("steps");
-                const auto tolerance = std::stod(parts[3], &parsed);
-                if (paths == 0 || steps == 0 || parsed != parts[3].size() || !std::isfinite(tolerance) || tolerance < 0.0)
-                    throw std::invalid_argument("tolerance");
-                value.monte_carlo = MonteCarloMetadata{seed, paths, steps, tolerance};
-            } catch (const std::invalid_argument&) {
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid Monte Carlo metadata");
-            } catch (const std::out_of_range&) {
-                throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid Monte Carlo metadata");
-            }
+        if (value.engine == "MonteCarloEuropeanEngine" || value.engine == "MonteCarloAmericanEngine") {
+            (void)integer<std::uint64_t>(required_input("seed"), row, "seed");
+            if (integer<int>(required_input("paths"), row, "paths") <= 0 ||
+                integer<int>(required_input("steps"), row, "steps") <= 0)
+                throw FixtureParseError("fixture row " + std::to_string(row) + ": paths and steps must be positive");
         }
         cases.push_back(std::move(value));
     }

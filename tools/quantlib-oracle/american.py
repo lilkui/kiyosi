@@ -209,14 +209,6 @@ def rows():
                     for name in outputs
                 }
             )
-            mc = (
-                "|".join(
-                    str(attributes[key])
-                    for key in ("seed", "paths", "steps", "tolerance")
-                )
-                if engine == "MonteCarloAmericanEngine"
-                else "-"
-            )
             yield g.serialize_row(
                 {
                     "case_id": scenario["case_id"] + "-" + engine.lower(),
@@ -228,6 +220,5 @@ def rows():
                     "tolerances": {
                         name: profile["tolerances"][name] for name in outputs
                     },
-                    "monte_carlo": mc,
                 }
             )
