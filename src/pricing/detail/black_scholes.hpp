@@ -80,7 +80,7 @@ inline Result<PricingResult> price_at_volatility(
                              ? sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
                                    sign * rate * strike * rate_discount_factor * cumulative_d2
                              : 0.0;
-    if (density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2)) {
+    if (regular) {
         if (want(Greek::speed)) speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
         if (want(Greek::theta)) theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) / 365.0;
         if (want(Greek::charm)) charm = -dividend_discount_factor *
