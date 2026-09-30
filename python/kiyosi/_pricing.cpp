@@ -164,7 +164,7 @@ asset_step_count : int
     Number of spatial grid steps.
 time_step_count : int
     Number of time grid steps.
-scheme : FiniteDifferenceScheme
+scheme : {'explicit_euler', 'implicit_euler', 'crank_nicolson'}
     Time-stepping scheme.
 asset_upper_boundary : float or None
     Explicit upper asset-grid boundary, or ``None`` for the core default.)doc"};
@@ -193,7 +193,7 @@ asset_step_count : int, optional
     Number of spatial grid steps. Uses the core default when omitted.
 time_step_count : int, optional
     Number of time grid steps. Uses the core default when omitted.
-scheme : FiniteDifferenceScheme, optional
+scheme : {'explicit_euler', 'implicit_euler', 'crank_nicolson'}, optional
     Time-stepping scheme. Uses the core default when omitted.
 asset_upper_boundary : float or None, optional
     Explicit upper asset-grid boundary, or ``None`` for the core default.
@@ -229,7 +229,7 @@ path_count : int
     Number of simulated paths.
 seed : int or None
     Non-negative random seed.
-backend : MonteCarloBackend
+backend : {'cpu', 'cuda'}
     CPU or CUDA execution backend.)doc"};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonBackend backend) {
@@ -250,7 +250,7 @@ path_count : int, optional
     Number of simulated paths. Uses the core default when omitted.
 seed : int or None, optional
     Non-negative random seed. Uses the core default when omitted.
-backend : MonteCarloBackend, optional
+backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
 
 Raises
@@ -485,7 +485,7 @@ context : PricingContext
     Market state used by the solver.
 observed_price : float
     Target instrument price.
-quote_convention : CouponQuoteConvention
+quote_convention : {'shift_maturity_coupon', 'preserve_maturity_coupon'}
     Whether the maturity coupon shifts with quoted knock-out coupons.
 lower_bound, upper_bound : float, optional
     Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
@@ -546,7 +546,7 @@ rho : float or None
 
 Parameters
 ----------
-measure : Greek
+measure : {'delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho'}
     Greek to retrieve.
 
 Returns
@@ -640,7 +640,7 @@ step_count : int
     Number of time steps per path.
 seed : int or None
     Optional non-negative random seed.
-backend : MonteCarloBackend
+backend : {'cpu', 'cuda'}
     CPU or CUDA execution backend.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                                                     PythonInteger seed, PythonBackend backend) {
@@ -662,7 +662,7 @@ step_count : int, optional
     Number of time steps per path. Uses the core default when omitted.
 seed : int or None, optional
     Non-negative random seed, or ``None`` for nondeterministic seeding.
-backend : MonteCarloBackend, optional
+backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
 
 Raises

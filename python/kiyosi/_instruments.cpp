@@ -19,13 +19,13 @@ barrier_level : float
     Positive barrier level.
 payout : float
     Fixed cash payout.
-settlement_timing : SettlementTiming, optional
+settlement_timing : {'at_hit', 'at_expiry'}, optional
     Settle at the barrier hit or at expiry.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -54,11 +54,11 @@ barrier_level : float
     Positive barrier level.
 payout : float
     Fixed cash payout.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -84,13 +84,13 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-settlement_timing : SettlementTiming, optional
+settlement_timing : {'at_hit', 'at_expiry'}, optional
     Settle at the barrier hit or at expiry.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -117,11 +117,11 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -162,7 +162,7 @@ void bind_average_option(
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -190,7 +190,7 @@ expiry_date : datetime.date
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -232,7 +232,7 @@ The payoff can be exercised only at expiry.
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -251,7 +251,7 @@ expiry_date : datetime.date
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -275,7 +275,7 @@ The payoff may be exercised from the effective date through expiry.
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -294,7 +294,7 @@ expiry_date : datetime.date
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -316,7 +316,7 @@ KiyosiError
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -337,7 +337,7 @@ expiry_date : datetime.date
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -363,7 +363,7 @@ KiyosiError
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -382,7 +382,7 @@ expiry_date : datetime.date
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -410,7 +410,7 @@ barriers require no schedule.
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -418,17 +418,17 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-barrier_type : BarrierType
+barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Barrier direction and knock-in or knock-out behavior.
 rebate : float
     Rebate amount.
-rebate_timing : RebateTiming
+rebate_timing : {'at_hit', 'at_expiry'}
     Time at which the rebate is paid.
-observation_mode : ObservationMode
+observation_mode : {'continuous', 'scheduled'}
     Continuous or scheduled monitoring.
 observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
-touch_state : BarrierTouchState or None
+touch_state : {'untouched', 'touched'} or None
     Barrier touch history before valuation.)doc")
                        .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
                                         PythonDate expiry_date, PythonReal barrier, PythonChoice<BarrierType> barrier_type,
@@ -450,7 +450,7 @@ touch_state : BarrierTouchState or None
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -458,17 +458,17 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-barrier_type : BarrierType
+barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Barrier direction and knock-in or knock-out behavior.
 rebate : float, optional
     Rebate amount. Uses the core default when omitted.
-rebate_timing : RebateTiming, optional
+rebate_timing : {'at_hit', 'at_expiry'}, optional
     Time at which the rebate is paid.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring; omitted for continuous monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Raises
@@ -504,7 +504,7 @@ Instances are created by :func:`cash_binary_barrier_option` or
 
 Attributes
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -512,17 +512,17 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-barrier_type : BarrierType
+barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Barrier direction and activation behavior.
-payoff_type : PayoffType
+payoff_type : {'cash', 'asset'}
     Cash or asset delivery.
 payout : float or None
     Cash payout, or ``None`` for an asset payoff.
-observation_mode : ObservationMode
+observation_mode : {'continuous', 'scheduled'}
     Continuous or scheduled monitoring.
 observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
-touch_state : BarrierTouchState or None
+touch_state : {'untouched', 'touched'} or None
     Barrier touch history before valuation.)doc")
                               .def_prop_ro("option_type", &BinaryBarrierOption::option_type,
                                            "Call or put payoff direction.")
@@ -556,7 +556,7 @@ touch_state : BarrierTouchState or None
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -564,15 +564,15 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-barrier_type : BarrierType
+barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Barrier direction and activation behavior.
 payout : float
     Fixed cash amount paid when the payoff and barrier conditions hold.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -595,7 +595,7 @@ KiyosiError
 
 Parameters
 ----------
-option_type : OptionType
+option_type : {'call', 'put'}
     Call or put payoff direction.
 strike : float
     Positive strike price.
@@ -603,13 +603,13 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-barrier_type : BarrierType
+barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
     Barrier direction and activation behavior.
-observation_mode : ObservationMode, optional
+observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
-touch_state : BarrierTouchState or None, optional
+touch_state : {'untouched', 'touched'} or None, optional
     History strictly before valuation. Required once prior monitoring was possible.
 
 Returns
@@ -640,17 +640,17 @@ is_one_touch : bool
     Whether hitting the barrier activates rather than cancels the payoff.
 is_up : bool
     Whether the barrier is above the spot direction.
-payoff_type : PayoffType
+payoff_type : {'cash', 'asset'}
     Cash or asset delivery.
 payout : float or None
     Cash payout, or ``None`` for an asset payoff.
-settlement_timing : SettlementTiming
+settlement_timing : {'at_hit', 'at_expiry'}
     Settlement time for a one-touch payoff.
-observation_mode : ObservationMode
+observation_mode : {'continuous', 'scheduled'}
     Continuous or scheduled monitoring.
 observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
-touch_state : BarrierTouchState or None
+touch_state : {'untouched', 'touched'} or None
     Barrier touch history before valuation.)doc")
                      .def_prop_ro("effective_date", [](const TouchOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
                      .def_prop_ro("expiry_date", [](const TouchOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")

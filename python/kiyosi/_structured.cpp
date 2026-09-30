@@ -81,7 +81,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -142,7 +142,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -201,7 +201,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -257,7 +257,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -312,7 +312,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -367,7 +367,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -422,7 +422,7 @@ observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
 effective_date, expiry_date : datetime.date
     Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -463,9 +463,9 @@ upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : list[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None
     State before valuation; None means unknown.
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
@@ -512,9 +512,9 @@ upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -561,7 +561,7 @@ knock_out_levels : list[float]
     Knock-out level for each observation date.
 observation_dates : list[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None
     State before valuation; None means unknown.
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
@@ -596,7 +596,7 @@ knock_out_levels : iterable[float]
     Knock-out level for each observation date.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -642,9 +642,9 @@ knock_out_levels : list[float]
     Knock-out level for each observation date.
 observation_dates : list[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None
     State before valuation; None means unknown.
 principal_ratio : float
     Normalized principal repayment component; coupons and downside are separate.
@@ -688,9 +688,9 @@ knock_out_levels : iterable[float]
     Knock-out level for each observation date.
 observation_dates : iterable[datetime.date]
     Ordered knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Normalized principal repayment component; coupons and downside are separate.
@@ -743,9 +743,9 @@ upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : list[datetime.date]
     Ordered coupon and knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None
     State before valuation; None means unknown.
 principal_ratio : float
     Principal repayment component in normalized payoff units; coupons are separate.
@@ -792,9 +792,9 @@ upper_strike, lower_strike : float
     Terminal participation strikes.
 observation_dates : iterable[datetime.date]
     Ordered coupon and knock-out observations at 00:00 UTC.
-knock_in_observation_mode : KnockInObservationMode
+knock_in_observation_mode : {'every_trading_day', 'at_expiry'}
     Trading-day or expiry-only knock-in observation rule.
-barrier_state : AutocallableBarrierState | None, optional
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
     State before valuation; required after an observation has occurred.
 principal_ratio : float, optional
     Principal repayment component in normalized payoff units; coupons are separate.

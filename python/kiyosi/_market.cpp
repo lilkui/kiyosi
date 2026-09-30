@@ -153,7 +153,7 @@ Raises
 ------
 TypeError
     If ``value`` is not a :class:`datetime.date`.)doc")
-                        .def("adjust", [](const TradingCalendar& calendar, PythonDate nominal, PythonChoice<BusinessDayConvention> convention) { return python_date(unwrap(calendar.adjust(calendar_date(nominal, "nominal"), convention))); }, "nominal"_a, "convention"_a, "Adjust a nominal date to a trading day using FOLLOWING or PRECEDING.")
+                        .def("adjust", [](const TradingCalendar& calendar, PythonDate nominal, PythonChoice<BusinessDayConvention> convention) { return python_date(unwrap(calendar.adjust(calendar_date(nominal, "nominal"), convention))); }, "nominal"_a, "convention"_a, "Adjust a nominal date to a trading day using ``'following'`` or ``'preceding'``.")
                         .def("trading_days_between", [](const TradingCalendar& calendar, PythonDate start, PythonDate end) { return unwrap(calendar.trading_days_between(
                                                                                                                                  calendar_date(start, "start"), calendar_date(end, "end"))); }, "start"_a, "end"_a, R"doc(Count trading days in the half-open interval ``[start, end)``.
 
