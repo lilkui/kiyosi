@@ -1,11 +1,69 @@
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
 #include <chrono>
 
 #include "support/reference_harness.hpp"
+#include "pricing/detail/math.hpp"
 
 using kiyosi::test::measures;
+
+TEST_CASE("Digital analytic Greeks preserve tiny-volatility limits and scaled tails", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    const Date end{std::chrono::year{2026} / 1 / 1};
+    const AnalyticDigitalEngine engine;
+    constexpr double sigma = 1e-200;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const double sign = type == OptionType::call ? 1.0 : -1.0;
+        const auto cash = *make_cash_or_nothing_option(type, 100, 1, start, end);
+        const auto asset = *make_asset_or_nothing_option(type, 100, start, end);
+        for (const double rate : {-0.03, 0.03}) {
+            const auto market = *make_pricing_context(*make_bsm_parameters(rate, 0.0, sigma), 100.0, start);
+            const bool exercised = sign * rate > 0.0;
+            const auto cash_result = engine.price_with_greeks(cash, market, {Greek::delta, Greek::gamma});
+            const auto asset_result = engine.price_with_greeks(asset, market, {Greek::delta, Greek::gamma});
+            REQUIRE(cash_result);
+            REQUIRE(asset_result);
+            CHECK(cash_result->price() == Catch::Approx(exercised ? std::exp(-rate) : 0.0));
+            CHECK(asset_result->price() == (exercised ? 100.0 : 0.0));
+            CHECK(*cash_result->get(Greek::delta) == 0.0);
+            CHECK(*cash_result->get(Greek::gamma) == 0.0);
+            CHECK(*asset_result->get(Greek::delta) == (exercised ? 1.0 : 0.0));
+            CHECK(*asset_result->get(Greek::gamma) == 0.0);
+        }
+        const auto atm = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), 100.0, start);
+        const auto cash_atm = engine.price_with_greeks(cash, atm, {Greek::delta, Greek::gamma});
+        const auto asset_atm = engine.price_with_greeks(asset, atm, {Greek::delta, Greek::gamma});
+        REQUIRE(cash_atm);
+        REQUIRE(asset_atm);
+        CHECK(cash_atm->price() == 0.5);
+        CHECK(asset_atm->price() == 50.0);
+        CHECK(*cash_atm->get(Greek::delta) == Catch::Approx(sign * detail::inverse_sqrt_two_pi / 100.0 / sigma).epsilon(1e-12));
+        CHECK(*cash_atm->get(Greek::gamma) == Catch::Approx(-sign * 0.5 * detail::inverse_sqrt_two_pi / 100.0 / 100.0 / sigma).epsilon(1e-12));
+        CHECK(*asset_atm->get(Greek::delta) == Catch::Approx(sign * detail::inverse_sqrt_two_pi / sigma).epsilon(1e-12));
+        CHECK(*asset_atm->get(Greek::gamma) == Catch::Approx(sign * 0.5 * detail::inverse_sqrt_two_pi / 100.0 / sigma).epsilon(1e-12));
+        // Independent 70-digit Decimal references at d=40, where double-precision normal_pdf is zero.
+        const auto tail = *make_pricing_context(*make_bsm_parameters(40.0 * sigma, 0.0, sigma), 100.0, start);
+        const auto cash_tail = engine.price_with_greeks(cash, tail, {Greek::delta, Greek::gamma});
+        const auto asset_tail = engine.price_with_greeks(asset, tail, {Greek::gamma});
+        REQUIRE(cash_tail);
+        REQUIRE(asset_tail);
+        CHECK(*cash_tail->get(Greek::delta) == Catch::Approx(sign * 1.4632702508383032e-150).epsilon(1e-11).margin(0.0));
+        CHECK(*cash_tail->get(Greek::gamma) == Catch::Approx(-sign * 5.853081003353213e49).epsilon(1e-11));
+        CHECK(*asset_tail->get(Greek::gamma) == Catch::Approx(-sign * 5.853081003353213e51).epsilon(1e-11));
+        const auto subnormal = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-310), 100.0, start);
+        REQUIRE(engine.price(asset, subnormal));
+        const auto finite_gamma = engine.price_with_greeks(asset, subnormal, {Greek::gamma});
+        REQUIRE(finite_gamma);
+        CHECK(*finite_gamma->get(Greek::gamma) == Catch::Approx(sign * 1.9947114020071634e307).epsilon(1e-11));
+        const auto overflow = engine.price_with_greeks(asset, subnormal, {Greek::delta});
+        REQUIRE_FALSE(overflow);
+        CHECK(overflow.error().category == ErrorCategory::invalid_result);
+    }
+}
 
 TEST_CASE("Digital expiry_date settlement uses strict strikes without smooth Greeks")
 {

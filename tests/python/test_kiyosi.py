@@ -134,6 +134,52 @@ class KiyosiPythonTests(unittest.TestCase):
                 expired = PricingContext(model_parameters=parameters, spot_price=110, valuation_time=end)
                 self.assertEqual(engine.price(option, expired), 10)
 
+    def test_digital_tiny_volatility_greeks_preserve_finite_limits(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = AnalyticDigitalEngine()
+        sigma = 1e-200
+        density = 1 / math.sqrt(2 * math.pi)
+        for option_type, sign in (("call", 1), ("put", -1)):
+            terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+            cash = CashOrNothingOption(**terms, payout=1)
+            asset = AssetOrNothingOption(**terms)
+            for rate in (-0.03, 0.03):
+                context = PricingContext(model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+                exercised = sign * rate > 0
+                for option, price, delta in (
+                    (cash, math.exp(-rate) if exercised else 0, 0),
+                    (asset, 100 if exercised else 0, 1 if exercised else 0),
+                ):
+                    with self.subTest(option_type=option_type, rate=rate, option=type(option).__name__):
+                        result = engine.price_with_greeks(option, context, greeks=["delta", "gamma"])
+                        self.assertAlmostEqual(result.price, price, delta=1e-12)
+                        self.assertEqual(result.delta, delta)
+                        self.assertEqual(result.gamma, 0)
+            atm = PricingContext(model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+            for option, price, delta, gamma in (
+                (cash, 0.5, sign * density / 100 / sigma, -sign * 0.5 * density / 100 / 100 / sigma),
+                (asset, 50, sign * density / sigma, sign * 0.5 * density / 100 / sigma),
+            ):
+                result = engine.price_with_greeks(option, atm, greeks=["delta", "gamma"])
+                self.assertEqual(result.price, price)
+                self.assertTrue(math.isclose(result.delta, delta, rel_tol=1e-12))
+                self.assertTrue(math.isclose(result.gamma, gamma, rel_tol=1e-12))
+            tail = PricingContext(model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=40 * sigma, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+            result = engine.price_with_greeks(cash, tail, greeks=["delta", "gamma"])
+            self.assertTrue(math.isclose(result.delta, sign * 1.4632702508383032e-150, rel_tol=1e-11))
+            self.assertTrue(math.isclose(result.gamma, -sign * 5.853081003353213e49, rel_tol=1e-11))
+            subnormal = PricingContext(model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=1e-310), spot_price=100, valuation_time=start)
+            self.assertEqual(engine.price(asset, subnormal), 50)
+            result = engine.price_with_greeks(asset, subnormal, greeks=["gamma"])
+            self.assertTrue(math.isclose(result.gamma, sign * 1.9947114020071634e307, rel_tol=1e-11))
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price_with_greeks(asset, subnormal, greeks=["delta"])
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(

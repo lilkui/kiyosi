@@ -25,12 +25,12 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double root_t = std::sqrt(t);
     const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);
     const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
-    const double d1 = (std::log(spot / strike) +
-                       (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield() +
-                        0.5 * sigma * sigma) *
-                           t) /
-                      (sigma * root_t);
-    const double d2 = d1 - sigma * root_t;
+    const double volatility_time = sigma * root_t;
+    const double forward = (std::log(spot / strike) +
+                            (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t) /
+                           volatility_time;
+    const double d1 = forward + 0.5 * volatility_time;
+    const double d2 = forward - 0.5 * volatility_time;
     const double nd = normal_cdf(sign * (asset_settlement ? d1 : d2));
     const double scale = asset_settlement ? spot * div_df : payout * rate_df;
     const double value = scale * nd;
@@ -38,17 +38,31 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     if (!output.has(Greek::delta) && !output.has(Greek::gamma))
         return make_pricing_result(value);
-    const double density = normal_pdf(asset_settlement ? d1 : d2);
+    const double d = asset_settlement ? d1 : d2;
+    const double log_volatility_time = std::log(volatility_time);
+    const double log_spot = std::log(spot);
+    // Scale the density in log space: even an underflowed tail can have representable derivatives.
+    const auto weighted_density = [&](double log_weight) {
+        return std::isfinite(d) ? std::exp(log_weight - 0.5 * d * d + std::log(inverse_sqrt_two_pi)) : 0.0;
+    };
     std::optional<double> delta;
     std::optional<double> gamma;
     if (asset_settlement) {
-        if (output.has(Greek::delta)) delta = div_df * (nd + sign * density / (sigma * root_t));
-        if (output.has(Greek::gamma)) gamma = -div_df * sign * density * d1 / (spot * sigma * sigma * t) +
-                                              div_df * sign * density / (spot * sigma * root_t);
+        const double log_discount = -context.model_parameters().dividend_yield() * t;
+        if (output.has(Greek::delta)) delta = div_df * nd + sign * weighted_density(log_discount - log_volatility_time);
+        if (output.has(Greek::gamma)) {
+            const double numerator = volatility_time - d1;
+            gamma = numerator == 0.0 ? 0.0 : sign * std::copysign(
+                weighted_density(log_discount + std::log(std::abs(numerator)) - log_spot - 2.0 * log_volatility_time), numerator);
+        }
     } else {
-        if (output.has(Greek::delta)) delta = payout * rate_df * sign * density / (spot * sigma * root_t);
-        if (output.has(Greek::gamma)) gamma = -payout * rate_df * sign * density *
-                                              (1.0 + d2 / (sigma * root_t)) / (spot * spot * sigma * root_t);
+        const double log_scale = std::log(payout) - context.model_parameters().risk_free_rate() * t;
+        if (output.has(Greek::delta)) delta = sign * weighted_density(log_scale - log_spot - log_volatility_time);
+        if (output.has(Greek::gamma)) {
+            const double numerator = volatility_time + d2;
+            gamma = numerator == 0.0 ? 0.0 : -sign * std::copysign(
+                weighted_density(log_scale + std::log(std::abs(numerator)) - 2.0 * log_spot - 2.0 * log_volatility_time), numerator);
+        }
     }
     auto result = make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
     if (!result) return std::unexpected(result.error());
