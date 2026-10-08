@@ -10,6 +10,7 @@
 namespace kiyosi {
 
 /// Uniform-grid finite-difference engine for vanilla European and American options.
+/// European upper-edge values include exact BSM time value; American edges also permit immediate exercise.
 /// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceVanillaEngine {
 public:

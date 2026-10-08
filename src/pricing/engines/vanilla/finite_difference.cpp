@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 
+#include "../../detail/black_scholes.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -48,8 +49,11 @@ Result<PricingResult> price_finite_difference(
 
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
-        const double continuation = upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau);
-        const double high = call ? (american ? std::max(upper - strike, continuation) : continuation) : 0.0;
+        // The asymptotic edge loses option time value for long or volatile maturities.
+        const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
+        const double continuation = sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
+                                            strike * std::exp(-rate * tau) * probabilities.cash);
+        const double high = american ? std::max(std::max(sign * (upper - strike), 0.0), continuation) : continuation;
         const double discounted_strike = strike * std::exp(-rate * tau);
         const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
         return Boundaries{low, high};

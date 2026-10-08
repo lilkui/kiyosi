@@ -11,6 +11,29 @@
 
 namespace kiyosi::detail {
 
+inline constexpr double minimum_black_scholes_volatility_time = 1e-10;
+
+struct BlackScholesProbabilities {
+    double d1;
+    double d2;
+    double asset;
+    double cash;
+};
+
+inline BlackScholesProbabilities black_scholes_probabilities(
+    double sign, double spot, double strike, double rate, double dividend, double volatility, double time)
+{
+    const double volatility_time = volatility * std::sqrt(time);
+    if (volatility_time < minimum_black_scholes_volatility_time) {
+        const double exercised = sign * (spot * std::exp((rate - dividend) * time) - strike) > 0.0 ? 1.0 : 0.0;
+        return {0.0, 0.0, exercised, exercised};
+    }
+    const double d1 = (std::log(spot / strike) +
+                       (rate - dividend + 0.5 * volatility * volatility) * time) / volatility_time;
+    const double d2 = d1 - volatility_time;
+    return {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)};
+}
+
 /// Black-Scholes-Merton valuation of a European vanilla with selected analytic Greeks.
 /// The volatility is supplied separately so solvers can reprice without rebuilding the context.
 inline Result<PricingResult> price_at_volatility(
@@ -38,7 +61,7 @@ inline Result<PricingResult> price_at_volatility(
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced an unstable volatility limit"});
     }
-    if (volatility_time < 1e-10) {
+    if (volatility_time < minimum_black_scholes_volatility_time) {
         const double forward = spot * std::exp((rate - dividend) * year_fraction);
         const double discount = std::exp(-rate * year_fraction);
         const double intrinsic = sign * (forward - strike);
@@ -51,14 +74,13 @@ inline Result<PricingResult> price_at_volatility(
         return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt}});
     }
 
-    const double d1 = (std::log(spot / strike) +
-                       (rate - dividend + 0.5 * volatility * volatility) * year_fraction) /
-                      (volatility * sqrt_time);
-    const double d2 = d1 - volatility * sqrt_time;
+    const auto probabilities = black_scholes_probabilities(sign, spot, strike, rate, dividend, volatility, year_fraction);
+    const double d1 = probabilities.d1;
+    const double d2 = probabilities.d2;
     const double dividend_discount_factor = std::exp(-dividend * year_fraction);
     const double rate_discount_factor = std::exp(-rate * year_fraction);
-    const double cumulative_d1 = normal_cdf(sign * d1);
-    const double cumulative_d2 = normal_cdf(sign * d2);
+    const double cumulative_d1 = probabilities.asset;
+    const double cumulative_d2 = probabilities.cash;
 
     const double value = sign * (spot * dividend_discount_factor * cumulative_d1 -
                                  strike * rate_discount_factor * cumulative_d2);

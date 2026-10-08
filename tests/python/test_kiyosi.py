@@ -78,6 +78,30 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_boundaries_preserve_long_expiry_volatility_tails(self):
+        start, end = date(2025, 1, 1), date(2035, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.6,
+            ), spot_price=100, valuation_time=start,
+        )
+        for option_type in ("call", "put"):
+            terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+            option = EuropeanOption(**terms)
+            expected = AnalyticVanillaEngine().price(option, context)
+            for upper in (None, 125.0):
+                with self.subTest(option_type=option_type, upper=upper):
+                    finite = pricing.FiniteDifferenceVanillaEngine(
+                        asset_step_count=800, time_step_count=1000, asset_upper_boundary=upper,
+                    )
+                    self.assertAlmostEqual(finite.price(option, context), expected, delta=0.01)
+            for digital in (CashOrNothingOption(payout=10, **terms), AssetOrNothingOption(**terms)):
+                with self.subTest(option_type=option_type, digital=type(digital).__name__):
+                    finite = pricing.FiniteDifferenceDigitalEngine(asset_step_count=800, time_step_count=1000)
+                    self.assertAlmostEqual(
+                        finite.price(digital, context), AnalyticDigitalEngine().price(digital, context), delta=0.01,
+                    )
+
     def test_fd_numerical_greeks_hold_automatic_grid_fixed(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         option = EuropeanOption(

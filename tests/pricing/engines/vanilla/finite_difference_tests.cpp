@@ -62,6 +62,39 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
                WithinAbs(*tree_put, 0.1));
 }
 
+TEST_CASE("Finite-difference boundaries preserve long-expiry volatility tails")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2035, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.02, 0.6), 100.0, start);
+    for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+        CAPTURE(type);
+        const auto option = *kiyosi::make_european_option(type, 100.0, start, end);
+        const auto expected = kiyosi::AnalyticVanillaEngine{}.price(option, context);
+        REQUIRE(expected);
+        for (const int steps : {200, 800, 1600}) {
+            CAPTURE(steps);
+            for (const std::optional<double> upper : {std::optional<double>{}, std::optional<double>{125.0}}) {
+                CAPTURE(upper.has_value());
+                // A narrow domain needs finer time steps to damp the terminal strike kink.
+                const int time_steps = upper ? 2000 : steps;
+                const auto actual = kiyosi::FiniteDifferenceVanillaEngine{{steps, time_steps, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper}}.price(option, context);
+                REQUIRE(actual);
+                CHECK_THAT(*actual, Catch::Matchers::WithinAbs(*expected, 0.01));
+            }
+        }
+        const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 10.0, start, end);
+        const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, start, end);
+        const kiyosi::FiniteDifferenceDigitalEngine digital{800, 1000};
+        const auto cash_price = digital.price(cash, context);
+        const auto asset_price = digital.price(asset, context);
+        REQUIRE(cash_price);
+        REQUIRE(asset_price);
+        CHECK_THAT(*cash_price, Catch::Matchers::WithinAbs(*kiyosi::AnalyticDigitalEngine{}.price(cash, context), 0.001));
+        CHECK_THAT(*asset_price, Catch::Matchers::WithinAbs(*kiyosi::AnalyticDigitalEngine{}.price(asset, context), 0.01));
+    }
+}
+
 TEST_CASE("American finite-difference boundaries preserve continuation value", "[audit-fixes]")
 {
     const auto valuation = day(2025, 1, 1);

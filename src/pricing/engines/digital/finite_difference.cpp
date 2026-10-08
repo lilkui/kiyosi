@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 
+#include "../../detail/black_scholes.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -59,9 +60,10 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
-        if (asset) return Boundaries{0.0, call ? space->upper * std::exp(-dividend * tau) : 0.0};
+        const auto probabilities = black_scholes_probabilities(sign, space->upper, strike, rate, dividend, volatility, tau);
+        if (asset) return Boundaries{0.0, space->upper * std::exp(-dividend * tau) * probabilities.asset};
         const double discounted = payout * std::exp(-rate * tau);
-        return call ? Boundaries{0.0, discounted} : Boundaries{discounted, 0.0};
+        return Boundaries{call ? 0.0 : discounted, discounted * probabilities.cash};
     };
 
     std::vector<double> old(space->size());
