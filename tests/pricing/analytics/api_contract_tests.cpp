@@ -58,6 +58,39 @@ static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
                                  std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
                              Result<double>>);
 
+TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observations", "[pricing-api][audit-fixes]")
+{
+    const auto context = market(100.0, effective);
+    const auto check = [&](auto option, const auto& engine) {
+        const auto owner = std::move(option);
+        REQUIRE(option.observation_dates().empty());
+        const auto price = engine.price(option, context);
+        REQUIRE_FALSE(price);
+        CHECK(price.error().category == ErrorCategory::invalid_schedule);
+        const auto greeks = engine.price_with_greeks(option, context, {Greek::delta});
+        REQUIRE_FALSE(greeks);
+        CHECK(greeks.error().category == ErrorCategory::invalid_schedule);
+        const auto quote = engine.price(owner, context);
+        REQUIRE(quote);
+        const auto implied = implied_volatility(engine, option, context, *quote);
+        REQUIRE_FALSE(implied);
+        CHECK(implied.error().category == ErrorCategory::invalid_schedule);
+    };
+    const auto barrier = *make_barrier_option(
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
+         .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
+         .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}});
+    check(barrier, AnalyticBarrierEngine{});
+    check(barrier, FiniteDifferenceBarrierEngine{});
+    check(*make_cash_binary_barrier_option(
+              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
+               .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
+               .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}}, 1.0),
+          AnalyticBinaryBarrierEngine{});
+    check(*make_cash_one_touch_up(effective, expiry, 120.0, 1.0, SettlementTiming::at_expiry,
+                                 ObservationMode::scheduled, {expiry}), AnalyticBinaryBarrierEngine{});
+}
+
 TEST_CASE("Pricing API separates scalar selected and all-Greek outputs", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);

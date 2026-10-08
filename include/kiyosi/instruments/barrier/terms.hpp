@@ -91,6 +91,9 @@ public:
     /// Resolves prior history, rejecting missing or impossible history.
     [[nodiscard]] Result<bool> was_touched_before(Timestamp valuation_time) const
     {
+        if (!is_continuous() && observation_dates_.empty())
+            return std::unexpected(Error{ErrorCategory::invalid_schedule,
+                                         "scheduled barriers require observation dates"});
         const bool had_observation = is_continuous()
                                          ? valuation_time > start_of_day(effective_date_)
                                          : std::any_of(observation_dates_.dates().begin(), observation_dates_.dates().end(),
