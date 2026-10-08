@@ -78,12 +78,6 @@ double observation_coupon(const Note& note, std::size_t index, double spot)
     return program_observation_coupon(autocallable_event(note, index), spot);
 }
 
-template <typename Note>
-bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool at_expiry)
-{
-    return program_knocked_in(autocallable_program(note), spot, knocked_in, at_expiry);
-}
-
 // Current events are resolved at the observed spot before numerical continuation.
 struct AutocallableInitialState {
     AutocallablePathState path{};
@@ -93,7 +87,7 @@ struct AutocallableInitialState {
 
 template <typename Note>
 AutocallableInitialState autocallable_initial_state(const Note& note, const PricingContext& context,
-                           const AutocallableProgram& program)
+                                                    const AutocallableProgram& program)
 {
     if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return {.settlement = 0.0};
