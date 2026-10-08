@@ -15,6 +15,23 @@ using kiyosi::test::day;
 
 }
 
+TEST_CASE("Scheduled one-touch expires at its final fixing", "[audit-fixes]")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto fixing = day(2025, 1, 2);
+    const auto expiry = day(2026, 1, 1);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto touch = *kiyosi::make_cash_one_touch_up(
+        effective, expiry, 120.0, 10.0, kiyosi::SettlementTiming::at_expiry,
+        kiyosi::ObservationMode::scheduled, {fixing}, kiyosi::BarrierTouchState::untouched);
+    for (const double spot : {100.0, 120.0}) {
+        const auto context = *kiyosi::make_pricing_context(parameters, spot, fixing);
+        const auto price = kiyosi::AnalyticBinaryBarrierEngine{}.price(touch, context);
+        REQUIRE(price);
+        CHECK(*price == (spot < 120.0 ? 0.0 : 10.0 * std::exp(-0.05 * 364.0 / 365.0)));
+    }
+}
+
 TEST_CASE("Binary barriers expose observation intervals")
 {
     const auto valuation = day(2025, 1, 6);

@@ -74,7 +74,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                                                                 ? (*prior_touch ? 0.0 : 1.0)
                                                                 : std::exp(-rate * t)));
     }
-    if (option.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
+    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
         return make_pricing_result(knock_in ? option.rebate() * std::exp(-rate * t)
                                             : vanilla->price());
     if (option.rebate_timing() == RebateTiming::at_hit) {

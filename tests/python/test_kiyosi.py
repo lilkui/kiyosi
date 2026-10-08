@@ -116,6 +116,38 @@ class KiyosiPythonTests(unittest.TestCase):
                     delta=0.001,
                 )
 
+    def test_scheduled_barriers_settle_at_and_after_final_fixing(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
+        for valuation in (fixing, date(2025, 1, 3)):
+            context = PricingContext(
+                model_parameters=self.parameters, spot_price=100, valuation_time=valuation
+            )
+            for kind in ("up_and_in", "up_and_out"):
+                for rebate in (0, 10):
+                    option = BarrierOption(
+                        option_type="call", strike=100, effective_date=start, expiry_date=end,
+                        barrier_level=120, barrier_type=kind, rebate=rebate,
+                        observation_mode="scheduled", observation_dates=[fixing], touch_state="untouched",
+                    )
+                    expected = (
+                        rebate * math.exp(-0.05 * (end - valuation).days / 365)
+                        if kind == "up_and_in" else AnalyticVanillaEngine().price(self.option, context)
+                    )
+                    for engine in (AnalyticBarrierEngine(), pricing.FiniteDifferenceBarrierEngine()):
+                        with self.subTest(valuation=valuation, kind=kind, rebate=rebate, engine=engine):
+                            self.assertEqual(engine.price(option, context), expected)
+        touch = cash_one_touch_up(
+            effective_date=start, expiry_date=end, barrier_level=120, payout=10,
+            settlement_timing="at_expiry", observation_mode="scheduled",
+            observation_dates=[fixing], touch_state="untouched",
+        )
+        for spot in (100, 120):
+            context = PricingContext(
+                model_parameters=self.parameters, spot_price=spot, valuation_time=fixing
+            )
+            expected = 0 if spot < 120 else 10 * math.exp(-0.05 * 364 / 365)
+            self.assertEqual(AnalyticBinaryBarrierEngine().price(touch, context), expected)
+
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys

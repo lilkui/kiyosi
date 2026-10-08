@@ -109,6 +109,13 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
         if (!vanilla) return std::unexpected(vanilla.error());
         return make_pricing_result(*vanilla);
     }
+    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time()) {
+        if (knock_in)
+            return make_pricing_result(option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
+        auto vanilla = vanilla_price();
+        if (!vanilla) return std::unexpected(vanilla.error());
+        return make_pricing_result(*vanilla);
+    }
     auto out = knockout_fd(option, context, settings_);
     if (!out) return std::unexpected(out.error());
     if (!knock_in) return make_pricing_result(*out);

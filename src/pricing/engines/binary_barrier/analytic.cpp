@@ -87,7 +87,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
             return make_pricing_result(option.asset_settlement ? terms.barrier_level() : option.payout);
         return make_pricing_result(vanilla_digital(option, context, time));
     }
-    if (terms.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
+    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
         return make_pricing_result(knock_in ? 0.0 : vanilla_digital(option, context, time));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);

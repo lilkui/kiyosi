@@ -205,6 +205,42 @@ TEST_CASE("Analytic scheduled barriers stop monitoring after their final observa
                Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05 * 363.0 / 365.0), 1e-12));
 }
 
+TEST_CASE("Scheduled barriers settle exactly at and after their final fixing", "[audit-fixes]")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto fixing = day(2025, 1, 2);
+    const auto expiry = day(2026, 1, 1);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto check = [&](const auto& engine) {
+        for (const auto valuation : {effective, fixing, day(2025, 1, 3)}) {
+            for (const auto kind : {kiyosi::BarrierType::up_and_in, kiyosi::BarrierType::up_and_out}) {
+                for (const double rebate : {0.0, 10.0}) {
+                    CAPTURE(valuation, kind, rebate);
+                    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
+                    const auto option = *kiyosi::make_barrier_option(
+                        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
+                         .barrier_level = 120.0, .barrier_type = kind, .rebate = rebate,
+                         .observation_mode = kiyosi::ObservationMode::scheduled, .observation_dates = {fixing},
+                         .touch_state = kiyosi::BarrierTouchState::untouched});
+                    const auto price = engine.price(option, context);
+                    REQUIRE(price);
+                    if (valuation == effective) {
+                        CHECK(*price > 0.0);
+                        continue;
+                    }
+                    const double expected = kind == kiyosi::BarrierType::up_and_in
+                                                ? rebate * std::exp(-0.05 * *kiyosi::year_fraction(valuation, expiry))
+                                                : *kiyosi::AnalyticVanillaEngine{}.price(
+                                                      *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry), context);
+                    CHECK(*price == expected);
+                }
+            }
+        }
+    };
+    check(kiyosi::AnalyticBarrierEngine{});
+    check(kiyosi::FiniteDifferenceBarrierEngine{});
+}
+
 TEST_CASE("Scheduled barrier fixing does not recur later on its observation date")
 {
     const auto effective = day(2025, 1, 1);
