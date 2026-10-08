@@ -6,6 +6,7 @@ import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
+    BarrierOption,
     CashOrNothingOption,
     EuropeanOption,
     PhoenixOption,
@@ -16,6 +17,43 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_finite_difference_knock_in_prices_preserve_small_positive_values(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for direction, strike, barrier, kind in (
+            ("call", 150, 70, "down_and_in"),
+            ("put", 50, 130, "up_and_in"),
+        ):
+            option = BarrierOption(
+                option_type=direction,
+                strike=strike,
+                barrier_level=barrier,
+                barrier_type=kind,
+                effective_date=start,
+                expiry_date=end,
+            )
+            expected = pricing.AnalyticBarrierEngine().price(option, context)
+            for steps in (200, 800):
+                with self.subTest(direction=direction, steps=steps):
+                    engine = pricing.FiniteDifferenceBarrierEngine(
+                        asset_step_count=steps
+                    )
+                    value = engine.price(option, context)
+                    self.assertGreater(value, 0)
+                    self.assertAlmostEqual(value, expected, delta=5e-7)
+                    self.assertEqual(
+                        engine.price_with_greeks(option, context, "delta").price,
+                        value,
+                    )
+            coarse = pricing.FiniteDifferenceBarrierEngine(asset_step_count=3)
+            self.assertGreaterEqual(coarse.price(option, context), 0)
+
     def test_analytic_vanilla_greeks_preserve_scaled_normal_tails(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

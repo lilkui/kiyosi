@@ -13,11 +13,12 @@ namespace kiyosi {
 using namespace detail;
 namespace {
 // Valuation time and observation dates have been validated by price_native.
-Result<double> knockout_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
+Result<double> barrier_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
-    if (time_to_expiry == 0.0) return std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
+    const bool knock_in = option.barrier_terms().is_knock_in();
+    if (time_to_expiry == 0.0) return knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
     const int asset_step_count = settings.asset_step_count;
@@ -46,15 +47,25 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     std::vector<double> old(space->size());
     for (int index = 0; index <= asset_step_count; ++index)
         old[index] = payoff(spacing * index);
+    const auto vanilla_boundary = [&](double tau) {
+        const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
+        const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
+        return Boundaries{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
+                          sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
+                                  strike * std::exp(-rate * tau) * probabilities.cash)};
+    };
+    std::vector<double> vanilla;
+    if (knock_in) {
+        // In/out parity must use the same space and time grids before interpolation.
+        vanilla = old;
+        const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
+        if (!marched) return std::unexpected(marched.error());
+    }
     if (active(time_to_expiry))
         for (int index = 0; index <= asset_step_count; ++index)
             if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
-        const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-        const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
-        Boundaries edges{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
-                         sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
-                                 strike * std::exp(-rate * tau) * probabilities.cash)};
+        Boundaries edges = vanilla_boundary(tau);
         if (option.observation_mode() == ObservationMode::continuous) {
             if (knocked(0.0)) edges.lower = rebate_value(tau);
             if (knocked(upper)) edges.upper = rebate_value(tau);
@@ -75,6 +86,11 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         },
         constraint);
     if (!marched) return std::unexpected(marched.error());
+    if (knock_in) {
+        const double rebate = option.rebate() * std::exp(-rate * time_to_expiry);
+        for (std::size_t index = 0; index < old.size(); ++index)
+            old[index] = std::max(vanilla[index] - old[index] + rebate, 0.0);
+    }
     return space->interpolate(old, spot);
 }
 } // namespace
@@ -119,12 +135,8 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
         if (!vanilla) return std::unexpected(vanilla.error());
         return make_pricing_result(*vanilla);
     }
-    auto out = knockout_fd(option, context, settings_);
-    if (!out) return std::unexpected(out.error());
-    if (!knock_in) return make_pricing_result(*out);
-    auto vanilla = vanilla_price();
-    if (!vanilla) return std::unexpected(vanilla.error());
-    return make_pricing_result(*vanilla - *out +
-                               option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
+    const auto price = barrier_fd(option, context, settings_);
+    if (!price) return std::unexpected(price.error());
+    return make_pricing_result(*price);
 }
 } // namespace kiyosi

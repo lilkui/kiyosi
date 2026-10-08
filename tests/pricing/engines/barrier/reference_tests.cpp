@@ -14,6 +14,35 @@ using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
 
+TEST_CASE("Finite-difference knock-in prices preserve small positive values", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = Date{std::chrono::year{2026} / 1 / 1};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        const auto option = *make_barrier_option(
+            {.option_type = type, .strike = call ? 150.0 : 50.0, .effective_date = start, .expiry_date = end, .barrier_level = call ? 70.0 : 130.0, .barrier_type = call ? BarrierType::down_and_in : BarrierType::up_and_in});
+        const auto expected = AnalyticBarrierEngine{}.price(option, context);
+        REQUIRE(expected);
+        for (const int steps : {200, 800}) {
+            CAPTURE(type, steps);
+            const FiniteDifferenceBarrierEngine engine{{steps, 200}};
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK(*price > 0.0);
+            CHECK_THAT(*price, Catch::Matchers::WithinAbs(*expected, 5e-7));
+            const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+            REQUIRE(joint);
+            CHECK(joint->price() == *price);
+        }
+        const auto coarse = FiniteDifferenceBarrierEngine{{3, 200}}.price(option, context);
+        REQUIRE(coarse);
+        CHECK(*coarse >= 0.0);
+    }
+}
+
 TEST_CASE("Finite-difference barriers preserve long-expiry volatility tails")
 {
     const auto start = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
@@ -22,12 +51,7 @@ TEST_CASE("Finite-difference barriers preserve long-expiry volatility tails")
         *kiyosi::make_bsm_parameters(0.05, 0.0, 0.8), 100.0, start, kiyosi::all_days_calendar());
     for (const auto mode : {kiyosi::ObservationMode::continuous, kiyosi::ObservationMode::scheduled}) {
         const auto option = *kiyosi::make_barrier_option(
-            {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
-             .barrier_level = 0.01, .barrier_type = kiyosi::BarrierType::down_and_out,
-             .observation_mode = mode,
-             .observation_dates = mode == kiyosi::ObservationMode::scheduled
-                                      ? std::vector<kiyosi::Date>{end}
-                                      : std::vector<kiyosi::Date>{}});
+            {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 0.01, .barrier_type = kiyosi::BarrierType::down_and_out, .observation_mode = mode, .observation_dates = mode == kiyosi::ObservationMode::scheduled ? std::vector<kiyosi::Date>{end} : std::vector<kiyosi::Date>{}});
         const auto expected = kiyosi::AnalyticBarrierEngine{}.price(option, context);
         REQUIRE(expected);
         for (const auto settings : {kiyosi::FiniteDifferenceSettings{}, kiyosi::FiniteDifferenceSettings{800, 1000}}) {
@@ -45,8 +69,11 @@ TEST_CASE("Finite-difference automatic domains include distant barriers")
     const auto end = start + std::chrono::days{365};
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.02, 0.2), 100.0, start);
     const auto option = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
-                                                      .strike = 100.0, .effective_date = start, .expiry_date = end,
-                                                      .barrier_level = 500.0, .barrier_type = kiyosi::BarrierType::up_and_out});
+                                                      .strike = 100.0,
+                                                      .effective_date = start,
+                                                      .expiry_date = end,
+                                                      .barrier_level = 500.0,
+                                                      .barrier_type = kiyosi::BarrierType::up_and_out});
     const kiyosi::FiniteDifferenceBarrierEngine finite{800, 1000};
     const auto price = finite.price(option, context);
     REQUIRE(price);
