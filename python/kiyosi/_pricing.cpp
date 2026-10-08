@@ -454,11 +454,12 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
            PythonReal lower_bound, PythonReal upper_bound, PythonReal price_tolerance, PythonReal parameter_tolerance,
            PythonInteger max_iterations) {
             const double observed = real_number(observed_price, "observed_price");
+            const CouponQuoteConvention convention = quote_convention;
             const auto settings = implied_settings<ImpliedCouponSettings>(
                 lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::implied_coupon(
-                engine, instrument, context, observed, quote_convention, settings));
+                engine, instrument, context, observed, convention, settings));
         },
         "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
         "quote_convention"_a,

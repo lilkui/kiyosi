@@ -1,6 +1,9 @@
 import csv
 import math
 import os
+import subprocess
+import sys
+import textwrap
 import unittest
 from datetime import UTC, date, datetime, timedelta, timezone
 from pathlib import Path
@@ -87,6 +90,38 @@ class KiyosiPythonTests(unittest.TestCase):
             effective_date=date(2025, 1, 1),
             expiry_date=date(2026, 1, 1),
         )
+
+    def test_coupon_choice_conversion_is_process_safe(self):
+        code = textwrap.dedent(f"""
+            import sys
+            from datetime import date
+            sys.path.insert(0, {str(Path(sys.modules['kiyosi._native'].__file__).parent)!r})
+            import _native as k
+            start, end = date(2025, 1, 1), date(2026, 1, 1)
+            context = k.PricingContext(
+                model_parameters=k.BlackScholesMertonParameters(
+                    risk_free_rate=.05, dividend_yield=.02, volatility=.2),
+                spot_price=100, valuation_time=start)
+            note = k.BinarySnowballOption(
+                knock_out_coupon_rates=[.1], maturity_coupon_rate=.1,
+                knock_out_levels=[120], observation_dates=[end],
+                effective_date=start, expiry_date=end)
+            engine = k.MonteCarloBinarySnowballEngine(path_count=2, seed=1)
+            for choice in ('unknown', chr(0xD800)):
+                try:
+                    k.implied_coupon(engine, note, context, 1, quote_convention=choice)
+                except ValueError:
+                    pass
+                else:
+                    raise AssertionError('invalid choice accepted')
+            print('conversion errors returned safely')
+            """)
+        result = subprocess.run(
+            [sys.executable, "-X", "faulthandler", "-c", code],
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("conversion errors returned safely", result.stdout)
 
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
