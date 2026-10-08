@@ -13,11 +13,7 @@
 namespace {
 
 using kiyosi::test::greek_value;
-
-constexpr kiyosi::Date day(int year, unsigned month, unsigned day_number)
-{
-    return kiyosi::Date{std::chrono::year{year} / std::chrono::month{month} / std::chrono::day{day_number}};
-}
+using kiyosi::test::day;
 
 constexpr auto valuation = day(2025, 1, 6);
 const auto expiry_date = valuation + std::chrono::days{365};

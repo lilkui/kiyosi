@@ -106,31 +106,19 @@ inline Date calendar_date(const std::string& text, std::size_t row, std::string_
 {
     if (text.empty())
         throw FixtureParseError("fixture row " + std::to_string(row) + ": empty " + std::string{name});
-    if (text.size() != 10 || text[4] != '-' || text[7] != '-') {
-        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
-    }
-    try {
-        std::size_t year_length = 0;
-        std::size_t month_length = 0;
-        std::size_t day_length = 0;
-        const auto year = std::stoi(text.substr(0, 4), &year_length);
-        const auto month = static_cast<unsigned>(std::stoul(text.substr(5, 2), &month_length));
-        const auto day_number = static_cast<unsigned>(std::stoul(text.substr(8, 2), &day_length));
-        if (year_length != 4 || month_length != 2 || day_length != 2) {
-            throw std::invalid_argument("Date component");
+    if (text.size() == 10 && text[4] == '-' && text[7] == '-') {
+        try {
+            const std::string_view components{text};
+            const Date value{std::chrono::year{integer<int>(components.substr(0, 4), row, name)} /
+                             std::chrono::month{integer<unsigned>(components.substr(5, 2), row, name)} /
+                             std::chrono::day{integer<unsigned>(components.substr(8, 2), row, name)}};
+            if (is_supported_date(value)) return value;
+        } catch (const FixtureParseError&) {
+            // Report the complete date below rather than the individual component.
         }
-        const Date value{std::chrono::year{year} / std::chrono::month{month} /
-                         std::chrono::day{day_number}};
-        if (!is_supported_date(value)) throw std::invalid_argument("Date");
-        return value;
-    } catch (const std::invalid_argument&) {
-        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
-    } catch (const std::out_of_range&) {
-        throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
-                                std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
     }
+    throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                            std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
 }
 
 inline void check_tolerance(double tolerance, std::size_t row, std::string_view name)
@@ -225,15 +213,9 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                                     ": reference_kind must be analytic, approximate, discretized, or statistical");
         const auto tolerance_text = required_input("tolerance");
         try {
-            std::size_t parsed = 0;
-            value.provenance.explicit_tolerance = std::stod(tolerance_text, &parsed);
-            if (parsed != tolerance_text.size() || !std::isfinite(value.provenance.explicit_tolerance) ||
-                value.provenance.explicit_tolerance < 0.0)
-                throw std::invalid_argument("tolerance");
-        } catch (const std::invalid_argument&) {
-            throw FixtureParseError("fixture row " + std::to_string(row) +
-                                    ": provenance tolerance must be finite and non-negative");
-        } catch (const std::out_of_range&) {
+            value.provenance.explicit_tolerance = number(tolerance_text, row, "provenance tolerance");
+            check_tolerance(value.provenance.explicit_tolerance, row, "provenance tolerance");
+        } catch (const FixtureParseError&) {
             throw FixtureParseError("fixture row " + std::to_string(row) +
                                     ": provenance tolerance must be finite and non-negative");
         }

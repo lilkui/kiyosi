@@ -8,12 +8,13 @@
 #include <kiyosi/kiyosi.hpp>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <vector>
+
+#include "support/reference_fixture.hpp"
 
 namespace {
 
-using Fields = std::unordered_map<std::string, std::string>;
+using Fields = kiyosi::test::FixtureAttributes;
 
 struct ParityCase { // NOLINT(bugprone-exception-escape): MSVC map moves may allocate in debug builds.
     std::string id;
@@ -22,19 +23,6 @@ struct ParityCase { // NOLINT(bugprone-exception-escape): MSVC map moves may all
     Fields expected;
     std::string tolerance;
 };
-
-Fields fields(std::string text)
-{
-    Fields result;
-    if (text == "-") return result;
-    std::istringstream stream{std::move(text)};
-    for (std::string item; std::getline(stream, item, ';');) {
-        const auto separator = item.find('=');
-        REQUIRE(separator != std::string::npos);
-        result.emplace(item.substr(0, separator), item.substr(separator + 1));
-    }
-    return result;
-}
 
 std::vector<ParityCase> parity_cases()
 {
@@ -49,21 +37,21 @@ std::vector<ParityCase> parity_cases()
         for (std::string column; std::getline(row, column, '\t');)
             columns.push_back(column);
         REQUIRE(columns.size() == 5);
-        result.push_back({columns[0], columns[1], fields(columns[2]), fields(columns[3]), columns[4]});
+        result.push_back({columns[0], columns[1],
+                          kiyosi::test::detail::attributes(columns[2], result.size() + 2, "inputs"),
+                          kiyosi::test::detail::attributes(columns[3], result.size() + 2, "expected"), columns[4]});
     }
     return result;
 }
 
 kiyosi::Date parse_date(const std::string& value)
 {
-    return kiyosi::Date{std::chrono::year{std::stoi(value.substr(0, 4))} /
-                        std::chrono::month{static_cast<unsigned>(std::stoul(value.substr(5, 2)))} /
-                        std::chrono::day{static_cast<unsigned>(std::stoul(value.substr(8, 2)))}};
+    return kiyosi::test::detail::calendar_date(value, 0, "date");
 }
 
 kiyosi::Timestamp parse_timestamp(const std::string& value)
 {
-    return kiyosi::start_of_day(parse_date(value)) +
+    return kiyosi::start_of_day(parse_date(value.substr(0, 10))) +
            std::chrono::hours{std::stoi(value.substr(11, 2))} +
            std::chrono::minutes{std::stoi(value.substr(14, 2))} +
            std::chrono::seconds{std::stoi(value.substr(17, 2))} +

@@ -277,17 +277,7 @@ struct LossCappedSnowballTerms {
 }
 
 /// Terms for a snowball whose knock-in barrier is observed only at expiry.
-struct EuropeanSnowballTerms {
-    double coupon_rate{};                                                                 ///< Coupon rate used at knock-out and maturity.
-    double initial_spot{};                                                                ///< Positive reference spot and upper strike.
-    double knock_in_level{};                                                              ///< Positive downside knock-in level.
-    double knock_out_level{};                                                             ///< Positive knock-out level used at every observation.
-    std::vector<Date> observation_dates;                                                  ///< Strictly ordered event dates.
-    Date effective_date{};                                                                ///< First date of the note life.
-    Date expiry_date{};                                                                   ///< Final date of the note life.
-    std::optional<AutocallableBarrierState> barrier_state{SnowballTerms{}.barrier_state}; ///< Prior barrier state.
-    double principal_ratio{SnowballTerms{}.principal_ratio};                              ///< Normalized principal repayment component.
-};
+using EuropeanSnowballTerms = StandardSnowballTerms;
 
 /// Creates a European-knock-in snowball from named market terms.
 /// @return The option, or an input-validation error with a stable category.
