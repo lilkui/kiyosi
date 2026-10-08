@@ -7,6 +7,26 @@
 
 namespace kiyosi {
 
+namespace detail {
+
+/// Expands common preset fields, transferring the observation dates into the result.
+template <typename Terms>
+[[nodiscard]] SnowballTerms common_snowball_terms(Terms& terms)
+{
+    return {.initial_spot = terms.initial_spot,
+            .knock_in_level = terms.knock_in_level,
+            .upper_strike = terms.initial_spot,
+            .lower_strike = 0.0,
+            .observation_dates = std::move(terms.observation_dates),
+            .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
+            .barrier_state = terms.barrier_state,
+            .principal_ratio = terms.principal_ratio,
+            .effective_date = terms.effective_date,
+            .expiry_date = terms.expiry_date};
+}
+
+} // namespace detail
+
 /// Named market conventions layered over make_snowball_option; each one only shapes the
 /// coupon and knock-out ladders before delegating to the authoritative factory.
 
@@ -28,21 +48,11 @@ struct StandardSnowballTerms {
 [[nodiscard]] inline Result<SnowballOption> make_standard_snowball(
     StandardSnowballTerms terms)
 {
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_level),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose knock-out level decreases by observation.
@@ -69,20 +79,11 @@ struct StepDownSnowballTerms {
     knock_out_levels.reserve(terms.observation_dates.size());
     for (std::size_t index = 0; index < terms.observation_dates.size(); ++index)
         knock_out_levels.push_back(terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement);
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels = std::move(knock_out_levels),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::move(knock_out_levels);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose coupon and knock-out level both decrease by observation.
@@ -116,19 +117,11 @@ struct BothDownSnowballTerms {
         knock_out_levels.push_back(terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement);
     }
     const double maturity_coupon_rate = coupons.empty() ? 0.0 : coupons.back();
-    return make_snowball_option({.knock_out_coupon_rates = std::move(coupons),
-                                 .maturity_coupon_rate = maturity_coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels = std::move(knock_out_levels),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::move(coupons);
+    expanded.maturity_coupon_rate = maturity_coupon_rate;
+    expanded.knock_out_levels = std::move(knock_out_levels);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with distinct knock-out and maturity coupons.
@@ -150,21 +143,11 @@ struct DualCouponSnowballTerms {
 [[nodiscard]] inline Result<SnowballOption> make_dual_coupon_snowball(
     DualCouponSnowballTerms terms)
 {
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_coupon_rate),
-                                 .maturity_coupon_rate = terms.maturity_coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_level),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_coupon_rate);
+    expanded.maturity_coupon_rate = terms.maturity_coupon_rate;
+    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with a distinct final knock-out level.
@@ -188,20 +171,11 @@ struct ParachuteSnowballTerms {
 {
     std::vector<double> knock_out_levels(terms.observation_dates.size(), terms.knock_out_level);
     if (!knock_out_levels.empty()) knock_out_levels.back() = terms.final_knock_out_level;
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels = std::move(knock_out_levels),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::move(knock_out_levels);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with an out-of-the-money upper settlement strike.
@@ -223,21 +197,12 @@ struct OtmSnowballTerms {
 [[nodiscard]] inline Result<SnowballOption> make_otm_snowball(
     OtmSnowballTerms terms)
 {
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_level),
-                                 .upper_strike = terms.upper_strike,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    expanded.upper_strike = terms.upper_strike;
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose downside participation is capped by a lower strike.
@@ -259,21 +224,12 @@ struct LossCappedSnowballTerms {
 [[nodiscard]] inline Result<SnowballOption> make_loss_capped_snowball(
     LossCappedSnowballTerms terms)
 {
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_level),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = terms.lower_strike,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    expanded.lower_strike = terms.lower_strike;
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose knock-in barrier is observed only at expiry.
@@ -284,21 +240,12 @@ using EuropeanSnowballTerms = StandardSnowballTerms;
 [[nodiscard]] inline Result<SnowballOption> make_european_snowball(
     EuropeanSnowballTerms terms)
 {
-    return make_snowball_option({.knock_out_coupon_rates =
-                                     std::vector<double>(terms.observation_dates.size(), terms.coupon_rate),
-                                 .maturity_coupon_rate = terms.coupon_rate,
-                                 .initial_spot = terms.initial_spot,
-                                 .knock_in_level = terms.knock_in_level,
-                                 .knock_out_levels =
-                                     std::vector<double>(terms.observation_dates.size(), terms.knock_out_level),
-                                 .upper_strike = terms.initial_spot,
-                                 .lower_strike = 0.0,
-                                 .observation_dates = std::move(terms.observation_dates),
-                                 .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-                                 .barrier_state = terms.barrier_state,
-                                 .principal_ratio = terms.principal_ratio,
-                                 .effective_date = terms.effective_date,
-                                 .expiry_date = terms.expiry_date});
+    auto expanded = detail::common_snowball_terms(terms);
+    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+    expanded.maturity_coupon_rate = terms.coupon_rate;
+    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    expanded.knock_in_observation_mode = KnockInObservationMode::at_expiry;
+    return make_snowball_option(std::move(expanded));
 }
 
 } // namespace kiyosi

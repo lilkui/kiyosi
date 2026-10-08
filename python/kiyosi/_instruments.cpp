@@ -138,7 +138,7 @@ KiyosiError
 
 template <typename Instrument>
 void bind_common_option_properties(nb::class_<Instrument>& binding, const char* name,
-                                   std::initializer_list<const char*> extra_fields = {})
+                                   std::initializer_list<const char*> fields = {"option_type", "strike", "effective_date", "expiry_date"})
 {
     binding.def_prop_ro("option_type", &Instrument::option_type,
                         "Call or put payoff direction.")
@@ -146,9 +146,6 @@ void bind_common_option_properties(nb::class_<Instrument>& binding, const char* 
         .def_prop_ro("effective_date", [](const Instrument& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
         .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
-    std::vector<const char*> fields{"option_type", "strike"};
-    fields.insert(fields.end(), extra_fields.begin(), extra_fields.end());
-    fields.insert(fields.end(), {"effective_date", "expiry_date"});
     bind_repr(binding, name, fields);
 }
 
@@ -209,16 +206,10 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the terms or date ordering.)doc")
-                       .def_prop_ro("option_type", &AverageOptionType::option_type,
-                                    "Call or put payoff direction.")
-                       .def_prop_ro("strike", &AverageOptionType::strike, "Positive strike price.")
                        .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) { return python_date(value.averaging_start_date()); }, "First date included in the averaging period.")
-                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation.")
-                       .def_prop_ro("effective_date", [](const AverageOptionType& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
-                       .def_prop_ro("expiry_date", [](const AverageOptionType& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
-    bind_value_equality(binding);
-    bind_repr(binding, name,
-              {"option_type", "strike", "averaging_start_date", "effective_date", "expiry_date", "realized_average"});
+                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation.");
+    bind_common_option_properties(binding, name,
+                                  {"option_type", "strike", "averaging_start_date", "effective_date", "expiry_date", "realized_average"});
 }
 
 } // namespace
@@ -356,7 +347,7 @@ KiyosiError
     If the core rejects the payoff terms or date ordering.)doc")
                     .def_prop_ro("payout", &CashOrNothingOption::payout,
                                  "Fixed in-the-money cash payout.");
-    bind_common_option_properties(cash, "CashOrNothingOption", {"payout"});
+    bind_common_option_properties(cash, "CashOrNothingOption", {"option_type", "strike", "payout", "effective_date", "expiry_date"});
 
     auto asset = nb::class_<AssetOrNothingOption>(
                      module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.
@@ -477,11 +468,6 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the payoff, barrier, dates, or observation schedule.)doc")
-                       .def_prop_ro("option_type", &BarrierOption::option_type,
-                                    "Call or put payoff direction.")
-                       .def_prop_ro("strike", &BarrierOption::strike, "Positive strike price.")
-                       .def_prop_ro("effective_date", [](const BarrierOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
-                       .def_prop_ro("expiry_date", [](const BarrierOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
                        .def_prop_ro("barrier_level", &BarrierOption::barrier_level, "Positive barrier level.")
                        .def_prop_ro("barrier_type", &BarrierOption::barrier_type, "Barrier direction and activation behavior.")
                        .def_prop_ro("rebate", &BarrierOption::rebate, "Barrier rebate amount.")
@@ -492,9 +478,8 @@ KiyosiError
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
             return output; }, "Copy of the scheduled observations at 00:00 UTC.");
-    bind_value_equality(barrier);
-    bind_repr(barrier, "BarrierOption",
-              {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
+    bind_common_option_properties(barrier, "BarrierOption",
+                                  {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
                               module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
@@ -524,11 +509,6 @@ observation_dates : list[datetime.date]
     Ordered scheduled monitoring dates.
 touch_state : {'untouched', 'touched'} or None
     Barrier touch history before valuation.)doc")
-                              .def_prop_ro("option_type", &BinaryBarrierOption::option_type,
-                                           "Call or put payoff direction.")
-                              .def_prop_ro("strike", &BinaryBarrierOption::strike, "Positive strike price.")
-                              .def_prop_ro("effective_date", [](const BinaryBarrierOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
-                              .def_prop_ro("expiry_date", [](const BinaryBarrierOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
                               .def_prop_ro("barrier_level", &BinaryBarrierOption::barrier_level, "Positive barrier level.")
                               .def_prop_ro("barrier_type", &BinaryBarrierOption::barrier_type, "Barrier direction and activation behavior.")
                               .def_prop_ro("payoff_type", &BinaryBarrierOption::payoff_type, "Cash or asset delivery form.")
@@ -542,9 +522,8 @@ touch_state : {'untouched', 'touched'} or None
             PythonDateList output;
             for (const Date item : value.observation_dates()) output.append(python_date(item));
             return output; }, "Copy of the scheduled observations at 00:00 UTC.");
-    bind_value_equality(binary_barrier);
-    bind_repr(binary_barrier, "BinaryBarrierOption",
-              {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
+    bind_common_option_properties(binary_barrier, "BinaryBarrierOption",
+                                  {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
 
     module.def("cash_binary_barrier_option", [](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<BarrierType> barrier_type, PythonReal payout, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_binary_barrier_option(
                                                                                                                                                                                                                                                                                                                                                                                             {type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),

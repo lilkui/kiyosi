@@ -19,19 +19,19 @@ std::vector<Greek> requested_greeks(nb::handle value)
         selected.push_back(string_enum<Greek>(value, "greeks"));
         return selected;
     }
-    nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(value.ptr()));
-    if (!iterator) {
-        if (!PyErr_ExceptionMatches(PyExc_TypeError)) throw nb::python_error();
-        PyErr_Clear();
+    nb::iterator iterator;
+    try {
+        iterator = nb::iter(value);
+    } catch (const nb::python_error& error) {
+        if (!error.matches(PyExc_TypeError)) throw;
         type_error("greeks", "a Greek name or an iterable of Greek names");
     }
-    while (PyObject* item = PyIter_Next(iterator.ptr())) {
-        nb::object greek = nb::steal<nb::object>(item);
+    for (; iterator != nb::iterator::sentinel(); ++iterator) {
+        const nb::handle greek = *iterator;
         if (!nb::isinstance<nb::str>(greek))
             type_error("greeks", "a Greek name or an iterable of Greek names");
         selected.push_back(string_enum<Greek>(greek, "greeks"));
     }
-    if (PyErr_Occurred()) throw nb::python_error();
     return selected;
 }
 

@@ -197,6 +197,41 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(measure=name):
                 self.assertIsNone(getattr(basic, name))
 
+    def test_greek_iterators_initialize_once_and_preserve_errors(self):
+        engine = AnalyticVanillaEngine()
+        for phase in ("initialization", "advance"):
+            for error_type in (TypeError, RuntimeError, MemoryError):
+                failure = error_type("Greek iteration failed")
+
+                class FailingGreeks:
+                    iter_calls = 0
+                    first = True
+
+                    def __iter__(self):
+                        self.iter_calls += 1
+                        if phase == "initialization":
+                            raise failure
+                        return self
+
+                    def __next__(self):
+                        if self.first:
+                            self.first = False
+                            return "delta"
+                        raise failure
+
+                values = FailingGreeks()
+                with self.subTest(phase=phase, error=error_type.__name__):
+                    with self.assertRaises(error_type) as caught:
+                        engine.price_with_greeks(self.option, self.context, values)
+                    self.assertEqual(values.iter_calls, 1)
+                    if phase == "initialization" and error_type is TypeError:
+                        self.assertEqual(
+                            str(caught.exception),
+                            "greeks must be a Greek name or an iterable of Greek names",
+                        )
+                    else:
+                        self.assertIs(caught.exception, failure)
+
     def test_joint_pricing_requires_explicit_greeks_and_valid_shift_settings(self):
         engine = AnalyticVanillaEngine()
         with self.assertRaises(TypeError):
