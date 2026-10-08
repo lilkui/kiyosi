@@ -98,6 +98,53 @@ TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api
     }
 }
 
+TEST_CASE("Fixed barrier settlements bypass irrelevant vanilla overflow", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    struct SettlementCase {
+        BarrierType type;
+        RebateTiming timing;
+        BarrierTouchState state;
+        bool scheduled;
+        bool fixed;
+        bool already_paid;
+    };
+    for (const double rate : {0.0, 0.04}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, -0.1, 0.2), 1.7e308, day(2025, 1, 2));
+        for (const auto scenario : {
+                 SettlementCase{BarrierType::up_and_out, RebateTiming::at_expiry, BarrierTouchState::touched, false, true, false},
+                 SettlementCase{BarrierType::up_and_out, RebateTiming::at_hit, BarrierTouchState::touched, false, true, true},
+                 SettlementCase{BarrierType::up_and_out, RebateTiming::at_hit, BarrierTouchState::untouched, false, true, false},
+                 SettlementCase{BarrierType::up_and_in, RebateTiming::at_expiry, BarrierTouchState::untouched, true, true, false},
+                 SettlementCase{BarrierType::up_and_in, RebateTiming::at_expiry, BarrierTouchState::touched, false, false, false},
+                 SettlementCase{BarrierType::up_and_out, RebateTiming::at_expiry, BarrierTouchState::untouched, true, false, false}}) {
+            CAPTURE(rate, scenario.type, scenario.timing, scenario.state, scenario.scheduled);
+            const auto option = *make_barrier_option(
+                {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = scenario.type, .rebate = 3.0, .rebate_timing = scenario.timing, .observation_mode = scenario.scheduled ? ObservationMode::scheduled : ObservationMode::continuous, .observation_dates = scenario.scheduled ? std::vector<Date>{start} : std::vector<Date>{}, .touch_state = scenario.state});
+            const auto check = [&](const auto& engine) {
+                const auto result = engine.price_with_greeks(option, context, {Greek::vega});
+                if (!scenario.fixed) {
+                    REQUIRE_FALSE(result);
+                    CHECK(result.error().category == ErrorCategory::invalid_result);
+                    return;
+                }
+                REQUIRE(result);
+                const double expected = scenario.already_paid ? 0.0 : 3.0 * (scenario.timing == RebateTiming::at_hit ? 1.0 : std::exp(-rate * 364.0 / 365.0));
+                CHECK(result->price() == Catch::Approx(expected));
+                CHECK(greek_value(*result, Greek::vega) == 0.0);
+            };
+            check(AnalyticBarrierEngine{});
+            check(FiniteDifferenceBarrierEngine{});
+        }
+        const auto missing_history = *make_barrier_option(
+            {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .rebate = 3.0});
+        const auto invalid = AnalyticBarrierEngine{}.price(missing_history, context);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    }
+}
+
 TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[audit-fixes]")
 {
     for (const double threshold : {0.0, 11.0, 11.9, 11.99, 12.0, 13.6, 30.0}) {

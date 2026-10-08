@@ -67,6 +67,81 @@ class PricingAuditTests(unittest.TestCase):
                     )
                     self.assertEqual(engine.price(option, expired), 0)
 
+    def test_fixed_barrier_settlements_bypass_irrelevant_vanilla_overflow(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for rate in (0, 0.04):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=-0.1, volatility=0.2
+                ),
+                spot_price=1.7e308,
+                valuation_time=date(2025, 1, 2),
+            )
+            terms = {
+                "option_type": "call",
+                "strike": 100,
+                "barrier_level": 120,
+                "rebate": 3,
+                "effective_date": start,
+                "expiry_date": end,
+            }
+            for kind, timing, state, scheduled, fixed, paid in (
+                ("up_and_out", "at_expiry", "touched", False, True, False),
+                ("up_and_out", "at_hit", "touched", False, True, True),
+                ("up_and_out", "at_hit", "untouched", False, True, False),
+                ("up_and_in", "at_expiry", "untouched", True, True, False),
+                ("up_and_in", "at_expiry", "touched", False, False, False),
+                ("up_and_out", "at_expiry", "untouched", True, False, False),
+            ):
+                option = BarrierOption(
+                    **terms,
+                    barrier_type=kind,
+                    rebate_timing=timing,
+                    touch_state=state,
+                    observation_mode="scheduled" if scheduled else "continuous",
+                    observation_dates=[start] if scheduled else [],
+                )
+                for engine in (
+                    pricing.AnalyticBarrierEngine(),
+                    pricing.FiniteDifferenceBarrierEngine(),
+                ):
+                    with self.subTest(
+                        rate=rate,
+                        kind=kind,
+                        timing=timing,
+                        state=state,
+                        scheduled=scheduled,
+                        engine=type(engine).__name__,
+                    ):
+                        if fixed:
+                            result = engine.price_with_greeks(option, context, "vega")
+                            expected = (
+                                0
+                                if paid
+                                else 3
+                                * (
+                                    1
+                                    if timing == "at_hit"
+                                    else math.exp(-rate * 364 / 365)
+                                )
+                            )
+                            self.assertAlmostEqual(result.price, expected)
+                            self.assertEqual(result.vega, 0)
+                        else:
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                engine.price_with_greeks(option, context, "vega")
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_RESULT,
+                            )
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                pricing.AnalyticBarrierEngine().price(
+                    BarrierOption(**terms, barrier_type="up_and_out"), context
+                )
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
+
     def test_finite_difference_knock_in_prices_preserve_small_positive_values(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

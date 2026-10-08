@@ -45,10 +45,6 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         if (!schedule_valid) return std::unexpected(schedule_valid.error());
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
-    const auto vanilla = price_at_volatility(
-        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
-        context.model_parameters().volatility(), GreeksRequest{});
-    if (!vanilla) return std::unexpected(vanilla.error());
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double rate = context.model_parameters().risk_free_rate();
@@ -62,21 +58,24 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const bool knock_in = terms.is_knock_in();
     const bool touched_now = terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
+    if (touched && !knock_in)
+        return make_pricing_result(option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
+                                                          ? (*prior_touch ? 0.0 : 1.0)
+                                                          : std::exp(-rate * t)));
+    const bool monitoring_finished = !terms.is_continuous() &&
+                                     start_of_day(terms.observation_dates().back()) <= context.valuation_time();
+    if (!touched && monitoring_finished && knock_in)
+        return make_pricing_result(option.rebate() * std::exp(-rate * t));
+    const auto vanilla = price_at_volatility(
+        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
+        context.model_parameters().volatility(), GreeksRequest{});
+    if (!vanilla) return std::unexpected(vanilla.error());
+    if (touched || monitoring_finished)
+        return make_pricing_result(vanilla->price());
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
-    if (touched) {
-        const double touched_value = vanilla->price();
-        return make_pricing_result(knock_in
-                                       ? touched_value
-                                       : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
-                                                                ? (*prior_touch ? 0.0 : 1.0)
-                                                                : std::exp(-rate * t)));
-    }
-    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
-        return make_pricing_result(knock_in ? option.rebate() * std::exp(-rate * t)
-                                            : vanilla->price());
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = std::log(barrier) - std::log(spot);
     if (hit_rebate) {
