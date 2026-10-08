@@ -109,10 +109,13 @@ inline Date calendar_date(const std::string& text, std::size_t row, std::string_
     if (text.size() == 10 && text[4] == '-' && text[7] == '-') {
         try {
             const std::string_view components{text};
-            const Date value{std::chrono::year{integer<int>(components.substr(0, 4), row, name)} /
-                             std::chrono::month{integer<unsigned>(components.substr(5, 2), row, name)} /
-                             std::chrono::day{integer<unsigned>(components.substr(8, 2), row, name)}};
-            if (is_supported_date(value)) return value;
+            const auto calendar = std::chrono::year{integer<int>(components.substr(0, 4), row, name)} /
+                                  std::chrono::month{integer<unsigned>(components.substr(5, 2), row, name)} /
+                                  std::chrono::day{integer<unsigned>(components.substr(8, 2), row, name)};
+            if (calendar.ok()) {
+                const Date value{calendar};
+                if (is_supported_date(value)) return value;
+            }
         } catch (const FixtureParseError&) {
             // Report the complete date below rather than the individual component.
         }

@@ -13,6 +13,25 @@
 
 using kiyosi::test::fixture_text;
 
+TEST_CASE("Reference fixture dates reject invalid calendar components", "[audit-fixes]")
+{
+    for (const std::string text : {"2025-02-30", "2025-02-29", "1900-02-29", "2025-04-31",
+                                   "2025-13-01", "2025-00-01", "2025-01-00", "2025-01-32"}) {
+        CAPTURE(text);
+        CHECK_THROWS_WITH(kiyosi::test::detail::calendar_date(text, 7, "valuation"),
+                          "fixture row 7: invalid valuation '" + text + "' (expected YYYY-MM-DD)");
+    }
+    using namespace std::chrono;
+    for (const auto& [text, expected] : std::array{
+             std::pair{"2024-02-29", year{2024} / February / 29},
+             std::pair{"2000-02-29", year{2000} / February / 29},
+             std::pair{"2025-01-01", year{2025} / January / 1},
+             std::pair{"2025-12-31", year{2025} / December / 31}}) {
+        CAPTURE(text);
+        CHECK(kiyosi::test::detail::calendar_date(text, 7, "valuation") == kiyosi::Date{expected});
+    }
+}
+
 TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations")
 {
     const auto original = fixture_text();
