@@ -95,6 +95,49 @@ TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[au
     }
 }
 
+TEST_CASE("Analytic and quadrature prices preserve scaled normal tails", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    struct TailCase {
+        double ratio, vanilla, call_cash, call_asset, put_asset;
+    };
+    // Independent 100-digit Decimal tail integrals, scaled before rounding to double.
+    for (const auto row : {TailCase{2392.274820537378, 6.592380619674553e-32, 5.3531191121506334e-33, 1.287205586953211e-29, 1.2806132063335364e-29},
+                           TailCase{10000.0, 1.1367038364232515e-163, 2.6141386421114433e-165, 2.625505680475676e-161, 2.6141386421114432e-161}}) {
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(row.ratio, type);
+            const bool call = type == OptionType::call;
+            const double spot = call ? 1e300 : 1e300 * row.ratio;
+            const double strike = call ? 1e300 * row.ratio : 1e300;
+            const auto context = *make_pricing_context(parameters, spot, start);
+            const auto vanilla = *make_european_option(type, strike, start, end);
+            const auto cash = *make_cash_or_nothing_option(type, strike, 1e300, start, end);
+            const auto asset = *make_asset_or_nothing_option(type, strike, start, end);
+            const auto check = [&](const auto& engine, const auto& option, double expected) {
+                const auto value = engine.price(option, context);
+                REQUIRE(value);
+                CHECK(*value == Catch::Approx(expected).epsilon(1e-8).margin(0.0));
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *value);
+            };
+            check(AnalyticVanillaEngine{}, vanilla, row.vanilla);
+            check(QuadratureVanillaEngine{}, vanilla, row.vanilla);
+            const double cash_expected = call ? row.call_cash : row.call_asset;
+            const double asset_expected = call ? row.call_asset : row.put_asset;
+            check(AnalyticDigitalEngine{}, cash, cash_expected);
+            check(QuadratureDigitalEngine{}, cash, cash_expected);
+            check(AnalyticDigitalEngine{}, asset, asset_expected);
+            check(QuadratureDigitalEngine{}, asset, asset_expected);
+            const auto rho = AnalyticVanillaEngine{}.price_with_greeks(vanilla, context, {Greek::rho});
+            REQUIRE(rho);
+            CHECK(greek_value(*rho, Greek::rho) == Catch::Approx((call ? row.call_cash * row.ratio : -row.call_asset) / 100.0).epsilon(1e-8).margin(0.0));
+        }
+    }
+}
+
 TEST_CASE("Analytic vanilla Greeks preserve scaled normal tails", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

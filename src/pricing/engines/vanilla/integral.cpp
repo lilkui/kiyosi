@@ -31,10 +31,9 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     if (!std::isfinite(width) || !std::isfinite(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
     // Completing the square centers the asset-weighted density at width instead of zero.
-    const double asset_probability = normal_tail_integral(sign * (threshold - width));
-    const double cash_probability = normal_tail_integral(sign * threshold);
-    const double value = sign * (spot * std::exp(-dividend * tau) * asset_probability -
-                                 strike * std::exp(-rate * tau) * cash_probability);
+    const double asset_value = normal_tail_integral(sign * (threshold - width), spot, -dividend * tau);
+    const double cash_value = normal_tail_integral(sign * threshold, strike, -rate * tau);
+    const double value = sign * (asset_value - cash_value);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result(value);
 }

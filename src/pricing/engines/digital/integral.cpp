@@ -27,8 +27,8 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * time) / width + 0.5 * width;
     if (!std::isfinite(width) || !std::isfinite(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
-    const double probability = normal_tail_integral(sign * (threshold - (asset ? width : 0.0)));
-    const double value = (asset ? spot * std::exp(-dividend * time) : payout * std::exp(-rate * time)) * probability;
+    const double value = normal_tail_integral(sign * (threshold - (asset ? width : 0.0)),
+                                              asset ? spot : payout, -(asset ? dividend : rate) * time);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result(value);
 }

@@ -83,8 +83,13 @@ inline Result<PricingResult> price_at_volatility(
     const double cumulative_d1 = probabilities.asset;
     const double cumulative_d2 = probabilities.cash;
 
-    const double value = sign * (spot * dividend_discount_factor * cumulative_d1 -
-                                 strike * rate_discount_factor * cumulative_d2);
+    const double asset_value = sign * d1 < -10.0
+                                   ? exponential_normal_cdf(std::log(spot) - dividend * year_fraction, sign * d1)
+                                   : spot * dividend_discount_factor * cumulative_d1;
+    const double cash_value = sign * d2 < -10.0
+                                  ? exponential_normal_cdf(std::log(strike) - rate * year_fraction, sign * d2)
+                                  : strike * rate_discount_factor * cumulative_d2;
+    const double value = sign * (asset_value - cash_value);
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});
@@ -110,8 +115,7 @@ inline Result<PricingResult> price_at_volatility(
                              : 0.0;
     std::optional<double> speed, theta, charm, color, vega, vanna, zomma;
     const double carry = want(Greek::theta)
-                             ? sign * dividend * spot * dividend_discount_factor * cumulative_d1 -
-                                   sign * rate * strike * rate_discount_factor * cumulative_d2
+                             ? sign * dividend * asset_value - sign * rate * cash_value
                              : 0.0;
     if (regular) {
         if (want(Greek::speed)) speed = -weighted_density(log_gamma_weight - log_spot, 1.0 + d1 / volatility_time);
@@ -137,7 +141,7 @@ inline Result<PricingResult> price_at_volatility(
         if (want(Greek::zomma)) zomma = 0.0;
     }
     const std::optional<double> rho = want(Greek::rho)
-                                          ? std::optional{sign * year_fraction * strike * rate_discount_factor * cumulative_d2 / percentage_points_per_unit}
+                                          ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit}
                                           : std::nullopt;
     auto output = make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
     if (!output) return std::unexpected(output.error());

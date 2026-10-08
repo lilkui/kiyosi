@@ -6,6 +6,7 @@ import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
+    AssetOrNothingOption,
     BarrierOption,
     CashOrNothingOption,
     EuropeanOption,
@@ -53,6 +54,95 @@ class PricingAuditTests(unittest.TestCase):
                     )
             coarse = pricing.FiniteDifferenceBarrierEngine(asset_step_count=3)
             self.assertGreaterEqual(coarse.price(option, context), 0)
+
+    def test_analytic_and_quadrature_prices_preserve_scaled_normal_tails(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        # Independent 100-digit Decimal references, scaled before rounding to float.
+        for ratio, vanilla, call_cash, call_asset, put_asset in (
+            (
+                2392.274820537378,
+                6.592380619674553e-32,
+                5.3531191121506334e-33,
+                1.287205586953211e-29,
+                1.2806132063335364e-29,
+            ),
+            (
+                10000,
+                1.1367038364232515e-163,
+                2.6141386421114433e-165,
+                2.625505680475676e-161,
+                2.6141386421114432e-161,
+            ),
+        ):
+            for direction in ("call", "put"):
+                call = direction == "call"
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=1e300 if call else 1e300 * ratio,
+                    valuation_time=start,
+                )
+                kwargs = {
+                    "option_type": direction,
+                    "strike": 1e300 * ratio if call else 1e300,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
+                option = EuropeanOption(**kwargs)
+                cash = CashOrNothingOption(**kwargs, payout=1e300)
+                asset = AssetOrNothingOption(**kwargs)
+                for engine, instrument, expected in (
+                    (pricing.AnalyticVanillaEngine(), option, vanilla),
+                    (pricing.QuadratureVanillaEngine(), option, vanilla),
+                    (
+                        pricing.AnalyticDigitalEngine(),
+                        cash,
+                        call_cash if call else call_asset,
+                    ),
+                    (
+                        pricing.QuadratureDigitalEngine(),
+                        cash,
+                        call_cash if call else call_asset,
+                    ),
+                    (
+                        pricing.AnalyticDigitalEngine(),
+                        asset,
+                        call_asset if call else put_asset,
+                    ),
+                    (
+                        pricing.QuadratureDigitalEngine(),
+                        asset,
+                        call_asset if call else put_asset,
+                    ),
+                ):
+                    with self.subTest(
+                        ratio=ratio,
+                        direction=direction,
+                        engine=engine,
+                        instrument=instrument,
+                    ):
+                        value = engine.price(instrument, context)
+                        self.assertTrue(math.isclose(value, expected, rel_tol=1e-8))
+                        self.assertEqual(
+                            engine.price_with_greeks(
+                                instrument, context, "delta"
+                            ).price,
+                            value,
+                        )
+                rho = (
+                    pricing.AnalyticVanillaEngine()
+                    .price_with_greeks(option, context, "rho")
+                    .rho
+                )
+                self.assertTrue(
+                    math.isclose(
+                        rho,
+                        (call_cash * ratio if call else -call_asset) / 100,
+                        rel_tol=1e-8,
+                    )
+                )
 
     def test_analytic_vanilla_greeks_preserve_scaled_normal_tails(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

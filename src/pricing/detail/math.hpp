@@ -43,28 +43,35 @@ inline double exponential_normal_cdf(double log_weight, double value) noexcept
     return std::exp(log_weight + log_normal_cdf(value));
 }
 
-/// Simpson integration of a centered normal tail; reflect negative thresholds to avoid long intervals.
-inline double normal_tail_integral(double threshold) noexcept
+/// Simpson integration of a scaled normal tail; reflect negative thresholds to avoid long intervals.
+inline double normal_tail_integral(double threshold, double weight = 1.0, double log_discount = 0.0) noexcept
 {
     if (std::isnan(threshold)) return threshold;
     const double lower = std::abs(threshold);
-    const double density = normal_pdf(lower);
-    if (density == 0.0) return threshold < 0.0 ? 1.0 : 0.0;
+    const bool scaled_tail = threshold > 10.0;
+    const double scale = scaled_tail ? 1.0 : weight * std::exp(log_discount);
+    const double log_weight = scaled_tail ? std::log(weight) + log_discount : 0.0;
+    // Scale before exponentiating so representable prices survive probability underflow.
+    const auto density_at = [&](double value) {
+        return scaled_tail ? inverse_sqrt_two_pi * std::exp(log_weight - 0.5 * value * value) : normal_pdf(value);
+    };
+    const double density = density_at(lower);
+    if (density == 0.0) return threshold < 0.0 ? scale : 0.0;
     // Extend until the endpoint density is exp(-72) times the starting density.
     const double upper = std::hypot(lower, 12.0);
     constexpr int panels = 2048;
     const double step = (upper - lower) / panels;
-    double sum = density + normal_pdf(upper);
+    double sum = density + density_at(upper);
     double correction = 0.0;
     for (int index = 1; index < panels; ++index) {
         // Compensated summation keeps price roundoff from dominating third-order Greeks.
-        const double term = (index % 2 == 0 ? 2.0 : 4.0) * normal_pdf(lower + index * step) - correction;
+        const double term = (index % 2 == 0 ? 2.0 : 4.0) * density_at(lower + index * step) - correction;
         const double next = sum + term;
         correction = (next - sum) - term;
         sum = next;
     }
     const double tail = sum * step / 3.0;
-    return threshold < 0.0 ? 1.0 - tail : tail;
+    return scale * (threshold < 0.0 ? 1.0 - tail : tail);
 }
 
 } // namespace kiyosi::detail
