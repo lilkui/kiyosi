@@ -14,6 +14,31 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Bjerksund-Stensland prices preserve extreme monetary scales", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.05, 0.03, 0.2);
+    const BjerksundStenslandVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double spot : {80.0, 100.0, 120.0}) {
+            const auto price = [&](double scale) {
+                const auto option = *make_american_option(type, 100.0 * scale, start, end);
+                const auto context = *make_pricing_context(parameters, spot * scale, start);
+                const auto result = engine.price(option, context);
+                REQUIRE(result);
+                return *result / scale;
+            };
+            const double base = price(1.0);
+            for (const double scale : {1e155, 1e-170, 1e-200}) {
+                CAPTURE(type, spot, scale);
+                CHECK_THAT(price(scale), Catch::Matchers::WithinAbs(base, 1e-9));
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic European prices preserve the large-volatility limit", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 6);

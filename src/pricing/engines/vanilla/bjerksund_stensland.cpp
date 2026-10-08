@@ -14,7 +14,7 @@ namespace {
 double european_call(double spot, double strike, double time, double rate, double dividend, double volatility)
 {
     const double root = std::sqrt(time);
-    const double d1 = (std::log(spot / strike) + (rate - dividend + 0.5 * volatility * volatility) * time) /
+    const double d1 = (std::log(spot) - std::log(strike) + (rate - dividend + 0.5 * volatility * volatility) * time) /
                       (volatility * root);
     const double d2 = d1 - volatility * root;
     return spot * std::exp(-dividend * time) * normal_cdf(d1) -
@@ -28,15 +28,18 @@ double phi(double spot, double time, double gamma, double boundary, double strik
     const double root = volatility * std::sqrt(time);
     const double lambda = -rate + gamma * (rate - dividend) + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * (rate - dividend) / variance + 2.0 * gamma - 1.0;
-    const double first = -(std::log(spot / boundary) +
+    const double log_spot = std::log(spot);
+    const double log_boundary = std::log(boundary);
+    const double log_strike_boundary = std::log(strike_boundary);
+    const double first = -(log_spot - log_boundary +
                            (rate - dividend + (gamma - 0.5) * variance) * time) /
                          root;
-    const double second = -(std::log(strike_boundary * strike_boundary / (spot * boundary)) +
+    const double second = -(2.0 * log_strike_boundary - log_spot - log_boundary +
                             (rate - dividend + (gamma - 0.5) * variance) * time) /
                           root;
-    const double log_weight = lambda * time + gamma * std::log(spot / power_boundary);
+    const double log_weight = lambda * time + gamma * (log_spot - std::log(power_boundary));
     return exponential_normal_cdf(log_weight, first) -
-           exponential_normal_cdf(log_weight + kappa * std::log(strike_boundary / spot), second);
+           exponential_normal_cdf(log_weight + kappa * (log_strike_boundary - log_spot), second);
 }
 
 double exponential_bivariate_normal_cdf(double log_weight, double first, double second, double correlation)
@@ -71,29 +74,32 @@ double ksi(double spot, double time, double gamma, double boundary, double outer
     const double split_root = volatility * std::sqrt(split_time);
     const double root = volatility * std::sqrt(time);
     const double drift = carry + (gamma - 0.5) * variance;
-    const double e1 = (std::log(spot / inner_boundary) + drift * split_time) / split_root;
-    const double e2 = (std::log(outer_boundary * outer_boundary / (spot * inner_boundary)) +
+    const double log_spot = std::log(spot);
+    const double log_boundary = std::log(boundary);
+    const double log_outer = std::log(outer_boundary);
+    const double log_inner = std::log(inner_boundary);
+    const double e1 = (log_spot - log_inner + drift * split_time) / split_root;
+    const double e2 = (2.0 * log_outer - log_spot - log_inner +
                        drift * split_time) /
                       split_root;
-    const double e3 = (std::log(spot / inner_boundary) - drift * split_time) / split_root;
-    const double e4 = (std::log(outer_boundary * outer_boundary / (spot * inner_boundary)) -
+    const double e3 = (log_spot - log_inner - drift * split_time) / split_root;
+    const double e4 = (2.0 * log_outer - log_spot - log_inner -
                        drift * split_time) /
                       split_root;
-    const double f1 = (std::log(spot / boundary) + drift * time) / root;
-    const double f2 = (std::log(outer_boundary * outer_boundary / (spot * boundary)) + drift * time) / root;
-    const double f3 = (std::log(inner_boundary * inner_boundary / (spot * boundary)) + drift * time) / root;
-    const double f4 = (std::log(spot * inner_boundary * inner_boundary /
-                                (boundary * outer_boundary * outer_boundary)) +
+    const double f1 = (log_spot - log_boundary + drift * time) / root;
+    const double f2 = (2.0 * log_outer - log_spot - log_boundary + drift * time) / root;
+    const double f3 = (2.0 * log_inner - log_spot - log_boundary + drift * time) / root;
+    const double f4 = (log_spot - log_boundary + 2.0 * (log_inner - log_outer) +
                        drift * time) /
                       root;
     const double correlation = std::sqrt(split_time / time);
     const double lambda = -rate + gamma * carry + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * carry / variance + 2.0 * gamma - 1.0;
-    const double log_weight = lambda * time + gamma * std::log(spot / power_boundary);
+    const double log_weight = lambda * time + gamma * (log_spot - std::log(power_boundary));
     return exponential_bivariate_normal_cdf(log_weight, -e1, -f1, correlation) -
-           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(outer_boundary / spot), -e2, -f2, correlation) -
-           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(inner_boundary / spot), -e3, -f3, -correlation) +
-           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(inner_boundary / outer_boundary), -e4, -f4, -correlation);
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_outer - log_spot), -e2, -f2, correlation) -
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_spot), -e3, -f3, -correlation) +
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_outer), -e4, -f4, -correlation);
 }
 
 double bjerksund_call(double spot, double strike, double time, double rate, double dividend, double volatility)
@@ -109,14 +115,14 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
     const double carry = rate - dividend;
     const double b_zero = std::max(strike, rate / dividend * strike);
     const double split_time = 0.5 * (std::sqrt(5.0) - 1.0) * time;
-    const double scale = strike * strike / ((b_inf - b_zero) * b_zero);
+    const double scale = (strike / (b_inf - b_zero)) * (strike / b_zero);
     const double h1 = -(carry * split_time + 2.0 * volatility * std::sqrt(split_time)) * scale;
     const double h2 = -(carry * time + 2.0 * volatility * std::sqrt(time)) * scale;
     const double inner = b_zero + (b_inf - b_zero) * (1.0 - std::exp(h1));
     const double outer = b_zero + (b_inf - b_zero) * (1.0 - std::exp(h2));
     if (spot >= outer) return spot - strike;
     // Normalize beta powers before evaluation so neither alpha nor spot^beta overflows separately.
-    return (outer - strike) * std::exp(beta * std::log(spot / outer)) -
+    return (outer - strike) * std::exp(beta * (std::log(spot) - std::log(outer))) -
            (outer - strike) * phi(spot, split_time, beta, outer, outer, rate, dividend, volatility, outer) +
            phi(spot, split_time, 1.0, outer, outer, rate, dividend, volatility, 1.0) -
            phi(spot, split_time, 1.0, inner, outer, rate, dividend, volatility, 1.0) -

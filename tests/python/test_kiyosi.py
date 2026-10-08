@@ -80,6 +80,22 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_bjerksund_preserves_extreme_monetary_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2)
+        engine = pricing.BjerksundStenslandVanillaEngine()
+        for direction in ("call", "put"):
+            for spot in (80, 100, 120):
+                def price(scale):
+                    option = AmericanOption(option_type=direction, strike=100 * scale,
+                                            effective_date=start, expiry_date=end)
+                    context = PricingContext(model_parameters=parameters, spot_price=spot * scale, valuation_time=start)
+                    return engine.price(option, context) / scale
+                base = price(1)
+                for scale in (1e155, 1e-170, 1e-200):
+                    with self.subTest(direction=direction, spot=spot, scale=scale):
+                        self.assertAlmostEqual(price(scale), base, delta=1e-9)
+
     def test_analytic_digital_preserves_extreme_spot_strike_ratios(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=50)
