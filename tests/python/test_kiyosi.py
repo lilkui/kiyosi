@@ -76,6 +76,31 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fixed_interval_schedule_bounds_extreme_intervals(self):
+        # Isolate the overflow regression so a broken loop cannot hang the test runner.
+        result = subprocess.run(
+            [sys.executable, "-c", textwrap.dedent("""
+                from datetime import date
+                from kiyosi.market import fixed_interval_schedule
+                for interval in (2**31 - 1, 2**31 - 100):
+                    schedule = fixed_interval_schedule(
+                        start=date(2025, 1, 1), end=date(2026, 1, 1),
+                        interval_days=interval)
+                    assert list(schedule) == []
+            """)],
+            capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        self.assertEqual(
+            list(fixed_interval_schedule(start=start, end=end, interval_days=365,
+                                         calendar=market.all_days_calendar())),
+            [end],
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            fixed_interval_schedule(start=start, end=end, interval_days=0)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_SCHEDULE)
+
     def test_fd_low_volatility_prices_remain_bounded(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction, spot, rate, dividend in (

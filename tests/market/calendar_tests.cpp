@@ -227,3 +227,24 @@ TEST_CASE("Schedule builders merge collisions after a long market closure", "[sc
     CHECK(monthly->dates() == std::vector<kiyosi::Date>{reopening});
     CHECK(monthly->dates() == fixed->dates());
 }
+
+TEST_CASE("Fixed-interval schedules bound additions by remaining dates", "[schedule]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto maximum = std::chrono::days{std::numeric_limits<std::chrono::days::rep>::max()};
+    for (const auto first : {start, day(-32767, 1, 1), day(32767, 12, 30)}) {
+        const auto last = first == start ? end : first + std::chrono::days{1};
+        const auto schedule = kiyosi::make_fixed_interval_schedule(first, last, maximum);
+        REQUIRE(schedule);
+        CHECK(schedule->empty());
+    }
+    const auto exact = kiyosi::make_fixed_interval_schedule(start, end, end - start, kiyosi::all_days_calendar());
+    REQUIRE(exact);
+    CHECK(exact->dates() == std::vector<kiyosi::Date>{end});
+    for (const auto invalid : {std::chrono::days{0}, std::chrono::days::min()}) {
+        const auto schedule = kiyosi::make_fixed_interval_schedule(start, end, invalid);
+        REQUIRE_FALSE(schedule);
+        CHECK(schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
+    }
+}

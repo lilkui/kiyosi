@@ -49,7 +49,8 @@ namespace detail {
     if (interval <= std::chrono::days{0})
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "fixed schedule terms are invalid"});
     std::vector<Date> dates;
-    for (auto target = start + interval; target <= end; target += interval) {
+    for (auto target = start; interval <= end - target;) {
+        target += interval;
         auto adjusted = detail::following_date(target, end, calendar);
         if (!adjusted) break;
         if (dates.empty() || dates.back() != *adjusted) dates.push_back(*adjusted);
