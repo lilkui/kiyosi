@@ -10,6 +10,29 @@
 
 using kiyosi::test::measures;
 
+TEST_CASE("Analytic digital prices preserve extreme spot-strike ratios", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = start + std::chrono::days{365};
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 50.0);
+    const AnalyticDigitalEngine engine;
+    // Independent normal-tail reference for d = 25 - log(1e400) / 50.
+    constexpr double probability = 0.9999999999763696;
+    const auto check = [&](const auto& option, double spot, double scale) {
+        const auto context = *make_pricing_context(parameters, spot, start);
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        CHECK(*price / scale == Catch::Approx(probability).epsilon(1e-12));
+        const auto joint = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        REQUIRE(joint);
+        CHECK(joint->price() == *price);
+        CHECK(joint->all_finite());
+    };
+    check(*make_cash_or_nothing_option(OptionType::put, 1e-200, 1.0, start, expiry), 1e200, 1.0);
+    check(*make_asset_or_nothing_option(OptionType::call, 1e200, start, expiry), 1e-200, 1e-200);
+}
+
 TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[audit-fixes]")
 {
     using namespace kiyosi;

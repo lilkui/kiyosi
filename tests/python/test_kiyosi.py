@@ -80,6 +80,26 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_analytic_digital_preserves_extreme_spot_strike_ratios(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=50)
+        engine = AnalyticDigitalEngine()
+        cases = (
+            (CashOrNothingOption(option_type="put", strike=1e-200, payout=1,
+                                 effective_date=start, expiry_date=end), 1e200, 1),
+            (AssetOrNothingOption(option_type="call", strike=1e200,
+                                  effective_date=start, expiry_date=end), 1e-200, 1e-200),
+        )
+        for option, spot, scale in cases:
+            with self.subTest(instrument=type(option).__name__):
+                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                price = engine.price(option, context)
+                self.assertAlmostEqual(price / scale, 0.9999999999763696, delta=1e-12)
+                joint = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                self.assertEqual(joint.price, price)
+                self.assertTrue(math.isfinite(joint.delta))
+                self.assertTrue(math.isfinite(joint.gamma))
+
     def test_analytic_barriers_preserve_extreme_monetary_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
