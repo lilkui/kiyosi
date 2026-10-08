@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -111,6 +112,45 @@ TEST_CASE("Finite-difference American engine returns intrinsic value at expiry_d
     const auto at_expiry = kiyosi::FiniteDifferenceVanillaEngine{}.price(expiry_put, expiry_context);
     REQUIRE(at_expiry.has_value());
     CHECK(*at_expiry == 10.0);
+}
+
+TEST_CASE("Finite-difference low-volatility prices remain bounded")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const bool call : {false, true}) {
+        const auto type = call ? kiyosi::OptionType::call : kiyosi::OptionType::put;
+        const double spot = call ? 105.0 : 95.0;
+        const auto option = *kiyosi::make_european_option(type, 100.0, start, end);
+        for (const double volatility : {0.001, 0.01}) {
+            const auto parameters = *kiyosi::make_bsm_parameters(call ? 0.0 : 0.1, call ? 0.1 : 0.0, volatility);
+            const auto context = *kiyosi::make_pricing_context(parameters, spot, start);
+            const double analytic = *kiyosi::AnalyticVanillaEngine{}.price(option, context);
+            for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
+                                      kiyosi::FiniteDifferenceScheme::implicit_euler,
+                                      kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
+                CAPTURE(call, volatility, scheme);
+                const auto coarse = kiyosi::FiniteDifferenceVanillaEngine{{200, 2000, scheme}}.price(option, context);
+                const auto fine = kiyosi::FiniteDifferenceVanillaEngine{{800, 2000, scheme}}.price(option, context);
+                REQUIRE(coarse);
+                REQUIRE(fine);
+                CHECK(*coarse >= 0.0);
+                CHECK(*fine >= 0.0);
+                CHECK(*coarse <= (call ? spot * std::exp(-0.1) : 100.0 * std::exp(-0.1)));
+                CHECK(std::abs(*fine - analytic) < std::abs(*coarse - analytic));
+            }
+        }
+    }
+}
+
+TEST_CASE("Explicit finite-difference stability includes drift")
+{
+    const auto start = day(2025, 1, 1);
+    const auto option = *kiyosi::make_european_option(kiyosi::OptionType::put, 100.0, start, day(2026, 1, 1));
+    const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(2.0, 0.0, 0.001), 95.0, start);
+    const auto result = kiyosi::FiniteDifferenceVanillaEngine{{200, 200, kiyosi::FiniteDifferenceScheme::explicit_euler}}.price(option, context);
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
 
 } // namespace

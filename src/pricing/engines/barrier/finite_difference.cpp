@@ -36,7 +36,7 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         }
     }
     const auto grid = make_finite_difference_time_grid(time_to_expiry, time_step_count, observation_times);
-    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_step_count);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, asset_step_count);
         !stable)
         return std::unexpected(stable.error());
     auto active = [&](double time) { return option.observation_mode() == ObservationMode::continuous || std::ranges::binary_search(observation_times, time); };

@@ -508,7 +508,8 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
 
     for (const auto& [rate, volatility] : {
              std::tuple{0.75, 0.125}, std::tuple{0.0, 0.25}, std::tuple{-3.0, 0.5}}) {
-        const auto market = context(100.0, rate, 0.01, volatility);
+        // Zero carry isolates the signed discount term from the drift stability bound.
+        const auto market = context(100.0, rate, rate, volatility);
         const auto stable = kiyosi::FiniteDifferenceSettings{4, 100, kiyosi::FiniteDifferenceScheme::explicit_euler};
         const auto boundary = kiyosi::FiniteDifferenceSettings{4, 2, kiyosi::FiniteDifferenceScheme::explicit_euler};
         const auto unstable = kiyosi::FiniteDifferenceSettings{4, 1, kiyosi::FiniteDifferenceScheme::explicit_euler};
@@ -516,17 +517,17 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
         const auto vanilla_stable = kiyosi::FiniteDifferenceVanillaEngine{stable}.price(call, market);
         CHECK(vanilla_stable.has_value());
         const auto vanilla_boundary = kiyosi::FiniteDifferenceVanillaEngine{boundary}.price(call, market);
-        CHECK((vanilla_boundary || vanilla_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK(vanilla_boundary.has_value());
         CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{unstable}.price(call, market).has_value());
         const auto digital_stable = kiyosi::FiniteDifferenceDigitalEngine{stable}.price(digital, market);
         CHECK(digital_stable.has_value());
         const auto digital_boundary = kiyosi::FiniteDifferenceDigitalEngine{boundary}.price(digital, market);
-        CHECK((digital_boundary || digital_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK(digital_boundary.has_value());
         CHECK_FALSE(kiyosi::FiniteDifferenceDigitalEngine{unstable}.price(digital, market).has_value());
         const auto barrier_stable = kiyosi::FiniteDifferenceBarrierEngine{stable}.price(barrier, market);
         CHECK(barrier_stable.has_value());
         const auto barrier_boundary = kiyosi::FiniteDifferenceBarrierEngine{boundary}.price(barrier, market);
-        CHECK((barrier_boundary || barrier_boundary.error().message != "explicit finite-difference grid is unstable"));
+        CHECK(barrier_boundary.has_value());
         CHECK_FALSE(kiyosi::FiniteDifferenceBarrierEngine{unstable}.price(barrier, market).has_value());
     }
 }

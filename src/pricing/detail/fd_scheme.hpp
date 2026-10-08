@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <optional>
@@ -24,6 +25,14 @@ struct Boundaries {
     double upper;
 };
 
+inline std::array<double, 3> diffusion_coefficients(double node, double rate, double dividend, double volatility)
+{
+    const double drift = (rate - dividend) * node;
+    // Switch to one-sided drift when the centered stencil would have a negative off-diagonal.
+    const double diffusion = std::max(0.5 * volatility * volatility * node * node, 0.5 * std::abs(drift));
+    return {diffusion - 0.5 * drift, -2.0 * diffusion - rate, diffusion + 0.5 * drift};
+}
+
 /// One theta-weighted Black-Scholes time step solved with the Thomas algorithm.
 /// Reuses its coefficient buffers so a full backward march allocates once.
 class FiniteDifferenceStep {
@@ -45,9 +54,7 @@ public:
         const int asset_step_count = static_cast<int>(old.size()) - 1;
         for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
-            const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
-            const double b = -volatility * volatility * i * i - rate;
-            const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
+            const auto [a, b, c] = diffusion_coefficients(i, rate, dividend, volatility);
             const auto position = static_cast<std::size_t>(index - 1);
             if (const auto fixed = constraint(index)) {
                 lower_[position] = upper_diagonal_[position] = 0.0;
@@ -98,9 +105,7 @@ public:
         const int asset_step_count = static_cast<int>(first_old.size()) - 1;
         for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
-            const double a = 0.5 * volatility * volatility * i * i - 0.5 * (rate - dividend) * i;
-            const double b = -volatility * volatility * i * i - rate;
-            const double c = 0.5 * volatility * volatility * i * i + 0.5 * (rate - dividend) * i;
+            const auto [a, b, c] = diffusion_coefficients(i, rate, dividend, volatility);
             const auto position = static_cast<std::size_t>(index - 1);
             rhs_[position] = first_old[static_cast<std::size_t>(index)] +
                              (1.0 - theta) * dt *

@@ -41,7 +41,7 @@ Result<PricingResult> price_finite_difference(
     const double spacing = space->spacing;
     const int time_step_count = settings.time_step_count;
     const auto grid = make_finite_difference_time_grid(time, time_step_count);
-    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, asset_step_count);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, asset_step_count);
         !stable)
         return std::unexpected(stable.error());
     const double theta = scheme_theta(settings.scheme);

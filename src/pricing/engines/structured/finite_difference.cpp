@@ -105,7 +105,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, std::move(anchors));
-    if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, settings_.asset_step_count);
+    if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 

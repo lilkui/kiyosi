@@ -36,14 +36,15 @@ inline std::vector<double> make_finite_difference_time_grid(double maturity, int
 
 /// Rejects explicit-Euler grids whose largest step breaks positivity of the update at the top node.
 [[nodiscard]] inline Result<void> check_explicit_stability(
-    FiniteDifferenceScheme scheme, std::span<const double> grid, double volatility, double rate,
+    FiniteDifferenceScheme scheme, std::span<const double> grid, double volatility, double rate, double dividend,
     int asset_step_count)
 {
     if (scheme != FiniteDifferenceScheme::explicit_euler) return {};
     const auto steps = grid | std::views::adjacent_transform<2>(
                                   [](double start, double end) { return end - start; });
     const double nodes = static_cast<double>(asset_step_count);
-    if (std::ranges::max(steps) * (volatility * volatility * nodes * nodes + rate) > 1.0)
+    const double diffusion = std::max(volatility * volatility * nodes * nodes, std::abs(rate - dividend) * nodes);
+    if (std::ranges::max(steps) * (diffusion + rate) > 1.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "explicit finite-difference grid is unstable"});
     return {};

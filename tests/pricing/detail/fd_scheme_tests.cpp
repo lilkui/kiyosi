@@ -24,6 +24,7 @@ TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying 
 TEST_CASE("Paired finite-difference advances match independent layers")
 {
     const auto size = GENERATE(std::size_t{4}, std::size_t{7});
+    const auto volatility = GENERATE(0.2, 0.001);
     constexpr double upper = 240.0;
     const double spacing = upper / static_cast<double>(size - 1);
     const std::array time_step_count{0.17, 0.03, 0.11};
@@ -31,7 +32,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
     for (const double theta : {0.0, 1.0, 0.5}) {
         CAPTURE(theta);
         const kiyosi::detail::DiffusionParameters parameters{
-            .rate = 0.03, .dividend = 0.01, .volatility = 0.2, .theta = theta};
+            .rate = 0.03, .dividend = 0.01, .volatility = volatility, .theta = theta};
         kiyosi::detail::LinearBoundaryStepper paired{size, upper, spacing, parameters};
         kiyosi::detail::LinearBoundaryStepper first_independent{size, upper, spacing, parameters};
         kiyosi::detail::LinearBoundaryStepper second_independent{size, upper, spacing, parameters};

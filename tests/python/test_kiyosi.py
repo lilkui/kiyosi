@@ -76,6 +76,37 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_low_volatility_prices_remain_bounded(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction, spot, rate, dividend in (
+            ("put", 95, 0.1, 0), ("call", 105, 0, 0.1)
+        ):
+            option = EuropeanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for volatility in (0.001, 0.01):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
+                    ),
+                    spot_price=spot, valuation_time=start,
+                )
+                analytic = AnalyticVanillaEngine().price(option, context)
+                for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                    with self.subTest(direction=direction, volatility=volatility, scheme=scheme):
+                        coarse = pricing.FiniteDifferenceVanillaEngine(
+                            asset_step_count=200, time_step_count=2000, scheme=scheme
+                        ).price(option, context)
+                        fine = pricing.FiniteDifferenceVanillaEngine(
+                            asset_step_count=800, time_step_count=2000, scheme=scheme
+                        ).price(option, context)
+                        self.assertGreaterEqual(coarse, 0)
+                        self.assertGreaterEqual(fine, 0)
+                        self.assertLessEqual(
+                            coarse, (spot if direction == "call" else 100) * math.exp(-0.1)
+                        )
+                        self.assertLess(abs(fine - analytic), abs(coarse - analytic))
+
     def test_fd_current_events_use_actual_spot(self):
         start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         note = BinarySnowballOption(
