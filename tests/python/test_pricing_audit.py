@@ -14,7 +14,11 @@ from kiyosi.instruments import (
     PhoenixOption,
     SnowballOption,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+)
 from kiyosi.pricing import implied_volatility
 
 
@@ -295,6 +299,63 @@ class PricingAuditTests(unittest.TestCase):
                 value = pricing.QuadratureDigitalEngine().price(digital, context)
                 expected = 1e100 * 0.5 * math.erfc(threshold / math.sqrt(2))
                 self.assertTrue(math.isclose(value, expected, rel_tol=1e-8))
+
+    def test_implied_volatility_counts_only_future_phoenix_coupons(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 1, 3), date(2025, 1, 6)
+        for valuation in (date(2025, 1, 2), fixing, date(2025, 1, 4)):
+            for lower in (100, 60):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0, dividend_yield=0, volatility=0.05
+                    ),
+                    spot_price=100,
+                    valuation_time=valuation,
+                    calendar=all_days_calendar(),
+                )
+                option = PhoenixOption(
+                    coupon_rate=0.1,
+                    initial_spot=100,
+                    knock_in_level=80,
+                    knock_out_levels=[110],
+                    coupon_barrier_levels=[90],
+                    upper_strike=100,
+                    lower_strike=lower,
+                    observation_dates=[fixing],
+                    knock_in_observation_mode="every_trading_day",
+                    barrier_state="knocked_in",
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                for engine in (
+                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                    pricing.FiniteDifferencePhoenixEngine(),
+                ):
+                    with self.subTest(
+                        valuation=valuation, lower=lower, engine=type(engine).__name__
+                    ):
+                        quote = engine.price(option, context)
+                        args = {"lower_bound": 0.05, "upper_bound": 0.4}
+                        if valuation < fixing or lower != 100:
+                            self.assertEqual(
+                                implied_volatility(
+                                    engine, option, context, quote, **args
+                                ),
+                                0.05,
+                            )
+                        else:
+                            self.assertAlmostEqual(
+                                quote,
+                                1 + (0.1 * 2 / 365 if valuation == fixing else 0),
+                                places=10,
+                            )
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                implied_volatility(
+                                    engine, option, context, quote, **args
+                                )
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            )
 
     def test_implied_volatility_rejects_fixed_participation_and_zero_accrual(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)

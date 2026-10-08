@@ -67,6 +67,37 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
     }
 }
 
+TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto fixing = day(2025, 1, 3);
+    const auto end = day(2025, 1, 6);
+    const ImpliedVolatilitySettings bounds{.lower_bound = 0.05, .upper_bound = 0.4};
+    for (const auto valuation : {day(2025, 1, 2), fixing, day(2025, 1, 4)}) {
+        for (const double lower : {100.0, 60.0}) {
+            CAPTURE(valuation, lower);
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.05), 100.0, valuation, all_days_calendar());
+            const auto option = *make_phoenix_option(
+                {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = lower, .observation_dates = {fixing}, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end});
+            const auto check = [&](const auto& engine) {
+                const auto quote = engine.price(option, context);
+                REQUIRE(quote);
+                const auto result = implied_volatility(engine, option, context, *quote, bounds);
+                if (valuation < fixing || lower != 100.0) {
+                    REQUIRE(result);
+                    CHECK(*result == bounds.lower_bound);
+                } else {
+                    CHECK(*quote == Catch::Approx(1.0 + (valuation == fixing ? 0.1 * 2.0 / 365.0 : 0.0)).margin(1e-10));
+                    REQUIRE_FALSE(result);
+                    CHECK(result.error().category == ErrorCategory::unsupported_operation);
+                }
+            };
+            check(MonteCarloPhoenixEngine{{64, 73}});
+            check(FiniteDifferencePhoenixEngine{});
+        }
+    }
+}
+
 TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[audit-fixes]")
 {
     for (const double threshold : {0.0, 11.0, 11.9, 11.99, 12.0, 13.6, 30.0}) {

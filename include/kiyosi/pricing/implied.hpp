@@ -121,7 +121,8 @@ template <typename Engine, typename Option>
                         if (knocked_in) terminal_coupon = 0.0;
                         else exposed = exposed || terminal_coupon != 0.0;
                     } else {
-                        exposed = exposed || option.coupon_rate() != 0.0;
+                        exposed = exposed || (option.coupon_rate() != 0.0 &&
+                                              start_of_day(option.observation_dates().back()) > context.valuation_time());
                     }
                 }
             }
