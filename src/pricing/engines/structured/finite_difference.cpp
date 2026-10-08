@@ -23,23 +23,6 @@ struct ObservationEvent {
     std::size_t index;
 };
 
-/// Highest product level the grid must span so no barrier or strike is clipped.
-template <typename Note>
-double highest_relevant_level(const Note& note, double spot)
-{
-    double relevant = spot;
-    if constexpr (requires { note.initial_spot(); note.upper_strike(); note.lower_strike(); })
-        relevant = std::max({relevant, note.initial_spot(), note.upper_strike(), note.lower_strike()});
-    for (const double level : note.knock_out_levels())
-        relevant = std::max(relevant, level);
-    if constexpr (requires { note.knock_in_level(); })
-        relevant = std::max(relevant, note.knock_in_level());
-    if constexpr (requires { note.coupon_barrier_levels(); })
-        for (const double level : note.coupon_barrier_levels())
-            relevant = std::max(relevant, level);
-    return relevant;
-}
-
 } // namespace
 
 template <typename Note>
@@ -67,8 +50,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         return make_pricing_result(0.0);
 
     const double spot = context.spot_price();
-    const double relevant = highest_relevant_level(note, spot);
-    const auto space = make_spatial_grid(settings_, std::max(4.0 * relevant, relevant + 1.0), {relevant});
+    const double relevant = highest_finite_difference_level(note, context);
+    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(note, context), {relevant});
     if (!space) return std::unexpected(space.error());
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 

@@ -21,7 +21,7 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
     const int asset_step_count = settings.asset_step_count;
-    const auto space = make_spatial_grid(settings, std::max(4.0 * strike, 4.0 * spot), {spot, strike, barrier});
+    const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike, barrier});
     if (!space) return std::unexpected(space.error());
     const double upper = space->upper, spacing = space->spacing;
     const int time_step_count = settings.time_step_count;

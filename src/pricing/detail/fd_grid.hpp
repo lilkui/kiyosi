@@ -61,7 +61,21 @@ struct SpatialGrid {
     [[nodiscard]] double interpolate(std::span<const double> values, double spot) const
     {
         const auto [index, weight] = locate(spot);
-        return std::lerp(values[index], values[index + 1], weight);
+        // A C2 spline preserves curvature when numerical Greek bumps stay inside one cell.
+        std::vector<double> curvature(values.size()), factors(values.size());
+        for (std::size_t node = 1; node + 1 < values.size(); ++node) {
+            const double diagonal = 4.0 - factors[node - 1];
+            factors[node] = 1.0 / diagonal;
+            curvature[node] = (6.0 * ((values[node + 1] - values[node]) -
+                                      (values[node] - values[node - 1])) - curvature[node - 1]) /
+                              diagonal;
+        }
+        for (std::size_t node = values.size() - 2; node > 0; --node)
+            curvature[node] -= factors[node] * curvature[node + 1];
+        const double left = 1.0 - weight;
+        return std::lerp(values[index], values[index + 1], weight) +
+               ((left * left * left - left) * curvature[index] +
+                (weight * weight * weight - weight) * curvature[index + 1]) / 6.0;
     }
 
     [[nodiscard]] double delta(std::span<const double> values, double spot) const

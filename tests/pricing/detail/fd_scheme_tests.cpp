@@ -2,12 +2,30 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <array>
+#include <cmath>
 #include <limits>
 #include <optional>
 #include <vector>
 
 #include "pricing/detail/fd_scheme.hpp"
 #include "pricing/detail/fd_grid.hpp"
+
+TEST_CASE("Finite-difference spline interpolation preserves nodes and affine values")
+{
+    for (const int steps : {3, 8}) {
+        const kiyosi::detail::SpatialGrid grid{static_cast<double>(steps), 1.0, steps};
+        std::vector<double> values(grid.size());
+        for (std::size_t index = 0; index < values.size(); ++index)
+            values[index] = 2.0 * static_cast<double>(index) - 3.0;
+        for (int index = 0; index <= 4 * steps; ++index) {
+            const double spot = static_cast<double>(index) / 4.0;
+            CHECK(std::abs(grid.interpolate(values, spot) - (2.0 * spot - 3.0)) < 1e-12);
+        }
+        values[1] += 0.5;
+        for (int index = 0; index <= steps; ++index)
+            CHECK(grid.interpolate(values, static_cast<double>(index)) == values[index]);
+    }
+}
 
 TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying terminal events", "[cross-validation]")
 {

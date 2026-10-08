@@ -78,6 +78,72 @@ double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
                        kiyosi::Greek::gamma);
 }
 
+TEST_CASE("Finite-difference spot Greeks remain accurate at and between grid nodes")
+{
+    const auto option = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
+                                                      .strike = 100.0,
+                                                      .effective_date = valuation,
+                                                      .expiry_date = expiry_date,
+                                                      .barrier_level = 80.0,
+                                                      .barrier_type = kiyosi::BarrierType::down_and_out});
+    const kiyosi::FiniteDifferenceBarrierEngine finite{800, 1000};
+    for (const double spot : {95.0, 95.1}) {
+        CAPTURE(spot);
+        const auto market = context(spot, 0.03, 0.02, 0.2);
+        const auto expected = kiyosi::AnalyticBarrierEngine{}.price_with_greeks(
+            option, market, {kiyosi::Greek::gamma, kiyosi::Greek::speed});
+        const auto actual = finite.price_with_greeks(
+            option, market, {kiyosi::Greek::gamma, kiyosi::Greek::speed});
+        REQUIRE(expected);
+        REQUIRE(actual);
+        check_close(greek_value(*actual, kiyosi::Greek::gamma),
+                    greek_value(*expected, kiyosi::Greek::gamma), 2e-5, 0.01);
+        check_close(greek_value(*actual, kiyosi::Greek::speed),
+                    greek_value(*expected, kiyosi::Greek::speed), 2e-5, 0.05);
+    }
+}
+
+TEST_CASE("Finite-difference numerical Greeks keep the automatic asset grid fixed")
+{
+    const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
+    const kiyosi::FiniteDifferenceVanillaEngine finite{800, 1000};
+    for (const double spot : {95.0, 95.1, 100.0, 100.1, 110.0}) {
+        CAPTURE(spot);
+        const auto market = context(spot, 0.03, 0.02, 0.2);
+        const auto expected = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, market, true);
+        const auto numerical = kiyosi::calculate_numerical_greeks(finite, option, market);
+        const auto joint = finite.price_with_greeks(option, market, {kiyosi::Greek::speed});
+        REQUIRE(expected);
+        REQUIRE(numerical);
+        REQUIRE(joint);
+        check_close(greek_value(*numerical, kiyosi::Greek::gamma), greek_value(*expected, kiyosi::Greek::gamma), 2e-5, 0.01);
+        check_close(greek_value(*numerical, kiyosi::Greek::speed), greek_value(*expected, kiyosi::Greek::speed), 2e-5, 0.05);
+        CHECK(greek_value(*joint, kiyosi::Greek::speed) == greek_value(*numerical, kiyosi::Greek::speed));
+        CHECK(numerical->price() == *finite.price(option, market));
+        CHECK_FALSE(finite.settings().asset_upper_boundary);
+    }
+}
+
+TEST_CASE("Finite-difference Greek grids preserve extreme expiry settlements")
+{
+    const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.02, 0.2), 1e308, expiry_date);
+    const auto vanilla = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
+    const auto barrier = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
+                                                       .strike = 100.0, .effective_date = valuation, .expiry_date = expiry_date,
+                                                       .barrier_level = 80.0, .barrier_type = kiyosi::BarrierType::down_and_out,
+                                                       .touch_state = kiyosi::BarrierTouchState::untouched});
+    const auto check = [&](const auto& engine, const auto& option) {
+        const auto price = engine.price(option, market);
+        const auto joint = engine.price_with_greeks(option, market, {kiyosi::Greek::gamma});
+        REQUIRE(price);
+        REQUIRE(joint);
+        CHECK(joint->price() == *price);
+        CHECK_FALSE(joint->has(kiyosi::Greek::gamma));
+    };
+    check(kiyosi::FiniteDifferenceVanillaEngine{}, vanilla);
+    check(kiyosi::FiniteDifferenceBarrierEngine{}, barrier);
+}
+
 struct RejectingMixedBumpEngine {
     kiyosi::Result<double> price(
         const kiyosi::EuropeanOption&, const kiyosi::PricingContext& market) const
@@ -482,7 +548,8 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
 
     std::array<double, 3> finite_difference_errors{};
     for (std::size_t index = 0; index < finite_difference_errors.size(); ++index) {
-        const int steps = 50 << static_cast<int>(index);
+        // Keep the strike on a node so coarse-grid interpolation cannot cancel discretization error.
+        const int steps = 64 << static_cast<int>(index);
         const auto result = kiyosi::FiniteDifferenceVanillaEngine{steps, steps}.price(option, market);
         REQUIRE(result.has_value());
         finite_difference_errors[index] = difference(*result, reference);

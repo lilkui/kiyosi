@@ -57,8 +57,8 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const double spot = context.spot_price();
-    const double relevant = std::max({spot, option.strike(), option.knock_out_level()});
-    const auto space = make_spatial_grid(settings_, std::max(4.0 * relevant, relevant + 1.0), {relevant});
+    const double relevant = highest_finite_difference_level(option, context);
+    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
     if (!space) return std::unexpected(space.error());
 
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());

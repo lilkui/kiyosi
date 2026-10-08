@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <concepts>
 #include <optional>
 #include <ratio>
 #include <random>
@@ -11,6 +12,7 @@
 #include <kiyosi/instruments/structured/autocallable.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/finite_difference.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 
 namespace kiyosi {
@@ -310,7 +312,7 @@ Result<PricingResult> complete_greeks(
     return output;
 }
 
-// Stabilize stochastic engines per request without mutating their stored settings.
+// Stabilize simulation seeds and finite-difference domains without mutating stored settings.
 template <typename Engine, typename Option, typename Native>
 Result<PricingResult> price_with_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
@@ -340,6 +342,16 @@ Result<PricingResult> price_with_greeks(
             return make_pricing_result(*value);
         return native;
     }
+    if constexpr (requires { { engine.settings() } -> std::same_as<FiniteDifferenceSettings>; }) {
+        auto grid = engine.settings();
+        if (!grid.asset_upper_boundary) {
+            // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
+            grid.asset_upper_boundary = default_finite_difference_upper_boundary(option, context);
+            // Preserve settlements that never construct an asset grid.
+            if (std::isfinite(*grid.asset_upper_boundary))
+                return complete_greeks(Engine{grid}, option, context, greeks, settings, *native);
+        }
+    }
     return complete_greeks(engine, option, context, greeks, settings, *native);
 }
 
@@ -349,6 +361,7 @@ Result<PricingResult> price_with_greeks(
 /// At expiry or a monitored barrier hit-state boundary, only price is available.
 /// Missing legal stencils leave individual measures empty; a failed feasible valuation
 /// fails the operation. Monte Carlo valuations share one seed per request.
+/// Finite-difference valuations share the unshifted context's asset domain.
 /// Shifts and units follow NumericalShiftSettings and Greek, respectively.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<PricingResult> calculate_numerical_greeks(

@@ -35,7 +35,7 @@ Result<PricingResult> price_finite_difference(
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
     const int asset_step_count = settings.asset_step_count;
-    const auto space = make_spatial_grid(settings, std::max(4.0 * strike, 4.0 * spot), {spot, strike});
+    const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike});
     if (!space) return std::unexpected(space.error());
     const double upper = space->upper;
     const double spacing = space->spacing;

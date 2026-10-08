@@ -78,6 +78,71 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_numerical_greeks_hold_automatic_grid_fixed(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+        )
+        finite = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=800, time_step_count=1000,
+        )
+        for spot in (95.0, 95.1, 100.0, 100.1, 110.0):
+            with self.subTest(spot=spot):
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start,
+                )
+                expected = AnalyticVanillaEngine().price_with_greeks(
+                    option, context, ["gamma", "speed"],
+                )
+                actual = calculate_numerical_greeks(finite, option, context)
+                self.assertAlmostEqual(actual.gamma, expected.gamma, delta=2e-5 + 0.01 * abs(expected.gamma))
+                self.assertAlmostEqual(actual.speed, expected.speed, delta=2e-5 + 0.05 * abs(expected.speed))
+                self.assertEqual(actual.price, finite.price(option, context))
+
+    def test_fd_greek_grids_preserve_extreme_expiry_settlements(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=1e308, valuation_time=end,
+        )
+        terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        for engine, option in (
+            (pricing.FiniteDifferenceVanillaEngine(), EuropeanOption(**terms)),
+            (pricing.FiniteDifferenceBarrierEngine(), BarrierOption(barrier_level=80, barrier_type="down_and_out", touch_state="untouched", **terms)),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                joint = engine.price_with_greeks(option, context, ["gamma"])
+                self.assertEqual(joint.price, engine.price(option, context))
+                self.assertIsNone(joint.gamma)
+
+    def test_fd_spot_greeks_at_and_between_grid_nodes(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        option = BarrierOption(
+            option_type="call", strike=100, barrier_level=80,
+            barrier_type="down_and_out", effective_date=start, expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+        )
+        finite = pricing.FiniteDifferenceBarrierEngine(
+            asset_step_count=800, time_step_count=1000,
+        )
+        for spot in (95.0, 95.1):
+            with self.subTest(spot=spot):
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start,
+                )
+                expected = AnalyticBarrierEngine().price_with_greeks(
+                    option, context, ["gamma", "speed"],
+                )
+                actual = finite.price_with_greeks(option, context, ["gamma", "speed"])
+                self.assertAlmostEqual(actual.gamma, expected.gamma, delta=2e-5 + 0.01 * abs(expected.gamma))
+                self.assertAlmostEqual(actual.speed, expected.speed, delta=2e-5 + 0.05 * abs(expected.speed))
+
     def test_asset_one_touch_current_hits_settle_at_spot(self):
         start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         for factory, spot, barrier in (
