@@ -35,11 +35,11 @@ inline std::uint64_t random_seed()
            static_cast<std::uint64_t>(source());
 }
 
-inline Result<double> cuda_sum(CudaPricingResult cuda_result)
+inline Result<double> cuda_mean(CudaPricingResult cuda_result)
 {
     switch (cuda_result.status) {
     case CudaPricingStatus::success:
-        return cuda_result.payoff_sum;
+        return cuda_result.payoff_mean;
     case CudaPricingStatus::unavailable:
         return std::unexpected(Error{ErrorCategory::backend_unavailable, cuda_result.message});
     case CudaPricingStatus::failure:

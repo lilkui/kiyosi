@@ -5,6 +5,7 @@
 #include <random>
 #include <vector>
 
+#include "../monte_carlo_mean.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
 #include "../monte_carlo_cuda_host.hpp"
@@ -94,28 +95,28 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     if (!steps) return std::unexpected(steps.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto sum = cuda_sum(detail::cuda_accumulator_price(
+        const auto mean = cuda_mean(detail::cuda_accumulator_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), option.strike(), option.knock_out_level(),
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
             *steps));
-        if (!sum) return std::unexpected(sum.error());
-        return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
+        if (!mean) return std::unexpected(mean.error());
+        return make_pricing_result(*mean);
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
 #endif
     }
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
-    double sum = 0.0;
+    MonteCarloMean mean{};
     for (int path = 0; path < settings_.path_count; ++path) {
         // Early termination must not change the random draws of later paths.
         std::mt19937_64 path_generator{generator()};
         const auto payoff = path_payoff(option, context, *steps, initial.quantity, path_generator);
         if (!payoff) return std::unexpected(payoff.error());
-        sum += *payoff;
+        mean.add(*payoff);
     }
-    return make_pricing_result(sum / static_cast<double>(settings_.path_count));
+    return make_pricing_result(mean.value());
 }
 
 } // namespace kiyosi

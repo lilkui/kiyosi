@@ -1,4 +1,5 @@
 #include "monte_carlo_cuda.hpp"
+#include "monte_carlo_mean.hpp"
 #include "vanilla/monte_carlo_regression.hpp"
 
 #include <cmath>
@@ -85,11 +86,12 @@ __global__ void simulate_payoff_pairs(CudaEuropeanRequest request, int pair_coun
             !isfinite(negative_spot) || negative_spot <= 0.0) {
             atomicExch(invalid, 1);
             payoffs[pair] = 0.0;
+            payoffs[pair + pair_count] = 0.0;
             return;
         }
     }
-    payoffs[pair] = payoff(request.payoff_sign, positive_spot, request.strike) +
-                    payoff(request.payoff_sign, negative_spot, request.strike);
+    payoffs[pair] = payoff(request.payoff_sign, positive_spot, request.strike);
+    payoffs[pair + pair_count] = payoff(request.payoff_sign, negative_spot, request.strike);
 }
 
 __global__ void simulate_american_pairs(CudaAmericanRequest request, int pair_count,
@@ -161,7 +163,8 @@ __global__ void discount_and_collect_statistics(
             const double x = spot / request.strike;
             const double x2 = x * x;
             local = {x, x2, x2 * x, x2 * x2,
-                     cash_flow, x * cash_flow, x2 * cash_flow, 1};
+                     cash_flow / request.strike, x * (cash_flow / request.strike),
+                     x2 * (cash_flow / request.strike), 1};
         }
     }
     sums[thread] = local;
@@ -208,25 +211,26 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
     const double scaled = spot / request.strike;
     const double continuation = coefficient_0 +
                                 scaled * (coefficient_1 + scaled * coefficient_2);
-    if (isfinite(continuation) && intrinsic > continuation)
+    if (isfinite(continuation) && intrinsic / request.strike > continuation)
         cash_flows[path] = intrinsic;
 }
 
 __global__ void reduce_payoffs(const double* payoffs, int count, double* total)
 {
-    __shared__ double sums[threads_per_block];
+    __shared__ MonteCarloMean means[threads_per_block];
     const int thread = static_cast<int>(threadIdx.x);
-    double sum = 0.0;
+    MonteCarloMean mean{};
     for (int index = thread; index < count; index += threads_per_block)
-        sum += payoffs[index];
-    sums[thread] = sum;
+        mean.add(payoffs[index]);
+    means[thread] = mean;
     __syncthreads();
 
     for (int offset = threads_per_block / 2; offset > 0; offset /= 2) {
-        if (thread < offset) sums[thread] += sums[thread + offset];
+        if (thread < offset)
+            means[thread].merge(means[thread + offset]);
         __syncthreads();
     }
-    if (thread == 0) *total = sums[0];
+    if (thread == 0) *total = means[0].value();
 }
 
 __global__ void simulate_accumulator_paths(
@@ -340,13 +344,13 @@ CudaPricingResult finish_path_simulation(
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo simulation produced a non-finite path"};
 
-    double payoff_sum = 0.0;
-    status = cudaMemcpy(&payoff_sum, total.get(), sizeof(double), cudaMemcpyDeviceToHost);
+    double payoff_mean = 0.0;
+    status = cudaMemcpy(&payoff_mean, total.get(), sizeof(double), cudaMemcpyDeviceToHost);
     if (status != cudaSuccess) return error_result(status);
-    if (!std::isfinite(payoff_sum))
+    if (!std::isfinite(payoff_mean))
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo reduction produced a non-finite result"};
-    return {CudaPricingStatus::success, payoff_sum, nullptr};
+    return {CudaPricingStatus::success, payoff_mean, nullptr};
 }
 
 CudaPricingResult allocate_path_outputs(
@@ -375,7 +379,7 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
     DeviceMemory payoffs;
     DeviceMemory invalid;
     DeviceMemory total;
-    const auto allocation = allocate_path_outputs(pair_count, payoffs, invalid, total);
+    const auto allocation = allocate_path_outputs(request.path_count, payoffs, invalid, total);
     if (allocation.status != CudaPricingStatus::success) return allocation;
 
     const int block_count = (pair_count + threads_per_block - 1) / threads_per_block;
@@ -383,7 +387,7 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
         request, pair_count, static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(payoffs, invalid, total, pair_count);
+    return finish_path_simulation(payoffs, invalid, total, request.path_count);
 }
 
 CudaPricingResult cuda_american_price(CudaAmericanRequest request)
@@ -477,13 +481,13 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         static_cast<double*>(summary.get()));
     status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    double payoff_sum = 0.0;
-    status = cudaMemcpy(&payoff_sum, summary.get(), sizeof(double), cudaMemcpyDeviceToHost);
+    double payoff_mean = 0.0;
+    status = cudaMemcpy(&payoff_mean, summary.get(), sizeof(double), cudaMemcpyDeviceToHost);
     if (status != cudaSuccess) return error_result(status);
-    if (!std::isfinite(payoff_sum))
+    if (!std::isfinite(payoff_mean))
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo reduction produced a non-finite result"};
-    return {CudaPricingStatus::success, payoff_sum, nullptr};
+    return {CudaPricingStatus::success, payoff_mean, nullptr};
 }
 
 CudaPricingResult cuda_accumulator_price(

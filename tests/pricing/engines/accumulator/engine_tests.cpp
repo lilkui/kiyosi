@@ -150,7 +150,7 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
         const auto result = kiyosi::MonteCarloAccumulatorEngine{settings}.price(accumulator, context);
 
         REQUIRE(result);
-        CHECK(*result == expected);
+        CHECK(*result == Catch::Approx(expected).epsilon(0.0).margin(1e-12));
         CHECK(calls->load() == 7);
     }
 

@@ -10,6 +10,7 @@
 
 #include <kiyosi/market/schedule.hpp>
 
+#include "../monte_carlo_mean.hpp"
 #include "../../detail/autocallable_traits.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
@@ -104,12 +105,12 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     if (!inputs) return std::unexpected(inputs.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto sum = cuda_sum(cuda_structured_price(
+        const auto mean = cuda_mean(cuda_structured_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), inputs->terminal_discount, program, initial.path},
             inputs->step_count));
-        if (!sum) return std::unexpected(sum.error());
-        return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
+        if (!mean) return std::unexpected(mean.error());
+        return make_pricing_result(*mean);
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -117,15 +118,15 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     }
 
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
-    double sum = 0.0;
+    MonteCarloMean mean{};
     for (int path = 0; path < settings_.path_count; ++path) {
         // Early termination must not change the random draws of later paths.
         std::mt19937_64 path_generator{generator()};
         const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, path_generator);
         if (!payoff) return std::unexpected(payoff.error());
-        sum += *payoff;
+        mean.add(*payoff);
     }
-    return make_pricing_result(sum / static_cast<double>(settings_.path_count));
+    return make_pricing_result(mean.value());
 }
 
 template class MonteCarloAutocallableEngine<PhoenixOption>;

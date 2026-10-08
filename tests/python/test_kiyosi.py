@@ -149,9 +149,108 @@ class KiyosiPythonTests(unittest.TestCase):
                 context = PricingContext(model_parameters=parameters, spot_price=90 * scale, valuation_time=start)
                 return engine.price(option, context) / scale
             base = price(1)
-            for scale in (1e-15, 1e12, 1e15):
+            for scale in (1e-300, 1e-15, 1e12, 1e15, 1e303):
                 with self.subTest(backend=backend, scale=scale):
                     self.assertAlmostEqual(price(scale), base, delta=1e-7)
+
+    def test_monte_carlo_averages_finite_payoffs_without_overflowing(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        backends = ["cpu"] + (
+            ["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else []
+        )
+        for backend in backends:
+            vanilla = pricing.MonteCarloVanillaEngine(
+                path_count=100000, seed=42, backend=backend
+            )
+            for direction in ("call", "put"):
+
+                def price(scale, direction=direction, engine=vanilla):
+                    option = EuropeanOption(
+                        option_type=direction,
+                        strike=100 * scale,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=100 * scale,
+                        valuation_time=start,
+                    )
+                    return engine.price(option, context) / scale
+
+                base = price(1)
+                for scale in (1e-300, 1e303):
+                    with self.subTest(
+                        backend=backend, direction=direction, scale=scale
+                    ):
+                        self.assertAlmostEqual(
+                            price(scale), base, delta=abs(base) * 1e-12
+                        )
+            next_day = start + timedelta(days=1)
+            accumulator = pricing.MonteCarloAccumulatorEngine(
+                path_count=100000, seed=42, backend=backend
+            )
+            for strike in (90, 110):
+
+                def price(scale, strike=strike, engine=accumulator, expiry=next_day):
+                    option = Accumulator(
+                        strike=strike * scale,
+                        knock_out_level=200 * scale,
+                        daily_quantity=0,
+                        acceleration_factor=1,
+                        accumulated_quantity=1,
+                        effective_date=start,
+                        expiry_date=expiry,
+                    )
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=100 * scale,
+                        valuation_time=start,
+                    )
+                    return engine.price(option, context) / scale
+
+                base = price(1)
+                with self.subTest(backend=backend, strike=strike):
+                    self.assertAlmostEqual(price(1e303), base, delta=abs(base) * 1e-12)
+            structured = pricing.MonteCarloBinarySnowballEngine(
+                path_count=100000, seed=42, backend=backend
+            )
+            for principal in (1e305, math.ulp(0.0)):
+                option = BinarySnowballOption(
+                    knock_out_coupon_rates=[0],
+                    maturity_coupon_rate=0,
+                    knock_out_levels=[120],
+                    observation_dates=[next_day],
+                    principal_ratio=principal,
+                    effective_date=start,
+                    expiry_date=next_day,
+                )
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=100, valuation_time=start
+                )
+                self.assertEqual(structured.price(option, context), principal)
+            overflow = BinarySnowballOption(
+                knock_out_coupon_rates=[1e308],
+                maturity_coupon_rate=1e308,
+                knock_out_levels=[120],
+                observation_dates=[end],
+                principal_ratio=1e308,
+                effective_date=start,
+                expiry_date=end,
+            )
+            context = PricingContext(
+                model_parameters=parameters, spot_price=100, valuation_time=start
+            )
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                pricing.MonteCarloBinarySnowballEngine(
+                    path_count=32, seed=42, backend=backend
+                ).price(overflow, context)
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+            )
 
     def test_finite_differences_settle_without_a_spatial_grid(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)

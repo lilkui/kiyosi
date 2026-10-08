@@ -72,7 +72,7 @@ struct CudaStructuredRequest {
 
 struct CudaPricingResult {
     CudaPricingStatus status;
-    double payoff_sum;
+    double payoff_mean;
     const char* message;
 };
 

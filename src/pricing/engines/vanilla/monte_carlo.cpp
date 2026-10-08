@@ -10,6 +10,7 @@
 #include <kiyosi/core/day_count.hpp>
 
 #include "monte_carlo_regression.hpp"
+#include "../monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
 #include "../monte_carlo_cuda_host.hpp"
@@ -112,14 +113,14 @@ double payoff(OptionType type, double spot, double strike)
 }
 
 #if KIYOSI_HAS_CUDA
-Result<double> cuda_payoff_sum(const EuropeanOption& option,
-                               SimulationParameters parameters,
-                               MonteCarloSettings settings)
+Result<double> cuda_payoff_mean(const EuropeanOption& option,
+                                SimulationParameters parameters,
+                                MonteCarloSettings settings)
 {
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
-    return detail::cuda_sum(detail::cuda_european_price({
+    return detail::cuda_mean(detail::cuda_european_price({
         path_count,
         settings.step_count,
         settings.seed ? *settings.seed : detail::random_seed(),
@@ -131,15 +132,15 @@ Result<double> cuda_payoff_sum(const EuropeanOption& option,
     }));
 }
 
-Result<double> cuda_american_cash_flow_sum(const AmericanOption& option,
-                                           SimulationParameters parameters,
-                                           MonteCarloSettings settings,
-                                           double discount)
+Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
+                                            SimulationParameters parameters,
+                                            MonteCarloSettings settings,
+                                            double discount)
 {
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
-    return detail::cuda_sum(detail::cuda_american_price({
+    return detail::cuda_mean(detail::cuda_american_price({
         path_count,
         settings.step_count,
         settings.seed ? *settings.seed : detail::random_seed(),
@@ -168,15 +169,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     simulation.step_count = 2;
     const auto parameters = simulation_parameters(context, *time, simulation);
     if (!parameters) return std::unexpected(parameters.error());
-    double sum = 0.0;
-    std::size_t path_count = 0;
+    double mean = 0.0;
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto cuda_sum = cuda_payoff_sum(option, *parameters, simulation);
-        if (!cuda_sum) return std::unexpected(cuda_sum.error());
-        sum = *cuda_sum;
-        path_count = static_cast<std::size_t>(
-            settings_.path_count % 2 == 0 ? settings_.path_count : settings_.path_count + 1);
+        const auto cuda_result = cuda_payoff_mean(option, *parameters, simulation);
+        if (!cuda_result) return std::unexpected(cuda_result.error());
+        mean = *cuda_result;
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -184,11 +182,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     } else {
         auto paths = simulate_paths(*parameters, simulation, PathRetention::terminal);
         if (!paths) return std::unexpected(paths.error());
+        detail::MonteCarloMean payoffs{};
         for (const double terminal_spot : *paths)
-            sum += payoff(option.option_type(), terminal_spot, option.strike());
-        path_count = paths->size();
+            payoffs.add(payoff(option.option_type(), terminal_spot, option.strike()));
+        mean = payoffs.value();
     }
-    const double value = sum / static_cast<double>(path_count) *
+    const double value = mean *
                          std::exp(-parameters->rate * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
@@ -211,14 +210,14 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     if (!parameters) return std::unexpected(parameters.error());
     const double discount = std::exp(-context.model_parameters().risk_free_rate() *
                                      *time / static_cast<double>(settings_.step_count - 1));
-    double sum = 0.0;
+    double mean = 0.0;
     std::vector<double> cash_flows;
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
-            cuda_american_cash_flow_sum(option, *parameters, settings_, discount);
+            cuda_american_cash_flow_mean(option, *parameters, settings_, discount);
         if (!cuda_result) return std::unexpected(cuda_result.error());
-        sum = *cuda_result;
+        mean = *cuda_result;
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -246,7 +245,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                     for (int row = 0; row < 3; ++row) {
                         for (int column = 0; column < 3; ++column)
                             matrix[row][column] += basis[row] * basis[column];
-                        matrix[row][3] += basis[row] * cash_flows[path];
+                        matrix[row][3] += basis[row] * (cash_flows[path] / option.strike());
                     }
                 }
             }
@@ -260,17 +259,16 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                 const double scaled = spot / option.strike();
                 const double continuation =
                     coefficients[0] + scaled * (coefficients[1] + scaled * coefficients[2]);
-                if (std::isfinite(continuation) && intrinsic > continuation)
+                if (std::isfinite(continuation) && intrinsic / option.strike() > continuation)
                     cash_flows[path] = intrinsic;
             }
         }
+        detail::MonteCarloMean payoffs{};
         for (const double cash_flow : cash_flows)
-            sum += cash_flow;
+            payoffs.add(cash_flow);
+        mean = payoffs.value();
     }
-    const std::size_t path_count = settings_.backend == MonteCarloBackend::cuda
-                                       ? static_cast<std::size_t>(settings_.path_count + settings_.path_count % 2)
-                                       : cash_flows.size();
-    const double continuation = sum / static_cast<double>(path_count) * discount;
+    const double continuation = mean * discount;
     const double value = std::max(continuation,
                                   payoff(option.option_type(), context.spot_price(), option.strike()));
     if (!std::isfinite(value))

@@ -11,26 +11,59 @@
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
 #include "pricing/engines/monte_carlo_cuda_host.hpp"
+#include "pricing/engines/monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
 #include <cuda_runtime_api.h>
 #endif
 
+TEST_CASE("Monte Carlo averages retain finite extreme and subnormal payoffs", "[audit-fixes]")
+{
+    using kiyosi::detail::MonteCarloMean;
+    const double maximum = std::numeric_limits<double>::max();
+    for (const double payoff : {maximum, -maximum, std::numeric_limits<double>::denorm_min()}) {
+        MonteCarloMean mean{};
+        for (int path = 0; path < 100000; ++path)
+            mean.add(payoff);
+        CHECK(mean.value() == payoff);
+    }
+    MonteCarloMean positive{}, negative{};
+    for (int path = 0; path < 2; ++path) {
+        positive.add(maximum);
+        negative.add(-maximum);
+    }
+    positive.merge(negative);
+    CHECK(positive.value() == 0.0);
+    MonteCarloMean unequal{}, repeated{};
+    unequal.add(10.0);
+    for (int path = 0; path < 3; ++path)
+        repeated.add(20.0);
+    unequal.merge(repeated);
+    CHECK(unequal.value() == 17.5);
+    MonteCarloMean tiny{};
+    tiny.add(std::numeric_limits<double>::denorm_min());
+    for (int path = 0; path < 999; ++path)
+        tiny.add(0.0);
+    CHECK(tiny.value() == 0.0);
+    positive.add(std::numeric_limits<double>::denorm_min() * 10.0);
+    CHECK(positive.value() == std::numeric_limits<double>::denorm_min() * 2.0);
+}
+
 TEST_CASE("CUDA host adapter preserves results and failure categories")
 {
     using namespace kiyosi;
     using namespace kiyosi::detail;
-    REQUIRE(cuda_sum({CudaPricingStatus::success, 42.0, nullptr}).value() == 42.0);
+    REQUIRE(cuda_mean({CudaPricingStatus::success, 42.0, nullptr}).value() == 42.0);
     for (const auto [status, category] : {
              std::pair{CudaPricingStatus::unavailable, ErrorCategory::backend_unavailable},
              std::pair{CudaPricingStatus::failure, ErrorCategory::backend_failure},
              std::pair{CudaPricingStatus::invalid_result, ErrorCategory::invalid_result}}) {
-        const auto result = cuda_sum({status, 0.0, "backend diagnostic"});
+        const auto result = cuda_mean({status, 0.0, "backend diagnostic"});
         REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error() == Error{category, "backend diagnostic"});
     }
-    REQUIRE_THROWS_AS(cuda_sum({CudaPricingStatus::out_of_memory, 0.0, nullptr}), std::bad_alloc);
-    const auto unknown = cuda_sum({static_cast<CudaPricingStatus>(255), 0.0, nullptr});
+    REQUIRE_THROWS_AS(cuda_mean({CudaPricingStatus::out_of_memory, 0.0, nullptr}), std::bad_alloc);
+    const auto unknown = cuda_mean({static_cast<CudaPricingStatus>(255), 0.0, nullptr});
     REQUIRE_FALSE(unknown.has_value());
     REQUIRE(unknown.error().category == ErrorCategory::backend_failure);
 }
@@ -49,7 +82,7 @@ void check_american_currency_scale(kiyosi::MonteCarloBackend backend)
     const auto base = engine.price(*make_american_option(OptionType::put, 100.0, start, end),
                                     *make_pricing_context(parameters, 90.0, start));
     REQUIRE(base);
-    for (const double scale : {1e-15, 1e12, 1e15}) {
+    for (const double scale : {1e-300, 1e-15, 1e12, 1e15, 1e303}) {
         CAPTURE(backend, scale);
         const auto price = engine.price(*make_american_option(OptionType::put, 100.0 * scale, start, end),
                                          *make_pricing_context(parameters, 90.0 * scale, start));
@@ -57,6 +90,69 @@ void check_american_currency_scale(kiyosi::MonteCarloBackend backend)
         CHECK_THAT(*price / scale, Catch::Matchers::WithinAbs(*base, 1e-7));
     }
 }
+
+void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    const MonteCarloVanillaEngine vanilla{100'000, 2, 42, backend};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto price = [&](double scale) {
+            return vanilla.price(*make_european_option(type, 100.0 * scale, start, end),
+                                 *make_pricing_context(parameters, 100.0 * scale, start));
+        };
+        const auto base = price(1.0);
+        REQUIRE(base);
+        for (const double scale : {1e-300, 1e303}) {
+            CAPTURE(backend, type, scale);
+            const auto scaled = price(scale);
+            REQUIRE(scaled);
+            CHECK_THAT(*scaled / scale, Catch::Matchers::WithinRel(*base, 1e-12));
+        }
+    }
+    const auto next_day = start + std::chrono::days{1};
+    const MonteCarloAccumulatorEngine accumulator{{100'000, 42, backend}};
+    for (const double strike : {90.0, 110.0}) {
+        const auto price = [&](double scale) {
+            const auto option = *make_accumulator(
+                {.strike = strike * scale, .knock_out_level = 200.0 * scale, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 1.0, .effective_date = start, .expiry_date = next_day});
+            return accumulator.price(option, *make_pricing_context(parameters, 100.0 * scale, start));
+        };
+        const auto base = price(1.0);
+        const auto scaled = price(1e303);
+        REQUIRE(base);
+        REQUIRE(scaled);
+        CHECK_THAT(*scaled / 1e303, Catch::Matchers::WithinRel(*base, 1e-12));
+    }
+    const MonteCarloBinarySnowballEngine structured{{100'000, 42, backend}};
+    for (const double principal : {1e305, std::numeric_limits<double>::denorm_min()}) {
+        const auto option = *make_binary_snowball_option(
+            {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {120.0}, .observation_dates = {next_day}, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day});
+        const auto price = structured.price(option, *make_pricing_context(parameters, 100.0, start));
+        REQUIRE(price);
+        CHECK(*price == principal);
+    }
+    const auto overflow = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {1e308}, .maturity_coupon_rate = 1e308, .knock_out_levels = {120.0}, .observation_dates = {end}, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end});
+    const auto invalid = MonteCarloBinarySnowballEngine{{32, 42, backend}}.price(
+        overflow, *make_pricing_context(parameters, 100.0, start));
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_result);
+}
+
+TEST_CASE("CPU Monte Carlo averages finite payoffs without overflowing", "[audit-fixes]")
+{
+    check_finite_payoff_averages(kiyosi::MonteCarloBackend::cpu);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA Monte Carlo averages finite payoffs without overflowing", "[cuda][audit-fixes]")
+{
+    check_finite_payoff_averages(kiyosi::MonteCarloBackend::cuda);
+}
+#endif
 
 TEST_CASE("American Monte Carlo prices are invariant to currency scale")
 {
