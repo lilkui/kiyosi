@@ -7,6 +7,7 @@
 namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
+using kiyosi::test::greek_value;
 
 TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[pricing-api][audit-fixes]")
 {
@@ -92,6 +93,44 @@ TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[au
         const double d2 = (std::log(spot) - std::log(strike)) / 0.2 - 0.1;
         CHECK(*cash == Catch::Approx(1e100 * 0.5 * std::erfc(-sign * d2 / std::sqrt(2.0))).epsilon(1e-8));
     }
+}
+
+TEST_CASE("Analytic vanilla Greeks preserve scaled normal tails", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const AnalyticVanillaEngine engine;
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto small = *make_pricing_context(parameters, 1e-300, start);
+        const auto option = *make_european_option(type, 1e-296, start, end);
+        const auto result = engine.price_with_greeks(option, small, {Greek::gamma, Greek::speed, Greek::color, Greek::zomma});
+        REQUIRE(result);
+        // Independent 80-digit Decimal references include the scale before rounding to double.
+        CHECK(greek_value(*result, Greek::gamma) == Catch::Approx(6.035176823596672e-159).epsilon(1e-10).margin(0.0));
+        CHECK(greek_value(*result, Greek::speed) == Catch::Approx(1.3805980535242903e144).epsilon(1e-10));
+        CHECK(greek_value(*result, Greek::color) == Catch::Approx(-1.7524741795041444e-158).epsilon(1e-10).margin(0.0));
+        CHECK(greek_value(*result, Greek::zomma) == Catch::Approx(6.396530755190127e-157).epsilon(1e-10).margin(0.0));
+        const auto large = *make_pricing_context(parameters, 1e300, start);
+        const auto large_option = *make_european_option(type, 1e304, start, end);
+        const auto scaled = engine.price_with_greeks(large_option, large, {Greek::vega, Greek::theta});
+        REQUIRE(scaled);
+        CHECK(greek_value(*scaled, Greek::vega) == Catch::Approx(1.2070353647193343e-161).epsilon(1e-10).margin(0.0));
+        CHECK(greek_value(*scaled, Greek::theta) == Catch::Approx(-3.306946204710505e-163).epsilon(1e-10).margin(0.0));
+    }
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 2.0), 1e308, start);
+    const auto at_the_money = *make_european_option(OptionType::call, 1e308, start, end);
+    const auto result = engine.price_with_greeks(at_the_money, context, {Greek::gamma});
+    REQUIRE(result);
+    CHECK(greek_value(*result, Greek::gamma) == Catch::Approx(1.2098536225957167e-309).epsilon(1e-10).margin(0.0));
+    const auto tomorrow = start + std::chrono::days{1};
+    const auto limit_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e155), 100.0, start);
+    const auto limit_option = *make_european_option(OptionType::call, 100.0, start, tomorrow);
+    const auto limit = engine.price_with_greeks(limit_option, limit_context, GreeksRequest{true});
+    REQUIRE(limit);
+    CHECK(limit->price() == 100.0);
+    CHECK(greek_value(*limit, Greek::color) == 0.0);
+    CHECK(limit->all_finite());
 }
 
 } // namespace

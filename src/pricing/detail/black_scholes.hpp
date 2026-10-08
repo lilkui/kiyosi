@@ -91,12 +91,22 @@ inline Result<PricingResult> price_at_volatility(
     if (requested_output.empty()) return make_pricing_result(value);
 
     const auto want = [&](Greek greek) { return requested_output.has(greek); };
-    const double density_d1 = normal_pdf(d1);
-    const bool regular = density_d1 != 0.0 && std::isfinite(d1) && std::isfinite(d2);
+    const double log_density = -0.5 * d1 * d1 + std::log(inverse_sqrt_two_pi);
+    const bool regular = std::isfinite(log_density) && std::isfinite(d2) && std::isfinite(d1 * d2);
+    // Apply all scale factors before exponentiating so representable derivatives survive tail underflow.
+    const auto weighted_density = [&](double log_weight, double factor = 1.0) {
+        if (!regular || factor == 0.0) return 0.0;
+        return std::copysign(std::exp(log_density + log_weight + std::log(std::abs(factor))), factor);
+    };
+    const double log_spot = std::log(spot);
+    const double log_volatility = std::log(volatility);
+    const double log_root_time = std::log(sqrt_time);
+    const double log_discount = -dividend * year_fraction;
+    const double log_gamma_weight = log_discount - log_spot - log_volatility - log_root_time;
     const bool needs_gamma = want(Greek::gamma) || want(Greek::speed) ||
                              want(Greek::color) || want(Greek::zomma);
-    const double gamma = needs_gamma && regular
-                             ? dividend_discount_factor * density_d1 / (spot * volatility * sqrt_time)
+    const double gamma = needs_gamma
+                             ? weighted_density(log_gamma_weight)
                              : 0.0;
     std::optional<double> speed, theta, charm, color, vega, vanna, zomma;
     const double carry = want(Greek::theta)
@@ -104,19 +114,19 @@ inline Result<PricingResult> price_at_volatility(
                                    sign * rate * strike * rate_discount_factor * cumulative_d2
                              : 0.0;
     if (regular) {
-        if (want(Greek::speed)) speed = -gamma * (1.0 + d1 / (volatility * sqrt_time)) / spot;
-        if (want(Greek::theta)) theta = (-spot * dividend_discount_factor * density_d1 * volatility / (2.0 * sqrt_time) + carry) / 365.0;
-        if (want(Greek::charm)) charm = -dividend_discount_factor *
-                                        (density_d1 * ((rate - dividend) / (volatility * sqrt_time) - 0.5 * d2 / year_fraction) -
-                                         sign * dividend * cumulative_d1) /
+        if (want(Greek::speed)) speed = -weighted_density(log_gamma_weight - log_spot, 1.0 + d1 / volatility_time);
+        if (want(Greek::theta)) theta = (-weighted_density(log_spot + log_discount + log_volatility - std::log(2.0) - log_root_time) + carry) / 365.0;
+        if (want(Greek::charm)) charm = (-weighted_density(log_discount, (rate - dividend) / volatility_time - 0.5 * d2 / year_fraction) +
+                                         sign * dividend * dividend_discount_factor * cumulative_d1) /
                                         365.0;
-        if (want(Greek::color)) color = gamma *
-                                        (dividend + (rate - dividend) * d1 / (volatility * sqrt_time) +
-                                         (1.0 - d1 * d2) / (2.0 * year_fraction)) /
-                                        365.0;
-        if (want(Greek::vega)) vega = spot * dividend_discount_factor * density_d1 * sqrt_time / percentage_points_per_unit;
-        if (want(Greek::vanna)) vanna = -dividend_discount_factor * d2 * density_d1 / (volatility * percentage_points_per_unit);
-        if (want(Greek::zomma)) zomma = gamma * (d1 * d2 - 1.0) / (volatility * percentage_points_per_unit);
+        if (want(Greek::color)) color =
+                                    (weighted_density(log_gamma_weight, dividend) +
+                                     std::copysign(1.0, d1) * weighted_density(log_gamma_weight - log_volatility - log_root_time + std::log(std::abs(d1)), rate - dividend) +
+                                     weighted_density(log_gamma_weight - std::log(2.0) - std::log(year_fraction), 1.0 - d1 * d2)) /
+                                    365.0;
+        if (want(Greek::vega)) vega = weighted_density(log_spot + log_discount + log_root_time - std::log(percentage_points_per_unit));
+        if (want(Greek::vanna)) vanna = -weighted_density(log_discount - log_volatility - std::log(percentage_points_per_unit), d2);
+        if (want(Greek::zomma)) zomma = weighted_density(log_gamma_weight - log_volatility - std::log(percentage_points_per_unit), d1 * d2 - 1.0);
     } else {
         if (want(Greek::speed)) speed = 0.0;
         if (want(Greek::theta)) theta = carry / 365.0;

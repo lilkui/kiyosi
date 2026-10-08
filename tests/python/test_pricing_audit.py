@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date
+from datetime import date, timedelta
 
 import kiyosi
 from kiyosi import pricing
@@ -16,6 +16,80 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_analytic_vanilla_greeks_preserve_scaled_normal_tails(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        engine = pricing.AnalyticVanillaEngine()
+        for direction in ("call", "put"):
+            context = PricingContext(
+                model_parameters=parameters, spot_price=1e-300, valuation_time=start
+            )
+            option = EuropeanOption(
+                option_type=direction,
+                strike=1e-296,
+                effective_date=start,
+                expiry_date=end,
+            )
+            expected = {
+                "gamma": 6.035176823596672e-159,
+                "speed": 1.3805980535242903e144,
+                "color": -1.7524741795041444e-158,
+                "zomma": 6.396530755190127e-157,
+            }
+            result = engine.price_with_greeks(option, context, greeks=list(expected))
+            for name, value in expected.items():
+                self.assertTrue(
+                    math.isclose(result.require(name), value, rel_tol=1e-10)
+                )
+            context = PricingContext(
+                model_parameters=parameters, spot_price=1e300, valuation_time=start
+            )
+            option = EuropeanOption(
+                option_type=direction,
+                strike=1e304,
+                effective_date=start,
+                expiry_date=end,
+            )
+            result = engine.price_with_greeks(option, context, greeks=["vega", "theta"])
+            self.assertTrue(
+                math.isclose(result.vega, 1.2070353647193343e-161, rel_tol=1e-10)
+            )
+            self.assertTrue(
+                math.isclose(result.theta, -3.306946204710505e-163, rel_tol=1e-10)
+            )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=2
+            ),
+            spot_price=1e308,
+            valuation_time=start,
+        )
+        option = EuropeanOption(
+            option_type="call", strike=1e308, effective_date=start, expiry_date=end
+        )
+        result = engine.price_with_greeks(option, context, greeks=["gamma"])
+        self.assertTrue(
+            math.isclose(result.gamma, 1.2098536225957167e-309, rel_tol=1e-10)
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=1e155
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        option = EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_date=start,
+            expiry_date=start + timedelta(days=1),
+        )
+        result = engine.price_with_greeks(option, context, all_greeks=True)
+        self.assertEqual(result.price, 100)
+        self.assertEqual(result.color, 0)
+
     def test_quadrature_retains_scaled_prices_beyond_the_former_tail_cutoff(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
