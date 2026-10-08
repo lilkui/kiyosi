@@ -79,6 +79,21 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_american_monte_carlo_prices_are_currency_scale_invariant(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.1, dividend_yield=0, volatility=0.3)
+        backends = ["cpu"] + (["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else [])
+        for backend in backends:
+            engine = pricing.MonteCarloVanillaEngine(path_count=20000, step_count=50, seed=47, backend=backend)
+            def price(scale):
+                option = AmericanOption(option_type="put", strike=100 * scale, effective_date=start, expiry_date=end)
+                context = PricingContext(model_parameters=parameters, spot_price=90 * scale, valuation_time=start)
+                return engine.price(option, context) / scale
+            base = price(1)
+            for scale in (1e-15, 1e12, 1e15):
+                with self.subTest(backend=backend, scale=scale):
+                    self.assertAlmostEqual(price(scale), base, delta=1e-7)
+
     def test_implied_accumulator_volatility_rejects_immediate_knock_out(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         option = Accumulator(

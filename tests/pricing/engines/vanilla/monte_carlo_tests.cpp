@@ -35,6 +35,30 @@ namespace {
 
 using kiyosi::test::day;
 
+void check_american_currency_scale(kiyosi::MonteCarloBackend backend)
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.1, 0.0, 0.3);
+    const MonteCarloVanillaEngine engine{20'000, 50, 47, backend};
+    const auto base = engine.price(*make_american_option(OptionType::put, 100.0, start, end),
+                                    *make_pricing_context(parameters, 90.0, start));
+    REQUIRE(base);
+    for (const double scale : {1e-15, 1e12, 1e15}) {
+        CAPTURE(backend, scale);
+        const auto price = engine.price(*make_american_option(OptionType::put, 100.0 * scale, start, end),
+                                         *make_pricing_context(parameters, 90.0 * scale, start));
+        REQUIRE(price);
+        CHECK_THAT(*price / scale, Catch::Matchers::WithinAbs(*base, 1e-7));
+    }
+}
+
+TEST_CASE("American Monte Carlo prices are invariant to currency scale")
+{
+    check_american_currency_scale(kiyosi::MonteCarloBackend::cpu);
+}
+
 TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla options")
 {
     const auto valuation = day(2025, 1, 1);
@@ -324,6 +348,11 @@ TEST_CASE("CUDA American Monte Carlo returns intrinsic value at expiry_date with
 }
 
 #if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA American Monte Carlo prices are invariant to currency scale", "[cuda]")
+{
+    check_american_currency_scale(kiyosi::MonteCarloBackend::cuda);
+}
+
 TEST_CASE("CUDA European Monte Carlo is seeded and deterministic", "[cuda]")
 {
     const auto valuation = day(2025, 1, 1);

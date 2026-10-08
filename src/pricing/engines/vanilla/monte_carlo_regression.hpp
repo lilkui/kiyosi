@@ -11,13 +11,17 @@ using QuadraticRegressionMatrix = std::array<std::array<double, 4>, 3>;
 inline bool solve_quadratic(QuadraticRegressionMatrix matrix,
                             std::array<double, 3>& coefficients)
 {
+    double scale = 0.0;
+    for (const auto& row : matrix)
+        for (int column = 0; column < 3; ++column)
+            scale = std::max(scale, std::abs(row[column]));
     for (int column = 0; column < 3; ++column) {
         int pivot = column;
         for (int row = column + 1; row < 3; ++row)
             if (std::abs(matrix[row][column]) > std::abs(matrix[pivot][column])) pivot = row;
         if (!std::isfinite(matrix[pivot][column]) ||
             std::abs(matrix[pivot][column]) <=
-                1e-14 * std::max(1.0, std::abs(matrix[pivot][3])))
+                1e-14 * scale)
             return false;
         std::swap(matrix[column], matrix[pivot]);
         for (int row = column + 1; row < 3; ++row) {
