@@ -26,20 +26,15 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
         return make_pricing_result(std::exp(-rate * tau) *
                                    std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
                                             0.0));
-    const double z_star = (std::log(strike / spot) - (rate - dividend - 0.5 * sigma * sigma) * tau) / (sigma * root);
-    const double lower = sign > 0 ? std::max(z_star, -10.0) : -10.0;
-    const double upper = sign > 0 ? 10.0 : std::min(z_star, 10.0);
-    if (lower >= upper) return make_pricing_result(0.0);
-    constexpr int panels = 1024;
-    const double h = (upper - lower) / panels;
-    auto integrand = [&](double z) {
-        const double terminal = spot * std::exp((rate - dividend - 0.5 * sigma * sigma) * tau + sigma * root * z);
-        return std::max(sign * (terminal - strike), 0.0) * normal_pdf(z);
-    };
-    double sum = integrand(lower) + integrand(upper);
-    for (int index = 1; index < panels; ++index)
-        sum += (index % 2 ? 4.0 : 2.0) * integrand(lower + h * index);
-    const double value = std::exp(-rate * tau) * sum * h / 3.0;
+    const double width = sigma * root;
+    const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * tau) / width + 0.5 * width;
+    if (!std::isfinite(width) || !std::isfinite(threshold))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
+    // Completing the square centers the asset-weighted density at width instead of zero.
+    const double asset_probability = normal_tail_integral(sign * (threshold - width));
+    const double cash_probability = normal_tail_integral(sign * threshold);
+    const double value = sign * (spot * std::exp(-dividend * tau) * asset_probability -
+                                 strike * std::exp(-rate * tau) * cash_probability);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result(value);
 }

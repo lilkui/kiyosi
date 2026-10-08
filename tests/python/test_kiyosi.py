@@ -19,6 +19,7 @@ from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
     ArithmeticAveragePriceOption,
+    AssetOrNothingOption,
     BarrierOption,
     BarrierTouchState,
     BinarySnowballOption,
@@ -158,6 +159,27 @@ class KiyosiPythonTests(unittest.TestCase):
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             engine.price(option, context)
                         self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
+    def test_quadrature_high_variance_tails(self):
+        start, end = date(2025, 1, 1), date(2035, 1, 1)
+        for volatility in (3, 5):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=.05, dividend_yield=.02, volatility=volatility),
+                spot_price=100, valuation_time=start)
+            for direction in ("call", "put"):
+                for option_class, numerical, analytic in (
+                    (EuropeanOption, pricing.QuadratureVanillaEngine(), AnalyticVanillaEngine()),
+                    (AssetOrNothingOption, pricing.QuadratureDigitalEngine(), AnalyticDigitalEngine()),
+                    (CashOrNothingOption, pricing.QuadratureDigitalEngine(), AnalyticDigitalEngine()),
+                ):
+                    with self.subTest(volatility=volatility, direction=direction, option=option_class):
+                        terms = dict(option_type=direction, strike=100, effective_date=start, expiry_date=end)
+                        if option_class is CashOrNothingOption:
+                            terms["payout"] = 10
+                        option = option_class(**terms)
+                        self.assertAlmostEqual(numerical.price(option, context),
+                                               analytic.price(option, context), delta=1e-8)
 
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))

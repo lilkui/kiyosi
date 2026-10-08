@@ -24,4 +24,26 @@ inline double normal_pdf(double value) noexcept
     return inverse_sqrt_two_pi * std::exp(-0.5 * value * value);
 }
 
+/// Simpson integration of a centered normal tail; reflect negative thresholds to avoid long intervals.
+inline double normal_tail_integral(double threshold) noexcept
+{
+    if (std::isnan(threshold)) return threshold;
+    constexpr double limit = 12.0;
+    const double lower = std::abs(threshold);
+    if (lower >= limit) return threshold < 0.0 ? 1.0 : 0.0;
+    constexpr int panels = 2048;
+    const double step = (limit - lower) / panels;
+    double sum = normal_pdf(lower) + normal_pdf(limit);
+    double correction = 0.0;
+    for (int index = 1; index < panels; ++index) {
+        // Compensated summation keeps price roundoff from dominating third-order Greeks.
+        const double term = (index % 2 == 0 ? 2.0 : 4.0) * normal_pdf(lower + index * step) - correction;
+        const double next = sum + term;
+        correction = (next - sum) - term;
+        sum = next;
+    }
+    const double tail = sum * step / 3.0;
+    return threshold < 0.0 ? 1.0 - tail : tail;
+}
+
 } // namespace kiyosi::detail

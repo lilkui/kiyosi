@@ -23,22 +23,12 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
     const double root = std::sqrt(time);
-    const double drift = (rate - dividend - 0.5 * volatility * volatility) * time;
-    const double threshold = (std::log(strike / spot) - drift) / (volatility * root);
-    const double lower = sign > 0.0 ? std::max(threshold, -12.0) : -12.0;
-    const double upper = sign > 0.0 ? 12.0 : std::min(threshold, 12.0);
-    if (lower >= upper) return make_pricing_result(0.0);
-    constexpr int panels = 2048;
-    const double step = (upper - lower) / panels;
-    auto integrand = [&](double z) {
-        const double terminal = spot * std::exp(drift + volatility * root * z);
-        // Bounds already select the ITM branch; use its one-sided limit at strike.
-        return (asset ? terminal : payout) * normal_pdf(z);
-    };
-    double sum = integrand(lower) + integrand(upper);
-    for (int index = 1; index < panels; ++index)
-        sum += (index % 2 == 0 ? 2.0 : 4.0) * integrand(lower + index * step);
-    const double value = std::exp(-rate * time) * sum * step / 3.0;
+    const double width = volatility * root;
+    const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * time) / width + 0.5 * width;
+    if (!std::isfinite(width) || !std::isfinite(threshold))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
+    const double probability = normal_tail_integral(sign * (threshold - (asset ? width : 0.0)));
+    const double value = (asset ? spot * std::exp(-dividend * time) : payout * std::exp(-rate * time)) * probability;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result(value);
 }

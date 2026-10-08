@@ -41,6 +41,32 @@ TEST_CASE("Bjerksund rejects negative transformed rates before expiry")
     }
 }
 
+TEST_CASE("Quadrature includes high variance payoff tails")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2035, 1, 1);
+    for (const double volatility : {3.0, 5.0}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.05, 0.02, volatility), 100.0, start);
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            const auto vanilla = *kiyosi::make_european_option(type, 100.0, start, end);
+            const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, start, end);
+            const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 10.0, start, end);
+            for (const auto& pair : {
+                     std::pair{kiyosi::QuadratureVanillaEngine{}.price(vanilla, context),
+                               kiyosi::AnalyticVanillaEngine{}.price(vanilla, context)},
+                     std::pair{kiyosi::QuadratureDigitalEngine{}.price(asset, context),
+                               kiyosi::AnalyticDigitalEngine{}.price(asset, context)},
+                     std::pair{kiyosi::QuadratureDigitalEngine{}.price(cash, context),
+                               kiyosi::AnalyticDigitalEngine{}.price(cash, context)}}) {
+                REQUIRE(pair.first);
+                REQUIRE(pair.second);
+                CHECK_THAT(*pair.first, Catch::Matchers::WithinAbs(*pair.second, 1e-8));
+            }
+        }
+    }
+}
+
 TEST_CASE("Digital contracts validate and expose pricing results")
 {
     using Catch::Matchers::WithinAbs;
