@@ -14,12 +14,13 @@ enum class MonteCarloBackend : unsigned char {
     cuda, ///< CUDA implementation, when built and available.
 };
 
-/// Path simulation over a uniform time grid, validated when price() is called; an absent seed
+/// Vanilla simulation settings, validated when price() is called; an absent seed
 /// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
+/// European pricing samples the exact terminal distribution without intermediate steps.
 struct MonteCarloSettings {
     int path_count = 100'000;                           ///< Number of simulated paths; 1..10,000,000.
-    int step_count = 50;                                ///< Uniform time steps per path; 2..10,000 (American: >= 3).
+    int step_count = 50;                                ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
     std::optional<std::uint64_t> seed;                  ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
 };

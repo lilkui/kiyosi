@@ -5,7 +5,6 @@
 #include <cmath>
 #include <future>
 #include <limits>
-#include <random>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -35,49 +34,6 @@ TEST_CASE("CUDA host adapter preserves results and failure categories")
 namespace {
 
 using kiyosi::test::day;
-
-double legacy_european_price(const kiyosi::EuropeanOption& option,
-                             const kiyosi::PricingContext& context,
-                             kiyosi::MonteCarloSettings settings)
-{
-    const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
-    const auto stride = static_cast<std::size_t>(settings.step_count);
-    std::vector<double> paths(static_cast<std::size_t>(path_count) * stride);
-    const double time = *kiyosi::year_fraction(context.valuation_time(), kiyosi::start_of_day(option.expiry_date()));
-    const double volatility = context.model_parameters().volatility();
-    const double dt = time / static_cast<double>(settings.step_count - 1);
-    const double sqrt_dt = std::sqrt(dt);
-    const double drift = (context.model_parameters().risk_free_rate() -
-                          context.model_parameters().dividend_yield() -
-                          0.5 * volatility * volatility) *
-                         dt;
-    std::mt19937_64 generator{settings.seed.value_or(0)};
-    std::normal_distribution<double> normal;
-    const int half_count = path_count / 2;
-    for (int path = 0; path < half_count; ++path) {
-        const auto positive = static_cast<std::size_t>(path) * stride;
-        const auto negative = static_cast<std::size_t>(path + half_count) * stride;
-        paths[positive] = context.spot_price();
-        paths[negative] = context.spot_price();
-        for (int step = 1; step < settings.step_count; ++step) {
-            const double normal_draw = normal(generator);
-            paths[positive + static_cast<std::size_t>(step)] =
-                paths[positive + static_cast<std::size_t>(step - 1)] *
-                std::exp(drift + volatility * sqrt_dt * normal_draw);
-            paths[negative + static_cast<std::size_t>(step)] =
-                paths[negative + static_cast<std::size_t>(step - 1)] *
-                std::exp(drift - volatility * sqrt_dt * normal_draw);
-        }
-    }
-    const double sign = option.option_type() == kiyosi::OptionType::call ? 1.0 : -1.0;
-    double sum = 0.0;
-    for (int path = 0; path < path_count; ++path)
-        sum += std::max(sign * (paths[static_cast<std::size_t>(path) * stride + stride - 1] -
-                                option.strike()),
-                        0.0);
-    return sum / static_cast<double>(path_count) *
-           std::exp(-context.model_parameters().risk_free_rate() * time);
-}
 
 TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla options")
 {
@@ -156,26 +112,35 @@ TEST_CASE("Monte Carlo engines preserve timestamp and supported date boundaries"
     }
 }
 
-TEST_CASE("European Monte Carlo terminal retention preserves full-path seeded results")
+TEST_CASE("European Monte Carlo samples terminal prices independently of the time grid", "[audit-fixes]")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry_date = valuation + std::chrono::days{365};
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const std::array settings{
-        kiyosi::MonteCarloSettings{10, 2, 42},
-        kiyosi::MonteCarloSettings{9, 2, 42},
-        kiyosi::MonteCarloSettings{10, 7, 42},
-        kiyosi::MonteCarloSettings{9, 7, 42},
-    };
-
-    for (const auto setting : settings) {
-        CAPTURE(setting.path_count, setting.step_count);
-        const auto result = kiyosi::MonteCarloVanillaEngine{setting}.price(call, context);
-        REQUIRE(result.has_value());
-        CHECK(*result ==
-              legacy_european_price(call, context, setting));
+    for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+        const auto option = *kiyosi::make_european_option(type, 100.0, valuation, expiry_date);
+        const auto baseline = kiyosi::MonteCarloVanillaEngine{20'000, 2, 42}.price(option, context);
+        REQUIRE(baseline);
+        CHECK_THAT(*baseline, Catch::Matchers::WithinAbs(*kiyosi::AnalyticVanillaEngine{}.price(option, context), 0.5));
+        const auto different_seed = kiyosi::MonteCarloVanillaEngine{20'000, 2, 43}.price(option, context);
+        REQUIRE(different_seed);
+        CHECK(*different_seed != *baseline);
+        for (const int step_count : {2, 7, 50, 10'000}) {
+            CAPTURE(type, step_count);
+            const kiyosi::MonteCarloVanillaEngine engine{19'999, step_count, 42};
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == *baseline);
+            CHECK(engine.settings().step_count == step_count);
+        }
+        for (const auto backend : {kiyosi::MonteCarloBackend::cpu, kiyosi::MonteCarloBackend::cuda}) {
+            for (const int step_count : {1, 10'001}) {
+                const auto invalid = kiyosi::MonteCarloVanillaEngine{10, step_count, 42, backend}.price(option, context);
+                REQUIRE_FALSE(invalid);
+                CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
+            }
+        }
     }
 }
 
@@ -413,7 +378,9 @@ TEST_CASE("CUDA European Monte Carlo rounds odd path counts for antithetic pairs
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
 
-    for (const int step_count : {2, 7, 50}) {
+    const auto baseline = kiyosi::MonteCarloVanillaEngine{10'000, 2, 42, kiyosi::MonteCarloBackend::cuda}.price(call, context);
+    REQUIRE(baseline);
+    for (const int step_count : {2, 7, 50, 10'000}) {
         CAPTURE(step_count);
         const auto odd = kiyosi::MonteCarloVanillaEngine{
             9'999, step_count, 42, kiyosi::MonteCarloBackend::cuda}
@@ -425,6 +392,7 @@ TEST_CASE("CUDA European Monte Carlo rounds odd path counts for antithetic pairs
         REQUIRE(even);
         CHECK(*odd ==
               *even);
+        CHECK(*even == *baseline);
     }
 }
 

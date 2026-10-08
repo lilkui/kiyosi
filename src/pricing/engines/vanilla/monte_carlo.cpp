@@ -162,13 +162,17 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     if (!time) return std::unexpected(time.error());
     if (*time == 0.0)
         return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
-    const auto parameters = simulation_parameters(context, *time, settings_);
+    const auto valid = detail::validate_monte_carlo_settings(settings_);
+    if (!valid) return std::unexpected(valid.error());
+    auto simulation = settings_;
+    simulation.step_count = 2;
+    const auto parameters = simulation_parameters(context, *time, simulation);
     if (!parameters) return std::unexpected(parameters.error());
     double sum = 0.0;
     std::size_t path_count = 0;
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto cuda_sum = cuda_payoff_sum(option, *parameters, settings_);
+        const auto cuda_sum = cuda_payoff_sum(option, *parameters, simulation);
         if (!cuda_sum) return std::unexpected(cuda_sum.error());
         sum = *cuda_sum;
         path_count = static_cast<std::size_t>(
@@ -178,7 +182,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        auto paths = simulate_paths(*parameters, settings_, PathRetention::terminal);
+        auto paths = simulate_paths(*parameters, simulation, PathRetention::terminal);
         if (!paths) return std::unexpected(paths.error());
         for (const double terminal_spot : *paths)
             sum += payoff(option.option_type(), terminal_spot, option.strike());

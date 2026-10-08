@@ -227,6 +227,43 @@ class KiyosiPythonTests(unittest.TestCase):
                             engine.price(BarrierOption(**terms, rebate_timing="at_expiry"), context),
                         )
 
+    def test_european_mc_uses_terminal_distribution(self):
+        for direction in ("call", "put"):
+            option = EuropeanOption(
+                option_type=direction,
+                strike=100,
+                effective_date=date(2025, 1, 1),
+                expiry_date=date(2026, 1, 1),
+            )
+            baseline = pricing.MonteCarloVanillaEngine(
+                path_count=20000, step_count=2, seed=42
+            ).price(option, self.context)
+            self.assertAlmostEqual(
+                baseline, AnalyticVanillaEngine().price(option, self.context), delta=0.5
+            )
+            self.assertNotEqual(
+                pricing.MonteCarloVanillaEngine(path_count=20000, step_count=2, seed=43).price(option, self.context),
+                baseline,
+            )
+            for steps in (2, 7, 50, 10000):
+                with self.subTest(direction=direction, steps=steps):
+                    engine = pricing.MonteCarloVanillaEngine(
+                        path_count=19999, step_count=steps, seed=42
+                    )
+                    self.assertEqual(engine.price(option, self.context), baseline)
+                    self.assertEqual(engine.step_count, steps)
+            for backend in ("cpu", "cuda"):
+                for steps in (1, 10001):
+                    with self.subTest(direction=direction, steps=steps, backend=backend):
+                        engine = pricing.MonteCarloVanillaEngine(
+                            path_count=10, step_count=steps, seed=42, backend=backend
+                        )
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            engine.price(option, self.context)
+                        self.assertEqual(
+                            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                        )
+
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys

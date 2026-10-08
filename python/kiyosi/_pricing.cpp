@@ -623,13 +623,14 @@ The setting is validated when price() is called.)doc")
 Settings are stored without domain validation and are validated when price() is called.
 Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
 expiry requires at least 3 steps.
+European prices sample the exact terminal distribution; valid step counts do not affect them.
 
 Attributes
 ----------
 path_count : int
     Number of simulated paths.
 step_count : int
-    Number of time steps per path.
+    American time grid points; validated but unused for European pricing.
 seed : int or None
     Optional non-negative random seed.
 backend : {'cpu', 'cuda'}
@@ -651,7 +652,8 @@ Parameters
 path_count : int, optional
     Number of simulated paths. Uses the core default when omitted.
 step_count : int, optional
-    Number of time steps per path. Uses the core default when omitted.
+    American time grid points; validated but unused for European pricing.
+    Uses the core default when omitted.
 seed : int or None, optional
     Non-negative random seed, or ``None`` for nondeterministic seeding.
 backend : {'cpu', 'cuda'}, optional
@@ -668,7 +670,7 @@ Notes
 -----
 Settings are validated when price() is called.)doc")
                                    .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
-                                   .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "Number of time steps per path.")
+                                   .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "American time grid points; validated but unused for European pricing.")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
                                    .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
