@@ -12,6 +12,10 @@
 #include "support/common.hpp"
 #include "pricing/engines/monte_carlo_cuda_host.hpp"
 
+#if KIYOSI_HAS_CUDA
+#include <cuda_runtime_api.h>
+#endif
+
 TEST_CASE("CUDA host adapter preserves results and failure categories")
 {
     using namespace kiyosi;
@@ -348,6 +352,56 @@ TEST_CASE("CUDA American Monte Carlo returns intrinsic value at expiry_date with
 }
 
 #if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
+{
+    using namespace kiyosi;
+    int original_device = 0;
+    REQUIRE(cudaGetDevice(&original_device) == cudaSuccess);
+    struct RestoreDevice {
+        int device;
+        ~RestoreDevice() { cudaSetDevice(device); }
+    } restore{original_device};
+    int device_count = 0;
+    REQUIRE(cudaGetDeviceCount(&device_count) == cudaSuccess);
+    REQUIRE(device_count > 0);
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto european = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto american = *make_american_option(OptionType::put, 100.0, start, end);
+    const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 120.0,
+                                                .daily_quantity = 1.0, .acceleration_factor = 2.0,
+                                                .effective_date = start, .expiry_date = end});
+    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
+                                                    .knock_out_levels = {120.0}, .observation_dates = {end},
+                                                    .effective_date = start, .expiry_date = end});
+    const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
+    const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
+    const MonteCarloBinarySnowballEngine structured{{64, 42, MonteCarloBackend::cuda}};
+    const auto unstable = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1000.0), 100.0, start);
+    for (int device = 0; device < device_count; ++device) {
+        CAPTURE(device);
+        REQUIRE(cudaSetDevice(device) == cudaSuccess);
+        const auto check_device = [&] {
+            int current_device = -1;
+            REQUIRE(cudaGetDevice(&current_device) == cudaSuccess);
+            CHECK(current_device == device);
+        };
+        REQUIRE(vanilla.price(european, context));
+        check_device();
+        REQUIRE(vanilla.price(american, context));
+        check_device();
+        REQUIRE(accrual.price(accumulator, context));
+        check_device();
+        REQUIRE(structured.price(note, context));
+        check_device();
+        const auto failed = vanilla.price(european, unstable);
+        REQUIRE_FALSE(failed);
+        CHECK(failed.error().category == ErrorCategory::invalid_result);
+        check_device();
+    }
+}
+
 TEST_CASE("CUDA American Monte Carlo prices are invariant to currency scale", "[cuda]")
 {
     check_american_currency_scale(kiyosi::MonteCarloBackend::cuda);

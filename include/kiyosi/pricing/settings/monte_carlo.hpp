@@ -9,6 +9,7 @@
 namespace kiyosi {
 
 /// Execution backends supported by Monte Carlo engines.
+/// CUDA operations use the calling thread's current device and leave it unchanged.
 enum class MonteCarloBackend : unsigned char {
     cpu,  ///< Host CPU implementation.
     cuda, ///< CUDA implementation, when built and available.

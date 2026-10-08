@@ -36,6 +36,9 @@ add_executable(kiyosi_tests
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
+if(KIYOSI_ENABLE_CUDA)
+    target_link_libraries(kiyosi_tests PRIVATE CUDA::cudart_static)
+endif()
 target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(kiyosi_tests PRIVATE
     KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}"

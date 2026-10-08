@@ -50,17 +50,15 @@ CudaPricingResult allocate(DeviceMemory& memory, std::size_t size)
     return {CudaPricingStatus::success, 0.0, nullptr};
 }
 
-CudaPricingResult select_device_zero()
+CudaPricingResult check_device_available()
 {
     int device_count = 0;
-    cudaError_t status = cudaGetDeviceCount(&device_count);
+    const cudaError_t status = cudaGetDeviceCount(&device_count);
     if (status == cudaErrorNoDevice || status == cudaErrorInsufficientDriver)
         return {CudaPricingStatus::unavailable, 0.0, cudaGetErrorString(status)};
     if (status != cudaSuccess) return error_result(status);
     if (device_count == 0)
         return {CudaPricingStatus::unavailable, 0.0, "No CUDA device is available"};
-    status = cudaSetDevice(0);
-    if (status != cudaSuccess) return error_result(status);
     return {CudaPricingStatus::success, 0.0, nullptr};
 }
 
@@ -370,7 +368,7 @@ CudaPricingResult allocate_path_outputs(
 
 CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
 {
-    const auto device = select_device_zero();
+    const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
 
     const int pair_count = request.path_count / 2;
@@ -390,7 +388,7 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
 
 CudaPricingResult cuda_american_price(CudaAmericanRequest request)
 {
-    const auto device = select_device_zero();
+    const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
 
     const int pair_count = request.path_count / 2;
@@ -491,7 +489,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
 CudaPricingResult cuda_accumulator_price(
     CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps)
 {
-    const auto device = select_device_zero();
+    const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
 
     DeviceMemory device_steps;
@@ -516,7 +514,7 @@ CudaPricingResult cuda_accumulator_price(
 CudaPricingResult cuda_structured_price(
     CudaStructuredRequest request, std::span<const CudaStructuredStep> steps)
 {
-    const auto device = select_device_zero();
+    const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
 
     DeviceMemory device_steps;
