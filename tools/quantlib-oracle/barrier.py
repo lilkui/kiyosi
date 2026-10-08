@@ -151,7 +151,9 @@ def scenarios():
                         "volatility": 0.3,
                         "effective_date": "2024-12-30",
                         "valuation": "2025-01-06",
-                        "expiry_date": (date(2025, 1, 6) + timedelta(days=days)).isoformat(),
+                        "expiry_date": (
+                            date(2025, 1, 6) + timedelta(days=days)
+                        ).isoformat(),
                         "BarrierType": kind,
                         "barrier": 140 if kind.startswith("up") else 60,
                         "rebate": 10,
@@ -213,7 +215,13 @@ def check_bindings():
     """Probe the pinned binding, including actual engine restrictions."""
     valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
-        dict(valuation="2025-01-06", spot=100, dividend=0.01, rate=0.04, volatility=0.3)
+        {
+            "valuation": "2025-01-06",
+            "spot": 100,
+            "dividend": 0.01,
+            "rate": 0.04,
+            "volatility": 0.3,
+        }
     )
     vanilla = ql.PlainVanillaPayoff(ql.Option.Call, 100)
     for payoff, exercise, error in (

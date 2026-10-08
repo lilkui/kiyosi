@@ -25,7 +25,9 @@ def report(path: Path) -> str:
                         break
                     name = name.removesuffix("_median")
                 name = name.removesuffix("/real_time")
-                cases.setdefault(name[len(prefix) :], {}).setdefault(library, []).append(row)
+                cases.setdefault(name[len(prefix) :], {}).setdefault(
+                    library, []
+                ).append(row)
                 break
     if not cases:
         raise ValueError("JSON contains no matrix benchmarks")
@@ -35,11 +37,15 @@ def report(path: Path) -> str:
         selected = iterations or rows
         units = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
         clock = "real_time" if wall_time else "cpu_time"
-        return (median(row[clock] * units[row["time_unit"]] for row in selected),
-                median(row["price"] for row in selected))
+        return (
+            median(row[clock] * units[row["time_unit"]] for row in selected),
+            median(row["price"] for row in selected),
+        )
 
-    lines = ["| Case | Kiyosi ns | QuantLib ns | QuantLib / Kiyosi | Price delta (K - Q) |",
-             "| --- | ---: | ---: | ---: | ---: |"]
+    lines = [
+        "| Case | Kiyosi ns | QuantLib ns | QuantLib / Kiyosi | Price delta (K - Q) |",
+        "| --- | ---: | ---: | ---: | ---: |",
+    ]
     for name, libraries in sorted(cases.items()):
         own = libraries.get("kiyosi") or libraries.get("kiyosi_only")
         if not own:
@@ -50,8 +56,10 @@ def report(path: Path) -> str:
         if other:
             other_ns, other_price = measurement(other)
             ratio = f"{other_ns / own_ns:.2f}x" if own_ns else "n/a"
-            lines.append(f"| {label} | {own_ns:.1f} | {other_ns:.1f} | "
-                         f"{ratio} | {own_price - other_price:.6g} |")
+            lines.append(
+                f"| {label} | {own_ns:.1f} | {other_ns:.1f} | "
+                f"{ratio} | {own_price - other_price:.6g} |"
+            )
         else:
             lines.append(f"| {label} | {own_ns:.1f} | n/a | n/a | n/a |")
     return "\n".join(lines)

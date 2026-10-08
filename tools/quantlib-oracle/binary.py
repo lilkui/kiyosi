@@ -236,7 +236,13 @@ def rows():
 def check_bindings():
     valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
     process = g.market_process(
-        dict(valuation="2025-01-06", spot=100, dividend=0.01, rate=0.04, volatility=0.3)
+        {
+            "valuation": "2025-01-06",
+            "spot": 100,
+            "dividend": 0.01,
+            "rate": 0.04,
+            "volatility": 0.3,
+        }
     )
     for engine in (ql.AnalyticBinaryBarrierEngine, ql.AnalyticDigitalAmericanEngine):
         for payoff in (
@@ -313,11 +319,15 @@ def check_bindings():
                 }
                 assert abs(measure(inputs, "price") - contract.NPV()) < 1e-11
                 if not deferred:
-                    touched = dict(inputs, spot=level + (10 if side == ql.Option.Call else -10))
+                    touched = dict(
+                        inputs, spot=level + (10 if side == ql.Option.Call else -10)
+                    )
                     immediate = ql.VanillaOption(
                         payoff, ql.AmericanExercise(valuation, expiry_date, False)
                     )
-                    immediate.setPricingEngine(ql.AnalyticDigitalAmericanEngine(g.market_process(touched)))
+                    immediate.setPricingEngine(
+                        ql.AnalyticDigitalAmericanEngine(g.market_process(touched))
+                    )
                     assert abs(measure(touched, "price") - immediate.NPV()) < 1e-11
                     for name, unit in (("delta", 1), ("gamma", 1), ("rho", 100)):
                         direct = getattr(contract, name)() / unit

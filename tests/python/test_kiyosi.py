@@ -30,10 +30,10 @@ from kiyosi.instruments import (
     PhoenixOption,
     TernarySnowballOption,
     TouchOption,
+    asset_binary_barrier_option,
     asset_no_touch_down,
     asset_one_touch_down,
     asset_one_touch_up,
-    asset_binary_barrier_option,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_one_touch_up,
@@ -83,15 +83,27 @@ def utc_timestamp(value):
 class KiyosiPythonTests(unittest.TestCase):
     def test_bjerksund_preserves_extreme_monetary_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.03, volatility=0.2
+        )
         engine = pricing.BjerksundStenslandVanillaEngine()
         for direction in ("call", "put"):
             for spot in (80, 100, 120):
-                def price(scale):
-                    option = AmericanOption(option_type=direction, strike=100 * scale,
-                                            effective_date=start, expiry_date=end)
-                    context = PricingContext(model_parameters=parameters, spot_price=spot * scale, valuation_time=start)
+
+                def price(scale, direction=direction, spot=spot):
+                    option = AmericanOption(
+                        option_type=direction,
+                        strike=100 * scale,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=spot * scale,
+                        valuation_time=start,
+                    )
                     return engine.price(option, context) / scale
+
                 base = price(1)
                 for scale in (1e155, 1e-170, 1e-200):
                     with self.subTest(direction=direction, spot=spot, scale=scale):
@@ -99,17 +111,38 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_analytic_digital_preserves_extreme_spot_strike_ratios(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=50)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=50
+        )
         engine = AnalyticDigitalEngine()
         cases = (
-            (CashOrNothingOption(option_type="put", strike=1e-200, payout=1,
-                                 effective_date=start, expiry_date=end), 1e200, 1),
-            (AssetOrNothingOption(option_type="call", strike=1e200,
-                                  effective_date=start, expiry_date=end), 1e-200, 1e-200),
+            (
+                CashOrNothingOption(
+                    option_type="put",
+                    strike=1e-200,
+                    payout=1,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                1e200,
+                1,
+            ),
+            (
+                AssetOrNothingOption(
+                    option_type="call",
+                    strike=1e200,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                1e-200,
+                1e-200,
+            ),
         )
         for option, spot, scale in cases:
             with self.subTest(instrument=type(option).__name__):
-                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start
+                )
                 price = engine.price(option, context)
                 self.assertAlmostEqual(price / scale, 0.9999999999763696, delta=1e-12)
                 joint = engine.price_with_greeks(option, context, ["delta", "gamma"])
@@ -119,35 +152,76 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_analytic_barriers_preserve_extreme_monetary_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
         for barrier_type in ("down_and_in", "down_and_out", "up_and_in", "up_and_out"):
             level = 120 if barrier_type.startswith("up") else 80
             for direction in ("call", "put"):
-                def prices(scale):
-                    terms = dict(option_type=direction, strike=100 * scale, effective_date=start,
-                                 expiry_date=end, barrier_level=level * scale, barrier_type=barrier_type)
-                    context = PricingContext(model_parameters=parameters, spot_price=100 * scale, valuation_time=start)
-                    return (
-                        AnalyticBarrierEngine().price(BarrierOption(**terms), context) / scale,
-                        AnalyticBinaryBarrierEngine().price(cash_binary_barrier_option(**terms, payout=10), context),
-                        AnalyticBinaryBarrierEngine().price(asset_binary_barrier_option(**terms), context) / scale,
+
+                def prices(
+                    scale, direction=direction, level=level, barrier_type=barrier_type
+                ):
+                    terms = {
+                        "option_type": direction,
+                        "strike": 100 * scale,
+                        "effective_date": start,
+                        "expiry_date": end,
+                        "barrier_level": level * scale,
+                        "barrier_type": barrier_type,
+                    }
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=100 * scale,
+                        valuation_time=start,
                     )
+                    return (
+                        AnalyticBarrierEngine().price(BarrierOption(**terms), context)
+                        / scale,
+                        AnalyticBinaryBarrierEngine().price(
+                            cash_binary_barrier_option(**terms, payout=10), context
+                        ),
+                        AnalyticBinaryBarrierEngine().price(
+                            asset_binary_barrier_option(**terms), context
+                        )
+                        / scale,
+                    )
+
                 base = prices(1)
                 for scale in (1e155, 1e-170, 1e-200):
-                    with self.subTest(barrier_type=barrier_type, direction=direction, scale=scale):
+                    with self.subTest(
+                        barrier_type=barrier_type, direction=direction, scale=scale
+                    ):
                         for actual, expected in zip(prices(scale), base):
                             self.assertAlmostEqual(actual, expected, delta=1e-9)
 
     def test_american_monte_carlo_prices_are_currency_scale_invariant(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.1, dividend_yield=0, volatility=0.3)
-        backends = ["cpu"] + (["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else [])
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.1, dividend_yield=0, volatility=0.3
+        )
+        backends = ["cpu"] + (
+            ["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else []
+        )
         for backend in backends:
-            engine = pricing.MonteCarloVanillaEngine(path_count=20000, step_count=50, seed=47, backend=backend)
-            def price(scale):
-                option = AmericanOption(option_type="put", strike=100 * scale, effective_date=start, expiry_date=end)
-                context = PricingContext(model_parameters=parameters, spot_price=90 * scale, valuation_time=start)
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=20000, step_count=50, seed=47, backend=backend
+            )
+
+            def price(scale, engine=engine):
+                option = AmericanOption(
+                    option_type="put",
+                    strike=100 * scale,
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=90 * scale,
+                    valuation_time=start,
+                )
                 return engine.price(option, context) / scale
+
             base = price(1)
             for scale in (1e-300, 1e-15, 1e12, 1e15, 1e303):
                 with self.subTest(backend=backend, scale=scale):
@@ -355,74 +429,146 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_implied_accumulator_volatility_rejects_immediate_knock_out(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         option = Accumulator(
-            strike=100, knock_out_level=120, daily_quantity=1, acceleration_factor=2,
-            accumulated_quantity=5, effective_date=start, expiry_date=end,
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=5,
+            effective_date=start,
+            expiry_date=end,
         )
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3)
-        for engine in (pricing.MonteCarloAccumulatorEngine(path_count=64, seed=7),
-                       pricing.FiniteDifferenceAccumulatorEngine(asset_step_count=40, time_step_count=40)):
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+        )
+        for engine in (
+            pricing.MonteCarloAccumulatorEngine(path_count=64, seed=7),
+            pricing.FiniteDifferenceAccumulatorEngine(
+                asset_step_count=40, time_step_count=40
+            ),
+        ):
             for spot in (120, 130):
                 with self.subTest(engine=type(engine).__name__, spot=spot):
-                    context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=observed)
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=spot,
+                        valuation_time=observed,
+                    )
                     quote = engine.price(option, context)
                     self.assertEqual(quote, 5 * (spot - 100))
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         implied_volatility(engine, option, context, quote)
-                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                    self.assertEqual(
+                        error.exception.category,
+                        kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                    )
             for time in (datetime(2025, 7, 1, 12, tzinfo=UTC), date(2025, 7, 5)):
-                context = PricingContext(model_parameters=parameters, spot_price=130, valuation_time=time)
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=130, valuation_time=time
+                )
                 quote = engine.price(option, context)
-                self.assertEqual(implied_volatility(engine, option, context, quote,
-                                                    lower_bound=0.3, upper_bound=0.4), 0.3)
+                self.assertEqual(
+                    implied_volatility(
+                        engine, option, context, quote, lower_bound=0.3, upper_bound=0.4
+                    ),
+                    0.3,
+                )
 
     def test_spot_greeks_omit_bumps_crossing_current_events(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+        )
         cases = []
         for mode in ("continuous", "scheduled"):
             option = BarrierOption(
-                option_type="call", strike=100, effective_date=start, expiry_date=end,
-                barrier_level=120, barrier_type="up_and_out", rebate=10,
-                observation_mode=mode, observation_dates=[observed, end] if mode == "scheduled" else [],
+                option_type="call",
+                strike=100,
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=120,
+                barrier_type="up_and_out",
+                rebate=10,
+                observation_mode=mode,
+                observation_dates=[observed, end] if mode == "scheduled" else [],
                 touch_state="untouched",
             )
             cases.append((AnalyticBarrierEngine(), option, 119.999))
-            context = PricingContext(model_parameters=parameters, spot_price=119.985, valuation_time=observed)
+            context = PricingContext(
+                model_parameters=parameters, spot_price=119.985, valuation_time=observed
+            )
             wider = calculate_numerical_greeks(AnalyticBarrierEngine(), option, context)
             self.assertIsNotNone(wider.delta)
             self.assertIsNotNone(wider.gamma)
             self.assertIsNone(wider.speed)
         accumulator = Accumulator(
-            strike=90, knock_out_level=100, daily_quantity=1, acceleration_factor=2,
-            accumulated_quantity=3, effective_date=start, expiry_date=end,
+            strike=90,
+            knock_out_level=100,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            effective_date=start,
+            expiry_date=end,
         )
-        cases.extend((pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7), accumulator, spot)
-                     for spot in (99.999, 90.001))
+        cases.extend(
+            (
+                pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+                accumulator,
+                spot,
+            )
+            for spot in (99.999, 90.001)
+        )
         phoenix = PhoenixOption(
-            coupon_rate=0.1, initial_spot=100, knock_in_level=70, knock_out_levels=[120, 120],
-            coupon_barrier_levels=[90, 90], upper_strike=100, lower_strike=0,
-            observation_dates=[observed, end], knock_in_observation_mode="every_trading_day",
-            barrier_state="none", effective_date=start, expiry_date=end,
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=70,
+            knock_out_levels=[120, 120],
+            coupon_barrier_levels=[90, 90],
+            upper_strike=100,
+            lower_strike=0,
+            observation_dates=[observed, end],
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="none",
+            effective_date=start,
+            expiry_date=end,
         )
-        cases.extend((pricing.MonteCarloPhoenixEngine(path_count=32, seed=7), phoenix, spot)
-                     for spot in (119.999, 89.999, 70.001))
+        cases.extend(
+            (pricing.MonteCarloPhoenixEngine(path_count=32, seed=7), phoenix, spot)
+            for spot in (119.999, 89.999, 70.001)
+        )
         for engine, option, spot in cases:
             with self.subTest(engine=type(engine).__name__, spot=spot):
-                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=observed)
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=spot,
+                    valuation_time=observed,
+                )
                 result = engine.price_with_greeks(option, context, all_greeks=True)
                 self.assertEqual(result.price, engine.price(option, context))
                 self.assertIsNotNone(result.vega)
                 self.assertIsNotNone(result.rho)
-                for name in ("delta", "gamma", "speed", "vanna", "zomma", "charm", "color"):
+                for name in (
+                    "delta",
+                    "gamma",
+                    "speed",
+                    "vanna",
+                    "zomma",
+                    "charm",
+                    "color",
+                ):
                     self.assertIsNone(getattr(result, name), name)
-                narrow = calculate_numerical_greeks(engine, option, context, spot_shift=0.0001)
+                narrow = calculate_numerical_greeks(
+                    engine, option, context, spot_shift=0.0001
+                )
                 self.assertIsNotNone(narrow.delta)
                 self.assertIsNotNone(narrow.gamma)
                 self.assertIsNotNone(narrow.speed)
 
     def test_domain_exception_survives_removed_exports(self):
         result = subprocess.run(
-            [sys.executable, "-c", textwrap.dedent("""
+            [
+                sys.executable,
+                "-c",
+                textwrap.dedent("""
                 import gc
                 import weakref
                 import kiyosi
@@ -441,44 +587,88 @@ class KiyosiPythonTests(unittest.TestCase):
                     assert error.category == _native.ErrorCategory.INVALID_VOLATILITY
                 else:
                     raise AssertionError("invalid volatility was accepted")
-            """)],
-            capture_output=True, text=True, timeout=10,
+            """),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_digital_finite_difference_payoff_bounds(self):
         start = date(2025, 1, 6)
-        context = PricingContext(model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
-        ), spot_price=100, valuation_time=start)
-        engine = pricing.FiniteDifferenceDigitalEngine(asset_step_count=10000, time_step_count=1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.FiniteDifferenceDigitalEngine(
+            asset_step_count=10000, time_step_count=1
+        )
         stable = pricing.FiniteDifferenceDigitalEngine(
             asset_step_count=10000, time_step_count=1, scheme="implicit_euler"
         )
         for option_type in ("call", "put"):
-            terms = dict(option_type=option_type, strike=100.5, effective_date=start,
-                         expiry_date=start + timedelta(days=365))
-            for option in (CashOrNothingOption(**terms, payout=100), AssetOrNothingOption(**terms)):
-                with self.subTest(option=type(option).__name__, option_type=option_type):
-                    for value in (lambda: engine.price(option, context),
-                                  lambda: engine.price_with_greeks(option, context, greeks="delta")):
+            terms = {
+                "option_type": option_type,
+                "strike": 100.5,
+                "effective_date": start,
+                "expiry_date": start + timedelta(days=365),
+            }
+            for option in (
+                CashOrNothingOption(**terms, payout=100),
+                AssetOrNothingOption(**terms),
+            ):
+                with self.subTest(
+                    option=type(option).__name__, option_type=option_type
+                ):
+                    for value in (
+                        lambda option=option: engine.price(option, context),
+                        lambda option=option: engine.price_with_greeks(
+                            option, context, greeks="delta"
+                        ),
+                    ):
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             value()
-                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.INVALID_RESULT,
+                        )
                     self.assertGreater(stable.price(option, context), 40)
                     self.assertLess(stable.price(option, context), 60)
-        volatile_context = PricingContext(model_parameters=BlackScholesMertonParameters(
-            risk_free_rate=0.05, dividend_yield=0.02, volatility=3
-        ), spot_price=100, valuation_time=start)
+        volatile_context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=3
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
         for option_type in ("call", "put"):
-            option = CashOrNothingOption(option_type=option_type, strike=110, payout=100,
-                                        effective_date=start, expiry_date=start + timedelta(days=1825))
+            option = CashOrNothingOption(
+                option_type=option_type,
+                strike=110,
+                payout=100,
+                effective_date=start,
+                expiry_date=start + timedelta(days=1825),
+            )
             with self.subTest(default_grid=option_type):
                 with self.assertRaises(kiyosi.KiyosiError) as error:
-                    pricing.FiniteDifferenceDigitalEngine().price(option, volatile_context)
-                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
-        option = CashOrNothingOption(option_type="call", strike=20, payout=100,
-                                    effective_date=start, expiry_date=start + timedelta(days=1))
+                    pricing.FiniteDifferenceDigitalEngine().price(
+                        option, volatile_context
+                    )
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+                )
+        option = CashOrNothingOption(
+            option_type="call",
+            strike=20,
+            payout=100,
+            effective_date=start,
+            expiry_date=start + timedelta(days=1),
+        )
         price = pricing.FiniteDifferenceDigitalEngine().price(option, context)
         self.assertLessEqual(price, 100 * math.exp(-0.05 / 365))
         self.assertAlmostEqual(price, 99.98630230808251)
@@ -493,24 +683,36 @@ class KiyosiPythonTests(unittest.TestCase):
                 return self.value
 
         for engine_type in (
-            pricing.MonteCarloVanillaEngine, pricing.MonteCarloAccumulatorEngine,
-            pricing.MonteCarloSnowballEngine, pricing.MonteCarloBinarySnowballEngine,
-            pricing.MonteCarloTernarySnowballEngine, pricing.MonteCarloPhoenixEngine,
+            pricing.MonteCarloVanillaEngine,
+            pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloSnowballEngine,
+            pricing.MonteCarloBinarySnowballEngine,
+            pricing.MonteCarloTernarySnowballEngine,
+            pricing.MonteCarloPhoenixEngine,
         ):
             for value in (0, 7, 2**64 - 1):
                 with self.subTest(engine=engine_type.__name__, seed=value):
                     self.assertEqual(engine_type(seed=IndexInteger(value)).seed, value)
             for value in (-1, 2**64):
-                with self.subTest(engine=engine_type.__name__, seed=value):
-                    with self.assertRaises(OverflowError):
-                        engine_type(seed=IndexInteger(value))
+                with (
+                    self.subTest(engine=engine_type.__name__, seed=value),
+                    self.assertRaises(OverflowError),
+                ):
+                    engine_type(seed=IndexInteger(value))
             for value in (True, 1.5, IndexInteger(1.5)):
-                with self.subTest(engine=engine_type.__name__, seed=value):
-                    with self.assertRaises(TypeError):
-                        engine_type(seed=value)
-        engine = pricing.MonteCarloVanillaEngine(path_count=IndexInteger(32), step_count=2, seed=IndexInteger(7))
+                with (
+                    self.subTest(engine=engine_type.__name__, seed=value),
+                    self.assertRaises(TypeError),
+                ):
+                    engine_type(seed=value)
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=IndexInteger(32), step_count=2, seed=IndexInteger(7)
+        )
         expected = pricing.MonteCarloVanillaEngine(path_count=32, step_count=2, seed=7)
-        self.assertEqual(engine.price(self.option, self.context), expected.price(self.option, self.context))
+        self.assertEqual(
+            engine.price(self.option, self.context),
+            expected.price(self.option, self.context),
+        )
 
         class BrokenInteger(IndexInteger):
             def __index__(self):
@@ -524,59 +726,125 @@ class KiyosiPythonTests(unittest.TestCase):
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
         )
-        for engine in (pricing.MonteCarloBinarySnowballEngine(path_count=64, seed=73),
-                       pricing.FiniteDifferenceBinarySnowballEngine()):
+        for engine in (
+            pricing.MonteCarloBinarySnowballEngine(path_count=64, seed=73),
+            pricing.FiniteDifferenceBinarySnowballEngine(),
+        ):
             for valuation in (start, start + timedelta(days=1)):
-                context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=valuation)
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=100,
+                    valuation_time=valuation,
+                )
                 note = BinarySnowballOption(
-                    knock_out_coupon_rates=[0.3, 0.1], maturity_coupon_rate=0.1,
-                    knock_out_levels=[120, 120], observation_dates=[start, end],
-                    barrier_state="none", effective_date=start, expiry_date=end,
+                    knock_out_coupon_rates=[0.3, 0.1],
+                    maturity_coupon_rate=0.1,
+                    knock_out_levels=[120, 120],
+                    observation_dates=[start, end],
+                    barrier_state="none",
+                    effective_date=start,
+                    expiry_date=end,
                 )
                 quote = 1.1 * math.exp(-0.04 * (end - valuation).days / 365)
                 with self.subTest(engine=type(engine).__name__, valuation=valuation):
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         implied_volatility(engine, note, context, quote)
-                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                    self.assertEqual(
+                        error.exception.category,
+                        kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                    )
             note = BinarySnowballOption(
-                knock_out_coupon_rates=[0.2], maturity_coupon_rate=0.1,
-                knock_out_levels=[120], observation_dates=[end], effective_date=start, expiry_date=end,
+                knock_out_coupon_rates=[0.2],
+                maturity_coupon_rate=0.1,
+                knock_out_levels=[120],
+                observation_dates=[end],
+                effective_date=start,
+                expiry_date=end,
             )
-            context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=start)
-            low = PricingContext(model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.05
-            ), spot_price=100, valuation_time=start)
-            self.assertEqual(implied_volatility(engine, note, context, engine.price(note, low),
-                                                lower_bound=0.05, upper_bound=0.4), 0.05)
+            context = PricingContext(
+                model_parameters=parameters, spot_price=100, valuation_time=start
+            )
+            low = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=0.01, volatility=0.05
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
+            self.assertEqual(
+                implied_volatility(
+                    engine,
+                    note,
+                    context,
+                    engine.price(note, low),
+                    lower_bound=0.05,
+                    upper_bound=0.4,
+                ),
+                0.05,
+            )
             early_note = BinarySnowballOption(
-                knock_out_coupon_rates=[0, 0], maturity_coupon_rate=0,
-                knock_out_levels=[120, 120], observation_dates=[date(2025, 7, 1), end],
-                effective_date=start, expiry_date=end,
+                knock_out_coupon_rates=[0, 0],
+                maturity_coupon_rate=0,
+                knock_out_levels=[120, 120],
+                observation_dates=[date(2025, 7, 1), end],
+                effective_date=start,
+                expiry_date=end,
             )
             for rate in (0, 0.04):
-                low_context = PricingContext(model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=rate, dividend_yield=0.01, volatility=0.05
-                ), spot_price=100, valuation_time=start)
+                low_context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=0.01, volatility=0.05
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
                 quote = engine.price(early_note, low_context)
                 with self.subTest(engine=type(engine).__name__, rate=rate):
                     if rate == 0:
                         with self.assertRaises(kiyosi.KiyosiError) as error:
-                            implied_volatility(engine, early_note, low_context, quote,
-                                               lower_bound=0.05, upper_bound=0.4)
-                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                            implied_volatility(
+                                engine,
+                                early_note,
+                                low_context,
+                                quote,
+                                lower_bound=0.05,
+                                upper_bound=0.4,
+                            )
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                        )
                     else:
-                        self.assertEqual(implied_volatility(engine, early_note, low_context, quote,
-                                                            lower_bound=0.05, upper_bound=0.4), 0.05)
+                        self.assertEqual(
+                            implied_volatility(
+                                engine,
+                                early_note,
+                                low_context,
+                                quote,
+                                lower_bound=0.05,
+                                upper_bound=0.4,
+                            ),
+                            0.05,
+                        )
         accumulator = Accumulator(
-            strike=100, knock_out_level=120, daily_quantity=0, acceleration_factor=1,
-            accumulated_quantity=0, effective_date=start, expiry_date=end,
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=0,
+            acceleration_factor=1,
+            accumulated_quantity=0,
+            effective_date=start,
+            expiry_date=end,
         )
-        for engine in (pricing.MonteCarloAccumulatorEngine(path_count=64, seed=73),
-                       pricing.FiniteDifferenceAccumulatorEngine()):
+        for engine in (
+            pricing.MonteCarloAccumulatorEngine(path_count=64, seed=73),
+            pricing.FiniteDifferenceAccumulatorEngine(),
+        ):
             with self.subTest(engine=type(engine).__name__):
                 with self.assertRaises(kiyosi.KiyosiError) as error:
                     implied_volatility(engine, accumulator, context, 0)
-                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+                )
 
     def test_implied_ternary_volatility_requires_remaining_cashflow_exposure(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
@@ -659,12 +927,19 @@ class KiyosiPythonTests(unittest.TestCase):
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.05, dividend_yield=0, volatility=0.8
             ),
-            spot_price=100, valuation_time=start, calendar=market.all_days_calendar(),
+            spot_price=100,
+            valuation_time=start,
+            calendar=market.all_days_calendar(),
         )
         for mode in ("continuous", "scheduled"):
             option = BarrierOption(
-                option_type="call", strike=100, effective_date=start, expiry_date=end,
-                barrier_level=0.01, barrier_type="down_and_out", observation_mode=mode,
+                option_type="call",
+                strike=100,
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=0.01,
+                barrier_type="down_and_out",
+                observation_mode=mode,
                 observation_dates=[end] if mode == "scheduled" else [],
             )
             expected = AnalyticBarrierEngine().price(option, context)
@@ -673,62 +948,157 @@ class KiyosiPythonTests(unittest.TestCase):
                     engine = pricing.FiniteDifferenceBarrierEngine(
                         asset_step_count=assets, time_step_count=times
                     )
-                    self.assertAlmostEqual(engine.price(option, context), expected, delta=0.02)
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=0.02
+                    )
 
     def test_analytic_low_volatility_and_default_implied_volatility(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
         barrier = dict(**terms, barrier_level=120, barrier_type="up_and_out")
         vanilla = 100 * (math.exp(-0.02) - math.exp(-0.05))
-        context = PricingContext(model_parameters=BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2), spot_price=100, valuation_time=start)
-        low = PricingContext(model_parameters=BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.0001), spot_price=100, valuation_time=start)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        low = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.0001
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
         for engine, option, expected in (
             (AnalyticBarrierEngine(), BarrierOption(**barrier), vanilla),
-            (AnalyticBinaryBarrierEngine(), cash_binary_barrier_option(**barrier, payout=1), math.exp(-0.05)),
-            (pricing.BjerksundStenslandVanillaEngine(), AmericanOption(**terms), vanilla),
+            (
+                AnalyticBinaryBarrierEngine(),
+                cash_binary_barrier_option(**barrier, payout=1),
+                math.exp(-0.05),
+            ),
+            (
+                pricing.BjerksundStenslandVanillaEngine(),
+                AmericanOption(**terms),
+                vanilla,
+            ),
         ):
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(engine.price(option, low), expected, delta=1e-9)
                 quote = engine.price(option, context)
-                self.assertAlmostEqual(implied_volatility(engine, option, context, quote), 0.2, delta=1e-6)
+                self.assertAlmostEqual(
+                    implied_volatility(engine, option, context, quote), 0.2, delta=1e-6
+                )
 
     def test_numerical_time_greeks_center_clipped_stencils(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        option = EuropeanOption(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
         engine = AnalyticVanillaEngine()
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
-        for time in (datetime(2025, 1, 1, 12, tzinfo=UTC), datetime(2025, 12, 31, 12, tzinfo=UTC)):
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        for time in (
+            datetime(2025, 1, 1, 12, tzinfo=UTC),
+            datetime(2025, 12, 31, 12, tzinfo=UTC),
+        ):
             with self.subTest(time=time):
-                context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time)
-                before = engine.price_with_greeks(option, PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time - timedelta(hours=12)), greeks=["delta", "gamma"])
-                after = engine.price_with_greeks(option, PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time + timedelta(hours=12)), greeks=["delta", "gamma"])
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=100, valuation_time=time
+                )
+                before = engine.price_with_greeks(
+                    option,
+                    PricingContext(
+                        model_parameters=parameters,
+                        spot_price=100,
+                        valuation_time=time - timedelta(hours=12),
+                    ),
+                    greeks=["delta", "gamma"],
+                )
+                after = engine.price_with_greeks(
+                    option,
+                    PricingContext(
+                        model_parameters=parameters,
+                        spot_price=100,
+                        valuation_time=time + timedelta(hours=12),
+                    ),
+                    greeks=["delta", "gamma"],
+                )
                 result = calculate_numerical_greeks(engine, option, context)
-                self.assertAlmostEqual(result.theta, after.price - before.price, delta=1e-9)
+                self.assertAlmostEqual(
+                    result.theta, after.price - before.price, delta=1e-9
+                )
                 # Analytic delta/gamma disappear exactly at expiry, so compare them only at the start boundary.
                 if time.year == 2025 and time.month == 1:
-                    self.assertAlmostEqual(result.charm, after.delta - before.delta, delta=1e-6)
-                    self.assertAlmostEqual(result.color, after.gamma - before.gamma, delta=1e-6)
+                    self.assertAlmostEqual(
+                        result.charm, after.delta - before.delta, delta=1e-6
+                    )
+                    self.assertAlmostEqual(
+                        result.color, after.gamma - before.gamma, delta=1e-6
+                    )
 
     def test_vanilla_monte_carlo_validates_generic_settings_at_expiry(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
         for option_class in (EuropeanOption, AmericanOption):
-            option = option_class(option_type="call", strike=100, effective_date=start, expiry_date=end)
-            for paths, steps in ((0, 2), (-1, 2), (10_000_001, 2), (1, 0), (1, 1), (1, 10_001)):
+            option = option_class(
+                option_type="call", strike=100, effective_date=start, expiry_date=end
+            )
+            for paths, steps in (
+                (0, 2),
+                (-1, 2),
+                (10_000_001, 2),
+                (1, 0),
+                (1, 1),
+                (1, 10_001),
+            ):
                 for time in (start, end):
-                    with self.subTest(option=option_class.__name__, paths=paths, steps=steps, time=time):
-                        engine = pricing.MonteCarloVanillaEngine(path_count=paths, step_count=steps)
-                        context = PricingContext(model_parameters=parameters, spot_price=110, valuation_time=time)
+                    with self.subTest(
+                        option=option_class.__name__,
+                        paths=paths,
+                        steps=steps,
+                        time=time,
+                    ):
+                        engine = pricing.MonteCarloVanillaEngine(
+                            path_count=paths, step_count=steps
+                        )
+                        context = PricingContext(
+                            model_parameters=parameters,
+                            spot_price=110,
+                            valuation_time=time,
+                        )
                         for operation in (
-                            lambda: engine.price(option, context),
-                            lambda: engine.price_with_greeks(option, context, greeks=["delta", "gamma"]),
+                            lambda engine=engine, option=option, context=context: (
+                                engine.price(option, context)
+                            ),
+                            lambda engine=engine, option=option, context=context: (
+                                engine.price_with_greeks(
+                                    option, context, greeks=["delta", "gamma"]
+                                )
+                            ),
                         ):
                             with self.assertRaises(kiyosi.KiyosiError) as error:
                                 operation()
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_PARAMETER,
+                            )
             for backend in ("cpu", "cuda"):
-                engine = pricing.MonteCarloVanillaEngine(path_count=1, step_count=2, backend=backend)
-                expired = PricingContext(model_parameters=parameters, spot_price=110, valuation_time=end)
+                engine = pricing.MonteCarloVanillaEngine(
+                    path_count=1, step_count=2, backend=backend
+                )
+                expired = PricingContext(
+                    model_parameters=parameters, spot_price=110, valuation_time=end
+                )
                 self.assertEqual(engine.price(option, expired), 10)
 
     def test_digital_tiny_volatility_greeks_preserve_finite_limits(self):
@@ -737,62 +1107,119 @@ class KiyosiPythonTests(unittest.TestCase):
         sigma = 1e-200
         density = 1 / math.sqrt(2 * math.pi)
         for option_type, sign in (("call", 1), ("put", -1)):
-            terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+            terms = {
+                "option_type": option_type,
+                "strike": 100,
+                "effective_date": start,
+                "expiry_date": end,
+            }
             cash = CashOrNothingOption(**terms, payout=1)
             asset = AssetOrNothingOption(**terms)
             for rate in (-0.03, 0.03):
-                context = PricingContext(model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=rate, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=0, volatility=sigma
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
                 exercised = sign * rate > 0
                 for option, price, delta in (
                     (cash, math.exp(-rate) if exercised else 0, 0),
                     (asset, 100 if exercised else 0, 1 if exercised else 0),
                 ):
-                    with self.subTest(option_type=option_type, rate=rate, option=type(option).__name__):
-                        result = engine.price_with_greeks(option, context, greeks=["delta", "gamma"])
+                    with self.subTest(
+                        option_type=option_type, rate=rate, option=type(option).__name__
+                    ):
+                        result = engine.price_with_greeks(
+                            option, context, greeks=["delta", "gamma"]
+                        )
                         self.assertAlmostEqual(result.price, price, delta=1e-12)
                         self.assertEqual(result.delta, delta)
                         self.assertEqual(result.gamma, 0)
-            atm = PricingContext(model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+            atm = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=sigma
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
             for option, price, delta, gamma in (
-                (cash, 0.5, sign * density / 100 / sigma, -sign * 0.5 * density / 100 / 100 / sigma),
+                (
+                    cash,
+                    0.5,
+                    sign * density / 100 / sigma,
+                    -sign * 0.5 * density / 100 / 100 / sigma,
+                ),
                 (asset, 50, sign * density / sigma, sign * 0.5 * density / 100 / sigma),
             ):
-                result = engine.price_with_greeks(option, atm, greeks=["delta", "gamma"])
+                result = engine.price_with_greeks(
+                    option, atm, greeks=["delta", "gamma"]
+                )
                 self.assertEqual(result.price, price)
                 self.assertTrue(math.isclose(result.delta, delta, rel_tol=1e-12))
                 self.assertTrue(math.isclose(result.gamma, gamma, rel_tol=1e-12))
-            tail = PricingContext(model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=40 * sigma, dividend_yield=0, volatility=sigma), spot_price=100, valuation_time=start)
+            tail = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=40 * sigma, dividend_yield=0, volatility=sigma
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
             result = engine.price_with_greeks(cash, tail, greeks=["delta", "gamma"])
-            self.assertTrue(math.isclose(result.delta, sign * 1.4632702508383032e-150, rel_tol=1e-11))
-            self.assertTrue(math.isclose(result.gamma, -sign * 5.853081003353213e49, rel_tol=1e-11))
-            subnormal = PricingContext(model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0, dividend_yield=0, volatility=1e-310), spot_price=100, valuation_time=start)
+            self.assertTrue(
+                math.isclose(
+                    result.delta, sign * 1.4632702508383032e-150, rel_tol=1e-11
+                )
+            )
+            self.assertTrue(
+                math.isclose(result.gamma, -sign * 5.853081003353213e49, rel_tol=1e-11)
+            )
+            subnormal = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=1e-310
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
             self.assertEqual(engine.price(asset, subnormal), 50)
             result = engine.price_with_greeks(asset, subnormal, greeks=["gamma"])
-            self.assertTrue(math.isclose(result.gamma, sign * 1.9947114020071634e307, rel_tol=1e-11))
+            self.assertTrue(
+                math.isclose(result.gamma, sign * 1.9947114020071634e307, rel_tol=1e-11)
+            )
             with self.assertRaises(kiyosi.KiyosiError) as error:
                 engine.price_with_greeks(asset, subnormal, greeks=["delta"])
-            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+            )
 
     def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
-            ), spot_price=99.25, valuation_time=datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC),
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                volatility=0.2,
+            ),
+            spot_price=99.25,
+            valuation_time=datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC),
         )
         for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
             engine = pricing.FiniteDifferenceVanillaEngine(scheme=scheme)
             for option_type in ("call", "put"):
                 with self.subTest(scheme=scheme, option_type=option_type):
-                    terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+                    terms = {
+                        "option_type": option_type,
+                        "strike": 100,
+                        "effective_date": start,
+                        "expiry_date": end,
+                    }
                     european = engine.price(EuropeanOption(**terms), context)
                     american = engine.price(AmericanOption(**terms), context)
                     self.assertGreaterEqual(european, 0)
-                    self.assertGreaterEqual(american, 0.75 if option_type == "put" else 0)
+                    self.assertGreaterEqual(
+                        american, 0.75 if option_type == "put" else 0
+                    )
                     if option_type == "call":
                         self.assertAlmostEqual(european, 0, delta=1e-10)
                     else:
@@ -801,33 +1228,50 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_fd_prices_reject_underflowed_asset_spacing(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         tiny = math.ulp(0.0)
-        option = EuropeanOption(option_type="call", strike=tiny, effective_date=start, expiry_date=end)
+        option = EuropeanOption(
+            option_type="call", strike=tiny, effective_date=start, expiry_date=end
+        )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
-            ), spot_price=tiny, valuation_time=start,
+                risk_free_rate=0.05,
+                dividend_yield=0.02,
+                volatility=0.2,
+            ),
+            spot_price=tiny,
+            valuation_time=start,
         )
         for upper in (None, 4 * tiny):
             with self.subTest(upper=upper):
-                engine = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=upper)
+                engine = pricing.FiniteDifferenceVanillaEngine(
+                    asset_upper_boundary=upper
+                )
                 with self.assertRaises(kiyosi.KiyosiError) as caught:
                     engine.price(option, context)
-                self.assertEqual(caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                self.assertEqual(
+                    caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                )
 
     def test_seeded_autocallable_paths_stay_coupled_across_knock_out_changes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0, 0], maturity_coupon_rate=0.2,
-            knock_out_levels=[110, 110], observation_dates=[date(2025, 7, 1), end],
-            effective_date=start, expiry_date=end,
+            knock_out_coupon_rates=[0, 0],
+            maturity_coupon_rate=0.2,
+            knock_out_levels=[110, 110],
+            observation_dates=[date(2025, 7, 1), end],
+            effective_date=start,
+            expiry_date=end,
         )
-        parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=0.2)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
         engine = pricing.MonteCarloBinarySnowballEngine(path_count=2000, seed=1)
         previous = 1.2
         for bump in range(31):
             spot = 100 + 0.01 * bump
             with self.subTest(spot=spot):
-                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start
+                )
                 actual = engine.price(note, context)
                 self.assertLessEqual(actual, previous)
                 previous = actual
@@ -835,81 +1279,155 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_fd_automatic_domain_includes_distant_barriers(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = BarrierOption(
-            option_type="call", strike=100, barrier_level=500,
-            barrier_type="up_and_out", effective_date=start, expiry_date=end,
+            option_type="call",
+            strike=100,
+            barrier_level=500,
+            barrier_type="up_and_out",
+            effective_date=start,
+            expiry_date=end,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
-            ), spot_price=100, valuation_time=start,
+                risk_free_rate=0.03,
+                dividend_yield=0.02,
+                volatility=0.2,
+            ),
+            spot_price=100,
+            valuation_time=start,
         )
         finite = pricing.FiniteDifferenceBarrierEngine()
-        self.assertAlmostEqual(finite.price(option, context), AnalyticBarrierEngine().price(option, context), delta=0.05)
-        self.assertEqual(finite.price_with_greeks(option, context, ["gamma"]).price, finite.price(option, context))
+        self.assertAlmostEqual(
+            finite.price(option, context),
+            AnalyticBarrierEngine().price(option, context),
+            delta=0.05,
+        )
+        self.assertEqual(
+            finite.price_with_greeks(option, context, ["gamma"]).price,
+            finite.price(option, context),
+        )
         clipped = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
         with self.assertRaises(kiyosi.KiyosiError) as caught:
             clipped.price(option, context)
-        self.assertEqual(caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+        self.assertEqual(
+            caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+        )
 
     def test_fd_boundaries_preserve_long_expiry_volatility_tails(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.6,
-            ), spot_price=100, valuation_time=start,
+                risk_free_rate=0.03,
+                dividend_yield=0.02,
+                volatility=0.6,
+            ),
+            spot_price=100,
+            valuation_time=start,
         )
         for option_type in ("call", "put"):
-            terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+            terms = {
+                "option_type": option_type,
+                "strike": 100,
+                "effective_date": start,
+                "expiry_date": end,
+            }
             option = EuropeanOption(**terms)
             expected = AnalyticVanillaEngine().price(option, context)
             for upper in (None, 125.0):
                 with self.subTest(option_type=option_type, upper=upper):
                     finite = pricing.FiniteDifferenceVanillaEngine(
-                        asset_step_count=800, time_step_count=1000, asset_upper_boundary=upper,
+                        asset_step_count=800,
+                        time_step_count=1000,
+                        asset_upper_boundary=upper,
                     )
-                    self.assertAlmostEqual(finite.price(option, context), expected, delta=0.01)
-            for digital in (CashOrNothingOption(payout=10, **terms), AssetOrNothingOption(**terms)):
-                with self.subTest(option_type=option_type, digital=type(digital).__name__):
-                    finite = pricing.FiniteDifferenceDigitalEngine(asset_step_count=800, time_step_count=1000)
                     self.assertAlmostEqual(
-                        finite.price(digital, context), AnalyticDigitalEngine().price(digital, context), delta=0.01,
+                        finite.price(option, context), expected, delta=0.01
+                    )
+            for digital in (
+                CashOrNothingOption(payout=10, **terms),
+                AssetOrNothingOption(**terms),
+            ):
+                with self.subTest(
+                    option_type=option_type, digital=type(digital).__name__
+                ):
+                    finite = pricing.FiniteDifferenceDigitalEngine(
+                        asset_step_count=800, time_step_count=1000
+                    )
+                    self.assertAlmostEqual(
+                        finite.price(digital, context),
+                        AnalyticDigitalEngine().price(digital, context),
+                        delta=0.01,
                     )
 
     def test_fd_numerical_greeks_hold_automatic_grid_fixed(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         option = EuropeanOption(
-            option_type="call", strike=100, effective_date=start, expiry_date=end,
+            option_type="call",
+            strike=100,
+            effective_date=start,
+            expiry_date=end,
         )
         parameters = BlackScholesMertonParameters(
-            risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+            risk_free_rate=0.03,
+            dividend_yield=0.02,
+            volatility=0.2,
         )
         finite = pricing.FiniteDifferenceVanillaEngine(
-            asset_step_count=800, time_step_count=1000,
+            asset_step_count=800,
+            time_step_count=1000,
         )
         for spot in (95.0, 95.1, 100.0, 100.1, 110.0):
             with self.subTest(spot=spot):
                 context = PricingContext(
-                    model_parameters=parameters, spot_price=spot, valuation_time=start,
+                    model_parameters=parameters,
+                    spot_price=spot,
+                    valuation_time=start,
                 )
                 expected = AnalyticVanillaEngine().price_with_greeks(
-                    option, context, ["gamma", "speed"],
+                    option,
+                    context,
+                    ["gamma", "speed"],
                 )
                 actual = calculate_numerical_greeks(finite, option, context)
-                self.assertAlmostEqual(actual.gamma, expected.gamma, delta=2e-5 + 0.01 * abs(expected.gamma))
-                self.assertAlmostEqual(actual.speed, expected.speed, delta=2e-5 + 0.05 * abs(expected.speed))
+                self.assertAlmostEqual(
+                    actual.gamma,
+                    expected.gamma,
+                    delta=2e-5 + 0.01 * abs(expected.gamma),
+                )
+                self.assertAlmostEqual(
+                    actual.speed,
+                    expected.speed,
+                    delta=2e-5 + 0.05 * abs(expected.speed),
+                )
                 self.assertEqual(actual.price, finite.price(option, context))
 
     def test_fd_greek_grids_preserve_extreme_expiry_settlements(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
-            ), spot_price=1e308, valuation_time=end,
+                risk_free_rate=0.03,
+                dividend_yield=0.02,
+                volatility=0.2,
+            ),
+            spot_price=1e308,
+            valuation_time=end,
         )
-        terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
         for engine, option in (
             (pricing.FiniteDifferenceVanillaEngine(), EuropeanOption(**terms)),
-            (pricing.FiniteDifferenceBarrierEngine(), BarrierOption(barrier_level=80, barrier_type="down_and_out", touch_state="untouched", **terms)),
+            (
+                pricing.FiniteDifferenceBarrierEngine(),
+                BarrierOption(
+                    barrier_level=80,
+                    barrier_type="down_and_out",
+                    touch_state="untouched",
+                    **terms,
+                ),
+            ),
         ):
             with self.subTest(engine=type(engine).__name__):
                 joint = engine.price_with_greeks(option, context, ["gamma"])
@@ -919,63 +1437,108 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_fd_spot_greeks_at_and_between_grid_nodes(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         option = BarrierOption(
-            option_type="call", strike=100, barrier_level=80,
-            barrier_type="down_and_out", effective_date=start, expiry_date=end,
+            option_type="call",
+            strike=100,
+            barrier_level=80,
+            barrier_type="down_and_out",
+            effective_date=start,
+            expiry_date=end,
         )
         parameters = BlackScholesMertonParameters(
-            risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+            risk_free_rate=0.03,
+            dividend_yield=0.02,
+            volatility=0.2,
         )
         finite = pricing.FiniteDifferenceBarrierEngine(
-            asset_step_count=800, time_step_count=1000,
+            asset_step_count=800,
+            time_step_count=1000,
         )
         for spot in (95.0, 95.1):
             with self.subTest(spot=spot):
                 context = PricingContext(
-                    model_parameters=parameters, spot_price=spot, valuation_time=start,
+                    model_parameters=parameters,
+                    spot_price=spot,
+                    valuation_time=start,
                 )
                 expected = AnalyticBarrierEngine().price_with_greeks(
-                    option, context, ["gamma", "speed"],
+                    option,
+                    context,
+                    ["gamma", "speed"],
                 )
                 actual = finite.price_with_greeks(option, context, ["gamma", "speed"])
-                self.assertAlmostEqual(actual.gamma, expected.gamma, delta=2e-5 + 0.01 * abs(expected.gamma))
-                self.assertAlmostEqual(actual.speed, expected.speed, delta=2e-5 + 0.05 * abs(expected.speed))
+                self.assertAlmostEqual(
+                    actual.gamma,
+                    expected.gamma,
+                    delta=2e-5 + 0.01 * abs(expected.gamma),
+                )
+                self.assertAlmostEqual(
+                    actual.speed,
+                    expected.speed,
+                    delta=2e-5 + 0.05 * abs(expected.speed),
+                )
 
     def test_asset_one_touch_current_hits_settle_at_spot(self):
         start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         for factory, spot, barrier in (
-            (asset_one_touch_up, 120, 110), (asset_one_touch_down, 80, 90)
+            (asset_one_touch_up, 120, 110),
+            (asset_one_touch_down, 80, 90),
         ):
             for valuation in (event, end):
                 context = PricingContext(
-                    model_parameters=self.parameters, spot_price=spot, valuation_time=valuation
+                    model_parameters=self.parameters,
+                    spot_price=spot,
+                    valuation_time=valuation,
                 )
                 for mode in ("scheduled", "continuous"):
                     with self.subTest(spot=spot, valuation=valuation, mode=mode):
-                        terms = dict(
-                            effective_date=valuation if mode == "continuous" else start,
-                            expiry_date=end, barrier_level=barrier, observation_mode=mode,
-                            observation_dates=[valuation] if mode == "scheduled" else [],
-                        )
+                        terms = {
+                            "effective_date": valuation
+                            if mode == "continuous"
+                            else start,
+                            "expiry_date": end,
+                            "barrier_level": barrier,
+                            "observation_mode": mode,
+                            "observation_dates": [valuation]
+                            if mode == "scheduled"
+                            else [],
+                        }
                         engine = AnalyticBinaryBarrierEngine()
-                        self.assertEqual(engine.price(factory(settlement_timing="at_hit", **terms), context), spot)
+                        self.assertEqual(
+                            engine.price(
+                                factory(settlement_timing="at_hit", **terms), context
+                            ),
+                            spot,
+                        )
                         self.assertAlmostEqual(
-                            engine.price(factory(settlement_timing="at_expiry", **terms), context),
-                            spot * math.exp(-0.02 * (end - valuation).days / 365), delta=1e-12,
+                            engine.price(
+                                factory(settlement_timing="at_expiry", **terms), context
+                            ),
+                            spot * math.exp(-0.02 * (end - valuation).days / 365),
+                            delta=1e-12,
                         )
             already_paid = factory(
-                effective_date=start, expiry_date=end, barrier_level=barrier,
-                settlement_timing="at_hit", observation_mode="scheduled",
-                observation_dates=[start, event], touch_state="touched",
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=barrier,
+                settlement_timing="at_hit",
+                observation_mode="scheduled",
+                observation_dates=[start, event],
+                touch_state="touched",
             )
             context = PricingContext(
                 model_parameters=self.parameters, spot_price=spot, valuation_time=event
             )
-            self.assertEqual(AnalyticBinaryBarrierEngine().price(already_paid, context), 0)
+            self.assertEqual(
+                AnalyticBinaryBarrierEngine().price(already_paid, context), 0
+            )
 
     def test_fixed_interval_schedule_bounds_extreme_intervals(self):
         # Isolate the overflow regression so a broken loop cannot hang the test runner.
         result = subprocess.run(
-            [sys.executable, "-c", textwrap.dedent("""
+            [
+                sys.executable,
+                "-c",
+                textwrap.dedent("""
                 from datetime import date
                 from kiyosi.market import fixed_interval_schedule
                 for interval in (2**31 - 1, 2**31 - 100):
@@ -983,24 +1546,37 @@ class KiyosiPythonTests(unittest.TestCase):
                         start=date(2025, 1, 1), end=date(2026, 1, 1),
                         interval_days=interval)
                     assert list(schedule) == []
-            """)],
-            capture_output=True, text=True, timeout=5,
+            """),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         self.assertEqual(
-            list(fixed_interval_schedule(start=start, end=end, interval_days=365,
-                                         calendar=market.all_days_calendar())),
+            list(
+                fixed_interval_schedule(
+                    start=start,
+                    end=end,
+                    interval_days=365,
+                    calendar=market.all_days_calendar(),
+                )
+            ),
             [end],
         )
         with self.assertRaises(kiyosi.KiyosiError) as error:
             fixed_interval_schedule(start=start, end=end, interval_days=0)
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_SCHEDULE)
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.INVALID_SCHEDULE
+        )
 
     def test_fd_low_volatility_prices_remain_bounded(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction, spot, rate, dividend in (
-            ("put", 95, 0.1, 0), ("call", 105, 0, 0.1)
+            ("put", 95, 0.1, 0),
+            ("call", 105, 0, 0.1),
         ):
             option = EuropeanOption(
                 option_type=direction, strike=100, effective_date=start, expiry_date=end
@@ -1008,13 +1584,18 @@ class KiyosiPythonTests(unittest.TestCase):
             for volatility in (0.001, 0.01):
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
-                        risk_free_rate=rate, dividend_yield=dividend, volatility=volatility
+                        risk_free_rate=rate,
+                        dividend_yield=dividend,
+                        volatility=volatility,
                     ),
-                    spot_price=spot, valuation_time=start,
+                    spot_price=spot,
+                    valuation_time=start,
                 )
                 analytic = AnalyticVanillaEngine().price(option, context)
                 for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
-                    with self.subTest(direction=direction, volatility=volatility, scheme=scheme):
+                    with self.subTest(
+                        direction=direction, volatility=volatility, scheme=scheme
+                    ):
                         coarse = pricing.FiniteDifferenceVanillaEngine(
                             asset_step_count=200, time_step_count=2000, scheme=scheme
                         ).price(option, context)
@@ -1024,35 +1605,51 @@ class KiyosiPythonTests(unittest.TestCase):
                         self.assertGreaterEqual(coarse, 0)
                         self.assertGreaterEqual(fine, 0)
                         self.assertLessEqual(
-                            coarse, (spot if direction == "call" else 100) * math.exp(-0.1)
+                            coarse,
+                            (spot if direction == "call" else 100) * math.exp(-0.1),
                         )
                         self.assertLess(abs(fine - analytic), abs(coarse - analytic))
 
     def test_fd_current_events_use_actual_spot(self):
         start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0.1, 0.1], maturity_coupon_rate=0.2,
-            knock_out_levels=[120, 130], observation_dates=[event, end],
-            effective_date=start, expiry_date=end,
+            knock_out_coupon_rates=[0.1, 0.1],
+            maturity_coupon_rate=0.2,
+            knock_out_levels=[120, 130],
+            observation_dates=[event, end],
+            effective_date=start,
+            expiry_date=end,
         )
         accumulator = Accumulator(
-            strike=100, knock_out_level=120, daily_quantity=1,
-            acceleration_factor=2, accumulated_quantity=3,
-            effective_date=start, expiry_date=end,
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            effective_date=start,
+            expiry_date=end,
         )
         for spot in (120, 120.1):
             context = PricingContext(
-                model_parameters=self.parameters, spot_price=spot, valuation_time=event,
+                model_parameters=self.parameters,
+                spot_price=spot,
+                valuation_time=event,
             )
             for upper in (499, 501):
                 with self.subTest(spot=spot, upper=upper):
                     self.assertAlmostEqual(
-                        pricing.FiniteDifferenceBinarySnowballEngine(asset_upper_boundary=upper).price(note, context),
-                        1 + 0.1 / 365, delta=1e-12,
+                        pricing.FiniteDifferenceBinarySnowballEngine(
+                            asset_upper_boundary=upper
+                        ).price(note, context),
+                        1 + 0.1 / 365,
+                        delta=1e-12,
                     )
                     self.assertAlmostEqual(
-                        pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=upper).price(accumulator, context),
-                        3 * (spot - 100), delta=1e-12,
+                        pricing.FiniteDifferenceAccumulatorEngine(
+                            asset_upper_boundary=upper
+                        ).price(accumulator, context),
+                        3 * (spot - 100),
+                        delta=1e-12,
                     )
 
     def setUp(self):
@@ -1085,10 +1682,12 @@ class KiyosiPythonTests(unittest.TestCase):
                     spot_price=spot,
                     valuation_time=start,
                 )
-                terms = dict(
-                    option_type=direction, strike=100,
-                    effective_date=start, expiry_date=end,
-                )
+                terms = {
+                    "option_type": direction,
+                    "strike": 100,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
                 self.assertAlmostEqual(
                     engine.price(AmericanOption(**terms), context),
                     AnalyticVanillaEngine().price(EuropeanOption(**terms), context),
@@ -1099,83 +1698,157 @@ class KiyosiPythonTests(unittest.TestCase):
         start, fixing, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         for valuation in (fixing, date(2025, 1, 3)):
             context = PricingContext(
-                model_parameters=self.parameters, spot_price=100, valuation_time=valuation
+                model_parameters=self.parameters,
+                spot_price=100,
+                valuation_time=valuation,
             )
             for kind in ("up_and_in", "up_and_out"):
                 for rebate in (0, 10):
                     option = BarrierOption(
-                        option_type="call", strike=100, effective_date=start, expiry_date=end,
-                        barrier_level=120, barrier_type=kind, rebate=rebate,
-                        observation_mode="scheduled", observation_dates=[fixing], touch_state="untouched",
+                        option_type="call",
+                        strike=100,
+                        effective_date=start,
+                        expiry_date=end,
+                        barrier_level=120,
+                        barrier_type=kind,
+                        rebate=rebate,
+                        observation_mode="scheduled",
+                        observation_dates=[fixing],
+                        touch_state="untouched",
                     )
                     expected = (
                         rebate * math.exp(-0.05 * (end - valuation).days / 365)
-                        if kind == "up_and_in" else AnalyticVanillaEngine().price(self.option, context)
+                        if kind == "up_and_in"
+                        else AnalyticVanillaEngine().price(self.option, context)
                     )
-                    for engine in (AnalyticBarrierEngine(), pricing.FiniteDifferenceBarrierEngine()):
-                        with self.subTest(valuation=valuation, kind=kind, rebate=rebate, engine=engine):
+                    for engine in (
+                        AnalyticBarrierEngine(),
+                        pricing.FiniteDifferenceBarrierEngine(),
+                    ):
+                        with self.subTest(
+                            valuation=valuation, kind=kind, rebate=rebate, engine=engine
+                        ):
                             self.assertEqual(engine.price(option, context), expected)
         touch = cash_one_touch_up(
-            effective_date=start, expiry_date=end, barrier_level=120, payout=10,
-            settlement_timing="at_expiry", observation_mode="scheduled",
-            observation_dates=[fixing], touch_state="untouched",
+            effective_date=start,
+            expiry_date=end,
+            barrier_level=120,
+            payout=10,
+            settlement_timing="at_expiry",
+            observation_mode="scheduled",
+            observation_dates=[fixing],
+            touch_state="untouched",
         )
         for spot in (100, 120):
             context = PricingContext(
                 model_parameters=self.parameters, spot_price=spot, valuation_time=fixing
             )
             expected = 0 if spot < 120 else 10 * math.exp(-0.05 * 364 / 365)
-            self.assertEqual(AnalyticBinaryBarrierEngine().price(touch, context), expected)
+            self.assertEqual(
+                AnalyticBinaryBarrierEngine().price(touch, context), expected
+            )
 
     def test_implied_phoenix_coupon_requires_payable_coupon(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         for valuation in (fixing, end):
             barrier = 90 if valuation == end else 130
             note = PhoenixOption(
-                coupon_rate=0.1, initial_spot=100, knock_in_level=70,
-                knock_out_levels=[120, 120], coupon_barrier_levels=[barrier, 90],
-                upper_strike=100, lower_strike=0, observation_dates=[fixing, end],
-                knock_in_observation_mode="every_trading_day", barrier_state="none",
-                effective_date=start, expiry_date=end,
+                coupon_rate=0.1,
+                initial_spot=100,
+                knock_in_level=70,
+                knock_out_levels=[120, 120],
+                coupon_barrier_levels=[barrier, 90],
+                upper_strike=100,
+                lower_strike=0,
+                observation_dates=[fixing, end],
+                knock_in_observation_mode="every_trading_day",
+                barrier_state="none",
+                effective_date=start,
+                expiry_date=end,
             )
             for spot in (80, 90, 120):
                 context = PricingContext(
-                    model_parameters=self.parameters, spot_price=spot, valuation_time=valuation
+                    model_parameters=self.parameters,
+                    spot_price=spot,
+                    valuation_time=valuation,
                 )
-                for engine in (pricing.MonteCarloPhoenixEngine(path_count=64, seed=1),
-                               pricing.FiniteDifferencePhoenixEngine(asset_step_count=40, time_step_count=40, asset_upper_boundary=400)):
+                for engine in (
+                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=1),
+                    pricing.FiniteDifferencePhoenixEngine(
+                        asset_step_count=40,
+                        time_step_count=40,
+                        asset_upper_boundary=400,
+                    ),
+                ):
                     with self.subTest(valuation=valuation, spot=spot, engine=engine):
                         quote = engine.price(note, context)
-                        if (valuation == end and spot < barrier) or (valuation == fixing and spot >= 120):
+                        if (valuation == end and spot < barrier) or (
+                            valuation == fixing and spot >= 120
+                        ):
                             with self.assertRaises(kiyosi.KiyosiError) as error:
                                 implied_coupon(engine, note, context, quote)
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            )
                         else:
-                            self.assertAlmostEqual(implied_coupon(engine, note, context, quote), 0.1, delta=1e-7)
+                            self.assertAlmostEqual(
+                                implied_coupon(engine, note, context, quote),
+                                0.1,
+                                delta=1e-7,
+                            )
 
     def test_implied_snowball_coupon_respects_terminal_state(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = standard_snowball(
-            coupon_rate=0.1, initial_spot=100, knock_in_level=70, knock_out_level=120,
-            observation_dates=[end], effective_date=start, expiry_date=end, barrier_state="none",
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=70,
+            knock_out_level=120,
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
+            barrier_state="none",
         )
         for spot in (60, 80, 120):
             context = PricingContext(
                 model_parameters=self.parameters, spot_price=spot, valuation_time=end
             )
             for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
-                for engine in (pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
-                               pricing.FiniteDifferenceSnowballEngine(asset_step_count=40, time_step_count=40)):
+                for engine in (
+                    pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
+                    pricing.FiniteDifferenceSnowballEngine(
+                        asset_step_count=40, time_step_count=40
+                    ),
+                ):
                     with self.subTest(spot=spot, convention=convention, engine=engine):
                         quote = engine.price(note, context)
-                        if spot < 70 or (spot < 120 and convention == "preserve_maturity_coupon"):
+                        if spot < 70 or (
+                            spot < 120 and convention == "preserve_maturity_coupon"
+                        ):
                             with self.assertRaises(kiyosi.KiyosiError) as error:
-                                implied_coupon(engine, note, context, quote, quote_convention=convention)
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                                implied_coupon(
+                                    engine,
+                                    note,
+                                    context,
+                                    quote,
+                                    quote_convention=convention,
+                                )
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            )
                         else:
                             self.assertAlmostEqual(
-                                implied_coupon(engine, note, context, quote, quote_convention=convention),
-                                0.1, delta=1e-7,
+                                implied_coupon(
+                                    engine,
+                                    note,
+                                    context,
+                                    quote,
+                                    quote_convention=convention,
+                                ),
+                                0.1,
+                                delta=1e-7,
                             )
 
     def test_zero_barrier_rebates_ignore_payment_timing(self):
@@ -1190,20 +1863,27 @@ class KiyosiPythonTests(unittest.TestCase):
             )
             for direction in ("call", "put"):
                 for kind, barrier in (("up_and_out", 120), ("down_and_out", 80)):
-                    with self.subTest(rate=rate, dividend=dividend, direction=direction, kind=kind):
-                        terms = dict(
-                            option_type=direction,
-                            strike=100,
-                            effective_date=start,
-                            expiry_date=end,
-                            barrier_level=barrier,
-                            barrier_type=kind,
-                            rebate=0,
-                        )
+                    with self.subTest(
+                        rate=rate, dividend=dividend, direction=direction, kind=kind
+                    ):
+                        terms = {
+                            "option_type": direction,
+                            "strike": 100,
+                            "effective_date": start,
+                            "expiry_date": end,
+                            "barrier_level": barrier,
+                            "barrier_type": kind,
+                            "rebate": 0,
+                        }
                         engine = AnalyticBarrierEngine()
                         self.assertEqual(
-                            engine.price(BarrierOption(**terms, rebate_timing="at_hit"), context),
-                            engine.price(BarrierOption(**terms, rebate_timing="at_expiry"), context),
+                            engine.price(
+                                BarrierOption(**terms, rebate_timing="at_hit"), context
+                            ),
+                            engine.price(
+                                BarrierOption(**terms, rebate_timing="at_expiry"),
+                                context,
+                            ),
                         )
 
     def test_european_mc_uses_terminal_distribution(self):
@@ -1221,7 +1901,9 @@ class KiyosiPythonTests(unittest.TestCase):
                 baseline, AnalyticVanillaEngine().price(option, self.context), delta=0.5
             )
             self.assertNotEqual(
-                pricing.MonteCarloVanillaEngine(path_count=20000, step_count=2, seed=43).price(option, self.context),
+                pricing.MonteCarloVanillaEngine(
+                    path_count=20000, step_count=2, seed=43
+                ).price(option, self.context),
                 baseline,
             )
             for steps in (2, 7, 50, 10000):
@@ -1233,21 +1915,24 @@ class KiyosiPythonTests(unittest.TestCase):
                     self.assertEqual(engine.step_count, steps)
             for backend in ("cpu", "cuda"):
                 for steps in (1, 10001):
-                    with self.subTest(direction=direction, steps=steps, backend=backend):
+                    with self.subTest(
+                        direction=direction, steps=steps, backend=backend
+                    ):
                         engine = pricing.MonteCarloVanillaEngine(
                             path_count=10, step_count=steps, seed=42, backend=backend
                         )
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             engine.price(option, self.context)
                         self.assertEqual(
-                            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                            error.exception.category,
+                            kiyosi.ErrorCategory.INVALID_PARAMETER,
                         )
 
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys
             from datetime import date
-            sys.path.insert(0, {str(Path(sys.modules['kiyosi._native'].__file__).parent)!r})
+            sys.path.insert(0, {str(Path(sys.modules["kiyosi._native"].__file__).parent)!r})
             import _native as k
             start, end = date(2025, 1, 1), date(2026, 1, 1)
             context = k.PricingContext(
@@ -1270,7 +1955,10 @@ class KiyosiPythonTests(unittest.TestCase):
             """)
         result = subprocess.run(
             [sys.executable, "-X", "faulthandler", "-c", code],
-            capture_output=True, text=True, timeout=30,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("conversion errors returned safely", result.stdout)
@@ -1281,20 +1969,34 @@ class KiyosiPythonTests(unittest.TestCase):
         for volatility in (1e155, 1e308):
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility,
-                ), spot_price=100, valuation_time=start,
+                    risk_free_rate=0.05,
+                    dividend_yield=0.02,
+                    volatility=volatility,
+                ),
+                spot_price=100,
+                valuation_time=start,
             )
             for direction in ("call", "put"):
                 with self.subTest(volatility=volatility, direction=direction):
                     call = direction == "call"
-                    option = EuropeanOption(option_type=direction, strike=100,
-                                            effective_date=start, expiry_date=end)
+                    option = EuropeanOption(
+                        option_type=direction,
+                        strike=100,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
                     expected = 100 * math.exp(-0.02 if call else -0.05)
-                    self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=1e-12
+                    )
                     result = engine.price_with_greeks(option, context, all_greeks=True)
                     self.assertAlmostEqual(result.price, expected, delta=1e-12)
-                    self.assertAlmostEqual(result.delta, math.exp(-0.02) if call else 0, delta=1e-15)
-                    self.assertAlmostEqual(result.rho, 0 if call else -math.exp(-0.05), delta=1e-15)
+                    self.assertAlmostEqual(
+                        result.delta, math.exp(-0.02) if call else 0, delta=1e-15
+                    )
+                    self.assertAlmostEqual(
+                        result.rho, 0 if call else -math.exp(-0.05), delta=1e-15
+                    )
                     self.assertEqual(result.gamma, 0)
                     self.assertEqual(result.vega, 0)
                     for greek in get_args(kiyosi.Greek):
@@ -1304,42 +2006,72 @@ class KiyosiPythonTests(unittest.TestCase):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         for option_type in ("call", "put"):
             for spot, strike, rate, dividend, volatility in (
-                (200, 100, 0.02, 0.02, 0.6), (200, 100, 0.05, 0, 0.2),
+                (200, 100, 0.02, 0.02, 0.6),
+                (200, 100, 0.05, 0, 0.2),
             ):
                 if option_type == "put":
                     spot, strike, rate, dividend = strike, spot, dividend, rate
-                with self.subTest(option_type=option_type, spot=spot, volatility=volatility):
+                with self.subTest(
+                    option_type=option_type, spot=spot, volatility=volatility
+                ):
                     context = PricingContext(
                         model_parameters=BlackScholesMertonParameters(
-                            risk_free_rate=rate, dividend_yield=dividend, volatility=volatility,
-                        ), spot_price=spot, valuation_time=start,
+                            risk_free_rate=rate,
+                            dividend_yield=dividend,
+                            volatility=volatility,
+                        ),
+                        spot_price=spot,
+                        valuation_time=start,
                     )
-                    terms = dict(option_type=option_type, strike=strike, effective_date=start, expiry_date=end)
-                    european = AnalyticVanillaEngine().price(EuropeanOption(**terms), context)
-                    american = pricing.BjerksundStenslandVanillaEngine().price(AmericanOption(**terms), context)
-                    intrinsic = max(spot - strike if option_type == "call" else strike - spot, 0)
+                    terms = {
+                        "option_type": option_type,
+                        "strike": strike,
+                        "effective_date": start,
+                        "expiry_date": end,
+                    }
+                    european = AnalyticVanillaEngine().price(
+                        EuropeanOption(**terms), context
+                    )
+                    american = pricing.BjerksundStenslandVanillaEngine().price(
+                        AmericanOption(**terms), context
+                    )
+                    intrinsic = max(
+                        spot - strike if option_type == "call" else strike - spot, 0
+                    )
                     self.assertGreaterEqual(american, european - 1e-12)
                     self.assertGreaterEqual(american, intrinsic)
-                    self.assertAlmostEqual(american, max(european, intrinsic), delta=1e-10)
+                    self.assertAlmostEqual(
+                        american, max(european, intrinsic), delta=1e-10
+                    )
 
     def test_bjerksund_negative_transformed_rates(self):
         engine = pricing.BjerksundStenslandVanillaEngine()
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction, rate, dividend, spot, intrinsic in (
-            ("call", -.01, 0, 200, 100), ("put", 0, -.01, 50, 50)
+            ("call", -0.01, 0, 200, 100),
+            ("put", 0, -0.01, 50, 50),
         ):
             with self.subTest(direction=direction):
-                option = AmericanOption(option_type=direction, strike=100,
-                                        effective_date=start, expiry_date=end)
+                option = AmericanOption(
+                    option_type=direction,
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                )
                 parameters = BlackScholesMertonParameters(
-                    risk_free_rate=rate, dividend_yield=dividend, volatility=.2)
-                context = PricingContext(model_parameters=parameters, spot_price=spot,
-                                         valuation_time=start)
+                    risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                )
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start
+                )
                 with self.assertRaises(kiyosi.KiyosiError) as error:
                     engine.price(option, context)
-                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
-                expired = PricingContext(model_parameters=parameters, spot_price=spot,
-                                         valuation_time=end)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+                )
+                expired = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=end
+                )
                 self.assertEqual(engine.price(option, expired), intrinsic)
 
     def test_binomial_rejects_underflowed_trees(self):
@@ -1347,77 +2079,152 @@ class KiyosiPythonTests(unittest.TestCase):
         for volatility in (23, 25):
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=.05, dividend_yield=.02, volatility=volatility),
-                spot_price=100, valuation_time=date(2025, 1, 1))
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility
+                ),
+                spot_price=100,
+                valuation_time=date(2025, 1, 1),
+            )
             for option_class in (EuropeanOption, AmericanOption):
                 for direction in ("call", "put"):
-                    with self.subTest(volatility=volatility, option=option_class, direction=direction):
-                        option = option_class(option_type=direction, strike=100,
-                                              effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+                    with self.subTest(
+                        volatility=volatility, option=option_class, direction=direction
+                    ):
+                        option = option_class(
+                            option_type=direction,
+                            strike=100,
+                            effective_date=date(2025, 1, 1),
+                            expiry_date=date(2026, 1, 1),
+                        )
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             engine.price(option, context)
-                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.INVALID_RESULT,
+                        )
 
     def test_quadrature_high_variance_tails(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         for volatility in (3, 5):
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=.05, dividend_yield=.02, volatility=volatility),
-                spot_price=100, valuation_time=start)
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
             for direction in ("call", "put"):
                 for option_class, numerical, analytic in (
-                    (EuropeanOption, pricing.QuadratureVanillaEngine(), AnalyticVanillaEngine()),
-                    (AssetOrNothingOption, pricing.QuadratureDigitalEngine(), AnalyticDigitalEngine()),
-                    (CashOrNothingOption, pricing.QuadratureDigitalEngine(), AnalyticDigitalEngine()),
+                    (
+                        EuropeanOption,
+                        pricing.QuadratureVanillaEngine(),
+                        AnalyticVanillaEngine(),
+                    ),
+                    (
+                        AssetOrNothingOption,
+                        pricing.QuadratureDigitalEngine(),
+                        AnalyticDigitalEngine(),
+                    ),
+                    (
+                        CashOrNothingOption,
+                        pricing.QuadratureDigitalEngine(),
+                        AnalyticDigitalEngine(),
+                    ),
                 ):
-                    with self.subTest(volatility=volatility, direction=direction, option=option_class):
-                        terms = dict(option_type=direction, strike=100, effective_date=start, expiry_date=end)
+                    with self.subTest(
+                        volatility=volatility, direction=direction, option=option_class
+                    ):
+                        terms = {
+                            "option_type": direction,
+                            "strike": 100,
+                            "effective_date": start,
+                            "expiry_date": end,
+                        }
                         if option_class is CashOrNothingOption:
                             terms["payout"] = 10
                         option = option_class(**terms)
-                        self.assertAlmostEqual(numerical.price(option, context),
-                                               analytic.price(option, context), delta=1e-8)
+                        self.assertAlmostEqual(
+                            numerical.price(option, context),
+                            analytic.price(option, context),
+                            delta=1e-8,
+                        )
 
     def test_trading_monte_carlo_rejects_invalid_paths(self):
         start, end = date(2025, 1, 1), date(2025, 1, 2)
-        accumulator = Accumulator(strike=100, knock_out_level=120, daily_quantity=1,
-                                  acceleration_factor=2, effective_date=start, expiry_date=end)
+        accumulator = Accumulator(
+            strike=100,
+            knock_out_level=120,
+            daily_quantity=1,
+            acceleration_factor=2,
+            effective_date=start,
+            expiry_date=end,
+        )
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[.1], maturity_coupon_rate=.1,
-            knock_out_levels=[120], observation_dates=[end], effective_date=start, expiry_date=end)
-        for rate, volatility in ((.05, 1e308), (.05, 1000), (1e308, .2)):
+            knock_out_coupon_rates=[0.1],
+            maturity_coupon_rate=0.1,
+            knock_out_levels=[120],
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
+        )
+        for rate, volatility in ((0.05, 1e308), (0.05, 1000), (1e308, 0.2)):
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=rate, dividend_yield=.02, volatility=volatility),
-                spot_price=100, valuation_time=start)
+                    risk_free_rate=rate, dividend_yield=0.02, volatility=volatility
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
             for engine, option in (
-                (pricing.MonteCarloAccumulatorEngine(path_count=2, seed=1), accumulator),
+                (
+                    pricing.MonteCarloAccumulatorEngine(path_count=2, seed=1),
+                    accumulator,
+                ),
                 (pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1), note),
             ):
                 with self.subTest(rate=rate, volatility=volatility, engine=engine):
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         engine.price(option, context)
-                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+                    )
 
     def test_analytic_charm_retains_dividend_carry(self):
-        for dividend in (-.02, .02):
+        for dividend in (-0.02, 0.02):
             context = PricingContext(
                 model_parameters=BlackScholesMertonParameters(
-                    risk_free_rate=.05, dividend_yield=dividend, volatility=.001),
-                spot_price=100, valuation_time=date(2025, 1, 1))
+                    risk_free_rate=0.05, dividend_yield=dividend, volatility=0.001
+                ),
+                spot_price=100,
+                valuation_time=date(2025, 1, 1),
+            )
             for direction, sign in (("call", 1), ("put", -1)):
                 for in_the_money in (False, True):
-                    with self.subTest(dividend=dividend, direction=direction, itm=in_the_money):
+                    with self.subTest(
+                        dividend=dividend, direction=direction, itm=in_the_money
+                    ):
                         strike = 50 if (direction == "call") == in_the_money else 200
-                        option = EuropeanOption(option_type=direction, strike=strike,
-                                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+                        option = EuropeanOption(
+                            option_type=direction,
+                            strike=strike,
+                            effective_date=date(2025, 1, 1),
+                            expiry_date=date(2026, 1, 1),
+                        )
                         engine = AnalyticVanillaEngine()
-                        expected = sign * dividend * math.exp(-dividend) / 365 if in_the_money else 0
-                        self.assertAlmostEqual(engine.price_with_greeks(option, context, "charm").charm,
-                                               expected, delta=1e-15)
-                        self.assertAlmostEqual(calculate_numerical_greeks(engine, option, context).charm,
-                                               expected, delta=2e-9)
+                        expected = (
+                            sign * dividend * math.exp(-dividend) / 365
+                            if in_the_money
+                            else 0
+                        )
+                        self.assertAlmostEqual(
+                            engine.price_with_greeks(option, context, "charm").charm,
+                            expected,
+                            delta=1e-15,
+                        )
+                        self.assertAlmostEqual(
+                            calculate_numerical_greeks(engine, option, context).charm,
+                            expected,
+                            delta=2e-9,
+                        )
 
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
@@ -1537,18 +2344,20 @@ class KiyosiPythonTests(unittest.TestCase):
                 class FailingGreeks:
                     iter_calls = 0
                     first = True
+                    iteration_phase = phase
+                    iteration_failure = failure
 
                     def __iter__(self):
                         self.iter_calls += 1
-                        if phase == "initialization":
-                            raise failure
+                        if self.iteration_phase == "initialization":
+                            raise self.iteration_failure
                         return self
 
                     def __next__(self):
                         if self.first:
                             self.first = False
                             return "delta"
-                        raise failure
+                        raise self.iteration_failure
 
                 values = FailingGreeks()
                 with self.subTest(phase=phase, error=error_type.__name__):
@@ -1965,7 +2774,9 @@ class KiyosiPythonTests(unittest.TestCase):
             "reversed", market.TradingCalendar.trading_days_between.__doc__.lower()
         )
         self.assertIn("price", AnalyticVanillaEngine.price.__doc__.lower())
-        self.assertIn("all_greeks: bool = False", AnalyticVanillaEngine.price_with_greeks.__doc__)
+        self.assertIn(
+            "all_greeks: bool = False", AnalyticVanillaEngine.price_with_greeks.__doc__
+        )
         self.assertIn("greek", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
@@ -2557,10 +3368,14 @@ class KiyosiPythonTests(unittest.TestCase):
         for option_type in (EuropeanOption, AmericanOption):
             with self.subTest(option=option_type.__name__):
                 option = option_type(
-                    option_type="call", strike=100.0,
-                    effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1),
+                    option_type="call",
+                    strike=100.0,
+                    effective_date=date(2025, 1, 1),
+                    expiry_date=date(2026, 1, 1),
                 )
-                self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-6)
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=1e-6
+                )
 
     def test_american_cuda_validates_before_backend_and_prices_expiry(self):
         option = AmericanOption(
@@ -2669,15 +3484,24 @@ class KiyosiPythonTests(unittest.TestCase):
             day = property(lambda self: 257)
 
         start, end = ShadowedDate(2025, 1, 6), ShadowedDate(2026, 1, 6)
-        option = EuropeanOption(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
         self.assertEqual(option.effective_date, date(2025, 1, 6))
         self.assertEqual(option.expiry_date, date(2026, 1, 6))
         note = standard_snowball(
-            coupon_rate=0.1, initial_spot=100, knock_in_level=80, knock_out_level=105,
-            observation_dates=[end], effective_date=start, expiry_date=end,
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=105,
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
         )
         self.assertEqual(note.observation_dates, [date(2026, 1, 6)])
-        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=start)
+        context = PricingContext(
+            model_parameters=self.parameters, spot_price=100, valuation_time=start
+        )
         self.assertEqual(context.valuation_time, datetime(2025, 1, 6, tzinfo=UTC))
 
     def test_datetime_subclasses_use_stored_components_and_builtin_utc_conversion(self):
@@ -2696,9 +3520,15 @@ class KiyosiPythonTests(unittest.TestCase):
             def astimezone(self, tz=None):
                 raise AssertionError("overridden astimezone must not be used")
 
-        local = ShadowedTimestamp(2025, 1, 6, 8, 9, 10, 123456, tzinfo=timezone(timedelta(hours=8)))
-        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=local)
-        self.assertEqual(context.valuation_time, datetime(2025, 1, 6, 0, 9, 10, 123456, tzinfo=UTC))
+        local = ShadowedTimestamp(
+            2025, 1, 6, 8, 9, 10, 123456, tzinfo=timezone(timedelta(hours=8))
+        )
+        context = PricingContext(
+            model_parameters=self.parameters, spot_price=100, valuation_time=local
+        )
+        self.assertEqual(
+            context.valuation_time, datetime(2025, 1, 6, 0, 9, 10, 123456, tzinfo=UTC)
+        )
         self.assertEqual(context.valuation_date, date(2025, 1, 6))
 
         class PretendAware(datetime):
@@ -2706,25 +3536,35 @@ class KiyosiPythonTests(unittest.TestCase):
                 return timedelta(0)
 
         with self.assertRaises(TypeError):
-            PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=PretendAware(2025, 1, 6))
+            PricingContext(
+                model_parameters=self.parameters,
+                spot_price=100,
+                valuation_time=PretendAware(2025, 1, 6),
+            )
 
     def test_observation_dates_are_independent_copies(self):
         effective = date(2025, 1, 1)
         expiry = date(2025, 1, 31)
         dates = [date(2025, 1, 13), date(2025, 1, 21), expiry]
-        schedule = fixed_interval_schedule(start=effective, end=expiry, interval_days=10)
-        terms = dict(
-            effective_date=effective,
-            expiry_date=expiry,
-            barrier_level=120,
-            observation_mode="scheduled",
-            observation_dates=dates,
+        schedule = fixed_interval_schedule(
+            start=effective, end=expiry, interval_days=10
         )
+        terms = {
+            "effective_date": effective,
+            "expiry_date": expiry,
+            "barrier_level": 120,
+            "observation_mode": "scheduled",
+            "observation_dates": dates,
+        }
         barrier = BarrierOption(
             **terms, option_type="call", strike=100, barrier_type="up_and_out"
         )
         binary = cash_binary_barrier_option(
-            **terms, option_type="call", strike=100, barrier_type="up_and_out", payout=10
+            **terms,
+            option_type="call",
+            strike=100,
+            barrier_type="up_and_out",
+            payout=10,
         )
         touch = cash_one_touch_up(**terms, payout=10)
         note = standard_snowball(
@@ -2753,7 +3593,11 @@ class KiyosiPythonTests(unittest.TestCase):
         del schedule
         self.assertEqual(list(iterator), dates)
         self.assertEqual(
-            list(fixed_interval_schedule(start=effective, end=effective, interval_days=10)),
+            list(
+                fixed_interval_schedule(
+                    start=effective, end=effective, interval_days=10
+                )
+            ),
             [],
         )
 
@@ -3290,30 +4134,57 @@ class KiyosiPythonTests(unittest.TestCase):
         )
 
     def test_implied_solver_tolerances_have_separate_units(self):
-        option = EuropeanOption(option_type="call", strike=100,
-                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
-        context = PricingContext(model_parameters=self.parameters, spot_price=100,
-                                 valuation_time=date(2025, 7, 1))
+        option = EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_date=date(2025, 1, 1),
+            expiry_date=date(2026, 1, 1),
+        )
+        context = PricingContext(
+            model_parameters=self.parameters,
+            spot_price=100,
+            valuation_time=date(2025, 7, 1),
+        )
         engine = AnalyticVanillaEngine()
         quote = engine.price(option, context)
-        result = implied_volatility(engine, option, context, quote,
-                                    price_tolerance=1e-12, parameter_tolerance=1e-10)
+        result = implied_volatility(
+            engine,
+            option,
+            context,
+            quote,
+            price_tolerance=1e-12,
+            parameter_tolerance=1e-10,
+        )
         self.assertAlmostEqual(result, 0.2, delta=1e-10)
         for name in ("price_tolerance", "parameter_tolerance"):
             with self.assertRaises(kiyosi.KiyosiError) as error:
                 implied_volatility(engine, option, context, quote, **{name: 0})
-            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
 
     def test_unrepresentable_numerical_shifts(self):
-        option = EuropeanOption(option_type="call", strike=100,
-                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
-        context = PricingContext(model_parameters=self.parameters, spot_price=100,
-                                 valuation_time=date(2025, 7, 1))
+        option = EuropeanOption(
+            option_type="call",
+            strike=100,
+            effective_date=date(2025, 1, 1),
+            expiry_date=date(2026, 1, 1),
+        )
+        context = PricingContext(
+            model_parameters=self.parameters,
+            spot_price=100,
+            valuation_time=date(2025, 7, 1),
+        )
         normal = calculate_numerical_greeks(AnalyticVanillaEngine(), option, context)
         self.assertGreater(normal.vega, 0)
         self.assertGreater(normal.rho, 0)
-        tiny = calculate_numerical_greeks(AnalyticVanillaEngine(), option, context,
-                                        volatility_shift=1e-20, rate_shift=1e-20)
+        tiny = calculate_numerical_greeks(
+            AnalyticVanillaEngine(),
+            option,
+            context,
+            volatility_shift=1e-20,
+            rate_shift=1e-20,
+        )
         for name in ("vega", "vanna", "zomma", "rho"):
             self.assertIsNone(getattr(tiny, name))
         self.assertIsNotNone(tiny.delta)
@@ -3394,67 +4265,128 @@ class KiyosiPythonTests(unittest.TestCase):
                                         delta=float(case["tolerance"]),
                                     )
                 elif kind == "initial_snowball_history":
-                    terms = dict(
-                        coupon_rate=0.1, initial_spot=100, knock_in_level=80,
-                        knock_out_level=110,
-                        observation_dates=[date.fromisoformat(values["expiry_date"])],
-                        effective_date=date.fromisoformat(values["effective_date"]),
-                        expiry_date=date.fromisoformat(values["expiry_date"]),
-                    )
+                    terms = {
+                        "coupon_rate": 0.1,
+                        "initial_spot": 100,
+                        "knock_in_level": 80,
+                        "knock_out_level": 110,
+                        "observation_dates": [
+                            date.fromisoformat(values["expiry_date"])
+                        ],
+                        "effective_date": date.fromisoformat(values["effective_date"]),
+                        "expiry_date": date.fromisoformat(values["expiry_date"]),
+                    }
                     absent = standard_snowball(**terms)
                     explicit_none = standard_snowball(**terms, barrier_state="none")
                     context = PricingContext(
-                        model_parameters=self.parameters, spot_price=80,
+                        model_parameters=self.parameters,
+                        spot_price=80,
                         valuation_time=date.fromisoformat(values["valuation_date"]),
                     )
                     for engine in (
                         pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
                         pricing.FiniteDifferenceSnowballEngine(),
                     ):
-                        b = engine.price_with_greeks(explicit_none, context, all_greeks=True)
+                        b = engine.price_with_greeks(
+                            explicit_none, context, all_greeks=True
+                        )
                         if "category" in expected:
                             with self.assertRaises(kiyosi.KiyosiError) as error:
-                                engine.price_with_greeks(absent, context, all_greeks=True)
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                                engine.price_with_greeks(
+                                    absent, context, all_greeks=True
+                                )
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_PARAMETER,
+                            )
                             continue
                         a = engine.price_with_greeks(absent, context, all_greeks=True)
-                        for name in ("price", "delta", "gamma", "speed", "theta", "charm",
-                                     "color", "vega", "vanna", "zomma", "rho"):
+                        for name in (
+                            "price",
+                            "delta",
+                            "gamma",
+                            "speed",
+                            "theta",
+                            "charm",
+                            "color",
+                            "vega",
+                            "vanna",
+                            "zomma",
+                            "rho",
+                        ):
                             self.assertEqual(getattr(a, name), getattr(b, name))
-                        self.assertEqual(a.delta is not None, expected["delta"] == "available")
+                        self.assertEqual(
+                            a.delta is not None, expected["delta"] == "available"
+                        )
                 elif kind in ("unidentifiable_touch", "unidentifiable_coupon"):
                     start = date.fromisoformat(values["effective_date"])
                     end = date.fromisoformat(values["expiry_date"])
                     context = PricingContext(
-                        model_parameters=self.parameters, spot_price=100,
+                        model_parameters=self.parameters,
+                        spot_price=100,
                         valuation_time=date.fromisoformat(values["valuation_date"]),
                     )
                     if kind == "unidentifiable_touch":
                         option = cash_one_touch_up(
-                            effective_date=start, expiry_date=end, barrier_level=90, payout=10,
-                            touch_state=None if values["history"] == "absent" else "touched",
+                            effective_date=start,
+                            expiry_date=end,
+                            barrier_level=90,
+                            payout=10,
+                            touch_state=None
+                            if values["history"] == "absent"
+                            else "touched",
                         )
                         engine = AnalyticBinaryBarrierEngine()
                         with self.assertRaises(kiyosi.KiyosiError) as error:
-                            implied_volatility(engine, option, context, engine.price(option, context))
-                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                            implied_volatility(
+                                engine, option, context, engine.price(option, context)
+                            )
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                        )
                     else:
                         option = BinarySnowballOption(
-                            knock_out_coupon_rates=[0.1], maturity_coupon_rate=0.1,
+                            knock_out_coupon_rates=[0.1],
+                            maturity_coupon_rate=0.1,
                             knock_out_levels=[110],
-                            observation_dates=[date.fromisoformat(values["observation_date"])],
-                            barrier_state="none", effective_date=start, expiry_date=end,
+                            observation_dates=[
+                                date.fromisoformat(values["observation_date"])
+                            ],
+                            barrier_state="none",
+                            effective_date=start,
+                            expiry_date=end,
                         )
-                        for engine in (pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1),
-                                       pricing.FiniteDifferenceBinarySnowballEngine()):
+                        for engine in (
+                            pricing.MonteCarloBinarySnowballEngine(
+                                path_count=2, seed=1
+                            ),
+                            pricing.FiniteDifferenceBinarySnowballEngine(),
+                        ):
                             price = engine.price(option, context)
                             with self.assertRaises(kiyosi.KiyosiError) as error:
-                                implied_coupon(engine, option, context, price,
-                                               quote_convention="preserve_maturity_coupon")
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
-                            self.assertAlmostEqual(implied_coupon(
-                                engine, option, context, price,
-                                quote_convention="shift_maturity_coupon"), 0.1, delta=1e-6)
+                                implied_coupon(
+                                    engine,
+                                    option,
+                                    context,
+                                    price,
+                                    quote_convention="preserve_maturity_coupon",
+                                )
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            )
+                            self.assertAlmostEqual(
+                                implied_coupon(
+                                    engine,
+                                    option,
+                                    context,
+                                    price,
+                                    quote_convention="shift_maturity_coupon",
+                                ),
+                                0.1,
+                                delta=1e-6,
+                            )
                 elif kind == "domain_error":
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         BlackScholesMertonParameters(

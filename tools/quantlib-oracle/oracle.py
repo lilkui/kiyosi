@@ -169,7 +169,9 @@ def vanilla_option(inputs, american_grid=None):
         payoff,
         ql.EuropeanExercise(expiry_date)
         if american_grid is None
-        else ql.AmericanExercise(ql.DateParser.parseISO(inputs["effective_date"]), expiry_date),
+        else ql.AmericanExercise(
+            ql.DateParser.parseISO(inputs["effective_date"]), expiry_date
+        ),
     )
     option.setPricingEngine(
         ql.AnalyticEuropeanEngine(process)
@@ -274,10 +276,12 @@ def measure(
 
 def exclusions(inputs):
     days = (
-        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
+        date.fromisoformat(inputs["expiry_date"])
+        - date.fromisoformat(inputs["valuation"])
     ).days
     return dict.fromkeys(
-        TIME_MEASURES if days <= 2 else (), "whole-day stability stencil touches expiry_date"
+        TIME_MEASURES if days <= 2 else (),
+        "whole-day stability stencil touches expiry_date",
     )
 
 
