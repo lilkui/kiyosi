@@ -230,8 +230,13 @@ Result<PricingResult> complete_greeks(
             lower_days = Days{option.effective_date().time_since_epoch()};
         if constexpr (requires { option.expiry_date(); })
             upper_days = Days{option.expiry_date().time_since_epoch()};
-        const double before_days = std::min<double>(settings.time_shift_days, (valuation_days - lower_days).count());
-        const double after_days = std::min<double>(settings.time_shift_days, (upper_days - valuation_days).count());
+        const double available_before = (valuation_days - lower_days).count();
+        const double available_after = (upper_days - valuation_days).count();
+        const double shift_days = available_before > 0.0 && available_after > 0.0
+                                      ? std::min({double(settings.time_shift_days), available_before, available_after})
+                                      : double(settings.time_shift_days);
+        const double before_days = std::min(shift_days, available_before);
+        const double after_days = std::min(shift_days, available_after);
         const Timestamp before = valuation_time - std::chrono::duration_cast<Timestamp::duration>(Days{before_days});
         const Timestamp after = valuation_time + std::chrono::duration_cast<Timestamp::duration>(Days{after_days});
         bool time_stencil_available = true; // NOLINT(misc-const-correctness): later checks depend on the option type.

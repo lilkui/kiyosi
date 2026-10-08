@@ -95,6 +95,23 @@ class KiyosiPythonTests(unittest.TestCase):
                 quote = engine.price(option, context)
                 self.assertAlmostEqual(implied_volatility(engine, option, context, quote), 0.2, delta=1e-6)
 
+    def test_numerical_time_greeks_center_clipped_stencils(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        engine = AnalyticVanillaEngine()
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        for time in (datetime(2025, 1, 1, 12, tzinfo=UTC), datetime(2025, 12, 31, 12, tzinfo=UTC)):
+            with self.subTest(time=time):
+                context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time)
+                before = engine.price_with_greeks(option, PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time - timedelta(hours=12)), greeks=["delta", "gamma"])
+                after = engine.price_with_greeks(option, PricingContext(model_parameters=parameters, spot_price=100, valuation_time=time + timedelta(hours=12)), greeks=["delta", "gamma"])
+                result = calculate_numerical_greeks(engine, option, context)
+                self.assertAlmostEqual(result.theta, after.price - before.price, delta=1e-9)
+                # Analytic delta/gamma disappear exactly at expiry, so compare them only at the start boundary.
+                if time.year == 2025 and time.month == 1:
+                    self.assertAlmostEqual(result.charm, after.delta - before.delta, delta=1e-6)
+                    self.assertAlmostEqual(result.color, after.gamma - before.gamma, delta=1e-6)
+
     def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(
