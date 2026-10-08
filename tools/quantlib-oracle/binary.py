@@ -241,17 +241,8 @@ def rows():
 
 def check_bindings():
     valuation, expiry_date = ql.Date(6, 1, 2025), ql.Date(6, 1, 2026)
-    ql.Settings.instance().evaluationDate = valuation
-    curve = lambda rate: ql.YieldTermStructureHandle(
-        ql.FlatForward(valuation, rate, ql.Actual365Fixed())
-    )
-    process = ql.BlackScholesMertonProcess(
-        ql.QuoteHandle(ql.SimpleQuote(100)),
-        curve(0.01),
-        curve(0.04),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(valuation, ql.WeekendsOnly(), 0.3, ql.Actual365Fixed())
-        ),
+    process = g.market_process(
+        dict(valuation="2025-01-06", spot=100, dividend=0.01, rate=0.04, volatility=0.3)
     )
     for engine in (ql.AnalyticBinaryBarrierEngine, ql.AnalyticDigitalAmericanEngine):
         for payoff in (

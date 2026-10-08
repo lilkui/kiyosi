@@ -13,12 +13,6 @@ using namespace detail;
 
 namespace {
 
-Result<PricingResult> make_price_delta_gamma_result(double value, std::optional<double> delta = std::nullopt,
-                                                    std::optional<double> gamma = std::nullopt)
-{
-    return make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
-}
-
 double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
 {
     if (t == 0.0) return 1.0;
@@ -74,15 +68,15 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     if (touched) {
         const double touched_value = vanilla->price();
-        return make_price_delta_gamma_result(knock_in
-                                                 ? touched_value
-                                                 : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
-                                                                          ? (*prior_touch ? 0.0 : 1.0)
-                                                                          : std::exp(-rate * t)));
+        return make_pricing_result(knock_in
+                                       ? touched_value
+                                       : option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
+                                                                ? (*prior_touch ? 0.0 : 1.0)
+                                                                : std::exp(-rate * t)));
     }
     if (option.observation_mode() == ObservationMode::scheduled && !terms.has_remaining_observation(context.valuation_time()))
-        return make_price_delta_gamma_result(knock_in ? option.rebate() * std::exp(-rate * t)
-                                                      : vanilla->price());
+        return make_pricing_result(knock_in ? option.rebate() * std::exp(-rate * t)
+                                            : vanilla->price());
     if (option.rebate_timing() == RebateTiming::at_hit) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
@@ -93,7 +87,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                                          "barrier rebate discounting is numerically unstable"});
     }
     if (t == 0.0)
-        return make_price_delta_gamma_result(knock_in ? option.rebate() : vanilla->price());
+        return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
     const double lambda = std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma));
@@ -132,8 +126,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    auto output = make_price_delta_gamma_result(value);
-    return output;
+    return make_pricing_result(value);
 }
 
 } // namespace kiyosi
