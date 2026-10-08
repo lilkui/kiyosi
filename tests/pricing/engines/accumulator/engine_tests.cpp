@@ -18,7 +18,7 @@
 namespace {
 using kiyosi::test::day;
 
-double legacy_accumulator_price(const kiyosi::Accumulator& option,
+double reference_accumulator_price(const kiyosi::Accumulator& option,
                                 const kiyosi::PricingContext& context,
                                 kiyosi::TradingDayMonteCarloSettings settings)
 {
@@ -62,8 +62,10 @@ double legacy_accumulator_price(const kiyosi::Accumulator& option,
 
     std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
-    for (int path = 0; path < settings.path_count; ++path)
-        sum += path_payoff(generator);
+    for (int path = 0; path < settings.path_count; ++path) {
+        std::mt19937_64 path_generator{generator()};
+        sum += path_payoff(path_generator);
+    }
     return sum / static_cast<double>(settings.path_count);
 }
 } // namespace
@@ -142,13 +144,13 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
     for (const std::uint64_t seed : seeds) {
         CAPTURE(seed);
         const kiyosi::TradingDayMonteCarloSettings settings{32, seed};
-        const double legacy = legacy_accumulator_price(accumulator, context, settings);
+        const double expected = reference_accumulator_price(accumulator, context, settings);
         calls->store(0);
 
         const auto result = kiyosi::MonteCarloAccumulatorEngine{settings}.price(accumulator, context);
 
         REQUIRE(result);
-        CHECK(*result == legacy);
+        CHECK(*result == expected);
         CHECK(calls->load() == 7);
     }
 

@@ -23,6 +23,33 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.0, 0.0},
+                                                            .maturity_coupon_rate = 0.2,
+                                                            .knock_out_levels = {110.0, 110.0},
+                                                            .observation_dates = {day(2025, 7, 1), end},
+                                                            .effective_date = start, .expiry_date = end});
+    const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
+    for (const std::uint64_t seed : {std::uint64_t{1}, std::numeric_limits<std::uint64_t>::max()}) {
+        CAPTURE(seed);
+        const kiyosi::MonteCarloBinarySnowballEngine engine{{2000, seed}};
+        double previous = 1.2;
+        for (int bump = 0; bump <= 30; ++bump) {
+            const double spot = 100.0 + 0.01 * bump;
+            CAPTURE(spot);
+            const auto context = *kiyosi::make_pricing_context(parameters, spot, start);
+            const auto actual = engine.price(note, context);
+            REQUIRE(actual);
+            // On the same paths, earlier zero-coupon knock-out can only reduce this payout.
+            CHECK(*actual <= previous);
+            previous = *actual;
+        }
+    }
+}
+
 TEST_CASE("Structured engines validate observation dates against each market calendar")
 {
     const auto effective = day(2025, 1, 3);
@@ -72,7 +99,7 @@ TEST_CASE("Structured engines reject nominal weekend expiry and accept adjusted 
     CHECK(fd.price(adjusted, context).has_value());
 }
 
-double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
+double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                                     const kiyosi::PricingContext& context,
                                     kiyosi::TradingDayMonteCarloSettings settings)
 {
@@ -127,8 +154,10 @@ double legacy_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
 
     std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
-    for (int path = 0; path < settings.path_count; ++path)
-        sum += path_payoff(generator);
+    for (int path = 0; path < settings.path_count; ++path) {
+        std::mt19937_64 path_generator{generator()};
+        sum += path_payoff(path_generator);
+    }
     return sum / static_cast<double>(settings.path_count);
 }
 
@@ -483,13 +512,13 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
     for (const std::uint64_t seed : seeds) {
         CAPTURE(seed);
         const kiyosi::TradingDayMonteCarloSettings settings{32, seed};
-        const double legacy = legacy_binary_snowball_price(note, context, settings);
+        const double expected = reference_binary_snowball_price(note, context, settings);
         calls->store(0);
 
         const auto result = kiyosi::MonteCarloBinarySnowballEngine{settings}.price(note, context);
 
         REQUIRE(result);
-        CHECK(*result == legacy);
+        CHECK(*result == expected);
         CHECK(calls->load() == 8);
     }
 

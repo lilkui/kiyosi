@@ -119,7 +119,9 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
     double sum = 0.0;
     for (int path = 0; path < settings_.path_count; ++path) {
-        const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
+        // Early termination must not change the random draws of later paths.
+        std::mt19937_64 path_generator{generator()};
+        const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, path_generator);
         if (!payoff) return std::unexpected(payoff.error());
         sum += *payoff;
     }

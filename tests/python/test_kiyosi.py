@@ -78,6 +78,24 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_seeded_autocallable_paths_stay_coupled_across_knock_out_changes(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[0, 0], maturity_coupon_rate=0.2,
+            knock_out_levels=[110, 110], observation_dates=[date(2025, 7, 1), end],
+            effective_date=start, expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=0.2)
+        engine = pricing.MonteCarloBinarySnowballEngine(path_count=2000, seed=1)
+        previous = 1.2
+        for bump in range(31):
+            spot = 100 + 0.01 * bump
+            with self.subTest(spot=spot):
+                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                actual = engine.price(note, context)
+                self.assertLessEqual(actual, previous)
+                previous = actual
+
     def test_fd_automatic_domain_includes_distant_barriers(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = BarrierOption(

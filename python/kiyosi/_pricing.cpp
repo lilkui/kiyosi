@@ -242,6 +242,7 @@ path_count : int, optional
     Number of simulated paths. Uses the core default when omitted.
 seed : int or None, optional
     Non-negative random seed. Uses the core default when omitted.
+    CPU paths have separate random streams; early knock-out does not shift later paths' draws.
 backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
 
