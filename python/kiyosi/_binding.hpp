@@ -355,9 +355,10 @@ inline Date calendar_date(nb::handle value, std::string_view field)
     if (is_date < 0 || is_datetime < 0) throw nb::python_error();
     if (is_date == 0 || is_datetime != 0) type_error(field, "a datetime.date");
     const nb::object object = nb::borrow<nb::object>(value);
-    return Date{std::chrono::year{nb::cast<int>(object.attr("year"))} /
-                std::chrono::month{nb::cast<unsigned>(object.attr("month"))} /
-                std::chrono::day{nb::cast<unsigned>(object.attr("day"))}};
+    // Built-in descriptors read stored components, bypassing subclass properties that can narrow or wrap.
+    return Date{std::chrono::year{nb::cast<int>(date_type.attr("year").attr("__get__")(object))} /
+                std::chrono::month{nb::cast<unsigned>(date_type.attr("month").attr("__get__")(object))} /
+                std::chrono::day{nb::cast<unsigned>(date_type.attr("day").attr("__get__")(object))}};
 }
 
 inline PythonDateObject python_date(Date value)
@@ -400,16 +401,16 @@ inline Timestamp valuation_time(nb::handle value)
     if (is_datetime == 0) return start_of_day(calendar_date(value, "valuation_time"));
 
     const nb::object object = nb::borrow<nb::object>(value);
-    if (object.attr("utcoffset")().is_none())
+    if (datetime_type.attr("utcoffset")(object).is_none())
         type_error("valuation_time", "a Date or timezone-aware datetime");
-    const nb::object utc = object.attr("astimezone")(datetime_module.attr("timezone").attr("utc"));
-    const Date day{std::chrono::year{nb::cast<int>(utc.attr("year"))} /
-                   std::chrono::month{nb::cast<unsigned>(utc.attr("month"))} /
-                   std::chrono::day{nb::cast<unsigned>(utc.attr("day"))}};
-    return start_of_day(day) + std::chrono::hours{nb::cast<int>(utc.attr("hour"))} +
-           std::chrono::minutes{nb::cast<int>(utc.attr("minute"))} +
-           std::chrono::seconds{nb::cast<int>(utc.attr("second"))} +
-           std::chrono::microseconds{nb::cast<int>(utc.attr("microsecond"))};
+    const nb::object utc = datetime_type.attr("astimezone")(object, datetime_module.attr("timezone").attr("utc"));
+    const Date day{std::chrono::year{nb::cast<int>(datetime_type.attr("year").attr("__get__")(utc))} /
+                   std::chrono::month{nb::cast<unsigned>(datetime_type.attr("month").attr("__get__")(utc))} /
+                   std::chrono::day{nb::cast<unsigned>(datetime_type.attr("day").attr("__get__")(utc))}};
+    return start_of_day(day) + std::chrono::hours{nb::cast<int>(datetime_type.attr("hour").attr("__get__")(utc))} +
+           std::chrono::minutes{nb::cast<int>(datetime_type.attr("minute").attr("__get__")(utc))} +
+           std::chrono::seconds{nb::cast<int>(datetime_type.attr("second").attr("__get__")(utc))} +
+           std::chrono::microseconds{nb::cast<int>(datetime_type.attr("microsecond").attr("__get__")(utc))};
 }
 
 inline std::vector<Date> date_sequence(nb::handle values, std::string_view field)

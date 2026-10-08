@@ -258,7 +258,8 @@ spot_price : float
     Positive underlying spot price.
 valuation_time : datetime.date or datetime.datetime
     Valuation instant. Dates denote midnight UTC; datetimes must be timezone
-    aware and are normalized to UTC.
+    aware and are normalized to UTC. Date and datetime subclasses use their
+    stored built-in components and timezone conversion.
 calendar : TradingCalendar, optional
     Trading calendar. Defaults to :func:`weekdays_calendar`.
 

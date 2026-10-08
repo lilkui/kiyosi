@@ -1939,6 +1939,52 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertEqual(context.valuation_time, latest)
 
+    def test_date_subclasses_use_stored_calendar_components(self):
+        class ShadowedDate(date):
+            year = property(lambda self: 67562)
+            month = property(lambda self: 257)
+            day = property(lambda self: 257)
+
+        start, end = ShadowedDate(2025, 1, 6), ShadowedDate(2026, 1, 6)
+        option = EuropeanOption(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        self.assertEqual(option.effective_date, date(2025, 1, 6))
+        self.assertEqual(option.expiry_date, date(2026, 1, 6))
+        note = standard_snowball(
+            coupon_rate=0.1, initial_spot=100, knock_in_level=80, knock_out_level=105,
+            observation_dates=[end], effective_date=start, expiry_date=end,
+        )
+        self.assertEqual(note.observation_dates, [date(2026, 1, 6)])
+        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=start)
+        self.assertEqual(context.valuation_time, datetime(2025, 1, 6, tzinfo=UTC))
+
+    def test_datetime_subclasses_use_stored_components_and_builtin_utc_conversion(self):
+        class ShadowedTimestamp(datetime):
+            year = property(lambda self: 67562)
+            month = property(lambda self: 257)
+            day = property(lambda self: 257)
+            hour = property(lambda self: 25)
+            minute = property(lambda self: 61)
+            second = property(lambda self: 61)
+            microsecond = property(lambda self: 1000001)
+
+            def utcoffset(self):
+                return None
+
+            def astimezone(self, tz=None):
+                raise AssertionError("overridden astimezone must not be used")
+
+        local = ShadowedTimestamp(2025, 1, 6, 8, 9, 10, 123456, tzinfo=timezone(timedelta(hours=8)))
+        context = PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=local)
+        self.assertEqual(context.valuation_time, datetime(2025, 1, 6, 0, 9, 10, 123456, tzinfo=UTC))
+        self.assertEqual(context.valuation_date, date(2025, 1, 6))
+
+        class PretendAware(datetime):
+            def utcoffset(self):
+                return timedelta(0)
+
+        with self.assertRaises(TypeError):
+            PricingContext(model_parameters=self.parameters, spot_price=100, valuation_time=PretendAware(2025, 1, 6))
+
     def test_observation_dates_are_independent_copies(self):
         effective = date(2025, 1, 1)
         expiry = date(2025, 1, 31)
