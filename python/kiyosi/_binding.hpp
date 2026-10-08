@@ -338,7 +338,9 @@ inline std::optional<std::uint64_t> optional_seed(nb::handle value)
     if (is_integer < 0) throw nb::python_error();
     if (PyBool_Check(value.ptr()) || is_integer == 0)
         type_error("seed", "a non-negative integer or None");
-    const unsigned long long converted = PyLong_AsUnsignedLongLong(value.ptr());
+    const nb::object index = nb::steal<nb::object>(PyNumber_Index(value.ptr()));
+    if (!index.is_valid()) throw nb::python_error();
+    const unsigned long long converted = PyLong_AsUnsignedLongLong(index.ptr());
     if (PyErr_Occurred()) throw nb::python_error();
     if (!std::in_range<std::uint64_t>(converted))
         throw std::overflow_error("seed is outside the range of a uint64_t");

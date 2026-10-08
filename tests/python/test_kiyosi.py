@@ -1,5 +1,6 @@
 import csv
 import math
+import numbers
 import os
 import subprocess
 import sys
@@ -78,6 +79,42 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_monte_carlo_seeds_accept_integral_index_protocol(self):
+        @numbers.Integral.register
+        class IndexInteger:
+            def __init__(self, value):
+                self.value = value
+
+            def __index__(self):
+                return self.value
+
+        for engine_type in (
+            pricing.MonteCarloVanillaEngine, pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloSnowballEngine, pricing.MonteCarloBinarySnowballEngine,
+            pricing.MonteCarloTernarySnowballEngine, pricing.MonteCarloPhoenixEngine,
+        ):
+            for value in (0, 7, 2**64 - 1):
+                with self.subTest(engine=engine_type.__name__, seed=value):
+                    self.assertEqual(engine_type(seed=IndexInteger(value)).seed, value)
+            for value in (-1, 2**64):
+                with self.subTest(engine=engine_type.__name__, seed=value):
+                    with self.assertRaises(OverflowError):
+                        engine_type(seed=IndexInteger(value))
+            for value in (True, 1.5, IndexInteger(1.5)):
+                with self.subTest(engine=engine_type.__name__, seed=value):
+                    with self.assertRaises(TypeError):
+                        engine_type(seed=value)
+        engine = pricing.MonteCarloVanillaEngine(path_count=IndexInteger(32), step_count=2, seed=IndexInteger(7))
+        expected = pricing.MonteCarloVanillaEngine(path_count=32, step_count=2, seed=7)
+        self.assertEqual(engine.price(self.option, self.context), expected.price(self.option, self.context))
+
+        class BrokenInteger(IndexInteger):
+            def __index__(self):
+                raise RuntimeError("index failed")
+
+        with self.assertRaisesRegex(RuntimeError, "index failed"):
+            pricing.MonteCarloVanillaEngine(seed=BrokenInteger(7))
+
     def test_implied_volatility_rejects_fixed_cashflows(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
