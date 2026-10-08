@@ -548,6 +548,54 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
     check(kiyosi::MonteCarloBinarySnowballEngine{{64, 7}}, snowball);
 }
 
+TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-api]")
+{
+    const auto check = [&](const auto& engine, const auto& option, double spot) {
+        const auto context = market(spot);
+        const auto result = engine.price_with_greeks(option, context, GreeksRequest{true});
+        REQUIRE(result);
+        CHECK(result->price() == *engine.price(option, context));
+        CHECK(result->has(Greek::vega));
+        CHECK(result->has(Greek::rho));
+        for (const auto measure : {Greek::delta, Greek::gamma, Greek::speed,
+                                   Greek::vanna, Greek::zomma, Greek::charm, Greek::color})
+            CHECK_FALSE(result->has(measure));
+        const auto narrow = calculate_numerical_greeks(
+            engine, option, context, NumericalShiftSettings{.spot_shift = 0.0001});
+        REQUIRE(narrow);
+        CHECK(narrow->has(Greek::delta));
+        CHECK(narrow->has(Greek::gamma));
+        CHECK(narrow->has(Greek::speed));
+    };
+    for (const auto mode : {ObservationMode::continuous, ObservationMode::scheduled}) {
+        CAPTURE(mode);
+        const auto option = *make_barrier_option(
+            {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective,
+             .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
+             .rebate = 10.0, .observation_mode = mode,
+             .observation_dates = mode == ObservationMode::scheduled ? std::vector<Date>{valuation, expiry} : std::vector<Date>{},
+             .touch_state = BarrierTouchState::untouched});
+        check(AnalyticBarrierEngine{}, option, 119.999);
+        const auto wider = calculate_numerical_greeks(AnalyticBarrierEngine{}, option, market(119.985));
+        REQUIRE(wider);
+        CHECK(wider->has(Greek::delta));
+        CHECK(wider->has(Greek::gamma));
+        CHECK_FALSE(wider->has(Greek::speed));
+    }
+    const auto accumulator = *make_accumulator(
+        {.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0,
+         .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});
+    check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 99.999);
+    check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 90.001);
+    const auto note = *make_phoenix_option(
+        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0,
+         .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {90.0, 90.0},
+         .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {valuation, expiry},
+         .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    for (const double spot : {119.999, 89.999, 70.001})
+        check(MonteCarloPhoenixEngine{{32, 7}}, note, spot);
+}
+
 TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[pricing-api]")
 {
     const auto start = day(2025, 1, 1);

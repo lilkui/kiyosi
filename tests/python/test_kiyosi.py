@@ -79,6 +79,51 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_spot_greeks_omit_bumps_crossing_current_events(self):
+        start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3)
+        cases = []
+        for mode in ("continuous", "scheduled"):
+            option = BarrierOption(
+                option_type="call", strike=100, effective_date=start, expiry_date=end,
+                barrier_level=120, barrier_type="up_and_out", rebate=10,
+                observation_mode=mode, observation_dates=[observed, end] if mode == "scheduled" else [],
+                touch_state="untouched",
+            )
+            cases.append((AnalyticBarrierEngine(), option, 119.999))
+            context = PricingContext(model_parameters=parameters, spot_price=119.985, valuation_time=observed)
+            wider = calculate_numerical_greeks(AnalyticBarrierEngine(), option, context)
+            self.assertIsNotNone(wider.delta)
+            self.assertIsNotNone(wider.gamma)
+            self.assertIsNone(wider.speed)
+        accumulator = Accumulator(
+            strike=90, knock_out_level=100, daily_quantity=1, acceleration_factor=2,
+            accumulated_quantity=3, effective_date=start, expiry_date=end,
+        )
+        cases.extend((pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7), accumulator, spot)
+                     for spot in (99.999, 90.001))
+        phoenix = PhoenixOption(
+            coupon_rate=0.1, initial_spot=100, knock_in_level=70, knock_out_levels=[120, 120],
+            coupon_barrier_levels=[90, 90], upper_strike=100, lower_strike=0,
+            observation_dates=[observed, end], knock_in_observation_mode="every_trading_day",
+            barrier_state="none", effective_date=start, expiry_date=end,
+        )
+        cases.extend((pricing.MonteCarloPhoenixEngine(path_count=32, seed=7), phoenix, spot)
+                     for spot in (119.999, 89.999, 70.001))
+        for engine, option, spot in cases:
+            with self.subTest(engine=type(engine).__name__, spot=spot):
+                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=observed)
+                result = engine.price_with_greeks(option, context, all_greeks=True)
+                self.assertEqual(result.price, engine.price(option, context))
+                self.assertIsNotNone(result.vega)
+                self.assertIsNotNone(result.rho)
+                for name in ("delta", "gamma", "speed", "vanna", "zomma", "charm", "color"):
+                    self.assertIsNone(getattr(result, name), name)
+                narrow = calculate_numerical_greeks(engine, option, context, spot_shift=0.0001)
+                self.assertIsNotNone(narrow.delta)
+                self.assertIsNotNone(narrow.gamma)
+                self.assertIsNotNone(narrow.speed)
+
     def test_domain_exception_survives_removed_exports(self):
         result = subprocess.run(
             [sys.executable, "-c", textwrap.dedent("""

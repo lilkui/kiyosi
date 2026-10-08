@@ -83,25 +83,29 @@ bool greeks_unavailable(const Option& option, const PricingContext& context)
 // Current observation events can make spot derivatives undefined while rate and
 // volatility derivatives (with the event branch held fixed) remain meaningful.
 template <typename Option>
-bool at_spot_discontinuity(const Option& option, const PricingContext& context)
+bool at_spot_discontinuity(const Option& option, const PricingContext& context, double radius = 0.0)
 {
-    if (context.valuation_time() != start_of_day(context.valuation_date())) return false;
     const double spot = context.spot_price();
+    const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
+    if constexpr (requires { option.barrier_terms(); })
+        return option.barrier_terms().touch_state() != BarrierTouchState::touched &&
+               option.barrier_terms().is_monitored_at(context.valuation_time()) && crosses(option.barrier_level());
+    if (context.valuation_time() != start_of_day(context.valuation_date())) return false;
     if constexpr (requires { option.accumulated_quantity(); }) {
         if (context.calendar().is_trading_day(context.valuation_date()))
-            return spot == option.knock_out_level() ||
-                   (spot < option.knock_out_level() && spot == option.strike() &&
+            return crosses(option.knock_out_level()) ||
+                   (spot < option.knock_out_level() && crosses(option.strike()) &&
                     option.acceleration_factor() != 1.0);
     }
     if constexpr (requires { option.knock_out_levels(); option.barrier_state(); }) {
         if (option.barrier_state() == AutocallableBarrierState::knocked_out) return false;
         for (std::size_t index = 0; index < option.observation_dates().size(); ++index) {
             if (option.observation_dates()[index] != context.valuation_date()) continue;
-            if (spot == option.knock_out_levels()[index]) return true;
-            if constexpr (requires { option.coupon_barrier_levels(); })
-                if (option.coupon_rate() != 0.0 && spot == option.coupon_barrier_levels()[index])
-                    return true;
+            if (crosses(option.knock_out_levels()[index])) return true;
             if (spot > option.knock_out_levels()[index]) return false;
+            if constexpr (requires { option.coupon_barrier_levels(); })
+                if (option.coupon_rate() != 0.0 && crosses(option.coupon_barrier_levels()[index]))
+                    return true;
         }
         if constexpr (requires { option.knock_in_level(); })
             // Native pricing has already validated history; absent initial history
@@ -109,7 +113,7 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context)
             return option.barrier_state() != AutocallableBarrierState::knocked_in &&
                    option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
                    context.calendar().is_trading_day(context.valuation_date()) &&
-                   spot == option.knock_in_level();
+                   crosses(option.knock_in_level());
     }
     return false;
 }
@@ -133,7 +137,7 @@ Result<PricingResult> complete_greeks(
     };
     const double h = settings.spot_shift;
     const bool spot_discontinuity = at_spot_discontinuity(option, context);
-    const bool spot_stencil_available = !spot_discontinuity && spot > h &&
+    const bool spot_stencil_available = !at_spot_discontinuity(option, context, h) && spot > h &&
                                         std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
     auto delta = *native.get(Greek::delta);
     auto gamma = *native.get(Greek::gamma);
@@ -149,7 +153,8 @@ Result<PricingResult> complete_greeks(
         if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / (h * h);
 
         const double two_h = 2.0 * h;
-        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h)) {
+        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h) &&
+            !at_spot_discontinuity(option, context, two_h)) {
             const auto p_up2 = detail::shifted_value(
                 engine, option, context, spot + two_h, volatility, rate, valuation_time);
             if (!p_up2) return std::unexpected(p_up2.error());
@@ -366,6 +371,7 @@ Result<PricingResult> price_with_greeks(
 /// At expiry or a monitored barrier hit-state boundary, only price is available.
 /// Missing legal stencils leave individual measures empty; a failed feasible valuation
 /// fails the operation. Monte Carlo valuations share one seed per request.
+/// Spot stencils crossing a currently monitored event threshold are unavailable.
 /// Finite-difference valuations share the unshifted context's asset domain.
 /// Shifts and units follow NumericalShiftSettings and Greek, respectively.
 template <typename Engine, typename Option>

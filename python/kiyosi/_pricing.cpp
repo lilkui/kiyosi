@@ -302,7 +302,8 @@ void bind_analytics_pair(nb::module_& module)
 
 Shifts are absolute. Omitted shifts use core-owned defaults. A measure with no
 valid finite-difference stencil inside a model boundary is ``None`` while other
-valid results are preserved.
+valid results are preserved. Spot bumps crossing a currently monitored event
+threshold leave spot-based sensitivities unavailable.
 
 Parameters
 ----------
