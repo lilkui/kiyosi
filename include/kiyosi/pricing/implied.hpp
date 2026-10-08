@@ -241,6 +241,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         settings.parameter_tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-coupon settings are invalid"});
+    const auto valid = validate_autocallable_note(option);
+    if (!valid) return std::unexpected(valid.error());
     if constexpr (requires { engine.settings().seed; }) {
         auto simulation = engine.settings();
         if (!simulation.seed) {

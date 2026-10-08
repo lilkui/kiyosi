@@ -3,6 +3,7 @@
 #include <array>
 #include <limits>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
@@ -547,6 +548,52 @@ TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote conventi
     };
     check(kiyosi::MonteCarloSnowballEngine{{64, 1}});
     check(kiyosi::FiniteDifferenceSnowballEngine{{40, 40}});
+}
+
+TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replacement", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto context = market(150.0, end);
+    const auto check = [&](auto note, const auto& engine) {
+        const auto owner = std::move(note);
+        REQUIRE(note.observation_dates().empty());
+        REQUIRE(note.knock_out_coupon_rates().empty());
+        const auto rejected_price = engine.price(note, context);
+        REQUIRE_FALSE(rejected_price);
+        CHECK(rejected_price.error().category == ErrorCategory::invalid_schedule);
+        const auto quote = engine.price(owner, context);
+        REQUIRE(quote);
+        CHECK(*quote == Catch::Approx(1.1).margin(1e-12));
+        for (const auto convention : {CouponQuoteConvention::preserve_maturity_coupon,
+                                      CouponQuoteConvention::shift_maturity_coupon}) {
+            const auto rejected = implied_coupon(engine, note, context, *quote, convention);
+            REQUIRE_FALSE(rejected);
+            CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
+            const auto solved = implied_coupon(engine, owner, context, *quote, convention);
+            REQUIRE(solved);
+            CHECK(*solved == Catch::Approx(0.1).margin(1e-7));
+        }
+    };
+    const auto snowball = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0,
+         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0,
+         .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none,
+         .effective_date = start, .expiry_date = end});
+    const auto binary = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0},
+         .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none,
+         .effective_date = start, .expiry_date = end});
+    const auto ternary = *make_ternary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0,
+         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .observation_dates = {end},
+         .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+    check(snowball, MonteCarloSnowballEngine{{32}});
+    check(snowball, FiniteDifferenceSnowballEngine{});
+    check(binary, MonteCarloBinarySnowballEngine{{32}});
+    check(binary, FiniteDifferenceBinarySnowballEngine{});
+    check(ternary, MonteCarloTernarySnowballEngine{{32}});
+    check(ternary, FiniteDifferenceTernarySnowballEngine{});
 }
 
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
