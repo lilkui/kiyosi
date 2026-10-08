@@ -62,6 +62,39 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{20, 2}.price(american, context).has_value());
 }
 
+TEST_CASE("Vanilla Monte Carlo validates generic settings at expiry", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto check = [&](const auto& option) {
+        for (const MonteCarloSettings settings : {
+                 MonteCarloSettings{0, 2}, {-1, 2}, {10'000'001, 2}, {1, 0}, {1, 1}, {1, 10'001},
+                 {1, 2, 1, static_cast<MonteCarloBackend>(255)}}) {
+            const MonteCarloVanillaEngine engine{settings};
+            for (const auto date : {effective, expiry}) {
+                const auto market = *make_pricing_context(parameters, 110.0, date);
+                const auto result = engine.price(option, market);
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == ErrorCategory::invalid_parameter);
+                const auto greeks = engine.price_with_greeks(option, market, GreeksRequest{true});
+                REQUIRE_FALSE(greeks);
+                CHECK(greeks.error().category == ErrorCategory::invalid_parameter);
+            }
+        }
+        for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda})
+            for (const auto settings : {MonteCarloSettings{1, 2, 1, backend}, {10'000'000, 10'000, 1, backend}}) {
+                const auto result = MonteCarloVanillaEngine{settings}.price(
+                    option, *make_pricing_context(parameters, 110.0, expiry));
+                REQUIRE(result);
+                CHECK(*result == 10.0);
+            }
+    };
+    check(*make_european_option(OptionType::call, 100.0, effective, expiry));
+    check(*make_american_option(OptionType::call, 100.0, effective, expiry));
+}
+
 TEST_CASE("Monte Carlo engines return intrinsic value at expiry_date")
 {
     const auto expiry_date = day(2025, 1, 1);

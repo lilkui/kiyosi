@@ -160,10 +160,10 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
-    if (*time == 0.0)
-        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
     const auto valid = detail::validate_monte_carlo_settings(settings_);
     if (!valid) return std::unexpected(valid.error());
+    if (*time == 0.0)
+        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
     auto simulation = settings_;
     simulation.step_count = 2;
     const auto parameters = simulation_parameters(context, *time, simulation);
@@ -200,6 +200,8 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
+    const auto valid = detail::validate_monte_carlo_settings(settings_);
+    if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
         return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
     if (settings_.step_count < 3)

@@ -112,6 +112,28 @@ class KiyosiPythonTests(unittest.TestCase):
                     self.assertAlmostEqual(result.charm, after.delta - before.delta, delta=1e-6)
                     self.assertAlmostEqual(result.color, after.gamma - before.gamma, delta=1e-6)
 
+    def test_vanilla_monte_carlo_validates_generic_settings_at_expiry(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        for option_class in (EuropeanOption, AmericanOption):
+            option = option_class(option_type="call", strike=100, effective_date=start, expiry_date=end)
+            for paths, steps in ((0, 2), (-1, 2), (10_000_001, 2), (1, 0), (1, 1), (1, 10_001)):
+                for time in (start, end):
+                    with self.subTest(option=option_class.__name__, paths=paths, steps=steps, time=time):
+                        engine = pricing.MonteCarloVanillaEngine(path_count=paths, step_count=steps)
+                        context = PricingContext(model_parameters=parameters, spot_price=110, valuation_time=time)
+                        for operation in (
+                            lambda: engine.price(option, context),
+                            lambda: engine.price_with_greeks(option, context, greeks=["delta", "gamma"]),
+                        ):
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                operation()
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+            for backend in ("cpu", "cuda"):
+                engine = pricing.MonteCarloVanillaEngine(path_count=1, step_count=2, backend=backend)
+                expired = PricingContext(model_parameters=parameters, spot_price=110, valuation_time=end)
+                self.assertEqual(engine.price(option, expired), 10)
+
     def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(
