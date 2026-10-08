@@ -27,6 +27,24 @@ TEST_CASE("Finite-difference spline interpolation preserves nodes and affine val
     }
 }
 
+TEST_CASE("Finite-difference spline interpolation stays within neighboring payoff values", "[audit-fixes]")
+{
+    const kiyosi::detail::SpatialGrid grid{8.0, 1.0, 8};
+    for (const double sign : {1.0, -1.0}) {
+        std::vector<double> values(grid.size());
+        for (std::size_t index = 0; index < values.size(); ++index)
+            values[index] = std::max(sign * (static_cast<double>(index) - 4.0), 0.0);
+        for (int sample = 0; sample <= 32; ++sample) {
+            const double spot = static_cast<double>(sample) / 4.0;
+            const auto index = std::min(static_cast<std::size_t>(spot), values.size() - 2);
+            const double value = grid.interpolate(values, spot);
+            CHECK(value >= std::min(values[index], values[index + 1]));
+            CHECK(value <= std::max(values[index], values[index + 1]));
+        }
+        CHECK(grid.interpolate(values, sign > 0.0 ? 3.75 : 4.25) == 0.0);
+    }
+}
+
 TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying terminal events", "[cross-validation]")
 {
     const double maturity = 91.0 / 365.0;

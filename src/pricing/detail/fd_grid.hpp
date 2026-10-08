@@ -73,9 +73,12 @@ struct SpatialGrid {
         for (std::size_t node = values.size() - 2; node > 0; --node)
             curvature[node] -= factors[node] * curvature[node + 1];
         const double left = 1.0 - weight;
-        return std::lerp(values[index], values[index + 1], weight) +
+        const double interpolated = std::lerp(values[index], values[index + 1], weight) +
                ((left * left * left - left) * curvature[index] +
                 (weight * weight * weight - weight) * curvature[index + 1]) / 6.0;
+        // Bound spline overshoot near payoff kinks without losing smooth-region curvature.
+        return std::clamp(interpolated, std::min(values[index], values[index + 1]),
+                          std::max(values[index], values[index + 1]));
     }
 
     [[nodiscard]] double delta(std::span<const double> values, double spot) const

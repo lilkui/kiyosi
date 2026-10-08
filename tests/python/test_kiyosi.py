@@ -78,6 +78,27 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=99.25, valuation_time=datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC),
+        )
+        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            engine = pricing.FiniteDifferenceVanillaEngine(scheme=scheme)
+            for option_type in ("call", "put"):
+                with self.subTest(scheme=scheme, option_type=option_type):
+                    terms = dict(option_type=option_type, strike=100, effective_date=start, expiry_date=end)
+                    european = engine.price(EuropeanOption(**terms), context)
+                    american = engine.price(AmericanOption(**terms), context)
+                    self.assertGreaterEqual(european, 0)
+                    self.assertGreaterEqual(american, 0.75 if option_type == "put" else 0)
+                    if option_type == "call":
+                        self.assertAlmostEqual(european, 0, delta=1e-10)
+                    else:
+                        self.assertEqual(american, 0.75)
+
     def test_seeded_autocallable_paths_stay_coupled_across_knock_out_changes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(

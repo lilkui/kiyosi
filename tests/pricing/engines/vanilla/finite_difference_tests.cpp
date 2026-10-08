@@ -37,6 +37,31 @@ TEST_CASE("Finite-difference European engines track analytic prices")
     }
 }
 
+TEST_CASE("Finite-difference prices respect payoff bounds just before expiry", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 99.25,
+        kiyosi::start_of_day(end) - std::chrono::seconds{1});
+    for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
+                              kiyosi::FiniteDifferenceScheme::implicit_euler,
+                              kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
+        const kiyosi::FiniteDifferenceVanillaEngine engine{{200, 200, scheme}};
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            CAPTURE(scheme, type);
+            const auto european = engine.price(*kiyosi::make_european_option(type, 100.0, start, end), context);
+            const auto american = engine.price(*kiyosi::make_american_option(type, 100.0, start, end), context);
+            REQUIRE(european);
+            REQUIRE(american);
+            CHECK(*european >= 0.0);
+            CHECK(*american >= (type == kiyosi::OptionType::put ? 0.75 : 0.0));
+            if (type == kiyosi::OptionType::call) CHECK_THAT(*european, Catch::Matchers::WithinAbs(0.0, 1e-10));
+            else CHECK(*american == 0.75);
+        }
+    }
+}
+
 TEST_CASE("Finite-difference American engines track analytic and binomial prices")
 {
     using Catch::Matchers::WithinAbs;
