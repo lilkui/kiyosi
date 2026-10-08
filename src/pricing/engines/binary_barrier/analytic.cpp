@@ -84,7 +84,7 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     if (touched) {
         if (!knock_in) return make_pricing_result(0.0);
         if (option.settlement_timing == SettlementTiming::at_hit)
-            return make_pricing_result(option.asset_settlement ? terms.barrier_level() : option.payout);
+            return make_pricing_result(option.asset_settlement ? spot : option.payout);
         return make_pricing_result(vanilla_digital(option, context, time));
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())

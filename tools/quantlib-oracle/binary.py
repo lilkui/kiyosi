@@ -97,7 +97,7 @@ def make_contract(inputs):
     if hit and not knock_in:
         return cash(0)
     if hit and at_hit:
-        return cash(inputs["barrier"] if asset else inputs["payout"])
+        return cash(inputs["spot"] if asset else inputs["payout"])
     if at_hit:
         # A continuous asset touch transfers H units of cash at the hitting time.
         payoff = ql.CashOrNothingPayoff(
@@ -313,6 +313,12 @@ def check_bindings():
                 }
                 assert abs(measure(inputs, "price") - contract.NPV()) < 1e-11
                 if not deferred:
+                    touched = dict(inputs, spot=level + (10 if side == ql.Option.Call else -10))
+                    immediate = ql.VanillaOption(
+                        payoff, ql.AmericanExercise(valuation, expiry_date, False)
+                    )
+                    immediate.setPricingEngine(ql.AnalyticDigitalAmericanEngine(g.market_process(touched)))
+                    assert abs(measure(touched, "price") - immediate.NPV()) < 1e-11
                     for name, unit in (("delta", 1), ("gamma", 1), ("rho", 100)):
                         direct = getattr(contract, name)() / unit
                         assert abs(measure(inputs, name) - direct) < 1e-12

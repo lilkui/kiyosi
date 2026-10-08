@@ -32,6 +32,45 @@ TEST_CASE("Scheduled one-touch expires at its final fixing", "[audit-fixes]")
     }
 }
 
+TEST_CASE("Asset one-touch current hits settle at the observed spot", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto event = day(2025, 1, 2);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const kiyosi::AnalyticBinaryBarrierEngine engine;
+    for (const bool up : {true, false}) {
+        const auto factory = up ? kiyosi::make_asset_one_touch_up : kiyosi::make_asset_one_touch_down;
+        const double spot = up ? 120.0 : 80.0;
+        const double barrier = up ? 110.0 : 90.0;
+        for (const auto valuation : {event, end}) {
+            const auto context = *kiyosi::make_pricing_context(parameters, spot, valuation);
+            for (const auto mode : {kiyosi::ObservationMode::scheduled, kiyosi::ObservationMode::continuous}) {
+                CAPTURE(up, valuation, mode);
+                const auto observations = mode == kiyosi::ObservationMode::scheduled
+                                              ? std::vector<kiyosi::Date>{valuation} : std::vector<kiyosi::Date>{};
+                const auto effective = mode == kiyosi::ObservationMode::continuous ? valuation : start;
+                const auto immediate = *factory(effective, end, barrier, kiyosi::SettlementTiming::at_hit,
+                                                mode, observations, std::nullopt);
+                const auto deferred = *factory(effective, end, barrier, kiyosi::SettlementTiming::at_expiry,
+                                               mode, observations, std::nullopt);
+                const auto price = engine.price(immediate, context);
+                const auto deferred_price = engine.price(deferred, context);
+                REQUIRE(price);
+                REQUIRE(deferred_price);
+                CHECK(*price == spot);
+                CHECK_THAT(*deferred_price, Catch::Matchers::WithinAbs(
+                    spot * std::exp(-0.02 * (end - valuation).count() / 365.0), 1e-12));
+            }
+        }
+        const auto already_paid = *factory(start, end, barrier, kiyosi::SettlementTiming::at_hit,
+                                          kiyosi::ObservationMode::scheduled, {start, event}, kiyosi::BarrierTouchState::touched);
+        const auto result = engine.price(already_paid, *kiyosi::make_pricing_context(parameters, spot, event));
+        REQUIRE(result);
+        CHECK(*result == 0.0);
+    }
+}
+
 TEST_CASE("Binary barriers expose observation intervals")
 {
     const auto valuation = day(2025, 1, 6);

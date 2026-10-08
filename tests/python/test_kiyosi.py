@@ -29,6 +29,8 @@ from kiyosi.instruments import (
     PhoenixOption,
     TouchOption,
     asset_no_touch_down,
+    asset_one_touch_down,
+    asset_one_touch_up,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_one_touch_up,
@@ -76,6 +78,38 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_asset_one_touch_current_hits_settle_at_spot(self):
+        start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
+        for factory, spot, barrier in (
+            (asset_one_touch_up, 120, 110), (asset_one_touch_down, 80, 90)
+        ):
+            for valuation in (event, end):
+                context = PricingContext(
+                    model_parameters=self.parameters, spot_price=spot, valuation_time=valuation
+                )
+                for mode in ("scheduled", "continuous"):
+                    with self.subTest(spot=spot, valuation=valuation, mode=mode):
+                        terms = dict(
+                            effective_date=valuation if mode == "continuous" else start,
+                            expiry_date=end, barrier_level=barrier, observation_mode=mode,
+                            observation_dates=[valuation] if mode == "scheduled" else [],
+                        )
+                        engine = AnalyticBinaryBarrierEngine()
+                        self.assertEqual(engine.price(factory(settlement_timing="at_hit", **terms), context), spot)
+                        self.assertAlmostEqual(
+                            engine.price(factory(settlement_timing="at_expiry", **terms), context),
+                            spot * math.exp(-0.02 * (end - valuation).days / 365), delta=1e-12,
+                        )
+            already_paid = factory(
+                effective_date=start, expiry_date=end, barrier_level=barrier,
+                settlement_timing="at_hit", observation_mode="scheduled",
+                observation_dates=[start, event], touch_state="touched",
+            )
+            context = PricingContext(
+                model_parameters=self.parameters, spot_price=spot, valuation_time=event
+            )
+            self.assertEqual(AnalyticBinaryBarrierEngine().price(already_paid, context), 0)
+
     def test_fixed_interval_schedule_bounds_extreme_intervals(self):
         # Isolate the overflow regression so a broken loop cannot hang the test runner.
         result = subprocess.run(
