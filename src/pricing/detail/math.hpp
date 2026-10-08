@@ -24,6 +24,25 @@ inline double normal_pdf(double value) noexcept
     return inverse_sqrt_two_pi * std::exp(-0.5 * value * value);
 }
 
+inline double log_normal_cdf(double value) noexcept
+{
+    if (value >= -10.0) return std::log(normal_cdf(value));
+    // The erfc tail expansion avoids underflow before a large exponential weight cancels it (DLMF 7.12.1).
+    const double inverse_square = (1.0 / value) / value;
+    double term = 1.0;
+    double sum = 1.0;
+    for (int index = 1; index <= 20; ++index) {
+        term *= -(2.0 * index - 1.0) * inverse_square;
+        sum += term;
+    }
+    return -0.5 * value * value - std::log(-value) + std::log(inverse_sqrt_two_pi * sum);
+}
+
+inline double exponential_normal_cdf(double log_weight, double value) noexcept
+{
+    return std::exp(log_weight + log_normal_cdf(value));
+}
+
 /// Simpson integration of a centered normal tail; reflect negative thresholds to avoid long intervals.
 inline double normal_tail_integral(double threshold) noexcept
 {

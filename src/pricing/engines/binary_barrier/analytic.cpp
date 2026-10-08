@@ -102,13 +102,13 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const double y2 = std::log(barrier / spot) / volatility_time + (1 + mu) * volatility_time;
     const double z = std::log(barrier / spot) / volatility_time + lambda * volatility_time;
     const auto common = [&](double eta, double phi) {
-        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time), ratio = barrier / spot;
+        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time), log_ratio = std::log(barrier / spot);
         return BinaryBarrierFormulaTerms{
             spot * dividend_discount * normal_cdf(phi * x1), option.payout * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
             spot * dividend_discount * normal_cdf(phi * x2), option.payout * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
-            spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y1), option.payout * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y1 - eta * volatility_time),
-            spot * dividend_discount * std::pow(ratio, 2 * (mu + 1)) * normal_cdf(eta * y2), option.payout * rate_discount * std::pow(ratio, 2 * mu) * normal_cdf(eta * y2 - eta * volatility_time),
-            option.payout * (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) + std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2 * eta * lambda * volatility_time))};
+            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y1), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y1 - eta * volatility_time),
+            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y2), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y2 - eta * volatility_time),
+            option.payout * (exponential_normal_cdf((mu + lambda) * log_ratio, eta * z) + exponential_normal_cdf((mu - lambda) * log_ratio, eta * z - 2 * eta * lambda * volatility_time))};
     };
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const auto formula_terms = common(upper ? -1.0 : 1.0, 0.0);

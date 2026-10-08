@@ -7,6 +7,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "pricing/detail/math.hpp"
 
 namespace {
 using namespace kiyosi;
@@ -89,6 +90,54 @@ TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observa
           AnalyticBinaryBarrierEngine{});
     check(*make_cash_one_touch_up(effective, expiry, 120.0, 1.0, SettlementTiming::at_expiry,
                                  ObservationMode::scheduled, {expiry}), AnalyticBinaryBarrierEngine{});
+}
+
+TEST_CASE("Exponential normal tails stay finite when separate factors overflow", "[audit-fixes]")
+{
+    for (const double value : {-9.0, -10.0, -11.0, -20.0, -35.0})
+        CHECK(detail::exponential_normal_cdf(100.0, value) ==
+              Catch::Approx(std::exp(100.0) * detail::normal_cdf(value)).epsilon(1e-12));
+    // Mills' bounds independently constrain exp(x^2/2) Phi(-x) beyond the representable CDF range.
+    for (const double value : {40.0, 100.0, 1000.0}) {
+        const double tail = detail::exponential_normal_cdf(0.5 * value * value, -value);
+        CHECK(tail > detail::inverse_sqrt_two_pi * value / (value * value + 1.0));
+        CHECK(tail < detail::inverse_sqrt_two_pi / value);
+    }
+}
+
+TEST_CASE("Analytic engines retain low-volatility prices and default implied volatility", "[audit-fixes]")
+{
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective);
+    const auto low = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.0001), 100.0, effective);
+    const auto check = [&](const auto& option, const auto& engine, double expected) {
+        const auto value = engine.price(option, low);
+        REQUIRE(value);
+        CHECK(*value == Catch::Approx(expected).margin(1e-9));
+        const auto quote = engine.price(option, context);
+        REQUIRE(quote);
+        const auto implied = implied_volatility(engine, option, context, *quote);
+        REQUIRE(implied);
+        CHECK(*implied == Catch::Approx(0.2).margin(1e-6));
+    };
+    const BarrierOptionTerms terms{
+        .option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
+        .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out};
+    const double vanilla = 100.0 * (std::exp(-0.02) - std::exp(-0.05));
+    check(*make_barrier_option(terms), AnalyticBarrierEngine{}, vanilla);
+    check(*make_cash_binary_barrier_option(
+              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
+               .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out}, 1.0),
+          AnalyticBinaryBarrierEngine{}, std::exp(-0.05));
+    check(*make_american_option(OptionType::call, 100.0, effective, expiry), BjerksundStenslandVanillaEngine{}, vanilla);
+    const auto negative_carry = *make_pricing_context(*make_bsm_parameters(0.02, 0.05, 0.0001), 80.0, effective);
+    const auto out_of_money = BjerksundStenslandVanillaEngine{}.price(
+        *make_american_option(OptionType::call, 100.0, effective, expiry), negative_carry);
+    REQUIRE(out_of_money);
+    CHECK(*out_of_money == Catch::Approx(0.0).margin(1e-9));
+    const auto touch = AnalyticBinaryBarrierEngine{}.price(
+        *make_cash_one_touch_up(effective, expiry, 120.0, 1.0, SettlementTiming::at_hit), low);
+    REQUIRE(touch);
+    CHECK(*touch == Catch::Approx(0.0).margin(1e-9));
 }
 
 TEST_CASE("Pricing API separates scalar selected and all-Greek outputs", "[pricing-api]")

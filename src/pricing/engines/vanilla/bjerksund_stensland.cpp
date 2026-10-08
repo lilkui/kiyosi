@@ -22,7 +22,7 @@ double european_call(double spot, double strike, double time, double rate, doubl
 }
 
 double phi(double spot, double time, double gamma, double boundary, double strike_boundary,
-           double rate, double dividend, double volatility)
+           double rate, double dividend, double volatility, double power_boundary)
 {
     const double variance = volatility * volatility;
     const double root = volatility * std::sqrt(time);
@@ -34,11 +34,12 @@ double phi(double spot, double time, double gamma, double boundary, double strik
     const double second = -(std::log(strike_boundary * strike_boundary / (spot * boundary)) +
                             (rate - dividend + (gamma - 0.5) * variance) * time) /
                           root;
-    return std::exp(lambda * time) * std::pow(spot, gamma) *
-           (normal_cdf(first) - std::pow(strike_boundary / spot, kappa) * normal_cdf(second));
+    const double log_weight = lambda * time + gamma * std::log(spot / power_boundary);
+    return exponential_normal_cdf(log_weight, first) -
+           exponential_normal_cdf(log_weight + kappa * std::log(strike_boundary / spot), second);
 }
 
-double bivariate_normal_cdf(double first, double second, double correlation)
+double exponential_bivariate_normal_cdf(double log_weight, double first, double second, double correlation)
 {
     constexpr std::array<double, 10> abscissas = {
         0.07652652113349733, 0.22778585114164508, 0.37370608871541956,
@@ -55,14 +56,16 @@ double bivariate_normal_cdf(double first, double second, double correlation)
     for (int index = 0; index < 10; ++index) {
         for (const double sign : {-1.0, 1.0}) {
             const double sine = std::sin(angle * 0.5 * (1.0 + sign * abscissas[index]));
-            integral += weights[index] * std::exp((sine * product - half_sum) / (1.0 - sine * sine));
+            integral += weights[index] * std::exp(log_weight + (sine * product - half_sum) / (1.0 - sine * sine));
         }
     }
-    return normal_cdf(first) * normal_cdf(second) + angle * integral / (4.0 * std::numbers::pi);
+    return std::exp(log_weight + log_normal_cdf(first) + log_normal_cdf(second)) +
+           angle * integral / (4.0 * std::numbers::pi);
 }
 
 double ksi(double spot, double time, double gamma, double boundary, double outer_boundary,
-           double inner_boundary, double split_time, double rate, double carry, double volatility)
+           double inner_boundary, double split_time, double rate, double carry, double volatility,
+           double power_boundary)
 {
     const double variance = volatility * volatility;
     const double split_root = volatility * std::sqrt(split_time);
@@ -86,11 +89,11 @@ double ksi(double spot, double time, double gamma, double boundary, double outer
     const double correlation = std::sqrt(split_time / time);
     const double lambda = -rate + gamma * carry + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * carry / variance + 2.0 * gamma - 1.0;
-    return std::exp(lambda * time) * std::pow(spot, gamma) *
-           (bivariate_normal_cdf(-e1, -f1, correlation) -
-            std::pow(outer_boundary / spot, kappa) * bivariate_normal_cdf(-e2, -f2, correlation) -
-            std::pow(inner_boundary / spot, kappa) * bivariate_normal_cdf(-e3, -f3, -correlation) +
-            std::pow(inner_boundary / outer_boundary, kappa) * bivariate_normal_cdf(-e4, -f4, -correlation));
+    const double log_weight = lambda * time + gamma * std::log(spot / power_boundary);
+    return exponential_bivariate_normal_cdf(log_weight, -e1, -f1, correlation) -
+           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(outer_boundary / spot), -e2, -f2, correlation) -
+           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(inner_boundary / spot), -e3, -f3, -correlation) +
+           exponential_bivariate_normal_cdf(log_weight + kappa * std::log(inner_boundary / outer_boundary), -e4, -f4, -correlation);
 }
 
 double bjerksund_call(double spot, double strike, double time, double rate, double dividend, double volatility)
@@ -112,20 +115,19 @@ double bjerksund_call(double spot, double strike, double time, double rate, doub
     const double inner = b_zero + (b_inf - b_zero) * (1.0 - std::exp(h1));
     const double outer = b_zero + (b_inf - b_zero) * (1.0 - std::exp(h2));
     if (spot >= outer) return spot - strike;
-    const double alpha1 = (inner - strike) * std::pow(inner, -beta);
-    const double alpha2 = (outer - strike) * std::pow(outer, -beta);
-    return alpha2 * std::pow(spot, beta) -
-           alpha2 * phi(spot, split_time, beta, outer, outer, rate, dividend, volatility) +
-           phi(spot, split_time, 1.0, outer, outer, rate, dividend, volatility) -
-           phi(spot, split_time, 1.0, inner, outer, rate, dividend, volatility) -
-           strike * phi(spot, split_time, 0.0, outer, outer, rate, dividend, volatility) +
-           strike * phi(spot, split_time, 0.0, inner, outer, rate, dividend, volatility) +
-           alpha1 * phi(spot, split_time, beta, inner, outer, rate, dividend, volatility) -
-           alpha1 * ksi(spot, time, beta, inner, outer, inner, split_time, rate, carry, volatility) +
-           ksi(spot, time, 1.0, inner, outer, inner, split_time, rate, carry, volatility) -
-           ksi(spot, time, 1.0, strike, outer, inner, split_time, rate, carry, volatility) -
-           strike * ksi(spot, time, 0.0, inner, outer, inner, split_time, rate, carry, volatility) +
-           strike * ksi(spot, time, 0.0, strike, outer, inner, split_time, rate, carry, volatility);
+    // Normalize beta powers before evaluation so neither alpha nor spot^beta overflows separately.
+    return (outer - strike) * std::exp(beta * std::log(spot / outer)) -
+           (outer - strike) * phi(spot, split_time, beta, outer, outer, rate, dividend, volatility, outer) +
+           phi(spot, split_time, 1.0, outer, outer, rate, dividend, volatility, 1.0) -
+           phi(spot, split_time, 1.0, inner, outer, rate, dividend, volatility, 1.0) -
+           strike * phi(spot, split_time, 0.0, outer, outer, rate, dividend, volatility, 1.0) +
+           strike * phi(spot, split_time, 0.0, inner, outer, rate, dividend, volatility, 1.0) +
+           (inner - strike) * phi(spot, split_time, beta, inner, outer, rate, dividend, volatility, inner) -
+           (inner - strike) * ksi(spot, time, beta, inner, outer, inner, split_time, rate, carry, volatility, inner) +
+           ksi(spot, time, 1.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0) -
+           ksi(spot, time, 1.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0) -
+           strike * ksi(spot, time, 0.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0) +
+           strike * ksi(spot, time, 0.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0);
 }
 } // namespace
 

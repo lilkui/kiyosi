@@ -24,10 +24,10 @@ double barrier_hit_discount(double distance, bool upper, double drift, double va
         return std::numeric_limits<double>::quiet_NaN();
     const double root = std::sqrt(discriminant);
     const double root_time = std::sqrt(variance * t);
-    const double first = std::exp((-signed_drift - root) * distance / variance) *
-                         normal_cdf((root * t - distance) / root_time);
-    const double second = std::exp((-signed_drift + root) * distance / variance) *
-                          normal_cdf((-root * t - distance) / root_time);
+    const double first = exponential_normal_cdf((-signed_drift - root) * distance / variance,
+                                                (root * t - distance) / root_time);
+    const double second = exponential_normal_cdf((-signed_drift + root) * distance / variance,
+                                                 (-root * t - distance) / root_time);
     const double result = first + second;
     return std::isfinite(result) ? result : std::numeric_limits<double>::quiet_NaN();
 }
@@ -99,18 +99,18 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const double y2 = std::log(barrier / spot) / root_time + (1.0 + mu) * root_time;
     const double z = std::log(barrier / spot) / root_time + lambda * root_time;
     const auto factors = [&](double eta, double phi) {
-        const double ratio = barrier / spot;
+        const double log_ratio = std::log(barrier / spot);
         return std::array<double, 6>{
             phi * spot * carry * normal_cdf(phi * x1) - phi * x * discount * normal_cdf(phi * x1 - phi * root_time),
             phi * spot * carry * normal_cdf(phi * x2) - phi * x * discount * normal_cdf(phi * x2 - phi * root_time),
-            phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y1) -
-                phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y1 - eta * root_time),
-            phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y2) -
-                phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
-            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
+            phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
+                phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y1 - eta * root_time),
+            phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
+                phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
+            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time)),
             option.rebate() * (hit_rebate
-                                   ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
-                                      std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
+                                   ? (exponential_normal_cdf((mu + lambda) * log_ratio, eta * z) +
+                                      exponential_normal_cdf((mu - lambda) * log_ratio, eta * z - 2.0 * eta * lambda * root_time))
                                    : discount)};
     };
     const bool call = option.option_type() == OptionType::call;

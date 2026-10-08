@@ -78,6 +78,23 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_analytic_low_volatility_and_default_implied_volatility(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end)
+        barrier = dict(**terms, barrier_level=120, barrier_type="up_and_out")
+        vanilla = 100 * (math.exp(-0.02) - math.exp(-0.05))
+        context = PricingContext(model_parameters=BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2), spot_price=100, valuation_time=start)
+        low = PricingContext(model_parameters=BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.0001), spot_price=100, valuation_time=start)
+        for engine, option, expected in (
+            (AnalyticBarrierEngine(), BarrierOption(**barrier), vanilla),
+            (AnalyticBinaryBarrierEngine(), cash_binary_barrier_option(**barrier, payout=1), math.exp(-0.05)),
+            (pricing.BjerksundStenslandVanillaEngine(), AmericanOption(**terms), vanilla),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                self.assertAlmostEqual(engine.price(option, low), expected, delta=1e-9)
+                quote = engine.price(option, context)
+                self.assertAlmostEqual(implied_volatility(engine, option, context, quote), 0.2, delta=1e-6)
+
     def test_fd_prices_respect_payoff_bounds_just_before_expiry(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         context = PricingContext(
