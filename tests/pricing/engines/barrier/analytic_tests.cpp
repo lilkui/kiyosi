@@ -14,6 +14,42 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barrier prices preserve finite extreme monetary scales")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    for (const auto type : {BarrierType::down_and_in, BarrierType::down_and_out,
+                            BarrierType::up_and_in, BarrierType::up_and_out}) {
+        const bool up = type == BarrierType::up_and_in || type == BarrierType::up_and_out;
+        for (const auto direction : {OptionType::call, OptionType::put}) {
+            const auto prices = [&](double scale) {
+                const BinaryBarrierTerms terms{
+                    .option_type = direction, .strike = 100.0 * scale, .effective_date = start,
+                    .expiry_date = end, .barrier_level = (up ? 120.0 : 80.0) * scale, .barrier_type = type};
+                const auto context = *make_pricing_context(parameters, 100.0 * scale, start);
+                const auto vanilla = AnalyticBarrierEngine{}.price(*make_barrier_option(
+                    {.option_type = direction, .strike = terms.strike, .effective_date = start,
+                     .expiry_date = end, .barrier_level = terms.barrier_level, .barrier_type = type}), context);
+                const auto cash = AnalyticBinaryBarrierEngine{}.price(*make_cash_binary_barrier_option(terms, 10.0), context);
+                const auto asset = AnalyticBinaryBarrierEngine{}.price(*make_asset_binary_barrier_option(terms), context);
+                REQUIRE(vanilla);
+                REQUIRE(cash);
+                REQUIRE(asset);
+                return std::array{*vanilla / scale, *cash, *asset / scale};
+            };
+            const auto base = prices(1.0);
+            for (const double scale : {1e155, 1e-170, 1e-200}) {
+                CAPTURE(type, direction, scale);
+                const auto scaled = prices(scale);
+                for (std::size_t index = 0; index < base.size(); ++index)
+                    CHECK_THAT(scaled[index], Catch::Matchers::WithinAbs(base[index], 1e-9));
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic barriers settle at expiry for every touch and knock state")
 {
     const auto effective = day(2025, 1, 1);

@@ -32,6 +32,7 @@ from kiyosi.instruments import (
     asset_no_touch_down,
     asset_one_touch_down,
     asset_one_touch_up,
+    asset_binary_barrier_option,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_one_touch_up,
@@ -79,6 +80,27 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_analytic_barriers_preserve_extreme_monetary_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        for barrier_type in ("down_and_in", "down_and_out", "up_and_in", "up_and_out"):
+            level = 120 if barrier_type.startswith("up") else 80
+            for direction in ("call", "put"):
+                def prices(scale):
+                    terms = dict(option_type=direction, strike=100 * scale, effective_date=start,
+                                 expiry_date=end, barrier_level=level * scale, barrier_type=barrier_type)
+                    context = PricingContext(model_parameters=parameters, spot_price=100 * scale, valuation_time=start)
+                    return (
+                        AnalyticBarrierEngine().price(BarrierOption(**terms), context) / scale,
+                        AnalyticBinaryBarrierEngine().price(cash_binary_barrier_option(**terms, payout=10), context),
+                        AnalyticBinaryBarrierEngine().price(asset_binary_barrier_option(**terms), context) / scale,
+                    )
+                base = prices(1)
+                for scale in (1e155, 1e-170, 1e-200):
+                    with self.subTest(barrier_type=barrier_type, direction=direction, scale=scale):
+                        for actual, expected in zip(prices(scale), base):
+                            self.assertAlmostEqual(actual, expected, delta=1e-9)
+
     def test_american_monte_carlo_prices_are_currency_scale_invariant(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(risk_free_rate=0.1, dividend_yield=0, volatility=0.3)

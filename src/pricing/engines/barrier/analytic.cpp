@@ -78,10 +78,11 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         return make_pricing_result(knock_in ? option.rebate() * std::exp(-rate * t)
                                             : vanilla->price());
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
+    const double log_ratio = std::log(barrier) - std::log(spot);
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
-        const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
+        const double hit_discount = barrier_hit_discount(std::abs(log_ratio), upper,
                                                          drift, variance, t, rate);
         if (!std::isfinite(hit_discount))
             return std::unexpected(Error{ErrorCategory::invalid_result,
@@ -93,13 +94,13 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
     const double lambda = hit_rebate ? std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma)) : 0.0;
     const double x = option.strike();
-    const double x1 = std::log(spot / x) / root_time + (1.0 + mu) * root_time;
-    const double x2 = std::log(spot / barrier) / root_time + (1.0 + mu) * root_time;
-    const double y1 = std::log(barrier * barrier / (spot * x)) / root_time + (1.0 + mu) * root_time;
-    const double y2 = std::log(barrier / spot) / root_time + (1.0 + mu) * root_time;
-    const double z = std::log(barrier / spot) / root_time + lambda * root_time;
+    const double log_moneyness = std::log(spot) - std::log(x);
+    const double x1 = log_moneyness / root_time + (1.0 + mu) * root_time;
+    const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
+    const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;
+    const double y2 = log_ratio / root_time + (1.0 + mu) * root_time;
+    const double z = log_ratio / root_time + lambda * root_time;
     const auto factors = [&](double eta, double phi) {
-        const double log_ratio = std::log(barrier / spot);
         return std::array<double, 6>{
             phi * spot * carry * normal_cdf(phi * x1) - phi * x * discount * normal_cdf(phi * x1 - phi * root_time),
             phi * spot * carry * normal_cdf(phi * x2) - phi * x * discount * normal_cdf(phi * x2 - phi * root_time),

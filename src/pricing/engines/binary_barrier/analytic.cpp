@@ -46,7 +46,7 @@ double vanilla_digital(const BinaryBarrierContractView& option, const PricingCon
     if (!option.option_type) return option.asset_settlement ? spot * std::exp(-dividend * time) : option.payout * std::exp(-rate * time);
     const double sign = *option.option_type == OptionType::call ? 1.0 : -1.0;
     const double volatility_time = volatility * std::sqrt(time);
-    const double d1 = (std::log(spot / option.strike) + (rate - dividend + .5 * volatility * volatility) * time) / volatility_time;
+    const double d1 = (std::log(spot) - std::log(option.strike) + (rate - dividend + .5 * volatility * volatility) * time) / volatility_time;
     const double d2 = d1 - volatility_time;
     return option.asset_settlement ? spot * std::exp(-dividend * time) * normal_cdf(sign * d1)
                                    : option.payout * std::exp(-rate * time) * normal_cdf(sign * d2);
@@ -96,13 +96,15 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.mean_observation_year_fraction()));
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double lambda = std::sqrt(mu * mu + 2.0 * rate / (volatility * volatility));
-    const double x1 = std::log(spot / option.strike) / volatility_time + (1 + mu) * volatility_time;
-    const double x2 = std::log(spot / barrier) / volatility_time + (1 + mu) * volatility_time;
-    const double y1 = std::log(barrier * barrier / (spot * option.strike)) / volatility_time + (1 + mu) * volatility_time;
-    const double y2 = std::log(barrier / spot) / volatility_time + (1 + mu) * volatility_time;
-    const double z = std::log(barrier / spot) / volatility_time + lambda * volatility_time;
+    const double log_ratio = std::log(barrier) - std::log(spot);
+    const double log_moneyness = std::log(spot) - std::log(option.strike);
+    const double x1 = log_moneyness / volatility_time + (1 + mu) * volatility_time;
+    const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
+    const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
+    const double y2 = log_ratio / volatility_time + (1 + mu) * volatility_time;
+    const double z = log_ratio / volatility_time + lambda * volatility_time;
     const auto common = [&](double eta, double phi) {
-        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time), log_ratio = std::log(barrier / spot);
+        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time);
         return BinaryBarrierFormulaTerms{
             spot * dividend_discount * normal_cdf(phi * x1), option.payout * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
             spot * dividend_discount * normal_cdf(phi * x2), option.payout * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
