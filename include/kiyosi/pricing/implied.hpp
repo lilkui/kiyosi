@@ -49,8 +49,8 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
 /// @param settings Positive bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// A root is not guaranteed unique; expiry payoffs and terminated knock-out contracts
-/// independent of volatility, including fixed touch payments, are rejected.
+/// A root is not guaranteed unique; known states with volatility-independent remaining
+/// cashflows, including fixed touch payments, are rejected.
 /// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
@@ -99,9 +99,27 @@ template <typename Engine, typename Option>
             if (context.valuation_time() == start_of_day(option.observation_dates()[i]) &&
                 context.spot_price() >= option.knock_out_levels()[i])
                 identifiable = false;
-        if constexpr (std::same_as<Option, BinarySnowballOption>)
-            identifiable = identifiable && start_of_day(option.observation_dates().back()) >= context.valuation_time();
+        if constexpr (std::same_as<Option, BinarySnowballOption>) {
+            const double rate = context.model_parameters().risk_free_rate();
+            const double maturity_value =
+                (option.principal_ratio() + option.maturity_coupon_rate() *
+                                                detail::actual_365_fixed_year_fraction(option.effective_date(), option.expiry_date())) *
+                std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date()));
+            bool exposed = false;
+            for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
+                const Date date = option.observation_dates()[i];
+                if (start_of_day(date) <= context.valuation_time()) continue;
+                const double knock_out_value =
+                    (option.principal_ratio() + option.knock_out_coupon_rates()[i] *
+                                                    detail::actual_365_fixed_year_fraction(option.effective_date(), date)) *
+                    std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
+                exposed = exposed || knock_out_value != maturity_value;
+            }
+            identifiable = identifiable && exposed;
+        }
     }
+    if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); })
+        identifiable = identifiable && (option.accumulated_quantity() != 0.0 || option.daily_quantity() != 0.0);
     if constexpr (requires { option.barrier_terms(); }) {
         const auto& terms = option.barrier_terms();
         const bool touched = *terms.was_touched_before(context.valuation_time()) ||

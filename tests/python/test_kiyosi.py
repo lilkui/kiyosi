@@ -78,6 +78,65 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_implied_volatility_rejects_fixed_cashflows(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+        )
+        for engine in (pricing.MonteCarloBinarySnowballEngine(path_count=64, seed=73),
+                       pricing.FiniteDifferenceBinarySnowballEngine()):
+            for valuation in (start, start + timedelta(days=1)):
+                context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=valuation)
+                note = BinarySnowballOption(
+                    knock_out_coupon_rates=[0.3, 0.1], maturity_coupon_rate=0.1,
+                    knock_out_levels=[120, 120], observation_dates=[start, end],
+                    barrier_state="none", effective_date=start, expiry_date=end,
+                )
+                quote = 1.1 * math.exp(-0.04 * (end - valuation).days / 365)
+                with self.subTest(engine=type(engine).__name__, valuation=valuation):
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        implied_volatility(engine, note, context, quote)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+            note = BinarySnowballOption(
+                knock_out_coupon_rates=[0.2], maturity_coupon_rate=0.1,
+                knock_out_levels=[120], observation_dates=[end], effective_date=start, expiry_date=end,
+            )
+            context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=start)
+            low = PricingContext(model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.05
+            ), spot_price=100, valuation_time=start)
+            self.assertEqual(implied_volatility(engine, note, context, engine.price(note, low),
+                                                lower_bound=0.05, upper_bound=0.4), 0.05)
+            early_note = BinarySnowballOption(
+                knock_out_coupon_rates=[0, 0], maturity_coupon_rate=0,
+                knock_out_levels=[120, 120], observation_dates=[date(2025, 7, 1), end],
+                effective_date=start, expiry_date=end,
+            )
+            for rate in (0, 0.04):
+                low_context = PricingContext(model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=0.01, volatility=0.05
+                ), spot_price=100, valuation_time=start)
+                quote = engine.price(early_note, low_context)
+                with self.subTest(engine=type(engine).__name__, rate=rate):
+                    if rate == 0:
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(engine, early_note, low_context, quote,
+                                               lower_bound=0.05, upper_bound=0.4)
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                    else:
+                        self.assertEqual(implied_volatility(engine, early_note, low_context, quote,
+                                                            lower_bound=0.05, upper_bound=0.4), 0.05)
+        accumulator = Accumulator(
+            strike=100, knock_out_level=120, daily_quantity=0, acceleration_factor=1,
+            accumulated_quantity=0, effective_date=start, expiry_date=end,
+        )
+        for engine in (pricing.MonteCarloAccumulatorEngine(path_count=64, seed=73),
+                       pricing.FiniteDifferenceAccumulatorEngine()):
+            with self.subTest(engine=type(engine).__name__):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    implied_volatility(engine, accumulator, context, 0)
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
     def test_barrier_finite_difference_preserves_volatility_tails(self):
         start = date(2025, 1, 1)
         end = start + timedelta(days=1825)

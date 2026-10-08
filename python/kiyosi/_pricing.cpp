@@ -378,6 +378,8 @@ float
     Implied volatility as a decimal rate.
 
 An unseeded Monte Carlo engine uses one random seed throughout this solve.
+Known volatility-independent payments raise ``KiyosiError`` with category
+``UNSUPPORTED_OPERATION``.
 
 Raises
 ------

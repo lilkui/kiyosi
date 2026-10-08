@@ -678,6 +678,68 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
     check(ternary, FiniteDifferenceTernarySnowballEngine{});
 }
 
+TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]")
+{
+    const auto check = [&](const auto& engine) {
+        for (const auto date : {effective, effective + std::chrono::days{1}}) {
+            const auto context = market(100.0, date);
+            const auto note = *make_binary_snowball_option(
+                {.knock_out_coupon_rates = {0.3, 0.1}, .maturity_coupon_rate = 0.1,
+                 .knock_out_levels = {120.0, 120.0}, .observation_dates = {effective, expiry},
+                 .barrier_state = AutocallableBarrierState::none,
+                 .effective_date = effective, .expiry_date = expiry});
+            const double quote = 1.1 * std::exp(-0.04 * *year_fraction(date, expiry));
+            const auto result = implied_volatility(engine, note, context, quote);
+            REQUIRE_FALSE(result);
+            CHECK(result.error().category == ErrorCategory::unsupported_operation);
+        }
+        const auto context = market(100.0, effective);
+        const auto note = *make_binary_snowball_option(
+            {.knock_out_coupon_rates = {0.2}, .maturity_coupon_rate = 0.1,
+             .knock_out_levels = {120.0}, .observation_dates = {expiry},
+             .effective_date = effective, .expiry_date = expiry});
+        const auto low = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.05), 100.0, effective);
+        const auto quote = engine.price(note, low);
+        REQUIRE(quote);
+        const auto result = implied_volatility(engine, note, context, *quote, {.lower_bound = 0.05, .upper_bound = 0.4});
+        REQUIRE(result);
+        CHECK(*result == 0.05);
+        const auto early_note = *make_binary_snowball_option(
+            {.knock_out_coupon_rates = {0.0, 0.0}, .maturity_coupon_rate = 0.0,
+             .knock_out_levels = {120.0, 120.0}, .observation_dates = {valuation, expiry},
+             .effective_date = effective, .expiry_date = expiry});
+        for (const double rate : {0.0, 0.04}) {
+            const auto low_context = *make_pricing_context(*make_bsm_parameters(rate, 0.01, 0.05), 100.0, effective);
+            const auto early_quote = engine.price(early_note, low_context);
+            REQUIRE(early_quote);
+            const auto early_result = implied_volatility(engine, early_note, low_context, *early_quote,
+                                                         {.lower_bound = 0.05, .upper_bound = 0.4});
+            if (rate == 0.0) {
+                REQUIRE_FALSE(early_result);
+                CHECK(early_result.error().category == ErrorCategory::unsupported_operation);
+            } else {
+                REQUIRE(early_result);
+                CHECK(*early_result == 0.05);
+            }
+        }
+    };
+    check(MonteCarloBinarySnowballEngine{{64, 73}});
+    check(FiniteDifferenceBinarySnowballEngine{});
+
+    const auto accumulator = *make_accumulator(
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 0.0,
+         .acceleration_factor = 1.0, .accumulated_quantity = 0.0,
+         .effective_date = effective, .expiry_date = expiry});
+    const auto context = market(100.0, effective);
+    const auto check_accumulator = [&](const auto& engine) {
+        const auto result = implied_volatility(engine, accumulator, context, 0.0);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::unsupported_operation);
+    };
+    check_accumulator(MonteCarloAccumulatorEngine{{64, 73}});
+    check_accumulator(FiniteDifferenceAccumulatorEngine{});
+}
+
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
 {
     const auto market = *kiyosi::make_pricing_context(
