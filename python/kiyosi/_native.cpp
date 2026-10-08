@@ -52,11 +52,12 @@ Attributes
 ----------
 category : ErrorCategory
     Stable machine-readable error category.)doc";
-    const nb::object exception_type = nb::steal<nb::object>(
+    nb::object exception_type = nb::steal<nb::object>(
         PyErr_NewException("kiyosi.KiyosiError", PyExc_Exception,
                            exception_attributes.ptr()));
     module.attr("KiyosiError") = exception_type;
-    nb::register_exception_translator(translate_domain_exception, exception_type.ptr());
+    // nanobind has no translator payload cleanup hook; retain the class for the interpreter lifetime.
+    nb::register_exception_translator(translate_domain_exception, exception_type.release().ptr());
 
     bind_market(module);
     bind_instruments(module);

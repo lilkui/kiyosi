@@ -79,6 +79,32 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_domain_exception_survives_removed_exports(self):
+        result = subprocess.run(
+            [sys.executable, "-c", textwrap.dedent("""
+                import gc
+                import weakref
+                import kiyosi
+                from kiyosi import _native
+
+                exception_type = weakref.ref(kiyosi.KiyosiError)
+                del kiyosi.KiyosiError
+                del _native.KiyosiError
+                gc.collect()
+                assert exception_type() is not None
+                try:
+                    _native.BlackScholesMertonParameters(
+                        risk_free_rate=0, dividend_yield=0, volatility=-1)
+                except Exception as error:
+                    assert type(error) is exception_type()
+                    assert error.category == _native.ErrorCategory.INVALID_VOLATILITY
+                else:
+                    raise AssertionError("invalid volatility was accepted")
+            """)],
+            capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+
     def test_digital_finite_difference_payoff_bounds(self):
         start = date(2025, 1, 6)
         context = PricingContext(model_parameters=BlackScholesMertonParameters(
