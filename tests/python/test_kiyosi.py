@@ -560,6 +560,29 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("conversion errors returned safely", result.stdout)
 
+    def test_bjerksund_respects_european_and_immediate_exercise_bounds(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        for option_type in ("call", "put"):
+            for spot, strike, rate, dividend, volatility in (
+                (200, 100, 0.02, 0.02, 0.6), (100, 100, 0, 0.02, 0.01),
+                (100, 100, 0, 0.1, 0.05), (200, 100, 0, 0.1, 0.01),
+            ):
+                if option_type == "put":
+                    spot, strike, rate, dividend = strike, spot, dividend, rate
+                with self.subTest(option_type=option_type, spot=spot, volatility=volatility):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate, dividend_yield=dividend, volatility=volatility,
+                        ), spot_price=spot, valuation_time=start,
+                    )
+                    terms = dict(option_type=option_type, strike=strike, effective_date=start, expiry_date=end)
+                    european = AnalyticVanillaEngine().price(EuropeanOption(**terms), context)
+                    american = pricing.BjerksundStenslandVanillaEngine().price(AmericanOption(**terms), context)
+                    intrinsic = max(spot - strike if option_type == "call" else strike - spot, 0)
+                    self.assertGreaterEqual(american, european - 1e-12)
+                    self.assertGreaterEqual(american, intrinsic)
+                    self.assertAlmostEqual(american, max(european, intrinsic), delta=1e-10)
+
     def test_bjerksund_negative_transformed_rates(self):
         engine = pricing.BjerksundStenslandVanillaEngine()
         start, end = date(2025, 1, 1), date(2026, 1, 1)

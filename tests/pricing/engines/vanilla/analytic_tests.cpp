@@ -39,6 +39,34 @@ TEST_CASE("Analytic charm retains dividend carry when density underflows")
     }
 }
 
+TEST_CASE("Bjerksund-Stensland respects European and immediate exercise bounds", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+        for (const auto inputs : {std::array{200.0, 100.0, 0.02, 0.02, 0.6},
+                                  std::array{100.0, 100.0, 0.0, 0.02, 0.01},
+                                  std::array{100.0, 100.0, 0.0, 0.1, 0.05},
+                                  std::array{200.0, 100.0, 0.0, 0.1, 0.01}}) {
+            const bool call = type == kiyosi::OptionType::call;
+            const double spot = inputs[call ? 0 : 1];
+            const double strike = inputs[call ? 1 : 0];
+            const auto context = *kiyosi::make_pricing_context(
+                *kiyosi::make_bsm_parameters(inputs[call ? 2 : 3], inputs[call ? 3 : 2], inputs[4]), spot, start);
+            const auto european = kiyosi::AnalyticVanillaEngine{}.price(
+                *kiyosi::make_european_option(type, strike, start, end), context);
+            const auto american = kiyosi::BjerksundStenslandVanillaEngine{}.price(
+                *kiyosi::make_american_option(type, strike, start, end), context);
+            CAPTURE(type, inputs);
+            REQUIRE(european);
+            REQUIRE(american);
+            CHECK(*american >= *european - 1e-12);
+            CHECK(*american >= std::max(call ? spot - strike : strike - spot, 0.0));
+            CHECK_THAT(*american, Catch::Matchers::WithinAbs(std::max(*european, std::max(call ? spot - strike : strike - spot, 0.0)), 1e-10));
+        }
+    }
+}
+
 TEST_CASE("Analytic European calls and puts obey BSM identities")
 {
     using Catch::Matchers::WithinAbs;

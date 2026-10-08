@@ -148,7 +148,13 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const Americ
                              : bjerksund_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
-    return make_pricing_result(std::max(value, 0.0));
+    const double intrinsic = std::max(option.option_type() == OptionType::call ? spot - strike : strike - spot, 0.0);
+    const double continuation = time == 0.0 ? intrinsic
+                               : option.option_type() == OptionType::call ? european_call(spot, strike, time, rate, dividend, volatility)
+                                                                          : european_call(strike, spot, time, dividend, rate, volatility);
+    if (!std::isfinite(continuation))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland continuation produced a non-finite result"});
+    return make_pricing_result(std::max({value, intrinsic, continuation}));
 }
 
 } // namespace kiyosi
