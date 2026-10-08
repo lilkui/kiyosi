@@ -78,6 +78,29 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_barrier_finite_difference_preserves_volatility_tails(self):
+        start = date(2025, 1, 1)
+        end = start + timedelta(days=1825)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0, volatility=0.8
+            ),
+            spot_price=100, valuation_time=start, calendar=market.all_days_calendar(),
+        )
+        for mode in ("continuous", "scheduled"):
+            option = BarrierOption(
+                option_type="call", strike=100, effective_date=start, expiry_date=end,
+                barrier_level=0.01, barrier_type="down_and_out", observation_mode=mode,
+                observation_dates=[end] if mode == "scheduled" else [],
+            )
+            expected = AnalyticBarrierEngine().price(option, context)
+            for assets, times in ((200, 200), (800, 1000)):
+                with self.subTest(mode=mode, assets=assets, times=times):
+                    engine = pricing.FiniteDifferenceBarrierEngine(
+                        asset_step_count=assets, time_step_count=times
+                    )
+                    self.assertAlmostEqual(engine.price(option, context), expected, delta=0.02)
+
     def test_analytic_low_volatility_and_default_implied_volatility(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end)

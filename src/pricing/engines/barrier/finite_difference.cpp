@@ -50,8 +50,11 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
         for (int index = 0; index <= asset_step_count; ++index)
             if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
+        const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
+        const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
         Boundaries edges{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
-                         option.option_type() == OptionType::call ? upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau) : 0.0};
+                         sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
+                                 strike * std::exp(-rate * tau) * probabilities.cash)};
         if (option.observation_mode() == ObservationMode::continuous) {
             if (knocked(0.0)) edges.lower = rebate_value(tau);
             if (knocked(upper)) edges.upper = rebate_value(tau);

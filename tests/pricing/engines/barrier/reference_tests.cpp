@@ -4,6 +4,7 @@
 #include <chrono>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "support/reference_harness.hpp"
 
@@ -12,6 +13,31 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Finite-difference barriers preserve long-expiry volatility tails")
+{
+    const auto start = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = start + std::chrono::days{1825};
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.0, 0.8), 100.0, start, kiyosi::all_days_calendar());
+    for (const auto mode : {kiyosi::ObservationMode::continuous, kiyosi::ObservationMode::scheduled}) {
+        const auto option = *kiyosi::make_barrier_option(
+            {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
+             .barrier_level = 0.01, .barrier_type = kiyosi::BarrierType::down_and_out,
+             .observation_mode = mode,
+             .observation_dates = mode == kiyosi::ObservationMode::scheduled
+                                      ? std::vector<kiyosi::Date>{end}
+                                      : std::vector<kiyosi::Date>{}});
+        const auto expected = kiyosi::AnalyticBarrierEngine{}.price(option, context);
+        REQUIRE(expected);
+        for (const auto settings : {kiyosi::FiniteDifferenceSettings{}, kiyosi::FiniteDifferenceSettings{800, 1000}}) {
+            CAPTURE(mode, settings.asset_step_count, settings.time_step_count);
+            const auto price = kiyosi::FiniteDifferenceBarrierEngine{settings}.price(option, context);
+            REQUIRE(price);
+            CHECK_THAT(*price, Catch::Matchers::WithinAbs(*expected, 0.02));
+        }
+    }
+}
 
 TEST_CASE("Finite-difference automatic domains include distant barriers")
 {
