@@ -514,6 +514,36 @@ TEST_CASE("Implied solvers keep one seed for every trial without changing the en
     for (const auto seed : calls)
         CHECK(seed == 73);
 }
+TEST_CASE("Implied accumulator volatility rejects immediate knock-out settlements", "[pricing-api]")
+{
+    const auto option = *make_accumulator(
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0,
+         .accumulated_quantity = 5.0, .effective_date = effective, .expiry_date = expiry});
+    const auto check = [&](const auto& engine) {
+        for (const double spot : {120.0, 130.0}) {
+            const auto context = market(spot);
+            const auto quote = engine.price(option, context);
+            REQUIRE(quote);
+            CHECK(*quote == 5.0 * (spot - 100.0));
+            const auto implied = implied_volatility(engine, option, context, *quote);
+            REQUIRE_FALSE(implied);
+            CHECK(implied.error().category == ErrorCategory::unsupported_operation);
+        }
+        for (const auto time : {start_of_day(valuation) + std::chrono::hours{12},
+                                start_of_day(day(2025, 7, 5))}) {
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), 130.0, time);
+            const auto quote = engine.price(option, context);
+            REQUIRE(quote);
+            const auto implied = implied_volatility(engine, option, context, *quote,
+                                                     {.lower_bound = 0.3, .upper_bound = 0.4});
+            REQUIRE(implied);
+            CHECK(*implied == 0.3);
+        }
+    };
+    check(MonteCarloAccumulatorEngine{{64, 7}});
+    check(FiniteDifferenceAccumulatorEngine{{.asset_step_count = 40, .time_step_count = 40}});
+}
+
 TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility sensitivities", "[pricing-api]")
 {
     const auto accumulator = *kiyosi::make_accumulator({.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});

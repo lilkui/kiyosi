@@ -118,8 +118,13 @@ template <typename Engine, typename Option>
             identifiable = identifiable && exposed;
         }
     }
-    if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); })
-        identifiable = identifiable && (option.accumulated_quantity() != 0.0 || option.daily_quantity() != 0.0);
+    if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); }) {
+        const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&
+                                     context.calendar().is_trading_day(context.valuation_date()) &&
+                                     context.spot_price() >= option.knock_out_level();
+        identifiable = identifiable && !knocked_out_now &&
+                       (option.accumulated_quantity() != 0.0 || option.daily_quantity() != 0.0);
+    }
     if constexpr (requires { option.barrier_terms(); }) {
         const auto& terms = option.barrier_terms();
         const bool touched = *terms.was_touched_before(context.valuation_time()) ||

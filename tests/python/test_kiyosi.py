@@ -79,6 +79,29 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_implied_accumulator_volatility_rejects_immediate_knock_out(self):
+        start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        option = Accumulator(
+            strike=100, knock_out_level=120, daily_quantity=1, acceleration_factor=2,
+            accumulated_quantity=5, effective_date=start, expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3)
+        for engine in (pricing.MonteCarloAccumulatorEngine(path_count=64, seed=7),
+                       pricing.FiniteDifferenceAccumulatorEngine(asset_step_count=40, time_step_count=40)):
+            for spot in (120, 130):
+                with self.subTest(engine=type(engine).__name__, spot=spot):
+                    context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=observed)
+                    quote = engine.price(option, context)
+                    self.assertEqual(quote, 5 * (spot - 100))
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        implied_volatility(engine, option, context, quote)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+            for time in (datetime(2025, 7, 1, 12, tzinfo=UTC), date(2025, 7, 5)):
+                context = PricingContext(model_parameters=parameters, spot_price=130, valuation_time=time)
+                quote = engine.price(option, context)
+                self.assertEqual(implied_volatility(engine, option, context, quote,
+                                                    lower_bound=0.3, upper_bound=0.4), 0.3)
+
     def test_spot_greeks_omit_bumps_crossing_current_events(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3)
