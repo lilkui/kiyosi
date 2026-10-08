@@ -834,6 +834,31 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("conversion errors returned safely", result.stdout)
 
+    def test_analytic_large_volatility_limit(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        engine = AnalyticVanillaEngine()
+        for volatility in (1e155, 1e308):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=volatility,
+                ), spot_price=100, valuation_time=start,
+            )
+            for direction in ("call", "put"):
+                with self.subTest(volatility=volatility, direction=direction):
+                    call = direction == "call"
+                    option = EuropeanOption(option_type=direction, strike=100,
+                                            effective_date=start, expiry_date=end)
+                    expected = 100 * math.exp(-0.02 if call else -0.05)
+                    self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-12)
+                    result = engine.price_with_greeks(option, context, all_greeks=True)
+                    self.assertAlmostEqual(result.price, expected, delta=1e-12)
+                    self.assertAlmostEqual(result.delta, math.exp(-0.02) if call else 0, delta=1e-15)
+                    self.assertAlmostEqual(result.rho, 0 if call else -math.exp(-0.05), delta=1e-15)
+                    self.assertEqual(result.gamma, 0)
+                    self.assertEqual(result.vega, 0)
+                    for greek in get_args(kiyosi.Greek):
+                        self.assertTrue(math.isfinite(getattr(result, greek)))
+
     def test_bjerksund_respects_european_and_immediate_exercise_bounds(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         for option_type in ("call", "put"):

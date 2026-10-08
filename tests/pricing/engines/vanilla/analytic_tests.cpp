@@ -14,6 +14,36 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic European prices preserve the large-volatility limit", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = start + std::chrono::days{365};
+    const kiyosi::AnalyticVanillaEngine engine;
+    for (const double volatility : {1e155, 1e308}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.05, 0.02, volatility), 100.0, start);
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            CAPTURE(volatility, type);
+            const bool call = type == kiyosi::OptionType::call;
+            const auto option = *kiyosi::make_european_option(type, 100.0, start, end);
+            const double expected = 100.0 * std::exp(call ? -0.02 : -0.05);
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected, 1e-12));
+            const auto result = engine.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
+            REQUIRE(result);
+            CHECK_THAT(result->price(), Catch::Matchers::WithinAbs(expected, 1e-12));
+            CHECK(result->all_finite());
+            CHECK_THAT(greek_value(*result, kiyosi::Greek::delta),
+                       Catch::Matchers::WithinAbs(call ? std::exp(-0.02) : 0.0, 1e-15));
+            CHECK_THAT(greek_value(*result, kiyosi::Greek::rho),
+                       Catch::Matchers::WithinAbs(call ? 0.0 : -std::exp(-0.05), 1e-15));
+            CHECK(greek_value(*result, kiyosi::Greek::gamma) == 0.0);
+            CHECK(greek_value(*result, kiyosi::Greek::vega) == 0.0);
+        }
+    }
+}
+
 TEST_CASE("Analytic charm retains dividend carry when density underflows")
 {
     const auto start = day(2025, 1, 1);

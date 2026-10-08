@@ -28,9 +28,10 @@ inline BlackScholesProbabilities black_scholes_probabilities(
         const double exercised = sign * (spot * std::exp((rate - dividend) * time) - strike) > 0.0 ? 1.0 : 0.0;
         return {0.0, 0.0, exercised, exercised};
     }
-    const double d1 = (std::log(spot / strike) +
-                       (rate - dividend + 0.5 * volatility * volatility) * time) / volatility_time;
-    const double d2 = d1 - volatility_time;
+    const double standardized_forward =
+        (std::log(spot) - std::log(strike) + (rate - dividend) * time) / volatility_time;
+    const double d1 = standardized_forward + 0.5 * volatility_time;
+    const double d2 = standardized_forward - 0.5 * volatility_time;
     return {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)};
 }
 
