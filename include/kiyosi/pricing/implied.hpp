@@ -232,7 +232,7 @@ inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double 
 template <typename Engine, typename Option, typename ReplaceCoupon>
 [[nodiscard]] Result<double> solve_implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedCouponSettings settings, bool shifts_maturity_coupon, const ReplaceCoupon& replace_coupon)
+    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon)
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
         !std::isfinite(settings.upper_bound) ||
@@ -245,11 +245,11 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
-            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, shifts_maturity_coupon, replace_coupon);
+            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon);
         }
     }
 
-    const auto evaluate = [&](double coupon) -> Result<double> {
+    const auto price_at_coupon = [&](double coupon) -> Result<double> {
         auto replaced = replace_coupon(option, coupon);
         if (!replaced) return std::unexpected(replaced.error());
         auto priced = engine.price(*replaced, context);
@@ -257,42 +257,32 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         if (!std::isfinite(*priced))
             return std::unexpected(Error{ErrorCategory::solver_non_finite,
                                          "implied-coupon pricing became non-finite"});
-        return *priced - observed_price;
+        return *priced;
     };
 
     const double lo = settings.lower_bound;
     const double hi = settings.upper_bound;
-    auto flo = evaluate(lo);
-    if (!flo) return std::unexpected(flo.error());
-    auto fhi = evaluate(hi);
-    if (!fhi) return std::unexpected(fhi.error());
-    // A coupon needs an unsettled accrual period or a maturity coupon that moves.
-    bool remaining_coupon = false;
-    for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
-        const auto date = option.observation_dates()[i];
-        const auto period_start = [&] {
-            if constexpr (requires { option.coupon_barrier_levels(); })
-                if (i > 0) return option.observation_dates()[i - 1];
-            return option.effective_date();
-        }();
-        if (start_of_day(date) >= context.valuation_time() && date > period_start)
-            remaining_coupon = true;
-    }
-    if constexpr (requires { option.maturity_coupon_rate(); }) {
-        bool maturity_coupon_payable = true;
-        if constexpr (requires { option.knock_in_level(); })
-            maturity_coupon_payable = option.barrier_state() != AutocallableBarrierState::knocked_in;
-        remaining_coupon = remaining_coupon || (shifts_maturity_coupon && maturity_coupon_payable);
-    }
-    if (option.barrier_state() == AutocallableBarrierState::knocked_out || !remaining_coupon)
+    const auto lower_price = price_at_coupon(lo);
+    if (!lower_price) return std::unexpected(lower_price.error());
+    const auto upper_price = price_at_coupon(hi);
+    if (!upper_price) return std::unexpected(upper_price.error());
+    // Coupon shifts change payoffs affinely; equal endpoint prices have no sampled quote exposure.
+    if (*lower_price == *upper_price)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "coupon does not affect the remaining cashflows"});
-    if (std::abs(*flo) <= settings.price_tolerance) return lo;
-    if (std::abs(*fhi) <= settings.price_tolerance) return hi;
-    if ((*flo < 0.0) == (*fhi < 0.0))
+    const double flo = *lower_price - observed_price;
+    const double fhi = *upper_price - observed_price;
+    if (std::abs(flo) <= settings.price_tolerance) return lo;
+    if (std::abs(fhi) <= settings.price_tolerance) return hi;
+    if ((flo < 0.0) == (fhi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_coupon,
                                      "price is not bracketed by coupon bounds"});
-    return detail::bisect_implied(settings, *flo, evaluate,
+    const auto evaluate = [&](double coupon) -> Result<double> {
+        auto priced = price_at_coupon(coupon);
+        if (!priced) return std::unexpected(priced.error());
+        return *priced - observed_price;
+    };
+    return detail::bisect_implied(settings, flo, evaluate,
                                   "implied-coupon solver did not converge");
 }
 
@@ -307,7 +297,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// A root is not guaranteed unique; states with no remaining quoted coupon exposure are rejected.
+/// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
@@ -318,8 +308,7 @@ template <typename Engine, typename Option>
     }
 {
     return detail::solve_implied_coupon(
-        engine, option, context, observed_price, settings,
-        convention == CouponQuoteConvention::shift_maturity_coupon, [convention](const Option& value, double coupon) {
+        engine, option, context, observed_price, settings, [convention](const Option& value, double coupon) {
             return detail::replace_coupon(value, coupon, convention);
         });
 }
@@ -327,6 +316,7 @@ template <typename Engine, typename Option>
 /// Bisects the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_coupon(
@@ -335,7 +325,7 @@ template <typename Engine, typename Option>
     requires requires(const Option& value, double coupon) { detail::replace_coupon(value, coupon); }
 {
     return detail::solve_implied_coupon(
-        engine, option, context, observed_price, settings, false,
+        engine, option, context, observed_price, settings,
         [](const Option& value, double coupon) { return detail::replace_coupon(value, coupon); });
 }
 

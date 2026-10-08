@@ -148,6 +148,57 @@ class KiyosiPythonTests(unittest.TestCase):
             expected = 0 if spot < 120 else 10 * math.exp(-0.05 * 364 / 365)
             self.assertEqual(AnalyticBinaryBarrierEngine().price(touch, context), expected)
 
+    def test_implied_phoenix_coupon_requires_payable_coupon(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        for valuation in (fixing, end):
+            barrier = 90 if valuation == end else 130
+            note = PhoenixOption(
+                coupon_rate=0.1, initial_spot=100, knock_in_level=70,
+                knock_out_levels=[120, 120], coupon_barrier_levels=[barrier, 90],
+                upper_strike=100, lower_strike=0, observation_dates=[fixing, end],
+                knock_in_observation_mode="every_trading_day", barrier_state="none",
+                effective_date=start, expiry_date=end,
+            )
+            for spot in (80, 90, 120):
+                context = PricingContext(
+                    model_parameters=self.parameters, spot_price=spot, valuation_time=valuation
+                )
+                for engine in (pricing.MonteCarloPhoenixEngine(path_count=64, seed=1),
+                               pricing.FiniteDifferencePhoenixEngine(asset_step_count=40, time_step_count=40, asset_upper_boundary=400)):
+                    with self.subTest(valuation=valuation, spot=spot, engine=engine):
+                        quote = engine.price(note, context)
+                        if (valuation == end and spot < barrier) or (valuation == fixing and spot >= 120):
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                implied_coupon(engine, note, context, quote)
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                        else:
+                            self.assertAlmostEqual(implied_coupon(engine, note, context, quote), 0.1, delta=1e-7)
+
+    def test_implied_snowball_coupon_respects_terminal_state(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = standard_snowball(
+            coupon_rate=0.1, initial_spot=100, knock_in_level=70, knock_out_level=120,
+            observation_dates=[end], effective_date=start, expiry_date=end, barrier_state="none",
+        )
+        for spot in (60, 80, 120):
+            context = PricingContext(
+                model_parameters=self.parameters, spot_price=spot, valuation_time=end
+            )
+            for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
+                for engine in (pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
+                               pricing.FiniteDifferenceSnowballEngine(asset_step_count=40, time_step_count=40)):
+                    with self.subTest(spot=spot, convention=convention, engine=engine):
+                        quote = engine.price(note, context)
+                        if spot < 70 or (spot < 120 and convention == "preserve_maturity_coupon"):
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                implied_coupon(engine, note, context, quote, quote_convention=convention)
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                        else:
+                            self.assertAlmostEqual(
+                                implied_coupon(engine, note, context, quote, quote_convention=convention),
+                                0.1, delta=1e-7,
+                            )
+
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys

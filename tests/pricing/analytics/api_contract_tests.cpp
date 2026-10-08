@@ -482,6 +482,73 @@ TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[p
     CHECK_FALSE(result->has(kiyosi::Greek::color));
 }
 
+TEST_CASE("Implied Phoenix coupon requires a payable coupon", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto check = [&](const auto& engine) {
+        for (const bool at_expiry : {true, false}) {
+            for (const double spot : {80.0, 90.0, 120.0}) {
+                CAPTURE(at_expiry, spot);
+                const auto date = at_expiry ? end : day(2025, 7, 1);
+                const double barrier = at_expiry ? 90.0 : 130.0;
+                const auto note = *kiyosi::make_phoenix_option(
+                    {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0,
+                     .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {barrier, 90.0},
+                     .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {day(2025, 7, 1), end},
+                     .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+                const auto context = *kiyosi::make_pricing_context(parameters, spot, date);
+                const auto quote = engine.price(note, context);
+                REQUIRE(quote);
+                const auto implied = kiyosi::implied_coupon(engine, note, context, *quote);
+                if ((at_expiry && spot < barrier) || (!at_expiry && spot >= 120.0)) {
+                    REQUIRE_FALSE(implied);
+                    CHECK(implied.error().category == kiyosi::ErrorCategory::unsupported_operation);
+                } else {
+                    REQUIRE(implied);
+                    CHECK(*implied == Catch::Approx(0.1).margin(1e-7));
+                }
+            }
+        }
+    };
+    check(kiyosi::MonteCarloPhoenixEngine{{64, 1}});
+    check(kiyosi::FiniteDifferencePhoenixEngine{{.asset_step_count = 40, .time_step_count = 40, .asset_upper_boundary = 400.0}});
+}
+
+TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote convention", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto note = *kiyosi::make_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0,
+         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0,
+         .observation_dates = {end}, .barrier_state = kiyosi::AutocallableBarrierState::none,
+         .effective_date = start, .expiry_date = end});
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto check = [&](const auto& engine) {
+        for (const double spot : {60.0, 80.0, 120.0}) {
+            CAPTURE(spot);
+            const auto context = *kiyosi::make_pricing_context(parameters, spot, end);
+            const auto quote = engine.price(note, context);
+            REQUIRE(quote);
+            for (const auto convention : {kiyosi::CouponQuoteConvention::shift_maturity_coupon,
+                                          kiyosi::CouponQuoteConvention::preserve_maturity_coupon}) {
+                const auto implied = kiyosi::implied_coupon(engine, note, context, *quote, convention);
+                if (spot < 70.0 || (spot < 120.0 && convention == kiyosi::CouponQuoteConvention::preserve_maturity_coupon)) {
+                    REQUIRE_FALSE(implied);
+                    CHECK(implied.error().category == kiyosi::ErrorCategory::unsupported_operation);
+                } else {
+                    REQUIRE(implied);
+                    CHECK(*implied == Catch::Approx(0.1).margin(1e-7));
+                }
+            }
+        }
+    };
+    check(kiyosi::MonteCarloSnowballEngine{{64, 1}});
+    check(kiyosi::FiniteDifferenceSnowballEngine{{40, 40}});
+}
+
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
 {
     const auto market = *kiyosi::make_pricing_context(
