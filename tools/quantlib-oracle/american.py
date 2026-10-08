@@ -49,9 +49,8 @@ def exclusions(inputs):
 
 
 @lru_cache(maxsize=4096)
-def native(encoded, grid):
-    inputs = json.loads(encoded)
-    option = g.vanilla_option(inputs, grid)
+def native(items, grid):
+    option = g.vanilla_option(dict(items), grid)
     result = {"price": option.NPV(), "delta": option.delta(), "gamma": option.gamma()}
     g.require(
         all(math.isfinite(v) for v in result.values()), "non-finite American result"
@@ -61,7 +60,7 @@ def native(encoded, grid):
 
 def measure(inputs, name, grid=GRIDS[-1], scale=1):
     if name in {"price", "delta", "gamma"}:
-        return native(json.dumps(inputs, sort_keys=True), grid)[name]
+        return native(tuple(sorted(inputs.items())), grid)[name]
     field, base, bump, unit = {
         "speed": ("spot", "gamma", 0.5, 1),
         "theta": ("valuation", "price", 1, 1),

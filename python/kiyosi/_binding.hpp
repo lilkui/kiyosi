@@ -12,6 +12,7 @@
 #include <exception>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -366,6 +367,14 @@ inline PythonDateObject python_date(Date value)
     return PythonDateObject{datetime.attr("date")(
         static_cast<int>(parts.year()), static_cast<unsigned>(parts.month()),
         static_cast<unsigned>(parts.day()))};
+}
+
+/// Returns a fresh Python list of date values; requires the GIL.
+inline PythonDateList python_dates(std::span<const Date> values)
+{
+    PythonDateList output;
+    for (const Date value : values) output.append(python_date(value));
+    return output;
 }
 
 inline PythonTimestampObject python_timestamp(Timestamp value)

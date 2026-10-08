@@ -132,13 +132,8 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     if (!schedule) return std::unexpected(schedule.error());
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
-    if (settings_.path_count <= 0 || settings_.path_count > maximum_monte_carlo_path_count)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "structured Monte Carlo path count is out of range"});
-    if (settings_.backend != MonteCarloBackend::cpu &&
-        settings_.backend != MonteCarloBackend::cuda)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "Monte Carlo backend is invalid"});
+    const auto settings_valid = validate_monte_carlo_settings(settings_);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 

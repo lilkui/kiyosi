@@ -155,23 +155,7 @@ void bind_average_option(
     Result<AverageOptionType> (*factory)(OptionType, double, Date, Date, Date, double))
 {
     auto binding = nb::class_<AverageOptionType>(
-                       module, name, R"doc(Immutable validated average-price option.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-averaging_start_date : datetime.date
-    First date included in the averaging period. Equality with expiry denotes a single fixing.
-realized_average : float
-    Average realized before valuation time, or zero before averaging begins.
-    Geometric averaging requires a positive value after averaging starts.
-effective_date : datetime.date
-    First date on which the contract is effective.
-expiry_date : datetime.date
-    Contract expiry at 00:00 UTC.)doc")
+                       module, name, R"doc(Immutable validated average-price option.)doc")
                        .def(nb::new_([factory](PythonChoice<OptionType> type, PythonReal strike,
                                                PythonDate averaging_start_date, PythonDate effective_date,
                                                PythonDate expiry_date, PythonReal realized_average) {
@@ -192,13 +176,15 @@ option_type : {'call', 'put'}
 strike : float
     Positive strike price.
 averaging_start_date : datetime.date
-    First date included in the averaging period.
+    First date included in the averaging period. Equality with expiry denotes a single fixing.
 effective_date : datetime.date
     First date on which the contract is effective.
 expiry_date : datetime.date
     Contract expiry at 00:00 UTC.
 realized_average : float, optional
-    Average already realized; defaults to the core-owned pre-averaging value.
+    Average realized before valuation time, or zero before averaging begins.
+    Geometric averaging requires a positive value after averaging starts.
+    Defaults to the core-owned pre-averaging value.
 
 Raises
 ------
@@ -206,8 +192,8 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the terms or date ordering.)doc")
-                       .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) { return python_date(value.averaging_start_date()); }, "First date included in the averaging period.")
-                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation.");
+                       .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) { return python_date(value.averaging_start_date()); }, "First date included in the averaging period; equality with expiry denotes a single fixing.")
+                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation, or zero before averaging begins; geometric averaging requires a positive value after averaging starts.");
     bind_common_option_properties(binding, name,
                                   {"option_type", "strike", "averaging_start_date", "effective_date", "expiry_date", "realized_average"});
 }
@@ -219,18 +205,7 @@ void bind_instruments(nb::module_& module)
     auto european = nb::class_<EuropeanOption>(
                         module, "EuropeanOption", R"doc(Immutable validated European vanilla option.
 
-The payoff can be exercised only at expiry.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-effective_date : datetime.date
-    First date on which the contract is effective.
-expiry_date : datetime.date
-    Contract expiry at 00:00 UTC.)doc")
+The payoff can be exercised only at expiry.)doc")
                         .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
                                          PythonDate expiry_date) {
                                  return unwrap(make_european_option(
@@ -262,18 +237,7 @@ KiyosiError
     auto american = nb::class_<AmericanOption>(
                         module, "AmericanOption", R"doc(Immutable validated American vanilla option.
 
-The payoff may be exercised from the effective date through expiry.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-effective_date : datetime.date
-    First exercise date.
-expiry_date : datetime.date
-    Last exercise date.)doc")
+The payoff may be exercised from the effective date through expiry.)doc")
                         .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
                                          PythonDate expiry_date) {
                                  return unwrap(make_american_option(
@@ -303,20 +267,7 @@ KiyosiError
     bind_common_option_properties(american, "AmericanOption");
 
     auto cash = nb::class_<CashOrNothingOption>(
-                    module, "CashOrNothingOption", R"doc(Immutable validated cash-or-nothing digital option.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-payout : float
-    Fixed cash amount paid when the option finishes in the money.
-effective_date : datetime.date
-    First date on which the contract is effective.
-expiry_date : datetime.date
-    Contract expiry at 00:00 UTC.)doc")
+                    module, "CashOrNothingOption", R"doc(Immutable validated cash-or-nothing digital option.)doc")
                     .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonReal payout,
                                      PythonDate effective_date, PythonDate expiry_date) {
                              return unwrap(make_cash_or_nothing_option(
@@ -350,18 +301,7 @@ KiyosiError
     bind_common_option_properties(cash, "CashOrNothingOption", {"option_type", "strike", "payout", "effective_date", "expiry_date"});
 
     auto asset = nb::class_<AssetOrNothingOption>(
-                     module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-effective_date : datetime.date
-    First date on which the contract is effective.
-expiry_date : datetime.date
-    Contract expiry at 00:00 UTC.)doc")
+                     module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.)doc")
                      .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
                                       PythonDate expiry_date) {
                               return unwrap(make_asset_or_nothing_option(
@@ -397,30 +337,7 @@ KiyosiError
                        module, "BarrierOption", R"doc(Immutable validated barrier option.
 
 Scheduled barriers are observed only on ``observation_dates``; continuous
-barriers require no schedule.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-    Barrier direction and knock-in or knock-out behavior.
-rebate : float
-    Rebate amount.
-rebate_timing : {'at_hit', 'at_expiry'}
-    Time at which the rebate is paid.
-observation_mode : {'continuous', 'scheduled'}
-    Continuous or scheduled monitoring.
-observation_dates : list[datetime.date]
-    Ordered scheduled monitoring dates.
-touch_state : {'untouched', 'touched'} or None
-    Barrier touch history before valuation.)doc")
+barriers require no schedule.)doc")
                        .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
                                         PythonDate expiry_date, PythonReal barrier, PythonChoice<BarrierType> barrier_type,
                                         PythonReal rebate, PythonChoice<RebateTiming> rebate_timing,
@@ -475,9 +392,7 @@ KiyosiError
                        .def_prop_ro("observation_mode", &BarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                        .def_prop_ro("touch_state", &BarrierOption::touch_state, "Barrier touch history before valuation.")
                        .def_prop_ro("observation_dates", [](const BarrierOption& value) {
-            PythonDateList output;
-            for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
+            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_common_option_properties(barrier, "BarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
@@ -485,30 +400,7 @@ KiyosiError
                               module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
 
 Instances are created by :func:`cash_binary_barrier_option` or
-:func:`asset_binary_barrier_option`.
-
-Attributes
-----------
-option_type : {'call', 'put'}
-    Call or put payoff direction.
-strike : float
-    Positive strike price.
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-barrier_type : {'up_and_in', 'up_and_out', 'down_and_in', 'down_and_out'}
-    Barrier direction and activation behavior.
-payoff_type : {'cash', 'asset'}
-    Cash or asset delivery.
-payout : float or None
-    Cash payout, or ``None`` for an asset payoff.
-observation_mode : {'continuous', 'scheduled'}
-    Continuous or scheduled monitoring.
-observation_dates : list[datetime.date]
-    Ordered scheduled monitoring dates.
-touch_state : {'untouched', 'touched'} or None
-    Barrier touch history before valuation.)doc")
+:func:`asset_binary_barrier_option`.)doc")
                               .def_prop_ro("barrier_level", &BinaryBarrierOption::barrier_level, "Positive barrier level.")
                               .def_prop_ro("barrier_type", &BinaryBarrierOption::barrier_type, "Barrier direction and activation behavior.")
                               .def_prop_ro("payoff_type", &BinaryBarrierOption::payoff_type, "Cash or asset delivery form.")
@@ -519,9 +411,7 @@ touch_state : {'untouched', 'touched'} or None
                               .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                               .def_prop_ro("touch_state", &BinaryBarrierOption::touch_state, "Barrier touch history before valuation.")
                               .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
-            PythonDateList output;
-            for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
+            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_common_option_properties(binary_barrier, "BinaryBarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
 
@@ -607,30 +497,7 @@ KiyosiError
                      module, "TouchOption", R"doc(Immutable validated one-touch or no-touch option.
 
 Instances are created by the ``cash_*_touch_*`` and ``asset_*_touch_*``
-factory functions.
-
-Attributes
-----------
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-is_one_touch : bool
-    Whether hitting the barrier activates rather than cancels the payoff.
-is_up : bool
-    Whether the barrier is above the spot direction.
-payoff_type : {'cash', 'asset'}
-    Cash or asset delivery.
-payout : float or None
-    Cash payout, or ``None`` for an asset payoff.
-settlement_timing : {'at_hit', 'at_expiry'}
-    Settlement time for a one-touch payoff.
-observation_mode : {'continuous', 'scheduled'}
-    Continuous or scheduled monitoring.
-observation_dates : list[datetime.date]
-    Ordered scheduled monitoring dates.
-touch_state : {'untouched', 'touched'} or None
-    Barrier touch history before valuation.)doc")
+factory functions.)doc")
                      .def_prop_ro("effective_date", [](const TouchOption& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
                      .def_prop_ro("expiry_date", [](const TouchOption& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.")
                      .def_prop_ro("barrier_level", &TouchOption::barrier_level, "Positive barrier level.")
@@ -645,9 +512,7 @@ touch_state : {'untouched', 'touched'} or None
                      .def_prop_ro("observation_mode", &TouchOption::observation_mode, "Continuous or scheduled monitoring mode.")
                      .def_prop_ro("touch_state", &TouchOption::touch_state, "Barrier touch history before valuation.")
                      .def_prop_ro("observation_dates", [](const TouchOption& value) {
-            PythonDateList output;
-            for (const Date item : value.observation_dates()) output.append(python_date(item));
-            return output; }, "Copy of the scheduled observations at 00:00 UTC.");
+            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
     bind_repr(touch, "TouchOption",
               {"effective_date", "expiry_date", "barrier_level", "is_one_touch", "is_up", "payoff_type", "payout", "settlement_timing", "observation_mode", "observation_dates", "touch_state"});
@@ -688,22 +553,7 @@ touch_state : {'untouched', 'touched'} or None
                                                                                                                                                                                                                                                                         date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc);
 
     auto accumulator = nb::class_<Accumulator>(
-                           module, "Accumulator", R"doc(Immutable validated accumulator contract.
-
-Attributes
-----------
-strike : float
-    Positive purchase strike.
-knock_out_level : float
-    Positive upper knock-out level.
-daily_quantity : float
-    Base quantity accumulated per trading day.
-acceleration_factor : float
-    Quantity multiplier applied below the strike.
-accumulated_quantity : float
-    Quantity already accumulated at valuation.
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.)doc")
+                           module, "Accumulator", R"doc(Immutable validated accumulator contract.)doc")
                            .def(nb::new_([](PythonReal strike, PythonReal knock_out,
                                             PythonReal daily_quantity, PythonReal acceleration,
                                             PythonReal accumulated_quantity, PythonDate effective_date,

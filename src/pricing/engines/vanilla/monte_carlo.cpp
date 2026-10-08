@@ -35,25 +35,10 @@ Result<double> simulation_time(const PricingContext& context, Date effective_dat
     return detail::actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
 }
 
-Result<void> validate_settings(MonteCarloSettings settings)
-{
-    if (settings.path_count <= 0 || settings.path_count > detail::maximum_monte_carlo_path_count)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "Monte Carlo path count is out of range"});
-    if (settings.step_count < 2 || settings.step_count > detail::maximum_vanilla_monte_carlo_step_count)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "Monte Carlo step count is out of range"});
-    if (settings.backend != MonteCarloBackend::cpu &&
-        settings.backend != MonteCarloBackend::cuda)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "Monte Carlo backend is invalid"});
-    return {};
-}
-
 Result<SimulationParameters> simulation_parameters(
     const PricingContext& context, double time, MonteCarloSettings settings)
 {
-    const auto valid = validate_settings(settings);
+    const auto valid = detail::validate_monte_carlo_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     const double volatility = context.model_parameters().volatility();
     const double dt = time / static_cast<double>(settings.step_count - 1);

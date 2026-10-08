@@ -77,13 +77,8 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (settings_.path_count <= 0 || settings_.path_count > maximum_monte_carlo_path_count)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "structured Monte Carlo path count is out of range"});
-    if (settings_.backend != MonteCarloBackend::cpu &&
-        settings_.backend != MonteCarloBackend::cuda)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "Monte Carlo backend is invalid"});
+    const auto settings_valid = validate_monte_carlo_settings(settings_);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 

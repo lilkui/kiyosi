@@ -218,15 +218,10 @@ dates : list[datetime.date]
                             return python_date(schedule[static_cast<std::size_t>(index)]);
                         })
                         .def("__iter__", [](const ObservationSchedule& schedule) {
-                            PythonDateList output;
-                            for (const Date value : schedule.dates())
-                                output.append(python_date(value));
-                            return PythonDateIterator{output.attr("__iter__")()};
+                            return PythonDateIterator{python_dates(schedule.dates()).attr("__iter__")()};
                         })
                         .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
-            PythonDateList output;
-            for (const Date value : schedule.dates()) output.append(python_date(value));
-            return output; }, "Copy of the ordered observation dates.");
+            return python_dates(schedule.dates()); }, "Copy of the ordered observation dates.");
     bind_value_equality(schedule);
     bind_repr(schedule, "ObservationSchedule", {"dates"});
 

@@ -1331,6 +1331,55 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertEqual(context.valuation_time, latest)
 
+    def test_observation_dates_are_independent_copies(self):
+        effective = date(2025, 1, 1)
+        expiry = date(2025, 1, 31)
+        dates = [date(2025, 1, 13), date(2025, 1, 21), expiry]
+        schedule = fixed_interval_schedule(start=effective, end=expiry, interval_days=10)
+        terms = dict(
+            effective_date=effective,
+            expiry_date=expiry,
+            barrier_level=120,
+            observation_mode="scheduled",
+            observation_dates=dates,
+        )
+        barrier = BarrierOption(
+            **terms, option_type="call", strike=100, barrier_type="up_and_out"
+        )
+        binary = cash_binary_barrier_option(
+            **terms, option_type="call", strike=100, barrier_type="up_and_out", payout=10
+        )
+        touch = cash_one_touch_up(**terms, payout=10)
+        note = standard_snowball(
+            coupon_rate=0.1,
+            initial_spot=100,
+            knock_in_level=80,
+            knock_out_level=105,
+            observation_dates=dates,
+            effective_date=effective,
+            expiry_date=expiry,
+        )
+        for owner, attribute in (
+            (schedule, "dates"),
+            (barrier, "observation_dates"),
+            (binary, "observation_dates"),
+            (touch, "observation_dates"),
+            (note, "observation_dates"),
+        ):
+            with self.subTest(owner=type(owner).__name__):
+                returned = getattr(owner, attribute)
+                self.assertEqual(returned, dates)
+                self.assertTrue(all(type(value) is date for value in returned))
+                returned.clear()
+                self.assertEqual(getattr(owner, attribute), dates)
+        iterator = iter(schedule)
+        del schedule
+        self.assertEqual(list(iterator), dates)
+        self.assertEqual(
+            list(fixed_interval_schedule(start=effective, end=effective, interval_days=10)),
+            [],
+        )
+
     def test_geometric_asian_uses_elapsed_average_and_forward_start(self):
         engine = pricing.AnalyticGeometricAveragePriceEngine()
         effective = date(2025, 1, 1)
