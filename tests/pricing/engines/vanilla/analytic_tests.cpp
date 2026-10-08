@@ -14,6 +14,31 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic charm retains dividend carry when density underflows")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const kiyosi::AnalyticVanillaEngine engine;
+    for (const double dividend : {-0.02, 0.02}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.05, dividend, 0.001), 100.0, start);
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            const double sign = type == kiyosi::OptionType::call ? 1.0 : -1.0;
+            for (const bool in_the_money : {false, true}) {
+                const double strike = (type == kiyosi::OptionType::call) == in_the_money ? 50.0 : 200.0;
+                const auto option = *kiyosi::make_european_option(type, strike, start, end);
+                const auto result = engine.price_with_greeks(option, context, {kiyosi::Greek::charm});
+                REQUIRE(result);
+                const double expected = in_the_money ? sign * dividend * std::exp(-dividend) / 365.0 : 0.0;
+                CHECK_THAT(greek_value(*result, kiyosi::Greek::charm), Catch::Matchers::WithinAbs(expected, 1e-15));
+                const auto numerical = kiyosi::calculate_numerical_greeks(engine, option, context);
+                REQUIRE(numerical);
+                CHECK_THAT(greek_value(*numerical, kiyosi::Greek::charm), Catch::Matchers::WithinAbs(expected, 2e-9));
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic European calls and puts obey BSM identities")
 {
     using Catch::Matchers::WithinAbs;

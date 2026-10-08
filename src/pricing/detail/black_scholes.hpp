@@ -97,7 +97,7 @@ inline Result<PricingResult> price_at_volatility(
     } else {
         if (want(Greek::speed)) speed = 0.0;
         if (want(Greek::theta)) theta = carry / 365.0;
-        if (want(Greek::charm)) charm = 0.0;
+        if (want(Greek::charm)) charm = sign * dividend * dividend_discount_factor * cumulative_d1 / 365.0;
         if (want(Greek::color)) color = 0.0;
         if (want(Greek::vega)) vega = 0.0;
         if (want(Greek::vanna)) vanna = 0.0;

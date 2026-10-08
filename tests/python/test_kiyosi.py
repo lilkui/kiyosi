@@ -202,6 +202,25 @@ class KiyosiPythonTests(unittest.TestCase):
                         engine.price(option, context)
                     self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
 
+    def test_analytic_charm_retains_dividend_carry(self):
+        for dividend in (-.02, .02):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=.05, dividend_yield=dividend, volatility=.001),
+                spot_price=100, valuation_time=date(2025, 1, 1))
+            for direction, sign in (("call", 1), ("put", -1)):
+                for in_the_money in (False, True):
+                    with self.subTest(dividend=dividend, direction=direction, itm=in_the_money):
+                        strike = 50 if (direction == "call") == in_the_money else 200
+                        option = EuropeanOption(option_type=direction, strike=strike,
+                                                effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+                        engine = AnalyticVanillaEngine()
+                        expected = sign * dividend * math.exp(-dividend) / 365 if in_the_money else 0
+                        self.assertAlmostEqual(engine.price_with_greeks(option, context, "charm").charm,
+                                               expected, delta=1e-15)
+                        self.assertAlmostEqual(calculate_numerical_greeks(engine, option, context).charm,
+                                               expected, delta=2e-9)
+
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
         self.assertNotIn("price", get_args(kiyosi.Greek))
