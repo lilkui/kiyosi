@@ -3,11 +3,59 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
 
 #include "support/reference_harness.hpp"
 #include "pricing/detail/math.hpp"
 
 using kiyosi::test::measures;
+
+TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 6};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto expiry = start + std::chrono::days{365};
+    const FiniteDifferenceDigitalEngine engine{10'000, 1};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto cash = *make_cash_or_nothing_option(type, 100.5, 100.0, start, expiry);
+        const auto asset = *make_asset_or_nothing_option(type, 100.5, start, expiry);
+        const auto check = [&](const auto& option) {
+            const auto price = engine.price(option, context);
+            REQUIRE_FALSE(price);
+            CHECK(price.error().category == ErrorCategory::invalid_result);
+            const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+            REQUIRE_FALSE(joint);
+            CHECK(joint.error().category == ErrorCategory::invalid_result);
+            const auto stable = FiniteDifferenceDigitalEngine{10'000, 1, FiniteDifferenceScheme::implicit_euler}.price(option, context);
+            REQUIRE(stable);
+            CHECK(*stable > 40.0);
+            CHECK(*stable < 60.0);
+        };
+        check(cash);
+        check(asset);
+    }
+    const auto volatile_context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 3.0), 100.0, start);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto cash = *make_cash_or_nothing_option(type, 110.0, 100.0, start, start + std::chrono::days{1825});
+        const auto price = FiniteDifferenceDigitalEngine{}.price(cash, volatile_context);
+        REQUIRE_FALSE(price);
+        CHECK(price.error().category == ErrorCategory::invalid_result);
+    }
+}
+
+TEST_CASE("Digital finite differences allow payoff-bound roundoff", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 6};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto option = *make_cash_or_nothing_option(OptionType::call, 20.0, 100.0, start, start + std::chrono::days{1});
+    const auto price = FiniteDifferenceDigitalEngine{}.price(option, context);
+    REQUIRE(price);
+    CHECK(*price >= 0.0);
+    CHECK(*price <= 100.0 * std::exp(-0.05 / 365.0));
+    CHECK(*price == Catch::Approx(99.98630230808251));
+}
 
 TEST_CASE("Digital analytic Greeks preserve tiny-volatility limits and scaled tails", "[audit-fixes]")
 {

@@ -12,6 +12,7 @@ namespace kiyosi {
 /// Uniform-grid finite-difference engine for European digital options.
 /// Upper-edge values use BSM exercise probabilities at each time step.
 /// Accepts 3..10,000 asset steps and 1..100,000 time steps.
+/// Prices materially outside the non-negative payoff bounds return `invalid_result`.
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
     /// Creates an engine with aggregate finite-difference settings.

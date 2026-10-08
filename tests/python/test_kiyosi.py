@@ -79,6 +79,43 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_digital_finite_difference_payoff_bounds(self):
+        start = date(2025, 1, 6)
+        context = PricingContext(model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        ), spot_price=100, valuation_time=start)
+        engine = pricing.FiniteDifferenceDigitalEngine(asset_step_count=10000, time_step_count=1)
+        stable = pricing.FiniteDifferenceDigitalEngine(
+            asset_step_count=10000, time_step_count=1, scheme="implicit_euler"
+        )
+        for option_type in ("call", "put"):
+            terms = dict(option_type=option_type, strike=100.5, effective_date=start,
+                         expiry_date=start + timedelta(days=365))
+            for option in (CashOrNothingOption(**terms, payout=100), AssetOrNothingOption(**terms)):
+                with self.subTest(option=type(option).__name__, option_type=option_type):
+                    for value in (lambda: engine.price(option, context),
+                                  lambda: engine.price_with_greeks(option, context, greeks="delta")):
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            value()
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+                    self.assertGreater(stable.price(option, context), 40)
+                    self.assertLess(stable.price(option, context), 60)
+        volatile_context = PricingContext(model_parameters=BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=3
+        ), spot_price=100, valuation_time=start)
+        for option_type in ("call", "put"):
+            option = CashOrNothingOption(option_type=option_type, strike=110, payout=100,
+                                        effective_date=start, expiry_date=start + timedelta(days=1825))
+            with self.subTest(default_grid=option_type):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    pricing.FiniteDifferenceDigitalEngine().price(option, volatile_context)
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+        option = CashOrNothingOption(option_type="call", strike=20, payout=100,
+                                    effective_date=start, expiry_date=start + timedelta(days=1))
+        price = pricing.FiniteDifferenceDigitalEngine().price(option, context)
+        self.assertLessEqual(price, 100 * math.exp(-0.05 / 365))
+        self.assertAlmostEqual(price, 99.98630230808251)
+
     def test_monte_carlo_seeds_accept_integral_index_protocol(self):
         @numbers.Integral.register
         class IndexInteger:

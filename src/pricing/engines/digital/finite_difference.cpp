@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include "../../detail/black_scholes.hpp"
@@ -74,7 +75,14 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
                                         old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
-    return make_pricing_result(space->interpolate(old, spot), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+    const double value = space->interpolate(old, spot);
+    const double upper_bound = asset ? spot * std::exp(-dividend * time) : payout * std::exp(-rate * time);
+    // Allow floating-point roundoff, but reject oscillations that violate the payoff bounds.
+    const double tolerance = 64.0 * std::numeric_limits<double>::epsilon() * upper_bound;
+    if (!std::isfinite(value) || value < -tolerance || value - upper_bound > tolerance)
+        return std::unexpected(Error{ErrorCategory::invalid_result,
+                                     "finite-difference digital price violates payoff bounds"});
+    return make_pricing_result(std::clamp(value, 0.0, upper_bound), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
                                                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
 }
 
