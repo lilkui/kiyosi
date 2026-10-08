@@ -818,6 +818,57 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
     check_accumulator(FiniteDifferenceAccumulatorEngine{});
 }
 
+TEST_CASE("Implied ternary volatility requires remaining cashflow exposure", "[pricing-api][audit-fixes]")
+{
+    struct Scenario {
+        double rate;
+        double maturity_coupon;
+        double minimum_coupon;
+        double knock_out_coupon;
+        AutocallableBarrierState state;
+        Date date;
+        bool exposed;
+    };
+    const auto check = [&](const auto& engine) {
+        for (const Scenario scenario : {
+                 Scenario{0.0, 0.0, 0.0, 0.0, AutocallableBarrierState::none, effective, false},
+                 {0.0, 0.2, 0.0, 0.0, AutocallableBarrierState::none, effective, true},
+                 {0.0, 0.2, 0.0, 0.0, AutocallableBarrierState::knocked_in, valuation, false},
+                 {0.04, 0.0, 0.0, 0.0, AutocallableBarrierState::none, effective, true},
+                 {0.0, 0.1, 0.1, 0.0, AutocallableBarrierState::none, effective, true},
+                 {0.0, 0.2, 0.1, 0.2, AutocallableBarrierState::knocked_in, valuation, true}}) {
+            CAPTURE(scenario.rate, scenario.maturity_coupon, scenario.minimum_coupon,
+                    scenario.knock_out_coupon, scenario.state, scenario.date);
+            const auto note = *make_ternary_snowball_option(
+                {.knock_out_coupon_rates = {scenario.knock_out_coupon, scenario.knock_out_coupon},
+                 .maturity_coupon_rate = scenario.maturity_coupon,
+                 .minimum_coupon_rate = scenario.minimum_coupon,
+                 .knock_in_level = 70.0,
+                 .knock_out_levels = {120.0, 120.0},
+                 .observation_dates = {valuation, expiry},
+                 .barrier_state = scenario.state,
+                 .effective_date = effective,
+                 .expiry_date = expiry});
+            const auto context = *make_pricing_context(
+                *make_bsm_parameters(scenario.rate, 0.0, 0.05), 100.0, scenario.date);
+            const auto quote = engine.price(note, context);
+            REQUIRE(quote);
+            const auto result = implied_volatility(engine, note, context, *quote,
+                                                   {.lower_bound = 0.05, .upper_bound = 0.4});
+            if (scenario.exposed) {
+                REQUIRE(result);
+                CHECK(*result == 0.05);
+            } else {
+                CHECK(*quote == Catch::Approx(1.0));
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == ErrorCategory::unsupported_operation);
+            }
+        }
+    };
+    check(MonteCarloTernarySnowballEngine{{64, 73}});
+    check(FiniteDifferenceTernarySnowballEngine{});
+}
+
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
 {
     const auto market = *kiyosi::make_pricing_context(

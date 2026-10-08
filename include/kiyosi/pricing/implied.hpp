@@ -99,13 +99,20 @@ template <typename Engine, typename Option>
             if (context.valuation_time() == start_of_day(option.observation_dates()[i]) &&
                 context.spot_price() >= option.knock_out_levels()[i])
                 identifiable = false;
-        if constexpr (std::same_as<Option, BinarySnowballOption>) {
+        if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption>) {
             const double rate = context.model_parameters().risk_free_rate();
+            double terminal_coupon = option.maturity_coupon_rate();
+            bool exposed = false;
+            if constexpr (std::same_as<Option, TernarySnowballOption>) {
+                if (option.barrier_state() == AutocallableBarrierState::knocked_in)
+                    terminal_coupon = option.minimum_coupon_rate();
+                else
+                    exposed = option.minimum_coupon_rate() != terminal_coupon;
+            }
             const double maturity_value =
-                (option.principal_ratio() + option.maturity_coupon_rate() *
+                (option.principal_ratio() + terminal_coupon *
                                                 detail::actual_365_fixed_year_fraction(option.effective_date(), option.expiry_date())) *
                 std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date()));
-            bool exposed = false;
             for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
                 const Date date = option.observation_dates()[i];
                 if (start_of_day(date) <= context.valuation_time()) continue;
@@ -131,7 +138,7 @@ template <typename Engine, typename Option>
                              (terms.is_monitored_at(context.valuation_time()) &&
                               terms.is_breached_by(context.spot_price()));
         const bool monitoring_finished = !terms.is_continuous() &&
-                                        !terms.has_remaining_observation(context.valuation_time());
+                                         !terms.has_remaining_observation(context.valuation_time());
         if constexpr (requires { option.is_one_touch(); })
             identifiable = identifiable && !touched && !monitoring_finished;
         else

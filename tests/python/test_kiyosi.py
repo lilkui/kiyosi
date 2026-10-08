@@ -28,6 +28,7 @@ from kiyosi.instruments import (
     EuropeanOption,
     GeometricAveragePriceOption,
     PhoenixOption,
+    TernarySnowballOption,
     TouchOption,
     asset_no_touch_down,
     asset_one_touch_down,
@@ -377,6 +378,80 @@ class KiyosiPythonTests(unittest.TestCase):
                 with self.assertRaises(kiyosi.KiyosiError) as error:
                     implied_volatility(engine, accumulator, context, 0)
                 self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
+    def test_implied_ternary_volatility_requires_remaining_cashflow_exposure(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        scenarios = (
+            (0, 0, 0, 0, "none", start, False),
+            (0, 0.2, 0, 0, "none", start, True),
+            (0, 0.2, 0, 0, "knocked_in", fixing, False),
+            (0.04, 0, 0, 0, "none", start, True),
+            (0, 0.1, 0.1, 0, "none", start, True),
+            (0, 0.2, 0.1, 0.2, "knocked_in", fixing, True),
+        )
+        for engine in (
+            pricing.MonteCarloTernarySnowballEngine(path_count=64, seed=73),
+            pricing.FiniteDifferenceTernarySnowballEngine(),
+        ):
+            for rate, maturity, minimum, coupon, state, valuation, exposed in scenarios:
+                with self.subTest(
+                    engine=type(engine).__name__,
+                    rate=rate,
+                    maturity=maturity,
+                    minimum=minimum,
+                    coupon=coupon,
+                    state=state,
+                    valuation=valuation,
+                ):
+                    note = TernarySnowballOption(
+                        knock_out_coupon_rates=[coupon, coupon],
+                        maturity_coupon_rate=maturity,
+                        minimum_coupon_rate=minimum,
+                        knock_in_level=70,
+                        knock_out_levels=[120, 120],
+                        observation_dates=[fixing, end],
+                        knock_in_observation_mode="every_trading_day",
+                        barrier_state=state,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate,
+                            dividend_yield=0,
+                            volatility=0.05,
+                        ),
+                        spot_price=100,
+                        valuation_time=valuation,
+                    )
+                    quote = engine.price(note, context)
+                    if exposed:
+                        self.assertEqual(
+                            implied_volatility(
+                                engine,
+                                note,
+                                context,
+                                quote,
+                                lower_bound=0.05,
+                                upper_bound=0.4,
+                            ),
+                            0.05,
+                        )
+                    else:
+                        self.assertAlmostEqual(quote, 1)
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(
+                                engine,
+                                note,
+                                context,
+                                quote,
+                                lower_bound=0.05,
+                                upper_bound=0.4,
+                            )
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                        )
 
     def test_barrier_finite_difference_preserves_volatility_tails(self):
         start = date(2025, 1, 1)
