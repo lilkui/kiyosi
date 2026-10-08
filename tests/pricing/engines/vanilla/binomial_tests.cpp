@@ -14,6 +14,25 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Binomial rejects underflowed asset trees")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const kiyosi::CoxRossRubinsteinVanillaEngine engine{1000};
+    for (const double volatility : {23.0, 25.0}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.05, 0.02, volatility), 100.0, start);
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            const auto european = *kiyosi::make_european_option(type, 100.0, start, end);
+            const auto american = *kiyosi::make_american_option(type, 100.0, start, end);
+            for (const auto& price : {engine.price(european, context), engine.price(american, context)}) {
+                REQUIRE_FALSE(price);
+                CHECK(price.error().category == kiyosi::ErrorCategory::invalid_result);
+            }
+        }
+    }
+}
+
 TEST_CASE("Binomial American engine prices expiry_date and validates steps")
 {
     const auto expiry_date = day(2025, 1, 1);

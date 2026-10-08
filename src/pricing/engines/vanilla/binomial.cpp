@@ -51,9 +51,9 @@ Result<PricingResult> price_binomial(
     std::vector<double> values(static_cast<std::size_t>(settings.step_count) + 1);
     const double up_squared = up * up;
     double node_spot = spot * std::pow(down, settings.step_count);
-    if (!std::isfinite(up_squared) || !std::isfinite(node_spot)) {
+    if (!std::isfinite(up_squared) || !std::isnormal(node_spot)) {
         return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "binomial tree produced a non-finite asset price"});
+                                     "binomial tree asset price overflowed or underflowed"});
     }
     for (int node = 0; node <= settings.step_count; ++node) {
         if (!std::isfinite(node_spot)) {

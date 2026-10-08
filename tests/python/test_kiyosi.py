@@ -143,6 +143,22 @@ class KiyosiPythonTests(unittest.TestCase):
                                          valuation_time=end)
                 self.assertEqual(engine.price(option, expired), intrinsic)
 
+    def test_binomial_rejects_underflowed_trees(self):
+        engine = pricing.CoxRossRubinsteinVanillaEngine(1000)
+        for volatility in (23, 25):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=.05, dividend_yield=.02, volatility=volatility),
+                spot_price=100, valuation_time=date(2025, 1, 1))
+            for option_class in (EuropeanOption, AmericanOption):
+                for direction in ("call", "put"):
+                    with self.subTest(volatility=volatility, option=option_class, direction=direction):
+                        option = option_class(option_type=direction, strike=100,
+                                              effective_date=date(2025, 1, 1), expiry_date=date(2026, 1, 1))
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            engine.price(option, context)
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
         self.assertNotIn("price", get_args(kiyosi.Greek))
