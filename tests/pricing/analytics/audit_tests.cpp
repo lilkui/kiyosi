@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "pricing/detail/math.hpp"
 
 namespace {
 using namespace kiyosi;
@@ -62,6 +63,34 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 check(FiniteDifferenceAccumulatorEngine{}, option, context, exposed);
             }
         }
+    }
+}
+
+TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[audit-fixes]")
+{
+    for (const double threshold : {0.0, 11.0, 11.9, 11.99, 12.0, 13.6, 30.0}) {
+        const double expected = 0.5 * std::erfc(threshold / std::sqrt(2.0));
+        CHECK(detail::normal_tail_integral(threshold) == Catch::Approx(expected).epsilon(1e-8).margin(0.0));
+        CHECK(detail::normal_tail_integral(-threshold) == Catch::Approx(1.0 - expected).epsilon(1e-12));
+    }
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        const double spot = call ? 1e100 : 1.5e101;
+        const double strike = call ? 1.5e101 : 1e100;
+        const auto context = *make_pricing_context(parameters, spot, start);
+        const auto option = *make_european_option(type, strike, start, end);
+        const auto price = QuadratureVanillaEngine{}.price(option, context);
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(2.5478923549273412e57).epsilon(1e-7));
+        const auto digital = *make_cash_or_nothing_option(type, strike, 1e100, start, end);
+        const auto cash = QuadratureDigitalEngine{}.price(digital, context);
+        REQUIRE(cash);
+        const double sign = call ? 1.0 : -1.0;
+        const double d2 = (std::log(spot) - std::log(strike)) / 0.2 - 0.1;
+        CHECK(*cash == Catch::Approx(1e100 * 0.5 * std::erfc(-sign * d2 / std::sqrt(2.0))).epsilon(1e-8));
     }
 }
 

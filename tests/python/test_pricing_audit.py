@@ -1,14 +1,54 @@
+import math
 import unittest
 from datetime import date
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import Accumulator, PhoenixOption, SnowballOption
+from kiyosi.instruments import (
+    Accumulator,
+    CashOrNothingOption,
+    EuropeanOption,
+    PhoenixOption,
+    SnowballOption,
+)
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_quadrature_retains_scaled_prices_beyond_the_former_tail_cutoff(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        for direction, sign, spot, strike in (
+            ("call", 1, 1e100, 1.5e101),
+            ("put", -1, 1.5e101, 1e100),
+        ):
+            context = PricingContext(
+                model_parameters=parameters, spot_price=spot, valuation_time=start
+            )
+            option = EuropeanOption(
+                option_type=direction,
+                strike=strike,
+                effective_date=start,
+                expiry_date=end,
+            )
+            value = pricing.QuadratureVanillaEngine().price(option, context)
+            self.assertTrue(math.isclose(value, 2.5478923549273412e57, rel_tol=1e-7))
+            for threshold in (11.0, 11.9, 11.99, 12.0, 13.6, 30.0):
+                strike = spot * math.exp(sign * 0.2 * threshold - 0.02)
+                digital = CashOrNothingOption(
+                    option_type=direction,
+                    strike=strike,
+                    payout=1e100,
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                value = pricing.QuadratureDigitalEngine().price(digital, context)
+                expected = 1e100 * 0.5 * math.erfc(threshold / math.sqrt(2))
+                self.assertTrue(math.isclose(value, expected, rel_tol=1e-8))
+
     def test_implied_volatility_rejects_fixed_participation_and_zero_accrual(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
 

@@ -47,12 +47,14 @@ inline double exponential_normal_cdf(double log_weight, double value) noexcept
 inline double normal_tail_integral(double threshold) noexcept
 {
     if (std::isnan(threshold)) return threshold;
-    constexpr double limit = 12.0;
     const double lower = std::abs(threshold);
-    if (lower >= limit) return threshold < 0.0 ? 1.0 : 0.0;
+    const double density = normal_pdf(lower);
+    if (density == 0.0) return threshold < 0.0 ? 1.0 : 0.0;
+    // Extend until the endpoint density is exp(-72) times the starting density.
+    const double upper = std::hypot(lower, 12.0);
     constexpr int panels = 2048;
-    const double step = (limit - lower) / panels;
-    double sum = normal_pdf(lower) + normal_pdf(limit);
+    const double step = (upper - lower) / panels;
+    double sum = density + normal_pdf(upper);
     double correction = 0.0;
     for (int index = 1; index < panels; ++index) {
         // Compensated summation keeps price roundoff from dominating third-order Greeks.
