@@ -37,7 +37,7 @@ InitialState initial_state(const Accumulator& option, const PricingContext& cont
     return {quantity, std::nullopt};
 }
 
-std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
+Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option,
                                                const PricingContext& context)
 {
     const Timestamp valuation = context.valuation_time();
@@ -46,13 +46,15 @@ std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
-        steps.push_back(simulation_step(context, previous, current));
+        const auto step = simulation_step(context, previous, current);
+        if (!step) return std::unexpected(step.error());
+        steps.push_back(*step);
         previous = current;
     }
     return steps;
 }
 
-double path_payoff(const Accumulator& option, const PricingContext& context,
+Result<double> path_payoff(const Accumulator& option, const PricingContext& context,
                    const std::vector<SimulationStep>& steps, double quantity,
                    std::mt19937_64& generator)
 {
@@ -62,6 +64,9 @@ double path_payoff(const Accumulator& option, const PricingContext& context,
     double discount = 1.0;
     for (const auto& step : steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
+        if (!std::isfinite(value) || value <= 0.0)
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "Monte Carlo simulation produced an invalid asset price"});
         discount = step.discount;
         if (value >= option.knock_out_level()) break;
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
@@ -86,13 +91,14 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const auto steps = prepare_simulation(option, context);
+    if (!steps) return std::unexpected(steps.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto sum = cuda_sum(detail::cuda_accumulator_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), option.strike(), option.knock_out_level(),
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
-            steps));
+            *steps));
         if (!sum) return std::unexpected(sum.error());
         return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
 #else
@@ -102,8 +108,11 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     }
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
     double sum = 0.0;
-    for (int path = 0; path < settings_.path_count; ++path)
-        sum += path_payoff(option, context, steps, initial.quantity, generator);
+    for (int path = 0; path < settings_.path_count; ++path) {
+        const auto payoff = path_payoff(option, context, *steps, initial.quantity, generator);
+        if (!payoff) return std::unexpected(payoff.error());
+        sum += *payoff;
+    }
     return make_pricing_result(sum / static_cast<double>(settings_.path_count));
 }
 

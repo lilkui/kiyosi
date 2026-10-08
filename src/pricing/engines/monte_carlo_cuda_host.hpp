@@ -13,15 +13,19 @@
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
 
-inline CudaSimulationStep simulation_step(const PricingContext& context, Timestamp previous, Date current)
+inline Result<CudaSimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const double dt = actual_365_fixed_year_fraction(previous, current);
-    return {(rate - dividend - 0.5 * sigma * sigma) * dt,
-            sigma * std::sqrt(dt),
-            std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), current))};
+    const CudaSimulationStep step{(rate - dividend - 0.5 * sigma * sigma) * dt,
+                                  sigma * std::sqrt(dt),
+                                  std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), current))};
+    if (!std::isfinite(step.drift) || !std::isfinite(step.diffusion) || !std::isfinite(step.discount))
+        return std::unexpected(Error{ErrorCategory::invalid_result,
+                                     "Monte Carlo simulation parameters are non-finite"});
+    return step;
 }
 
 inline std::uint64_t random_seed()

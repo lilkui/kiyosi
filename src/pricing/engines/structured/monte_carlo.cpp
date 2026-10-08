@@ -72,7 +72,7 @@ InitialState initial_state(const Note& note, const PricingContext& context,
 }
 
 template <typename Note>
-SimulationInputs prepare_simulation(
+Result<SimulationInputs> prepare_simulation(
     const Note& note, const PricingContext& context, std::size_t next_observation)
 {
     const double rate = context.model_parameters().risk_free_rate();
@@ -88,14 +88,16 @@ SimulationInputs prepare_simulation(
             event = autocallable_event(note, next_observation);
             ++next_observation;
         }
-        steps.push_back({simulation_step(context, previous, current), event});
+        const auto step = simulation_step(context, previous, current);
+        if (!step) return std::unexpected(step.error());
+        steps.push_back({*step, event});
         previous = current;
     }
-    return {std::move(steps),
-            std::exp(-rate * actual_365_fixed_year_fraction(valuation, note.expiry_date()))};
+    return SimulationInputs{std::move(steps),
+                            std::exp(-rate * actual_365_fixed_year_fraction(valuation, note.expiry_date()))};
 }
 
-double path_payoff(double initial_spot, const AutocallableProgram& program,
+Result<double> path_payoff(double initial_spot, const AutocallableProgram& program,
                    const SimulationInputs& inputs, AutocallablePathState state,
                    std::mt19937_64& generator)
 {
@@ -104,6 +106,9 @@ double path_payoff(double initial_spot, const AutocallableProgram& program,
     for (const auto& step : inputs.step_count) {
         value *= std::exp(step.simulation.drift +
                           step.simulation.diffusion * normal(generator));
+        if (!std::isfinite(value) || value <= 0.0)
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "Monte Carlo simulation produced an invalid asset price"});
         state.knocked_in = program_knocked_in(program, value, state.knocked_in, false);
         if (!step.event.active) continue;
         const double coupon = program_observation_coupon(step.event, value);
@@ -142,12 +147,13 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const auto inputs = prepare_simulation(note, context, initial.next_observation);
+    if (!inputs) return std::unexpected(inputs.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto sum = cuda_sum(cuda_structured_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
-             context.spot_price(), inputs.terminal_discount, program, initial.path},
-            inputs.step_count));
+             context.spot_price(), inputs->terminal_discount, program, initial.path},
+            inputs->step_count));
         if (!sum) return std::unexpected(sum.error());
         return make_pricing_result(*sum / static_cast<double>(settings_.path_count));
 #else
@@ -158,8 +164,11 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
 
     std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
     double sum = 0.0;
-    for (int path = 0; path < settings_.path_count; ++path)
-        sum += path_payoff(context.spot_price(), program, inputs, initial.path, generator);
+    for (int path = 0; path < settings_.path_count; ++path) {
+        const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
+        if (!payoff) return std::unexpected(payoff.error());
+        sum += *payoff;
+    }
     return make_pricing_result(sum / static_cast<double>(settings_.path_count));
 }
 

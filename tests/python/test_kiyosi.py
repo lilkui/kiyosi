@@ -181,6 +181,27 @@ class KiyosiPythonTests(unittest.TestCase):
                         self.assertAlmostEqual(numerical.price(option, context),
                                                analytic.price(option, context), delta=1e-8)
 
+    def test_trading_monte_carlo_rejects_invalid_paths(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 2)
+        accumulator = Accumulator(strike=100, knock_out_level=120, daily_quantity=1,
+                                  acceleration_factor=2, effective_date=start, expiry_date=end)
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[.1], maturity_coupon_rate=.1,
+            knock_out_levels=[120], observation_dates=[end], effective_date=start, expiry_date=end)
+        for rate, volatility in ((.05, 1e308), (.05, 1000), (1e308, .2)):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=.02, volatility=volatility),
+                spot_price=100, valuation_time=start)
+            for engine, option in (
+                (pricing.MonteCarloAccumulatorEngine(path_count=2, seed=1), accumulator),
+                (pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1), note),
+            ):
+                with self.subTest(rate=rate, volatility=volatility, engine=engine):
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine.price(option, context)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
         self.assertNotIn("price", get_args(kiyosi.Greek))
