@@ -99,15 +99,31 @@ template <typename Engine, typename Option>
             if (context.valuation_time() == start_of_day(option.observation_dates()[i]) &&
                 context.spot_price() >= option.knock_out_levels()[i])
                 identifiable = false;
-        if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption>) {
+        if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption> ||
+                      std::same_as<Option, SnowballOption> || std::same_as<Option, PhoenixOption>) {
             const double rate = context.model_parameters().risk_free_rate();
-            double terminal_coupon = option.maturity_coupon_rate();
+            double terminal_coupon = 0.0;
+            if constexpr (requires { option.maturity_coupon_rate(); })
+                terminal_coupon = option.maturity_coupon_rate();
             bool exposed = false;
-            if constexpr (std::same_as<Option, TernarySnowballOption>) {
-                if (option.barrier_state() == AutocallableBarrierState::knocked_in)
-                    terminal_coupon = option.minimum_coupon_rate();
-                else
-                    exposed = option.minimum_coupon_rate() != terminal_coupon;
+            if constexpr (requires { option.knock_in_level(); }) {
+                const bool knocked_in = option.barrier_state() == AutocallableBarrierState::knocked_in ||
+                                        (option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
+                                         context.valuation_time() == start_of_day(context.valuation_date()) &&
+                                         context.calendar().is_trading_day(context.valuation_date()) &&
+                                         context.spot_price() < option.knock_in_level());
+                if constexpr (std::same_as<Option, TernarySnowballOption>) {
+                    if (knocked_in) terminal_coupon = option.minimum_coupon_rate();
+                    else exposed = option.minimum_coupon_rate() != terminal_coupon;
+                } else {
+                    exposed = option.lower_strike() != option.upper_strike();
+                    if constexpr (std::same_as<Option, SnowballOption>) {
+                        if (knocked_in) terminal_coupon = 0.0;
+                        else exposed = exposed || terminal_coupon != 0.0;
+                    } else {
+                        exposed = exposed || option.coupon_rate() != 0.0;
+                    }
+                }
             }
             const double maturity_value =
                 (option.principal_ratio() + terminal_coupon *
@@ -116,10 +132,16 @@ template <typename Engine, typename Option>
             for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
                 const Date date = option.observation_dates()[i];
                 if (start_of_day(date) <= context.valuation_time()) continue;
-                const double knock_out_value =
-                    (option.principal_ratio() + option.knock_out_coupon_rates()[i] *
-                                                    detail::actual_365_fixed_year_fraction(option.effective_date(), date)) *
-                    std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
+                const double coupon = [&] {
+                    if constexpr (requires { option.knock_out_coupon_rates(); })
+                        return option.knock_out_coupon_rates()[i] *
+                               detail::actual_365_fixed_year_fraction(option.effective_date(), date);
+                    else
+                        return option.coupon_rate() * detail::actual_365_fixed_year_fraction(
+                                                          i == 0 ? option.effective_date() : option.observation_dates()[i - 1], date);
+                }();
+                const double knock_out_value = (option.principal_ratio() + coupon) *
+                                               std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
                 exposed = exposed || knock_out_value != maturity_value;
             }
             identifiable = identifiable && exposed;
@@ -130,7 +152,9 @@ template <typename Engine, typename Option>
                                      context.calendar().is_trading_day(context.valuation_date()) &&
                                      context.spot_price() >= option.knock_out_level();
         identifiable = identifiable && !knocked_out_now &&
-                       (option.accumulated_quantity() != 0.0 || option.daily_quantity() != 0.0);
+                       (option.accumulated_quantity() != 0.0 ||
+                        (option.daily_quantity() != 0.0 &&
+                         (option.acceleration_factor() != 0.0 || option.knock_out_level() > option.strike())));
     }
     if constexpr (requires { option.barrier_terms(); }) {
         const auto& terms = option.barrier_terms();

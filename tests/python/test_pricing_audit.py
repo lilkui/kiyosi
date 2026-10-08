@@ -1,0 +1,157 @@
+import unittest
+from datetime import date
+
+import kiyosi
+from kiyosi import pricing
+from kiyosi.instruments import Accumulator, PhoenixOption, SnowballOption
+from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.pricing import implied_volatility
+
+
+class PricingAuditTests(unittest.TestCase):
+    def test_implied_volatility_rejects_fixed_participation_and_zero_accrual(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+
+        def check(engine, option, context, exposed):
+            quote = engine.price(option, context)
+            if exposed:
+                self.assertEqual(
+                    implied_volatility(
+                        engine,
+                        option,
+                        context,
+                        quote,
+                        lower_bound=0.05,
+                        upper_bound=0.4,
+                    ),
+                    0.05,
+                )
+            else:
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    implied_volatility(
+                        engine,
+                        option,
+                        context,
+                        quote,
+                        lower_bound=0.05,
+                        upper_bound=0.4,
+                    )
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+                )
+
+        for rate in (0, 0.04):
+            for lower in (100, 60):
+                for coupon in (0, 0.1):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate, dividend_yield=0, volatility=0.05
+                        ),
+                        spot_price=100,
+                        valuation_time=start,
+                    )
+                    terms = {
+                        "initial_spot": 100,
+                        "knock_in_level": 80,
+                        "knock_out_levels": [120, 120],
+                        "upper_strike": 100,
+                        "lower_strike": lower,
+                        "observation_dates": [fixing, end],
+                        "knock_in_observation_mode": "at_expiry",
+                        "effective_date": start,
+                        "expiry_date": end,
+                    }
+                    snowball = SnowballOption(
+                        **terms,
+                        knock_out_coupon_rates=[coupon, coupon],
+                        maturity_coupon_rate=coupon,
+                    )
+                    phoenix = PhoenixOption(
+                        **terms, coupon_rate=coupon, coupon_barrier_levels=[90, 90]
+                    )
+                    for engine, option in (
+                        (
+                            pricing.MonteCarloSnowballEngine(path_count=64, seed=73),
+                            snowball,
+                        ),
+                        (pricing.FiniteDifferenceSnowballEngine(), snowball),
+                        (
+                            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                            phoenix,
+                        ),
+                        (pricing.FiniteDifferencePhoenixEngine(), phoenix),
+                    ):
+                        with self.subTest(
+                            engine=type(engine).__name__,
+                            rate=rate,
+                            lower=lower,
+                            coupon=coupon,
+                        ):
+                            check(
+                                engine,
+                                option,
+                                context,
+                                rate != 0 or lower != 100 or coupon != 0,
+                            )
+        for historical in (False, True):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=0.05
+                ),
+                spot_price=100 if historical else 70,
+                valuation_time=fixing if historical else start,
+            )
+            note = SnowballOption(
+                knock_out_coupon_rates=[0, 0],
+                maturity_coupon_rate=0.1,
+                initial_spot=100,
+                knock_in_level=80,
+                knock_out_levels=[120, 120],
+                upper_strike=100,
+                lower_strike=100,
+                observation_dates=[fixing, end],
+                knock_in_observation_mode="every_trading_day",
+                barrier_state="knocked_in" if historical else "none",
+                effective_date=start,
+                expiry_date=end,
+            )
+            for engine in (
+                pricing.MonteCarloSnowballEngine(path_count=64, seed=73),
+                pricing.FiniteDifferenceSnowballEngine(),
+            ):
+                check(engine, note, context, False)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.05
+            ),
+            spot_price=80,
+            valuation_time=start,
+        )
+        for knock_out in (90, 100, 120):
+            for acceleration in (0, 1):
+                for quantity in (0, 1):
+                    option = Accumulator(
+                        strike=100,
+                        knock_out_level=knock_out,
+                        daily_quantity=1,
+                        acceleration_factor=acceleration,
+                        accumulated_quantity=quantity,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    for engine in (
+                        pricing.MonteCarloAccumulatorEngine(path_count=64, seed=73),
+                        pricing.FiniteDifferenceAccumulatorEngine(),
+                    ):
+                        with self.subTest(
+                            engine=type(engine).__name__,
+                            knock_out=knock_out,
+                            acceleration=acceleration,
+                            quantity=quantity,
+                        ):
+                            check(
+                                engine,
+                                option,
+                                context,
+                                quantity != 0 or acceleration != 0 or knock_out > 100,
+                            )
