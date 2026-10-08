@@ -77,7 +77,8 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
         return make_pricing_result(knock_in ? option.rebate() * std::exp(-rate * t)
                                             : vanilla->price());
-    if (option.rebate_timing() == RebateTiming::at_hit) {
+    const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
+    if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
         const double hit_discount = barrier_hit_discount(std::abs(std::log(barrier / spot)), upper,
@@ -90,7 +91,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
-    const double lambda = std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma));
+    const double lambda = hit_rebate ? std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma)) : 0.0;
     const double x = option.strike();
     const double x1 = std::log(spot / x) / root_time + (1.0 + mu) * root_time;
     const double x2 = std::log(spot / barrier) / root_time + (1.0 + mu) * root_time;
@@ -107,7 +108,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
             phi * spot * carry * std::pow(ratio, 2.0 * (mu + 1.0)) * normal_cdf(eta * y2) -
                 phi * x * discount * std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time),
             option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - std::pow(ratio, 2.0 * mu) * normal_cdf(eta * y2 - eta * root_time)),
-            option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
+            option.rebate() * (hit_rebate
                                    ? (std::pow(ratio, mu + lambda) * normal_cdf(eta * z) +
                                       std::pow(ratio, mu - lambda) * normal_cdf(eta * z - 2.0 * eta * lambda * root_time))
                                    : discount)};

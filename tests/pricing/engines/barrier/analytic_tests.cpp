@@ -120,6 +120,32 @@ TEST_CASE("Barrier hit rebates reject an unstable negative-rate limit")
     CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);
 }
 
+TEST_CASE("Zero barrier rebates ignore payment timing", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const auto [rate, dividend] : {std::pair{-0.02, 0.0}, std::pair{-0.01, -0.02}}) {
+        const auto context = *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(rate, dividend, 0.2), 100.0, start);
+        for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+            for (const bool up : {true, false}) {
+                CAPTURE(rate, dividend, type, up);
+                auto terms = kiyosi::BarrierOptionTerms{
+                    .option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end,
+                    .barrier_level = up ? 120.0 : 80.0,
+                    .barrier_type = up ? kiyosi::BarrierType::up_and_out : kiyosi::BarrierType::down_and_out,
+                    .rebate = 0.0, .rebate_timing = kiyosi::RebateTiming::at_expiry};
+                const auto expiry_price = kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context);
+                REQUIRE(expiry_price);
+                terms.rebate_timing = kiyosi::RebateTiming::at_hit;
+                const auto hit_price = kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context);
+                REQUIRE(hit_price);
+                CHECK(*hit_price == *expiry_price);
+            }
+        }
+    }
+}
+
 TEST_CASE("Barrier engines price prior touches from history instead of current spot")
 {
     const auto effective = day(2025, 1, 1);

@@ -199,6 +199,34 @@ class KiyosiPythonTests(unittest.TestCase):
                                 0.1, delta=1e-7,
                             )
 
+    def test_zero_barrier_rebates_ignore_payment_timing(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for rate, dividend in ((-0.02, 0), (-0.01, -0.02)):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
+            for direction in ("call", "put"):
+                for kind, barrier in (("up_and_out", 120), ("down_and_out", 80)):
+                    with self.subTest(rate=rate, dividend=dividend, direction=direction, kind=kind):
+                        terms = dict(
+                            option_type=direction,
+                            strike=100,
+                            effective_date=start,
+                            expiry_date=end,
+                            barrier_level=barrier,
+                            barrier_type=kind,
+                            rebate=0,
+                        )
+                        engine = AnalyticBarrierEngine()
+                        self.assertEqual(
+                            engine.price(BarrierOption(**terms, rebate_timing="at_hit"), context),
+                            engine.price(BarrierOption(**terms, rebate_timing="at_expiry"), context),
+                        )
+
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys
