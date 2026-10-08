@@ -78,18 +78,15 @@ TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observa
         CHECK(implied.error().category == ErrorCategory::invalid_schedule);
     };
     const auto barrier = *make_barrier_option(
-        {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
-         .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
-         .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}});
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}});
     check(barrier, AnalyticBarrierEngine{});
     check(barrier, FiniteDifferenceBarrierEngine{});
     check(*make_cash_binary_barrier_option(
-              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
-               .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
-               .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}}, 1.0),
+              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}}, 1.0),
           AnalyticBinaryBarrierEngine{});
     check(*make_cash_one_touch_up(effective, expiry, 120.0, 1.0, SettlementTiming::at_expiry,
-                                 ObservationMode::scheduled, {expiry}), AnalyticBinaryBarrierEngine{});
+                                  ObservationMode::scheduled, {expiry}),
+          AnalyticBinaryBarrierEngine{});
 }
 
 TEST_CASE("Exponential normal tails stay finite when separate factors overflow", "[audit-fixes]")
@@ -120,20 +117,18 @@ TEST_CASE("Analytic engines retain low-volatility prices and default implied vol
         CHECK(*implied == Catch::Approx(0.2).margin(1e-6));
     };
     const BarrierOptionTerms terms{
-        .option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
-        .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out};
+        .option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out};
     const double vanilla = 100.0 * (std::exp(-0.02) - std::exp(-0.05));
     check(*make_barrier_option(terms), AnalyticBarrierEngine{}, vanilla);
     check(*make_cash_binary_barrier_option(
-              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
-               .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out}, 1.0),
+              {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out}, 1.0),
           AnalyticBinaryBarrierEngine{}, std::exp(-0.05));
     check(*make_american_option(OptionType::call, 100.0, effective, expiry), BjerksundStenslandVanillaEngine{}, vanilla);
     const auto negative_carry = *make_pricing_context(*make_bsm_parameters(0.02, 0.05, 0.0001), 80.0, effective);
     const auto out_of_money = BjerksundStenslandVanillaEngine{}.price(
         *make_american_option(OptionType::call, 100.0, effective, expiry), negative_carry);
-    REQUIRE(out_of_money);
-    CHECK(*out_of_money == Catch::Approx(0.0).margin(1e-9));
+    REQUIRE_FALSE(out_of_money);
+    CHECK(out_of_money.error().category == ErrorCategory::unsupported_operation);
     const auto touch = AnalyticBinaryBarrierEngine{}.price(
         *make_cash_one_touch_up(effective, expiry, 120.0, 1.0, SettlementTiming::at_hit), low);
     REQUIRE(touch);
@@ -247,7 +242,7 @@ TEST_CASE("Unrepresentable shifts leave numerical sensitivities unavailable", "[
     CHECK(greek_value(*normal, Greek::vega) > 0.0);
     CHECK(greek_value(*normal, Greek::rho) > 0.0);
     const auto tiny = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market(),
-        {.volatility_shift = 1e-20, .rate_shift = 1e-20});
+                                                 {.volatility_shift = 1e-20, .rate_shift = 1e-20});
     REQUIRE(tiny);
     for (const auto greek : {Greek::vega, Greek::vanna, Greek::zomma, Greek::rho})
         CHECK_FALSE(tiny->has(greek));
@@ -455,19 +450,16 @@ struct SolverSeedRecordingEngine {
 TEST_CASE("Implied solvers control price and parameter tolerances separately", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
-    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0,
-        .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0},
-        .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry},
-        .effective_date = effective, .expiry_date = expiry});
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
     std::vector<std::optional<unsigned>> calls;
     const SolverSeedRecordingEngine engine{{1, &calls}};
     for (const auto [price_tolerance, parameter_tolerance] :
          {std::pair{1e-12, 1e-12}, std::pair{0.15, 1e-12}, std::pair{1e-12, 1.0},
           std::pair{0.0, 1e-12}, std::pair{1e-12, 0.0}}) {
         const auto vol = kiyosi::implied_volatility(engine, option, market(), 0.37,
-            {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
+                                                    {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
         const auto coupon = kiyosi::implied_coupon(engine, phoenix, market(), 0.37,
-            {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
+                                                   {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
         for (const auto& result : {vol, coupon}) {
             if (price_tolerance == 0.0 || parameter_tolerance == 0.0) {
                 REQUIRE_FALSE(result);
@@ -517,8 +509,7 @@ TEST_CASE("Implied solvers keep one seed for every trial without changing the en
 TEST_CASE("Implied accumulator volatility rejects immediate knock-out settlements", "[pricing-api]")
 {
     const auto option = *make_accumulator(
-        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0,
-         .accumulated_quantity = 5.0, .effective_date = effective, .expiry_date = expiry});
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 5.0, .effective_date = effective, .expiry_date = expiry});
     const auto check = [&](const auto& engine) {
         for (const double spot : {120.0, 130.0}) {
             const auto context = market(spot);
@@ -535,7 +526,7 @@ TEST_CASE("Implied accumulator volatility rejects immediate knock-out settlement
             const auto quote = engine.price(option, context);
             REQUIRE(quote);
             const auto implied = implied_volatility(engine, option, context, *quote,
-                                                     {.lower_bound = 0.3, .upper_bound = 0.4});
+                                                    {.lower_bound = 0.3, .upper_bound = 0.4});
             REQUIRE(implied);
             CHECK(*implied == 0.3);
         }
@@ -600,11 +591,7 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
     for (const auto mode : {ObservationMode::continuous, ObservationMode::scheduled}) {
         CAPTURE(mode);
         const auto option = *make_barrier_option(
-            {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective,
-             .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out,
-             .rebate = 10.0, .observation_mode = mode,
-             .observation_dates = mode == ObservationMode::scheduled ? std::vector<Date>{valuation, expiry} : std::vector<Date>{},
-             .touch_state = BarrierTouchState::untouched});
+            {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .rebate = 10.0, .observation_mode = mode, .observation_dates = mode == ObservationMode::scheduled ? std::vector<Date>{valuation, expiry} : std::vector<Date>{}, .touch_state = BarrierTouchState::untouched});
         check(AnalyticBarrierEngine{}, option, 119.999);
         const auto wider = calculate_numerical_greeks(AnalyticBarrierEngine{}, option, market(119.985));
         REQUIRE(wider);
@@ -613,15 +600,11 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
         CHECK_FALSE(wider->has(Greek::speed));
     }
     const auto accumulator = *make_accumulator(
-        {.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0,
-         .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});
+        {.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});
     check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 99.999);
     check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 90.001);
     const auto note = *make_phoenix_option(
-        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0,
-         .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {90.0, 90.0},
-         .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {valuation, expiry},
-         .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {valuation, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
     for (const double spot : {119.999, 89.999, 70.001})
         check(MonteCarloPhoenixEngine{{32, 7}}, note, spot);
 }
@@ -655,10 +638,7 @@ TEST_CASE("Implied Phoenix coupon requires a payable coupon", "[pricing-api][aud
                 const auto date = at_expiry ? end : day(2025, 7, 1);
                 const double barrier = at_expiry ? 90.0 : 130.0;
                 const auto note = *kiyosi::make_phoenix_option(
-                    {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0,
-                     .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {barrier, 90.0},
-                     .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {day(2025, 7, 1), end},
-                     .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+                    {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {barrier, 90.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {day(2025, 7, 1), end}, .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
                 const auto context = *kiyosi::make_pricing_context(parameters, spot, date);
                 const auto quote = engine.price(note, context);
                 REQUIRE(quote);
@@ -682,10 +662,7 @@ TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote conventi
     const auto start = day(2025, 1, 1);
     const auto end = day(2026, 1, 1);
     const auto note = *kiyosi::make_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0,
-         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0,
-         .observation_dates = {end}, .barrier_state = kiyosi::AutocallableBarrierState::none,
-         .effective_date = start, .expiry_date = end});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {end}, .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto check = [&](const auto& engine) {
         for (const double spot : {60.0, 80.0, 120.0}) {
@@ -736,18 +713,11 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
         }
     };
     const auto snowball = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0,
-         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0,
-         .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none,
-         .effective_date = start, .expiry_date = end});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
     const auto binary = *make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0},
-         .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none,
-         .effective_date = start, .expiry_date = end});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
     const auto ternary = *make_ternary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0,
-         .knock_in_level = 70.0, .knock_out_levels = {120.0}, .observation_dates = {end},
-         .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .knock_out_levels = {120.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
     check(snowball, MonteCarloSnowballEngine{{32}});
     check(snowball, FiniteDifferenceSnowballEngine{});
     check(binary, MonteCarloBinarySnowballEngine{{32}});
@@ -762,10 +732,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
         for (const auto date : {effective, effective + std::chrono::days{1}}) {
             const auto context = market(100.0, date);
             const auto note = *make_binary_snowball_option(
-                {.knock_out_coupon_rates = {0.3, 0.1}, .maturity_coupon_rate = 0.1,
-                 .knock_out_levels = {120.0, 120.0}, .observation_dates = {effective, expiry},
-                 .barrier_state = AutocallableBarrierState::none,
-                 .effective_date = effective, .expiry_date = expiry});
+                {.knock_out_coupon_rates = {0.3, 0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0, 120.0}, .observation_dates = {effective, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
             const double quote = 1.1 * std::exp(-0.04 * *year_fraction(date, expiry));
             const auto result = implied_volatility(engine, note, context, quote);
             REQUIRE_FALSE(result);
@@ -773,9 +740,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
         }
         const auto context = market(100.0, effective);
         const auto note = *make_binary_snowball_option(
-            {.knock_out_coupon_rates = {0.2}, .maturity_coupon_rate = 0.1,
-             .knock_out_levels = {120.0}, .observation_dates = {expiry},
-             .effective_date = effective, .expiry_date = expiry});
+            {.knock_out_coupon_rates = {0.2}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
         const auto low = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.05), 100.0, effective);
         const auto quote = engine.price(note, low);
         REQUIRE(quote);
@@ -783,9 +748,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
         REQUIRE(result);
         CHECK(*result == 0.05);
         const auto early_note = *make_binary_snowball_option(
-            {.knock_out_coupon_rates = {0.0, 0.0}, .maturity_coupon_rate = 0.0,
-             .knock_out_levels = {120.0, 120.0}, .observation_dates = {valuation, expiry},
-             .effective_date = effective, .expiry_date = expiry});
+            {.knock_out_coupon_rates = {0.0, 0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {120.0, 120.0}, .observation_dates = {valuation, expiry}, .effective_date = effective, .expiry_date = expiry});
         for (const double rate : {0.0, 0.04}) {
             const auto low_context = *make_pricing_context(*make_bsm_parameters(rate, 0.01, 0.05), 100.0, effective);
             const auto early_quote = engine.price(early_note, low_context);
@@ -805,9 +768,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
     check(FiniteDifferenceBinarySnowballEngine{});
 
     const auto accumulator = *make_accumulator(
-        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 0.0,
-         .acceleration_factor = 1.0, .accumulated_quantity = 0.0,
-         .effective_date = effective, .expiry_date = expiry});
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 0.0, .effective_date = effective, .expiry_date = expiry});
     const auto context = market(100.0, effective);
     const auto check_accumulator = [&](const auto& engine) {
         const auto result = implied_volatility(engine, accumulator, context, 0.0);

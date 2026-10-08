@@ -6,6 +6,7 @@ import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
+    AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
     CashOrNothingOption,
@@ -18,6 +19,50 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_bjerksund_rejects_nonphysical_exercise_boundaries(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.BjerksundStenslandVanillaEngine()
+        for direction in ("call", "put"):
+            call = direction == "call"
+            for rate, dividend, volatility in (
+                (0.05, 0.1, 0.02),
+                (0, 0.02, 0.01),
+                (0, 0.1, 0.05),
+            ):
+                with self.subTest(direction=direction, volatility=volatility):
+                    option = AmericanOption(
+                        option_type=direction,
+                        strike=100 if call else 99,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    parameters = BlackScholesMertonParameters(
+                        risk_free_rate=rate if call else dividend,
+                        dividend_yield=dividend if call else rate,
+                        volatility=volatility,
+                    )
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=99 if call else 100,
+                        valuation_time=start,
+                    )
+                    for method, extra in (
+                        (engine.price, ()),
+                        (engine.price_with_greeks, ("delta",)),
+                    ):
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            method(option, context, *extra)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                        )
+                    expired = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=context.spot_price,
+                        valuation_time=end,
+                    )
+                    self.assertEqual(engine.price(option, expired), 0)
+
     def test_finite_difference_knock_in_prices_preserve_small_positive_values(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

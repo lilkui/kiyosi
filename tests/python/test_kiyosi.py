@@ -1304,8 +1304,7 @@ class KiyosiPythonTests(unittest.TestCase):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         for option_type in ("call", "put"):
             for spot, strike, rate, dividend, volatility in (
-                (200, 100, 0.02, 0.02, 0.6), (100, 100, 0, 0.02, 0.01),
-                (100, 100, 0, 0.1, 0.05), (200, 100, 0, 0.1, 0.01),
+                (200, 100, 0.02, 0.02, 0.6), (200, 100, 0.05, 0, 0.2),
             ):
                 if option_type == "put":
                     spot, strike, rate, dividend = strike, spot, dividend, rate

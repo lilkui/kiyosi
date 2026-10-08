@@ -39,6 +39,34 @@ TEST_CASE("Bjerksund-Stensland prices preserve extreme monetary scales", "[audit
     }
 }
 
+TEST_CASE("Bjerksund-Stensland rejects nonphysical exercise boundaries", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const BjerksundStenslandVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        for (const auto inputs : {std::array{0.05, 0.1, 0.02},
+                                  std::array{0.0, 0.02, 0.01},
+                                  std::array{0.0, 0.1, 0.05}}) {
+            CAPTURE(type, inputs);
+            const auto option = *make_american_option(type, call ? 100.0 : 99.0, start, end);
+            const auto parameters = *make_bsm_parameters(inputs[call ? 0 : 1], inputs[call ? 1 : 0], inputs[2]);
+            const auto context = *make_pricing_context(parameters, call ? 99.0 : 100.0, start);
+            const auto price = engine.price(option, context);
+            REQUIRE_FALSE(price);
+            CHECK(price.error().category == ErrorCategory::unsupported_operation);
+            const auto greeks = engine.price_with_greeks(option, context, {Greek::delta});
+            REQUIRE_FALSE(greeks);
+            CHECK(greeks.error().category == ErrorCategory::unsupported_operation);
+            const auto expired = engine.price(option, *make_pricing_context(parameters, context.spot_price(), end));
+            REQUIRE(expired);
+            CHECK(*expired == 0.0);
+        }
+    }
+}
+
 TEST_CASE("Analytic European prices preserve the large-volatility limit", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 6);
@@ -100,9 +128,7 @@ TEST_CASE("Bjerksund-Stensland respects European and immediate exercise bounds",
     const auto end = day(2026, 1, 6);
     for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
         for (const auto inputs : {std::array{200.0, 100.0, 0.02, 0.02, 0.6},
-                                  std::array{100.0, 100.0, 0.0, 0.02, 0.01},
-                                  std::array{100.0, 100.0, 0.0, 0.1, 0.05},
-                                  std::array{200.0, 100.0, 0.0, 0.1, 0.01}}) {
+                                  std::array{200.0, 100.0, 0.05, 0.0, 0.2}}) {
             const bool call = type == kiyosi::OptionType::call;
             const double spot = inputs[call ? 0 : 1];
             const double strike = inputs[call ? 1 : 0];
