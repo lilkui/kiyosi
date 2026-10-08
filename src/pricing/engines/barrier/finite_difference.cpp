@@ -77,10 +77,9 @@ Result<double> knockout_fd(const BarrierOption& option, const PricingContext& co
 } // namespace
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierOption& option, const PricingContext& context) const
 {
-    auto settings_valid = validate_finite_difference_settings(settings_);
+    auto settings_valid = detail::validate_finite_difference_settings(
+        settings_, general_fd_max_asset_steps, general_fd_max_time_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings_.asset_step_count > general_fd_max_asset_steps || settings_.time_step_count > general_fd_max_time_steps)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter, "finite-difference grid dimensions are out of range"});
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {

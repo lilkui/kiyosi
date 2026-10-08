@@ -47,10 +47,8 @@ Result<PricingResult> terminal_value(const Note& note, const PricingContext& con
     const bool knocked_in =
         is_knocked_in(note, spot, note.barrier_state() == AutocallableBarrierState::knocked_in, true);
     const auto& dates = note.observation_dates();
-    std::size_t index = 0;
-    while (index < dates.size() && dates[index] < note.expiry_date())
-        ++index;
-    const bool observed_at_expiry = index < dates.size() && dates[index] == note.expiry_date();
+    const std::size_t index = dates.size() - 1;
+    const bool observed_at_expiry = dates.back() == note.expiry_date();
     if (observed_at_expiry && spot >= note.knock_out_levels()[index])
         return make_pricing_result(note.principal_ratio() + observation_coupon(note, index, spot));
     const double coupon = observed_at_expiry && autocallable_program(note).carries_observation_coupon
@@ -69,11 +67,9 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     if (!valid) return std::unexpected(valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
-    auto settings_valid = validate_finite_difference_settings(settings_);
+    auto settings_valid = detail::validate_finite_difference_settings(
+        settings_, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings_.asset_step_count > trading_fd_max_steps || settings_.time_step_count > trading_fd_max_steps)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "finite-difference grid dimensions are out of range"});
     auto note_validation = validate_autocallable_note(note);
     if (!note_validation) return std::unexpected(note_validation.error());
     auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());

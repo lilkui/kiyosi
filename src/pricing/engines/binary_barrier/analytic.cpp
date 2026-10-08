@@ -118,31 +118,23 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
                                           : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
     const auto formula_terms = common(down ? 1.0 : -1.0, phi);
+    const double f1 = option.asset_settlement ? formula_terms.a1 : formula_terms.b1;
+    const double f2 = option.asset_settlement ? formula_terms.a2 : formula_terms.b2;
+    const double f3 = option.asset_settlement ? formula_terms.a3 : formula_terms.b3;
+    const double f4 = option.asset_settlement ? formula_terms.a4 : formula_terms.b4;
     double value = 0.0;
     if (!option.option_type) {
-        value = option.asset_settlement
-                    ? (knock_in ? formula_terms.a2 + formula_terms.a4 : formula_terms.a2 - formula_terms.a4)
-                    : (knock_in ? formula_terms.b2 + formula_terms.b4 : formula_terms.b2 - formula_terms.b4);
-    } else if (knock_in && !option.asset_settlement) {
-        if (call) value = down ? (option.strike > barrier ? formula_terms.b3 : formula_terms.b1 - formula_terms.b2 + formula_terms.b4)
-                               : (option.strike > barrier ? formula_terms.b1 : formula_terms.b2 - formula_terms.b3 + formula_terms.b4);
-        else value = down ? (option.strike > barrier ? formula_terms.b2 - formula_terms.b3 + formula_terms.b4 : formula_terms.b1)
-                          : (option.strike > barrier ? formula_terms.b1 - formula_terms.b2 + formula_terms.b4 : formula_terms.b3);
+        value = knock_in ? f2 + f4 : f2 - f4;
     } else if (knock_in) {
-        if (call) value = down ? (option.strike > barrier ? formula_terms.a3 : formula_terms.a1 - formula_terms.a2 + formula_terms.a4)
-                               : (option.strike > barrier ? formula_terms.a1 : formula_terms.a2 - formula_terms.a3 + formula_terms.a4);
-        else value = down ? (option.strike > barrier ? formula_terms.a2 - formula_terms.a3 + formula_terms.a4 : formula_terms.a1)
-                          : (option.strike > barrier ? formula_terms.a1 - formula_terms.a2 + formula_terms.a4 : formula_terms.a3);
-    } else if (!option.asset_settlement) {
-        if (call) value = down ? (option.strike > barrier ? formula_terms.b1 - formula_terms.b3 : formula_terms.b2 - formula_terms.b4)
-                               : (option.strike > barrier ? 0.0 : formula_terms.b1 - formula_terms.b2 + formula_terms.b3 - formula_terms.b4);
-        else value = down ? (option.strike > barrier ? formula_terms.b1 - formula_terms.b2 + formula_terms.b3 - formula_terms.b4 : 0.0)
-                          : (option.strike > barrier ? formula_terms.b2 - formula_terms.b4 : formula_terms.b1 - formula_terms.b3);
+        if (call) value = down ? (option.strike > barrier ? f3 : f1 - f2 + f4)
+                               : (option.strike > barrier ? f1 : f2 - f3 + f4);
+        else value = down ? (option.strike > barrier ? f2 - f3 + f4 : f1)
+                          : (option.strike > barrier ? f1 - f2 + f4 : f3);
     } else {
-        if (call) value = down ? (option.strike > barrier ? formula_terms.a1 - formula_terms.a3 : formula_terms.a2 - formula_terms.a4)
-                               : (option.strike > barrier ? 0.0 : formula_terms.a1 - formula_terms.a2 + formula_terms.a3 - formula_terms.a4);
-        else value = down ? (option.strike > barrier ? formula_terms.a1 - formula_terms.a2 + formula_terms.a3 - formula_terms.a4 : 0.0)
-                          : (option.strike > barrier ? formula_terms.a2 - formula_terms.a4 : formula_terms.a1 - formula_terms.a3);
+        if (call) value = down ? (option.strike > barrier ? f1 - f3 : f2 - f4)
+                               : (option.strike > barrier ? 0.0 : f1 - f2 + f3 - f4);
+        else value = down ? (option.strike > barrier ? f1 - f2 + f3 - f4 : 0.0)
+                          : (option.strike > barrier ? f2 - f4 : f1 - f3);
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
     return make_pricing_result(std::max(value, 0.0));

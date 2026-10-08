@@ -52,11 +52,9 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     if (!valid) return std::unexpected(valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
-    auto settings_valid = validate_finite_difference_settings(settings_);
+    auto settings_valid = detail::validate_finite_difference_settings(
+        settings_, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (settings_.asset_step_count > trading_fd_max_steps || settings_.time_step_count > trading_fd_max_steps)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "finite-difference grid dimensions are out of range"});
 
     const double spot = context.spot_price();
     const double relevant = std::max({spot, option.strike(), option.knock_out_level()});

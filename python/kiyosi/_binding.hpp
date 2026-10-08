@@ -15,6 +15,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -191,57 +192,37 @@ struct type_caster<kiyosi::python_binding::PythonChoice<Enum>> {
     }
 };
 
-#define KIYOSI_STRING_ENUM_CASTER(Enum)                                                     \
-    template <>                                                                             \
-    struct type_caster<kiyosi::Enum> {                                                      \
-        NB_TYPE_CASTER(kiyosi::Enum, kiyosi::python_binding::EnumNames<kiyosi::Enum>::Name) \
-        bool from_python(handle source, uint32_t, cleanup_list*) noexcept                   \
-        {                                                                                   \
-            if (!isinstance<str>(source)) return false;                                     \
-            Py_ssize_t size;                                                                \
-            const char* data = PyUnicode_AsUTF8AndSize(source.ptr(), &size);                \
-            if (!data) {                                                                    \
-                PyErr_Clear();                                                              \
-                return false;                                                               \
-            }                                                                               \
-            const std::string_view name{data, static_cast<std::size_t>(size)};              \
-            for (const auto& [candidate, member] :                                          \
-                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values) {                 \
-                if (name == candidate) {                                                    \
-                    value = member;                                                         \
-                    return true;                                                            \
-                }                                                                           \
-            }                                                                               \
-            return false;                                                                   \
-        }                                                                                   \
-        static handle from_cpp(kiyosi::Enum source, rv_policy, cleanup_list*)               \
-        {                                                                                   \
-            for (const auto& [name, member] :                                               \
-                 kiyosi::python_binding::EnumNames<kiyosi::Enum>::values)                   \
-                if (source == member)                                                       \
-                    return PyUnicode_FromStringAndSize(                                     \
-                        name.data(), static_cast<Py_ssize_t>(name.size()));                 \
-            PyErr_SetString(PyExc_RuntimeError, "unmapped core " #Enum " value");           \
-            return {};                                                                      \
-        }                                                                                   \
-    };
-
-KIYOSI_STRING_ENUM_CASTER(OptionType)
-KIYOSI_STRING_ENUM_CASTER(BarrierType)
-KIYOSI_STRING_ENUM_CASTER(ObservationMode)
-KIYOSI_STRING_ENUM_CASTER(BarrierTouchState)
-KIYOSI_STRING_ENUM_CASTER(RebateTiming)
-KIYOSI_STRING_ENUM_CASTER(SettlementTiming)
-KIYOSI_STRING_ENUM_CASTER(PayoffType)
-KIYOSI_STRING_ENUM_CASTER(KnockInObservationMode)
-KIYOSI_STRING_ENUM_CASTER(AutocallableBarrierState)
-KIYOSI_STRING_ENUM_CASTER(FiniteDifferenceScheme)
-KIYOSI_STRING_ENUM_CASTER(MonteCarloBackend)
-KIYOSI_STRING_ENUM_CASTER(CouponQuoteConvention)
-KIYOSI_STRING_ENUM_CASTER(BusinessDayConvention)
-KIYOSI_STRING_ENUM_CASTER(Greek)
-
-#undef KIYOSI_STRING_ENUM_CASTER
+template <typename Enum>
+    requires requires { kiyosi::python_binding::EnumNames<Enum>::values; }
+struct type_caster<Enum, enable_if_t<std::is_enum_v<Enum>>> {
+    NB_TYPE_CASTER(Enum, kiyosi::python_binding::EnumNames<Enum>::Name)
+    bool from_python(handle source, uint32_t, cleanup_list*) noexcept
+    {
+        if (!isinstance<str>(source)) return false;
+        Py_ssize_t size;
+        const char* data = PyUnicode_AsUTF8AndSize(source.ptr(), &size);
+        if (!data) {
+            PyErr_Clear();
+            return false;
+        }
+        const std::string_view name{data, static_cast<std::size_t>(size)};
+        for (const auto& [candidate, member] : kiyosi::python_binding::EnumNames<Enum>::values) {
+            if (name == candidate) {
+                value = member;
+                return true;
+            }
+        }
+        return false;
+    }
+    static handle from_cpp(Enum source, rv_policy, cleanup_list*)
+    {
+        for (const auto& [name, member] : kiyosi::python_binding::EnumNames<Enum>::values)
+            if (source == member)
+                return PyUnicode_FromStringAndSize(name.data(), static_cast<Py_ssize_t>(name.size()));
+        PyErr_SetString(PyExc_RuntimeError, "unmapped core enum value");
+        return {};
+    }
+};
 
 } // namespace nanobind::detail
 

@@ -53,4 +53,20 @@ inline constexpr int trading_fd_max_steps = 2'000;
     return {};
 }
 
+namespace detail {
+
+/// Validates shared settings before applying the engine-specific grid limits.
+[[nodiscard]] inline Result<void> validate_finite_difference_settings(
+    const FiniteDifferenceSettings& settings, int max_asset_steps, int max_time_steps)
+{
+    auto valid = kiyosi::validate_finite_difference_settings(settings);
+    if (!valid) return valid;
+    if (settings.asset_step_count > max_asset_steps || settings.time_step_count > max_time_steps)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "finite-difference grid dimensions are out of range"});
+    return {};
+}
+
+} // namespace detail
+
 } // namespace kiyosi
