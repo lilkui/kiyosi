@@ -35,7 +35,7 @@ TEST_CASE("Bjerksund rejects negative transformed rates before expiry")
         REQUIRE(expired);
         CHECK(*expired == (call ? 100.0 : 50.0));
         const auto zero_rate = engine.price(option, *kiyosi::make_pricing_context(
-            *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, start));
+                                                        *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, start));
         REQUIRE(zero_rate);
         CHECK(*zero_rate >= (call ? 100.0 : 50.0));
     }
@@ -72,12 +72,9 @@ TEST_CASE("Trading Monte Carlo rejects invalid simulation paths")
     const auto start = day(2025, 1, 1);
     const auto end = day(2025, 1, 2);
     const auto accumulator = *kiyosi::make_accumulator(
-        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0,
-         .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     const auto note = *kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
-         .knock_out_levels = {120.0}, .observation_dates = {end},
-         .effective_date = start, .expiry_date = end});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
     for (const auto [rate, volatility] : {
              std::pair{0.05, 1e308}, std::pair{0.05, 1000.0}, std::pair{1e308, 0.2}}) {
         const auto context = *kiyosi::make_pricing_context(

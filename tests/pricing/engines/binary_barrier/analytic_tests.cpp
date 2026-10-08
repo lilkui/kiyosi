@@ -48,7 +48,8 @@ TEST_CASE("Asset one-touch current hits settle at the observed spot", "[audit-fi
             for (const auto mode : {kiyosi::ObservationMode::scheduled, kiyosi::ObservationMode::continuous}) {
                 CAPTURE(up, valuation, mode);
                 const auto observations = mode == kiyosi::ObservationMode::scheduled
-                                              ? std::vector<kiyosi::Date>{valuation} : std::vector<kiyosi::Date>{};
+                                              ? std::vector<kiyosi::Date>{valuation}
+                                              : std::vector<kiyosi::Date>{};
                 const auto effective = mode == kiyosi::ObservationMode::continuous ? valuation : start;
                 const auto immediate = *factory(effective, end, barrier, kiyosi::SettlementTiming::at_hit,
                                                 mode, observations, std::nullopt);
@@ -60,11 +61,11 @@ TEST_CASE("Asset one-touch current hits settle at the observed spot", "[audit-fi
                 REQUIRE(deferred_price);
                 CHECK(*price == spot);
                 CHECK_THAT(*deferred_price, Catch::Matchers::WithinAbs(
-                    spot * std::exp(-0.02 * (end - valuation).count() / 365.0), 1e-12));
+                                                spot * std::exp(-0.02 * (end - valuation).count() / 365.0), 1e-12));
             }
         }
         const auto already_paid = *factory(start, end, barrier, kiyosi::SettlementTiming::at_hit,
-                                          kiyosi::ObservationMode::scheduled, {start, event}, kiyosi::BarrierTouchState::touched);
+                                           kiyosi::ObservationMode::scheduled, {start, event}, kiyosi::BarrierTouchState::touched);
         const auto result = engine.price(already_paid, *kiyosi::make_pricing_context(parameters, spot, event));
         REQUIRE(result);
         CHECK(*result == 0.0);

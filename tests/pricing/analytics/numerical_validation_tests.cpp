@@ -12,8 +12,8 @@
 
 namespace {
 
-using kiyosi::test::greek_value;
 using kiyosi::test::day;
+using kiyosi::test::greek_value;
 
 constexpr auto valuation = day(2025, 1, 6);
 const auto expiry_date = valuation + std::chrono::days{365};
@@ -85,7 +85,8 @@ TEST_CASE("Numerical time Greeks center clipped stencils on valuation", "[audit-
         Result<double> price(const EuropeanOption& option, const PricingContext& market) const
         {
             const double days = std::chrono::duration<double, std::ratio<86400>>{
-                market.valuation_time() - start_of_day(option.effective_date())}.count();
+                market.valuation_time() - start_of_day(option.effective_date())}
+                                    .count();
             return days * days * market.spot_price() * market.spot_price();
         }
     };
@@ -156,8 +157,11 @@ TEST_CASE("Finite-difference Greek grids preserve extreme expiry settlements")
     const auto market = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.02, 0.2), 1e308, expiry_date);
     const auto vanilla = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto barrier = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
-                                                       .strike = 100.0, .effective_date = valuation, .expiry_date = expiry_date,
-                                                       .barrier_level = 80.0, .barrier_type = kiyosi::BarrierType::down_and_out,
+                                                       .strike = 100.0,
+                                                       .effective_date = valuation,
+                                                       .expiry_date = expiry_date,
+                                                       .barrier_level = 80.0,
+                                                       .barrier_type = kiyosi::BarrierType::down_and_out,
                                                        .touch_state = kiyosi::BarrierTouchState::untouched});
     const auto check = [&](const auto& engine, const auto& option) {
         const auto price = engine.price(option, market);
@@ -456,12 +460,12 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         valuation, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
         {valuation + std::chrono::days{30}, valuation + std::chrono::days{60}});
     REQUIRE(short_schedule_checked);
-    const auto short_schedule = *short_schedule_checked;
+    const auto& short_schedule = *short_schedule_checked;
     const auto long_schedule_checked = kiyosi::make_cash_no_touch_down(
         valuation, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
         {valuation + std::chrono::days{179}, expiry_date});
     REQUIRE(long_schedule_checked);
-    const auto long_schedule = *long_schedule_checked;
+    const auto& long_schedule = *long_schedule_checked;
     const auto short_value_checked = kiyosi::AnalyticBinaryBarrierEngine{}.price(short_schedule, context());
     REQUIRE(short_value_checked);
     const auto short_value = *short_value_checked;
@@ -474,14 +478,14 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
         valuation, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
         {day(2025, 1, 11)});
     REQUIRE(weekend_checked);
-    const auto weekend = *weekend_checked;
+    const auto& weekend = *weekend_checked;
     const auto parameters = kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     REQUIRE(parameters);
     const auto market_checked = kiyosi::make_pricing_context(*parameters,
-                                                      100.0, valuation,
-                                                      kiyosi::weekdays_calendar());
+                                                             100.0, valuation,
+                                                             kiyosi::weekdays_calendar());
     REQUIRE(market_checked);
-    const auto market = *market_checked;
+    const auto& market = *market_checked;
     const auto invalid_binary_date = kiyosi::AnalyticBinaryBarrierEngine{}.price(weekend, market);
     REQUIRE_FALSE(invalid_binary_date.has_value());
     CHECK(invalid_binary_date.error().category ==
@@ -504,12 +508,12 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
                                                   .observation_dates = observation_dates};
     const auto out_checked = kiyosi::make_barrier_option(terms);
     REQUIRE(out_checked);
-    const auto out = *out_checked;
+    const auto& out = *out_checked;
     auto knock_in_terms = terms;
     knock_in_terms.barrier_type = kiyosi::BarrierType::down_and_in;
     const auto in_checked = kiyosi::make_barrier_option(knock_in_terms);
     REQUIRE(in_checked);
-    const auto in = *in_checked;
+    const auto& in = *in_checked;
     const auto market = context();
     const auto coarse_checked = kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market);
     REQUIRE(coarse_checked);
@@ -527,14 +531,14 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     weekend_terms.observation_dates = {day(2025, 1, 11)};
     const auto weekend_checked = kiyosi::make_barrier_option(weekend_terms);
     REQUIRE(weekend_checked);
-    const auto weekend = *weekend_checked;
+    const auto& weekend = *weekend_checked;
     const auto parameters = kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
     REQUIRE(parameters);
     const auto weekdays_market_checked = kiyosi::make_pricing_context(
         *parameters, 100.0, valuation,
         kiyosi::weekdays_calendar());
     REQUIRE(weekdays_market_checked);
-    const auto weekdays_market = *weekdays_market_checked;
+    const auto& weekdays_market = *weekdays_market_checked;
     const auto invalid_analytic_date = kiyosi::AnalyticBarrierEngine{}.price(weekend, weekdays_market);
     REQUIRE_FALSE(invalid_analytic_date.has_value());
     CHECK(invalid_analytic_date.error().category ==
@@ -549,7 +553,7 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     at_hit_terms.observation_dates = {valuation + std::chrono::days{37}, expiry_date};
     const auto at_hit_checked = kiyosi::make_barrier_option(at_hit_terms);
     REQUIRE(at_hit_checked);
-    const auto at_hit = *at_hit_checked;
+    const auto& at_hit = *at_hit_checked;
     CHECK(*kiyosi::AnalyticBarrierEngine{}.price(at_hit, market) > 0.0);
 }
 

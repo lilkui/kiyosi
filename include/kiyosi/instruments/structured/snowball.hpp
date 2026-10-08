@@ -13,11 +13,11 @@ class TernarySnowballOption;
 
 /// Input terms used to construct a SnowballOption.
 struct SnowballTerms {
-    std::vector<double> knock_out_coupon_rates;              ///< Finite knock-out coupons by observation.
+    std::vector<double> knock_out_coupon_rates{};            ///< Finite knock-out coupons by observation.
     double maturity_coupon_rate{};                           ///< Finite coupon paid at maturity when applicable.
     double initial_spot{};                                   ///< Positive reference spot.
     double knock_in_level{};                                 ///< Positive downside knock-in level.
-    std::vector<double> knock_out_levels;                    ///< Positive knock-out levels by observation.
+    std::vector<double> knock_out_levels{};                  ///< Positive knock-out levels by observation.
     double upper_strike{};                                   ///< Positive upper settlement strike.
     double lower_strike{};                                   ///< Non-negative lower settlement strike.
     std::vector<Date> observation_dates;                     ///< Strictly ordered event dates.

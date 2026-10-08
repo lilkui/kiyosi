@@ -19,8 +19,8 @@ namespace {
 using kiyosi::test::day;
 
 double reference_accumulator_price(const kiyosi::Accumulator& option,
-                                const kiyosi::PricingContext& context,
-                                kiyosi::TradingDayMonteCarloSettings settings)
+                                   const kiyosi::PricingContext& context,
+                                   kiyosi::TradingDayMonteCarloSettings settings)
 {
     const auto path_payoff = [&](std::mt19937_64& generator) {
         const double rate = context.model_parameters().risk_free_rate();

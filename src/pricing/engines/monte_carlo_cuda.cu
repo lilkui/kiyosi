@@ -149,7 +149,7 @@ __global__ void discount_and_collect_statistics(
     CudaAmericanRequest request, int step, const double* paths,
     double* cash_flows, RegressionStatistics* partials)
 {
-    __shared__ RegressionStatistics sums[threads_per_block];
+    __shared__ RegressionStatistics sums[threads_per_block]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
     const int thread = static_cast<int>(threadIdx.x);
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     RegressionStatistics local{};
@@ -181,7 +181,7 @@ __global__ void discount_and_collect_statistics(
 __global__ void reduce_statistics(const RegressionStatistics* partials,
                                   int count, RegressionStatistics* total)
 {
-    __shared__ RegressionStatistics sums[threads_per_block];
+    __shared__ RegressionStatistics sums[threads_per_block]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
     const int thread = static_cast<int>(threadIdx.x);
     RegressionStatistics sum{};
     for (int index = thread; index < count; index += threads_per_block)
@@ -217,7 +217,7 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
 
 __global__ void reduce_payoffs(const double* payoffs, int count, double* total)
 {
-    __shared__ MonteCarloMean means[threads_per_block];
+    __shared__ MonteCarloMean means[threads_per_block]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
     const int thread = static_cast<int>(threadIdx.x);
     MonteCarloMean mean{};
     for (int index = thread; index < count; index += threads_per_block)
@@ -460,7 +460,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         if (status != cudaSuccess) return error_result(status);
         if (statistics.sample_count <= 2) continue;
         const double sample_count = static_cast<double>(statistics.sample_count);
-        QuadraticRegressionMatrix matrix{{
+        const QuadraticRegressionMatrix matrix{{
             {sample_count, statistics.sum_x, statistics.sum_x2, statistics.sum_y},
             {statistics.sum_x, statistics.sum_x2, statistics.sum_x3, statistics.sum_xy},
             {statistics.sum_x2, statistics.sum_x3, statistics.sum_x4,

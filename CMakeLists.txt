@@ -63,6 +63,8 @@ endif()
 if(KIYOSI_ENABLE_CLANG_FORMAT)
     find_program(KIYOSI_CLANG_FORMAT_EXECUTABLE NAMES clang-format REQUIRED)
     file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
+        "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/python/*.cpp"
@@ -242,6 +244,9 @@ endif()
 
 if(KIYOSI_ENABLE_CLANG_TIDY)
     set(KIYOSI_TIDY_TARGETS kiyosi)
+    if(TARGET kiyosi_benchmarks)
+        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_benchmarks)
+    endif()
     if(TARGET kiyosi_tests)
         list(APPEND KIYOSI_TIDY_TARGETS kiyosi_tests)
     endif()

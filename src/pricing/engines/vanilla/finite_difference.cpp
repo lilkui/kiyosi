@@ -53,7 +53,7 @@ Result<PricingResult> price_finite_difference(
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
         const double continuation = sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
                                             strike * std::exp(-rate * tau) * probabilities.cash);
-        const double high = american ? std::max(std::max(sign * (upper - strike), 0.0), continuation) : continuation;
+        const double high = american ? std::max({sign * (upper - strike), 0.0, continuation}) : continuation;
         const double discounted_strike = strike * std::exp(-rate * tau);
         const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
         return Boundaries{low, high};
@@ -78,7 +78,7 @@ Result<PricingResult> price_finite_difference(
 
     const double value = std::max(space->interpolate(old, spot), american ? intrinsic(spot) : 0.0);
     return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                                                      {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
 }
 } // namespace
 

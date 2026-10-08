@@ -53,8 +53,8 @@ Result<SimulationInputs> prepare_simulation(
 }
 
 Result<double> path_payoff(double initial_spot, const AutocallableProgram& program,
-                   const SimulationInputs& inputs, AutocallablePathState state,
-                   std::mt19937_64& generator)
+                           const SimulationInputs& inputs, AutocallablePathState state,
+                           std::mt19937_64& generator)
 {
     double value = initial_spot;
     std::normal_distribution<double> normal;

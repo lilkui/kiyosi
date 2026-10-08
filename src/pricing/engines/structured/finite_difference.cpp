@@ -172,8 +172,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
 
     if constexpr (monitors_knock_in)
         return make_pricing_result(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
-                                                                                                                   : alive,
-                                                      spot));
+                                                                                                     : alive,
+                                                                             spot));
     else
         return make_pricing_result(initial.path.coupons + space->interpolate(alive, spot));
 }

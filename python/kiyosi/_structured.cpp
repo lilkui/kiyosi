@@ -11,8 +11,7 @@ void bind_note_properties(nb::class_<Note>& binding)
 {
     binding.def_prop_ro("knock_out_levels", &Note::knock_out_levels,
                         "Knock-out level for each observation date.")
-        .def_prop_ro("observation_dates", [](const Note& note) {
-            return python_dates(note.observation_dates()); }, "Copy of the ordered observation dates.")
+        .def_prop_ro("observation_dates", [](const Note& note) { return python_dates(note.observation_dates()); }, "Copy of the ordered observation dates.")
         .def_prop_ro("principal_ratio", &Note::principal_ratio, "Normalized principal repayment component; coupons and downside are separate.")
         .def_prop_ro("barrier_state", &Note::barrier_state, "State before valuation, or None when not supplied.")
         .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); }, "First date on which the note is effective.")

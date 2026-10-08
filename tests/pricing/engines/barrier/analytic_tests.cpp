@@ -26,12 +26,11 @@ TEST_CASE("Analytic barrier prices preserve finite extreme monetary scales")
         for (const auto direction : {OptionType::call, OptionType::put}) {
             const auto prices = [&](double scale) {
                 const BinaryBarrierTerms terms{
-                    .option_type = direction, .strike = 100.0 * scale, .effective_date = start,
-                    .expiry_date = end, .barrier_level = (up ? 120.0 : 80.0) * scale, .barrier_type = type};
+                    .option_type = direction, .strike = 100.0 * scale, .effective_date = start, .expiry_date = end, .barrier_level = (up ? 120.0 : 80.0) * scale, .barrier_type = type};
                 const auto context = *make_pricing_context(parameters, 100.0 * scale, start);
                 const auto vanilla = AnalyticBarrierEngine{}.price(*make_barrier_option(
-                    {.option_type = direction, .strike = terms.strike, .effective_date = start,
-                     .expiry_date = end, .barrier_level = terms.barrier_level, .barrier_type = type}), context);
+                                                                       {.option_type = direction, .strike = terms.strike, .effective_date = start, .expiry_date = end, .barrier_level = terms.barrier_level, .barrier_type = type}),
+                                                                   context);
                 const auto cash = AnalyticBinaryBarrierEngine{}.price(*make_cash_binary_barrier_option(terms, 10.0), context);
                 const auto asset = AnalyticBinaryBarrierEngine{}.price(*make_asset_binary_barrier_option(terms), context);
                 REQUIRE(vanilla);
@@ -167,10 +166,7 @@ TEST_CASE("Zero barrier rebates ignore payment timing", "[audit-fixes]")
             for (const bool up : {true, false}) {
                 CAPTURE(rate, dividend, type, up);
                 auto terms = kiyosi::BarrierOptionTerms{
-                    .option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end,
-                    .barrier_level = up ? 120.0 : 80.0,
-                    .barrier_type = up ? kiyosi::BarrierType::up_and_out : kiyosi::BarrierType::down_and_out,
-                    .rebate = 0.0, .rebate_timing = kiyosi::RebateTiming::at_expiry};
+                    .option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? kiyosi::BarrierType::up_and_out : kiyosi::BarrierType::down_and_out, .rebate = 0.0, .rebate_timing = kiyosi::RebateTiming::at_expiry};
                 const auto expiry_price = kiyosi::AnalyticBarrierEngine{}.price(*kiyosi::make_barrier_option(terms), context);
                 REQUIRE(expiry_price);
                 terms.rebate_timing = kiyosi::RebateTiming::at_hit;
@@ -192,7 +188,7 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
     const auto context_checked = kiyosi::make_pricing_context(
         *parameters, 100.0, valuation);
     REQUIRE(context_checked);
-    const auto context = *context_checked;
+    const auto& context = *context_checked;
     auto terms = kiyosi::BarrierOptionTerms{.option_type = kiyosi::OptionType::call,
                                             .strike = 100.0,
                                             .effective_date = effective,
@@ -201,7 +197,7 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
                                             .barrier_type = kiyosi::BarrierType::up_and_out};
     const auto missing_checked = kiyosi::make_barrier_option(terms);
     REQUIRE(missing_checked);
-    const auto missing = *missing_checked;
+    const auto& missing = *missing_checked;
     CHECK_FALSE(missing.touch_state());
     const auto missing_result = kiyosi::AnalyticBarrierEngine{}.price(missing, context);
     REQUIRE_FALSE(missing_result);
@@ -214,11 +210,11 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
     terms.touch_state = kiyosi::BarrierTouchState::untouched;
     const auto untouched_checked = kiyosi::make_barrier_option(terms);
     REQUIRE(untouched_checked);
-    const auto untouched = *untouched_checked;
+    const auto& untouched = *untouched_checked;
     terms.touch_state = kiyosi::BarrierTouchState::touched;
     const auto touched_checked = kiyosi::make_barrier_option(terms);
     REQUIRE(touched_checked);
-    const auto touched = *touched_checked;
+    const auto& touched = *touched_checked;
     CHECK(*kiyosi::AnalyticBarrierEngine{}.price(untouched, context) > 0.0);
     CHECK(*kiyosi::AnalyticBarrierEngine{}.price(touched, context) == 0.0);
     CHECK(*kiyosi::FiniteDifferenceBarrierEngine{}.price(touched, context) == 0.0);
@@ -226,10 +222,10 @@ TEST_CASE("Barrier engines price prior touches from history instead of current s
     terms.barrier_type = kiyosi::BarrierType::up_and_in;
     const auto knocked_in_checked = kiyosi::make_barrier_option(terms);
     REQUIRE(knocked_in_checked);
-    const auto knocked_in = *knocked_in_checked;
+    const auto& knocked_in = *knocked_in_checked;
     const auto vanilla_checked = kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
     REQUIRE(vanilla_checked);
-    const auto vanilla = *vanilla_checked;
+    const auto& vanilla = *vanilla_checked;
     CHECK_THAT(*kiyosi::AnalyticBarrierEngine{}.price(knocked_in, context),
                Catch::Matchers::WithinAbs(*kiyosi::AnalyticVanillaEngine{}.price(vanilla, context), 1e-12));
 
@@ -280,10 +276,7 @@ TEST_CASE("Scheduled barriers settle exactly at and after their final fixing", "
                     CAPTURE(valuation, kind, rebate);
                     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
                     const auto option = *kiyosi::make_barrier_option(
-                        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry,
-                         .barrier_level = 120.0, .barrier_type = kind, .rebate = rebate,
-                         .observation_mode = kiyosi::ObservationMode::scheduled, .observation_dates = {fixing},
-                         .touch_state = kiyosi::BarrierTouchState::untouched});
+                        {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = kind, .rebate = rebate, .observation_mode = kiyosi::ObservationMode::scheduled, .observation_dates = {fixing}, .touch_state = kiyosi::BarrierTouchState::untouched});
                     const auto price = engine.price(option, context);
                     REQUIRE(price);
                     if (valuation == effective) {

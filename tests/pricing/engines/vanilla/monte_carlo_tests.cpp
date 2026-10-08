@@ -62,7 +62,7 @@ TEST_CASE("CUDA host adapter preserves results and failure categories")
         REQUIRE_FALSE(result.has_value());
         REQUIRE(result.error() == Error{category, "backend diagnostic"});
     }
-    REQUIRE_THROWS_AS(cuda_mean({CudaPricingStatus::out_of_memory, 0.0, nullptr}), std::bad_alloc);
+    REQUIRE_THROWS_AS(static_cast<void>(cuda_mean({CudaPricingStatus::out_of_memory, 0.0, nullptr})), std::bad_alloc);
     const auto unknown = cuda_mean({static_cast<CudaPricingStatus>(255), 0.0, nullptr});
     REQUIRE_FALSE(unknown.has_value());
     REQUIRE(unknown.error().category == ErrorCategory::backend_failure);
@@ -80,12 +80,12 @@ void check_american_currency_scale(kiyosi::MonteCarloBackend backend)
     const auto parameters = *make_bsm_parameters(0.1, 0.0, 0.3);
     const MonteCarloVanillaEngine engine{20'000, 50, 47, backend};
     const auto base = engine.price(*make_american_option(OptionType::put, 100.0, start, end),
-                                    *make_pricing_context(parameters, 90.0, start));
+                                   *make_pricing_context(parameters, 90.0, start));
     REQUIRE(base);
     for (const double scale : {1e-300, 1e-15, 1e12, 1e15, 1e303}) {
         CAPTURE(backend, scale);
         const auto price = engine.price(*make_american_option(OptionType::put, 100.0 * scale, start, end),
-                                         *make_pricing_context(parameters, 90.0 * scale, start));
+                                        *make_pricing_context(parameters, 90.0 * scale, start));
         REQUIRE(price);
         CHECK_THAT(*price / scale, Catch::Matchers::WithinAbs(*base, 1e-7));
     }
@@ -194,8 +194,7 @@ TEST_CASE("Vanilla Monte Carlo validates generic settings at expiry", "[audit-fi
     const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
     const auto check = [&](const auto& option) {
         for (const MonteCarloSettings settings : {
-                 MonteCarloSettings{0, 2}, {-1, 2}, {10'000'001, 2}, {1, 0}, {1, 1}, {1, 10'001},
-                 {1, 2, 1, static_cast<MonteCarloBackend>(255)}}) {
+                 MonteCarloSettings{0, 2}, {-1, 2}, {10'000'001, 2}, {1, 0}, {1, 1}, {1, 10'001}, {1, 2, 1, static_cast<MonteCarloBackend>(255)}}) {
             const MonteCarloVanillaEngine engine{settings};
             for (const auto date : {effective, expiry}) {
                 const auto market = *make_pricing_context(parameters, 110.0, date);
@@ -455,8 +454,14 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     REQUIRE(cudaGetDevice(&original_device) == cudaSuccess);
     struct RestoreDevice {
         int device;
+        explicit RestoreDevice(int value) : device{value} {}
+        RestoreDevice(const RestoreDevice&) = delete;
+        RestoreDevice& operator=(const RestoreDevice&) = delete;
+        RestoreDevice(RestoreDevice&&) = delete;
+        RestoreDevice& operator=(RestoreDevice&&) = delete;
         ~RestoreDevice() { cudaSetDevice(device); }
-    } restore{original_device};
+    };
+    const RestoreDevice restore{original_device};
     int device_count = 0;
     REQUIRE(cudaGetDeviceCount(&device_count) == cudaSuccess);
     REQUIRE(device_count > 0);
@@ -465,12 +470,8 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     const auto european = *make_european_option(OptionType::call, 100.0, start, end);
     const auto american = *make_american_option(OptionType::put, 100.0, start, end);
-    const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 120.0,
-                                                .daily_quantity = 1.0, .acceleration_factor = 2.0,
-                                                .effective_date = start, .expiry_date = end});
-    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
-                                                    .knock_out_levels = {120.0}, .observation_dates = {end},
-                                                    .effective_date = start, .expiry_date = end});
+    const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
     const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
     const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
     const MonteCarloBinarySnowballEngine structured{{64, 42, MonteCarloBackend::cuda}};

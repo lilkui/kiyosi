@@ -143,7 +143,7 @@ TEST_CASE("Bjerksund-Stensland respects European and immediate exercise bounds",
             REQUIRE(american);
             CHECK(*american >= *european - 1e-12);
             CHECK(*american >= std::max(call ? spot - strike : strike - spot, 0.0));
-            CHECK_THAT(*american, Catch::Matchers::WithinAbs(std::max(*european, std::max(call ? spot - strike : strike - spot, 0.0)), 1e-10));
+            CHECK_THAT(*american, Catch::Matchers::WithinAbs(std::max({*european, call ? spot - strike : strike - spot, 0.0}), 1e-10));
         }
     }
 }

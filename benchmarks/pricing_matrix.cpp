@@ -1,4 +1,6 @@
 #include <chrono>
+#include <cstdio>
+#include <exception>
 #include <string>
 
 #include <benchmark/benchmark.h>
@@ -18,7 +20,7 @@ void register_kiyosi(const char* name, Option option, Engine engine, kiyosi::Pri
     if (use_real_time) registered->UseRealTime();
 }
 
-bool register_matrix()
+void register_matrix()
 {
     using namespace kiyosi;
     const Date start{std::chrono::year{2025} / 1 / 1};
@@ -106,9 +108,27 @@ bool register_matrix()
     register_kiyosi("binary_snowball/mc_cuda", binary_snowball, MonteCarloBinarySnowballEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
     register_kiyosi("ternary_snowball/mc_cuda", ternary_snowball, MonteCarloTernarySnowballEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
 #endif
-    return true;
 }
 
-[[maybe_unused]] const bool matrix_registered = register_matrix();
-
 } // namespace
+
+int main(int argc, char** argv)
+{
+    try {
+        benchmark::MaybeReenterWithoutASLR(argc, argv);
+        benchmark::Initialize(&argc, argv);
+        if (benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;
+        register_matrix();
+        kiyosi::benchmark_support::register_monte_carlo_cases();
+#if KIYOSI_HAS_QUANTLIB
+        kiyosi::benchmark_support::register_quantlib_matrix();
+#endif
+        benchmark::RunSpecifiedBenchmarks();
+        benchmark::Shutdown();
+        return 0;
+    } catch (const std::exception& error) {
+        std::fputs(error.what(), stderr);
+        std::fputc('\n', stderr);
+        return 1;
+    }
+}

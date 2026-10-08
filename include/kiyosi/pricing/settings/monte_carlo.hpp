@@ -22,7 +22,7 @@ enum class MonteCarloBackend : unsigned char {
 struct MonteCarloSettings {
     int path_count = 100'000;                           ///< Number of simulated paths; 1..10,000,000.
     int step_count = 50;                                ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
-    std::optional<std::uint64_t> seed;                  ///< Deterministic seed, or system entropy when absent.
+    std::optional<std::uint64_t> seed{};                ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
 };
 

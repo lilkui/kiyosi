@@ -391,8 +391,7 @@ KiyosiError
                        .def_prop_ro("rebate_timing", &BarrierOption::rebate_timing, "Time at which the rebate is paid.")
                        .def_prop_ro("observation_mode", &BarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                        .def_prop_ro("touch_state", &BarrierOption::touch_state, "Barrier touch history before valuation.")
-                       .def_prop_ro("observation_dates", [](const BarrierOption& value) {
-            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
+                       .def_prop_ro("observation_dates", [](const BarrierOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_common_option_properties(barrier, "BarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
@@ -410,8 +409,7 @@ Instances are created by :func:`cash_binary_barrier_option` or
             return std::nullopt; }, "Cash payout, or None for an asset payoff.")
                               .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                               .def_prop_ro("touch_state", &BinaryBarrierOption::touch_state, "Barrier touch history before valuation.")
-                              .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) {
-            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
+                              .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_common_option_properties(binary_barrier, "BinaryBarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
 
@@ -511,8 +509,7 @@ factory functions.)doc")
                      .def_prop_ro("settlement_timing", &TouchOption::settlement_timing, "Settlement time for a one-touch payoff.")
                      .def_prop_ro("observation_mode", &TouchOption::observation_mode, "Continuous or scheduled monitoring mode.")
                      .def_prop_ro("touch_state", &TouchOption::touch_state, "Barrier touch history before valuation.")
-                     .def_prop_ro("observation_dates", [](const TouchOption& value) {
-            return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
+                     .def_prop_ro("observation_dates", [](const TouchOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
     bind_repr(touch, "TouchOption",
               {"effective_date", "expiry_date", "barrier_level", "is_one_touch", "is_up", "payoff_type", "payout", "settlement_timing", "observation_mode", "observation_dates", "touch_state"});

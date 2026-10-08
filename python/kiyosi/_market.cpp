@@ -220,8 +220,7 @@ dates : list[datetime.date]
                         .def("__iter__", [](const ObservationSchedule& schedule) {
                             return PythonDateIterator{python_dates(schedule.dates()).attr("__iter__")()};
                         })
-                        .def_prop_ro("dates", [](const ObservationSchedule& schedule) {
-            return python_dates(schedule.dates()); }, "Copy of the ordered observation dates.");
+                        .def_prop_ro("dates", [](const ObservationSchedule& schedule) { return python_dates(schedule.dates()); }, "Copy of the ordered observation dates.");
     bind_value_equality(schedule);
     bind_repr(schedule, "ObservationSchedule", {"dates"});
 

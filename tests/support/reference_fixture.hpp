@@ -117,7 +117,8 @@ inline Date calendar_date(const std::string& text, std::size_t row, std::string_
                 if (is_supported_date(value)) return value;
             }
         } catch (const FixtureParseError&) {
-            // Report the complete date below rather than the individual component.
+            throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +
+                                    std::string{name} + " '" + text + "' (expected YYYY-MM-DD)");
         }
     }
     throw FixtureParseError("fixture row " + std::to_string(row) + ": invalid " +

@@ -92,7 +92,7 @@ template <typename Engine, typename Option>
     const double elo = *flo;
     const double ehi = *fhi;
     // Pricing above validates the contract and history before these state checks.
-    bool identifiable = context.valuation_time() != start_of_day(option.expiry_date());
+    bool identifiable = context.valuation_time() != start_of_day(option.expiry_date()); // NOLINT(misc-const-correctness): later state checks depend on the option type.
     if constexpr (requires { option.barrier_state(); }) {
         identifiable = identifiable && option.barrier_state() != AutocallableBarrierState::knocked_out;
         for (std::size_t i = 0; i < option.observation_dates().size(); ++i)
@@ -102,7 +102,7 @@ template <typename Engine, typename Option>
         if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption> ||
                       std::same_as<Option, SnowballOption> || std::same_as<Option, PhoenixOption>) {
             const double rate = context.model_parameters().risk_free_rate();
-            double terminal_coupon = 0.0;
+            double terminal_coupon = 0.0; // NOLINT(misc-const-correctness): coupon updates depend on the option type.
             if constexpr (requires { option.maturity_coupon_rate(); })
                 terminal_coupon = option.maturity_coupon_rate();
             bool exposed = false;

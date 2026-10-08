@@ -7,6 +7,11 @@
 
 namespace kiyosi::benchmark_support {
 
+void register_monte_carlo_cases();
+#if KIYOSI_HAS_QUANTLIB
+void register_quantlib_matrix();
+#endif
+
 template <typename Option, typename Engine>
 auto* register_price(const char* name, Option option, Engine engine, PricingContext context)
 {

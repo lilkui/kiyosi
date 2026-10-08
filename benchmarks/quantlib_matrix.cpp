@@ -29,13 +29,15 @@
 #include <ql/time/calendars/nullcalendar.hpp>
 #include <ql/time/daycounters/actual365fixed.hpp>
 
+#include "pricing.hpp"
+
 namespace {
 
 template <typename Price>
 void register_quantlib(const char* name, Price price)
 {
     const std::string full_name = std::string{"matrix/quantlib/"} + name;
-    benchmark::RegisterBenchmark(full_name.c_str(), [price = std::move(price)](benchmark::State& state) {
+    benchmark::RegisterBenchmark(full_name, [price = std::move(price)](benchmark::State& state) {
         try {
             const double warmup_price = price();
             if (!std::isfinite(warmup_price)) {
@@ -55,9 +57,9 @@ void register_quantlib(const char* name, Price price)
 
 template <typename Instrument>
 void register_contract(const char* name, QuantLib::ext::shared_ptr<Instrument> contract,
-                       QuantLib::ext::shared_ptr<QuantLib::PricingEngine> engine)
+                       const QuantLib::ext::shared_ptr<QuantLib::PricingEngine>& engine)
 {
-    contract->setPricingEngine(std::move(engine));
+    contract->setPricingEngine(engine);
     register_quantlib(name, [contract = std::move(contract)] {
         // Instrument::NPV() caches its result; recalculate() forces a real pricing call.
         contract->recalculate();
@@ -65,7 +67,7 @@ void register_contract(const char* name, QuantLib::ext::shared_ptr<Instrument> c
     });
 }
 
-bool register_matrix()
+void register_matrix()
 {
     using namespace QuantLib;
     const Date start{1, January, 2025};
@@ -158,9 +160,11 @@ bool register_matrix()
                                                                        european_exercise),
                       ext::make_shared<ContinuousArithmeticAsianLevyEngine>(
                           process, Handle<Quote>{ext::make_shared<SimpleQuote>(100.0)}));
-    return true;
 }
 
-[[maybe_unused]] const bool matrix_registered = register_matrix();
-
 } // namespace
+
+void kiyosi::benchmark_support::register_quantlib_matrix()
+{
+    register_matrix();
+}

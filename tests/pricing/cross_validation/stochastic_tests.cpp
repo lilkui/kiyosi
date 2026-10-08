@@ -150,7 +150,8 @@ void check_scenario(const Scenario& scenario, bool extended)
             scenario.history, scenario.accumulated_quantity);
     // Historical knock-in requires an observation before valuation.
     const auto valuation = scenario.history == AutocallableBarrierState::knocked_in
-                               ? effective_date + std::chrono::days{1} : effective_date;
+                               ? effective_date + std::chrono::days{1}
+                               : effective_date;
     const auto market = checked(make_pricing_context(
         checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, valuation));
     // Native price units: normalized structured notes; accumulator quantity*price.

@@ -142,9 +142,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const auto start = parse_date(test.inputs.at("effective_date"));
                 const auto end = parse_date(test.inputs.at("expiry_date"));
                 auto terms = kiyosi::StandardSnowballTerms{
-                    .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0,
-                    .knock_out_level = 110.0, .observation_dates = {end},
-                    .effective_date = start, .expiry_date = end};
+                    .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_level = 110.0, .observation_dates = {end}, .effective_date = start, .expiry_date = end};
                 const auto absent = kiyosi::make_standard_snowball(terms);
                 terms.barrier_state = kiyosi::AutocallableBarrierState::none;
                 const auto explicit_none = kiyosi::make_standard_snowball(terms);
@@ -180,7 +178,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const auto context = *kiyosi::make_pricing_context(
                     *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, valuation);
                 const auto history = test.inputs.at("history") == "touched"
-                                         ? std::optional{kiyosi::BarrierTouchState::touched} : std::nullopt;
+                                         ? std::optional{kiyosi::BarrierTouchState::touched}
+                                         : std::nullopt;
                 const auto option = *kiyosi::make_cash_one_touch_up(
                     start, end, 90.0, 10.0, kiyosi::SettlementTiming::at_expiry,
                     kiyosi::ObservationMode::continuous, {}, history);
@@ -196,21 +195,16 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const auto context = *kiyosi::make_pricing_context(
                     *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0,
                     parse_date(test.inputs.at("valuation_date")));
-                const auto option = *kiyosi::make_binary_snowball_option({
-                    .knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
-                    .knock_out_levels = {110.0},
-                    .observation_dates = {parse_date(test.inputs.at("observation_date"))},
-                    .barrier_state = kiyosi::AutocallableBarrierState::none,
-                    .effective_date = start, .expiry_date = end});
+                const auto option = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {110.0}, .observation_dates = {parse_date(test.inputs.at("observation_date"))}, .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
                 const auto check = [&](const auto& engine) {
                     const auto price = engine.price(option, context);
                     REQUIRE(price);
                     const auto result = kiyosi::implied_coupon(engine, option, context, *price,
-                        kiyosi::CouponQuoteConvention::preserve_maturity_coupon);
+                                                               kiyosi::CouponQuoteConvention::preserve_maturity_coupon);
                     REQUIRE_FALSE(result);
                     CHECK(result.error().category == kiyosi::ErrorCategory::unsupported_operation);
                     const auto shifted = kiyosi::implied_coupon(engine, option, context, *price,
-                        kiyosi::CouponQuoteConvention::shift_maturity_coupon);
+                                                                kiyosi::CouponQuoteConvention::shift_maturity_coupon);
                     REQUIRE(shifted);
                     CHECK_THAT(*shifted, Catch::Matchers::WithinAbs(0.1, 1e-6));
                 };

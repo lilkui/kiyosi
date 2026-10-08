@@ -83,7 +83,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "finite-difference digital price violates payoff bounds"});
     return make_pricing_result(std::clamp(value, 0.0, upper_bound), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                                                      {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+                                                                     {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
 }
 
 } // namespace

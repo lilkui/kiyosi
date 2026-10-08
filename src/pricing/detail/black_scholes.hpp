@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
@@ -119,14 +120,14 @@ inline Result<PricingResult> price_at_volatility(
                              : 0.0;
     if (regular) {
         if (want(Greek::speed)) speed = -weighted_density(log_gamma_weight - log_spot, 1.0 + d1 / volatility_time);
-        if (want(Greek::theta)) theta = (-weighted_density(log_spot + log_discount + log_volatility - std::log(2.0) - log_root_time) + carry) / 365.0;
+        if (want(Greek::theta)) theta = (-weighted_density(log_spot + log_discount + log_volatility - std::numbers::ln2 - log_root_time) + carry) / 365.0;
         if (want(Greek::charm)) charm = (-weighted_density(log_discount, (rate - dividend) / volatility_time - 0.5 * d2 / year_fraction) +
                                          sign * dividend * dividend_discount_factor * cumulative_d1) /
                                         365.0;
         if (want(Greek::color)) color =
                                     (weighted_density(log_gamma_weight, dividend) +
                                      std::copysign(1.0, d1) * weighted_density(log_gamma_weight - log_volatility - log_root_time + std::log(std::abs(d1)), rate - dividend) +
-                                     weighted_density(log_gamma_weight - std::log(2.0) - std::log(year_fraction), 1.0 - d1 * d2)) /
+                                     weighted_density(log_gamma_weight - std::numbers::ln2 - std::log(year_fraction), 1.0 - d1 * d2)) /
                                     365.0;
         if (want(Greek::vega)) vega = weighted_density(log_spot + log_discount + log_root_time - std::log(percentage_points_per_unit));
         if (want(Greek::vanna)) vanna = -weighted_density(log_discount - log_volatility - std::log(percentage_points_per_unit), d2);

@@ -318,10 +318,7 @@ TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]
 {
     const auto event = day(2025, 1, 2);
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto note = *kiyosi::make_binary_snowball_option({
-        .knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.2,
-        .knock_out_levels = {120.0, 130.0}, .observation_dates = {event, expiry_date},
-        .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.2, .knock_out_levels = {120.0, 130.0}, .observation_dates = {event, expiry_date}, .effective_date = effective_date, .expiry_date = expiry_date});
     const auto accumulator = *kiyosi::make_accumulator(
         {100.0, 120.0, 1.0, 2.0, 3.0, effective_date, expiry_date});
     for (const double spot : {120.0, 120.1}) {
@@ -364,12 +361,7 @@ TEST_CASE("Finite-difference current accrual and knock-in precede continuation",
         CHECK(*actual == *expected);
     }
     const auto snowball = [&](kiyosi::AutocallableBarrierState state) {
-        return *kiyosi::make_snowball_option({
-            .knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2,
-            .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0},
-            .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date},
-            .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-            .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date});
+        return *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date});
     };
     const auto context = *kiyosi::make_pricing_context(parameters, 79.9, event);
     const kiyosi::FiniteDifferenceSnowballEngine engine{grid};
@@ -384,12 +376,7 @@ TEST_CASE("Finite-difference current coupons use the actual barrier branch", "[a
 {
     const auto event = day(2025, 1, 2);
     const auto note = [&](double barrier) {
-        return *kiyosi::make_phoenix_option({
-            .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 60.0,
-            .knock_out_levels = {120.0, 130.0}, .coupon_barrier_levels = {barrier, 80.0},
-            .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {event, expiry_date},
-            .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-            .effective_date = effective_date, .expiry_date = expiry_date});
+        return *kiyosi::make_phoenix_option({.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 60.0, .knock_out_levels = {120.0, 130.0}, .coupon_barrier_levels = {barrier, 80.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {event, expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = effective_date, .expiry_date = expiry_date});
     };
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0, event);

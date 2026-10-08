@@ -39,7 +39,7 @@ InitialState initial_state(const Accumulator& option, const PricingContext& cont
 }
 
 Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option,
-                                               const PricingContext& context)
+                                                       const PricingContext& context)
 {
     const Timestamp valuation = context.valuation_time();
     const auto dates = trading_dates(context.calendar(), valuation, option.expiry_date());
@@ -56,8 +56,8 @@ Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option
 }
 
 Result<double> path_payoff(const Accumulator& option, const PricingContext& context,
-                   const std::vector<SimulationStep>& steps, double quantity,
-                   std::mt19937_64& generator)
+                           const std::vector<SimulationStep>& steps, double quantity,
+                           std::mt19937_64& generator)
 {
     double value = context.spot_price();
 

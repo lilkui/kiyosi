@@ -173,7 +173,8 @@ TEST_CASE("Reference fixture conversions retain field diagnostics for format and
         std::istringstream input{
             "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\n"
             "test\tOption\tMonteCarloEuropeanEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
-            "reference_kind=statistical;tolerance=" + tolerance +
+            "reference_kind=statistical;tolerance=" +
+            tolerance +
             ";" + settings + "\tprice=1\tprice=0.1\n"};
         return kiyosi::test::parse_reference_cases(input);
     };

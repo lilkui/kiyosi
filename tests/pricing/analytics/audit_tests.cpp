@@ -1,3 +1,5 @@
+#include <numbers>
+
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <kiyosi/kiyosi.hpp>
@@ -148,7 +150,7 @@ TEST_CASE("Fixed barrier settlements bypass irrelevant vanilla overflow", "[audi
 TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[audit-fixes]")
 {
     for (const double threshold : {0.0, 11.0, 11.9, 11.99, 12.0, 13.6, 30.0}) {
-        const double expected = 0.5 * std::erfc(threshold / std::sqrt(2.0));
+        const double expected = 0.5 * std::erfc(threshold / std::numbers::sqrt2);
         CHECK(detail::normal_tail_integral(threshold) == Catch::Approx(expected).epsilon(1e-8).margin(0.0));
         CHECK(detail::normal_tail_integral(-threshold) == Catch::Approx(1.0 - expected).epsilon(1e-12));
     }

@@ -41,10 +41,12 @@ double highest_finite_difference_level(const Option& option, const Context& cont
         relevant = std::max({relevant, option.initial_spot(), option.upper_strike(), option.lower_strike()});
     if constexpr (requires { option.knock_out_level(); }) relevant = std::max(relevant, option.knock_out_level());
     if constexpr (requires { option.knock_out_levels(); })
-        for (const double level : option.knock_out_levels()) relevant = std::max(relevant, level);
+        for (const double level : option.knock_out_levels())
+            relevant = std::max(relevant, level);
     if constexpr (requires { option.knock_in_level(); }) relevant = std::max(relevant, option.knock_in_level());
     if constexpr (requires { option.coupon_barrier_levels(); })
-        for (const double level : option.coupon_barrier_levels()) relevant = std::max(relevant, level);
+        for (const double level : option.coupon_barrier_levels())
+            relevant = std::max(relevant, level);
     return relevant;
 }
 

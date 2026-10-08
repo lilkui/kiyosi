@@ -238,8 +238,8 @@ Result<PricingResult> complete_greeks(
         const double available_before = (valuation_days - lower_days).count();
         const double available_after = (upper_days - valuation_days).count();
         const double shift_days = available_before > 0.0 && available_after > 0.0
-                                      ? std::min({double(settings.time_shift_days), available_before, available_after})
-                                      : double(settings.time_shift_days);
+                                      ? std::min({static_cast<double>(settings.time_shift_days), available_before, available_after})
+                                      : static_cast<double>(settings.time_shift_days);
         const double before_days = std::min(shift_days, available_before);
         const double after_days = std::min(shift_days, available_after);
         const Timestamp before = valuation_time - std::chrono::duration_cast<Timestamp::duration>(Days{before_days});

@@ -64,7 +64,7 @@ TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observa
     const auto context = market(100.0, effective);
     const auto check = [&](auto option, const auto& engine) {
         const auto owner = std::move(option);
-        REQUIRE(option.observation_dates().empty());
+        REQUIRE(option.observation_dates().empty()); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move): this regression checks moved-from state.
         const auto price = engine.price(option, context);
         REQUIRE_FALSE(price);
         CHECK(price.error().category == ErrorCategory::invalid_schedule);
@@ -694,7 +694,7 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
     const auto context = market(150.0, end);
     const auto check = [&](auto note, const auto& engine) {
         const auto owner = std::move(note);
-        REQUIRE(note.observation_dates().empty());
+        REQUIRE(note.observation_dates().empty()); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move): this regression checks moved-from state.
         REQUIRE(note.knock_out_coupon_rates().empty());
         const auto rejected_price = engine.price(note, context);
         REQUIRE_FALSE(rejected_price);
@@ -718,11 +718,11 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
         {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
     const auto ternary = *make_ternary_snowball_option(
         {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .knock_out_levels = {120.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
-    check(snowball, MonteCarloSnowballEngine{{32}});
+    check(snowball, MonteCarloSnowballEngine{32});
     check(snowball, FiniteDifferenceSnowballEngine{});
-    check(binary, MonteCarloBinarySnowballEngine{{32}});
+    check(binary, MonteCarloBinarySnowballEngine{32});
     check(binary, FiniteDifferenceBinarySnowballEngine{});
-    check(ternary, MonteCarloTernarySnowballEngine{{32}});
+    check(ternary, MonteCarloTernarySnowballEngine{32});
     check(ternary, FiniteDifferenceTernarySnowballEngine{});
 }
 

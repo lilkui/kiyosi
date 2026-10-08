@@ -31,7 +31,8 @@ TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
                                                             .maturity_coupon_rate = 0.2,
                                                             .knock_out_levels = {110.0, 110.0},
                                                             .observation_dates = {day(2025, 7, 1), end},
-                                                            .effective_date = start, .expiry_date = end});
+                                                            .effective_date = start,
+                                                            .expiry_date = end});
     const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
     for (const std::uint64_t seed : {std::uint64_t{1}, std::numeric_limits<std::uint64_t>::max()}) {
         CAPTURE(seed);
@@ -55,9 +56,7 @@ TEST_CASE("Structured engines validate observation dates against each market cal
     const auto effective = day(2025, 1, 3);
     const auto expiry = day(2025, 1, 6);
     const auto note = *kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1,
-         .knock_out_levels = {120.0}, .observation_dates = {day(2025, 1, 4)},
-         .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {day(2025, 1, 4)}, .effective_date = effective, .expiry_date = expiry});
     for (const auto& calendar : {kiyosi::all_days_calendar(), kiyosi::weekdays_calendar()}) {
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 100.0, effective, calendar);
@@ -100,8 +99,8 @@ TEST_CASE("Structured engines reject nominal weekend expiry and accept adjusted 
 }
 
 double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
-                                    const kiyosi::PricingContext& context,
-                                    kiyosi::TradingDayMonteCarloSettings settings)
+                                       const kiyosi::PricingContext& context,
+                                       kiyosi::TradingDayMonteCarloSettings settings)
 {
     const auto path_payoff = [&](std::mt19937_64& generator) {
         if (note.barrier_state() == kiyosi::AutocallableBarrierState::knocked_out) return 0.0;
@@ -366,7 +365,8 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
         const auto later = engine.price(note, later_context);
         REQUIRE(later);
         CHECK(*later == Catch::Approx(
-            1.0 + 0.10 * kiyosi::year_fraction(effective_date, expiry_date).value()).margin(1e-10));
+                            1.0 + 0.10 * kiyosi::year_fraction(effective_date, expiry_date).value())
+                            .margin(1e-10));
     }
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
                                                          .maturity_coupon_rate = 0.05,
@@ -681,7 +681,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 1, 4);
     const auto context = [&](double spot, kiyosi::Date valuation) {
-        return *kiyosi::make_pricing_context(
+        return *kiyosi::make_pricing_context( // NOLINT(clang-analyzer-core.StackAddressEscape): PricingContext owns its calendar; MSVC std::function copies are misdiagnosed.
             *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), spot, valuation,
             kiyosi::all_days_calendar());
     };

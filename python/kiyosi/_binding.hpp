@@ -200,7 +200,7 @@ struct type_caster<Enum, enable_if_t<std::is_enum_v<Enum>>> {
     bool from_python(handle source, uint32_t, cleanup_list*) noexcept
     {
         if (!isinstance<str>(source)) return false;
-        Py_ssize_t size;
+        Py_ssize_t size = 0;
         const char* data = PyUnicode_AsUTF8AndSize(source.ptr(), &size);
         if (!data) {
             PyErr_Clear();
@@ -376,7 +376,8 @@ inline PythonDateObject python_date(Date value)
 inline PythonDateList python_dates(std::span<const Date> values)
 {
     PythonDateList output;
-    for (const Date value : values) output.append(python_date(value));
+    for (const Date value : values)
+        output.append(python_date(value));
     return output;
 }
 
