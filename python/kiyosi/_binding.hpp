@@ -285,11 +285,6 @@ T unwrap(Result<T> value)
     return std::move(*value);
 }
 
-inline void unwrap(Result<void> value)
-{
-    if (!value) throw DomainException{std::move(value.error())};
-}
-
 [[noreturn]] inline void type_error(std::string_view field, std::string_view expected)
 {
     throw nb::type_error((std::string{field} + " must be " + std::string{expected}).c_str());

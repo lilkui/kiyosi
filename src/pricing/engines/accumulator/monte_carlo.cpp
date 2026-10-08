@@ -40,19 +40,13 @@ InitialState initial_state(const Accumulator& option, const PricingContext& cont
 std::vector<SimulationStep> prepare_simulation(const Accumulator& option,
                                                const PricingContext& context)
 {
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
-    const double sigma = context.model_parameters().volatility();
     const Timestamp valuation = context.valuation_time();
     const auto dates = trading_dates(context.calendar(), valuation, option.expiry_date());
     std::vector<SimulationStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
-        const double dt = actual_365_fixed_year_fraction(previous, current);
-        steps.push_back({(rate - dividend - 0.5 * sigma * sigma) * dt,
-                         sigma * std::sqrt(dt),
-                         std::exp(-rate * actual_365_fixed_year_fraction(valuation, current))});
+        steps.push_back(simulation_step(context, previous, current));
         previous = current;
     }
     return steps;

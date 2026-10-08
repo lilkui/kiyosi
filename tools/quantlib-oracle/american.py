@@ -193,32 +193,20 @@ def rows():
             )
             g.validate_shifts(profile["shifts"])
             g.validate_budgets(profile)
-            attributes = provenance(inputs)
-            attributes.update(metadata)
+            row = g.reference_row(
+                scenario["case_id"] + "-" + engine.lower(),
+                inputs,
+                (outputs, metadata),
+                profile["tolerances"],
+                profile["numerical_tolerances"],
+            )
+            row["instrument"], row["engine"] = "AmericanOption", engine
+            attributes = row["inputs"]
+            attributes.update(provenance(inputs))
             attributes.update(profile["settings"])
             attributes.update(profile["shifts"])
             attributes.update(
-                owner="QuantLib",
                 wrapper=str(scenario["wrapper"]).lower(),
-                tolerance=profile["tolerances"]["price"],
                 tolerance_rationale="separate discretization, BS2002 approximation or LSM sampling budgets: GENERATION.md",
             )
-            attributes.update(
-                {
-                    f"numerical_tolerance_{name}": profile["numerical_tolerances"][name]
-                    for name in outputs
-                }
-            )
-            yield g.serialize_row(
-                {
-                    "case_id": scenario["case_id"] + "-" + engine.lower(),
-                    "instrument": "AmericanOption",
-                    "engine": engine,
-                    "variant": inputs["option"],
-                    "inputs": attributes,
-                    "outputs": outputs,
-                    "tolerances": {
-                        name: profile["tolerances"][name] for name in outputs
-                    },
-                }
-            )
+            yield g.serialize_row(row)

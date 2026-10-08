@@ -1,14 +1,28 @@
 #pragma once
 
+#include <cmath>
 #include <new>
 #include <random>
 
+#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/market/context.hpp>
 
 #include "monte_carlo_cuda.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
+
+inline CudaSimulationStep simulation_step(const PricingContext& context, Timestamp previous, Date current)
+{
+    const double rate = context.model_parameters().risk_free_rate();
+    const double dividend = context.model_parameters().dividend_yield();
+    const double sigma = context.model_parameters().volatility();
+    const double dt = actual_365_fixed_year_fraction(previous, current);
+    return {(rate - dividend - 0.5 * sigma * sigma) * dt,
+            sigma * std::sqrt(dt),
+            std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), current))};
+}
 
 inline std::uint64_t random_seed()
 {

@@ -1,6 +1,7 @@
 #include <chrono>
 #include <initializer_list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <benchmark/benchmark.h>
@@ -10,33 +11,12 @@
 
 namespace {
 
-struct Scenario {
-    kiyosi::EuropeanOption option;
-    kiyosi::PricingContext context;
-};
-
-struct AmericanScenario {
-    kiyosi::AmericanOption option;
-    kiyosi::PricingContext context;
-};
-
-struct AccumulatorScenario {
-    kiyosi::Accumulator option;
-    kiyosi::PricingContext context;
-};
-
-template <typename Note>
-struct StructuredScenario {
-    Note note;
-    kiyosi::PricingContext context;
-};
-
-const Scenario& monte_carlo_scenario()
+const auto& monte_carlo_scenario()
 {
     static const auto value = [] {
         const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
         const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
-        return Scenario{
+        return std::pair{
             *kiyosi::make_european_option(
                 kiyosi::OptionType::call, 100.0, effective_date, expiry_date),
             *kiyosi::make_pricing_context(
@@ -45,12 +25,12 @@ const Scenario& monte_carlo_scenario()
     return value;
 }
 
-const AmericanScenario& american_monte_carlo_scenario()
+const auto& american_monte_carlo_scenario()
 {
     static const auto value = [] {
         const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
         const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
-        return AmericanScenario{
+        return std::pair{
             *kiyosi::make_american_option(
                 kiyosi::OptionType::put, 100.0, effective_date, expiry_date),
             *kiyosi::make_pricing_context(
@@ -59,12 +39,12 @@ const AmericanScenario& american_monte_carlo_scenario()
     return value;
 }
 
-const AccumulatorScenario& accumulator_scenario()
+const auto& accumulator_scenario()
 {
     static const auto value = [] {
         const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
         const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
-        return AccumulatorScenario{
+        return std::pair{
             *kiyosi::make_accumulator({.strike = 100.0,
                                        .knock_out_level = 115.0,
                                        .daily_quantity = 1.0,
@@ -78,7 +58,7 @@ const AccumulatorScenario& accumulator_scenario()
     return value;
 }
 
-const StructuredScenario<kiyosi::PhoenixOption>& phoenix_scenario()
+const auto& phoenix_scenario()
 {
     static const auto value = [] {
         const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
@@ -87,7 +67,7 @@ const StructuredScenario<kiyosi::PhoenixOption>& phoenix_scenario()
             kiyosi::Date{std::chrono::year{2025} / 4 / 1},
             kiyosi::Date{std::chrono::year{2025} / 7 / 1},
             kiyosi::Date{std::chrono::year{2025} / 10 / 1}, expiry_date};
-        return StructuredScenario<kiyosi::PhoenixOption>{
+        return std::pair{
             *kiyosi::make_phoenix_option({.coupon_rate = 0.002,
                                           .initial_spot = 100.0,
                                           .knock_in_level = 75.0,
@@ -107,7 +87,7 @@ const StructuredScenario<kiyosi::PhoenixOption>& phoenix_scenario()
     return value;
 }
 
-const StructuredScenario<kiyosi::SnowballOption>& snowball_scenario()
+const auto& snowball_scenario()
 {
     static const auto value = [] {
         const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
@@ -116,7 +96,7 @@ const StructuredScenario<kiyosi::SnowballOption>& snowball_scenario()
             kiyosi::Date{std::chrono::year{2025} / 4 / 1},
             kiyosi::Date{std::chrono::year{2025} / 7 / 1},
             kiyosi::Date{std::chrono::year{2025} / 10 / 1}, expiry_date};
-        return StructuredScenario<kiyosi::SnowballOption>{
+        return std::pair{
             *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08, 0.08},
                                            .maturity_coupon_rate = 0.06,
                                            .initial_spot = 100.0,

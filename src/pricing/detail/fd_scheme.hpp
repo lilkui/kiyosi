@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -68,17 +69,7 @@ public:
             std::ranges::copy(rhs_, next.begin() + 1);
             return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
         }
-        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
-            if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
-            const double factor = lower_[index] / diagonal_[index - 1];
-            diagonal_[index] -= factor * upper_diagonal_[index - 1];
-            rhs_[index] -= factor * rhs_[index - 1];
-        }
-        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
-        rhs_.back() /= diagonal_.back();
-        for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
-            rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
-        if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); })) return false;
+        if (!solve({rhs_})) return false;
         std::ranges::copy(rhs_, next.begin() + 1);
         return std::isfinite(next.front()) && std::isfinite(next.back());
     }
@@ -140,26 +131,7 @@ public:
                    std::ranges::all_of(second_next,
                                        [](double value) { return std::isfinite(value); });
         }
-        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
-            if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
-            const double factor = lower_[index] / diagonal_[index - 1];
-            diagonal_[index] -= factor * upper_diagonal_[index - 1];
-            rhs_[index] -= factor * rhs_[index - 1];
-            paired_rhs_[index] -= factor * paired_rhs_[index - 1];
-        }
-        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0)
-            return false;
-        rhs_.back() /= diagonal_.back();
-        paired_rhs_.back() /= diagonal_.back();
-        for (std::size_t index = diagonal_.size() - 1; index-- > 0;) {
-            rhs_[index] = (rhs_[index] - upper_diagonal_[index] * rhs_[index + 1]) / diagonal_[index];
-            paired_rhs_[index] =
-                (paired_rhs_[index] - upper_diagonal_[index] * paired_rhs_[index + 1]) /
-                diagonal_[index];
-        }
-        if (!std::ranges::all_of(rhs_, [](double value) { return std::isfinite(value); }) ||
-            !std::ranges::all_of(paired_rhs_, [](double value) { return std::isfinite(value); }))
-            return false;
+        if (!solve({rhs_, paired_rhs_})) return false;
         std::ranges::copy(rhs_, first_next.begin() + 1);
         std::ranges::copy(paired_rhs_, second_next.begin() + 1);
         return std::isfinite(first_next.front()) && std::isfinite(first_next.back()) &&
@@ -167,6 +139,27 @@ public:
     }
 
 private:
+    // Factor the matrix once and validate every solved layer before callers copy any interiors.
+    bool solve(std::initializer_list<std::span<double>> layers)
+    {
+        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
+            if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
+            const double factor = lower_[index] / diagonal_[index - 1];
+            diagonal_[index] -= factor * upper_diagonal_[index - 1];
+            for (const auto rhs : layers)
+                rhs[index] -= factor * rhs[index - 1];
+        }
+        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
+        for (const auto rhs : layers)
+            rhs.back() /= diagonal_.back();
+        for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
+            for (const auto rhs : layers)
+                rhs[index] = (rhs[index] - upper_diagonal_[index] * rhs[index + 1]) / diagonal_[index];
+        return std::ranges::all_of(layers, [](const auto rhs) {
+            return std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); });
+        });
+    }
+
     std::vector<double> lower_, diagonal_, upper_diagonal_, rhs_;
     std::vector<double> paired_rhs_;
 };

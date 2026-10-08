@@ -76,25 +76,19 @@ SimulationInputs prepare_simulation(
     const Note& note, const PricingContext& context, std::size_t next_observation)
 {
     const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
-    const double sigma = context.model_parameters().volatility();
     const Timestamp valuation = context.valuation_time();
     const auto dates = trading_dates(context.calendar(), valuation, note.expiry_date());
     std::vector<CudaStructuredStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
-        const double dt = actual_365_fixed_year_fraction(previous, current);
         AutocallableEvent event{};
         if (next_observation < note.observation_dates().size() &&
             note.observation_dates()[next_observation] == current) {
             event = autocallable_event(note, next_observation);
             ++next_observation;
         }
-        steps.push_back({{(rate - dividend - 0.5 * sigma * sigma) * dt,
-                          sigma * std::sqrt(dt),
-                          std::exp(-rate * actual_365_fixed_year_fraction(valuation, current))},
-                         event});
+        steps.push_back({simulation_step(context, previous, current), event});
         previous = current;
     }
     return {std::move(steps),
