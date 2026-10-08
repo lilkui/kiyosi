@@ -125,13 +125,13 @@ Result<PricingResult> price_binomial(
 }
 } // namespace
 
-Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_european(
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(
     const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_binomial(option, context, settings_, false, output);
 }
 
-Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_american(
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(
     const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_binomial(option, context, settings_, true, output);

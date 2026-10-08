@@ -51,21 +51,9 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires(std::same_as<Payoff, CashOrNothingPayoff> ||
-                 std::same_as<Payoff, AssetOrNothingPayoff>) &&
-                std::same_as<Exercise, EuropeanExercise>
     [[nodiscard]] Result<PricingResult> price_native(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context, GreeksRequest output) const
-    {
-        if constexpr (std::same_as<Payoff, CashOrNothingPayoff>)
-            return price_cash_or_nothing(option, context, output);
-        else
-            return price_asset_or_nothing(option, context, output);
-    }
-    [[nodiscard]] Result<PricingResult> price_cash_or_nothing(
         const CashOrNothingOption&, const PricingContext&, GreeksRequest) const;
-    [[nodiscard]] Result<PricingResult> price_asset_or_nothing(
+    [[nodiscard]] Result<PricingResult> price_native(
         const AssetOrNothingOption&, const PricingContext&, GreeksRequest) const;
     FiniteDifferenceSettings settings_;
 };

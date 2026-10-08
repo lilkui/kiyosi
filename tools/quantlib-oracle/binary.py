@@ -21,13 +21,7 @@ def exclusions(inputs):
         return dict.fromkeys(g.MEASURES[1:], EXPIRY_REASON)
     if float(inputs["spot"]) == float(inputs["barrier"]):
         return dict.fromkeys(g.MEASURES[1:], BOUNDARY_REASON)
-    days = (
-        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
-    ).days
-    return dict.fromkeys(
-        g.TIME_MEASURES if days <= 2 else (),
-        "whole-day stability stencil touches expiry_date",
-    )
+    return g.exclusions(inputs)
 
 
 def option(inputs):

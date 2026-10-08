@@ -1,8 +1,12 @@
 #include <chrono>
+#include <initializer_list>
+#include <string>
 #include <vector>
 
 #include <benchmark/benchmark.h>
 #include <kiyosi/kiyosi.hpp>
+
+#include "pricing.hpp"
 
 namespace {
 
@@ -53,49 +57,6 @@ const AmericanScenario& american_monte_carlo_scenario()
                 *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date)};
     }();
     return value;
-}
-
-void benchmark_monte_carlo(benchmark::State& state, kiyosi::MonteCarloBackend backend)
-{
-    const auto& [option, context] = monte_carlo_scenario();
-    const kiyosi::MonteCarloVanillaEngine engine{
-        kiyosi::MonteCarloSettings{1'000'000, 50, 42, backend}};
-    const auto warmup = engine.price(option, context);
-    if (!warmup) {
-        state.SkipWithError(warmup.error().message.c_str());
-        return;
-    }
-    for (auto _ : state) {
-        auto result = engine.price(option, context);
-        benchmark::DoNotOptimize(result);
-    }
-}
-
-void bm_monte_carlo_european_cpu(benchmark::State& state)
-{
-    benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
-}
-
-void benchmark_american_monte_carlo(
-    benchmark::State& state, kiyosi::MonteCarloBackend backend)
-{
-    const auto& [option, context] = american_monte_carlo_scenario();
-    const kiyosi::MonteCarloVanillaEngine engine{
-        kiyosi::MonteCarloSettings{1'000'000, 50, 42, backend}};
-    const auto warmup = engine.price(option, context);
-    if (!warmup) {
-        state.SkipWithError(warmup.error().message.c_str());
-        return;
-    }
-    for (auto _ : state) {
-        auto result = engine.price(option, context);
-        benchmark::DoNotOptimize(result);
-    }
-}
-
-void bm_monte_carlo_american_cpu(benchmark::State& state)
-{
-    benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
 }
 
 const AccumulatorScenario& accumulator_scenario()
@@ -175,145 +136,38 @@ const StructuredScenario<kiyosi::SnowballOption>& snowball_scenario()
     return value;
 }
 
-void benchmark_accumulator_monte_carlo(
-    benchmark::State& state, kiyosi::MonteCarloBackend backend)
+void register_monte_carlo(const std::string& name, const auto& scenario, auto engine)
 {
-    const auto& [option, context] = accumulator_scenario();
-    const kiyosi::MonteCarloAccumulatorEngine engine{{250'000, 42, backend}};
-    const auto warmup = engine.price(option, context);
-    if (!warmup) {
-        state.SkipWithError(warmup.error().message.c_str());
-        return;
-    }
-    for (auto _ : state) {
-        auto result = engine.price(option, context);
-        benchmark::DoNotOptimize(result);
-    }
+    const auto& [option, context] = scenario;
+    kiyosi::benchmark_support::register_price(name.c_str(), option, std::move(engine), context)
+        ->UseRealTime()
+        ->Repetitions(5)
+        ->ReportAggregatesOnly(true)
+        ->Unit(benchmark::kMillisecond);
 }
 
-template <typename Note, typename Engine>
-void benchmark_structured_monte_carlo(
-    benchmark::State& state, const StructuredScenario<Note>& scenario,
-    kiyosi::MonteCarloBackend backend)
+bool register_monte_carlo_cases()
 {
-    const Engine engine{{250'000, 42, backend}};
-    const auto warmup = engine.price(scenario.note, scenario.context);
-    if (!warmup) {
-        state.SkipWithError(warmup.error().message.c_str());
-        return;
-    }
-    for (auto _ : state) {
-        auto result = engine.price(scenario.note, scenario.context);
-        benchmark::DoNotOptimize(result);
-    }
-}
-
-void bm_monte_carlo_accumulator_cpu(benchmark::State& state)
-{
-    benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cpu);
-}
-
-void bm_monte_carlo_phoenix_cpu(benchmark::State& state)
-{
-    benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
-        state, phoenix_scenario(), kiyosi::MonteCarloBackend::cpu);
-}
-
-void bm_monte_carlo_snowball_cpu(benchmark::State& state)
-{
-    benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
-        state, snowball_scenario(), kiyosi::MonteCarloBackend::cpu);
-}
-
+    using namespace kiyosi;
+    for (const auto backend : {MonteCarloBackend::cpu
 #if KIYOSI_HAS_CUDA
-void bm_monte_carlo_european_cuda(benchmark::State& state)
-{
-    benchmark_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
-}
-
-void bm_monte_carlo_american_cuda(benchmark::State& state)
-{
-    benchmark_american_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
-}
-
-void bm_monte_carlo_accumulator_cuda(benchmark::State& state)
-{
-    benchmark_accumulator_monte_carlo(state, kiyosi::MonteCarloBackend::cuda);
-}
-
-void bm_monte_carlo_phoenix_cuda(benchmark::State& state)
-{
-    benchmark_structured_monte_carlo<kiyosi::PhoenixOption, kiyosi::MonteCarloPhoenixEngine>(
-        state, phoenix_scenario(), kiyosi::MonteCarloBackend::cuda);
-}
-
-void bm_monte_carlo_snowball_cuda(benchmark::State& state)
-{
-    benchmark_structured_monte_carlo<kiyosi::SnowballOption, kiyosi::MonteCarloSnowballEngine>(
-        state, snowball_scenario(), kiyosi::MonteCarloBackend::cuda);
-}
+                              , MonteCarloBackend::cuda
 #endif
+         }) {
+        const std::string suffix = backend == MonteCarloBackend::cpu ? "_cpu" : "_cuda";
+        const MonteCarloVanillaEngine vanilla{{1'000'000, 50, 42, backend}};
+        register_monte_carlo("bm_monte_carlo_european" + suffix, monte_carlo_scenario(), vanilla);
+        register_monte_carlo("bm_monte_carlo_american" + suffix, american_monte_carlo_scenario(), vanilla);
+        register_monte_carlo("bm_monte_carlo_accumulator" + suffix, accumulator_scenario(),
+                            MonteCarloAccumulatorEngine{{250'000, 42, backend}});
+        register_monte_carlo("bm_monte_carlo_phoenix" + suffix, phoenix_scenario(),
+                            MonteCarloPhoenixEngine{{250'000, 42, backend}});
+        register_monte_carlo("bm_monte_carlo_snowball" + suffix, snowball_scenario(),
+                            MonteCarloSnowballEngine{{250'000, 42, backend}});
+    }
+    return true;
+}
+
+[[maybe_unused]] const bool monte_carlo_registered = register_monte_carlo_cases();
 
 } // namespace
-
-BENCHMARK(bm_monte_carlo_european_cpu)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_american_cpu)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_accumulator_cpu)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_phoenix_cpu)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_snowball_cpu)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-#if KIYOSI_HAS_CUDA
-BENCHMARK(bm_monte_carlo_european_cuda)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_american_cuda)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_accumulator_cuda)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_phoenix_cuda)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-
-BENCHMARK(bm_monte_carlo_snowball_cuda)
-    ->UseRealTime()
-    ->Repetitions(5)
-    ->ReportAggregatesOnly(true)
-    ->Unit(benchmark::kMillisecond);
-#endif

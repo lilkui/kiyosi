@@ -79,12 +79,12 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_cash_or_nothing(
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(
     const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, false, output);
 }
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_asset_or_nothing(
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(
     const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, true, output);

@@ -78,13 +78,13 @@ Result<PricingResult> price_finite_difference(
 }
 } // namespace
 
-Result<PricingResult> FiniteDifferenceVanillaEngine::price_european(
+Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(
     const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_finite_difference(option, context, settings_, false, output);
 }
 
-Result<PricingResult> FiniteDifferenceVanillaEngine::price_american(
+Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(
     const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_finite_difference(option, context, settings_, true, output);

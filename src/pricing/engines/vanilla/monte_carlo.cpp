@@ -170,7 +170,7 @@ Result<double> cuda_american_cash_flow_sum(const AmericanOption& option,
 
 } // namespace
 
-Result<PricingResult> MonteCarloVanillaEngine::price_european(
+Result<PricingResult> MonteCarloVanillaEngine::price_native(
     const EuropeanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
@@ -206,7 +206,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_european(
     return make_pricing_result(value);
 }
 
-Result<PricingResult> MonteCarloVanillaEngine::price_american(
+Result<PricingResult> MonteCarloVanillaEngine::price_native(
     const AmericanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());

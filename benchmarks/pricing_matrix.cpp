@@ -4,6 +4,8 @@
 #include <benchmark/benchmark.h>
 #include <kiyosi/kiyosi.hpp>
 
+#include "pricing.hpp"
+
 namespace {
 
 template <typename Option, typename Engine>
@@ -11,20 +13,8 @@ void register_kiyosi(const char* name, Option option, Engine engine, kiyosi::Pri
                      bool comparable = true, bool use_real_time = false)
 {
     const std::string full_name = std::string{comparable ? "matrix/kiyosi/" : "matrix/kiyosi_only/"} + name;
-    auto* registered = benchmark::RegisterBenchmark(full_name.c_str(),
-                                                    [option = std::move(option), engine = std::move(engine), context = std::move(context)](
-                                                        benchmark::State& state) {
-                                                        const auto warmup = engine.price(option, context);
-                                                        if (!warmup) {
-                                                            state.SkipWithError(warmup.error().message.c_str());
-                                                            return;
-                                                        }
-                                                        state.counters["price"] = *warmup;
-                                                        for (auto _ : state) {
-                                                            auto result = engine.price(option, context);
-                                                            benchmark::DoNotOptimize(result);
-                                                        }
-                                                    });
+    auto* registered = kiyosi::benchmark_support::register_price(
+        full_name.c_str(), std::move(option), std::move(engine), std::move(context));
     if (use_real_time) registered->UseRealTime();
 }
 

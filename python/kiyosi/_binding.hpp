@@ -429,27 +429,17 @@ inline Timestamp valuation_time(nb::handle value)
 
 inline std::vector<Date> date_sequence(nb::handle values, std::string_view field)
 {
-    const nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(values.ptr()));
-    if (!iterator.is_valid()) throw nb::python_error();
     std::vector<Date> output;
-    while (PyObject* item = PyIter_Next(iterator.ptr())) {
-        const nb::object owned = nb::steal<nb::object>(item);
-        output.push_back(calendar_date(owned, field));
-    }
-    if (PyErr_Occurred()) throw nb::python_error();
+    for (nb::handle item : nb::borrow<nb::iterable>(values))
+        output.push_back(calendar_date(item, field));
     return output;
 }
 
 inline std::vector<double> real_sequence(nb::handle values, std::string_view field)
 {
-    const nb::object iterator = nb::steal<nb::object>(PyObject_GetIter(values.ptr()));
-    if (!iterator.is_valid()) throw nb::python_error();
     std::vector<double> output;
-    while (PyObject* item = PyIter_Next(iterator.ptr())) {
-        const nb::object owned = nb::steal<nb::object>(item);
-        output.push_back(real_number(owned, field));
-    }
-    if (PyErr_Occurred()) throw nb::python_error();
+    for (nb::handle item : nb::borrow<nb::iterable>(values))
+        output.push_back(real_number(item, field));
     return output;
 }
 

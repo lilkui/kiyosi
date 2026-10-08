@@ -45,13 +45,7 @@ def exclusions(inputs):
         - date.fromisoformat(inputs["averaging_start_date"])
     ).days <= 2:
         return dict.fromkeys(g.MEASURES[1:], START_REASON)
-    days = (
-        date.fromisoformat(inputs["expiry_date"]) - date.fromisoformat(inputs["valuation"])
-    ).days
-    return dict.fromkeys(
-        g.TIME_MEASURES if days <= 2 else (),
-        "whole-day stability stencil touches expiry_date",
-    )
+    return g.exclusions(inputs)
 
 
 def option(inputs):
