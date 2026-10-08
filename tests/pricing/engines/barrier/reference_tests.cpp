@@ -13,6 +13,29 @@ using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
 
+TEST_CASE("Finite-difference automatic domains include distant barriers")
+{
+    const auto start = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = start + std::chrono::days{365};
+    const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.02, 0.2), 100.0, start);
+    const auto option = *kiyosi::make_barrier_option({.option_type = kiyosi::OptionType::call,
+                                                      .strike = 100.0, .effective_date = start, .expiry_date = end,
+                                                      .barrier_level = 500.0, .barrier_type = kiyosi::BarrierType::up_and_out});
+    const kiyosi::FiniteDifferenceBarrierEngine finite{800, 1000};
+    const auto price = finite.price(option, context);
+    REQUIRE(price);
+    CHECK_THAT(*price, Catch::Matchers::WithinAbs(*kiyosi::AnalyticBarrierEngine{}.price(option, context), 0.03));
+    const auto default_price = kiyosi::FiniteDifferenceBarrierEngine{}.price(option, context);
+    REQUIRE(default_price);
+    CHECK_THAT(*default_price, Catch::Matchers::WithinAbs(*kiyosi::AnalyticBarrierEngine{}.price(option, context), 0.05));
+    const auto joint = finite.price_with_greeks(option, context, {kiyosi::Greek::gamma});
+    REQUIRE(joint);
+    CHECK(joint->price() == *price);
+    const auto clipped = kiyosi::FiniteDifferenceBarrierEngine{{800, 1000, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}}.price(option, context);
+    REQUIRE_FALSE(clipped);
+    CHECK(clipped.error().category == kiyosi::ErrorCategory::invalid_parameter);
+}
+
 TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical Greeks")
 {
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());

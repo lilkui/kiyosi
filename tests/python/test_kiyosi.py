@@ -78,6 +78,25 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_automatic_domain_includes_distant_barriers(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = BarrierOption(
+            option_type="call", strike=100, barrier_level=500,
+            barrier_type="up_and_out", effective_date=start, expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=100, valuation_time=start,
+        )
+        finite = pricing.FiniteDifferenceBarrierEngine()
+        self.assertAlmostEqual(finite.price(option, context), AnalyticBarrierEngine().price(option, context), delta=0.05)
+        self.assertEqual(finite.price_with_greeks(option, context, ["gamma"]).price, finite.price(option, context))
+        clipped = pricing.FiniteDifferenceBarrierEngine(asset_upper_boundary=400)
+        with self.assertRaises(kiyosi.KiyosiError) as caught:
+            clipped.price(option, context)
+        self.assertEqual(caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
     def test_fd_boundaries_preserve_long_expiry_volatility_tails(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         context = PricingContext(

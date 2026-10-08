@@ -52,6 +52,8 @@ template <typename Option, typename Context>
 double default_finite_difference_upper_boundary(const Option& option, const Context& context)
 {
     const double relevant = highest_finite_difference_level(option, context);
+    if constexpr (requires { option.barrier_level(); })
+        return std::max(4.0 * relevant, option.barrier_level() + relevant);
     if constexpr (requires { option.barrier_state(); } || requires { option.accumulated_quantity(); })
         return std::max(4.0 * relevant, relevant + 1.0);
     return 4.0 * relevant;
