@@ -313,3 +313,91 @@ TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cro
         }
     }
 }
+
+TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]")
+{
+    const auto event = day(2025, 1, 2);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto note = *kiyosi::make_binary_snowball_option({
+        .knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.2,
+        .knock_out_levels = {120.0, 130.0}, .observation_dates = {event, expiry_date},
+        .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto accumulator = *kiyosi::make_accumulator(
+        {100.0, 120.0, 1.0, 2.0, 3.0, effective_date, expiry_date});
+    for (const double spot : {120.0, 120.1}) {
+        const auto context = *kiyosi::make_pricing_context(parameters, spot, event);
+        for (const double upper : {499.0, 501.0}) {
+            CAPTURE(spot, upper);
+            const kiyosi::FiniteDifferenceSettings grid{
+                200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper};
+            const auto called = kiyosi::FiniteDifferenceBinarySnowballEngine{grid}.price(note, context);
+            REQUIRE(called);
+            CHECK(*called == Catch::Approx(1.0 + 0.1 / 365.0).margin(1e-12));
+            const auto settled = kiyosi::FiniteDifferenceAccumulatorEngine{grid}.price(accumulator, context);
+            REQUIRE(settled);
+            CHECK(*settled == Catch::Approx(3.0 * (spot - 100.0)).margin(1e-12));
+        }
+    }
+}
+
+TEST_CASE("Finite-difference current accrual and knock-in precede continuation", "[audit-fixes]")
+{
+    const auto event = day(2025, 1, 2);
+    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto closed_today = *kiyosi::make_trading_calendar(
+        [event](kiyosi::Date date) { return date != event && kiyosi::weekdays_calendar().is_trading_day(date); }, 252);
+    const kiyosi::FiniteDifferenceSettings grid{
+        200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0};
+    const kiyosi::FiniteDifferenceAccumulatorEngine accumulator_engine{grid};
+    for (const double spot : {99.9, 100.0, 100.1}) {
+        CAPTURE(spot);
+        const auto context = *kiyosi::make_pricing_context(parameters, spot, event);
+        const auto after_purchase = *kiyosi::make_pricing_context(parameters, spot, event, closed_today);
+        const auto before = *kiyosi::make_accumulator(
+            {100.0, 120.0, 1.0, 2.0, 3.0, effective_date, expiry_date});
+        const auto after = *kiyosi::make_accumulator(
+            {100.0, 120.0, 1.0, 2.0, spot < 100.0 ? 5.0 : 4.0, effective_date, expiry_date});
+        const auto actual = accumulator_engine.price(before, context);
+        const auto expected = accumulator_engine.price(after, after_purchase);
+        REQUIRE(actual);
+        REQUIRE(expected);
+        CHECK(*actual == *expected);
+    }
+    const auto snowball = [&](kiyosi::AutocallableBarrierState state) {
+        return *kiyosi::make_snowball_option({
+            .knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2,
+            .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0},
+            .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date},
+            .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
+            .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date});
+    };
+    const auto context = *kiyosi::make_pricing_context(parameters, 79.9, event);
+    const kiyosi::FiniteDifferenceSnowballEngine engine{grid};
+    const auto current = engine.price(snowball(kiyosi::AutocallableBarrierState::none), context);
+    const auto prior = engine.price(snowball(kiyosi::AutocallableBarrierState::knocked_in), context);
+    REQUIRE(current);
+    REQUIRE(prior);
+    CHECK(*current == *prior);
+}
+
+TEST_CASE("Finite-difference current coupons use the actual barrier branch", "[audit-fixes]")
+{
+    const auto event = day(2025, 1, 2);
+    const auto note = [&](double barrier) {
+        return *kiyosi::make_phoenix_option({
+            .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 60.0,
+            .knock_out_levels = {120.0, 130.0}, .coupon_barrier_levels = {barrier, 80.0},
+            .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {event, expiry_date},
+            .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
+            .effective_date = effective_date, .expiry_date = expiry_date});
+    };
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0, event);
+    const kiyosi::FiniteDifferencePhoenixEngine engine{
+        {200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0}};
+    const auto paid = engine.price(note(80.0), context);
+    const auto missed = engine.price(note(80.1), context);
+    REQUIRE(paid);
+    REQUIRE(missed);
+    CHECK(*paid - *missed == Catch::Approx(0.1 / 365.0).margin(1e-12).epsilon(0.0));
+}

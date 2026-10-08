@@ -76,6 +76,33 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_fd_current_events_use_actual_spot(self):
+        start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[0.1, 0.1], maturity_coupon_rate=0.2,
+            knock_out_levels=[120, 130], observation_dates=[event, end],
+            effective_date=start, expiry_date=end,
+        )
+        accumulator = Accumulator(
+            strike=100, knock_out_level=120, daily_quantity=1,
+            acceleration_factor=2, accumulated_quantity=3,
+            effective_date=start, expiry_date=end,
+        )
+        for spot in (120, 120.1):
+            context = PricingContext(
+                model_parameters=self.parameters, spot_price=spot, valuation_time=event,
+            )
+            for upper in (499, 501):
+                with self.subTest(spot=spot, upper=upper):
+                    self.assertAlmostEqual(
+                        pricing.FiniteDifferenceBinarySnowballEngine(asset_upper_boundary=upper).price(note, context),
+                        1 + 0.1 / 365, delta=1e-12,
+                    )
+                    self.assertAlmostEqual(
+                        pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=upper).price(accumulator, context),
+                        3 * (spot - 100), delta=1e-12,
+                    )
+
     def setUp(self):
         self.parameters = BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2

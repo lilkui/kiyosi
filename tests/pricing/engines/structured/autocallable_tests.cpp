@@ -415,7 +415,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
-    CHECK(calls->load() == 4);
+    CHECK(calls->load() == 3);
 
     calls->store(0);
     const auto touched = kiyosi::MonteCarloBinarySnowballEngine{{128, 7}}.price(
@@ -439,7 +439,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
     CHECK(*at_expiry == large_payoff);
-    CHECK(calls->load() == 3);
+    CHECK(calls->load() == 2);
 
     calls->store(0);
     const auto invalid_settings = kiyosi::MonteCarloBinarySnowballEngine{{0, 7}}.price(
@@ -490,7 +490,7 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
 
         REQUIRE(result);
         CHECK(*result == legacy);
-        CHECK(calls->load() == 9);
+        CHECK(calls->load() == 8);
     }
 
     const auto unseeded =

@@ -1,7 +1,10 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <optional>
 
+#include <kiyosi/market/context.hpp>
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 
@@ -79,6 +82,54 @@ template <typename Note>
 bool is_knocked_in(const Note& note, double spot, bool knocked_in, bool at_expiry)
 {
     return program_knocked_in(autocallable_program(note), spot, knocked_in, at_expiry);
+}
+
+// Current events are resolved at the observed spot before numerical continuation.
+struct AutocallableInitialState {
+    AutocallablePathState path{};
+    std::size_t next_observation{};
+    std::optional<double> settlement{};
+};
+
+template <typename Note>
+AutocallableInitialState autocallable_initial_state(const Note& note, const PricingContext& context,
+                           const AutocallableProgram& program)
+{
+    if (note.barrier_state() == AutocallableBarrierState::knocked_out)
+        return {.settlement = 0.0};
+
+    const Timestamp valuation = context.valuation_time();
+    const double value = context.spot_price();
+    const auto& dates = note.observation_dates();
+    AutocallableInitialState initial{
+        .path = {.coupons = 0.0,
+                 .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in},
+        .next_observation = static_cast<std::size_t>(
+            std::lower_bound(dates.begin(), dates.end(), valuation) - dates.begin())};
+    if (program.has_knock_in && program.daily_knock_in &&
+        valuation == start_of_day(date_of(valuation)) &&
+        context.calendar().is_trading_day(date_of(valuation)))
+        initial.path.knocked_in = program_knocked_in(
+            program, value, initial.path.knocked_in, valuation == note.expiry_date());
+
+    if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation) {
+        const auto event = autocallable_event(note, initial.next_observation);
+        const double coupon = program_observation_coupon(event, value);
+        if (value >= event.knock_out_level)
+            return {.path = initial.path,
+                    .next_observation = initial.next_observation + 1,
+                    .settlement = program.principal_ratio + coupon};
+        if (program.carries_observation_coupon) initial.path.coupons = coupon;
+        ++initial.next_observation;
+    }
+    if (valuation == note.expiry_date()) {
+        initial.path.knocked_in =
+            program_knocked_in(program, value, initial.path.knocked_in, true);
+        initial.settlement = initial.path.coupons +
+                             program_terminal_settlement(
+                                 program, value, initial.path.knocked_in);
+    }
+    return initial;
 }
 
 } // namespace kiyosi::detail

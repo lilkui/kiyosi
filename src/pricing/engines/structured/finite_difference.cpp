@@ -40,23 +40,6 @@ double highest_relevant_level(const Note& note, double spot)
     return relevant;
 }
 
-template <typename Note>
-Result<PricingResult> terminal_value(const Note& note, const PricingContext& context)
-{
-    const double spot = context.spot_price();
-    const bool knocked_in =
-        is_knocked_in(note, spot, note.barrier_state() == AutocallableBarrierState::knocked_in, true);
-    const auto& dates = note.observation_dates();
-    const std::size_t index = dates.size() - 1;
-    const bool observed_at_expiry = dates.back() == note.expiry_date();
-    if (observed_at_expiry && spot >= note.knock_out_levels()[index])
-        return make_pricing_result(note.principal_ratio() + observation_coupon(note, index, spot));
-    const double coupon = observed_at_expiry && autocallable_program(note).carries_observation_coupon
-                              ? observation_coupon(note, index, spot)
-                              : 0.0;
-    return make_pricing_result(terminal_settlement(note, spot, knocked_in) + coupon);
-}
-
 } // namespace
 
 template <typename Note>
@@ -77,6 +60,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
 
+    const auto initial = autocallable_initial_state(note, context, autocallable_program(note));
+
     // An up-touch has already autocalled the note, so nothing remains to discount.
     if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings_.asset_upper_boundary)
         return make_pricing_result(0.0);
@@ -85,19 +70,17 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const double relevant = highest_relevant_level(note, spot);
     const auto space = make_spatial_grid(settings_, std::max(4.0 * relevant, relevant + 1.0), {relevant});
     if (!space) return std::unexpected(space.error());
-    if (note.barrier_state() == AutocallableBarrierState::knocked_out)
-        return make_pricing_result(0.0);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const Timestamp valuation = context.valuation_time();
     const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
-    if (time_to_expiry == 0.0) return terminal_value(note, context);
 
     std::vector<double> anchors{0.0, time_to_expiry};
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
         const Date value = note.observation_dates()[index];
-        if (value < valuation) continue;
+        if (value <= valuation) continue;
         const double time = actual_365_fixed_year_fraction(valuation, value);
         observation_events.push_back({time, index});
         if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
@@ -109,7 +92,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     std::vector<double> trading_times;
     if (monitors_daily) {
         const auto future_trading_dates =
-            trading_dates(context.calendar(), valuation, note.expiry_date(), true);
+            trading_dates(context.calendar(), valuation, note.expiry_date());
         trading_times.reserve(future_trading_dates.size());
         for (const Date value : future_trading_dates) {
             const double time = actual_365_fixed_year_fraction(valuation, value);
@@ -146,7 +129,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const auto expiry_observation = event_index(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        bool ki = note.barrier_state() == AutocallableBarrierState::knocked_in; // NOLINT(misc-const-correctness): updated for knock-in note types.
+        bool ki = initial.path.knocked_in; // NOLINT(misc-const-correctness): updated for knock-in note types.
         if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
         if (expiry_observation && value >= note.knock_out_levels()[*expiry_observation]) {
             alive[index] = note.principal_ratio() +
@@ -208,11 +191,11 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     }
 
     if constexpr (monitors_knock_in)
-        return make_pricing_result(space->interpolate(note.barrier_state() == AutocallableBarrierState::knocked_in ? knocked_in
+        return make_pricing_result(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
                                                                                                                    : alive,
                                                       spot));
     else
-        return make_pricing_result(space->interpolate(alive, spot));
+        return make_pricing_result(initial.path.coupons + space->interpolate(alive, spot));
 }
 
 template class FiniteDifferenceAutocallableEngine<PhoenixOption>;

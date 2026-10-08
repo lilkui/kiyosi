@@ -64,8 +64,17 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (time_to_expiry == 0.0) return terminal_value(option, context);
 
+    double quantity = option.accumulated_quantity();
+    if (context.valuation_time() == start_of_day(context.valuation_date()) &&
+        context.calendar().is_trading_day(context.valuation_date())) {
+        if (spot >= option.knock_out_level())
+            return make_pricing_result(quantity * (spot - option.strike()));
+        quantity += spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
+                                           : option.daily_quantity();
+    }
+
     const auto future_trading_dates =
-        trading_dates(context.calendar(), context.valuation_time(), option.expiry_date(), true);
+        trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
     std::vector<double> trading_times;
     std::vector<double> anchors{0.0, time_to_expiry};
     trading_times.reserve(future_trading_dates.size());
@@ -115,7 +124,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept.swap(next_intercept);
     }
 
-    return make_pricing_result(space->interpolate(slope, spot) * option.accumulated_quantity() +
+    return make_pricing_result(space->interpolate(slope, spot) * quantity +
                                space->interpolate(intercept, spot));
 }
 
