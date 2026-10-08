@@ -680,9 +680,9 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 1, 4);
-    const auto context = [&](double spot) {
+    const auto context = [&](double spot, kiyosi::Date valuation) {
         return *kiyosi::make_pricing_context(
-            *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), spot, effective_date,
+            *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), spot, valuation,
             kiyosi::all_days_calendar());
     };
     const kiyosi::TradingDayMonteCarloSettings settings{
@@ -702,7 +702,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                        .effective_date = effective_date,
                                                        .expiry_date = expiry_date});
     const auto phoenix_result =
-        kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0));
+        kiyosi::MonteCarloPhoenixEngine{settings}.price(phoenix, context(100.0, effective_date));
     REQUIRE(phoenix_result);
     CHECK(*phoenix_result ==
           Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-10).epsilon(0.0));
@@ -721,7 +721,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                          .effective_date = effective_date,
                                                          .expiry_date = expiry_date});
     const auto snowball_result =
-        kiyosi::MonteCarloSnowballEngine{settings}.price(snowball, context(70.0));
+        kiyosi::MonteCarloSnowballEngine{settings}.price(snowball, context(70.0, day(2025, 1, 2)));
     REQUIRE(snowball_result);
     CHECK(*snowball_result ==
           Catch::Approx(0.7).margin(1e-8));
@@ -738,7 +738,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                                 .effective_date = effective_date,
                                                                 .expiry_date = expiry_date});
     const auto ternary_result =
-        kiyosi::MonteCarloTernarySnowballEngine{settings}.price(ternary, context(100.0));
+        kiyosi::MonteCarloTernarySnowballEngine{settings}.price(ternary, context(100.0, day(2025, 1, 2)));
     REQUIRE(ternary_result);
     CHECK(*ternary_result ==
           Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-12));
@@ -752,7 +752,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
                                                               .effective_date = effective_date,
                                                               .expiry_date = expiry_date});
     const auto binary_result =
-        kiyosi::MonteCarloBinarySnowballEngine{settings}.price(binary, context(100.0));
+        kiyosi::MonteCarloBinarySnowballEngine{settings}.price(binary, context(100.0, effective_date));
     REQUIRE(binary_result);
     CHECK(*binary_result ==
           Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).margin(1e-12));
