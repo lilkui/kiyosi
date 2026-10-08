@@ -153,6 +153,106 @@ class KiyosiPythonTests(unittest.TestCase):
                 with self.subTest(backend=backend, scale=scale):
                     self.assertAlmostEqual(price(scale), base, delta=1e-7)
 
+    def test_finite_differences_settle_without_a_spatial_grid(self):
+        start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        common = {
+            "knock_out_levels": [120, 120],
+            "observation_dates": [observed, end],
+            "barrier_state": "none",
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        snowball = {"knock_out_coupon_rates": [0.1, 0.1], "maturity_coupon_rate": 0.1}
+        downside = {
+            "initial_spot": 100,
+            "knock_in_level": 70,
+            "upper_strike": 100,
+            "lower_strike": 0,
+            "knock_in_observation_mode": "every_trading_day",
+        }
+        cases = (
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=120,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    accumulated_quantity=1,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloAccumulatorEngine,
+                pricing.FiniteDifferenceAccumulatorEngine,
+            ),
+            (
+                BinarySnowballOption(**common, **snowball),
+                pricing.MonteCarloBinarySnowballEngine,
+                pricing.FiniteDifferenceBinarySnowballEngine,
+            ),
+            (
+                TernarySnowballOption(
+                    **common,
+                    **snowball,
+                    minimum_coupon_rate=0,
+                    knock_in_level=70,
+                    knock_in_observation_mode="every_trading_day",
+                ),
+                pricing.MonteCarloTernarySnowballEngine,
+                pricing.FiniteDifferenceTernarySnowballEngine,
+            ),
+            (
+                kiyosi.instruments.SnowballOption(**common, **snowball, **downside),
+                pricing.MonteCarloSnowballEngine,
+                pricing.FiniteDifferenceSnowballEngine,
+            ),
+            (
+                PhoenixOption(
+                    **common,
+                    **downside,
+                    coupon_rate=0.1,
+                    coupon_barrier_levels=[90, 90],
+                ),
+                pricing.MonteCarloPhoenixEngine,
+                pricing.FiniteDifferencePhoenixEngine,
+            ),
+            (
+                BinarySnowballOption(
+                    **{
+                        **common,
+                        "barrier_state": "knocked_out",
+                        "observation_dates": [date(2025, 3, 3), end],
+                    },
+                    **snowball,
+                ),
+                pricing.MonteCarloBinarySnowballEngine,
+                pricing.FiniteDifferenceBinarySnowballEngine,
+            ),
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+        )
+        for option, monte_carlo, finite_difference in cases:
+            for time in (observed, end):
+                with self.subTest(instrument=type(option).__name__, time=time):
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=1e308,
+                        valuation_time=time,
+                    )
+                    expected = monte_carlo(path_count=64, seed=73).price(
+                        option, context
+                    )
+                    for engine in (
+                        finite_difference(),
+                        finite_difference(asset_upper_boundary=1),
+                    ):
+                        self.assertEqual(engine.price(option, context), expected)
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        finite_difference(asset_step_count=2).price(option, context)
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                    )
+
     def test_implied_accumulator_volatility_rejects_immediate_knock_out(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         option = Accumulator(

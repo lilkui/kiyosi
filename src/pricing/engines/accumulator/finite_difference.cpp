@@ -57,10 +57,6 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const double spot = context.spot_price();
-    const double relevant = highest_finite_difference_level(option, context);
-    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
-    if (!space) return std::unexpected(space.error());
-
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     if (time_to_expiry == 0.0) return terminal_value(option, context);
 
@@ -72,6 +68,10 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         quantity += spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                            : option.daily_quantity();
     }
+
+    const double relevant = highest_finite_difference_level(option, context);
+    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
+    if (!space) return std::unexpected(space.error());
 
     const auto future_trading_dates =
         trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());

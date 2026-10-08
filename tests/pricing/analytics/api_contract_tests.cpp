@@ -869,6 +869,44 @@ TEST_CASE("Implied ternary volatility requires remaining cashflow exposure", "[p
     check(FiniteDifferenceTernarySnowballEngine{});
 }
 
+TEST_CASE("Finite differences settle determined cashflows without a spatial grid", "[pricing-api][audit-fixes]")
+{
+    const auto check = [&](const auto& option, const auto& monte_carlo, const auto& finite_difference) {
+        using Engine = std::remove_cvref_t<decltype(finite_difference)>;
+        for (const Date date : {valuation, expiry}) {
+            const auto context = market(1e308, date);
+            const auto expected = monte_carlo.price(option, context);
+            REQUIRE(expected);
+            for (const auto& engine : {finite_difference, Engine{{.asset_upper_boundary = 1.0}}}) {
+                const auto actual = engine.price(option, context);
+                REQUIRE(actual);
+                CHECK(*actual == *expected);
+            }
+            const auto invalid = Engine{{.asset_step_count = 2}}.price(option, context);
+            REQUIRE_FALSE(invalid);
+            CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+        }
+    };
+    const auto accumulator = *make_accumulator(
+        {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 1.0, .effective_date = effective, .expiry_date = expiry});
+    check(accumulator, MonteCarloAccumulatorEngine{{64, 73}}, FiniteDifferenceAccumulatorEngine{});
+    const auto binary = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0, 120.0}, .observation_dates = {valuation, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    check(binary, MonteCarloBinarySnowballEngine{{64, 73}}, FiniteDifferenceBinarySnowballEngine{});
+    const auto ternary = *make_ternary_snowball_option(
+        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .knock_out_levels = {120.0, 120.0}, .observation_dates = {valuation, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    check(ternary, MonteCarloTernarySnowballEngine{{64, 73}}, FiniteDifferenceTernarySnowballEngine{});
+    const auto snowball = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {valuation, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    check(snowball, MonteCarloSnowballEngine{{64, 73}}, FiniteDifferenceSnowballEngine{});
+    const auto phoenix = *make_phoenix_option(
+        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {valuation, expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    check(phoenix, MonteCarloPhoenixEngine{{64, 73}}, FiniteDifferencePhoenixEngine{});
+    const auto settled = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0, 120.0}, .observation_dates = {day(2025, 3, 3), expiry}, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+    check(settled, MonteCarloBinarySnowballEngine{{64, 73}}, FiniteDifferenceBinarySnowballEngine{});
+}
+
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
 {
     const auto market = *kiyosi::make_pricing_context(

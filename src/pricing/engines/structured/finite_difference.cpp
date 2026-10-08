@@ -45,15 +45,12 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
 
     const auto initial = autocallable_initial_state(note, context, autocallable_program(note));
 
-    // An up-touch has already autocalled the note, so nothing remains to discount.
-    if (note.barrier_state() == AutocallableBarrierState::knocked_out && !settings_.asset_upper_boundary)
-        return make_pricing_result(0.0);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const double spot = context.spot_price();
     const double relevant = highest_finite_difference_level(note, context);
     const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(note, context), {relevant});
     if (!space) return std::unexpected(space.error());
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const Timestamp valuation = context.valuation_time();
     const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
