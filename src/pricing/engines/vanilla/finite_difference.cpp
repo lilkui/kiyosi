@@ -48,10 +48,10 @@ Result<PricingResult> price_finite_difference(
 
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
-        const double high = call ? (american ? upper - strike
-                                             : upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau))
-                                 : 0.0;
-        const double low = call ? 0.0 : (american ? strike : strike * std::exp(-rate * tau));
+        const double continuation = upper * std::exp(-dividend * tau) - strike * std::exp(-rate * tau);
+        const double high = call ? (american ? std::max(upper - strike, continuation) : continuation) : 0.0;
+        const double discounted_strike = strike * std::exp(-rate * tau);
+        const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
         return Boundaries{low, high};
     };
     auto intrinsic = [&](double underlying) {

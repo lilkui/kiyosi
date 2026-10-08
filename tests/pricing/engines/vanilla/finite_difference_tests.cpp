@@ -61,6 +61,27 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
                WithinAbs(*tree_put, 0.1));
 }
 
+TEST_CASE("American finite-difference boundaries preserve continuation value", "[audit-fixes]")
+{
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const kiyosi::FiniteDifferenceVanillaEngine engine{{800, 800, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}};
+    for (const bool call : {true, false}) {
+        CAPTURE(call);
+        const auto type = call ? kiyosi::OptionType::call : kiyosi::OptionType::put;
+        const double spot = call ? 390.0 : 0.1;
+        const auto parameters = *kiyosi::make_bsm_parameters(call ? 0.05 : -0.05, 0.0, 0.2);
+        const auto context = *kiyosi::make_pricing_context(parameters, spot, valuation);
+        const auto american = *kiyosi::make_american_option(type, 100.0, valuation, expiry);
+        const auto european = *kiyosi::make_european_option(type, 100.0, valuation, expiry);
+        const auto price = engine.price(american, context);
+        const auto continuation = kiyosi::AnalyticVanillaEngine{}.price(european, context);
+        REQUIRE(price);
+        REQUIRE(continuation);
+        CHECK_THAT(*price, Catch::Matchers::WithinAbs(*continuation, 0.001));
+    }
+}
+
 TEST_CASE("Finite-difference engines reject invalid grids")
 {
     const auto valuation = day(2025, 1, 1);

@@ -92,6 +92,30 @@ class KiyosiPythonTests(unittest.TestCase):
             expiry_date=date(2026, 1, 1),
         )
 
+    def test_american_fd_boundaries_preserve_continuation(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=800, time_step_count=800, asset_upper_boundary=400
+        )
+        for direction, spot, rate in (("call", 390, 0.05), ("put", 0.1, -0.05)):
+            with self.subTest(direction=direction):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=0, volatility=0.2
+                    ),
+                    spot_price=spot,
+                    valuation_time=start,
+                )
+                terms = dict(
+                    option_type=direction, strike=100,
+                    effective_date=start, expiry_date=end,
+                )
+                self.assertAlmostEqual(
+                    engine.price(AmericanOption(**terms), context),
+                    AnalyticVanillaEngine().price(EuropeanOption(**terms), context),
+                    delta=0.001,
+                )
+
     def test_coupon_choice_conversion_is_process_safe(self):
         code = textwrap.dedent(f"""
             import sys
