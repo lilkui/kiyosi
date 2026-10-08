@@ -124,7 +124,11 @@ private:
     if (!std::isfinite(upper) || upper <= std::ranges::max(must_exceed))
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference upper boundary must exceed every product level"});
-    return SpatialGrid{upper, upper / static_cast<double>(settings.asset_step_count), settings.asset_step_count};
+    const double spacing = upper / static_cast<double>(settings.asset_step_count);
+    if (!std::isfinite(spacing) || spacing <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "finite-difference spacing must be finite and positive"});
+    return SpatialGrid{upper, spacing, settings.asset_step_count};
 }
 
 } // namespace kiyosi::detail

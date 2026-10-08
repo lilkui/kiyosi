@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
@@ -42,6 +43,21 @@ TEST_CASE("Finite-difference spline interpolation stays within neighboring payof
             CHECK(value <= std::max(values[index], values[index + 1]));
         }
         CHECK(grid.interpolate(values, sign > 0.0 ? 3.75 : 4.25) == 0.0);
+    }
+}
+
+TEST_CASE("Finite-difference grids reject zero spacing while preserving small positive spacing", "[audit-fixes]")
+{
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    const auto invalid = kiyosi::detail::make_spatial_grid({}, 4.0 * tiny, {tiny});
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    for (const double upper : {400.0 * tiny, 400.0}) {
+        const auto valid = kiyosi::detail::make_spatial_grid({}, upper, {tiny});
+        REQUIRE(valid);
+        CHECK(valid->spacing == upper / 200.0);
+        CHECK(valid->spacing > 0.0);
+        CHECK(std::isfinite(valid->spacing));
     }
 }
 

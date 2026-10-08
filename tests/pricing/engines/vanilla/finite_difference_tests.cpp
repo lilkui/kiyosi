@@ -62,6 +62,21 @@ TEST_CASE("Finite-difference prices respect payoff bounds just before expiry", "
     }
 }
 
+TEST_CASE("Finite-difference prices reject an underflowed asset spacing", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    const double tiny = std::numeric_limits<double>::denorm_min();
+    const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), tiny, start);
+    const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, tiny, start, end);
+    for (const auto upper : {std::optional<double>{}, std::optional{4.0 * tiny}}) {
+        const kiyosi::FiniteDifferenceVanillaEngine engine{{.asset_upper_boundary = upper}};
+        const auto result = engine.price(option, context);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
+    }
+}
+
 TEST_CASE("Finite-difference American engines track analytic and binomial prices")
 {
     using Catch::Matchers::WithinAbs;

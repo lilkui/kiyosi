@@ -99,6 +99,22 @@ class KiyosiPythonTests(unittest.TestCase):
                     else:
                         self.assertEqual(american, 0.75)
 
+    def test_fd_prices_reject_underflowed_asset_spacing(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        tiny = math.ulp(0.0)
+        option = EuropeanOption(option_type="call", strike=tiny, effective_date=start, expiry_date=end)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=tiny, valuation_time=start,
+        )
+        for upper in (None, 4 * tiny):
+            with self.subTest(upper=upper):
+                engine = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=upper)
+                with self.assertRaises(kiyosi.KiyosiError) as caught:
+                    engine.price(option, context)
+                self.assertEqual(caught.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
     def test_seeded_autocallable_paths_stay_coupled_across_knock_out_changes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
