@@ -14,6 +14,33 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Bjerksund rejects negative transformed rates before expiry")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const kiyosi::BjerksundStenslandVanillaEngine engine;
+    for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
+        const bool call = type == kiyosi::OptionType::call;
+        const auto option = *kiyosi::make_american_option(type, 100.0, start, end);
+        const auto parameters = *kiyosi::make_bsm_parameters(call ? -0.01 : 0.0, call ? 0.0 : -0.01, 0.2);
+        const double spot = call ? 200.0 : 50.0;
+        const auto context = *kiyosi::make_pricing_context(parameters, spot, start);
+        const auto price = engine.price(option, context);
+        REQUIRE_FALSE(price);
+        CHECK(price.error().category == kiyosi::ErrorCategory::unsupported_operation);
+        const auto greeks = engine.price_with_greeks(option, context, {kiyosi::Greek::delta});
+        REQUIRE_FALSE(greeks);
+        CHECK(greeks.error().category == kiyosi::ErrorCategory::unsupported_operation);
+        const auto expired = engine.price(option, *kiyosi::make_pricing_context(parameters, spot, end));
+        REQUIRE(expired);
+        CHECK(*expired == (call ? 100.0 : 50.0));
+        const auto zero_rate = engine.price(option, *kiyosi::make_pricing_context(
+            *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), spot, start));
+        REQUIRE(zero_rate);
+        CHECK(*zero_rate >= (call ? 100.0 : 50.0));
+    }
+}
+
 TEST_CASE("Digital contracts validate and expose pricing results")
 {
     using Catch::Matchers::WithinAbs;

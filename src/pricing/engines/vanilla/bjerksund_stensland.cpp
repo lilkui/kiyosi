@@ -139,6 +139,10 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const Americ
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
+    const double transformed_rate = option.option_type() == OptionType::call ? rate : dividend;
+    if (time > 0.0 && transformed_rate < 0.0)
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "Bjerksund-Stensland requires a non-negative transformed interest rate"});
     const double value = option.option_type() == OptionType::call
                              ? bjerksund_call(spot, strike, time, rate, dividend, volatility)
                              : bjerksund_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.

@@ -123,6 +123,26 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("conversion errors returned safely", result.stdout)
 
+    def test_bjerksund_negative_transformed_rates(self):
+        engine = pricing.BjerksundStenslandVanillaEngine()
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction, rate, dividend, spot, intrinsic in (
+            ("call", -.01, 0, 200, 100), ("put", 0, -.01, 50, 50)
+        ):
+            with self.subTest(direction=direction):
+                option = AmericanOption(option_type=direction, strike=100,
+                                        effective_date=start, expiry_date=end)
+                parameters = BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=dividend, volatility=.2)
+                context = PricingContext(model_parameters=parameters, spot_price=spot,
+                                         valuation_time=start)
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(option, context)
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                expired = PricingContext(model_parameters=parameters, spot_price=spot,
+                                         valuation_time=end)
+                self.assertEqual(engine.price(option, expired), intrinsic)
+
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
         self.assertNotIn("price", get_args(kiyosi.Greek))
