@@ -125,10 +125,10 @@ Terms note_terms(const Scenario& scenario)
     terms.knock_out_levels = {112.0, 108.0, 104.0};
     terms.observation_dates = {effective_date + std::chrono::days{30},
                                effective_date + std::chrono::days{60}, expiry_date};
-    terms.barrier_state = scenario.history;
     terms.effective_date = effective_date;
     terms.expiry_date = expiry_date;
     if constexpr (requires { terms.knock_in_level; }) {
+        terms.barrier_state = scenario.history;
         terms.knock_in_level = 80.0;
         terms.knock_in_observation_mode = scenario.knock_in_observation_mode;
     }
@@ -148,8 +148,11 @@ void check_scenario(const Scenario& scenario, bool extended)
 {
     CAPTURE(scenario.name, scenario.spot, scenario.volatility, scenario.knock_in_observation_mode,
             scenario.history, scenario.accumulated_quantity);
+    // Historical knock-in requires an observation before valuation.
+    const auto valuation = scenario.history == AutocallableBarrierState::knocked_in
+                               ? effective_date + std::chrono::days{1} : effective_date;
     const auto market = checked(make_pricing_context(
-        checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, effective_date));
+        checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, valuation));
     // Native price units: normalized structured notes; accumulator quantity*price.
     DYNAMIC_SECTION(scenario.name << ": snowball")
     {

@@ -39,6 +39,8 @@ Autocall levels step from 112 to 108 to 104; snowball coupons also step down.
 Extended cases cover spots near knock-in, coupon, and knock-out levels;
 expiry-only knock-in at 35% volatility; and historical knock-in together with
 nonzero accumulated quantity. Each case runs all five product families.
+Historical knock-in is valued after monitoring starts; binary notes retain their
+default state because they have no knock-in barrier.
 
 All budgets are absolute native price units, not percentages of the computed
 price. This remains meaningful for negative and near-zero accumulator values.
