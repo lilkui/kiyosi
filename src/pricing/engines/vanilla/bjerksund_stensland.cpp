@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -161,6 +163,22 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const Americ
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
     const double intrinsic = std::max(option.option_type() == OptionType::call ? spot - strike : strike - spot, 0.0);
     return make_pricing_result(std::max({*value, intrinsic, continuation}));
+}
+
+Result<double> BjerksundStenslandVanillaEngine::price(
+    const AmericanOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> BjerksundStenslandVanillaEngine::price_with_greeks(
+    const AmericanOption& option, const PricingContext& context,
+    GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi

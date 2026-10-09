@@ -2,7 +2,8 @@
 
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 
 namespace kiyosi {
 
@@ -16,21 +17,12 @@ public:
     /// @return Price, a contract or context error, or `unsupported_operation` for a negative transformed
     /// rate or nonphysical exercise boundaries. Use a tree or finite-difference engine for those inputs.
     [[nodiscard]] Result<double> price(
-        const AmericanOption& option, const PricingContext& context) const
-    {
-        return detail::price_value(price_native(option, context));
-    }
+        const AmericanOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(
         const AmericanOption& option, const PricingContext& context,
-        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
-    {
-        return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                         [&](const auto& engine) {
-                                             return engine.price_native(option, context);
-                                         });
-    }
+        GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
 private:
     [[nodiscard]] Result<PricingResult> price_native(

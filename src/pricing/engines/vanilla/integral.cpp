@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/integral.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -36,6 +38,22 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double value = sign * (asset_value - cash_value);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
     return make_pricing_result(value);
+}
+
+Result<double> QuadratureVanillaEngine::price(
+    const EuropeanOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> QuadratureVanillaEngine::price_with_greeks(
+    const EuropeanOption& option, const PricingContext& context,
+    GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi

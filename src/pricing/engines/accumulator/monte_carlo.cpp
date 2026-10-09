@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <cmath>
 #include <random>
 #include <vector>
@@ -96,6 +98,20 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
         mean.add(*payoff);
     }
     return make_pricing_result(mean.value());
+}
+
+Result<double> MonteCarloAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi

@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -139,4 +141,18 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
     if (!price) return std::unexpected(price.error());
     return make_pricing_result(*price);
 }
+Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
 } // namespace kiyosi

@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/asian/analytic.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -224,4 +226,32 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return make_pricing_result(std::max(value, 0.0));
 }
+Result<double> AnalyticGeometricAveragePriceEngine::price(const GeometricAveragePriceOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_with_greeks(const GeometricAveragePriceOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
+Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(const ArithmeticAveragePriceOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_with_greeks(const ArithmeticAveragePriceOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
 } // namespace kiyosi

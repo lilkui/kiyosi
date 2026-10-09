@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/accumulator/finite_difference.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -110,6 +112,20 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
 
     return make_pricing_result(space->interpolate(slope, spot) * initial.quantity +
                                space->interpolate(intercept, spot));
+}
+
+Result<double> FiniteDifferenceAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi

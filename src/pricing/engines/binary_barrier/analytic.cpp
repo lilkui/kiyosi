@@ -1,4 +1,6 @@
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
+
+#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 
 #include <algorithm>
@@ -159,4 +161,32 @@ Result<PricingResult> AnalyticBinaryBarrierEngine::price_native(
 {
     return price_contract(make_contract_view(option), context);
 }
+Result<double> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const BinaryBarrierOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
+Result<double> AnalyticBinaryBarrierEngine::price(const TouchOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const TouchOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
 } // namespace kiyosi

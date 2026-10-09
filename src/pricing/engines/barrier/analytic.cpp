@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -108,6 +110,20 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     return make_pricing_result(value);
+}
+
+Result<double> AnalyticBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> AnalyticBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi

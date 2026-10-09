@@ -5,7 +5,8 @@
 
 #include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
@@ -24,20 +25,11 @@ public:
 
     /// Prices an accumulator by Monte Carlo simulation.
     /// @return Price, or a contract, context, settings, or backend error.
-    [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const
-    {
-        return detail::price_value(price_native(option, context));
-    }
+    [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
-                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const
-    {
-        return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                         [&](const auto& engine) {
-                                             return engine.price_native(option, context);
-                                         });
-    }
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     TradingDayMonteCarloSettings settings() const noexcept { return settings_; }

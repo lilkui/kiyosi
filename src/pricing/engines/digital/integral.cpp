@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/digital/integral.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 
@@ -42,6 +44,34 @@ Result<PricingResult> QuadratureDigitalEngine::price_native(const CashOrNothingO
 Result<PricingResult> QuadratureDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
+}
+
+Result<double> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
+}
+
+Result<double> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context));
+}
+
+Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
+                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         return engine.price_native(option, context);
+                                     });
 }
 
 } // namespace kiyosi
