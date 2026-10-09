@@ -1,5 +1,6 @@
 #include <array>
 #include <numbers>
+#include <vector>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -11,6 +12,50 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
+
+TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto fixing = day(2025, 1, 6);
+    const auto end = day(2025, 1, 10);
+    const ImpliedVolatilitySettings bounds{.lower_bound = 0.05, .upper_bound = 0.4};
+    for (const double rate : {0.0, 0.05}) {
+        for (const auto& dates : {std::vector{end}, std::vector{fixing}, std::vector{fixing, end}}) {
+            for (const double barrier : {0.0, 90.0}) {
+                for (const double lower : {100.0, 60.0}) {
+                    CAPTURE(rate, dates, barrier, lower);
+                    const auto note = *make_phoenix_option(
+                        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0,
+                         .knock_out_levels = std::vector<double>(dates.size(), 120.0),
+                         .coupon_barrier_levels = std::vector<double>(dates.size(), barrier),
+                         .upper_strike = 100.0, .lower_strike = lower, .observation_dates = dates,
+                         .knock_in_observation_mode = KnockInObservationMode::at_expiry,
+                         .effective_date = start, .expiry_date = end});
+                    const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.02, bounds.lower_bound), 100.0, start, all_days_calendar());
+                    const bool exposed = lower != 100.0 || barrier != 0.0 || dates.size() > 1 || (rate != 0.0 && dates.front() != end);
+                    const auto check = [&](const auto& engine) {
+                        const auto quote = engine.price(note, context);
+                        REQUIRE(quote);
+                        const auto result = implied_volatility(engine, note, context, *quote, bounds);
+                        if (exposed) {
+                            REQUIRE(result);
+                            CHECK(*result == bounds.lower_bound);
+                        } else {
+                            const double expected = std::exp(-rate * 9.0 / 365.0) + 0.1 *
+                                static_cast<double>((dates.front() - start).count()) / 365.0 *
+                                std::exp(-rate * static_cast<double>((dates.front() - start).count()) / 365.0);
+                            CHECK(*quote == Catch::Approx(expected).epsilon(1e-10));
+                            REQUIRE_FALSE(result);
+                            CHECK(result.error().category == ErrorCategory::unsupported_operation);
+                        }
+                    };
+                    check(MonteCarloPhoenixEngine{{64, 73}});
+                    check(FiniteDifferencePhoenixEngine{});
+                }
+            }
+        }
+    }
+}
 
 TEST_CASE("Trading finite-difference prices are invariant to currency scale", "[audit-fixes]")
 {

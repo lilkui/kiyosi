@@ -120,9 +120,6 @@ template <typename Engine, typename Option>
                     if constexpr (std::same_as<Option, SnowballOption>) {
                         if (knocked_in) terminal_coupon = 0.0;
                         else exposed = exposed || terminal_coupon != 0.0;
-                    } else {
-                        exposed = exposed || (option.coupon_rate() != 0.0 &&
-                                              start_of_day(option.observation_dates().back()) > context.valuation_time());
                     }
                 }
             }
@@ -130,7 +127,8 @@ template <typename Engine, typename Option>
                 (option.principal_ratio() + terminal_coupon *
                                                 detail::actual_365_fixed_year_fraction(option.effective_date(), option.expiry_date())) *
                 std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date()));
-            for (std::size_t i = 0; i < option.observation_dates().size(); ++i) {
+            double remaining_coupon_value = 0.0;
+            for (std::size_t i = option.observation_dates().size(); i-- > 0;) {
                 const Date date = option.observation_dates()[i];
                 if (start_of_day(date) <= context.valuation_time()) continue;
                 const double coupon = [&] {
@@ -141,9 +139,14 @@ template <typename Engine, typename Option>
                         return option.coupon_rate() * detail::actual_365_fixed_year_fraction(
                                                           i == 0 ? option.effective_date() : option.observation_dates()[i - 1], date);
                 }();
-                const double knock_out_value = (option.principal_ratio() + coupon) *
-                                               std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
-                exposed = exposed || knock_out_value != maturity_value;
+                const double discount = std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
+                // Phoenix pays the current coupon in either branch; knock-out loses only later coupons.
+                const double knock_out_value = (option.principal_ratio() + (std::same_as<Option, PhoenixOption> ? 0.0 : coupon)) * discount;
+                exposed = exposed || knock_out_value != maturity_value + remaining_coupon_value;
+                if constexpr (std::same_as<Option, PhoenixOption>) {
+                    exposed = exposed || (coupon != 0.0 && option.coupon_barrier_levels()[i] != 0.0);
+                    remaining_coupon_value += coupon * discount;
+                }
             }
             identifiable = identifiable && exposed;
         }

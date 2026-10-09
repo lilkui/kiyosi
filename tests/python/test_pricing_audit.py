@@ -24,6 +24,72 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_implied_volatility_rejects_unconditional_fixed_phoenix_cashflows(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 1, 6), date(2025, 1, 10)
+        for rate in (0, 0.05):
+            for dates in ([end], [fixing], [fixing, end]):
+                for barrier in (0, 90):
+                    for lower in (100, 60):
+                        note = PhoenixOption(
+                            coupon_rate=0.1,
+                            initial_spot=100,
+                            knock_in_level=80,
+                            knock_out_levels=[120] * len(dates),
+                            coupon_barrier_levels=[barrier] * len(dates),
+                            upper_strike=100,
+                            lower_strike=lower,
+                            observation_dates=dates,
+                            knock_in_observation_mode="at_expiry",
+                            effective_date=start,
+                            expiry_date=end,
+                        )
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=rate,
+                                dividend_yield=0.02,
+                                volatility=0.05,
+                            ),
+                            spot_price=100,
+                            valuation_time=start,
+                            calendar=all_days_calendar(),
+                        )
+                        exposed = (
+                            lower != 100 or barrier != 0 or len(dates) > 1
+                            or (rate != 0 and dates[0] != end)
+                        )
+                        for engine in (
+                            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                            pricing.FiniteDifferencePhoenixEngine(),
+                        ):
+                            with self.subTest(
+                                rate=rate, dates=dates, barrier=barrier,
+                                lower=lower, engine=type(engine).__name__,
+                            ):
+                                quote = engine.price(note, context)
+                                if exposed:
+                                    self.assertEqual(
+                                        implied_volatility(
+                                            engine, note, context, quote,
+                                            lower_bound=0.05, upper_bound=0.4,
+                                        ),
+                                        0.05,
+                                    )
+                                else:
+                                    days = (dates[0] - start).days
+                                    expected = math.exp(-rate * 9 / 365) + (
+                                        0.1 * days / 365 * math.exp(-rate * days / 365)
+                                    )
+                                    self.assertAlmostEqual(quote, expected, delta=1e-10)
+                                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                                        implied_volatility(
+                                            engine, note, context, quote,
+                                            lower_bound=0.05, upper_bound=0.4,
+                                        )
+                                    self.assertEqual(
+                                        error.exception.category,
+                                        kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                                    )
+
     def test_trading_finite_difference_prices_are_currency_scale_invariant(self):
         start, end = date(2025, 1, 1), date(2025, 1, 10)
         parameters = BlackScholesMertonParameters(
