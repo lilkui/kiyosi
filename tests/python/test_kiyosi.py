@@ -952,6 +952,102 @@ class KiyosiPythonTests(unittest.TestCase):
                         engine.price(option, context), expected, delta=0.02
                     )
 
+    def test_analytic_tiny_positive_volatility_preserves_price_and_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = AnalyticVanillaEngine()
+        for volatility in (1e-12, 1e-200):
+            for spot in (100, 1e15):
+                for direction in ("call", "put"):
+                    for forward in (-1, 0, 1):
+                        with self.subTest(
+                            volatility=volatility,
+                            spot=spot,
+                            direction=direction,
+                            forward=forward,
+                        ):
+                            sign = 1 if direction == "call" else -1
+                            option = EuropeanOption(
+                                option_type=direction,
+                                strike=spot,
+                                effective_date=start,
+                                expiry_date=end,
+                            )
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=forward * volatility,
+                                    dividend_yield=0,
+                                    volatility=volatility,
+                                ),
+                                spot_price=spot,
+                                valuation_time=start,
+                            )
+                            density = (
+                                0.3989422804014327
+                                if forward == 0
+                                else 0.24197072451914335
+                            )
+                            probability = (
+                                0.5
+                                if forward == 0
+                                else 0.8413447460685429
+                                if sign * forward > 0
+                                else 0.15865525393145705
+                            )
+                            expected = (
+                                spot * volatility * (density + sign * forward * probability)
+                            )
+                            price = engine.price(option, context)
+                            result = engine.price_with_greeks(
+                                option, context, ["delta", "gamma", "vega"]
+                            )
+                            self.assertTrue(math.isclose(price, expected, rel_tol=2e-11))
+                            self.assertEqual(result.price, price)
+                            self.assertTrue(
+                                math.isclose(result.delta, sign * probability, rel_tol=2e-11)
+                            )
+                            self.assertTrue(
+                                math.isclose(result.gamma, density / spot / volatility, rel_tol=2e-11)
+                            )
+                            self.assertTrue(
+                                math.isclose(result.vega, spot * density / 100, rel_tol=2e-11)
+                            )
+
+    def test_analytic_preserves_prices_when_volatility_time_underflows(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 2)
+        volatility, spot = math.nextafter(0, 1), 1e308
+        root_time, density = math.sqrt(1 / 365), 0.3989422804014327
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=volatility
+            ),
+            spot_price=spot,
+            valuation_time=start,
+        )
+        engine = AnalyticVanillaEngine()
+        for direction in ("call", "put"):
+            with self.subTest(direction=direction):
+                option = EuropeanOption(
+                    option_type=direction,
+                    strike=spot,
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                price = engine.price(option, context)
+                result = engine.price_with_greeks(
+                    option, context, ["delta", "gamma", "vega"]
+                )
+                self.assertTrue(
+                    math.isclose(price, spot * volatility * root_time * density, rel_tol=2e-12)
+                )
+                self.assertEqual(result.price, price)
+                self.assertEqual(result.delta, 0.5 if direction == "call" else -0.5)
+                self.assertTrue(
+                    math.isclose(result.gamma, density / spot / volatility / root_time, rel_tol=2e-12)
+                )
+                self.assertTrue(
+                    math.isclose(result.vega, spot * density * root_time / 100, rel_tol=2e-12)
+                )
+
     def test_analytic_low_volatility_and_default_implied_volatility(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         terms = {

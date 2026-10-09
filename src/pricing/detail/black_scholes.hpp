@@ -12,8 +12,6 @@
 
 namespace kiyosi::detail {
 
-inline constexpr double minimum_black_scholes_volatility_time = 1e-10;
-
 struct BlackScholesProbabilities {
     double d1;
     double d2;
@@ -25,12 +23,18 @@ inline BlackScholesProbabilities black_scholes_probabilities(
     double sign, double spot, double strike, double rate, double dividend, double volatility, double time)
 {
     const double volatility_time = volatility * std::sqrt(time);
-    if (volatility_time < minimum_black_scholes_volatility_time) {
+    if (volatility == 0.0 || time == 0.0) {
         const double exercised = sign * (spot * std::exp((rate - dividend) * time) - strike) > 0.0 ? 1.0 : 0.0;
         return {0.0, 0.0, exercised, exercised};
     }
-    const double standardized_forward =
-        (std::log(spot) - std::log(strike) + (rate - dividend) * time) / volatility_time;
+    const double relative_spot = (spot - strike) / strike;
+    const double log_moneyness = std::abs(relative_spot) < 0.5
+                                    ? std::log1p(relative_spot)
+                                    : std::log(spot) - std::log(strike);
+    const double forward = log_moneyness + (rate - dividend) * time;
+    const double standardized_forward = volatility_time == 0.0
+                                            ? (forward / volatility) / std::sqrt(time)
+                                            : forward / volatility_time;
     const double d1 = standardized_forward + 0.5 * volatility_time;
     const double d2 = standardized_forward - 0.5 * volatility_time;
     return {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)};
@@ -63,7 +67,7 @@ inline Result<PricingResult> price_at_volatility(
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced an unstable volatility limit"});
     }
-    if (volatility_time < minimum_black_scholes_volatility_time) {
+    if (volatility == 0.0) {
         const double forward = spot * std::exp((rate - dividend) * year_fraction);
         const double discount = std::exp(-rate * year_fraction);
         const double intrinsic = sign * (forward - strike);
@@ -90,7 +94,19 @@ inline Result<PricingResult> price_at_volatility(
     const double cash_value = sign * d2 < -10.0
                                   ? exponential_normal_cdf(std::log(strike) - rate * year_fraction, sign * d2)
                                   : strike * rate_discount_factor * cumulative_d2;
-    const double value = sign * (asset_value - cash_value);
+    double value = sign * (asset_value - cash_value);
+    const double standardized_forward = d1 - 0.5 * volatility_time;
+    if (volatility_time < 1e-5 && std::abs(standardized_forward) < 10.0) {
+        // Expand the CDF difference before scaling to preserve time value at tiny positive volatility.
+        const double squared_forward = standardized_forward * standardized_forward;
+        const double time_value = std::exp(std::log(spot) - dividend * year_fraction +
+                                          std::log(volatility) + std::log(sqrt_time) - 0.5 * squared_forward +
+                                          std::log(inverse_sqrt_two_pi)) *
+                                  (1.0 + (squared_forward - 1.0) * volatility_time * volatility_time / 24.0);
+        value = sign * strike * rate_discount_factor *
+                    std::expm1(standardized_forward * volatility_time) * cumulative_d2 +
+                time_value;
+    }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "analytic pricing produced a non-finite result"});

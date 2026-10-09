@@ -328,7 +328,67 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
     REQUIRE(result.has_value());
     CHECK(std::isfinite(result->price()));
     CHECK(std::isfinite(greek_value(*result, kiyosi::Greek::delta)));
-    CHECK_FALSE(result->has(kiyosi::Greek::gamma));
+    CHECK(greek_value(*result, kiyosi::Greek::gamma) == 0.0);
+}
+
+TEST_CASE("Analytic European tiny positive volatility preserves price and Greeks", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const AnalyticVanillaEngine engine;
+    for (const double volatility : {1e-12, 1e-200}) {
+        for (const double spot : {100.0, 1e15}) {
+            for (const auto type : {OptionType::call, OptionType::put}) {
+                for (const double forward : {-1.0, 0.0, 1.0}) {
+                    CAPTURE(volatility, spot, type, forward);
+                    const double sign = type == OptionType::call ? 1.0 : -1.0;
+                    const auto option = *make_european_option(type, spot, start, end);
+                    const auto context = *make_pricing_context(
+                        *make_bsm_parameters(forward * volatility, 0.0, volatility), spot, start);
+                    const double density = forward == 0.0 ? 0.3989422804014327 : 0.24197072451914335;
+                    const double probability = sign * forward == 0.0 ? 0.5
+                                               : sign * forward > 0.0 ? 0.8413447460685429
+                                                                      : 0.15865525393145705;
+                    const double expected = spot * volatility * (density + sign * forward * probability);
+                    const auto price = engine.price(option, context);
+                    const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::vega});
+                    REQUIRE(price);
+                    REQUIRE(result);
+                    CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 2e-11));
+                    CHECK(result->price() == *price);
+                    CHECK_THAT(greek_value(*result, Greek::delta), Catch::Matchers::WithinRel(sign * probability, 2e-11));
+                    CHECK_THAT(greek_value(*result, Greek::gamma), Catch::Matchers::WithinRel(density / spot / volatility, 2e-11));
+                    CHECK_THAT(greek_value(*result, Greek::vega), Catch::Matchers::WithinRel(spot * density / 100.0, 2e-11));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Analytic European preserves prices when volatility time underflows", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2025, 1, 2);
+    const double volatility = std::nextafter(0.0, 1.0);
+    const double spot = 1e308;
+    const double root_time = std::sqrt(1.0 / 365.0);
+    const double density = 0.3989422804014327;
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, volatility), spot, start);
+    const AnalyticVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, spot, start, end);
+        const auto price = engine.price(option, context);
+        const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::vega});
+        REQUIRE(price);
+        REQUIRE(result);
+        CHECK_THAT(*price, Catch::Matchers::WithinRel(spot * volatility * root_time * density, 2e-12));
+        CHECK(result->price() == *price);
+        CHECK(greek_value(*result, Greek::delta) == (type == OptionType::call ? 0.5 : -0.5));
+        CHECK_THAT(greek_value(*result, Greek::gamma), Catch::Matchers::WithinRel(density / spot / volatility / root_time, 2e-12));
+        CHECK_THAT(greek_value(*result, Greek::vega), Catch::Matchers::WithinRel(spot * density * root_time / 100.0, 2e-12));
+    }
 }
 
 TEST_CASE("Analytic European implied volatility recovers at-the-money volatility")
