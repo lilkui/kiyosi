@@ -150,7 +150,8 @@ Result<PricingResult> complete_greeks(
             engine, option, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
         if (need(Greek::delta)) delta = (*p_up - *p_down) / (2.0 * h);
-        if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / (h * h);
+        // Divide separately so powers of the shift cannot overflow or underflow.
+        if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
 
         const double two_h = 2.0 * h;
         if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h) &&
@@ -162,7 +163,7 @@ Result<PricingResult> complete_greeks(
                 engine, option, context, spot - two_h, volatility, rate, valuation_time);
             if (!p_down2) return std::unexpected(p_down2.error());
             speed = (*p_up2 - 2.0 * *p_up + 2.0 * *p_down - *p_down2) /
-                    (2.0 * h * h * h);
+                    h / h / two_h;
         }
     }
 
@@ -203,8 +204,8 @@ Result<PricingResult> complete_greeks(
             if (need(Greek::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                                             (4.0 * h * vol_scale);
 
-            const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / (h * h);
-            const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / (h * h);
+            const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;
+            const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / h / h;
             if (need(Greek::zomma)) zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
         }
     }
@@ -309,7 +310,7 @@ Result<PricingResult> complete_greeks(
                                                 (2.0 * h * day_scale);
                 if (need(Greek::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
                                                   (*d_before - 2.0 * *t_before + *d_before_low)) /
-                                                 (h * h * day_scale));
+                                                 h / h / day_scale);
             }
         }
     }

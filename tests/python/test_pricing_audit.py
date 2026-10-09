@@ -32,6 +32,37 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_numerical_spot_shift_powers_preserve_representable_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for scales, greeks, order in (
+            ((1e-160, 1, 1e160), ("gamma", "zomma", "color"), 1),
+            ((1e-110, 1, 1e110), ("speed",), 2),
+        ):
+            for scale in scales:
+                option = EuropeanOption(
+                    option_type="call", strike=100 * scale,
+                    effective_date=start - timedelta(days=30), expiry_date=end,
+                )
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2,
+                    ), spot_price=100 * scale, valuation_time=start,
+                )
+                expected = pricing.AnalyticVanillaEngine().price_with_greeks(option, context, greeks)
+                actual = pricing.QuadratureVanillaEngine().price_with_greeks(
+                    option, context, greeks, spot_shift=0.01 * scale,
+                )
+                for greek in greeks:
+                    with self.subTest(scale=scale, greek=greek):
+                        actual_value, expected_value = getattr(actual, greek), getattr(expected, greek)
+                        for _ in range(order):
+                            actual_value *= scale
+                            expected_value *= scale
+                        self.assertAlmostEqual(
+                            actual_value, expected_value,
+                            delta=1e-7 + 0.001 * abs(expected_value),
+                        )
+
     def test_barrier_expiry_settles_before_rebate_discounting(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = BarrierOption(

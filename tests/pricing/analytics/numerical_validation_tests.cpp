@@ -78,6 +78,40 @@ double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
                        kiyosi::Greek::gamma);
 }
 
+TEST_CASE("Numerical spot-shift powers preserve representable Greeks", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    for (const double scale : {1e-160, 1.0, 1e160}) {
+        CAPTURE(scale);
+        const auto option = *make_european_option(OptionType::call, 100.0 * scale,
+                                                 valuation - std::chrono::days{30}, expiry_date);
+        const auto market = context(100.0 * scale, 0.04, 0.01, 0.2);
+        const GreeksRequest request{Greek::gamma, Greek::zomma, Greek::color};
+        const auto expected = AnalyticVanillaEngine{}.price_with_greeks(option, market, request);
+        const auto result = QuadratureVanillaEngine{}.price_with_greeks(
+            option, market, request, {.spot_shift = 0.01 * scale});
+        REQUIRE(expected);
+        REQUIRE(result);
+        for (const auto greek : {Greek::gamma, Greek::zomma, Greek::color}) {
+            CAPTURE(greek);
+            check_close(greek_value(*result, greek) * scale,
+                        greek_value(*expected, greek) * scale, 1e-7, 0.001);
+        }
+    }
+    for (const double scale : {1e-110, 1.0, 1e110}) {
+        CAPTURE(scale);
+        const auto option = *make_european_option(OptionType::call, 100.0 * scale, valuation, expiry_date);
+        const auto market = context(100.0 * scale, 0.04, 0.01, 0.2);
+        const auto expected = AnalyticVanillaEngine{}.price_with_greeks(option, market, {Greek::speed});
+        const auto result = QuadratureVanillaEngine{}.price_with_greeks(
+            option, market, {Greek::speed}, {.spot_shift = 0.01 * scale});
+        REQUIRE(expected);
+        REQUIRE(result);
+        check_close(greek_value(*result, Greek::speed) * scale * scale,
+                    greek_value(*expected, Greek::speed) * scale * scale, 1e-7, 0.001);
+    }
+}
+
 TEST_CASE("Numerical time Greeks center clipped stencils on valuation", "[audit-fixes]")
 {
     using namespace kiyosi;
