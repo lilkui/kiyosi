@@ -27,6 +27,7 @@ add_executable(kiyosi_tests
     pricing/engines/binary_barrier/analytic_tests.cpp
     pricing/engines/binary_barrier/reference_tests.cpp
     pricing/engines/digital/settlement_tests.cpp
+    pricing/engines/digital/overflow_tests.cpp
     pricing/engines/structured/autocallable_tests.cpp
     pricing/engines/vanilla/analytic_tests.cpp
     pricing/engines/vanilla/binomial_tests.cpp

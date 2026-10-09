@@ -37,7 +37,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double d = asset_settlement ? d1 : d2;
     const double nd = normal_cdf(sign * d);
     const double scale = asset_settlement ? spot * div_df : payout * rate_df;
-    const double value = sign * d < -10.0
+    const double value = sign * d < -10.0 || !std::isfinite(scale)
                              ? exponential_normal_cdf(std::log(asset_settlement ? spot : payout) -
                                                           (asset_settlement ? context.model_parameters().dividend_yield() : context.model_parameters().risk_free_rate()) * t,
                                                       sign * d)

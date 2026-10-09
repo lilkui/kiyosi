@@ -115,7 +115,9 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
         sum = next;
     }
     const double tail = sum * step / 3.0;
-    return scale * (threshold < 0.0 ? 1.0 - tail : tail);
+    const double probability = threshold < 0.0 ? 1.0 - tail : tail;
+    return std::isfinite(scale) ? scale * probability
+                                : std::exp(std::log(weight) + log_discount + std::log(probability));
 }
 
 } // namespace kiyosi::detail
