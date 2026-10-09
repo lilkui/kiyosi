@@ -38,6 +38,33 @@ TEST_CASE("Trading finite-difference prices are invariant to currency scale", "[
     }
 }
 
+TEST_CASE("Numerical time Greeks preserve microsecond shifts", "[audit-fixes]")
+{
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    for (const int year : {1900, 2026, 9999}) {
+        const auto end = day(year, 1, 1);
+        const auto option = *make_european_option(OptionType::call, 100.0, day(year - 1, 1, 1), end);
+        for (const int microseconds : {1, 10}) {
+            CAPTURE(year, microseconds);
+            const auto shift = std::chrono::microseconds{microseconds};
+            const auto context = *make_pricing_context(parameters, 100.0, start_of_day(end) - shift);
+            const auto before = *make_pricing_context(parameters, 100.0, start_of_day(end) - 2 * shift);
+            const double elapsed_days = std::chrono::duration<double, std::ratio<86400>>{2 * shift}.count();
+            const auto check = [&](const auto& engine, const auto& result) {
+                const auto prior = engine.price(option, before);
+                REQUIRE(prior);
+                REQUIRE(*prior > 0.0);
+                REQUIRE(result);
+                CHECK(greek_value(*result, Greek::theta) == Catch::Approx(-*prior / elapsed_days).epsilon(1e-10));
+            };
+            const AnalyticVanillaEngine analytic;
+            check(analytic, calculate_numerical_greeks(analytic, option, context));
+            const QuadratureVanillaEngine quadrature;
+            check(quadrature, quadrature.price_with_greeks(option, context, {Greek::theta}));
+        }
+    }
+}
+
 TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[pricing-api][audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 import kiyosi
 from kiyosi import pricing
@@ -65,6 +65,54 @@ class PricingAuditTests(unittest.TestCase):
             with self.subTest(scale=scale):
                 for actual, baseline in zip(prices(scale), expected):
                     self.assertAlmostEqual(actual, baseline, delta=1e-9)
+
+    def test_numerical_time_greeks_preserve_microsecond_shifts(self):
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        for year in (1900, 2026, 9999):
+            expiry = datetime(year, 1, 1, tzinfo=timezone.utc)
+            option = EuropeanOption(
+                option_type="call",
+                strike=100,
+                effective_date=date(year - 1, 1, 1),
+                expiry_date=expiry.date(),
+            )
+            for microseconds in (1, 10):
+                shift = timedelta(microseconds=microseconds)
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=100,
+                    valuation_time=expiry - shift,
+                )
+                before = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=100,
+                    valuation_time=expiry - 2 * shift,
+                )
+                elapsed_days = (2 * shift).total_seconds() / 86400
+                analytic = pricing.AnalyticVanillaEngine()
+                quadrature = pricing.QuadratureVanillaEngine()
+                for engine, evaluate in (
+                    (analytic, pricing.calculate_numerical_greeks),
+                    (
+                        quadrature,
+                        lambda engine, option, context: engine.price_with_greeks(
+                            option, context, "theta"
+                        ),
+                    ),
+                ):
+                    with self.subTest(
+                        year=year,
+                        microseconds=microseconds,
+                        engine=type(engine).__name__,
+                    ):
+                        expected = -engine.price(option, before) / elapsed_days
+                        self.assertLess(expected, 0)
+                        result = evaluate(engine, option, context)
+                        self.assertAlmostEqual(
+                            result.theta, expected, delta=abs(expected) * 1e-10
+                        )
 
     def test_bjerksund_rejects_nonphysical_exercise_boundaries(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

@@ -92,14 +92,17 @@ TEST_CASE("Numerical time Greeks center clipped stencils on valuation", "[audit-
     };
     const auto option = *make_european_option(OptionType::call, 100.0, valuation, valuation + std::chrono::days{10});
     // Price, delta and gamma are quadratic in time: a centered derivative is exact at both life boundaries.
-    for (const double days : {0.5, 9.5}) {
-        const auto time = start_of_day(valuation) + std::chrono::hours{static_cast<int>(days * 24)};
+    for (const auto elapsed : {std::chrono::microseconds{1}, std::chrono::microseconds{10},
+                              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{12}),
+                              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{228})}) {
+        const double days = std::chrono::duration<double, std::ratio<86400>>{elapsed}.count();
+        const auto time = start_of_day(valuation) + elapsed;
         const auto market = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), 100.0, time);
         const auto result = calculate_numerical_greeks(QuadraticTimeEngine{}, option, market);
         REQUIRE(result);
-        check_close(greek_value(*result, Greek::theta), 2.0 * days * 10000.0);
-        check_close(greek_value(*result, Greek::charm), 4.0 * days * 100.0);
-        check_close(greek_value(*result, Greek::color), 4.0 * days, 1e-4);
+        check_close(greek_value(*result, Greek::theta), 2.0 * days * 10000.0, 1e-12);
+        check_close(greek_value(*result, Greek::charm), 4.0 * days * 100.0, 1e-12);
+        check_close(greek_value(*result, Greek::color), 4.0 * days, 1e-14);
     }
     const auto first = calculate_numerical_greeks(QuadraticTimeEngine{}, option, context());
     REQUIRE(first);

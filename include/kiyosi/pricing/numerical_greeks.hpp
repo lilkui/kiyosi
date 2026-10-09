@@ -228,22 +228,23 @@ Result<PricingResult> complete_greeks(
     auto color = *native.get(Greek::color);
     if (need(Greek::theta) || need(Greek::charm) || need(Greek::color)) {
         using Days = std::chrono::duration<double, std::ratio<86400>>;
-        const auto valuation_days = Days{valuation_time.time_since_epoch()};
-        auto lower_days = Days{Timestamp::min().time_since_epoch()};
-        auto upper_days = Days{Timestamp::max().time_since_epoch()};
+        auto lower_bound = start_of_day(Date{std::chrono::year::min() / std::chrono::January / 1});
+        auto upper_bound = start_of_day(Date{std::chrono::year::max() / std::chrono::December / 31}) +
+                           std::chrono::days{1} - std::chrono::microseconds{1};
         if constexpr (requires { option.effective_date(); })
-            lower_days = Days{option.effective_date().time_since_epoch()};
+            lower_bound = start_of_day(option.effective_date());
         if constexpr (requires { option.expiry_date(); })
-            upper_days = Days{option.expiry_date().time_since_epoch()};
-        const double available_before = (valuation_days - lower_days).count();
-        const double available_after = (upper_days - valuation_days).count();
-        const double shift_days = available_before > 0.0 && available_after > 0.0
-                                      ? std::min({static_cast<double>(settings.time_shift_days), available_before, available_after})
-                                      : static_cast<double>(settings.time_shift_days);
-        const double before_days = std::min(shift_days, available_before);
-        const double after_days = std::min(shift_days, available_after);
-        const Timestamp before = valuation_time - std::chrono::duration_cast<Timestamp::duration>(Days{before_days});
-        const Timestamp after = valuation_time + std::chrono::duration_cast<Timestamp::duration>(Days{after_days});
+            upper_bound = start_of_day(option.expiry_date());
+        // Bound whole days before conversion so even INT_MAX shifts fit in microseconds.
+        const auto requested_shift = std::chrono::duration_cast<Timestamp::duration>(
+            std::min(std::chrono::days{settings.time_shift_days}, std::chrono::floor<std::chrono::days>(upper_bound - lower_bound)));
+        const auto available_before = valuation_time - lower_bound;
+        const auto available_after = upper_bound - valuation_time;
+        const auto shift = available_before > Timestamp::duration::zero() && available_after > Timestamp::duration::zero()
+                               ? std::min({requested_shift, available_before, available_after})
+                               : requested_shift;
+        const Timestamp before = valuation_time - std::min(shift, available_before);
+        const Timestamp after = valuation_time + std::min(shift, available_after);
         bool time_stencil_available = true; // NOLINT(misc-const-correctness): later checks depend on the option type.
         if constexpr (requires { option.averaging_start_date(); option.realized_average(); }) {
             const Timestamp averaging_start = start_of_day(option.averaging_start_date());
@@ -277,19 +278,18 @@ Result<PricingResult> complete_greeks(
                         break;
                     }
         }
-        if (!spot_discontinuity && time_stencil_available &&
-            (before_days != 0.0 || after_days != 0.0)) {
-            const auto t_before = before_days == 0.0
+        if (!spot_discontinuity && time_stencil_available && before != after) {
+            const auto t_before = before == valuation_time
                                       ? p0
                                       : detail::shifted_value(
                                             engine, option, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
-            const auto t_after = after_days == 0.0
+            const auto t_after = after == valuation_time
                                      ? p0
                                      : detail::shifted_value(
                                            engine, option, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
-            const double day_scale = before_days + after_days;
+            const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
 
             if (spot_stencil_available && (need(Greek::charm) || need(Greek::color))) {
