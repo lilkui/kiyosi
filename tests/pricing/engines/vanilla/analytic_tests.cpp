@@ -3,6 +3,7 @@
 #include <array>
 #include <chrono>
 #include <limits>
+#include <numbers>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -64,6 +65,49 @@ TEST_CASE("Bjerksund-Stensland rejects nonphysical exercise boundaries", "[audit
             REQUIRE(expired);
             CHECK(*expired == 0.0);
         }
+    }
+}
+
+TEST_CASE("Bjerksund-Stensland retains tiny European time value", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const BjerksundStenslandVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double sigma : {1e-16, 1e-20, 1e-200}) {
+            for (const double scale : {1.0, 1e150}) {
+                CAPTURE(type, sigma, scale);
+                const double spot = 100.0 * scale;
+                const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, start);
+                const auto option = *make_american_option(type, spot, start, end);
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                const double expected = spot * sigma / std::sqrt(2.0 * std::numbers::pi);
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 1e-12));
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+                CHECK(*engine.price(option, *make_pricing_context(context.model_parameters(), spot, end)) == 0.0);
+            }
+        }
+    }
+}
+
+TEST_CASE("Bjerksund-Stensland retains scaled European tail prices", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        const auto context = *make_pricing_context(parameters, call ? 1e300 : 1e304, start);
+        const auto option = *make_american_option(type, call ? 1e304 : 1e300, start, end);
+        const auto price = BjerksundStenslandVanillaEngine{}.price(option, context);
+        REQUIRE(price);
+        // Independent 100-digit Decimal normal-tail reference, shared with the European regression.
+        CHECK_THAT(*price, Catch::Matchers::WithinRel(1.1367038364232515e-163, 1e-8));
     }
 }
 

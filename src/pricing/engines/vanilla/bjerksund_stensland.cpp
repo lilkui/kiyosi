@@ -5,22 +5,12 @@
 #include <cmath>
 #include <numbers>
 
-#include "../../detail/math.hpp"
+#include "../../detail/black_scholes.hpp"
 
 namespace kiyosi {
 using namespace detail;
 
 namespace {
-double european_call(double spot, double strike, double time, double rate, double dividend, double volatility)
-{
-    const double root = std::sqrt(time);
-    const double d1 = (std::log(spot) - std::log(strike) + (rate - dividend + 0.5 * volatility * volatility) * time) /
-                      (volatility * root);
-    const double d2 = d1 - volatility * root;
-    return spot * std::exp(-dividend * time) * normal_cdf(d1) -
-           strike * std::exp(-rate * time) * normal_cdf(d2);
-}
-
 double phi(double spot, double time, double gamma, double boundary, double strike_boundary,
            double rate, double dividend, double volatility, double power_boundary)
 {
@@ -102,19 +92,20 @@ double ksi(double spot, double time, double gamma, double boundary, double outer
            exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_outer), -e4, -f4, -correlation);
 }
 
-Result<double> bjerksund_call(double spot, double strike, double time, double rate, double dividend, double volatility)
+Result<double> bjerksund_call(double spot, double strike, double time, double rate, double dividend, double volatility,
+                              double european_value)
 {
     if (time == 0.0) return std::max(spot - strike, 0.0);
-    if (dividend <= 0.0) return european_call(spot, strike, time, rate, dividend, volatility);
+    if (dividend <= 0.0) return european_value;
     const double carry = rate - dividend;
     if (carry * time + 2.0 * volatility * std::sqrt(time) <= 0.0)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "Bjerksund-Stensland exercise boundaries must exceed the strike"});
     const double variance = volatility * volatility;
     const double radicand = std::pow((rate - dividend) / variance - 0.5, 2.0) + 2.0 * rate / variance;
-    if (radicand <= 0.0 || !std::isfinite(radicand)) return european_call(spot, strike, time, rate, dividend, volatility);
+    if (radicand <= 0.0 || !std::isfinite(radicand)) return european_value;
     const double beta = (0.5 - (rate - dividend) / variance) + std::sqrt(radicand);
-    if (!std::isfinite(beta) || beta <= 1.0) return european_call(spot, strike, time, rate, dividend, volatility);
+    if (!std::isfinite(beta) || beta <= 1.0) return european_value;
     const double b_inf = beta / (beta - 1.0) * strike;
     const double b_zero = std::max(strike, rate / dividend * strike);
     const double split_time = 0.5 * (std::sqrt(5.0) - 1.0) * time;
@@ -157,18 +148,18 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const Americ
     if (time > 0.0 && transformed_rate < 0.0)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "Bjerksund-Stensland requires a non-negative transformed interest rate"});
+    const auto european = price_at_volatility(
+        *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
+        context, volatility, GreeksRequest{});
+    if (!european) return std::unexpected(european.error());
+    const double continuation = european->price();
     const auto value = option.option_type() == OptionType::call
-                           ? bjerksund_call(spot, strike, time, rate, dividend, volatility)
-                           : bjerksund_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
+                           ? bjerksund_call(spot, strike, time, rate, dividend, volatility, continuation)
+                           : bjerksund_call(strike, spot, time, dividend, rate, volatility, continuation); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
     if (!value) return std::unexpected(value.error());
     if (!std::isfinite(*value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
     const double intrinsic = std::max(option.option_type() == OptionType::call ? spot - strike : strike - spot, 0.0);
-    const double continuation = time == 0.0                                ? intrinsic
-                                : option.option_type() == OptionType::call ? european_call(spot, strike, time, rate, dividend, volatility)
-                                                                           : european_call(strike, spot, time, dividend, rate, volatility); // NOLINT(readability-suspicious-call-argument): put-call symmetry swaps spot/strike and rate/dividend.
-    if (!std::isfinite(continuation))
-        return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland continuation produced a non-finite result"});
     return make_pricing_result(std::max({*value, intrinsic, continuation}));
 }
 

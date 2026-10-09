@@ -32,6 +32,36 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_bjerksund_stensland_retains_tiny_european_time_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.BjerksundStenslandVanillaEngine()
+        for direction in ("call", "put"):
+            for sigma in (1e-16, 1e-20, 1e-200):
+                for scale in (1, 1e150):
+                    with self.subTest(direction=direction, sigma=sigma, scale=scale):
+                        spot = 100 * scale
+                        parameters = BlackScholesMertonParameters(
+                            risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                        )
+                        context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                        option = AmericanOption(option_type=direction, strike=spot, effective_date=start, expiry_date=end)
+                        actual = engine.price(option, context)
+                        expected = spot * sigma / math.sqrt(2 * math.pi)
+                        self.assertTrue(math.isclose(actual, expected, rel_tol=1e-12))
+                        self.assertEqual(engine.price_with_greeks(option, context, "delta").price, actual)
+                        expired = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=end)
+                        self.assertEqual(engine.price(option, expired), 0)
+
+    def test_bjerksund_stensland_retains_scaled_european_tail_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0, dividend_yield=0, volatility=0.2)
+        for direction, spot, strike in (("call", 1e300, 1e304), ("put", 1e304, 1e300)):
+            with self.subTest(direction=direction):
+                option = AmericanOption(option_type=direction, strike=strike, effective_date=start, expiry_date=end)
+                context = PricingContext(model_parameters=parameters, spot_price=spot, valuation_time=start)
+                actual = pricing.BjerksundStenslandVanillaEngine().price(option, context)
+                self.assertTrue(math.isclose(actual, 1.1367038364232515e-163, rel_tol=1e-8))
+
     def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(self):
         start = date(2025, 1, 1)
         end, valuation = start + timedelta(days=364), start + timedelta(days=182)
