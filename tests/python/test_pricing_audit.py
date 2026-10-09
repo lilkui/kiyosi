@@ -25,6 +25,26 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_quadrature_vanilla_retains_small_positive_volatility_time_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction in ("call", "put"):
+            for spot in (100, 1e14):
+                for sigma in (1e-13, 1e-12, 1e-11, 1e-6):
+                    with self.subTest(direction=direction, spot=spot, sigma=sigma):
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                            ),
+                            spot_price=spot, valuation_time=start,
+                        )
+                        option = EuropeanOption(
+                            option_type=direction, strike=spot,
+                            effective_date=start, expiry_date=end,
+                        )
+                        actual = pricing.QuadratureVanillaEngine().price(option, context)
+                        expected = spot * math.erf(sigma / (2 * math.sqrt(2)))
+                        self.assertAlmostEqual(actual, expected, delta=max(1e-24, expected * 1e-12))
+
     def test_single_fixing_geometric_asians_retain_european_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticGeometricAveragePriceEngine()

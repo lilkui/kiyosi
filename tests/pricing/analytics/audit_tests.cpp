@@ -13,6 +13,25 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Quadrature vanilla retains small positive volatility time value", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double spot : {100.0, 1e14}) {
+            for (const double sigma : {1e-13, 1e-12, 1e-11, 1e-6}) {
+                CAPTURE(type, spot, sigma);
+                const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, start);
+                const auto option = *make_european_option(type, spot, start, end);
+                const auto price = QuadratureVanillaEngine{}.price(option, context);
+                REQUIRE(price);
+                const double expected = spot * std::erf(sigma / (2.0 * std::sqrt(2.0)));
+                CHECK(*price == Catch::Approx(expected).epsilon(1e-12).margin(1e-24));
+            }
+        }
+    }
+}
+
 TEST_CASE("Single-fixing geometric Asians retain European time value", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 
+#include "../../detail/black_scholes.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
@@ -22,11 +23,10 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double root = std::sqrt(tau);
-    if (sigma < 1e-12)
-        return make_pricing_result(std::exp(-rate * tau) *
-                                   std::max(sign * (spot * std::exp((rate - dividend) * tau) - strike),
-                                            0.0));
     const double width = sigma * root;
+    // Separate tail integrals lose time value when their difference is tiny.
+    if (width < 1e-5)
+        return price_at_volatility(option, context, sigma, GreeksRequest{});
     const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * tau) / width + 0.5 * width;
     if (!std::isfinite(width) || !std::isfinite(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
