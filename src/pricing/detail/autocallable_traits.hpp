@@ -66,18 +66,6 @@ AutocallableEvent autocallable_event(const Note& note, std::size_t index)
             0.0, false, true};
 }
 
-template <typename Note>
-double terminal_settlement(const Note& note, double spot, bool knocked_in)
-{
-    return program_terminal_settlement(autocallable_program(note), spot, knocked_in);
-}
-
-template <typename Note>
-double observation_coupon(const Note& note, std::size_t index, double spot)
-{
-    return program_observation_coupon(autocallable_event(note, index), spot);
-}
-
 // Current events are resolved at the observed spot before numerical continuation.
 struct AutocallableInitialState {
     AutocallablePathState path{};

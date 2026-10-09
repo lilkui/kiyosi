@@ -43,7 +43,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
 
-    const auto initial = autocallable_initial_state(note, context, autocallable_program(note));
+    const auto program = autocallable_program(note);
+    const auto initial = autocallable_initial_state(note, context, program);
 
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
@@ -107,21 +108,22 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         next_knocked_in.resize(size);
     }
     const auto expiry_observation = event_index(time_to_expiry);
+    const auto expiry_event = expiry_observation ? autocallable_event(note, *expiry_observation) : AutocallableEvent{};
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
         bool ki = initial.path.knocked_in; // NOLINT(misc-const-correctness): updated for knock-in note types.
         if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
-        if (expiry_observation && value >= note.knock_out_levels()[*expiry_observation]) {
+        if (expiry_event.active && value >= expiry_event.knock_out_level) {
             alive[index] = note.principal_ratio() +
-                           observation_coupon(note, *expiry_observation, value);
+                           program_observation_coupon(expiry_event, value);
             if constexpr (monitors_knock_in) knocked_in[index] = alive[index];
         } else {
-            const double coupon = expiry_observation && autocallable_program(note).carries_observation_coupon
-                                      ? observation_coupon(note, *expiry_observation, value)
+            const double coupon = expiry_event.active && program.carries_observation_coupon
+                                      ? program_observation_coupon(expiry_event, value)
                                       : 0.0;
-            alive[index] = terminal_settlement(note, value, ki) + coupon;
+            alive[index] = program_terminal_settlement(program, value, ki) + coupon;
             if constexpr (monitors_knock_in)
-                knocked_in[index] = terminal_settlement(note, value, true) + coupon;
+                knocked_in[index] = program_terminal_settlement(program, value, true) + coupon;
         }
     }
 
@@ -140,19 +142,20 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         const auto observation_index = event_index(grid[step]);
+        const auto event = observation_index ? autocallable_event(note, *observation_index) : AutocallableEvent{};
         const bool daily = monitors_daily &&
                            std::ranges::binary_search(trading_times, grid[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
             if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_level();
-            if (observation_index && value >= note.knock_out_levels()[*observation_index]) {
+            if (event.active && value >= event.knock_out_level) {
                 next_alive[index] = note.principal_ratio() +
-                                    observation_coupon(note, *observation_index, value);
+                                    program_observation_coupon(event, value);
                 if constexpr (monitors_knock_in) next_knocked_in[index] = next_alive[index];
-            } else if (observation_index) {
-                const double coupon = autocallable_program(note).carries_observation_coupon
-                                          ? observation_coupon(note, *observation_index, value)
+            } else if (event.active) {
+                const double coupon = program.carries_observation_coupon
+                                          ? program_observation_coupon(event, value)
                                           : 0.0;
                 if constexpr (monitors_knock_in) {
                     const double continuation_in = next_knocked_in[index];
