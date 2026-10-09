@@ -28,10 +28,6 @@ public:
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const TouchOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
-
-private:
-    [[nodiscard]] Result<PricingResult> price_native(const BinaryBarrierOption& option, const PricingContext& context) const;
-    [[nodiscard]] Result<PricingResult> price_native(const TouchOption& option, const PricingContext& context) const;
 };
 
 } // namespace kiyosi

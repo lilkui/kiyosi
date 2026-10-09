@@ -11,8 +11,8 @@ namespace kiyosi {
 using namespace detail;
 
 namespace {
-Result<PricingResult> price_digital_integral(OptionType type, double strike, double payout, bool asset,
-                                             Date effective_date, Date expiry_date, const PricingContext& context)
+Result<double> price_digital_integral(OptionType type, double strike, double payout, bool asset,
+                                      Date effective_date, Date expiry_date, const PricingContext& context)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
@@ -20,58 +20,43 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double spot = context.spot_price();
     const double sign = type == OptionType::call ? 1.0 : -1.0;
     if (time == 0.0)
-        return make_pricing_result(sign * (spot - strike) > 0.0 ? (asset ? spot : payout) : 0.0);
+        return checked_price(sign * (spot - strike) > 0.0 ? (asset ? spot : payout) : 0.0);
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
     const double root = std::sqrt(time);
     const double width = volatility * root;
     const double threshold = -standardize_forward(log_price_ratio(spot, strike) + (rate - dividend) * time,
-                                                 volatility, root) + 0.5 * width;
+                                                  volatility, root) +
+                             0.5 * width;
     if (!std::isfinite(width) || std::isnan(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
     const double value = normal_tail_integral(sign * (threshold - (asset ? width : 0.0)),
                                               asset ? spot : payout, -(asset ? dividend : rate) * time);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
-    return make_pricing_result(value);
+    return value;
 }
 } // namespace
 
-Result<PricingResult> QuadratureDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context) const
+Result<double> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), option.payout(), false, option.effective_date(), option.expiry_date(), context);
 }
-Result<PricingResult> QuadratureDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context) const
+Result<double> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
     return price_digital_integral(option.option_type(), option.strike(), 1.0, true, option.effective_date(), option.expiry_date(), context);
 }
 
-Result<double> QuadratureDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
-}
-
 Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                 GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
-}
-
-Result<double> QuadratureDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 Result<PricingResult> QuadratureDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                 GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

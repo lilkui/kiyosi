@@ -14,7 +14,7 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-// Valuation time and observation dates have been validated by price_native.
+// Valuation time and observation dates have been validated by price.
 Result<double> barrier_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
 {
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
@@ -96,7 +96,7 @@ Result<double> barrier_fd(const BarrierOption& option, const PricingContext& con
     return space->interpolate(old, spot);
 }
 } // namespace
-Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierOption& option, const PricingContext& context) const
+Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
     auto settings_valid = detail::validate_finite_difference_settings(
         settings_, general_fd_max_asset_steps, general_fd_max_time_steps);
@@ -122,37 +122,29 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(const BarrierO
     };
     if (*prior_touch || (touched && observed_now)) {
         if (!knock_in)
-            return make_pricing_result(option.rebate_timing() == RebateTiming::at_hit
-                                           ? (*prior_touch ? 0.0 : option.rebate())
-                                           : option.rebate() *
-                                                 std::exp(-context.model_parameters().risk_free_rate() * t));
+            return checked_price(option.rebate_timing() == RebateTiming::at_hit
+                                     ? (*prior_touch ? 0.0 : option.rebate())
+                                     : option.rebate() *
+                                           std::exp(-context.model_parameters().risk_free_rate() * t));
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
-        return make_pricing_result(*vanilla);
+        return checked_price(*vanilla);
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time()) {
         if (knock_in)
-            return make_pricing_result(option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
+            return checked_price(option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
         auto vanilla = vanilla_price();
         if (!vanilla) return std::unexpected(vanilla.error());
-        return make_pricing_result(*vanilla);
+        return checked_price(*vanilla);
     }
     const auto price = barrier_fd(option, context, settings_);
     if (!price) return std::unexpected(price.error());
-    return make_pricing_result(*price);
+    return checked_price(*price);
 }
-Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
-}
-
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

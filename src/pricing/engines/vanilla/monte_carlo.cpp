@@ -9,6 +9,7 @@
 
 #include <kiyosi/core/day_count.hpp>
 
+#include "../../detail/math.hpp"
 #include "monte_carlo_regression.hpp"
 #include "../monte_carlo_mean.hpp"
 
@@ -132,7 +133,7 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
 
 } // namespace
 
-Result<PricingResult> MonteCarloVanillaEngine::price_native(
+Result<double> MonteCarloVanillaEngine::price_impl(
     const EuropeanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
@@ -140,7 +141,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     const auto valid = detail::validate_monte_carlo_settings(settings_);
     if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
-        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
+        return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
     auto simulation = settings_;
     simulation.step_count = 2;
     const auto parameters = simulation_parameters(context, *time, simulation);
@@ -168,10 +169,10 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                          std::exp(-parameters->rate * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
-    return make_pricing_result(value);
+    return value;
 }
 
-Result<PricingResult> MonteCarloVanillaEngine::price_native(
+Result<double> MonteCarloVanillaEngine::price_impl(
     const AmericanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
@@ -179,7 +180,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
     const auto valid = detail::validate_monte_carlo_settings(settings_);
     if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
-        return make_pricing_result(payoff(option.option_type(), context.spot_price(), option.strike()));
+        return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
     if (settings_.step_count < 3)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
@@ -254,7 +255,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                                   payoff(option.option_type(), context.spot_price(), option.strike()));
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
-    return make_pricing_result(value);
+    return value;
 }
 
 } // namespace kiyosi

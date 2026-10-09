@@ -13,7 +13,7 @@
 namespace kiyosi {
 using namespace detail;
 
-Result<PricingResult> AnalyticBarrierEngine::price_native(
+Result<double> AnalyticBarrierEngine::price(
     const BarrierOption& option, const PricingContext& context) const
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
@@ -38,19 +38,19 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const bool touched_now = terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
     if (touched && !knock_in)
-        return make_pricing_result(option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
-                                                          ? (*prior_touch ? 0.0 : 1.0)
-                                                          : std::exp(-rate * t)));
+        return checked_price(option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
+                                                    ? (*prior_touch ? 0.0 : 1.0)
+                                                    : std::exp(-rate * t)));
     const bool monitoring_finished = !terms.is_continuous() &&
                                      start_of_day(terms.observation_dates().back()) <= context.valuation_time();
     if (!touched && monitoring_finished && knock_in)
-        return make_pricing_result(option.rebate() * std::exp(-rate * t));
+        return checked_price(option.rebate() * std::exp(-rate * t));
     const auto vanilla = price_at_volatility(
         *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
         context.model_parameters().volatility(), GreeksRequest{});
     if (!vanilla) return std::unexpected(vanilla.error());
     if (touched || monitoring_finished)
-        return make_pricing_result(vanilla->price());
+        return checked_price(vanilla->price());
     const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
     if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {
@@ -58,7 +58,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
     if (t == 0.0)
-        return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
+        return checked_price(knock_in ? option.rebate() : vanilla->price());
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = log_price_ratio(barrier, spot);
     double hit_discount = 0.0;
@@ -109,21 +109,13 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    return make_pricing_result(value);
-}
-
-Result<double> AnalyticBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return value;
 }
 
 Result<PricingResult> AnalyticBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                               GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

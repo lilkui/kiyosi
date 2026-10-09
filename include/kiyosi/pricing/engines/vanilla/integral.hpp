@@ -19,10 +19,6 @@ public:
     [[nodiscard]] Result<PricingResult> price_with_greeks(
         const EuropeanOption& option, const PricingContext& context,
         GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
-
-private:
-    [[nodiscard]] Result<PricingResult> price_native(
-        const EuropeanOption&, const PricingContext&) const;
 };
 
 } // namespace kiyosi

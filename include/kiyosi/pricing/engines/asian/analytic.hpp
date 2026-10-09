@@ -18,9 +18,6 @@ public:
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const GeometricAveragePriceOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
-
-private:
-    [[nodiscard]] Result<PricingResult> price_native(const GeometricAveragePriceOption& option, const PricingContext& context) const;
 };
 
 /// Turnbull-Wakeman moment-matched approximation for arithmetic averaging.
@@ -35,9 +32,6 @@ public:
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const ArithmeticAveragePriceOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
-
-private:
-    [[nodiscard]] Result<PricingResult> price_native(const ArithmeticAveragePriceOption& option, const PricingContext& context) const;
 };
 
 } // namespace kiyosi

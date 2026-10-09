@@ -5,9 +5,17 @@
 #include <numbers>
 
 #include <kiyosi/core/day_count.hpp>
+#include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
 
 namespace kiyosi::detail {
+
+inline Result<double> checked_price(double value)
+{
+    if (!std::isfinite(value))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
+    return value;
+}
 
 inline constexpr double percentage_points_per_unit = 100.0;
 inline constexpr double inverse_sqrt_two = 1.0 / std::numbers::sqrt2;

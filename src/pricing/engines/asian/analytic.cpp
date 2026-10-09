@@ -69,7 +69,7 @@ double divided_exprel_increment(double x, double y, double h)
 }
 } // namespace
 
-Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
+Result<double> AnalyticGeometricAveragePriceEngine::price(
     const GeometricAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
@@ -87,12 +87,12 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized geometric average must match the elapsed averaging period"});
     if (tau == 0.0)
-        return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot, strike));
+        return checked_price(payoff(option.option_type(), realized > 0.0 ? realized : spot, strike));
     const double sigma = context.model_parameters().volatility();
     if (option.averaging_start_date() == option.expiry_date()) {
-        return price_at_volatility(
+        return detail::price_value(price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
-            context, sigma, GreeksRequest{});
+            context, sigma, GreeksRequest{}));
     }
     const double rate = context.model_parameters().risk_free_rate();
     const double carry = rate - context.model_parameters().dividend_yield();
@@ -115,8 +115,8 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
             return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid carry"});
         const auto equivalent_context = *make_pricing_context(*parameters, spot, valuation, context.calendar());
         const auto equivalent_option = *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date());
-        return price_at_volatility(equivalent_option, equivalent_context,
-                                   sigma * weight * std::sqrt(variance_time / tau), GreeksRequest{});
+        return detail::price_value(price_at_volatility(equivalent_option, equivalent_context,
+                                                       sigma * weight * std::sqrt(variance_time / tau), GreeksRequest{}));
     }
     const double value = [&] {
         const double log_moneyness = log_price_ratio(spot, strike);
@@ -131,10 +131,10 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
         return sign * (asset_value - cash_value);
     }();
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result(std::max(value, 0.0));
+    return std::max(value, 0.0);
 }
 
-Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
+Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
     const ArithmeticAveragePriceOption& option, const PricingContext& context) const
 {
     auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
@@ -155,12 +155,12 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double carry = rate - dividend;
     const double sigma = context.model_parameters().volatility();
     if (tau == 0.0)
-        return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot,
-                                          strike));
+        return checked_price(payoff(option.option_type(), realized > 0.0 ? realized : spot,
+                                    strike));
     if (option.averaging_start_date() == option.expiry_date()) {
-        return price_at_volatility(
+        return detail::price_value(price_at_volatility(
             *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
-            context, sigma, GreeksRequest{});
+            context, sigma, GreeksRequest{}));
     }
     const double average_period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
     const double t1 = std::max(0.0, tau - average_period);
@@ -175,9 +175,9 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
         scale = tau / average_period;
         if (adjusted_strike <= 0.0) {
             if (sign < 0.0)
-                return make_pricing_result(0.0);
+                return 0.0;
             const double expected = realized * remaining / average_period + spot * m1 * tau / average_period;
-            return make_pricing_result(std::max(expected - strike, 0.0) * std::exp(-rate * tau));
+            return checked_price(std::max(expected - strike, 0.0) * std::exp(-rate * tau));
         }
     }
     const double vol2 = sigma * sigma;
@@ -199,8 +199,8 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double root = adjusted_vol * std::sqrt(tau);
     if (root == 0.0) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
-        return make_pricing_result(scale * std::exp(-rate * tau) *
-                                   payoff(option.option_type(), forward, adjusted_strike));
+        return checked_price(scale * std::exp(-rate * tau) *
+                             payoff(option.option_type(), forward, adjusted_strike));
     }
     if (root < 1e-5 && adjusted_strike > 0.0) {
         const auto parameters = make_bsm_parameters(rate, rate - b_a, sigma);
@@ -212,7 +212,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
             return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid strike"});
         const auto priced = price_at_volatility(*equivalent_option, equivalent_context, adjusted_vol, GreeksRequest{});
         if (!priced) return std::unexpected(priced.error());
-        return make_pricing_result(scale * priced->price());
+        return checked_price(scale * priced->price());
     }
     const double d1 = (log_price_ratio(spot, adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
@@ -224,34 +224,18 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
                                   : adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2);
     const double value = scale * sign * (asset_value - cash_value);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
-    return make_pricing_result(std::max(value, 0.0));
+    return std::max(value, 0.0);
 }
-Result<double> AnalyticGeometricAveragePriceEngine::price(const GeometricAveragePriceOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
-}
-
 Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_with_greeks(const GeometricAveragePriceOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
-}
-
-Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(const ArithmeticAveragePriceOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_with_greeks(const ArithmeticAveragePriceOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                                     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

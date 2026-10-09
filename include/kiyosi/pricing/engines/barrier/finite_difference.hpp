@@ -31,7 +31,6 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const BarrierOption& option, const PricingContext& context) const;
     FiniteDifferenceSettings settings_;
 };
 

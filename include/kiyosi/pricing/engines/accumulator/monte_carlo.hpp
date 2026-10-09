@@ -35,7 +35,6 @@ public:
     TradingDayMonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const Accumulator& option, const PricingContext& context) const;
     TradingDayMonteCarloSettings settings_;
 };
 

@@ -59,7 +59,7 @@ Result<double> path_payoff(const Accumulator& option, const PricingContext& cont
 
 } // namespace
 
-Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
+Result<double> MonteCarloAccumulatorEngine::price(
     const Accumulator& option, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
@@ -70,7 +70,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
     const auto initial = accumulator_initial_state(option, context);
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (initial.settlement) return checked_price(*initial.settlement);
 
     const auto steps = prepare_simulation(option, context);
     if (!steps) return std::unexpected(steps.error());
@@ -82,7 +82,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
             *steps));
         if (!mean) return std::unexpected(mean.error());
-        return make_pricing_result(*mean);
+        return checked_price(*mean);
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -97,21 +97,13 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
         if (!payoff) return std::unexpected(payoff.error());
         mean.add(*payoff);
     }
-    return make_pricing_result(mean.value());
-}
-
-Result<double> MonteCarloAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return checked_price(mean.value());
 }
 
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

@@ -81,7 +81,7 @@ Result<double> path_payoff(double initial_spot, const AutocallableProgram& progr
 } // namespace
 
 template <typename Note>
-Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
+Result<double> MonteCarloAutocallableEngine<Note>::price(
     const Note& note, const PricingContext& context) const
 {
     auto note_validation = validate_autocallable_note(note);
@@ -99,7 +99,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
 
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (initial.settlement) return checked_price(*initial.settlement);
 
     const auto inputs = prepare_simulation(note, context, initial.next_observation);
     if (!inputs) return std::unexpected(inputs.error());
@@ -110,7 +110,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
              context.spot_price(), inputs->terminal_discount, program, initial.path},
             inputs->step_count));
         if (!mean) return std::unexpected(mean.error());
-        return make_pricing_result(*mean);
+        return checked_price(*mean);
 #else
         return std::unexpected(Error{ErrorCategory::backend_unavailable,
                                      "CUDA support is not enabled in this build"});
@@ -126,7 +126,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_native(
         if (!payoff) return std::unexpected(payoff.error());
         mean.add(*payoff);
     }
-    return make_pricing_result(mean.value());
+    return checked_price(mean.value());
 }
 
 template class MonteCarloAutocallableEngine<PhoenixOption>;

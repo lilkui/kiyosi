@@ -136,7 +136,7 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
 }
 } // namespace
 
-Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const AmericanOption& option, const PricingContext& context) const
+Result<double> BjerksundStenslandVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -162,23 +162,14 @@ Result<PricingResult> BjerksundStenslandVanillaEngine::price_native(const Americ
     if (!std::isfinite(*value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Bjerksund-Stensland pricing produced a non-finite result"});
     const double intrinsic = std::max(option.option_type() == OptionType::call ? spot - strike : strike - spot, 0.0);
-    return make_pricing_result(std::max({*value, intrinsic, continuation}));
-}
-
-Result<double> BjerksundStenslandVanillaEngine::price(
-    const AmericanOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return checked_price(std::max({*value, intrinsic, continuation}));
 }
 
 Result<PricingResult> BjerksundStenslandVanillaEngine::price_with_greeks(
     const AmericanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

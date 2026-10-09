@@ -26,7 +26,7 @@ struct ObservationEvent {
 } // namespace
 
 template <typename Note>
-Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
+Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     const Note& note, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
@@ -46,7 +46,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
 
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (initial.settlement) return checked_price(*initial.settlement);
 
     const double spot = context.spot_price();
     const double relevant = highest_finite_difference_level(note, context);
@@ -174,11 +174,11 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     }
 
     if constexpr (monitors_knock_in)
-        return make_pricing_result(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
+        return checked_price(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
                                                                                                      : alive,
                                                                              spot));
     else
-        return make_pricing_result(initial.path.coupons + space->interpolate(alive, spot));
+        return checked_price(initial.path.coupons + space->interpolate(alive, spot));
 }
 
 template class FiniteDifferenceAutocallableEngine<PhoenixOption>;

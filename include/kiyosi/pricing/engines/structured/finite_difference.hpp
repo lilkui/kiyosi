@@ -23,26 +23,19 @@ public:
 
     /// Prices an autocallable note by finite differences.
     /// @return Price, or a contract, context, or settings error.
-    [[nodiscard]] Result<double> price(const Note& option, const PricingContext& context) const
-    {
-        return detail::price_value(price_native(option, context));
-    }
+    [[nodiscard]] Result<double> price(const Note& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
-        return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                         [&](const auto& engine) {
-                                             return engine.price_native(option, context);
-                                         });
+        return detail::price_with_greeks(*this, option, context, greeks, settings);
     }
 
     /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const Note& note, const PricingContext& context) const;
     FiniteDifferenceSettings settings_;
 };
 

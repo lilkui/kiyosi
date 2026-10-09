@@ -32,7 +32,7 @@ public:
     [[nodiscard]] Result<double> price(
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
     {
-        return detail::price_value(price_native(option, context));
+        return price_impl(option, context);
     }
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
@@ -43,18 +43,15 @@ public:
         const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
         GreeksRequest greeks, NumericalShiftSettings settings = {}) const
     {
-        return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                         [&](const auto& engine) {
-                                             return engine.price_native(option, context);
-                                         });
+        return detail::price_with_greeks(*this, option, context, greeks, settings);
     }
 
     /// Returns the engine settings.
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] Result<PricingResult> price_native(const AmericanOption&, const PricingContext&) const;
+    [[nodiscard]] Result<double> price_impl(const EuropeanOption&, const PricingContext&) const;
+    [[nodiscard]] Result<double> price_impl(const AmericanOption&, const PricingContext&) const;
     MonteCarloSettings settings_;
 };
 

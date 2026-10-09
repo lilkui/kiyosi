@@ -366,6 +366,19 @@ Result<PricingResult> price_with_greeks(
     return complete_greeks(engine, option, context, greeks, settings, *native);
 }
 
+template <typename Engine, typename Option>
+Result<PricingResult> price_with_greeks(
+    const Engine& engine, const Option& option, const PricingContext& context,
+    GreeksRequest greeks, NumericalShiftSettings settings)
+{
+    return price_with_greeks(engine, option, context, greeks, settings,
+                             [&](const auto& seeded_engine) -> Result<PricingResult> {
+                                 const auto value = numerical_value(seeded_engine, option, context);
+                                 if (!value) return std::unexpected(value.error());
+                                 return make_pricing_result(*value);
+                             });
+}
+
 } // namespace detail
 
 /// Computes price and all feasible Greeks using only numerical price differences.
@@ -380,12 +393,7 @@ template <typename Engine, typename Option>
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
-    return detail::price_with_greeks(engine, option, context, true, settings,
-                                     [&](const auto& seeded_engine) -> Result<PricingResult> {
-                                         const auto value = detail::numerical_value(seeded_engine, option, context);
-                                         if (!value) return std::unexpected(value.error());
-                                         return make_pricing_result(*value);
-                                     });
+    return detail::price_with_greeks(engine, option, context, true, settings);
 }
 
 } // namespace kiyosi

@@ -42,21 +42,22 @@ BinaryBarrierContractView make_contract_view(const TouchOption& option)
             cash ? cash->payout() : option.barrier_level(), asset, option.settlement_timing()};
 }
 
-Result<PricingResult> vanilla_digital(const BinaryBarrierContractView& option, const PricingContext& context, double time)
+Result<double> vanilla_digital(const BinaryBarrierContractView& option, const PricingContext& context, double time)
 {
     if (!option.option_type)
-        return make_pricing_result(option.asset_settlement
-            ? context.spot_price() * std::exp(-context.model_parameters().dividend_yield() * time)
-            : option.payout * std::exp(-context.model_parameters().risk_free_rate() * time));
+        return checked_price(option.asset_settlement
+                                 ? context.spot_price() * std::exp(-context.model_parameters().dividend_yield() * time)
+                                 : option.payout * std::exp(-context.model_parameters().risk_free_rate() * time));
     const auto& terms = *option.barrier_terms;
     const AnalyticDigitalEngine engine;
     const auto price = option.asset_settlement
-        ? engine.price(*make_asset_or_nothing_option(*option.option_type, option.strike,
-                                                    terms.effective_date(), terms.expiry_date()), context)
-        : engine.price(*make_cash_or_nothing_option(*option.option_type, option.strike, option.payout,
-                                                   terms.effective_date(), terms.expiry_date()), context);
-    if (!price) return std::unexpected(price.error());
-    return make_pricing_result(*price);
+                           ? engine.price(*make_asset_or_nothing_option(*option.option_type, option.strike,
+                                                                        terms.effective_date(), terms.expiry_date()),
+                                          context)
+                           : engine.price(*make_cash_or_nothing_option(*option.option_type, option.strike, option.payout,
+                                                                       terms.effective_date(), terms.expiry_date()),
+                                          context);
+    return price;
 }
 
 double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool touched)
@@ -66,7 +67,7 @@ double terminal_payoff(const BinaryBarrierContractView& option, double spot, boo
     return terms.is_knock_in() == touched && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
 }
 
-Result<PricingResult> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
+Result<double> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
 {
     const auto& terms = *option.barrier_terms;
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), terms.effective_date(), terms.expiry_date());
@@ -85,17 +86,17 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const bool touched_now = observed_now && terms.is_breached_by(spot);
     const bool touched = *prior_touch || touched_now;
     if (*prior_touch && option.settlement_timing == SettlementTiming::at_hit)
-        return make_pricing_result(0.0);
+        return 0.0;
     if (time == 0.0)
-        return make_pricing_result(terminal_payoff(option, spot, touched));
+        return checked_price(terminal_payoff(option, spot, touched));
     if (touched) {
-        if (!knock_in) return make_pricing_result(0.0);
+        if (!knock_in) return 0.0;
         if (option.settlement_timing == SettlementTiming::at_hit)
-            return make_pricing_result(option.asset_settlement ? spot : option.payout);
+            return checked_price(option.asset_settlement ? spot : option.payout);
         return vanilla_digital(option, context, time);
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
-        return knock_in ? make_pricing_result(0.0) : vanilla_digital(option, context, time);
+        return knock_in ? 0.0 : vanilla_digital(option, context, time);
     const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
     if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
@@ -106,8 +107,8 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     const double log_ratio = log_price_ratio(barrier, spot);
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
-        return make_pricing_result(option.payout * barrier_hit_discount(
-            std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, variance, time, rate));
+        return checked_price(option.payout * barrier_hit_discount(
+                                                 std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, variance, time, rate));
     }
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double log_moneyness = log_price_ratio(spot, option.strike);
@@ -146,47 +147,31 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
                           : (option.strike > barrier ? f2 - f4 : f1 - f3);
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
-    return make_pricing_result(std::max(value, 0.0));
+    return std::max(value, 0.0);
 }
 } // namespace
 
-Result<PricingResult> AnalyticBinaryBarrierEngine::price_native(
+Result<double> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
     return price_contract(make_contract_view(option), context);
 }
 
-Result<PricingResult> AnalyticBinaryBarrierEngine::price_native(
+Result<double> AnalyticBinaryBarrierEngine::price(
     const TouchOption& option, const PricingContext& context) const
 {
     return price_contract(make_contract_view(option), context);
 }
-Result<double> AnalyticBinaryBarrierEngine::price(const BinaryBarrierOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
-}
-
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const BinaryBarrierOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
-}
-
-Result<double> AnalyticBinaryBarrierEngine::price(const TouchOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const TouchOption& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

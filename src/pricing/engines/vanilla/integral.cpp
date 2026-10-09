@@ -11,7 +11,7 @@
 namespace kiyosi {
 using namespace detail;
 
-Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context) const
+Result<double> QuadratureVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -20,7 +20,7 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
     if (tau == 0.0)
-        return make_pricing_result(std::max(sign * (spot - strike), 0.0));
+        return checked_price(std::max(sign * (spot - strike), 0.0));
     const double sigma = context.model_parameters().volatility();
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
@@ -28,7 +28,7 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double width = sigma * root;
     // Separate tail integrals lose time value when their difference is tiny.
     if (width < 1e-5)
-        return price_at_volatility(option, context, sigma, GreeksRequest{});
+        return detail::price_value(price_at_volatility(option, context, sigma, GreeksRequest{}));
     const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * tau) / width + 0.5 * width;
     if (!std::isfinite(width) || !std::isfinite(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
@@ -37,23 +37,14 @@ Result<PricingResult> QuadratureVanillaEngine::price_native(const EuropeanOption
     const double cash_value = normal_tail_integral(sign * threshold, strike, -rate * tau);
     const double value = sign * (asset_value - cash_value);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing produced a non-finite result"});
-    return make_pricing_result(value);
-}
-
-Result<double> QuadratureVanillaEngine::price(
-    const EuropeanOption& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return value;
 }
 
 Result<PricingResult> QuadratureVanillaEngine::price_with_greeks(
     const EuropeanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

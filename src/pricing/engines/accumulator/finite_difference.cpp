@@ -38,7 +38,7 @@ void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
+Result<double> FiniteDifferenceAccumulatorEngine::price(
     const Accumulator& option, const PricingContext& context) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
@@ -50,7 +50,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const auto initial = accumulator_initial_state(option, context);
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (initial.settlement) return checked_price(*initial.settlement);
 
     const double spot = context.spot_price();
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
@@ -110,22 +110,14 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept.swap(next_intercept);
     }
 
-    return make_pricing_result(space->interpolate(slope, spot) * initial.quantity +
-                               space->interpolate(intercept, spot));
-}
-
-Result<double> FiniteDifferenceAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
-{
-    return detail::price_value(price_native(option, context));
+    return checked_price(space->interpolate(slope, spot) * initial.quantity +
+                         space->interpolate(intercept, spot));
 }
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
-                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                           GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine) {
-                                         return engine.price_native(option, context);
-                                     });
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi
