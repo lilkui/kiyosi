@@ -1,3 +1,4 @@
+#include <array>
 #include <numbers>
 
 #include <catch2/catch_approx.hpp>
@@ -10,6 +11,32 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
+
+TEST_CASE("Trading finite-difference prices are invariant to currency scale", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2025, 1, 10);
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto prices = [&](double scale) {
+        const auto context = *make_pricing_context(parameters, 100.0 * scale, start, all_days_calendar());
+        const auto accumulator = *make_accumulator(
+            {.strike = 100.0 * scale, .knock_out_level = 120.0 * scale, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+        const auto snowball = *make_binary_snowball_option(
+            {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2, .knock_out_levels = {101.0 * scale}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+        const auto accrued = FiniteDifferenceAccumulatorEngine{}.price(accumulator, context);
+        const auto normalized = FiniteDifferenceBinarySnowballEngine{}.price(snowball, context);
+        REQUIRE(accrued);
+        REQUIRE(normalized);
+        return std::array{*accrued / scale, *normalized};
+    };
+    const auto expected = prices(1.0);
+    for (const double scale : {0.01, 0.0001, 0.000001}) {
+        CAPTURE(scale);
+        const auto actual = prices(scale);
+        for (std::size_t index = 0; index < expected.size(); ++index)
+            CHECK(actual[index] == Catch::Approx(expected[index]).epsilon(0.0).margin(1e-9));
+    }
+}
 
 TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[pricing-api][audit-fixes]")
 {

@@ -9,6 +9,7 @@ from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
+    BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
     PhoenixOption,
@@ -23,6 +24,48 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_trading_finite_difference_prices_are_currency_scale_invariant(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 10)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+
+        def prices(scale):
+            context = PricingContext(
+                model_parameters=parameters,
+                spot_price=100 * scale,
+                valuation_time=start,
+                calendar=all_days_calendar(),
+            )
+            accumulator = Accumulator(
+                strike=100 * scale,
+                knock_out_level=120 * scale,
+                daily_quantity=1,
+                acceleration_factor=2,
+                accumulated_quantity=0,
+                effective_date=start,
+                expiry_date=end,
+            )
+            snowball = BinarySnowballOption(
+                knock_out_coupon_rates=[0.1],
+                maturity_coupon_rate=0.2,
+                knock_out_levels=[101 * scale],
+                observation_dates=[end],
+                effective_date=start,
+                expiry_date=end,
+            )
+            return (
+                pricing.FiniteDifferenceAccumulatorEngine().price(accumulator, context)
+                / scale,
+                pricing.FiniteDifferenceBinarySnowballEngine().price(snowball, context),
+            )
+
+        expected = prices(1)
+        for scale in (0.01, 0.0001, 0.000001):
+            with self.subTest(scale=scale):
+                for actual, baseline in zip(prices(scale), expected):
+                    self.assertAlmostEqual(actual, baseline, delta=1e-9)
+
     def test_bjerksund_rejects_nonphysical_exercise_boundaries(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.BjerksundStenslandVanillaEngine()
