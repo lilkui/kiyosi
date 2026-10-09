@@ -200,10 +200,7 @@ def scenarios():
 
 def metadata():
     return {
-        "source_revision": f"QuantLib-{ql.__version__}",
         "source_symbol": SOURCE,
-        "reference_kind": "analytic",
-        "convention": g.CONVENTION,
         "decomposition": "expiry_date: binary American deferred,unconditional: call+put,hit: cash American digital (asset pays H),already-hit: European or immediate cash",
         "measure_sources": "native American digital or European Greeks where supplied,otherwise central QuantLib price differences",
         "numerical_settings": "central prices: spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days",

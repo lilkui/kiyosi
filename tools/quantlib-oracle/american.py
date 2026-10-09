@@ -5,10 +5,8 @@ import math
 import re
 from datetime import date
 from functools import lru_cache
-from importlib.metadata import version
 
 import oracle as g
-import QuantLib as ql
 
 GRIDS = ((800, 800), (1600, 1600), (3200, 3200))
 STABILITY = {
@@ -125,16 +123,11 @@ def reference(inputs):
     return outputs, metadata
 
 
-def provenance(inputs):
+def provenance():
     return dict(
-        inputs,
-        source_revision=f"QuantLib-{ql.__version__}",
         source_symbol="QuantLib.FdBlackScholesVanillaEngine",
-        convention=g.CONVENTION,
-        calendar="weekends_only",
         reference_kind="discretized",
         reference_classification="convergence-verified-contract",
-        quantlib=version("QuantLib"),
         exercise="AmericanExercise(effective_date,expiry_date,payoffAtExpiry=false)",
         reference_grids="800x800,1600x1600,3200x3200 time-by-space",
         reference_scheme="Douglas with 2 damping steps, localVol=false, continuous dividend yield",
@@ -201,7 +194,7 @@ def rows():
             )
             row["instrument"], row["engine"] = "AmericanOption", engine
             attributes = row["inputs"]
-            attributes.update(provenance(inputs))
+            attributes.update(provenance())
             attributes.update(profile["settings"])
             attributes.update(profile["shifts"])
             attributes.update(

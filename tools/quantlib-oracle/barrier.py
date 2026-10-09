@@ -168,10 +168,7 @@ def scenarios():
 
 def metadata():
     return {
-        "source_revision": f"QuantLib-{ql.__version__}",
         "source_symbol": SOURCE,
-        "reference_kind": "analytic",
-        "convention": g.CONVENTION,
         "decomposition": "KI or KO-hit direct,KO-expiry_date=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
         "measure_sources": "central differences of QuantLib portfolio prices, no native Greeks",
         "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation, see GENERATION.md",

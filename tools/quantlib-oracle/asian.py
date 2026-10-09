@@ -153,12 +153,10 @@ def metadata(inputs):
     terminal = inputs["valuation"] == inputs["expiry_date"]
     approximate = inputs["averaging"] == "arithmetic" and not terminal
     return {
-        "source_revision": f"QuantLib-{ql.__version__}",
         "source_symbol": "QuantLib.PlainVanillaPayoff"
         if terminal
         else SOURCES[inputs["averaging"]],
         "reference_kind": "approximate" if approximate else "analytic",
-        "convention": g.CONVENTION,
         "reference_classification": "independent-Levy-lognormal-moment-approximation"
         if approximate
         else "independent-analytic",
