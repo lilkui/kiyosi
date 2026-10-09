@@ -93,7 +93,8 @@ struct SpatialGrid {
     [[nodiscard]] double gamma(std::span<const double> values, double spot) const
     {
         return blend(spot, [&](std::size_t index) {
-            return (values[index + 1] - 2.0 * values[index] + values[index - 1]) / (spacing * spacing);
+            // Divide separately so squared spacing cannot overflow or underflow.
+            return (values[index + 1] - 2.0 * values[index] + values[index - 1]) / spacing / spacing;
         });
     }
 

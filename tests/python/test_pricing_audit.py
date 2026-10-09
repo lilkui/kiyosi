@@ -32,6 +32,40 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_finite_difference_gamma_preserves_monetary_scaling(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+        )
+        for direction in ("call", "put"):
+            for option_type, engine in (
+                (EuropeanOption, pricing.FiniteDifferenceVanillaEngine()),
+                (AmericanOption, pricing.FiniteDifferenceVanillaEngine()),
+                (CashOrNothingOption, pricing.FiniteDifferenceDigitalEngine()),
+                (AssetOrNothingOption, pricing.FiniteDifferenceDigitalEngine()),
+            ):
+                def evaluate(scale):
+                    terms = dict(
+                        option_type=direction, strike=100 * scale,
+                        effective_date=start, expiry_date=end,
+                    )
+                    if option_type is CashOrNothingOption:
+                        terms["payout"] = 10 * scale
+                    option = option_type(**terms)
+                    context = PricingContext(
+                        model_parameters=parameters, spot_price=100 * scale,
+                        valuation_time=start,
+                    )
+                    return engine.price_with_greeks(option, context, "gamma")
+
+                baseline = evaluate(1)
+                self.assertGreater(abs(baseline.gamma), 1e-4)
+                for scale in (1e155, 1e-170):
+                    with self.subTest(direction=direction, option=option_type.__name__, scale=scale):
+                        actual = evaluate(scale)
+                        self.assertTrue(math.isclose(actual.gamma * scale, baseline.gamma, rel_tol=1e-9))
+                        self.assertTrue(math.isclose(actual.price / scale, baseline.price, rel_tol=1e-9))
+
     def test_digital_prices_preserve_subnormal_volatility(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for sigma in (math.ulp(0.0), 1e-320, 1e-310):

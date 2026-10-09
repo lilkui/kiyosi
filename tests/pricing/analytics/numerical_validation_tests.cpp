@@ -78,6 +78,40 @@ double gamma(kiyosi::OptionType type, double spot, double rate, double dividend,
                        kiyosi::Greek::gamma);
 }
 
+TEST_CASE("Finite-difference gamma preserves monetary scaling", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        CAPTURE(type);
+        const auto evaluate = [&](double scale) {
+            const auto market = *make_pricing_context(parameters, 100.0 * scale, valuation);
+            const auto european = *make_european_option(type, 100.0 * scale, valuation, expiry_date);
+            const auto american = *make_american_option(type, 100.0 * scale, valuation, expiry_date);
+            const auto cash = *make_cash_or_nothing_option(type, 100.0 * scale, 10.0 * scale, valuation, expiry_date);
+            const auto asset = *make_asset_or_nothing_option(type, 100.0 * scale, valuation, expiry_date);
+            return std::array{
+                FiniteDifferenceVanillaEngine{}.price_with_greeks(european, market, {Greek::gamma}),
+                FiniteDifferenceVanillaEngine{}.price_with_greeks(american, market, {Greek::gamma}),
+                FiniteDifferenceDigitalEngine{}.price_with_greeks(cash, market, {Greek::gamma}),
+                FiniteDifferenceDigitalEngine{}.price_with_greeks(asset, market, {Greek::gamma})};
+        };
+        const auto baseline = evaluate(1.0);
+        for (const double scale : {1e155, 1e-170}) {
+            const auto scaled = evaluate(scale);
+            for (std::size_t index = 0; index < baseline.size(); ++index) {
+                CAPTURE(scale, index);
+                REQUIRE(baseline[index]);
+                REQUIRE(scaled[index]);
+                const double expected = greek_value(*baseline[index], Greek::gamma);
+                REQUIRE(std::abs(expected) > 1e-4);
+                check_close(greek_value(*scaled[index], Greek::gamma) * scale, expected, 0.0, 1e-9);
+                check_close(scaled[index]->price() / scale, baseline[index]->price(), 0.0, 1e-9);
+            }
+        }
+    }
+}
+
 TEST_CASE("Numerical spot-shift powers preserve representable Greeks", "[audit-fixes]")
 {
     using namespace kiyosi;
