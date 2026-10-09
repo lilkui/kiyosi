@@ -118,7 +118,7 @@ TEST_CASE("Numerical spot-shift powers preserve representable Greeks", "[audit-f
     for (const double scale : {1e-160, 1.0, 1e160}) {
         CAPTURE(scale);
         const auto option = *make_european_option(OptionType::call, 100.0 * scale,
-                                                 valuation - std::chrono::days{30}, expiry_date);
+                                                  valuation - std::chrono::days{30}, expiry_date);
         const auto market = context(100.0 * scale, 0.04, 0.01, 0.2);
         const GreeksRequest request{Greek::gamma, Greek::zomma, Greek::color};
         const auto expected = AnalyticVanillaEngine{}.price_with_greeks(option, market, request);
@@ -161,8 +161,8 @@ TEST_CASE("Numerical time Greeks center clipped stencils on valuation", "[audit-
     const auto option = *make_european_option(OptionType::call, 100.0, valuation, valuation + std::chrono::days{10});
     // Price, delta and gamma are quadratic in time: a centered derivative is exact at both life boundaries.
     for (const auto elapsed : {std::chrono::microseconds{1}, std::chrono::microseconds{10},
-                              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{12}),
-                              std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{228})}) {
+                               std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{12}),
+                               std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::hours{228})}) {
         const double days = std::chrono::duration<double, std::ratio<86400>>{elapsed}.count();
         const auto time = start_of_day(valuation) + elapsed;
         const auto market = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), 100.0, time);

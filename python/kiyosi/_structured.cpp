@@ -52,7 +52,8 @@ principal_ratio : float, optional
 Returns
 -------
 SnowballOption
-    )doc" + result + R"doc(
+    )doc" + result +
+           R"doc(
 
 Raises
 ------
@@ -101,7 +102,8 @@ knock_in_level : float
     Lower knock-in barrier level.
 knock_out_level : float
     Knock-out level applied to every observation.
-)doc").c_str());
+)doc")
+            .c_str());
 }
 
 void bind_presets(nb::module_& module)
@@ -143,7 +145,8 @@ initial_knock_out_level : float
     Knock-out level at the first observation.
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
-)doc").c_str());
+)doc")
+            .c_str());
     module.def(
         "both_down_snowball",
         [](PythonReal initial_coupon_rate, PythonReal coupon_rate_decrement, PythonReal initial_spot,
@@ -183,7 +186,8 @@ initial_knock_out_level : float
     Knock-out level at the first observation.
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
-)doc").c_str());
+)doc")
+            .c_str());
     module.def(
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon_rate, PythonReal maturity_coupon_rate,
@@ -220,7 +224,8 @@ knock_in_level : float
     Lower knock-in barrier level.
 knock_out_level : float
     Knock-out level applied to every observation.
-)doc").c_str());
+)doc")
+            .c_str());
     module.def(
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -256,7 +261,8 @@ knock_out_level : float
     Knock-out level before the final observation.
 final_knock_out_level : float
     Knock-out level at the final observation.
-)doc").c_str());
+)doc")
+            .c_str());
     module.def(
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -292,7 +298,9 @@ knock_out_level : float
     Knock-out level applied to every observation.
 upper_strike : float
     Upper terminal participation strike.
-)doc", "Validated immutable out-of-the-money snowball option.").c_str());
+)doc",
+                            "Validated immutable out-of-the-money snowball option.")
+            .c_str());
     module.def(
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -328,7 +336,9 @@ knock_out_level : float
     Knock-out level applied to every observation.
 lower_strike : float
     Lower terminal strike that caps downside loss.
-)doc", "Validated immutable loss-capped snowball option.").c_str());
+)doc",
+                            "Validated immutable loss-capped snowball option.")
+            .c_str());
 }
 
 } // namespace

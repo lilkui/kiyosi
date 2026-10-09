@@ -277,8 +277,8 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
     return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::up_and_in,
-                                           settlement_timing, observation_mode,
-                                           std::move(observation_dates), touch_state);
+                                     settlement_timing, observation_mode,
+                                     std::move(observation_dates), touch_state);
 }
 
 /// Creates a down one-touch option paying the underlying asset.
@@ -290,8 +290,8 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
     return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::down_and_in,
-                                           settlement_timing, observation_mode,
-                                           std::move(observation_dates), touch_state);
+                                     settlement_timing, observation_mode,
+                                     std::move(observation_dates), touch_state);
 }
 
 /// Creates an up no-touch option paying the underlying asset at expiry.
@@ -302,8 +302,8 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
     return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::up_and_out,
-                                           SettlementTiming::at_expiry, observation_mode,
-                                           std::move(observation_dates), touch_state);
+                                     SettlementTiming::at_expiry, observation_mode,
+                                     std::move(observation_dates), touch_state);
 }
 
 /// Creates a down no-touch option paying the underlying asset at expiry.
@@ -314,8 +314,8 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
     return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::down_and_out,
-                                           SettlementTiming::at_expiry, observation_mode,
-                                           std::move(observation_dates), touch_state);
+                                     SettlementTiming::at_expiry, observation_mode,
+                                     std::move(observation_dates), touch_state);
 }
 
 } // namespace kiyosi

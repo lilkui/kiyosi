@@ -200,7 +200,7 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        const auto path_count = static_cast<std::size_t>(settings_.path_count + settings_.path_count % 2);
+        const auto path_count = static_cast<std::size_t>(settings_.path_count) + settings_.path_count % 2;
         const auto stride = static_cast<std::size_t>(settings_.step_count);
         std::vector<double> paths(path_count * stride, parameters->spot);
         const auto simulated = simulate_paths(*parameters, settings_, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {

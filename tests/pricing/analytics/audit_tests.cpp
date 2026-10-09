@@ -31,9 +31,7 @@ TEST_CASE("Pricing preserves adjacent spot strike and barrier values", "[audit-f
             const double sign = call ? 1.0 : -1.0;
             const auto cash = *make_cash_or_nothing_option(type, 100.0, 1.0, start, end);
             const auto asset = *make_asset_or_nothing_option(type, 100.0, start, end);
-            const BinaryBarrierTerms terms{.option_type = type, .strike = 100.0, .effective_date = start,
-                                           .expiry_date = end, .barrier_level = call ? 120.0 : 80.0,
-                                           .barrier_type = call ? BarrierType::up_and_out : BarrierType::down_and_out};
+            const BinaryBarrierTerms terms{.option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = call ? 120.0 : 80.0, .barrier_type = call ? BarrierType::up_and_out : BarrierType::down_and_out};
             const auto check = [&](const auto& engine, const auto& option, double expected) {
                 const auto price = engine.price(option, context);
                 REQUIRE(price);
@@ -56,10 +54,7 @@ TEST_CASE("Pricing preserves adjacent spot strike and barrier values", "[audit-f
         const auto touch = *(above ? make_cash_one_touch_up : make_cash_one_touch_down)(
             start, end, spot, 1.0, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
         const auto rebate = *make_barrier_option(
-            {.option_type = above ? OptionType::call : OptionType::put, .strike = above ? 120.0 : 80.0,
-             .effective_date = start, .expiry_date = end, .barrier_level = spot,
-             .barrier_type = above ? BarrierType::up_and_out : BarrierType::down_and_out,
-             .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
+            {.option_type = above ? OptionType::call : OptionType::put, .strike = above ? 120.0 : 80.0, .effective_date = start, .expiry_date = end, .barrier_level = spot, .barrier_type = above ? BarrierType::up_and_out : BarrierType::down_and_out, .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
         const auto touch_price = AnalyticBinaryBarrierEngine{}.price(touch, barrier_context);
         const auto rebate_price = AnalyticBarrierEngine{}.price(rebate, barrier_context);
         REQUIRE(touch_price);
@@ -86,10 +81,7 @@ TEST_CASE("At-hit payments retain discounting at tiny volatility", "[audit-fixes
             const auto asset = *(up ? make_asset_one_touch_up : make_asset_one_touch_down)(
                 start, end, barrier, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
             const auto rebate = *make_barrier_option(
-                {.option_type = up ? OptionType::call : OptionType::put, .strike = up ? 120.0 : 80.0,
-                 .effective_date = start, .expiry_date = end, .barrier_level = barrier,
-                 .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
-                 .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
+                {.option_type = up ? OptionType::call : OptionType::put, .strike = up ? 120.0 : 80.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out, .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
             const auto check = [](const auto& engine, const auto& option, const auto& context, double expected) {
                 const auto price = engine.price(option, context);
                 REQUIRE(price);
@@ -122,21 +114,16 @@ TEST_CASE("Implied volatility rejects zero-payoff barrier contracts", "[audit-fi
                 CHECK(result.error().category == ErrorCategory::unsupported_operation);
             };
             const auto vanilla = *make_barrier_option(
-                {.option_type = type, .strike = strike, .effective_date = start, .expiry_date = end,
-                 .barrier_level = barrier, .barrier_type = kind});
+                {.option_type = type, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind});
             check(AnalyticBarrierEngine{}, vanilla);
             check(FiniteDifferenceBarrierEngine{}, vanilla);
-            const BinaryBarrierTerms terms{.option_type = type, .strike = strike, .effective_date = start,
-                                           .expiry_date = end, .barrier_level = barrier, .barrier_type = kind};
+            const BinaryBarrierTerms terms{.option_type = type, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind};
             check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, 10.0));
             check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms));
         }
         for (const bool rebate : {false, true}) {
             const auto option = *make_barrier_option(
-                {.option_type = type, .strike = call ? 120.0 : 80.0, .effective_date = start, .expiry_date = end,
-                 .barrier_level = barrier, .barrier_type = kind, .rebate = rebate ? 1.0 : 0.0,
-                 .observation_mode = rebate ? ObservationMode::continuous : ObservationMode::scheduled,
-                 .observation_dates = rebate ? std::vector<Date>{} : std::vector<Date>{start}});
+                {.option_type = type, .strike = call ? 120.0 : 80.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind, .rebate = rebate ? 1.0 : 0.0, .observation_mode = rebate ? ObservationMode::continuous : ObservationMode::scheduled, .observation_dates = rebate ? std::vector<Date>{} : std::vector<Date>{start}});
             const AnalyticBarrierEngine engine;
             const auto quote = engine.price(option, context);
             REQUIRE(quote);
@@ -156,7 +143,7 @@ TEST_CASE("Implied volatility resolves the final barrier observation", "[audit-f
     const auto end = day(2026, 1, 1);
     for (const auto delay : {std::chrono::microseconds{0}, std::chrono::microseconds{1}}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0,
-                                                  start_of_day(final_observation) + delay);
+                                                   start_of_day(final_observation) + delay);
         const auto check_fixed = [&](const auto& engine, const auto& option, double expected) {
             const auto quote = engine.price(option, context);
             REQUIRE(quote);
@@ -169,10 +156,7 @@ TEST_CASE("Implied volatility resolves the final barrier observation", "[audit-f
         const double discount = std::exp(-0.05 * *year_fraction(context.valuation_time(), start_of_day(end)));
         for (const auto history : {BarrierTouchState::untouched, BarrierTouchState::touched}) {
             const auto option = *make_barrier_option(
-                {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
-                 .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in, .rebate = 5.0,
-                 .observation_mode = ObservationMode::scheduled,
-                 .observation_dates = {start, final_observation}, .touch_state = history});
+                {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in, .rebate = 5.0, .observation_mode = ObservationMode::scheduled, .observation_dates = {start, final_observation}, .touch_state = history});
             const auto check = [&](const auto& engine) {
                 if (history == BarrierTouchState::untouched) {
                     check_fixed(engine, option, 5.0 * discount);
@@ -188,14 +172,8 @@ TEST_CASE("Implied volatility resolves the final barrier observation", "[audit-f
             check(AnalyticBarrierEngine{});
             check(FiniteDifferenceBarrierEngine{});
         }
-        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(
-            {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
-             .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in,
-             .observation_mode = ObservationMode::scheduled, .observation_dates = {final_observation},
-             .touch_state = BarrierTouchState::untouched}, 5.0), 0.0);
-        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_one_touch_up(
-            start, end, 120.0, 5.0, SettlementTiming::at_expiry, ObservationMode::scheduled,
-            {final_observation}, BarrierTouchState::untouched), 0.0);
+        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in, .observation_mode = ObservationMode::scheduled, .observation_dates = {final_observation}, .touch_state = BarrierTouchState::untouched}, 5.0), 0.0);
+        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_one_touch_up(start, end, 120.0, 5.0, SettlementTiming::at_expiry, ObservationMode::scheduled, {final_observation}, BarrierTouchState::untouched), 0.0);
     }
 }
 
@@ -239,18 +217,14 @@ TEST_CASE("Analytic barriers reject incomplete future monitoring windows", "[aud
     const auto end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start);
     const auto barrier = *make_barrier_option(
-        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
-         .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out,
-         .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}});
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}});
     const auto binary = *make_cash_binary_barrier_option(
-        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
-         .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_in,
-         .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}}, 1.0);
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_in, .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}}, 1.0);
     const auto touch = *make_cash_one_touch_up(start, end, 110.0, 1.0,
-        SettlementTiming::at_expiry, ObservationMode::scheduled, {fixing});
-    for (const auto result : {AnalyticBarrierEngine{}.price(barrier, context),
-                              AnalyticBinaryBarrierEngine{}.price(binary, context),
-                              AnalyticBinaryBarrierEngine{}.price(touch, context)}) {
+                                               SettlementTiming::at_expiry, ObservationMode::scheduled, {fixing});
+    for (const auto& result : {AnalyticBarrierEngine{}.price(barrier, context),
+                               AnalyticBinaryBarrierEngine{}.price(binary, context),
+                               AnalyticBinaryBarrierEngine{}.price(touch, context)}) {
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::unsupported_operation);
     }
@@ -283,7 +257,7 @@ TEST_CASE("Arithmetic Asians retain small moment variance across averaging windo
                         excess += term;
                     }
                     const double variance = sigma * sigma * lead + std::log1p(excess);
-                    const double expected = scale * spot * std::erf(std::sqrt(variance) / (2.0 * std::sqrt(2.0)));
+                    const double expected = scale * spot * std::erf(std::sqrt(variance) / (2.0 * std::numbers::sqrt2));
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, valuation);
                     const auto option = *make_arithmetic_average_option(type, spot, start, averaging, end, window == 2 ? spot : 0.0);
                     const auto price = engine.price(option, context);
@@ -346,7 +320,7 @@ TEST_CASE("Quadrature vanilla retains small positive volatility time value", "[a
                 const auto option = *make_european_option(type, spot, start, end);
                 const auto price = QuadratureVanillaEngine{}.price(option, context);
                 REQUIRE(price);
-                const double expected = spot * std::erf(sigma / (2.0 * std::sqrt(2.0)));
+                const double expected = spot * std::erf(sigma / (2.0 * std::numbers::sqrt2));
                 CHECK(*price == Catch::Approx(expected).epsilon(1e-12).margin(1e-24));
             }
         }
@@ -370,7 +344,7 @@ TEST_CASE("Geometric Asians retain small positive variance across averaging wind
                     // Center the geometric forward on strike; the lognormal time value is an erf difference.
                     const double rate = 0.5 * sigma * sigma * (1.0 - weight * (lead + future / 3.0) / (lead + future / 2.0));
                     const double deviation = sigma * weight * std::sqrt(lead + future / 3.0);
-                    const double expected = spot * std::exp(-rate * (lead + future)) * std::erf(deviation / (2.0 * std::sqrt(2.0)));
+                    const double expected = spot * std::exp(-rate * (lead + future)) * std::erf(deviation / (2.0 * std::numbers::sqrt2));
                     const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, sigma), spot, valuation);
                     const auto option = *make_geometric_average_option(type, spot, start, averaging, end, window == 2 ? spot : 0.0);
                     const auto price = AnalyticGeometricAveragePriceEngine{}.price(option, context);
@@ -394,7 +368,7 @@ TEST_CASE("Single-fixing geometric Asians retain European time value", "[audit-f
             const auto option = *make_geometric_average_option(type, 1e14, start, end, end);
             const auto price = engine.price(option, context);
             REQUIRE(price);
-            const double expected = 1e14 * std::erf(sigma / (2.0 * std::sqrt(2.0)));
+            const double expected = 1e14 * std::erf(sigma / (2.0 * std::numbers::sqrt2));
             CHECK(*price == Catch::Approx(expected).epsilon(1e-12).margin(1e-12));
             const auto invalid = engine.price(*make_geometric_average_option(type, 1e14, start, end, end, 1e14), context);
             REQUIRE_FALSE(invalid);
@@ -419,12 +393,7 @@ TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[
                 for (const double lower : {100.0, 60.0}) {
                     CAPTURE(rate, dates, barrier, lower);
                     const auto note = *make_phoenix_option(
-                        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0,
-                         .knock_out_levels = std::vector<double>(dates.size(), 120.0),
-                         .coupon_barrier_levels = std::vector<double>(dates.size(), barrier),
-                         .upper_strike = 100.0, .lower_strike = lower, .observation_dates = dates,
-                         .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-                         .effective_date = start, .expiry_date = end});
+                        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dates.size(), 120.0), .coupon_barrier_levels = std::vector<double>(dates.size(), barrier), .upper_strike = 100.0, .lower_strike = lower, .observation_dates = dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
                     const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.02, bounds.lower_bound), 100.0, start, all_days_calendar());
                     const bool exposed = lower != 100.0 || barrier != 0.0 || dates.size() > 1 || (rate != 0.0 && dates.front() != end);
                     const auto check = [&](const auto& engine) {
@@ -436,8 +405,8 @@ TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[
                             CHECK(*result == bounds.lower_bound);
                         } else {
                             const double expected = std::exp(-rate * 9.0 / 365.0) + 0.1 *
-                                static_cast<double>((dates.front() - start).count()) / 365.0 *
-                                std::exp(-rate * static_cast<double>((dates.front() - start).count()) / 365.0);
+                                                                                        static_cast<double>((dates.front() - start).count()) / 365.0 *
+                                                                                        std::exp(-rate * static_cast<double>((dates.front() - start).count()) / 365.0);
                             CHECK(*quote == Catch::Approx(expected).epsilon(1e-10));
                             REQUIRE_FALSE(result);
                             CHECK(result.error().category == ErrorCategory::unsupported_operation);
@@ -570,9 +539,7 @@ TEST_CASE("Implied volatility rejects volatility independent accumulated forward
         for (const double dividend : {0.0, 0.02}) {
             for (const double daily : {0.0, 1.0}) {
                 const auto option = *make_accumulator(
-                    {.strike = 90.0, .knock_out_level = 120.0, .daily_quantity = daily,
-                     .acceleration_factor = 1.0, .accumulated_quantity = 1.0,
-                     .effective_date = start, .expiry_date = end});
+                    {.strike = 90.0, .knock_out_level = 120.0, .daily_quantity = daily, .acceleration_factor = 1.0, .accumulated_quantity = 1.0, .effective_date = start, .expiry_date = end});
                 for (const double lower : {0.05, 0.1}) {
                     CAPTURE(rate, dividend, daily, lower);
                     const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, lower), 100.0, start, all_days_calendar());
@@ -580,7 +547,7 @@ TEST_CASE("Implied volatility rejects volatility independent accumulated forward
                         const auto quote = engine.price(option, context);
                         REQUIRE(quote);
                         const auto result = implied_volatility(engine, option, context, *quote,
-                            ImpliedVolatilitySettings{.lower_bound = lower, .upper_bound = 0.4});
+                                                               ImpliedVolatilitySettings{.lower_bound = lower, .upper_bound = 0.4});
                         if (daily != 0.0 || rate != 0.0 || dividend != 0.0) {
                             REQUIRE(result);
                             CHECK(*result == lower);
@@ -699,7 +666,7 @@ TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[au
         REQUIRE(cash);
         const double sign = call ? 1.0 : -1.0;
         const double d2 = (std::log(spot) - std::log(strike)) / 0.2 - 0.1;
-        CHECK(*cash == Catch::Approx(1e100 * 0.5 * std::erfc(-sign * d2 / std::sqrt(2.0))).epsilon(1e-8));
+        CHECK(*cash == Catch::Approx(1e100 * 0.5 * std::erfc(-sign * d2 / std::numbers::sqrt2)).epsilon(1e-8));
     }
 }
 

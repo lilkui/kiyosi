@@ -83,8 +83,8 @@ public:
     }
 
 private:
-    template <std::size_t Count, typename Constraint>
-    bool advance_layers(const std::array<Layer, Count>& layers, double dt,
+    template <std::size_t count, typename Constraint>
+    bool advance_layers(const std::array<Layer, count>& layers, double dt,
                         const DiffusionParameters& parameters, Constraint constraint)
     {
         const auto [rate, dividend, volatility, theta] = parameters;
@@ -127,8 +127,8 @@ private:
     }
 
     // Factor the matrix once and validate every solved layer before callers copy any interiors.
-    template <std::size_t Count>
-    bool solve(const std::array<Layer, Count>& layers)
+    template <std::size_t count>
+    bool solve(const std::array<Layer, count>& layers)
     {
         for (std::size_t index = 1; index < diagonal_.size(); ++index) {
             if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;

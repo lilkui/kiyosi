@@ -110,24 +110,18 @@ TEST_CASE("Settled binary barriers preserve extreme digital prices", "[audit-fix
         for (const auto type : {OptionType::call, OptionType::put}) {
             for (const bool asset : {false, true}) {
                 const auto reference = asset
-                    ? digital.price(*make_asset_or_nothing_option(type, strike, effective, expiry), context)
-                    : digital.price(*make_cash_or_nothing_option(type, strike, payout, effective, expiry), context);
+                                           ? digital.price(*make_asset_or_nothing_option(type, strike, effective, expiry), context)
+                                           : digital.price(*make_cash_or_nothing_option(type, strike, payout, effective, expiry), context);
                 REQUIRE(reference);
                 if (extreme_volatility)
                     CHECK(*reference == (asset ? (type == OptionType::call ? spot : 0.0)
-                                                : (type == OptionType::call ? 0.0 : payout)));
+                                               : (type == OptionType::call ? 0.0 : payout)));
                 else if (!asset && type == OptionType::call)
                     CHECK_THAT(*reference, Catch::Matchers::WithinRel(2.8067512790206434e-75, 1e-12));
                 for (const bool touched : {false, true}) {
                     CAPTURE(volatility, type, asset, touched);
                     const BinaryBarrierTerms terms{
-                        .option_type = type, .strike = strike,
-                        .effective_date = effective, .expiry_date = expiry,
-                        .barrier_level = spot / 2.0,
-                        .barrier_type = touched ? BarrierType::down_and_in : BarrierType::down_and_out,
-                        .observation_mode = ObservationMode::scheduled,
-                        .observation_dates = {effective},
-                        .touch_state = touched ? BarrierTouchState::touched : BarrierTouchState::untouched};
+                        .option_type = type, .strike = strike, .effective_date = effective, .expiry_date = expiry, .barrier_level = spot / 2.0, .barrier_type = touched ? BarrierType::down_and_in : BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {effective}, .touch_state = touched ? BarrierTouchState::touched : BarrierTouchState::untouched};
                     const auto option = asset ? make_asset_binary_barrier_option(terms)
                                               : make_cash_binary_barrier_option(terms, payout);
                     REQUIRE(option);

@@ -14,15 +14,15 @@ template <typename Terms>
 [[nodiscard]] SnowballTerms common_snowball_terms(Terms& terms)
 {
     SnowballTerms expanded{.initial_spot = terms.initial_spot,
-            .knock_in_level = terms.knock_in_level,
-            .upper_strike = terms.initial_spot,
-            .lower_strike = 0.0,
-            .observation_dates = std::move(terms.observation_dates),
-            .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-            .barrier_state = terms.barrier_state,
-            .principal_ratio = terms.principal_ratio,
-            .effective_date = terms.effective_date,
-            .expiry_date = terms.expiry_date};
+                           .knock_in_level = terms.knock_in_level,
+                           .upper_strike = terms.initial_spot,
+                           .lower_strike = 0.0,
+                           .observation_dates = std::move(terms.observation_dates),
+                           .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
+                           .barrier_state = terms.barrier_state,
+                           .principal_ratio = terms.principal_ratio,
+                           .effective_date = terms.effective_date,
+                           .expiry_date = terms.expiry_date};
     if constexpr (requires { terms.coupon_rate; }) {
         expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
         expanded.maturity_coupon_rate = terms.coupon_rate;

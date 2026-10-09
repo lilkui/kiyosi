@@ -15,7 +15,8 @@ std::string touch_option_doc(const char* kind, const char* settlement_note,
     const char* article = std::string_view{kind}.starts_with("asset") ? "an " : "a ";
     return std::string{"Create "} + article + kind + R"doc( option.
 
-The factory name selects an upper or lower barrier.)doc" + settlement_note + R"doc(
+The factory name selects an upper or lower barrier.)doc" +
+           settlement_note + R"doc(
 ``touch_state`` describes observations before the valuation time.
 
 Parameters
@@ -24,7 +25,8 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-)doc" + parameters + R"doc(observation_mode : {'continuous', 'scheduled'}, optional
+)doc" + parameters +
+           R"doc(observation_mode : {'continuous', 'scheduled'}, optional
     Continuous or scheduled monitoring.
 observation_dates : iterable[datetime.date], optional
     Required schedule for scheduled monitoring.
@@ -34,14 +36,16 @@ touch_state : {'untouched', 'touched'} or None, optional
 Returns
 -------
 TouchOption
-    Validated immutable )doc" + kind + R"doc( option.
+    Validated immutable )doc" +
+           kind + R"doc( option.
 
 Raises
 ------
 TypeError
     If an argument has an incompatible representation.
 KiyosiError
-    If the core rejects the )doc" + rejected_terms + ".";
+    If the core rejects the )doc" +
+           rejected_terms + ".";
 }
 
 constexpr const char* payout_doc = R"doc(payout : float
@@ -69,14 +73,14 @@ void bind_strike_option(nb::module_& module, const char* name,
                         const char* description, const char* constructor_doc)
 {
     auto binding = nb::class_<Instrument>(module, name, description)
-        .def(nb::new_([factory](PythonChoice<OptionType> type, PythonReal strike,
-                               PythonDate effective_date, PythonDate expiry_date) {
-            return unwrap(factory(type, real_number(strike, "strike"),
-                                  calendar_date(effective_date, "effective_date"),
-                                  calendar_date(expiry_date, "expiry_date")));
-        }),
-        nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-        constructor_doc);
+                       .def(nb::new_([factory](PythonChoice<OptionType> type, PythonReal strike,
+                                               PythonDate effective_date, PythonDate expiry_date) {
+                                return unwrap(factory(type, real_number(strike, "strike"),
+                                                      calendar_date(effective_date, "effective_date"),
+                                                      calendar_date(expiry_date, "expiry_date")));
+                            }),
+                            nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                            constructor_doc);
     bind_common_option_properties(binding, name);
 }
 
@@ -146,10 +150,10 @@ void bind_instruments(nb::module_& module)
         "barrier, dates, or observation schedule");
 
     bind_strike_option(module, "EuropeanOption", &make_european_option,
-        R"doc(Immutable validated European vanilla option.
+                       R"doc(Immutable validated European vanilla option.
 
 The payoff can be exercised only at expiry.)doc",
-        R"doc(Create a validated European option.
+                       R"doc(Create a validated European option.
 
 Parameters
 ----------
@@ -170,10 +174,10 @@ KiyosiError
     If the core rejects the strike or date ordering.)doc");
 
     bind_strike_option(module, "AmericanOption", &make_american_option,
-        R"doc(Immutable validated American vanilla option.
+                       R"doc(Immutable validated American vanilla option.
 
 The payoff may be exercised from the effective date through expiry.)doc",
-        R"doc(Create a validated American option.
+                       R"doc(Create a validated American option.
 
 Parameters
 ----------
@@ -228,8 +232,8 @@ KiyosiError
     bind_common_option_properties(cash, "CashOrNothingOption", {"option_type", "strike", "payout", "effective_date", "expiry_date"});
 
     bind_strike_option(module, "AssetOrNothingOption", &make_asset_or_nothing_option,
-        R"doc(Immutable validated asset-or-nothing digital option.)doc",
-        R"doc(Create a validated asset-or-nothing option.
+                       R"doc(Immutable validated asset-or-nothing digital option.)doc",
+                       R"doc(Create a validated asset-or-nothing option.
 
 Parameters
 ----------

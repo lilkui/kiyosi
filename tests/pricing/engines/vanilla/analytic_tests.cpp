@@ -391,7 +391,7 @@ TEST_CASE("Analytic European tiny positive volatility preserves price and Greeks
                     const auto context = *make_pricing_context(
                         *make_bsm_parameters(forward * volatility, 0.0, volatility), spot, start);
                     const double density = forward == 0.0 ? 0.3989422804014327 : 0.24197072451914335;
-                    const double probability = sign * forward == 0.0 ? 0.5
+                    const double probability = sign * forward == 0.0  ? 0.5
                                                : sign * forward > 0.0 ? 0.8413447460685429
                                                                       : 0.15865525393145705;
                     const double expected = spot * volatility * (density + sign * forward * probability);

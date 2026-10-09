@@ -95,14 +95,14 @@ TEST_CASE("Barrier expiry settlement precedes rebate discounting", "[audit-fixes
     const auto end = day(2026, 1, 1);
     const auto market = *make_pricing_context(*make_bsm_parameters(-0.02, -0.04, 0.2), 100.0, end);
     const auto option = *make_barrier_option({.option_type = OptionType::call,
-                                            .strike = 80.0,
-                                            .effective_date = start,
-                                            .expiry_date = end,
-                                            .barrier_level = 120.0,
-                                            .barrier_type = BarrierType::up_and_out,
-                                            .rebate = 7.0,
-                                            .rebate_timing = RebateTiming::at_hit,
-                                            .touch_state = BarrierTouchState::untouched});
+                                              .strike = 80.0,
+                                              .effective_date = start,
+                                              .expiry_date = end,
+                                              .barrier_level = 120.0,
+                                              .barrier_type = BarrierType::up_and_out,
+                                              .rebate = 7.0,
+                                              .rebate_timing = RebateTiming::at_hit,
+                                              .touch_state = BarrierTouchState::untouched});
     const auto check = [&](const auto& engine) {
         const auto scalar = engine.price(option, market);
         REQUIRE(scalar);

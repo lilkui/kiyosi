@@ -164,9 +164,11 @@ template <typename Engine, typename Option>
             const bool payoff_excluded = !terms.is_knock_in() && monitors_expiry &&
                                          (terms.is_up() ? option.option_type() == OptionType::call && option.strike() >= terms.barrier_level()
                                                         : option.option_type() == OptionType::put && option.strike() <= terms.barrier_level());
-            bool has_rebate = false;
-            if constexpr (requires { option.rebate(); }) has_rebate = option.rebate() != 0.0;
-            identifiable = identifiable && !(payoff_excluded && !has_rebate);
+            const bool has_rebate = [&] {
+                if constexpr (requires { option.rebate(); }) return option.rebate() != 0.0;
+                else return false;
+            }();
+            identifiable = identifiable && (!payoff_excluded || has_rebate);
         }
     }
     if (!identifiable)

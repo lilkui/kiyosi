@@ -61,7 +61,7 @@ inline void check_numerical_result(const ReferenceCase& fixture, const kiyosi::R
 {
     REQUIRE(priced.has_value());
     CHECK_THAT(priced->price(), Catch::Matchers::WithinAbs(
-                                   fixture.outputs.at("price"), fixture_number(fixture, "numerical_tolerance_price") + fixture_number(fixture, "uncertainty_price")));
+                                    fixture.outputs.at("price"), fixture_number(fixture, "numerical_tolerance_price") + fixture_number(fixture, "uncertainty_price")));
     for (const auto& [name, measure] : measures) {
         INFO("measure=" << name);
         REQUIRE(fixture.outputs.contains(name));

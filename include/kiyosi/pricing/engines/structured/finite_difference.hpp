@@ -24,7 +24,7 @@ public:
 
     /// Prices an autocallable note by finite differences.
     /// @return Price, or a contract, context, or settings error.
-    [[nodiscard]] Result<double> price(const Note& option, const PricingContext& context) const;
+    [[nodiscard]] Result<double> price(const Note& note, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
