@@ -7,6 +7,7 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
+    ArithmeticAveragePriceOption,
     AssetOrNothingOption,
     BarrierOption,
     BinarySnowballOption,
@@ -25,6 +26,109 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_arithmetic_asians_retain_small_moment_variance_across_averaging_windows(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
+        for direction in ("call", "put"):
+            for spot in (100, 1e8, 1e14):
+                for sigma in (1e-13, 1e-8, 1e-4, 0.009999, 0.01, 0.010001, 0.2):
+                    for window in (0, 1, 2):
+                        with self.subTest(
+                            direction=direction, spot=spot, sigma=sigma, window=window,
+                        ):
+                            valuation = (
+                                start + timedelta(days=120) if window == 2 else start
+                            )
+                            averaging = (
+                                start + timedelta(days=120) if window == 1 else start
+                            )
+                            delta = 1 if window == 0 else 245 / 365
+                            lead = 120 / 365 if window == 1 else 0
+                            scale = delta if window == 2 else 1
+                            h = sigma * sigma * delta
+                            term = excess = h / 3
+                            for n in range(2, 17):
+                                term *= h / (n + 2)
+                                excess += term
+                            variance = sigma * sigma * lead + math.log1p(excess)
+                            expected = scale * spot * math.erf(
+                                math.sqrt(variance) / (2 * math.sqrt(2))
+                            )
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=0,
+                                    dividend_yield=0,
+                                    volatility=sigma,
+                                ),
+                                spot_price=spot,
+                                valuation_time=valuation,
+                            )
+                            option = ArithmeticAveragePriceOption(
+                                option_type=direction,
+                                strike=spot,
+                                effective_date=start,
+                                averaging_start_date=averaging,
+                                expiry_date=end,
+                                realized_average=spot if window == 2 else 0,
+                            )
+                            actual = engine.price(option, context)
+                            self.assertAlmostEqual(
+                                actual, expected, delta=max(1e-24, expected * 1e-9)
+                            )
+
+    def test_arithmetic_asian_small_variance_prices_preserve_nonzero_carry(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        # Independent 75-digit evaluation of the integrated moments and normal CDF.
+        cases = (
+            (0.02, 0, 101006700.13377905, 0.22861156554028925, 0.2286115636758159),
+            (-0.02, 0, 99006633.4662235, 0.23206658954210946, 0.2320665939728782),
+            (0.3, 0, 116619602.52533437, 0.2064505517413919, 0.20645055603932333),
+            (-0.3, 0, 86393926.43942738, 0.2585644971473165, 0.25856449358383626),
+            (1.4, 1, 262916196.58168963, 0.20160068921082872, 0.2016006909574677),
+            (-1.4, 2, 76395650.08983347, 0.1859456384724795, 0.18594565344673475),
+        )
+        for rate, window, strike, call, put in cases:
+            for direction, expected in (("call", call), ("put", put)):
+                with self.subTest(rate=rate, window=window, direction=direction):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate,
+                            dividend_yield=0,
+                            volatility=1e-8,
+                        ),
+                        spot_price=1e8,
+                        valuation_time=(
+                            start + timedelta(days=120) if window == 2 else start
+                        ),
+                    )
+                    option = ArithmeticAveragePriceOption(
+                        option_type=direction,
+                        strike=strike,
+                        effective_date=start,
+                        averaging_start_date=(
+                            start + timedelta(days=120) if window == 1 else start
+                        ),
+                        expiry_date=end,
+                        realized_average=1e8 if window == 2 else 0,
+                    )
+                    actual = pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
+                        option, context
+                    )
+                    self.assertAlmostEqual(actual, expected, delta=5e-7)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=1e-8,
+            ),
+            spot_price=100, valuation_time=end - timedelta(days=1),
+        )
+        oversized = ArithmeticAveragePriceOption(
+            option_type="call", strike=1e308, effective_date=start,
+            averaging_start_date=start, expiry_date=end, realized_average=1,
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(oversized, context)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_quadrature_vanilla_retains_small_positive_volatility_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction in ("call", "put"):

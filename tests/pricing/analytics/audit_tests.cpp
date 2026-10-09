@@ -13,6 +13,81 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Arithmetic Asians retain small moment variance across averaging windows", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const TurnbullWakemanArithmeticAveragePriceEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double spot : {100.0, 1e8, 1e14}) {
+            for (const double sigma : {1e-13, 1e-8, 1e-4, 0.009999, 0.01, 0.010001, 0.2}) {
+                for (const int window : {0, 1, 2}) {
+                    CAPTURE(type, spot, sigma, window);
+                    const auto valuation = window == 2 ? start + std::chrono::days{120} : start;
+                    const auto averaging = window == 1 ? start + std::chrono::days{120} : start;
+                    const double delta = window == 0 ? 1.0 : 245.0 / 365.0;
+                    const double lead = window == 1 ? 120.0 / 365.0 : 0.0;
+                    const double scale = window == 2 ? delta : 1.0;
+                    // Integrating the zero-carry second moment gives 2*sum(h^n/(n+2)!).
+                    const double h = sigma * sigma * delta;
+                    double term = h / 3.0;
+                    double excess = term;
+                    for (int n = 2; n <= 16; ++n) {
+                        term *= h / (n + 2);
+                        excess += term;
+                    }
+                    const double variance = sigma * sigma * lead + std::log1p(excess);
+                    const double expected = scale * spot * std::erf(std::sqrt(variance) / (2.0 * std::sqrt(2.0)));
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, valuation);
+                    const auto option = *make_arithmetic_average_option(type, spot, start, averaging, end, window == 2 ? spot : 0.0);
+                    const auto price = engine.price(option, context);
+                    REQUIRE(price);
+                    CHECK(*price == Catch::Approx(expected).epsilon(1e-9).margin(1e-24));
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Arithmetic Asian small-variance prices preserve nonzero carry", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    struct Case {
+        double rate;
+        int window;
+        double strike;
+        double call;
+        double put;
+    };
+    // Independent 75-digit evaluation of the integrated moments and normal CDF.
+    const std::array cases{
+        Case{0.02, 0, 101006700.13377905, 0.22861156554028925, 0.2286115636758159},
+        Case{-0.02, 0, 99006633.4662235, 0.23206658954210946, 0.2320665939728782},
+        Case{0.3, 0, 116619602.52533437, 0.2064505517413919, 0.20645055603932333},
+        Case{-0.3, 0, 86393926.43942738, 0.2585644971473165, 0.25856449358383626},
+        Case{1.4, 1, 262916196.58168963, 0.20160068921082872, 0.2016006909574677},
+        Case{-1.4, 2, 76395650.08983347, 0.1859456384724795, 0.18594565344673475},
+    };
+    for (const auto& test : cases) {
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(test.rate, test.window, type);
+            const auto valuation = test.window == 2 ? start + std::chrono::days{120} : start;
+            const auto averaging = test.window == 1 ? start + std::chrono::days{120} : start;
+            const auto context = *make_pricing_context(*make_bsm_parameters(test.rate, 0.0, 1e-8), 1e8, valuation);
+            const auto option = *make_arithmetic_average_option(type, test.strike, start, averaging, end, test.window == 2 ? 1e8 : 0.0);
+            const auto price = TurnbullWakemanArithmeticAveragePriceEngine{}.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(type == OptionType::call ? test.call : test.put).epsilon(0.0).margin(5e-7));
+        }
+    }
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-8), 100.0, end - std::chrono::days{1});
+    const auto oversized = *make_arithmetic_average_option(OptionType::call, 1e308, start, start, end, 1.0);
+    const auto rejected = TurnbullWakemanArithmeticAveragePriceEngine{}.price(oversized, context);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Quadrature vanilla retains small positive volatility time value", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

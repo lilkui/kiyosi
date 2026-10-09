@@ -44,6 +44,27 @@ double divided_exprel(double x, double y)
     }
     return (exprel(x) - exprel(y)) / (x - y);
 }
+double divided_exprel_increment(double x, double y, double h)
+{
+    // Factor h out of the second divided difference instead of subtracting near-equal moments.
+    if (std::max(std::abs(x + h), std::abs(y)) < 0.5) {
+        double sum = 1.0 / 6.0;
+        double homogeneous_two = 1.0;
+        double homogeneous_three = 1.0;
+        double y_power = 1.0;
+        double factorial = 6.0;
+        for (int n = 1; n <= 16; ++n) {
+            y_power *= y;
+            homogeneous_two = x * homogeneous_two + y_power;
+            homogeneous_three = (x + h) * homogeneous_three + homogeneous_two;
+            factorial *= n + 3;
+            sum += homogeneous_three / factorial;
+        }
+        return h * sum;
+    }
+    const double first_increment = (std::exp(x) * exprel(h) - exprel(x)) / (x + h);
+    return h * (first_increment - divided_exprel(x, y)) / (x + h - y);
+}
 } // namespace
 
 Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
@@ -136,7 +157,7 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     double adjusted_strike = strike;
     double scale = 1.0;
     if (remaining > 0.0) {
-        adjusted_strike = average_period / tau * strike - remaining / tau * realized;
+        adjusted_strike = strike + remaining / tau * (strike - realized);
         scale = tau / average_period;
         if (adjusted_strike < 0.0) {
             if (sign < 0.0)
@@ -146,21 +167,38 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
         }
     }
     const double vol2 = sigma * sigma;
-    // The second moment is a divided difference of (exp(x) - 1) / x.
-    const double m2 = 2.0 * std::exp((2.0 * carry + vol2) * t1) *
-                      divided_exprel((2.0 * carry + vol2) * delta, carry * delta);
-    if (!std::isfinite(m2) || m2 <= 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid moment"});
-    const double log_variance = std::log(m2) - 2.0 * std::log(m1);
+    const double log_variance = [&] {
+        if (vol2 * tau < 1e-4) {
+            const double mean = exprel(carry * delta);
+            const double excess = 2.0 * divided_exprel_increment(2.0 * carry * delta, carry * delta, vol2 * delta) / (mean * mean);
+            return vol2 * t1 + std::log1p(excess);
+        }
+        // The second moment is a divided difference of (exp(x) - 1) / x.
+        const double m2 = 2.0 * std::exp((2.0 * carry + vol2) * t1) *
+                          divided_exprel((2.0 * carry + vol2) * delta, carry * delta);
+        return std::log(m2) - 2.0 * std::log(m1);
+    }();
     if (!std::isfinite(log_variance) || log_variance < -1e-12)
         return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid variance"});
     const double b_a = std::log(m1) / tau;
     const double adjusted_vol = std::sqrt(std::max(0.0, log_variance / tau));
     const double root = adjusted_vol * std::sqrt(tau);
-    if (root < 1e-12) {
+    if (root == 0.0) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
         return make_pricing_result(scale * std::exp(-rate * tau) *
                                    payoff(option.option_type(), forward, adjusted_strike));
+    }
+    if (root < 1e-5 && adjusted_strike > 0.0) {
+        const auto parameters = make_bsm_parameters(rate, rate - b_a, sigma);
+        if (!parameters)
+            return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid carry"});
+        const auto equivalent_context = *make_pricing_context(*parameters, spot, valuation, context.calendar());
+        const auto equivalent_option = make_european_option(option.option_type(), adjusted_strike, option.effective_date(), option.expiry_date());
+        if (!equivalent_option)
+            return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid strike"});
+        const auto priced = price_at_volatility(*equivalent_option, equivalent_context, adjusted_vol, GreeksRequest{});
+        if (!priced) return std::unexpected(priced.error());
+        return make_pricing_result(scale * priced->price());
     }
     const double d1 = (std::log(spot / adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
