@@ -55,15 +55,8 @@ def numerical_profiles(path):
         "unknown or duplicate engine",
     )
     for profile in profiles:
-        g.require(
-            set(profile)
-            == {"engine", "settings", "shifts", "tolerances", "numerical_tolerances"},
-            "invalid profile",
-        )
-        g.validate_settings(profile["settings"], NUMERICAL_ENGINES[profile["engine"]])
-        g.validate_shifts(profile["shifts"])
+        g.validate_profile(profile, NUMERICAL_ENGINES[profile["engine"]])
         g.require(profile["shifts"]["time_shift_days"] <= 3, "invalid time shift")
-        g.validate_budgets(profile)
     return profiles
 
 

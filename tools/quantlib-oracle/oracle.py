@@ -380,6 +380,24 @@ def validate_shifts(shifts):
     )
 
 
+def validate_profile(profile, expected_settings, *, extra_fields=()):
+    require(
+        set(profile)
+        == {
+            "engine",
+            "settings",
+            "shifts",
+            "tolerances",
+            "numerical_tolerances",
+            *extra_fields,
+        },
+        "invalid profile",
+    )
+    validate_settings(profile["settings"], expected_settings)
+    validate_shifts(profile["shifts"])
+    validate_budgets(profile)
+
+
 def expand_profiles(config):
     defaults = config["profile_defaults"]
     require(

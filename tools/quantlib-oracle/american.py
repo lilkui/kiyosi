@@ -149,6 +149,12 @@ def rows():
         and len(data["profiles"]) == len(ENGINES),
         "incomplete American engines",
     )
+    for profile in data["profiles"]:
+        g.validate_profile(profile, ENGINES[profile["engine"]])
+        g.require(
+            profile["settings"].get("scheme", "crank_nicolson") == "crank_nicolson",
+            "invalid American scheme",
+        )
     seen = set()
     for scenario in data["scenarios"]:
         g.require(
@@ -167,24 +173,6 @@ def rows():
         outputs, metadata = reference(inputs)
         for profile in data["profiles"]:
             engine = profile["engine"]
-            g.require(
-                set(profile)
-                == {
-                    "engine",
-                    "settings",
-                    "shifts",
-                    "tolerances",
-                    "numerical_tolerances",
-                },
-                "invalid American profile",
-            )
-            g.validate_settings(profile["settings"], ENGINES[engine])
-            g.require(
-                profile["settings"].get("scheme", "crank_nicolson") == "crank_nicolson",
-                "invalid American scheme",
-            )
-            g.validate_shifts(profile["shifts"])
-            g.validate_budgets(profile)
             row = g.reference_row(
                 scenario["case_id"] + "-" + engine.lower(),
                 inputs,
