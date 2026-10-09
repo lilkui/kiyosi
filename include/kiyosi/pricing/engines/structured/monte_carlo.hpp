@@ -6,7 +6,8 @@
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
@@ -30,10 +31,7 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
-                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const
-    {
-        return detail::price_with_greeks(*this, option, context, greeks, settings);
-    }
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     TradingDayMonteCarloSettings settings() const noexcept { return settings_; }

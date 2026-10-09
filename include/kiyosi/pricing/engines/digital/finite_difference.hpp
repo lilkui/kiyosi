@@ -1,10 +1,9 @@
 #pragma once
 
-#include <concepts>
-
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi {
@@ -24,39 +23,21 @@ public:
 
     /// Prices a European cash-or-nothing or asset-or-nothing option.
     /// @return Price, or a contract, context, or settings error.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires(std::same_as<Payoff, CashOrNothingPayoff> ||
-                 std::same_as<Payoff, AssetOrNothingPayoff>) &&
-                std::same_as<Exercise, EuropeanExercise>
-    [[nodiscard]] Result<double> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
-    {
-        return detail::price_value(price_native(option, context, GreeksRequest{}));
-    }
+    [[nodiscard]] Result<double> price(const CashOrNothingOption& option, const PricingContext& context) const;
+    [[nodiscard]] Result<double> price(const AssetOrNothingOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires(std::same_as<Payoff, CashOrNothingPayoff> ||
-                 std::same_as<Payoff, AssetOrNothingPayoff>) &&
-                std::same_as<Exercise, EuropeanExercise>
-    [[nodiscard]] Result<PricingResult> price_with_greeks(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
-    {
-        return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                         [&](const auto& engine) {
-                                             return engine.price_native(option, context, greeks);
-                                         });
-    }
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(
-        const CashOrNothingOption&, const PricingContext&, GreeksRequest) const;
-    [[nodiscard]] Result<PricingResult> price_native(
-        const AssetOrNothingOption&, const PricingContext&, GreeksRequest) const;
+    [[nodiscard]] Result<PricingResult> price_native(const CashOrNothingOption&, const PricingContext&, GreeksRequest) const;
+    [[nodiscard]] Result<PricingResult> price_native(const AssetOrNothingOption&, const PricingContext&, GreeksRequest) const;
     FiniteDifferenceSettings settings_;
 };
 

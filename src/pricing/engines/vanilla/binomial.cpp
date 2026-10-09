@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -125,16 +127,36 @@ Result<PricingResult> price_binomial(
 }
 } // namespace
 
-Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(
-    const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_binomial(option, context, settings_, false, output);
 }
 
-Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(
-    const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_binomial(option, context, settings_, true, output);
+}
+
+Result<double> CoxRossRubinsteinVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<double> CoxRossRubinsteinVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
+                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+}
+
+Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
+                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
 }
 
 } // namespace kiyosi

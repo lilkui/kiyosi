@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -127,6 +129,13 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
         mean.add(*payoff);
     }
     return checked_price(mean.value());
+}
+
+template <typename Note>
+Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
+                                                                            GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 template class MonteCarloAutocallableEngine<PhoenixOption>;

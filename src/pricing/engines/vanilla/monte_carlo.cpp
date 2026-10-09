@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -133,8 +135,7 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
 
 } // namespace
 
-Result<double> MonteCarloVanillaEngine::price_impl(
-    const EuropeanOption& option, const PricingContext& context) const
+Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
@@ -172,8 +173,7 @@ Result<double> MonteCarloVanillaEngine::price_impl(
     return value;
 }
 
-Result<double> MonteCarloVanillaEngine::price_impl(
-    const AmericanOption& option, const PricingContext& context) const
+Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
     const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
@@ -256,6 +256,18 @@ Result<double> MonteCarloVanillaEngine::price_impl(
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return value;
+}
+
+Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
+                                                                 GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
+}
+
+Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
+                                                                 GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

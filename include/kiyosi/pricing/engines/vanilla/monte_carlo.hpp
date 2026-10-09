@@ -1,12 +1,12 @@
 #pragma once
 
-#include <concepts>
 #include <cstdint>
 #include <optional>
 
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
@@ -26,32 +26,19 @@ public:
 
     /// Prices a European or American vanilla option.
     /// @return Price, or a contract, context, settings, or backend error.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires std::same_as<Payoff, VanillaPayoff> &&
-                 (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
-    [[nodiscard]] Result<double> price(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context) const
-    {
-        return price_impl(option, context);
-    }
+    [[nodiscard]] Result<double> price(const EuropeanOption& option, const PricingContext& context) const;
+    [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    template <OptionPayoff Payoff, OptionExercise Exercise>
-        requires std::same_as<Payoff, VanillaPayoff> &&
-                 (std::same_as<Exercise, EuropeanExercise> || std::same_as<Exercise, AmericanExercise>)
-    [[nodiscard]] Result<PricingResult> price_with_greeks(
-        const ExerciseBasedOption<Payoff, Exercise>& option, const PricingContext& context,
-        GreeksRequest greeks, NumericalShiftSettings settings = {}) const
-    {
-        return detail::price_with_greeks(*this, option, context, greeks, settings);
-    }
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,
+                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<double> price_impl(const EuropeanOption&, const PricingContext&) const;
-    [[nodiscard]] Result<double> price_impl(const AmericanOption&, const PricingContext&) const;
     MonteCarloSettings settings_;
 };
 

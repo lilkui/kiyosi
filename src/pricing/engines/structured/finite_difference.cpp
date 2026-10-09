@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/structured/finite_difference.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <optional>
@@ -175,10 +177,17 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
 
     if constexpr (monitors_knock_in)
         return checked_price(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
-                                                                                                     : alive,
-                                                                             spot));
+                                                                                               : alive,
+                                                                       spot));
     else
         return checked_price(initial.path.coupons + space->interpolate(alive, spot));
+}
+
+template <typename Note>
+Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
+                                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
 
 template class FiniteDifferenceAutocallableEngine<PhoenixOption>;

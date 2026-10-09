@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -88,15 +90,35 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(
-    const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, false, output);
 }
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(
-    const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
 {
     return price_digital_fd(option, context, settings_, true, output);
+}
+
+Result<double> FiniteDifferenceDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<double> FiniteDifferenceDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
+                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+}
+
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
+                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
 }
 
 } // namespace kiyosi

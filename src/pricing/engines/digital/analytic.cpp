@@ -1,5 +1,7 @@
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 
+#include <kiyosi/pricing/numerical_greeks.hpp>
+
 #include <cmath>
 #include <numbers>
 #include <optional>
@@ -28,8 +30,8 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
     const double volatility_time = sigma * root_t;
     const double forward = standardize_forward(log_price_ratio(spot, strike) +
-                                                  (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t,
-                                              sigma, root_t);
+                                                   (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t,
+                                               sigma, root_t);
     const double d1 = forward + 0.5 * volatility_time;
     const double d2 = forward - 0.5 * volatility_time;
     const double d = asset_settlement ? d1 : d2;
@@ -81,6 +83,40 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     if (!result->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     return result;
+}
+
+Result<double> AnalyticDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<double> AnalyticDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
+}
+
+Result<PricingResult> AnalyticDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
+                                                               GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+}
+
+Result<PricingResult> AnalyticDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
+                                                               GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+}
+
+Result<PricingResult> AnalyticDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+{
+    return price_impl(option.option_type(), option.strike(), option.payout(), false,
+                      option.effective_date(), option.expiry_date(), context, output);
+}
+
+Result<PricingResult> AnalyticDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+{
+    return price_impl(option.option_type(), option.strike(), 1.0, true,
+                      option.effective_date(), option.expiry_date(), context, output);
 }
 
 } // namespace kiyosi
