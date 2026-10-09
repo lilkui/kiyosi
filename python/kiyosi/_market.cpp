@@ -74,19 +74,7 @@ UNSUPPORTED_OPERATION
 void bind_market(nb::module_& module)
 {
     auto parameters = nb::class_<BlackScholesMertonParameters>(
-                          module, "BlackScholesMertonParameters", R"doc(Validated Black-Scholes-Merton market parameters.
-
-Parameters are continuously compounded decimal rates and an annualized decimal
-volatility. Instances are immutable value objects.
-
-Attributes
-----------
-risk_free_rate : float
-    Continuously compounded annual risk-free rate.
-dividend_yield : float
-    Continuously compounded annual dividend yield.
-volatility : float
-    Positive annualized volatility.)doc")
+                          module, "BlackScholesMertonParameters", R"doc(Immutable validated Black-Scholes-Merton market parameters.)doc")
                           .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
                                            PythonReal volatility) {
                                    return unwrap(make_bsm_parameters(
@@ -131,12 +119,7 @@ KiyosiError
                         R"doc(Read-only trading-day calendar.
 
 Instances are created by :func:`all_days_calendar`, :func:`weekdays_calendar`,
-or :func:`sse_calendar`.
-
-Attributes
-----------
-trading_days_per_year : int
-    Annualization denominator used for trading-year fractions.)doc")
+or :func:`sse_calendar`.)doc")
                         .def("is_trading_day", [](const TradingCalendar& calendar, PythonDate value) { return calendar.is_trading_day(calendar_date(value, "value")); }, "value"_a, R"doc(Return whether a date is a trading day.
 
 Parameters
@@ -204,12 +187,7 @@ KiyosiError
                         module, "ObservationSchedule", R"doc(Immutable ordered observation dates.
 
 The sequence supports ``len(schedule)``, integer indexing, negative indexing,
-and iteration.
-
-Attributes
-----------
-dates : list[datetime.date]
-    Copy of the ordered observation dates.)doc")
+and iteration.)doc")
                         .def("__len__", &ObservationSchedule::size)
                         .def("__getitem__", [](const ObservationSchedule& schedule, nb::ssize_t index) {
                             const auto size = static_cast<nb::ssize_t>(schedule.size());
@@ -225,20 +203,7 @@ dates : list[datetime.date]
     bind_repr(schedule, "ObservationSchedule", {"dates"});
 
     auto context = nb::class_<PricingContext>(
-                       module, "PricingContext", R"doc(Validated market state for a valuation instant.
-
-Attributes
-----------
-model_parameters : BlackScholesMertonParameters
-    Read-only parameters view tied to this context's lifetime.
-spot_price : float
-    Positive underlying spot price.
-valuation_date : datetime.date
-    UTC calendar date containing the valuation instant.
-valuation_time : datetime.datetime
-    Timezone-aware valuation timestamp normalized to UTC.
-calendar : TradingCalendar
-    Read-only calendar view tied to this context's lifetime.)doc")
+                       module, "PricingContext", R"doc(Immutable validated market state for a valuation instant.)doc")
                        .def(nb::new_([](const BlackScholesMertonParameters& parameters, PythonReal spot_price,
                                         PythonValuationTime time, const TradingCalendar& calendar) {
                                 return unwrap(make_pricing_context(

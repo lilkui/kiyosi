@@ -154,18 +154,7 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 Settings are stored without domain validation and are validated when price() is called.
 Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
 time steps. Accumulator and structured engines accept 3..2,000 asset steps and
-1..2,000 time steps. The shared validator checks only the common lower bounds.
-
-Attributes
-----------
-asset_step_count : int
-    Number of spatial grid steps.
-time_step_count : int
-    Number of time grid steps.
-scheme : {'explicit_euler', 'implicit_euler', 'crank_nicolson'}
-    Time-stepping scheme.
-asset_upper_boundary : float or None
-    Explicit upper asset-grid boundary, or ``None`` for the core default.)doc"};
+1..2,000 time steps. The shared validator checks only the common lower bounds.)doc"};
     binding
         .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
                          PythonChoice<FiniteDifferenceScheme> scheme, PythonReal asset_upper_boundary) {
@@ -219,16 +208,7 @@ nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const
         R"doc(Trading-day Monte Carlo engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
-Accumulator and structured engines accept 1..10,000,000 paths.
-
-Attributes
-----------
-path_count : int
-    Number of simulated paths.
-seed : int or None
-    Non-negative random seed.
-backend : {'cpu', 'cuda'}
-    CPU or CUDA execution backend.)doc"};
+Accumulator and structured engines accept 1..10,000,000 paths.)doc"};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                  return Engine{TradingDayMonteCarloSettings{
@@ -557,12 +537,7 @@ void bind_engines(nb::module_& module)
                    R"doc(Cox-Ross-Rubinstein binomial vanilla-option engine.
 
 Configuration is immutable. Settings are stored without domain validation and
-are validated when price() is called.
-
-Attributes
-----------
-step_count : int
-    Number of binomial time steps.)doc")
+are validated when price() is called.)doc")
                    .def(nb::new_([](PythonInteger step_count) {
                             return CoxRossRubinsteinVanillaEngine{integer(step_count, "step_count")};
                         }),
@@ -602,18 +577,7 @@ The setting is validated when price() is called.)doc")
 Settings are stored without domain validation and are validated when price() is called.
 Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
 expiry requires at least 3 steps.
-European prices sample the exact terminal distribution; valid step counts do not affect them.
-
-Attributes
-----------
-path_count : int
-    Number of simulated paths.
-step_count : int
-    American time grid points; validated but unused for European pricing.
-seed : int or None
-    Optional non-negative random seed.
-backend : {'cpu', 'cuda'}
-    CPU or CUDA execution backend.)doc")
+European prices sample the exact terminal distribution; valid step counts do not affect them.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                                                     PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                                             return MonteCarloVanillaEngine{MonteCarloSettings{
