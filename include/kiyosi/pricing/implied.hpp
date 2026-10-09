@@ -4,6 +4,7 @@
 #include <numeric>
 #include <random>
 
+#include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
@@ -93,6 +94,8 @@ template <typename Engine, typename Option>
     const double ehi = *fhi;
     // Pricing above validates the contract and history before these state checks.
     bool identifiable = context.valuation_time() != start_of_day(option.expiry_date()); // NOLINT(misc-const-correctness): later state checks depend on the option type.
+    if constexpr (std::same_as<Option, ArithmeticAveragePriceOption>)
+        identifiable = identifiable && detail::arithmetic_average_adjusted_strike(option, context.valuation_time()) > 0.0;
     if constexpr (requires { option.barrier_state(); }) {
         identifiable = identifiable && option.barrier_state() != AutocallableBarrierState::knocked_out;
         for (std::size_t i = 0; i < option.observation_dates().size(); ++i)

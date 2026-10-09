@@ -171,12 +171,11 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
     const double m1 = std::exp(carry * t1) * exprel(carry * delta);
     if (!std::isfinite(m1) || m1 <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid moment"});
-    double adjusted_strike = strike;
+    const double adjusted_strike = arithmetic_average_adjusted_strike(option, valuation);
     double scale = 1.0;
     if (remaining > 0.0) {
-        adjusted_strike = strike + remaining / tau * (strike - realized);
         scale = tau / average_period;
-        if (adjusted_strike < 0.0) {
+        if (adjusted_strike <= 0.0) {
             if (sign < 0.0)
                 return make_pricing_result(0.0);
             const double expected = realized * remaining / average_period + spot * m1 * tau / average_period;

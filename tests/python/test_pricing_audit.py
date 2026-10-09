@@ -32,6 +32,40 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_arithmetic_asian_implied_volatility_rejects_locked_realized_payoffs(self):
+        start = date(2025, 1, 1)
+        end, valuation = start + timedelta(days=364), start + timedelta(days=182)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=100, valuation_time=valuation,
+        )
+        engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
+        for direction in ("call", "put"):
+            terms = dict(option_type=direction, strike=100, effective_date=start,
+                         averaging_start_date=start, expiry_date=end)
+            for realized in (100, 200, 220):
+                with self.subTest(direction=direction, realized=realized):
+                    option = ArithmeticAveragePriceOption(**terms, realized_average=realized)
+                    quote = engine.price(option, context)
+                    if realized < 200:
+                        self.assertAlmostEqual(implied_volatility(
+                            engine, option, context, quote, lower_bound=0.05, upper_bound=0.4,
+                        ), 0.2, delta=1e-6)
+                    else:
+                        for observed in (quote, quote + 1):
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                implied_volatility(engine, option, context, observed)
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+                        if direction == "put":
+                            self.assertEqual(quote, 0)
+            geometric = GeometricAveragePriceOption(**terms, realized_average=200)
+            geometric_engine = pricing.AnalyticGeometricAveragePriceEngine()
+            self.assertAlmostEqual(implied_volatility(
+                geometric_engine, geometric, context, geometric_engine.price(geometric, context),
+                lower_bound=0.05, upper_bound=0.4, price_tolerance=1e-30,
+            ), 0.2, delta=1e-6)
+
     def test_finite_difference_gamma_preserves_monetary_scaling(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         parameters = BlackScholesMertonParameters(

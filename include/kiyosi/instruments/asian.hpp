@@ -3,6 +3,7 @@
 #include <cmath>
 #include <utility>
 
+#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/instruments/option_terms.hpp>
 
 namespace kiyosi {
@@ -129,6 +130,18 @@ template <typename Averaging>
 using GeometricAveragePriceOption = AveragePriceOption<GeometricAveraging>;
 /// Average-price option using arithmetic averaging.
 using ArithmeticAveragePriceOption = AveragePriceOption<ArithmeticAveraging>;
+
+namespace detail {
+// Requires a validated valuation strictly before expiry.
+inline double arithmetic_average_adjusted_strike(const ArithmeticAveragePriceOption& option, Timestamp valuation)
+{
+    const double period = actual_365_fixed_year_fraction(option.averaging_start_date(), option.expiry_date());
+    const double remaining = actual_365_fixed_year_fraction(valuation, option.expiry_date());
+    const double elapsed = period - remaining;
+    return elapsed > 0.0 ? option.strike() + elapsed / remaining * (option.strike() - option.realized_average())
+                         : option.strike();
+}
+} // namespace detail
 
 /// Date arguments are ordered `effective_date`, `averaging_start_date`, `expiry_date`; valid terms satisfy
 /// `effective_date <= averaging_start_date <= expiry_date`.

@@ -164,6 +164,45 @@ TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging per
     CHECK(*expiry_price == 20.0);
 }
 
+TEST_CASE("Arithmetic Asian implied volatility rejects locked realized payoffs", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = start + std::chrono::days{364};
+    const auto valuation = start + std::chrono::days{182};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, valuation);
+    const TurnbullWakemanArithmeticAveragePriceEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double realized : {100.0, 200.0, 220.0}) {
+            CAPTURE(type, realized);
+            const auto option = *make_arithmetic_average_option(type, 100.0, start, start, end, realized);
+            const auto quote = engine.price(option, context);
+            REQUIRE(quote);
+            const auto implied = implied_volatility(engine, option, context, *quote,
+                                                     {.lower_bound = 0.05, .upper_bound = 0.4});
+            if (realized < 200.0) {
+                REQUIRE(implied);
+                CHECK_THAT(*implied, Catch::Matchers::WithinAbs(0.2, 1e-6));
+            } else {
+                REQUIRE_FALSE(implied);
+                CHECK(implied.error().category == ErrorCategory::unsupported_operation);
+                const auto mismatched = implied_volatility(engine, option, context, *quote + 1.0);
+                REQUIRE_FALSE(mismatched);
+                CHECK(mismatched.error().category == ErrorCategory::unsupported_operation);
+                if (type == OptionType::put) CHECK(*quote == 0.0);
+            }
+        }
+        const auto geometric = *make_geometric_average_option(type, 100.0, start, start, end, 200.0);
+        const AnalyticGeometricAveragePriceEngine geometric_engine;
+        const auto quote = geometric_engine.price(geometric, context);
+        REQUIRE(quote);
+        const auto implied = implied_volatility(geometric_engine, geometric, context, *quote,
+                                                 {.lower_bound = 0.05, .upper_bound = 0.4, .price_tolerance = 1e-30});
+        REQUIRE(implied);
+        CHECK_THAT(*implied, Catch::Matchers::WithinAbs(0.2, 1e-6));
+    }
+}
+
 TEST_CASE("A single arithmetic fixing at expiry has European time value")
 {
     const auto effective = kiyosi::Date{std::chrono::year{2025} / 1 / 1};
