@@ -101,7 +101,6 @@ Result<double> cuda_payoff_mean(const EuropeanOption& option,
                                : settings.path_count + 1;
     return detail::cuda_mean(detail::cuda_european_price({
         path_count,
-        settings.step_count,
         settings.seed ? *settings.seed : detail::random_seed(),
         parameters.spot,
         option.strike(),

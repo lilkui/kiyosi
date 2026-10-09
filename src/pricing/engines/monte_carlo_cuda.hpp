@@ -18,7 +18,6 @@ enum class CudaPricingStatus : unsigned char {
 
 struct CudaEuropeanRequest {
     int path_count;
-    int step_count;
     std::uint64_t seed;
     double spot;
     double strike;

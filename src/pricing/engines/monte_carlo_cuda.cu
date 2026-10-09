@@ -76,19 +76,15 @@ __global__ void simulate_payoff_pairs(CudaEuropeanRequest request, int pair_coun
 
     curandStatePhilox4_32_10_t generator;
     curand_init(request.seed, static_cast<unsigned long long>(pair), 0, &generator);
-    double positive_spot = request.spot;
-    double negative_spot = request.spot;
-    for (int step = 1; step < request.step_count; ++step) {
-        const double normal = curand_normal_double(&generator);
-        positive_spot *= exp(request.drift + request.diffusion * normal);
-        negative_spot *= exp(request.drift - request.diffusion * normal);
-        if (!isfinite(positive_spot) || positive_spot <= 0.0 ||
-            !isfinite(negative_spot) || negative_spot <= 0.0) {
-            atomicExch(invalid, 1);
-            payoffs[pair] = 0.0;
-            payoffs[pair + pair_count] = 0.0;
-            return;
-        }
+    const double normal = curand_normal_double(&generator);
+    const double positive_spot = request.spot * exp(request.drift + request.diffusion * normal);
+    const double negative_spot = request.spot * exp(request.drift - request.diffusion * normal);
+    if (!isfinite(positive_spot) || positive_spot <= 0.0 ||
+        !isfinite(negative_spot) || negative_spot <= 0.0) {
+        atomicExch(invalid, 1);
+        payoffs[pair] = 0.0;
+        payoffs[pair + pair_count] = 0.0;
+        return;
     }
     payoffs[pair] = payoff(request.payoff_sign, positive_spot, request.strike);
     payoffs[pair + pair_count] = payoff(request.payoff_sign, negative_spot, request.strike);
