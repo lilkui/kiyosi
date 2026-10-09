@@ -22,31 +22,27 @@ namespace detail {
 class AveragePriceOptionTerms {
 public:
     /// Returns the call-or-put direction.
-    OptionType option_type() const noexcept { return option_type_; }
+    OptionType option_type() const noexcept { return option_terms_.option_type(); }
     /// Returns the positive strike price.
-    double strike() const noexcept { return strike_; }
+    double strike() const noexcept { return option_terms_.strike(); }
     /// Returns the first date included in the average.
     Date averaging_start_date() const noexcept { return averaging_start_date_; }
     /// Returns the first date of the contract life.
-    Date effective_date() const noexcept { return effective_date_; }
+    Date effective_date() const noexcept { return option_terms_.effective_date(); }
     /// Returns the non-negative average realized before valuation.
     double realized_average() const noexcept { return realized_average_; }
     /// Returns the final date of the contract life and averaging window.
-    Date expiry_date() const noexcept { return expiry_date_; }
+    Date expiry_date() const noexcept { return option_terms_.expiry_date(); }
     /// Compares all average-price contract terms.
     friend bool operator==(const AveragePriceOptionTerms&, const AveragePriceOptionTerms&) = default;
 
 private:
-    AveragePriceOptionTerms(OptionType option_type, double strike, Date averaging_start_date, double realized_average,
-                            Date effective_date, Date expiry_date)
-        : option_type_(option_type), strike_(strike), averaging_start_date_(averaging_start_date),
-          realized_average_(realized_average), effective_date_(effective_date), expiry_date_(expiry_date) {}
-    OptionType option_type_;
-    double strike_;
+    AveragePriceOptionTerms(OptionTerms option_terms, Date averaging_start_date, double realized_average)
+        : option_terms_(std::move(option_terms)), averaging_start_date_(averaging_start_date),
+          realized_average_(realized_average) {}
+    OptionTerms option_terms_;
     Date averaging_start_date_;
     double realized_average_;
-    Date effective_date_;
-    Date expiry_date_;
     friend Result<AveragePriceOptionTerms> detail::make_asian_option_terms(
         OptionType, double, Date, double, Date, Date);
 };
@@ -55,20 +51,20 @@ private:
     OptionType option_type, double strike, Date averaging_start_date, double realized_average, Date effective_date,
     Date expiry_date)
 {
-    if (option_type != OptionType::call && option_type != OptionType::put)
-        return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
-    if (!std::isfinite(strike) || strike <= 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    auto option_terms = make_option_terms(option_type, strike, effective_date, expiry_date);
+    // Keep direction and strike errors before the realized average, and life errors after it.
+    if (!option_terms && (option_terms.error().category == ErrorCategory::invalid_option ||
+                          option_terms.error().category == ErrorCategory::invalid_strike))
+        return std::unexpected(option_terms.error());
     if (!std::isfinite(realized_average) || realized_average < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized average must be finite and non-negative"});
-    auto life = validate_instrument_life(effective_date, expiry_date);
-    if (!life) return std::unexpected(life.error());
+    if (!option_terms) return std::unexpected(option_terms.error());
     if (!is_supported_date(averaging_start_date))
         return std::unexpected(Error{ErrorCategory::invalid_date, "averaging start date is invalid"});
     if (averaging_start_date < effective_date || averaging_start_date > expiry_date)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "average dates are invalid"});
-    return AveragePriceOptionTerms{option_type, strike, averaging_start_date, realized_average, effective_date, expiry_date};
+    return AveragePriceOptionTerms{std::move(*option_terms), averaging_start_date, realized_average};
 }
 
 /// Averaging conventions; the tag selects the pricing engine overload.

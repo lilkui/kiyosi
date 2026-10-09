@@ -2,12 +2,35 @@ import math
 import unittest
 from datetime import date, timedelta
 
+import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import ArithmeticAveragePriceOption
+from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AsianRegressionTests(unittest.TestCase):
+    def test_asian_terms_preserve_validation_precedence(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for option_type in (GeometricAveragePriceOption, ArithmeticAveragePriceOption):
+            for strike, average, category in (
+                (0, -1, kiyosi.ErrorCategory.INVALID_STRIKE),
+                (100, -1, kiyosi.ErrorCategory.INVALID_PARAMETER),
+                (100, 0, kiyosi.ErrorCategory.INVALID_TIME_RANGE),
+            ):
+                with self.subTest(
+                    option_type=option_type, strike=strike, average=average
+                ):
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        option_type(
+                            option_type="call",
+                            strike=strike,
+                            realized_average=average,
+                            effective_date=end,
+                            averaging_start_date=start,
+                            expiry_date=start,
+                        )
+                    self.assertEqual(error.exception.category, category)
+
     def test_arithmetic_asians_retain_time_value_when_squared_volatility_underflows(
         self,
     ):

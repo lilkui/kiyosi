@@ -38,6 +38,25 @@ TEST_CASE("Asian option terms reject invalid averaging windows")
     CHECK(late_averaging.error().category == kiyosi::ErrorCategory::invalid_schedule);
 }
 
+TEST_CASE("Asian option terms preserve validation precedence")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto check = [&](OptionType type, double strike, double average, ErrorCategory expected) {
+        const auto geometric = make_geometric_average_option(type, strike, end, start, start, average);
+        const auto arithmetic = make_arithmetic_average_option(type, strike, end, start, start, average);
+        REQUIRE_FALSE(geometric);
+        REQUIRE_FALSE(arithmetic);
+        CHECK(geometric.error().category == expected);
+        CHECK(arithmetic.error().category == expected);
+    };
+    check(static_cast<OptionType>(99), 0.0, -1.0, ErrorCategory::invalid_option);
+    check(OptionType::call, 0.0, -1.0, ErrorCategory::invalid_strike);
+    check(OptionType::call, 100.0, -1.0, ErrorCategory::invalid_parameter);
+    check(OptionType::call, 100.0, 0.0, ErrorCategory::invalid_time_range);
+}
+
 TEST_CASE("Average option factories build distinct geometric and arithmetic variants")
 {
     static_assert(!std::is_same_v<kiyosi::GeometricAveragePriceOption, kiyosi::ArithmeticAveragePriceOption>);
