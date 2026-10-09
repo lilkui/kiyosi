@@ -104,13 +104,8 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const double variance_time = lead + future / 3.0;
     const double variance = sigma * sigma * weight * weight * variance_time;
     double log_forward_ratio = weight * (carry - 0.5 * sigma * sigma) * (lead + future / 2.0) + 0.5 * variance;
-    if (valuation > averaging_start) {
-        const double relative_realized = (realized - spot) / spot;
-        const double log_realized_ratio = std::abs(relative_realized) < 0.5
-                                              ? std::log1p(relative_realized)
-                                              : std::log(realized) - std::log(spot);
-        log_forward_ratio += (1.0 - weight) * log_realized_ratio;
-    }
+    if (valuation > averaging_start)
+        log_forward_ratio += (1.0 - weight) * log_price_ratio(realized, spot);
     const double deviation = sigma * weight * std::sqrt(variance_time);
     if (deviation < 1e-5) {
         const auto parameters = make_bsm_parameters(rate, rate - log_forward_ratio / tau, sigma);
@@ -122,10 +117,7 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
                                    sigma * weight * std::sqrt(variance_time / tau), GreeksRequest{});
     }
     const double value = [&] {
-        const double relative_spot = (spot - strike) / strike;
-        const double log_moneyness = std::abs(relative_spot) < 0.5
-                                        ? std::log1p(relative_spot)
-                                        : std::log(spot) - std::log(strike);
+        const double log_moneyness = log_price_ratio(spot, strike);
         const double d1 = (log_moneyness + log_forward_ratio + 0.5 * variance) / deviation;
         const double d2 = d1 - deviation;
         const double asset_value = sign * d1 < -10.0
