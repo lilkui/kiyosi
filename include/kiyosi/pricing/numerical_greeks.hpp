@@ -177,14 +177,17 @@ Result<PricingResult> complete_greeks(
         volatility - settings.volatility_shift < volatility &&
         std::isfinite(volatility + settings.volatility_shift) && std::isfinite(vol_scale);
     if (volatility_stencil_available &&
-        (need(Greek::vega) || need(Greek::vanna) || need(Greek::zomma))) {
+        (need(Greek::vega) || (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))))) {
         const double volatility_high = volatility + settings.volatility_shift;
         const double volatility_low = volatility - settings.volatility_shift;
-        const auto v_up = detail::shifted_value(
-            engine, option, context, spot, volatility_high, rate, valuation_time);
+        const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
+        const auto v_up = need_volatility_prices ? detail::shifted_value(
+                                                       engine, option, context, spot, volatility_high, rate, valuation_time)
+                                                 : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        const auto v_down = detail::shifted_value(
-            engine, option, context, spot, volatility_low, rate, valuation_time);
+        const auto v_down = need_volatility_prices ? detail::shifted_value(
+                                                         engine, option, context, spot, volatility_low, rate, valuation_time)
+                                                   : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
@@ -204,9 +207,11 @@ Result<PricingResult> complete_greeks(
             if (need(Greek::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                                             (4.0 * h * vol_scale);
 
-            const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;
-            const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / h / h;
-            if (need(Greek::zomma)) zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
+            if (need(Greek::zomma)) {
+                const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;
+                const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / h / h;
+                zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
+            }
         }
     }
 
@@ -280,12 +285,13 @@ Result<PricingResult> complete_greeks(
                     }
         }
         if (!spot_discontinuity && time_stencil_available && before != after) {
-            const auto t_before = before == valuation_time
+            const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color));
+            const auto t_before = !need_time_prices || before == valuation_time
                                       ? p0
                                       : detail::shifted_value(
                                             engine, option, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
-            const auto t_after = after == valuation_time
+            const auto t_after = !need_time_prices || after == valuation_time
                                      ? p0
                                      : detail::shifted_value(
                                            engine, option, context, spot, volatility, rate, after);

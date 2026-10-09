@@ -194,6 +194,35 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     CHECK(greek_value(*full, Greek::rho) == 0.0);
 }
 
+TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    for (const auto mixed : {Greek::vanna, Greek::charm}) {
+        CAPTURE(mixed);
+        const auto first = mixed == Greek::vanna ? Greek::vega : Greek::theta;
+        const auto second = mixed == Greek::vanna ? Greek::zomma : Greek::color;
+        for (const auto extra : {std::optional<Greek>{}, std::optional{first}, std::optional{second}}) {
+            CAPTURE(extra);
+            std::vector<PricingContext> calls;
+            const RecordingPriceEngine engine{&calls};
+            const GreeksRequest request = extra ? GreeksRequest{mixed, *extra} : GreeksRequest{mixed};
+            const auto result = detail::price_with_greeks(engine, option, market(), request, {});
+            REQUIRE(result);
+            CHECK(greek_value(*result, mixed) == 0.0);
+            REQUIRE(calls.size() == (extra ? 7 : 5));
+            if (!extra)
+                for (std::size_t index = 1; index < calls.size(); ++index)
+                    CHECK(calls[index].spot_price() != 100.0);
+
+            calls.clear();
+            const auto boundary = detail::price_with_greeks(engine, option, market(0.005), request, {});
+            REQUIRE(boundary);
+            CHECK_FALSE(boundary->has(mixed));
+            CHECK(calls.size() == (extra == first ? 3 : 1));
+        }
+    }
+}
+
 TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
