@@ -26,6 +26,10 @@ auto* register_price(const char* name, Option option, Engine engine, PricingCont
             state.counters["price"] = *warmup;
             for (auto _ : state) {
                 auto result = engine.price(option, context);
+                if (!result) {
+                    state.SkipWithError(result.error().message.c_str());
+                    break;
+                }
                 benchmark::DoNotOptimize(result);
             }
         });
