@@ -155,10 +155,13 @@ template <typename Engine, typename Option>
         const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&
                                      context.calendar().is_trading_day(context.valuation_date()) &&
                                      context.spot_price() >= option.knock_out_level();
-        identifiable = identifiable && !knocked_out_now &&
-                       (option.accumulated_quantity() != 0.0 ||
-                        (option.daily_quantity() != 0.0 &&
-                         (option.acceleration_factor() != 0.0 || option.knock_out_level() > option.strike())));
+        const bool accrues = option.daily_quantity() != 0.0 &&
+                             (option.acceleration_factor() != 0.0 || option.knock_out_level() > option.strike());
+        // With zero rates and no new accrual, stopping an accumulated forward preserves its expectation.
+        const bool exposed_quantity = option.accumulated_quantity() != 0.0 &&
+                                      (context.model_parameters().risk_free_rate() != 0.0 ||
+                                       context.model_parameters().dividend_yield() != 0.0);
+        identifiable = identifiable && !knocked_out_now && (accrues || exposed_quantity);
     }
     if constexpr (requires { option.barrier_terms(); }) {
         const auto& terms = option.barrier_terms();

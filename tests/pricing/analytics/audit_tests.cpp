@@ -339,9 +339,44 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.05), 80.0, start);
                 const auto option = *make_accumulator(
                     {.strike = 100.0, .knock_out_level = knock_out, .daily_quantity = 1.0, .acceleration_factor = acceleration, .accumulated_quantity = quantity, .effective_date = start, .expiry_date = end});
-                const bool exposed = quantity != 0.0 || acceleration != 0.0 || knock_out > 100.0;
+                const bool exposed = acceleration != 0.0 || knock_out > 100.0;
                 check(MonteCarloAccumulatorEngine{{64, 73}}, option, context, exposed);
                 check(FiniteDifferenceAccumulatorEngine{}, option, context, exposed);
+            }
+        }
+    }
+}
+
+TEST_CASE("Implied volatility rejects volatility independent accumulated forwards", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const double rate : {0.0, 0.04}) {
+        for (const double dividend : {0.0, 0.02}) {
+            for (const double daily : {0.0, 1.0}) {
+                const auto option = *make_accumulator(
+                    {.strike = 90.0, .knock_out_level = 120.0, .daily_quantity = daily,
+                     .acceleration_factor = 1.0, .accumulated_quantity = 1.0,
+                     .effective_date = start, .expiry_date = end});
+                for (const double lower : {0.05, 0.1}) {
+                    CAPTURE(rate, dividend, daily, lower);
+                    const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, lower), 100.0, start, all_days_calendar());
+                    const auto check = [&](const auto& engine) {
+                        const auto quote = engine.price(option, context);
+                        REQUIRE(quote);
+                        const auto result = implied_volatility(engine, option, context, *quote,
+                            ImpliedVolatilitySettings{.lower_bound = lower, .upper_bound = 0.4});
+                        if (daily != 0.0 || rate != 0.0 || dividend != 0.0) {
+                            REQUIRE(result);
+                            CHECK(*result == lower);
+                        } else {
+                            REQUIRE_FALSE(result);
+                            CHECK(result.error().category == ErrorCategory::unsupported_operation);
+                        }
+                    };
+                    check(FiniteDifferenceAccumulatorEngine{{400, 400}});
+                    check(MonteCarloAccumulatorEngine{{64, 42}});
+                }
             }
         }
     }

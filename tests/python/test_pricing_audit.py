@@ -28,6 +28,37 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_implied_volatility_rejects_volatility_independent_accumulated_forwards(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for rate in (0, 0.04):
+            for dividend in (0, 0.02):
+                for daily in (0, 1):
+                    option = Accumulator(
+                        strike=90, knock_out_level=120, daily_quantity=daily,
+                        acceleration_factor=1, accumulated_quantity=1,
+                        effective_date=start, expiry_date=end,
+                    )
+                    for lower in (0.05, 0.1):
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=rate, dividend_yield=dividend, volatility=lower,
+                            ), spot_price=100, valuation_time=start, calendar=all_days_calendar(),
+                        )
+                        for engine in (
+                            pricing.FiniteDifferenceAccumulatorEngine(asset_step_count=400, time_step_count=400),
+                            pricing.MonteCarloAccumulatorEngine(path_count=64, seed=42),
+                        ):
+                            with self.subTest(rate=rate, dividend=dividend, daily=daily, lower=lower, engine=type(engine).__name__):
+                                quote = engine.price(option, context)
+                                if daily or rate or dividend:
+                                    self.assertEqual(implied_volatility(
+                                        engine, option, context, quote, lower_bound=lower, upper_bound=0.4,
+                                    ), lower)
+                                else:
+                                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                                        implied_volatility(engine, option, context, quote, lower_bound=lower, upper_bound=0.4)
+                                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
     def test_american_monte_carlo_exercises_with_rank_deficient_continuation_samples(self):
         start = date(2025, 1, 1)
         option = AmericanOption(
@@ -951,5 +982,5 @@ class PricingAuditTests(unittest.TestCase):
                                 engine,
                                 option,
                                 context,
-                                quantity != 0 or acceleration != 0 or knock_out > 100,
+                                acceleration != 0 or knock_out > 100,
                             )
