@@ -1,4 +1,5 @@
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/digital/analytic.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -39,17 +40,21 @@ BinaryBarrierContractView make_contract_view(const TouchOption& option)
             cash ? cash->payout() : option.barrier_level(), asset, option.settlement_timing()};
 }
 
-double vanilla_digital(const BinaryBarrierContractView& option, const PricingContext& context, double time)
+Result<PricingResult> vanilla_digital(const BinaryBarrierContractView& option, const PricingContext& context, double time)
 {
-    const double spot = context.spot_price(), rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
-    if (!option.option_type) return option.asset_settlement ? spot * std::exp(-dividend * time) : option.payout * std::exp(-rate * time);
-    const double sign = *option.option_type == OptionType::call ? 1.0 : -1.0;
-    const double volatility_time = volatility * std::sqrt(time);
-    const double d1 = (std::log(spot) - std::log(option.strike) + (rate - dividend + .5 * volatility * volatility) * time) / volatility_time;
-    const double d2 = d1 - volatility_time;
-    return option.asset_settlement ? spot * std::exp(-dividend * time) * normal_cdf(sign * d1)
-                                   : option.payout * std::exp(-rate * time) * normal_cdf(sign * d2);
+    if (!option.option_type)
+        return make_pricing_result(option.asset_settlement
+            ? context.spot_price() * std::exp(-context.model_parameters().dividend_yield() * time)
+            : option.payout * std::exp(-context.model_parameters().risk_free_rate() * time));
+    const auto& terms = *option.barrier_terms;
+    const AnalyticDigitalEngine engine;
+    const auto price = option.asset_settlement
+        ? engine.price(*make_asset_or_nothing_option(*option.option_type, option.strike,
+                                                    terms.effective_date(), terms.expiry_date()), context)
+        : engine.price(*make_cash_or_nothing_option(*option.option_type, option.strike, option.payout,
+                                                   terms.effective_date(), terms.expiry_date()), context);
+    if (!price) return std::unexpected(price.error());
+    return make_pricing_result(*price);
 }
 
 double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool touched)
@@ -85,10 +90,10 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
         if (!knock_in) return make_pricing_result(0.0);
         if (option.settlement_timing == SettlementTiming::at_hit)
             return make_pricing_result(option.asset_settlement ? spot : option.payout);
-        return make_pricing_result(vanilla_digital(option, context, time));
+        return vanilla_digital(option, context, time);
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
-        return make_pricing_result(knock_in ? 0.0 : vanilla_digital(option, context, time));
+        return knock_in ? make_pricing_result(0.0) : vanilla_digital(option, context, time);
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier_level();

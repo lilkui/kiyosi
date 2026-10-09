@@ -93,6 +93,56 @@ TEST_CASE("Binary barriers expose observation intervals")
                Catch::Matchers::WithinAbs(180.0 / 365.0 / 2.0, 1e-12));
 }
 
+TEST_CASE("Settled binary barriers preserve extreme digital prices", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto effective = day(2024, 12, 31);
+    const auto valuation = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const AnalyticBinaryBarrierEngine engine;
+    const AnalyticDigitalEngine digital;
+    for (const double volatility : {1e155, 0.5}) {
+        const bool extreme_volatility = volatility > 1.0;
+        const double spot = extreme_volatility ? 100.0 : 1.0;
+        const double strike = extreme_volatility ? 100.0 : 1e9;
+        const double payout = extreme_volatility ? 1.0 : 1e305;
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, volatility), spot, valuation);
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            for (const bool asset : {false, true}) {
+                const auto reference = asset
+                    ? digital.price(*make_asset_or_nothing_option(type, strike, effective, expiry), context)
+                    : digital.price(*make_cash_or_nothing_option(type, strike, payout, effective, expiry), context);
+                REQUIRE(reference);
+                if (extreme_volatility)
+                    CHECK(*reference == (asset ? (type == OptionType::call ? spot : 0.0)
+                                                : (type == OptionType::call ? 0.0 : payout)));
+                else if (!asset && type == OptionType::call)
+                    CHECK_THAT(*reference, Catch::Matchers::WithinRel(2.8067512790206434e-75, 1e-12));
+                for (const bool touched : {false, true}) {
+                    CAPTURE(volatility, type, asset, touched);
+                    const BinaryBarrierTerms terms{
+                        .option_type = type, .strike = strike,
+                        .effective_date = effective, .expiry_date = expiry,
+                        .barrier_level = spot / 2.0,
+                        .barrier_type = touched ? BarrierType::down_and_in : BarrierType::down_and_out,
+                        .observation_mode = ObservationMode::scheduled,
+                        .observation_dates = {effective},
+                        .touch_state = touched ? BarrierTouchState::touched : BarrierTouchState::untouched};
+                    const auto option = asset ? make_asset_binary_barrier_option(terms)
+                                              : make_cash_binary_barrier_option(terms, payout);
+                    REQUIRE(option);
+                    const auto price = engine.price(*option, context);
+                    const auto result = engine.price_with_greeks(*option, context, {Greek::delta});
+                    REQUIRE(price);
+                    REQUIRE(result);
+                    CHECK(*price == *reference);
+                    CHECK(result->price() == *reference);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Touch factories require only payoff-relevant terms")
 {
     const auto effective_date = day(2025, 1, 6);

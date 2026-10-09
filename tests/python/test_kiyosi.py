@@ -3883,6 +3883,76 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertEqual(engine.price(known, at_expiry), 10)
 
+    def test_settled_binary_barriers_preserve_extreme_digital_prices(self):
+        effective, valuation, expiry = (
+            date(2024, 12, 31),
+            date(2025, 1, 1),
+            date(2026, 1, 1),
+        )
+        engine, digital = AnalyticBinaryBarrierEngine(), AnalyticDigitalEngine()
+        for volatility in (1e155, 0.5):
+            extreme_volatility = volatility > 1
+            spot = 100 if extreme_volatility else 1
+            strike = 100 if extreme_volatility else 1e9
+            payout = 1 if extreme_volatility else 1e305
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=volatility
+                ),
+                spot_price=spot,
+                valuation_time=valuation,
+            )
+            for direction in ("call", "put"):
+                for asset in (False, True):
+                    terms = dict(
+                        option_type=direction,
+                        strike=strike,
+                        effective_date=effective,
+                        expiry_date=expiry,
+                    )
+                    option = (
+                        AssetOrNothingOption(**terms)
+                        if asset
+                        else CashOrNothingOption(**terms, payout=payout)
+                    )
+                    reference = digital.price(option, context)
+                    if extreme_volatility:
+                        expected = (
+                            (spot if direction == "call" else 0)
+                            if asset
+                            else (0 if direction == "call" else payout)
+                        )
+                        self.assertEqual(reference, expected)
+                    elif not asset and direction == "call":
+                        self.assertTrue(
+                            math.isclose(reference, 2.8067512790206434e-75, rel_tol=1e-12)
+                        )
+                    for touched in (False, True):
+                        with self.subTest(
+                            volatility=volatility,
+                            direction=direction,
+                            asset=asset,
+                            touched=touched,
+                        ):
+                            barrier_terms = dict(
+                                **terms,
+                                barrier_level=spot / 2,
+                                barrier_type="down_and_in" if touched else "down_and_out",
+                                observation_mode="scheduled",
+                                observation_dates=[effective],
+                                touch_state="touched" if touched else "untouched",
+                            )
+                            barrier = (
+                                asset_binary_barrier_option(**barrier_terms)
+                                if asset
+                                else cash_binary_barrier_option(**barrier_terms, payout=payout)
+                            )
+                            self.assertEqual(engine.price(barrier, context), reference)
+                            self.assertEqual(
+                                engine.price_with_greeks(barrier, context, ["delta"]).price,
+                                reference,
+                            )
+
     def test_digital_barrier_schedule_and_analytics(self):
         digital = CashOrNothingOption(
             option_type="call",
