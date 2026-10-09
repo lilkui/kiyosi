@@ -7,6 +7,9 @@
 namespace kiyosi {
 
 /// Closed-form Rubinstein-Reiner binary barrier and touch valuation.
+/// Scheduled monitoring uses a BGK barrier shift. Untouched contracts with future observations
+/// require a final observation at expiry; shorter windows return unsupported_operation.
+/// Resolved settlements remain supported.
 class KIYOSI_EXPORT AnalyticBinaryBarrierEngine {
 public:
     /// Prices a strike-based binary barrier option.

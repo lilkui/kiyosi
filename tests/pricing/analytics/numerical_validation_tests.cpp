@@ -461,7 +461,7 @@ TEST_CASE("Scheduled binary barriers validate calendars and use the stored BGK i
 {
     const auto short_schedule_checked = kiyosi::make_cash_no_touch_down(
         valuation, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
-        {valuation + std::chrono::days{30}, valuation + std::chrono::days{60}});
+        {valuation + std::chrono::days{30}, valuation + std::chrono::days{60}, expiry_date});
     REQUIRE(short_schedule_checked);
     const auto& short_schedule = *short_schedule_checked;
     const auto long_schedule_checked = kiyosi::make_cash_no_touch_down(

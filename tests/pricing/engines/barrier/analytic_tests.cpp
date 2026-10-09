@@ -278,6 +278,13 @@ TEST_CASE("Scheduled barriers settle exactly at and after their final fixing", "
                     const auto option = *kiyosi::make_barrier_option(
                         {.option_type = kiyosi::OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = kind, .rebate = rebate, .observation_mode = kiyosi::ObservationMode::scheduled, .observation_dates = {fixing}, .touch_state = kiyosi::BarrierTouchState::untouched});
                     const auto price = engine.price(option, context);
+                    if constexpr (std::same_as<std::remove_cvref_t<decltype(engine)>, kiyosi::AnalyticBarrierEngine>) {
+                        if (valuation == effective) {
+                            REQUIRE_FALSE(price);
+                            CHECK(price.error().category == kiyosi::ErrorCategory::unsupported_operation);
+                            continue;
+                        }
+                    }
                     REQUIRE(price);
                     if (valuation == effective) {
                         CHECK(*price > 0.0);

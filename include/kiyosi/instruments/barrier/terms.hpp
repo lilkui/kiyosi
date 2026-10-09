@@ -213,4 +213,15 @@ private:
                         touch_state};
 }
 
+namespace detail {
+// Analytic formulas monitor through expiry; callers resolve touched and completed states first.
+[[nodiscard]] inline Result<void> validate_analytic_barrier_monitoring_window(const BarrierTerms& terms)
+{
+    if (!terms.is_continuous() && terms.observation_dates().back() != terms.expiry_date())
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "analytic barrier monitoring must end at expiry"});
+    return {};
+}
+} // namespace detail
+
 } // namespace kiyosi

@@ -72,6 +72,8 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     if (!vanilla) return std::unexpected(vanilla.error());
     if (touched || monitoring_finished)
         return make_pricing_result(vanilla->price());
+    const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
+    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));

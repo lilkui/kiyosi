@@ -13,6 +13,33 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic barriers reject incomplete future monitoring windows", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto fixing = day(2025, 1, 2);
+    const auto end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start);
+    const auto barrier = *make_barrier_option(
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
+         .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out,
+         .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}});
+    const auto binary = *make_cash_binary_barrier_option(
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
+         .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_in,
+         .observation_mode = ObservationMode::scheduled, .observation_dates = {fixing}}, 1.0);
+    const auto touch = *make_cash_one_touch_up(start, end, 110.0, 1.0,
+        SettlementTiming::at_expiry, ObservationMode::scheduled, {fixing});
+    for (const auto result : {AnalyticBarrierEngine{}.price(barrier, context),
+                              AnalyticBinaryBarrierEngine{}.price(binary, context),
+                              AnalyticBinaryBarrierEngine{}.price(touch, context)}) {
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::unsupported_operation);
+    }
+    const auto exact = FiniteDifferenceBarrierEngine{}.price(barrier, context);
+    REQUIRE(exact);
+    CHECK(*exact == Catch::Approx(7.965567455405804).margin(0.02));
+}
+
 TEST_CASE("Arithmetic Asians retain small moment variance across averaging windows", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

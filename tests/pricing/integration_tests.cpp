@@ -162,7 +162,7 @@ TEST_CASE("Scheduled barrier contracts price analytically")
                                                         .rebate = 0.0,
                                                         .rebate_timing = kiyosi::RebateTiming::at_expiry,
                                                         .observation_mode = kiyosi::ObservationMode::scheduled,
-                                                        .observation_dates = {valuation + std::chrono::days{30}}});
+                                                        .observation_dates = {valuation + std::chrono::days{30}, expiry_date}});
     REQUIRE(scheduled.has_value());
     CHECK(kiyosi::AnalyticBarrierEngine{}.price(*scheduled, context).has_value());
 }

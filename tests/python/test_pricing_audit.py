@@ -16,6 +16,8 @@ from kiyosi.instruments import (
     GeometricAveragePriceOption,
     PhoenixOption,
     SnowballOption,
+    cash_binary_barrier_option,
+    cash_one_touch_up,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -26,6 +28,37 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_analytic_barriers_reject_incomplete_future_monitoring_windows(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2,
+            ), spot_price=100, valuation_time=start,
+        )
+        terms = dict(
+            effective_date=start, expiry_date=end, barrier_level=110,
+            observation_mode="scheduled", observation_dates=[fixing],
+        )
+        barrier = BarrierOption(
+            **terms, option_type="call", strike=100, barrier_type="up_and_out",
+        )
+        binary = cash_binary_barrier_option(
+            **terms, option_type="call", strike=100, barrier_type="up_and_in", payout=1,
+        )
+        touch = cash_one_touch_up(**terms, payout=1, settlement_timing="at_expiry")
+        for engine, option in (
+            (pricing.AnalyticBarrierEngine(), barrier),
+            (pricing.AnalyticBinaryBarrierEngine(), binary),
+            (pricing.AnalyticBinaryBarrierEngine(), touch),
+        ):
+            with self.subTest(option=type(option).__name__), self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price(option, context)
+            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+        self.assertAlmostEqual(
+            pricing.FiniteDifferenceBarrierEngine().price(barrier, context),
+            7.965567455405804, delta=0.02,
+        )
+
     def test_arithmetic_asians_retain_small_moment_variance_across_averaging_windows(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()

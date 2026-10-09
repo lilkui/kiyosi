@@ -94,6 +94,8 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
         return knock_in ? make_pricing_result(0.0) : vanilla_digital(option, context, time);
+    const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
+    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier_level();

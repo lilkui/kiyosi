@@ -62,6 +62,11 @@ Returns
 float
     Instrument price. No Greeks are calculated.
 
+Analytic barrier and binary-barrier engines approximate scheduled monitoring
+with a BGK barrier shift. Untouched contracts with future observations require
+a final observation at expiry; shorter monitoring windows raise KiyosiError
+with category UNSUPPORTED_OPERATION. Resolved settlements remain supported.
+
 Raises
 ------
 KiyosiError
