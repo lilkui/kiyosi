@@ -994,22 +994,34 @@ class KiyosiPythonTests(unittest.TestCase):
                                 else 0.15865525393145705
                             )
                             expected = (
-                                spot * volatility * (density + sign * forward * probability)
+                                spot
+                                * volatility
+                                * (density + sign * forward * probability)
                             )
                             price = engine.price(option, context)
                             result = engine.price_with_greeks(
                                 option, context, ["delta", "gamma", "vega"]
                             )
-                            self.assertTrue(math.isclose(price, expected, rel_tol=2e-11))
+                            self.assertTrue(
+                                math.isclose(price, expected, rel_tol=2e-11)
+                            )
                             self.assertEqual(result.price, price)
                             self.assertTrue(
-                                math.isclose(result.delta, sign * probability, rel_tol=2e-11)
+                                math.isclose(
+                                    result.delta, sign * probability, rel_tol=2e-11
+                                )
                             )
                             self.assertTrue(
-                                math.isclose(result.gamma, density / spot / volatility, rel_tol=2e-11)
+                                math.isclose(
+                                    result.gamma,
+                                    density / spot / volatility,
+                                    rel_tol=2e-11,
+                                )
                             )
                             self.assertTrue(
-                                math.isclose(result.vega, spot * density / 100, rel_tol=2e-11)
+                                math.isclose(
+                                    result.vega, spot * density / 100, rel_tol=2e-11
+                                )
                             )
 
     def test_analytic_preserves_prices_when_volatility_time_underflows(self):
@@ -1037,15 +1049,23 @@ class KiyosiPythonTests(unittest.TestCase):
                     option, context, ["delta", "gamma", "vega"]
                 )
                 self.assertTrue(
-                    math.isclose(price, spot * volatility * root_time * density, rel_tol=2e-12)
+                    math.isclose(
+                        price, spot * volatility * root_time * density, rel_tol=2e-12
+                    )
                 )
                 self.assertEqual(result.price, price)
                 self.assertEqual(result.delta, 0.5 if direction == "call" else -0.5)
                 self.assertTrue(
-                    math.isclose(result.gamma, density / spot / volatility / root_time, rel_tol=2e-12)
+                    math.isclose(
+                        result.gamma,
+                        density / spot / volatility / root_time,
+                        rel_tol=2e-12,
+                    )
                 )
                 self.assertTrue(
-                    math.isclose(result.vega, spot * density * root_time / 100, rel_tol=2e-12)
+                    math.isclose(
+                        result.vega, spot * density * root_time / 100, rel_tol=2e-12
+                    )
                 )
 
     def test_analytic_low_volatility_and_default_implied_volatility(self):
@@ -3904,12 +3924,12 @@ class KiyosiPythonTests(unittest.TestCase):
             )
             for direction in ("call", "put"):
                 for asset in (False, True):
-                    terms = dict(
-                        option_type=direction,
-                        strike=strike,
-                        effective_date=effective,
-                        expiry_date=expiry,
-                    )
+                    terms = {
+                        "option_type": direction,
+                        "strike": strike,
+                        "effective_date": effective,
+                        "expiry_date": expiry,
+                    }
                     option = (
                         AssetOrNothingOption(**terms)
                         if asset
@@ -3925,7 +3945,9 @@ class KiyosiPythonTests(unittest.TestCase):
                         self.assertEqual(reference, expected)
                     elif not asset and direction == "call":
                         self.assertTrue(
-                            math.isclose(reference, 2.8067512790206434e-75, rel_tol=1e-12)
+                            math.isclose(
+                                reference, 2.8067512790206434e-75, rel_tol=1e-12
+                            )
                         )
                     for touched in (False, True):
                         with self.subTest(
@@ -3937,7 +3959,9 @@ class KiyosiPythonTests(unittest.TestCase):
                             barrier_terms = dict(
                                 **terms,
                                 barrier_level=spot / 2,
-                                barrier_type="down_and_in" if touched else "down_and_out",
+                                barrier_type="down_and_in"
+                                if touched
+                                else "down_and_out",
                                 observation_mode="scheduled",
                                 observation_dates=[effective],
                                 touch_state="touched" if touched else "untouched",
@@ -3945,11 +3969,15 @@ class KiyosiPythonTests(unittest.TestCase):
                             barrier = (
                                 asset_binary_barrier_option(**barrier_terms)
                                 if asset
-                                else cash_binary_barrier_option(**barrier_terms, payout=payout)
+                                else cash_binary_barrier_option(
+                                    **barrier_terms, payout=payout
+                                )
                             )
                             self.assertEqual(engine.price(barrier, context), reference)
                             self.assertEqual(
-                                engine.price_with_greeks(barrier, context, ["delta"]).price,
+                                engine.price_with_greeks(
+                                    barrier, context, ["delta"]
+                                ).price,
                                 reference,
                             )
 
