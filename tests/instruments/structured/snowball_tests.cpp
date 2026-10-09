@@ -423,6 +423,14 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
     const auto premature = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(effective));
     REQUIRE_FALSE(premature);
     CHECK(premature.error().category == kiyosi::ErrorCategory::invalid_option);
+    const auto at_first = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(first));
+    REQUIRE_FALSE(at_first);
+    CHECK(at_first.error().category == kiyosi::ErrorCategory::invalid_option);
+    const auto after_first = *kiyosi::make_pricing_context(
+        market(first).model_parameters(), 100.0, kiyosi::start_of_day(first) + std::chrono::microseconds{1});
+    const auto settled_first = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), after_first);
+    REQUIRE(settled_first);
+    CHECK(*settled_first == 0.0);
     const auto settled = mc.price(note(kiyosi::AutocallableBarrierState::knocked_out), market(day(2025, 1, 3)));
     REQUIRE(settled);
     CHECK(*settled == 0.0);

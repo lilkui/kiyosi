@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -113,7 +112,7 @@ private:
                             KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                             double principal_ratio, Date effective_date, Date expiry_date)
         : AutocallableNote(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
-                std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
+                           std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}
 
     double knock_in_level_;
@@ -199,9 +198,8 @@ template <typename Note>
     const Note& note, const PricingContext& context)
 {
     const Timestamp valuation = context.valuation_time();
-    const bool had_knock_out_observation = std::any_of(
-        note.observation_dates().begin(), note.observation_dates().end(),
-        [&](Date date) { return start_of_day(date) < valuation; });
+    const bool had_knock_out_observation = !note.observation_dates().empty() &&
+                                           start_of_day(note.observation_dates().front()) < valuation;
     bool had_knock_in_observation = false; // NOLINT(misc-const-correctness): mutable for notes with daily monitoring.
     if constexpr (requires { note.knock_in_observation_mode(); })
         if (note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day)

@@ -52,6 +52,10 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
 
     const auto before_first_observation = kiyosi::start_of_day(effective_date + std::chrono::days{15});
     CHECK(scheduled.barrier_terms().was_touched_before(before_first_observation) == kiyosi::Result<bool>{false});
+    CHECK(scheduled.barrier_terms().was_touched_before(fixing) == kiyosi::Result<bool>{false});
+    const auto missing_history = scheduled.barrier_terms().was_touched_before(fixing + std::chrono::microseconds{1});
+    REQUIRE_FALSE(missing_history);
+    CHECK(missing_history.error().category == kiyosi::ErrorCategory::invalid_parameter);
     const auto impossible = *kiyosi::make_cash_no_touch_down(
         effective_date, expiry_date, 90.0, 10.0, kiyosi::ObservationMode::scheduled,
         observation_dates, kiyosi::BarrierTouchState::touched);

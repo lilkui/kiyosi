@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -96,8 +95,7 @@ public:
                                          "scheduled barriers require observation dates"});
         const bool had_observation = is_continuous()
                                          ? valuation_time > start_of_day(effective_date_)
-                                         : std::any_of(observation_dates_.dates().begin(), observation_dates_.dates().end(),
-                                                       [&](Date date) { return start_of_day(date) < valuation_time; });
+                                         : start_of_day(observation_dates_[0]) < valuation_time;
         if (!had_observation && touch_state_ == BarrierTouchState::touched)
             return std::unexpected(Error{ErrorCategory::invalid_option,
                                          "barrier cannot have been touched before monitoring began"});
