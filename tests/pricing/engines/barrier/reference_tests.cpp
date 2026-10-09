@@ -138,18 +138,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
             // Three nested spot shifts are used by speed; keep every stencil in the same hit state.
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
             const auto numerical = kiyosi::calculate_numerical_greeks(engine, *option, *context, shifts);
-            REQUIRE(numerical.has_value());
-            CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
-                                               fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
-            for (const auto& [name, measure] : measures) {
-                INFO("measure=" << name);
-                REQUIRE(fixture.outputs.contains(name));
-                REQUIRE(numerical->has(measure));
-                CHECK_THAT(*numerical->require(measure),
-                           Catch::Matchers::WithinAbs(fixture.outputs.at(name),
-                                                      number("numerical_tolerance_" + name) +
-                                                          number("uncertainty_" + name)));
-            }
+            kiyosi::test::check_numerical_result(fixture, numerical);
         };
         if (fixture.engine == "AnalyticBarrierEngine") check(kiyosi::AnalyticBarrierEngine{});
         else {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <cmath>
 #include <filesystem>
@@ -54,6 +55,22 @@ void check_price(const ReferenceCase& fixture, const PriceResult& priced)
     CAPTURE(value);
     CHECK(std::abs(value - fixture.outputs.at("price")) <=
           fixture.tolerances.at("price"));
+}
+
+inline void check_numerical_result(const ReferenceCase& fixture, const kiyosi::Result<kiyosi::PricingResult>& priced)
+{
+    REQUIRE(priced.has_value());
+    CHECK_THAT(priced->price(), Catch::Matchers::WithinAbs(
+                                   fixture.outputs.at("price"), fixture_number(fixture, "numerical_tolerance_price") + fixture_number(fixture, "uncertainty_price")));
+    for (const auto& [name, measure] : measures) {
+        INFO("measure=" << name);
+        REQUIRE(fixture.outputs.contains(name));
+        REQUIRE(priced->has(measure));
+        CHECK_THAT(*priced->require(measure),
+                   Catch::Matchers::WithinAbs(fixture.outputs.at(name),
+                                              fixture_number(fixture, "numerical_tolerance_" + name) +
+                                                  fixture_number(fixture, "uncertainty_" + name)));
+    }
 }
 
 // NOLINTNEXTLINE(bugprone-throwing-static-initialization): test fixture lookup.

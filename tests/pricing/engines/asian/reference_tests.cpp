@@ -104,17 +104,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
                 kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
                                                number("rate_shift"),
                                                static_cast<int>(number("time_shift_days"))});
-            REQUIRE(numerical.has_value());
-            CHECK_THAT(numerical->price(), Catch::Matchers::WithinAbs(
-                                               fixture.outputs.at("price"), number("numerical_tolerance_price") + number("uncertainty_price")));
-            for (const auto& [name, measure] : measures) {
-                INFO("measure=" << name);
-                REQUIRE(numerical->has(measure));
-                CHECK_THAT(*numerical->require(measure),
-                           Catch::Matchers::WithinAbs(fixture.outputs.at(name),
-                                                      number("numerical_tolerance_" + name) +
-                                                          number("uncertainty_" + name)));
-            }
+            kiyosi::test::check_numerical_result(fixture, numerical);
         };
         if (geometric) {
             REQUIRE(fixture.engine == "AnalyticGeometricAveragePriceEngine");
