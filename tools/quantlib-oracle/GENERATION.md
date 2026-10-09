@@ -9,6 +9,8 @@ uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/che
 
 QuantLib 1.43 is pinned in the existing uv environment. Generation computes each contract reference once, then attaches the target engine settings, native and numerical error budgets, and wrapper coverage selection. All rows remain in `tests/fixtures/pricing_reference.tsv`; the C++ tests consume it without Python or QuantLib.
 
+CI runs the generation checks on Windows, where regeneration reproduces the committed fixture bytes, and requires them before publishing. Other platforms can produce different floating-point encodings and fail the exact-byte comparison.
+
 `oracle.py` provides shared QuantLib calculations and fixture encoding. Product modules supply contract construction, stencil settings and unavailable-measure declarations explicitly. QuantLib references use `WeekendsOnly`; Kiyosi validation uses `weekdays_calendar`. Contract dates are not rolled. Each row records `calendar=weekends_only`. `generate.py` assembles and validates the manifest, then replaces it atomically. None of these modules uses Kiyosi prices or production defaults to calculate reference values.
 
 The seven TSV columns are `case_id`, `instrument`, `engine`, `variant`, `inputs`, `outputs`, and `tolerances`. `engine` names the tested engine; `source_symbol` identifies the QuantLib reference engine. Monte Carlo seed, paths, and steps are recorded once in `inputs`; the price comparison budget is in `tolerances`. These describe the tested engine, not a statistical reference estimator.

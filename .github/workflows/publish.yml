@@ -14,6 +14,7 @@ on:
       - python/**
       - tests/**
       - tools/generate_sse_calendar.py
+      - tools/quantlib-oracle/**
   workflow_dispatch:
   release:
     types: [published]
@@ -22,6 +23,20 @@ permissions:
   contents: read
 
 jobs:
+  test-oracle:
+    name: Check QuantLib reference generation
+    # Use Windows to reproduce the committed reference bytes.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv
+      - run: uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/check_generation.py
+
   test-core:
     name: Test C++ core on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
@@ -152,7 +167,7 @@ jobs:
   publish:
     name: Publish distributions to PyPI
     if: github.event_name == 'release'
-    needs: [build, test-cpu, test-core, test-gpu]
+    needs: [build, test-cpu, test-core, test-gpu, test-oracle]
     runs-on: ubuntu-24.04
     environment:
       name: pypi
