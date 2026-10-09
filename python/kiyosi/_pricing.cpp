@@ -395,39 +395,21 @@ KiyosiError
     If inputs are invalid, the target is not bracketed, or the solver fails.)doc");
 }
 
-template <typename Engine, typename Instrument>
-void bind_implied_coupon_pair(nb::module_& module)
-{
-    module.def(
-        "implied_coupon",
-        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
-           PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
-            const double observed = real_number(observed_price, "observed_price");
-            const auto settings = implied_settings<ImpliedCouponSettings>(
-                lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
-            nb::gil_scoped_release release;
-            return unwrap(kiyosi::implied_coupon(
-                engine, instrument, context, observed, settings));
-        },
-        "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
-        "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
-        "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
-        "price_tolerance"_a = ImpliedCouponSettings{}.price_tolerance,
-        "parameter_tolerance"_a = ImpliedCouponSettings{}.parameter_tolerance,
-        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
-        R"doc(Solve for a Phoenix coupon rate that matches an observed price.
+constexpr const char* implied_coupon_doc = R"doc(Solve for a coupon rate that matches an observed price.
 
 Parameters
 ----------
 engine : pricing engine
     Engine used for trial valuations.
-instrument : PhoenixOption
-    Phoenix option supported by the engine.
+instrument : SnowballOption, BinarySnowballOption, TernarySnowballOption, or PhoenixOption
+    Instrument supported by the engine.
 context : PricingContext
     Market state used by the solver.
 observed_price : float
     Target instrument price.
+quote_convention : {'shift_maturity_coupon', 'preserve_maturity_coupon'}
+    Required for snowball instruments: whether the maturity coupon shifts with
+    quoted knock-out coupons. Omit this argument for Phoenix instruments.
 lower_bound, upper_bound : float, optional
     Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
 price_tolerance : float, optional
@@ -450,7 +432,30 @@ Raises
 TypeError
     If the engine/instrument combination or an argument is incompatible.
 KiyosiError
-    If inputs are invalid, the target is not bracketed, or the solver fails.)doc");
+    If inputs are invalid, the target is not bracketed, or the solver fails.)doc";
+
+template <typename Engine, typename Instrument>
+void bind_implied_coupon_pair(nb::module_& module)
+{
+    module.def(
+        "implied_coupon",
+        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
+           PythonReal observed_price, PythonReal lower_bound, PythonReal upper_bound,
+           PythonReal price_tolerance, PythonReal parameter_tolerance, PythonInteger max_iterations) {
+            const double observed = real_number(observed_price, "observed_price");
+            const auto settings = implied_settings<ImpliedCouponSettings>(
+                lower_bound, upper_bound, price_tolerance, parameter_tolerance, max_iterations);
+            nb::gil_scoped_release release;
+            return unwrap(kiyosi::implied_coupon(
+                engine, instrument, context, observed, settings));
+        },
+        "engine"_a, "instrument"_a, "context"_a, "observed_price"_a, nb::kw_only(),
+        "lower_bound"_a = ImpliedCouponSettings{}.lower_bound,
+        "upper_bound"_a = ImpliedCouponSettings{}.upper_bound,
+        "price_tolerance"_a = ImpliedCouponSettings{}.price_tolerance,
+        "parameter_tolerance"_a = ImpliedCouponSettings{}.parameter_tolerance,
+        "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
+        implied_coupon_doc);
 }
 
 template <typename Engine, typename Instrument>
@@ -477,43 +482,7 @@ void bind_snowball_implied_coupon_pair(nb::module_& module)
         "price_tolerance"_a = ImpliedCouponSettings{}.price_tolerance,
         "parameter_tolerance"_a = ImpliedCouponSettings{}.parameter_tolerance,
         "max_iterations"_a = ImpliedCouponSettings{}.max_iterations,
-        R"doc(Solve for a snowball coupon rate that matches an observed price.
-
-Parameters
-----------
-engine : pricing engine
-    Engine used for trial valuations.
-instrument : SnowballOption, BinarySnowballOption, or TernarySnowballOption
-    Snowball instrument supported by the engine.
-context : PricingContext
-    Market state used by the solver.
-observed_price : float
-    Target instrument price.
-quote_convention : {'shift_maturity_coupon', 'preserve_maturity_coupon'}
-    Whether the maturity coupon shifts with quoted knock-out coupons.
-lower_bound, upper_bound : float, optional
-    Finite coupon-rate search interval, which may include negative rates. Omitted values use core defaults.
-price_tolerance : float, optional
-    Absolute price-error tolerance; Monte Carlo sampling error is not bounded.
-parameter_tolerance : float, optional
-    Absolute search-interval tolerance in volatility or coupon-rate units.
-    The solver stops when either tolerance is met.
-max_iterations : int, optional
-    Maximum solver iterations.
-
-Returns
--------
-float
-    Implied annualized quoted coupon rate.
-
-An unseeded Monte Carlo engine uses one random seed throughout this solve.
-
-Raises
-------
-TypeError
-    If the engine/instrument combination or an argument is incompatible.
-KiyosiError
-    If inputs are invalid, the target is not bracketed, or the solver fails.)doc");
+        implied_coupon_doc);
 }
 
 } // namespace
