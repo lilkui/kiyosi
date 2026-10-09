@@ -34,18 +34,19 @@ Result<double> AnalyticBarrierEngine::price(
     double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const auto vanilla = price_at_volatility(
-        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
-        context.model_parameters().volatility(), GreeksRequest{});
-    if (!vanilla) return std::unexpected(vanilla.error());
     const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
     if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
-    if (t == 0.0)
+    if (t == 0.0) {
+        const auto vanilla = price_at_volatility(
+            *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
+            context.model_parameters().volatility(), GreeksRequest{});
+        if (!vanilla) return std::unexpected(vanilla.error());
         return checked_price(knock_in ? option.rebate() : vanilla->price());
+    }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = log_price_ratio(barrier, spot);
     double hit_discount = 0.0;
