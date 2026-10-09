@@ -121,7 +121,6 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
         return price_at_volatility(equivalent_option, equivalent_context,
                                    sigma * weight * std::sqrt(variance_time / tau), GreeksRequest{});
     }
-    const double forward = spot * std::exp(log_forward_ratio);
     const double value = [&] {
         const double relative_spot = (spot - strike) / strike;
         const double log_moneyness = std::abs(relative_spot) < 0.5
@@ -129,8 +128,13 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
                                         : std::log(spot) - std::log(strike);
         const double d1 = (log_moneyness + log_forward_ratio + 0.5 * variance) / deviation;
         const double d2 = d1 - deviation;
-        return std::exp(-rate * tau) * sign *
-               (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));
+        const double asset_value = sign * d1 < -10.0
+                                       ? exponential_normal_cdf(std::log(spot) + log_forward_ratio - rate * tau, sign * d1)
+                                       : spot * std::exp(log_forward_ratio - rate * tau) * normal_cdf(sign * d1);
+        const double cash_value = sign * d2 < -10.0
+                                      ? exponential_normal_cdf(std::log(strike) - rate * tau, sign * d2)
+                                      : strike * std::exp(-rate * tau) * normal_cdf(sign * d2);
+        return sign * (asset_value - cash_value);
     }();
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return make_pricing_result(std::max(value, 0.0));
@@ -216,9 +220,15 @@ Result<PricingResult> TurnbullWakemanArithmeticAveragePriceEngine::price_native(
         if (!priced) return std::unexpected(priced.error());
         return make_pricing_result(scale * priced->price());
     }
-    const double d1 = (std::log(spot / adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
+    const double d1 = (log_price_ratio(spot, adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
-    const double value = scale * sign * (spot * std::exp((b_a - rate) * tau) * normal_cdf(sign * d1) - adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2));
+    const double asset_value = sign * d1 < -10.0
+                                   ? exponential_normal_cdf(std::log(spot) + (b_a - rate) * tau, sign * d1)
+                                   : spot * std::exp((b_a - rate) * tau) * normal_cdf(sign * d1);
+    const double cash_value = sign * d2 < -10.0
+                                  ? exponential_normal_cdf(std::log(adjusted_strike) - rate * tau, sign * d2)
+                                  : adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2);
+    const double value = scale * sign * (asset_value - cash_value);
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return make_pricing_result(std::max(value, 0.0));
 }

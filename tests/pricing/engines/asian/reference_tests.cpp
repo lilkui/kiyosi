@@ -13,6 +13,37 @@ using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
 
+TEST_CASE("Asian analytic prices retain scaled normal tails", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = Date{std::chrono::year{2026} / 1 / 1};
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.4);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        for (const double scale : {1.0, 1e-100}) {
+            CAPTURE(type, scale);
+            const auto context = *make_pricing_context(parameters, (call ? 1e300 : 1e304) * scale, start);
+            const double strike = (call ? 1e304 : 1e300) * scale;
+            // Independent 90-digit Decimal lognormal moments and normal-tail expansion.
+            const auto check_tail = [&](const auto& engine, const auto& option, double expected) {
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(expected * scale, 1e-8));
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+            };
+            check_tail(AnalyticGeometricAveragePriceEngine{},
+                       *make_geometric_average_option(type, strike, start, start, end),
+                       call ? 3.016612743105038e-48 : 1.6951408750594615e-48);
+            check_tail(TurnbullWakemanArithmeticAveragePriceEngine{},
+                       *make_arithmetic_average_option(type, strike, start, start, end),
+                       call ? 3.859991844527151e-40 : 2.369019512512863e-42);
+        }
+    }
+}
+
 TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approximate Greeks")
 {
     std::size_t generated = 0;

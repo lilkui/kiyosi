@@ -32,6 +32,26 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_asian_analytic_prices_retain_scaled_normal_tails(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.04, dividend_yield=0.01, volatility=0.4)
+        for direction, spot, strike, geometric, arithmetic in (
+            ("call", 1e300, 1e304, 3.016612743105038e-48, 3.859991844527151e-40),
+            ("put", 1e304, 1e300, 1.6951408750594615e-48, 2.369019512512863e-42),
+        ):
+            for scale in (1, 1e-100):
+                context = PricingContext(model_parameters=parameters, spot_price=spot * scale, valuation_time=start)
+                terms = dict(option_type=direction, strike=strike * scale, effective_date=start,
+                             averaging_start_date=start, expiry_date=end)
+                for engine, option, expected in (
+                    (pricing.AnalyticGeometricAveragePriceEngine(), GeometricAveragePriceOption(**terms), geometric),
+                    (pricing.TurnbullWakemanArithmeticAveragePriceEngine(), ArithmeticAveragePriceOption(**terms), arithmetic),
+                ):
+                    with self.subTest(direction=direction, scale=scale, engine=type(engine).__name__):
+                        actual = engine.price(option, context)
+                        self.assertTrue(math.isclose(actual, expected * scale, rel_tol=1e-8))
+                        self.assertEqual(engine.price_with_greeks(option, context, "delta").price, actual)
+
     def test_bjerksund_stensland_retains_tiny_european_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.BjerksundStenslandVanillaEngine()
