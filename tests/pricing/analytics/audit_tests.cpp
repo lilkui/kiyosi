@@ -13,6 +13,39 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+void check_rank_deficient_american_continuation(MonteCarloBackend backend)
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = start + std::chrono::days{1095};
+    const auto option = *make_american_option(OptionType::put, 100.0, start, end);
+    double expected = 70.0;
+    for (int step = 1; step < 50; ++step) {
+        const double time = 3.0 * step / 49.0;
+        expected = std::max(expected, 100.0 * std::exp(-0.05 * time) - 30.0 * std::exp(-0.2 * time));
+    }
+    for (const double sigma : {1e-8, 1e-4}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.2, sigma), 30.0, start);
+        for (const int paths : {1, 2, 4, 2000}) {
+            CAPTURE(sigma, paths);
+            const auto price = MonteCarloVanillaEngine{paths, 50, 42, backend}.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(expected).margin(sigma == 1e-8 ? 1e-6 : 0.02));
+        }
+    }
+}
+
+TEST_CASE("American Monte Carlo exercises with rank deficient continuation samples", "[audit-fixes]")
+{
+    check_rank_deficient_american_continuation(MonteCarloBackend::cpu);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA American Monte Carlo exercises with rank deficient continuation samples", "[audit-fixes][cuda]")
+{
+    check_rank_deficient_american_continuation(MonteCarloBackend::cuda);
+}
+#endif
+
 TEST_CASE("Analytic barriers reject incomplete future monitoring windows", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

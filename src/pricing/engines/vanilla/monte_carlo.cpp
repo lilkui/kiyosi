@@ -249,7 +249,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                     }
                 }
             }
-            if (sample_count <= 2) continue;
+            if (sample_count == 0) continue;
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
             for (std::size_t path = 0; path < path_count; ++path) {

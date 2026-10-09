@@ -28,6 +28,29 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_american_monte_carlo_exercises_with_rank_deficient_continuation_samples(self):
+        start = date(2025, 1, 1)
+        option = AmericanOption(
+            option_type="put", strike=100, effective_date=start,
+            expiry_date=start + timedelta(days=1095),
+        )
+        expected = max(
+            100 * math.exp(-0.05 * 3 * step / 49) - 30 * math.exp(-0.2 * 3 * step / 49)
+            for step in range(50)
+        )
+        for sigma in (1e-8, 1e-4):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.05, dividend_yield=0.2, volatility=sigma,
+                ), spot_price=30, valuation_time=start,
+            )
+            for paths in (1, 2, 4, 2000):
+                with self.subTest(sigma=sigma, paths=paths):
+                    price = pricing.MonteCarloVanillaEngine(
+                        path_count=paths, step_count=50, seed=42,
+                    ).price(option, context)
+                    self.assertAlmostEqual(price, expected, delta=1e-6 if sigma == 1e-8 else 0.02)
+
     def test_analytic_barriers_reject_incomplete_future_monitoring_windows(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         context = PricingContext(

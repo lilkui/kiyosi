@@ -458,7 +458,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         status = cudaMemcpy(&statistics, summary.get(), sizeof(statistics),
                             cudaMemcpyDeviceToHost);
         if (status != cudaSuccess) return error_result(status);
-        if (statistics.sample_count <= 2) continue;
+        if (statistics.sample_count == 0) continue;
         const double sample_count = static_cast<double>(statistics.sample_count);
         const QuadraticRegressionMatrix matrix{{
             {sample_count, statistics.sum_x, statistics.sum_x2, statistics.sum_y},
