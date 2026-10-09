@@ -11,9 +11,9 @@
 #include <vector>
 
 #include <kiyosi/market/schedule.hpp>
+#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
 #include "../monte_carlo_mean.hpp"
-#include "../../detail/autocallable_traits.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
 #include "../monte_carlo_cuda_host.hpp"

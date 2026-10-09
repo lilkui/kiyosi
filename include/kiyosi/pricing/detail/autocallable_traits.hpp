@@ -4,11 +4,11 @@
 #include <cstddef>
 #include <optional>
 
+#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 
-#include "math.hpp"
 #include "autocallable_program.hpp"
 
 namespace kiyosi::detail {
@@ -80,21 +80,21 @@ AutocallableInitialState autocallable_initial_state(const Note& note, const Pric
     if (note.barrier_state() == AutocallableBarrierState::knocked_out)
         return {.settlement = 0.0};
 
-    const Timestamp valuation = context.valuation_time();
+    const Timestamp valuation_time = context.valuation_time();
     const double value = context.spot_price();
     const auto& dates = note.observation_dates();
     AutocallableInitialState initial{
         .path = {.coupons = 0.0,
                  .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in},
         .next_observation = static_cast<std::size_t>(
-            std::lower_bound(dates.begin(), dates.end(), valuation) - dates.begin())};
+            std::lower_bound(dates.begin(), dates.end(), valuation_time) - dates.begin())};
     if (program.has_knock_in && program.daily_knock_in &&
-        valuation == start_of_day(date_of(valuation)) &&
-        context.calendar().is_trading_day(date_of(valuation)))
+        valuation_time == start_of_day(date_of(valuation_time)) &&
+        context.calendar().is_trading_day(date_of(valuation_time)))
         initial.path.knocked_in = program_knocked_in(
-            program, value, initial.path.knocked_in, valuation == note.expiry_date());
+            program, value, initial.path.knocked_in, valuation_time == note.expiry_date());
 
-    if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation) {
+    if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation_time) {
         const auto event = autocallable_event(note, initial.next_observation);
         const double coupon = program_observation_coupon(event, value);
         if (value >= event.knock_out_level)
@@ -104,7 +104,7 @@ AutocallableInitialState autocallable_initial_state(const Note& note, const Pric
         if (program.carries_observation_coupon) initial.path.coupons = coupon;
         ++initial.next_observation;
     }
-    if (valuation == note.expiry_date()) {
+    if (valuation_time == note.expiry_date()) {
         initial.path.knocked_in =
             program_knocked_in(program, value, initial.path.knocked_in, true);
         initial.settlement = initial.path.coupons +

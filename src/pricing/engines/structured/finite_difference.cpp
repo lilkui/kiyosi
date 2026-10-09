@@ -8,8 +8,8 @@
 #include <vector>
 
 #include <kiyosi/market/schedule.hpp>
+#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
-#include "../../detail/autocallable_traits.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"

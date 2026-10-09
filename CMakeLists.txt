@@ -164,6 +164,8 @@ target_sources(kiyosi
             include/kiyosi/pricing/implied.hpp
             include/kiyosi/pricing/numerical_greeks.hpp
             include/kiyosi/pricing/result.hpp
+            include/kiyosi/pricing/detail/autocallable_program.hpp
+            include/kiyosi/pricing/detail/autocallable_traits.hpp
             include/kiyosi/pricing/settings/binomial.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp

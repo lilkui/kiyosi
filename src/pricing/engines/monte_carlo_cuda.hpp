@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <span>
 
-#include "../detail/autocallable_program.hpp"
+#include <kiyosi/pricing/detail/autocallable_program.hpp>
 
 namespace kiyosi::detail {
 
