@@ -1,5 +1,7 @@
 #include "_binding.hpp"
 
+#include <string>
+
 using namespace nb::literals;
 
 namespace kiyosi::python_binding {
@@ -35,6 +37,31 @@ void bind_knock_in_properties(nb::class_<Note>& binding)
                      "Trading-day or expiry-only knock-in observation rule.");
 }
 
+std::string snowball_preset_doc(
+    const char* parameters, const char* result = "Validated immutable snowball option.")
+{
+    return std::string{parameters} + R"doc(observation_dates : iterable[datetime.date]
+    Ordered knock-out observations at 00:00 UTC.
+effective_date, expiry_date : datetime.date
+    Note effective and expiry dates, each anchored at 00:00 UTC.
+barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
+    State before valuation; required after an observation has occurred.
+principal_ratio : float, optional
+    Normalized principal repayment component; coupons and downside are separate.
+
+Returns
+-------
+SnowballOption
+    )doc" + result + R"doc(
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the rates, levels, schedule, state, or dates.)doc";
+}
+
 template <typename Terms, typename Factory>
 void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
 {
@@ -59,7 +86,7 @@ void bind_basic_preset(nb::module_& module, const char* name, Factory factory)
         "knock_out_level"_a, "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a standard or European snowball preset.
+        snowball_preset_doc(R"doc(Create a standard or European snowball preset.
 
 The called factory determines whether the knock-in barrier is observed every
 trading day or only at expiry.
@@ -74,26 +101,7 @@ knock_in_level : float
     Lower knock-in barrier level.
 knock_out_level : float
     Knock-out level applied to every observation.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc").c_str());
 }
 
 void bind_presets(nb::module_& module)
@@ -121,7 +129,7 @@ void bind_presets(nb::module_& module)
         "initial_knock_out_level"_a, "knock_out_level_decrement"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with linearly decreasing knock-out barriers.
+        snowball_preset_doc(R"doc(Create a snowball with linearly decreasing knock-out barriers.
 
 Parameters
 ----------
@@ -135,26 +143,7 @@ initial_knock_out_level : float
     Knock-out level at the first observation.
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc").c_str());
     module.def(
         "both_down_snowball",
         [](PythonReal initial_coupon_rate, PythonReal coupon_rate_decrement, PythonReal initial_spot,
@@ -178,7 +167,7 @@ KiyosiError
         "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with decreasing coupons and knock-out barriers.
+        snowball_preset_doc(R"doc(Create a snowball with decreasing coupons and knock-out barriers.
 
 Parameters
 ----------
@@ -194,26 +183,7 @@ initial_knock_out_level : float
     Knock-out level at the first observation.
 knock_out_level_decrement : float
     Amount subtracted from each successive knock-out level.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc").c_str());
     module.def(
         "dual_coupon_snowball",
         [](PythonReal knock_out_coupon_rate, PythonReal maturity_coupon_rate,
@@ -236,7 +206,7 @@ KiyosiError
         "observation_dates"_a, "effective_date"_a, "expiry_date"_a,
         "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with separate knock-out and maturity coupons.
+        snowball_preset_doc(R"doc(Create a snowball with separate knock-out and maturity coupons.
 
 Parameters
 ----------
@@ -250,26 +220,7 @@ knock_in_level : float
     Lower knock-in barrier level.
 knock_out_level : float
     Knock-out level applied to every observation.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc").c_str());
     module.def(
         "parachute_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -291,7 +242,7 @@ KiyosiError
         "knock_out_level"_a, "final_knock_out_level"_a, "observation_dates"_a,
         "effective_date"_a, "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with a distinct final knock-out barrier.
+        snowball_preset_doc(R"doc(Create a snowball with a distinct final knock-out barrier.
 
 Parameters
 ----------
@@ -305,26 +256,7 @@ knock_out_level : float
     Knock-out level before the final observation.
 final_knock_out_level : float
     Knock-out level at the final observation.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc").c_str());
     module.def(
         "otm_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -346,7 +278,7 @@ KiyosiError
         "knock_out_level"_a, "upper_strike"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with a custom upper terminal strike.
+        snowball_preset_doc(R"doc(Create a snowball with a custom upper terminal strike.
 
 Parameters
 ----------
@@ -360,26 +292,7 @@ knock_out_level : float
     Knock-out level applied to every observation.
 upper_strike : float
     Upper terminal participation strike.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable out-of-the-money snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc", "Validated immutable out-of-the-money snowball option.").c_str());
     module.def(
         "loss_capped_snowball",
         [](PythonReal coupon_rate, PythonReal initial_spot, PythonReal knock_in_level,
@@ -401,7 +314,7 @@ KiyosiError
         "knock_out_level"_a, "lower_strike"_a, "observation_dates"_a, "effective_date"_a,
         "expiry_date"_a, "barrier_state"_a = SnowballTerms{}.barrier_state,
         "principal_ratio"_a = SnowballTerms{}.principal_ratio,
-        R"doc(Create a snowball with a lower loss-capping strike.
+        snowball_preset_doc(R"doc(Create a snowball with a lower loss-capping strike.
 
 Parameters
 ----------
@@ -415,26 +328,7 @@ knock_out_level : float
     Knock-out level applied to every observation.
 lower_strike : float
     Lower terminal strike that caps downside loss.
-observation_dates : iterable[datetime.date]
-    Ordered knock-out observations at 00:00 UTC.
-effective_date, expiry_date : datetime.date
-    Note effective and expiry dates, each anchored at 00:00 UTC.
-barrier_state : {'none', 'knocked_out', 'knocked_in'} | None, optional
-    State before valuation; required after an observation has occurred.
-principal_ratio : float, optional
-    Normalized principal repayment component; coupons and downside are separate.
-
-Returns
--------
-SnowballOption
-    Validated immutable loss-capped snowball option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the rates, levels, schedule, state, or dates.)doc");
+)doc", "Validated immutable loss-capped snowball option.").c_str());
 }
 
 } // namespace
