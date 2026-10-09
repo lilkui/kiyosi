@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 
 #include <cmath>
+#include <numbers>
 #include <optional>
 
 #include "../../detail/math.hpp"
@@ -26,9 +27,9 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);
     const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
     const double volatility_time = sigma * root_t;
-    const double forward = (log_price_ratio(spot, strike) +
-                            (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t) /
-                           volatility_time;
+    const double forward = standardize_forward(log_price_ratio(spot, strike) +
+                                                  (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t,
+                                              sigma, root_t);
     const double d1 = forward + 0.5 * volatility_time;
     const double d2 = forward - 0.5 * volatility_time;
     const double d = asset_settlement ? d1 : d2;
@@ -43,7 +44,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
     if (!output.has(Greek::delta) && !output.has(Greek::gamma))
         return make_pricing_result(value);
-    const double log_volatility_time = std::log(volatility_time);
+    const double log_volatility_time = std::log(sigma) + std::log(root_t);
     const double log_spot = std::log(spot);
     // Scale the density in log space: even an underflowed tail can have representable derivatives.
     const auto weighted_density = [&](double log_weight) {
@@ -55,15 +56,24 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
         const double log_discount = -context.model_parameters().dividend_yield() * t;
         if (output.has(Greek::delta)) delta = div_df * nd + sign * weighted_density(log_discount - log_volatility_time);
         if (output.has(Greek::gamma)) {
-            const double numerator = volatility_time - d1;
-            gamma = numerator == 0.0 ? 0.0 : sign * std::copysign(weighted_density(log_discount + std::log(std::abs(numerator)) - log_spot - 2.0 * log_volatility_time), numerator);
+            // At zero forward, cancel half the width before it can underflow.
+            if (forward == 0.0) {
+                gamma = sign * weighted_density(log_discount - std::numbers::ln2 - log_spot - log_volatility_time);
+            } else {
+                const double numerator = volatility_time - d1;
+                gamma = numerator == 0.0 ? 0.0 : sign * std::copysign(weighted_density(log_discount + std::log(std::abs(numerator)) - log_spot - 2.0 * log_volatility_time), numerator);
+            }
         }
     } else {
         const double log_scale = std::log(payout) - context.model_parameters().risk_free_rate() * t;
         if (output.has(Greek::delta)) delta = sign * weighted_density(log_scale - log_spot - log_volatility_time);
         if (output.has(Greek::gamma)) {
-            const double numerator = volatility_time + d2;
-            gamma = numerator == 0.0 ? 0.0 : -sign * std::copysign(weighted_density(log_scale + std::log(std::abs(numerator)) - 2.0 * log_spot - 2.0 * log_volatility_time), numerator);
+            if (forward == 0.0) {
+                gamma = -sign * weighted_density(log_scale - std::numbers::ln2 - 2.0 * log_spot - log_volatility_time);
+            } else {
+                const double numerator = volatility_time + d2;
+                gamma = numerator == 0.0 ? 0.0 : -sign * std::copysign(weighted_density(log_scale + std::log(std::abs(numerator)) - 2.0 * log_spot - 2.0 * log_volatility_time), numerator);
+            }
         }
     }
     auto result = make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});

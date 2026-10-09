@@ -32,6 +32,58 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_digital_prices_preserve_subnormal_volatility(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for sigma in (math.ulp(0.0), 1e-320, 1e-310):
+            for remaining in (timedelta(days=1), timedelta(microseconds=1)):
+                valuation = datetime(2026, 1, 1, tzinfo=timezone.utc) - remaining
+                for direction in ("call", "put"):
+                    for spot in (99, 100, 101):
+                        probability = 0.5 if spot == 100 else float((spot > 100) == (direction == "call"))
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                            ), spot_price=spot, valuation_time=valuation,
+                        )
+                        terms = dict(option_type=direction, strike=100, effective_date=start, expiry_date=end)
+                        for option, expected in (
+                            (CashOrNothingOption(**terms, payout=10), 10 * probability),
+                            (AssetOrNothingOption(**terms), spot * probability),
+                        ):
+                            for engine in (pricing.AnalyticDigitalEngine(), pricing.QuadratureDigitalEngine()):
+                                with self.subTest(sigma=sigma, remaining=remaining, direction=direction,
+                                                  spot=spot, option=option, engine=engine):
+                                    self.assertAlmostEqual(engine.price(option, context), expected, delta=1e-10)
+
+    def test_digital_gamma_survives_underflowed_volatility_time(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        valuation = datetime(2026, 1, 1, tzinfo=timezone.utc) - timedelta(microseconds=1)
+        root_time = math.sqrt(1e-6 / (365 * 86400))
+        spot = 1e300
+        engine = pricing.AnalyticDigitalEngine()
+        for sigma in (math.ulp(0.0), 1e-320, 1e-310):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                ), spot_price=spot, valuation_time=valuation,
+            )
+            for direction in ("call", "put"):
+                sign = 1 if direction == "call" else -1
+                asset_gamma = sign * 0.5 / math.sqrt(2 * math.pi) / spot / sigma / root_time
+                terms = dict(option_type=direction, strike=spot, effective_date=start, expiry_date=end)
+                asset = AssetOrNothingOption(**terms)
+                for option, expected in (
+                    (asset, asset_gamma),
+                    (CashOrNothingOption(**terms, payout=10), -asset_gamma * (10 / spot)),
+                ):
+                    with self.subTest(sigma=sigma, direction=direction, option=option):
+                        result = engine.price_with_greeks(option, context, ["gamma"])
+                        self.assertTrue(math.isclose(result.gamma, expected, rel_tol=1e-11))
+                        self.assertAlmostEqual(result.price / (spot if option is asset else 10), 0.5)
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price_with_greeks(asset, context, ["delta"])
+                self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_numerical_spot_shift_powers_preserve_representable_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for scales, greeks, order in (

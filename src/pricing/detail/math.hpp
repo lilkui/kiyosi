@@ -23,6 +23,13 @@ inline double log_price_ratio(double numerator, double denominator) noexcept
                : std::log(numerator) - std::log(denominator);
 }
 
+inline double standardize_forward(double forward, double volatility, double root_time) noexcept
+{
+    const double width = volatility * root_time;
+    // Divide separately if positive volatility's time-scaled width rounds to zero.
+    return width == 0.0 ? (forward / volatility) / root_time : forward / width;
+}
+
 inline double normal_cdf(double value) noexcept
 {
     return 0.5 * std::erfc(-value * inverse_sqrt_two);

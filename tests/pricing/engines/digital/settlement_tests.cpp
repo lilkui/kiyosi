@@ -4,11 +4,75 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <limits>
 
 #include "support/reference_harness.hpp"
 #include "pricing/detail/math.hpp"
 
 using kiyosi::test::measures;
+
+TEST_CASE("Digital prices preserve subnormal volatility", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    const Date end{std::chrono::year{2026} / 1 / 1};
+    for (const double sigma : {std::numeric_limits<double>::denorm_min(), 1e-320, 1e-310}) {
+        for (const auto remaining : {std::chrono::microseconds{std::chrono::days{1}}, std::chrono::microseconds{1}}) {
+            for (const auto type : {OptionType::call, OptionType::put}) {
+                const auto cash = *make_cash_or_nothing_option(type, 100.0, 10.0, start, end);
+                const auto asset = *make_asset_or_nothing_option(type, 100.0, start, end);
+                for (const double spot : {99.0, 100.0, 101.0}) {
+                    CAPTURE(sigma, remaining.count(), type, spot);
+                    const double probability = spot == 100.0 ? 0.5 : static_cast<double>((spot > 100.0) == (type == OptionType::call));
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, start_of_day(end) - remaining);
+                    const auto check = [&](const auto& engine, const auto& option, double expected) {
+                        const auto price = engine.price(option, context);
+                        REQUIRE(price);
+                        CHECK(*price == Catch::Approx(expected).margin(1e-10));
+                    };
+                    check(AnalyticDigitalEngine{}, cash, 10.0 * probability);
+                    check(QuadratureDigitalEngine{}, cash, 10.0 * probability);
+                    check(AnalyticDigitalEngine{}, asset, spot * probability);
+                    check(QuadratureDigitalEngine{}, asset, spot * probability);
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("Digital gamma survives underflowed volatility time", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    const Date end{std::chrono::year{2026} / 1 / 1};
+    const auto valuation = start_of_day(end) - std::chrono::microseconds{1};
+    const double root_time = std::sqrt(1e-6 / (365.0 * 86400.0));
+    constexpr double spot = 1e300;
+    const AnalyticDigitalEngine engine;
+    for (const double sigma : {std::numeric_limits<double>::denorm_min(), 1e-320, 1e-310}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, valuation);
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(sigma, type);
+            const double sign = type == OptionType::call ? 1.0 : -1.0;
+            const double asset_gamma = sign * 0.5 * detail::inverse_sqrt_two_pi / spot / sigma / root_time;
+            const auto cash = *make_cash_or_nothing_option(type, spot, 10.0, start, end);
+            const auto asset = *make_asset_or_nothing_option(type, spot, start, end);
+            const auto check = [&](const auto& option, double expected_gamma, double expected_price) {
+                const auto result = engine.price_with_greeks(option, context, {Greek::gamma});
+                REQUIRE(result);
+                const auto gamma = result->require(Greek::gamma);
+                REQUIRE(gamma);
+                CHECK(*gamma == Catch::Approx(expected_gamma).epsilon(1e-11).margin(0.0));
+                CHECK(result->price() == expected_price);
+            };
+            check(asset, asset_gamma, 0.5 * spot);
+            check(cash, -asset_gamma * (10.0 / spot), 5.0);
+            const auto overflow = engine.price_with_greeks(asset, context, {Greek::delta});
+            REQUIRE_FALSE(overflow);
+            CHECK(overflow.error().category == ErrorCategory::invalid_result);
+        }
+    }
+}
 
 TEST_CASE("Analytic digital prices preserve extreme spot-strike ratios", "[audit-fixes]")
 {
