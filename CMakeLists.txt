@@ -278,6 +278,9 @@ if(KIYOSI_BUILD_PYTHON)
         )
         find_package(nanobind CONFIG REQUIRED)
     endif()
+    if(nanobind_VERSION VERSION_LESS 2.7)
+        message(FATAL_ERROR "nanobind 2.7 or newer is required (found ${nanobind_VERSION}).")
+    endif()
 
     nanobind_add_module(_native
         python/kiyosi/_native.cpp
