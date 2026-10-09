@@ -172,9 +172,18 @@ template <typename Engine, typename Option>
                                          !terms.has_remaining_observation(context.valuation_time());
         if constexpr (requires { option.is_one_touch(); })
             identifiable = identifiable && !touched && !monitoring_finished;
-        else
+        else {
             identifiable = identifiable && !(touched && !terms.is_knock_in()) &&
                            !(!touched && monitoring_finished && terms.is_knock_in());
+            const bool monitors_expiry = terms.is_continuous() ||
+                                         terms.observation_dates().back() == option.expiry_date();
+            const bool payoff_excluded = !terms.is_knock_in() && monitors_expiry &&
+                                         (terms.is_up() ? option.option_type() == OptionType::call && option.strike() >= terms.barrier_level()
+                                                        : option.option_type() == OptionType::put && option.strike() <= terms.barrier_level());
+            bool has_rebate = false;
+            if constexpr (requires { option.rebate(); }) has_rebate = option.rebate() != 0.0;
+            identifiable = identifiable && !(payoff_excluded && !has_rebate);
+        }
     }
     if (!identifiable)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,

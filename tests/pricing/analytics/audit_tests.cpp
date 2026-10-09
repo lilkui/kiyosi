@@ -13,6 +13,53 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Implied volatility rejects zero-payoff barrier contracts", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        const double barrier = call ? 110.0 : 90.0;
+        const auto kind = call ? BarrierType::up_and_out : BarrierType::down_and_out;
+        for (const double strike : {barrier, call ? 120.0 : 80.0}) {
+            CAPTURE(type, strike);
+            const auto check = [&](const auto& engine, const auto& option) {
+                const auto quote = engine.price(option, context);
+                REQUIRE(quote);
+                CHECK(*quote == Catch::Approx(0.0).margin(1e-12));
+                const auto result = implied_volatility(engine, option, context, 0.0);
+                REQUIRE_FALSE(result);
+                CHECK(result.error().category == ErrorCategory::unsupported_operation);
+            };
+            const auto vanilla = *make_barrier_option(
+                {.option_type = type, .strike = strike, .effective_date = start, .expiry_date = end,
+                 .barrier_level = barrier, .barrier_type = kind});
+            check(AnalyticBarrierEngine{}, vanilla);
+            check(FiniteDifferenceBarrierEngine{}, vanilla);
+            const BinaryBarrierTerms terms{.option_type = type, .strike = strike, .effective_date = start,
+                                           .expiry_date = end, .barrier_level = barrier, .barrier_type = kind};
+            check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, 10.0));
+            check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms));
+        }
+        for (const bool rebate : {false, true}) {
+            const auto option = *make_barrier_option(
+                {.option_type = type, .strike = call ? 120.0 : 80.0, .effective_date = start, .expiry_date = end,
+                 .barrier_level = barrier, .barrier_type = kind, .rebate = rebate ? 1.0 : 0.0,
+                 .observation_mode = rebate ? ObservationMode::continuous : ObservationMode::scheduled,
+                 .observation_dates = rebate ? std::vector<Date>{} : std::vector<Date>{start}});
+            const AnalyticBarrierEngine engine;
+            const auto quote = engine.price(option, context);
+            REQUIRE(quote);
+            CHECK(*quote > 0.0);
+            const auto result = implied_volatility(engine, option, context, *quote,
+                                                   {.lower_bound = 0.2, .upper_bound = 0.4});
+            REQUIRE(result);
+            CHECK(*result == 0.2);
+        }
+    }
+}
+
 void check_rank_deficient_american_continuation(MonteCarloBackend backend)
 {
     const auto start = day(2025, 1, 1);

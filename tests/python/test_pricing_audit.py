@@ -16,6 +16,7 @@ from kiyosi.instruments import (
     GeometricAveragePriceOption,
     PhoenixOption,
     SnowballOption,
+    asset_binary_barrier_option,
     cash_binary_barrier_option,
     cash_one_touch_up,
 )
@@ -28,6 +29,47 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_implied_volatility_rejects_zero_payoff_barrier_contracts(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+            ), spot_price=100, valuation_time=start,
+        )
+        for direction, barrier, kind, outside in (
+            ("call", 110, "up_and_out", 120), ("put", 90, "down_and_out", 80),
+        ):
+            for strike in (barrier, outside):
+                terms = dict(
+                    option_type=direction, strike=strike, effective_date=start,
+                    expiry_date=end, barrier_level=barrier, barrier_type=kind,
+                )
+                for engine, option in (
+                    (pricing.AnalyticBarrierEngine(), BarrierOption(**terms)),
+                    (pricing.FiniteDifferenceBarrierEngine(), BarrierOption(**terms)),
+                    (pricing.AnalyticBinaryBarrierEngine(), cash_binary_barrier_option(**terms, payout=10)),
+                    (pricing.AnalyticBinaryBarrierEngine(), asset_binary_barrier_option(**terms)),
+                ):
+                    with self.subTest(direction=direction, strike=strike, engine=type(engine).__name__, option=type(option).__name__):
+                        self.assertAlmostEqual(engine.price(option, context), 0, delta=1e-12)
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(engine, option, context, 0)
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+            for rebate in (False, True):
+                option = BarrierOption(
+                    option_type=direction, strike=outside, effective_date=start,
+                    expiry_date=end, barrier_level=barrier, barrier_type=kind,
+                    rebate=1 if rebate else 0,
+                    observation_mode="continuous" if rebate else "scheduled",
+                    observation_dates=[] if rebate else [start],
+                )
+                engine = pricing.AnalyticBarrierEngine()
+                quote = engine.price(option, context)
+                self.assertGreater(quote, 0)
+                self.assertEqual(implied_volatility(
+                    engine, option, context, quote, lower_bound=0.2, upper_bound=0.4,
+                ), 0.2)
+
     def test_implied_volatility_rejects_volatility_independent_accumulated_forwards(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for rate in (0, 0.04):
