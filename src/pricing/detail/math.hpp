@@ -15,6 +15,14 @@ inline constexpr double inverse_sqrt_two_pi = std::numbers::inv_sqrtpi * inverse
 // Broadie-Glasserman-Kou discrete-barrier shift constant, -zeta(1/2)/sqrt(2*pi).
 inline constexpr double bgk_beta = 0.5825971579390107;
 
+inline double log_price_ratio(double numerator, double denominator) noexcept
+{
+    const double relative_difference = (numerator - denominator) / denominator;
+    return std::abs(relative_difference) < 0.5
+               ? std::log1p(relative_difference)
+               : std::log(numerator) - std::log(denominator);
+}
+
 inline double normal_cdf(double value) noexcept
 {
     return 0.5 * std::erfc(-value * inverse_sqrt_two);

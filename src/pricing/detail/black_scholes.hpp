@@ -27,10 +27,7 @@ inline BlackScholesProbabilities black_scholes_probabilities(
         const double exercised = sign * (spot * std::exp((rate - dividend) * time) - strike) > 0.0 ? 1.0 : 0.0;
         return {0.0, 0.0, exercised, exercised};
     }
-    const double relative_spot = (spot - strike) / strike;
-    const double log_moneyness = std::abs(relative_spot) < 0.5
-                                    ? std::log1p(relative_spot)
-                                    : std::log(spot) - std::log(strike);
+    const double log_moneyness = log_price_ratio(spot, strike);
     const double forward = log_moneyness + (rate - dividend) * time;
     const double standardized_forward = volatility_time == 0.0
                                             ? (forward / volatility) / std::sqrt(time)

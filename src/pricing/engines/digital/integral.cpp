@@ -24,7 +24,7 @@ Result<PricingResult> price_digital_integral(OptionType type, double strike, dou
     const double volatility = context.model_parameters().volatility();
     const double root = std::sqrt(time);
     const double width = volatility * root;
-    const double threshold = (std::log(strike) - std::log(spot) - (rate - dividend) * time) / width + 0.5 * width;
+    const double threshold = (-log_price_ratio(spot, strike) - (rate - dividend) * time) / width + 0.5 * width;
     if (!std::isfinite(width) || !std::isfinite(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
     const double value = normal_tail_integral(sign * (threshold - (asset ? width : 0.0)),

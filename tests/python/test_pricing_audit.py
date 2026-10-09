@@ -32,6 +32,57 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_pricing_preserves_adjacent_spot_strike_and_barrier_values(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        sigma = 1e-16
+        # Independent 100-digit Decimal references for the two doubles adjacent to 100.
+        high_probability, density = 0.9223540434499193, 0.1453398491235079
+        for above in (True, False):
+            spot = math.nextafter(100, 101 if above else 99)
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                ), spot_price=spot, valuation_time=start,
+            )
+            for direction in ("call", "put"):
+                call = direction == "call"
+                probability = high_probability if above == call else 1 - high_probability
+                sign = 1 if call else -1
+                terms = dict(option_type=direction, strike=100, effective_date=start, expiry_date=end)
+                cash, asset = CashOrNothingOption(**terms, payout=1), AssetOrNothingOption(**terms)
+                barrier_terms = dict(
+                    **terms, barrier_level=120 if call else 80,
+                    barrier_type="up_and_out" if call else "down_and_out",
+                )
+                for engine, option, expected in (
+                    (pricing.AnalyticDigitalEngine(), cash, probability),
+                    (pricing.QuadratureDigitalEngine(), cash, probability),
+                    (pricing.AnalyticDigitalEngine(), asset, spot * probability),
+                    (pricing.QuadratureDigitalEngine(), asset, spot * probability),
+                    (pricing.AnalyticBinaryBarrierEngine(), cash_binary_barrier_option(**barrier_terms, payout=1), probability),
+                    (pricing.AnalyticBinaryBarrierEngine(), asset_binary_barrier_option(**barrier_terms), spot * probability),
+                ):
+                    with self.subTest(above=above, direction=direction, engine=engine, option=option):
+                        self.assertAlmostEqual(engine.price(option, context), expected, delta=expected * 1e-10)
+                joint = pricing.AnalyticDigitalEngine().price_with_greeks(cash, context, ["delta", "gamma"])
+                self.assertAlmostEqual(joint.price, probability, delta=1e-12)
+                self.assertTrue(math.isclose(joint.delta, sign * density / spot / sigma, rel_tol=1e-12))
+                self.assertTrue(math.isfinite(joint.gamma))
+            barrier_context = PricingContext(
+                model_parameters=context.model_parameters, spot_price=100, valuation_time=start,
+            )
+            hit_probability = 2 * (1 - high_probability)
+            touch = (cash_one_touch_up if above else cash_one_touch_down)(
+                effective_date=start, expiry_date=end, barrier_level=spot, payout=1, settlement_timing="at_hit",
+            )
+            rebate = BarrierOption(
+                effective_date=start, expiry_date=end, barrier_level=spot,
+                option_type="call" if above else "put", strike=120 if above else 80,
+                barrier_type="up_and_out" if above else "down_and_out", rebate=1, rebate_timing="at_hit",
+            )
+            self.assertAlmostEqual(pricing.AnalyticBinaryBarrierEngine().price(touch, barrier_context), hit_probability, delta=1e-12)
+            self.assertAlmostEqual(pricing.AnalyticBarrierEngine().price(rebate, barrier_context), hit_probability, delta=1e-12)
+
     def test_at_hit_payments_retain_discounting_at_tiny_volatility(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for up in (True, False):

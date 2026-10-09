@@ -56,7 +56,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
-    const double log_ratio = std::log(barrier) - std::log(spot);
+    const double log_ratio = log_price_ratio(barrier, spot);
     double hit_discount = 0.0;
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
@@ -77,7 +77,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
     const double x = option.strike();
-    const double log_moneyness = std::log(spot) - std::log(x);
+    const double log_moneyness = log_price_ratio(spot, x);
     const double x1 = log_moneyness / root_time + (1.0 + mu) * root_time;
     const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;

@@ -26,7 +26,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);
     const double div_df = std::exp(-context.model_parameters().dividend_yield() * t);
     const double volatility_time = sigma * root_t;
-    const double forward = (std::log(spot) - std::log(strike) +
+    const double forward = (log_price_ratio(spot, strike) +
                             (context.model_parameters().risk_free_rate() - context.model_parameters().dividend_yield()) * t) /
                            volatility_time;
     const double d1 = forward + 0.5 * volatility_time;

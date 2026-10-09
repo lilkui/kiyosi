@@ -13,6 +13,62 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Pricing preserves adjacent spot strike and barrier values", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    constexpr double sigma = 1e-16;
+    // Independent 100-digit Decimal references for the two doubles adjacent to 100.
+    constexpr double high_probability = 0.9223540434499193;
+    constexpr double density = 0.1453398491235079;
+    for (const bool above : {true, false}) {
+        const double spot = std::nextafter(100.0, above ? 101.0 : 99.0);
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, start);
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(above, type);
+            const bool call = type == OptionType::call;
+            const double probability = above == call ? high_probability : 1.0 - high_probability;
+            const double sign = call ? 1.0 : -1.0;
+            const auto cash = *make_cash_or_nothing_option(type, 100.0, 1.0, start, end);
+            const auto asset = *make_asset_or_nothing_option(type, 100.0, start, end);
+            const BinaryBarrierTerms terms{.option_type = type, .strike = 100.0, .effective_date = start,
+                                           .expiry_date = end, .barrier_level = call ? 120.0 : 80.0,
+                                           .barrier_type = call ? BarrierType::up_and_out : BarrierType::down_and_out};
+            const auto check = [&](const auto& engine, const auto& option, double expected) {
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == Catch::Approx(expected).epsilon(1e-10));
+            };
+            check(AnalyticDigitalEngine{}, cash, probability);
+            check(QuadratureDigitalEngine{}, cash, probability);
+            check(AnalyticDigitalEngine{}, asset, spot * probability);
+            check(QuadratureDigitalEngine{}, asset, spot * probability);
+            check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, 1.0), probability);
+            check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms), spot * probability);
+            const auto joint = AnalyticDigitalEngine{}.price_with_greeks(cash, context, {Greek::delta, Greek::gamma});
+            REQUIRE(joint);
+            CHECK(joint->price() == Catch::Approx(probability).epsilon(1e-12));
+            CHECK(greek_value(*joint, Greek::delta) == Catch::Approx(sign * density / spot / sigma).epsilon(1e-12));
+            CHECK(joint->all_finite());
+        }
+        const auto barrier_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), 100.0, start);
+        const double hit_probability = 2.0 * (1.0 - high_probability);
+        const auto touch = *(above ? make_cash_one_touch_up : make_cash_one_touch_down)(
+            start, end, spot, 1.0, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
+        const auto rebate = *make_barrier_option(
+            {.option_type = above ? OptionType::call : OptionType::put, .strike = above ? 120.0 : 80.0,
+             .effective_date = start, .expiry_date = end, .barrier_level = spot,
+             .barrier_type = above ? BarrierType::up_and_out : BarrierType::down_and_out,
+             .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
+        const auto touch_price = AnalyticBinaryBarrierEngine{}.price(touch, barrier_context);
+        const auto rebate_price = AnalyticBarrierEngine{}.price(rebate, barrier_context);
+        REQUIRE(touch_price);
+        REQUIRE(rebate_price);
+        CHECK(*touch_price == Catch::Approx(hit_probability).epsilon(1e-12));
+        CHECK(*rebate_price == Catch::Approx(hit_probability).epsilon(1e-12));
+    }
+}
+
 TEST_CASE("At-hit payments retain discounting at tiny volatility", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

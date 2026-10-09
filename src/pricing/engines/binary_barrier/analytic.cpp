@@ -101,14 +101,14 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     double barrier = terms.barrier_level();
     if (terms.observation_mode() == ObservationMode::scheduled)
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.mean_observation_year_fraction()));
-    const double log_ratio = std::log(barrier) - std::log(spot);
+    const double log_ratio = log_price_ratio(barrier, spot);
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
         return make_pricing_result(option.payout * barrier_hit_discount(
             std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, variance, time, rate));
     }
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
-    const double log_moneyness = std::log(spot) - std::log(option.strike);
+    const double log_moneyness = log_price_ratio(spot, option.strike);
     const double x1 = log_moneyness / volatility_time + (1 + mu) * volatility_time;
     const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
