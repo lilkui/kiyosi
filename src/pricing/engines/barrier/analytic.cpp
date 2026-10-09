@@ -11,29 +11,6 @@
 namespace kiyosi {
 using namespace detail;
 
-namespace {
-
-double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate)
-{
-    if (t == 0.0) return 1.0;
-    const double signed_drift = upper ? -drift : drift;
-    const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
-    const double scale = std::max({1.0, std::abs(signed_drift * signed_drift), std::abs(2.0 * rate * variance)});
-    if (discriminant < 0.0 ||
-        (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale))
-        return std::numeric_limits<double>::quiet_NaN();
-    const double root = std::sqrt(discriminant);
-    const double root_time = std::sqrt(variance * t);
-    const double first = exponential_normal_cdf((-signed_drift - root) * distance / variance,
-                                                (root * t - distance) / root_time);
-    const double second = exponential_normal_cdf((-signed_drift + root) * distance / variance,
-                                                 (-root * t - distance) / root_time);
-    const double result = first + second;
-    return std::isfinite(result) ? result : std::numeric_limits<double>::quiet_NaN();
-}
-
-} // namespace
-
 Result<PricingResult> AnalyticBarrierEngine::price_native(
     const BarrierOption& option, const PricingContext& context) const
 {
@@ -80,11 +57,17 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = std::log(barrier) - std::log(spot);
+    double hit_discount = 0.0;
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
         const double variance = sigma * sigma;
-        const double hit_discount = barrier_hit_discount(std::abs(log_ratio), upper,
-                                                         drift, variance, t, rate);
+        const double discriminant = drift * drift + 2.0 * rate * variance;
+        const double scale = std::max({1.0, std::abs(drift * drift), std::abs(2.0 * rate * variance)});
+        if (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale)
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "barrier rebate discounting is numerically unstable"});
+        hit_discount = barrier_hit_discount(std::abs(log_ratio), upper,
+                                            drift, variance, t, rate);
         if (!std::isfinite(hit_discount))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
@@ -93,14 +76,12 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
-    const double lambda = hit_rebate ? std::sqrt(mu * mu + 2.0 * rate / (sigma * sigma)) : 0.0;
     const double x = option.strike();
     const double log_moneyness = std::log(spot) - std::log(x);
     const double x1 = log_moneyness / root_time + (1.0 + mu) * root_time;
     const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;
     const double y2 = log_ratio / root_time + (1.0 + mu) * root_time;
-    const double z = log_ratio / root_time + lambda * root_time;
     const auto factors = [&](double eta, double phi) {
         return std::array<double, 6>{
             phi * spot * carry * normal_cdf(phi * x1) - phi * x * discount * normal_cdf(phi * x1 - phi * root_time),
@@ -110,10 +91,7 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
             phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
                 phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
             option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time)),
-            option.rebate() * (hit_rebate
-                                   ? (exponential_normal_cdf((mu + lambda) * log_ratio, eta * z) +
-                                      exponential_normal_cdf((mu - lambda) * log_ratio, eta * z - 2.0 * eta * lambda * root_time))
-                                   : discount)};
+            option.rebate() * (hit_rebate ? hit_discount : discount)};
     };
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;

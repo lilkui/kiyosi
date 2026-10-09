@@ -17,7 +17,10 @@ from kiyosi.instruments import (
     PhoenixOption,
     SnowballOption,
     asset_binary_barrier_option,
+    asset_one_touch_down,
+    asset_one_touch_up,
     cash_binary_barrier_option,
+    cash_one_touch_down,
     cash_one_touch_up,
 )
 from kiyosi.market import (
@@ -29,6 +32,37 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_at_hit_payments_retain_discounting_at_tiny_volatility(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for up in (True, False):
+            barrier, dividend = (101, 0) if up else (99, 0.1)
+            hit_time = math.log(barrier / 100) / (0.05 - dividend)
+            discount = math.exp(-0.05 * hit_time)
+            terms = dict(effective_date=start, expiry_date=end, barrier_level=barrier)
+            cash = (cash_one_touch_up if up else cash_one_touch_down)(
+                **terms, payout=1, settlement_timing="at_hit",
+            )
+            asset = (asset_one_touch_up if up else asset_one_touch_down)(
+                **terms, settlement_timing="at_hit",
+            )
+            rebate = BarrierOption(
+                **terms, option_type="call" if up else "put", strike=120 if up else 80,
+                barrier_type="up_and_out" if up else "down_and_out", rebate=1, rebate_timing="at_hit",
+            )
+            for sigma in (1e-9, 1e-12):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.05, dividend_yield=dividend, volatility=sigma,
+                    ), spot_price=100, valuation_time=start,
+                )
+                for engine, option, expected in (
+                    (pricing.AnalyticBinaryBarrierEngine(), cash, discount),
+                    (pricing.AnalyticBinaryBarrierEngine(), asset, barrier * discount),
+                    (pricing.AnalyticBarrierEngine(), rebate, discount),
+                ):
+                    with self.subTest(up=up, sigma=sigma, option=option):
+                        self.assertAlmostEqual(engine.price(option, context), expected, delta=expected * 1e-12)
+
     def test_implied_volatility_rejects_zero_payoff_barrier_contracts(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

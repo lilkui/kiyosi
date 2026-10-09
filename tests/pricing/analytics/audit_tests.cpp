@@ -13,6 +13,39 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("At-hit payments retain discounting at tiny volatility", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const bool up : {true, false}) {
+        const double barrier = up ? 101.0 : 99.0;
+        const double dividend = up ? 0.0 : 0.1;
+        const double hit_time = std::log(barrier / 100.0) / (0.05 - dividend);
+        const double discount = std::exp(-0.05 * hit_time);
+        for (const double sigma : {1e-9, 1e-12}) {
+            CAPTURE(up, sigma);
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.05, dividend, sigma), 100.0, start);
+            const auto cash = *(up ? make_cash_one_touch_up : make_cash_one_touch_down)(
+                start, end, barrier, 1.0, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
+            const auto asset = *(up ? make_asset_one_touch_up : make_asset_one_touch_down)(
+                start, end, barrier, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
+            const auto rebate = *make_barrier_option(
+                {.option_type = up ? OptionType::call : OptionType::put, .strike = up ? 120.0 : 80.0,
+                 .effective_date = start, .expiry_date = end, .barrier_level = barrier,
+                 .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
+                 .rebate = 1.0, .rebate_timing = RebateTiming::at_hit});
+            const auto check = [](const auto& engine, const auto& option, const auto& context, double expected) {
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == Catch::Approx(expected).epsilon(1e-12));
+            };
+            check(AnalyticBinaryBarrierEngine{}, cash, context, discount);
+            check(AnalyticBinaryBarrierEngine{}, asset, context, barrier * discount);
+            check(AnalyticBarrierEngine{}, rebate, context, discount);
+        }
+    }
+}
+
 TEST_CASE("Implied volatility rejects zero-payoff barrier contracts", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

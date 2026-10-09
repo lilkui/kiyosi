@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <numbers>
 
 #include <kiyosi/core/day_count.hpp>
@@ -41,6 +42,26 @@ inline double log_normal_cdf(double value) noexcept
 inline double exponential_normal_cdf(double log_weight, double value) noexcept
 {
     return std::exp(log_weight + log_normal_cdf(value));
+}
+
+inline double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate) noexcept
+{
+    if (t == 0.0) return 1.0;
+    const double signed_drift = upper ? -drift : drift;
+    const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
+    if (discriminant < 0.0)
+        return std::numeric_limits<double>::quiet_NaN();
+    const double root = std::sqrt(discriminant);
+    const double root_time = std::sqrt(variance * t);
+    // Rationalize the small root difference to retain discounting as variance approaches zero.
+    const double first_exponent = signed_drift < 0.0 ? -2.0 * rate / (root - signed_drift) : (-signed_drift - root) / variance;
+    const double second_exponent = signed_drift > 0.0 ? 2.0 * rate / (root + signed_drift) : (-signed_drift + root) / variance;
+    const double first = exponential_normal_cdf(first_exponent * distance,
+                                                (root * t - distance) / root_time);
+    const double second = exponential_normal_cdf(second_exponent * distance,
+                                                 (-root * t - distance) / root_time);
+    const double result = first + second;
+    return std::isfinite(result) ? result : std::numeric_limits<double>::quiet_NaN();
 }
 
 /// Simpson integration of a scaled normal tail; reflect negative thresholds to avoid long intervals.

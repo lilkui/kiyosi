@@ -12,7 +12,7 @@ namespace kiyosi {
 using namespace detail;
 namespace {
 struct BinaryBarrierFormulaTerms {
-    double a1, b1, a2, b2, a3, b3, a4, b4, a5;
+    double a1, b1, a2, b2, a3, b3, a4, b4;
 };
 
 struct BinaryBarrierContractView {
@@ -101,28 +101,26 @@ Result<PricingResult> price_contract(const BinaryBarrierContractView& option, co
     double barrier = terms.barrier_level();
     if (terms.observation_mode() == ObservationMode::scheduled)
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.mean_observation_year_fraction()));
-    const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
-    const double lambda = std::sqrt(mu * mu + 2.0 * rate / (volatility * volatility));
     const double log_ratio = std::log(barrier) - std::log(spot);
+    if (option.settlement_timing == SettlementTiming::at_hit) {
+        const double variance = volatility * volatility;
+        return make_pricing_result(option.payout * barrier_hit_discount(
+            std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, variance, time, rate));
+    }
+    const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double log_moneyness = std::log(spot) - std::log(option.strike);
     const double x1 = log_moneyness / volatility_time + (1 + mu) * volatility_time;
     const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
     const double y2 = log_ratio / volatility_time + (1 + mu) * volatility_time;
-    const double z = log_ratio / volatility_time + lambda * volatility_time;
     const auto common = [&](double eta, double phi) {
         const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time);
         return BinaryBarrierFormulaTerms{
             spot * dividend_discount * normal_cdf(phi * x1), option.payout * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
             spot * dividend_discount * normal_cdf(phi * x2), option.payout * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
             spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y1), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y1 - eta * volatility_time),
-            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y2), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y2 - eta * volatility_time),
-            option.payout * (exponential_normal_cdf((mu + lambda) * log_ratio, eta * z) + exponential_normal_cdf((mu - lambda) * log_ratio, eta * z - 2 * eta * lambda * volatility_time))};
+            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y2), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y2 - eta * volatility_time)};
     };
-    if (option.settlement_timing == SettlementTiming::at_hit) {
-        const auto formula_terms = common(upper ? -1.0 : 1.0, 0.0);
-        return make_pricing_result(formula_terms.a5);
-    }
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
                                           : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
