@@ -13,6 +13,31 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Single-fixing geometric Asians retain European time value", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const AnalyticGeometricAveragePriceEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double sigma : {1e-13, 0.2}) {
+            CAPTURE(type, sigma);
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), 1e14, start);
+            const auto option = *make_geometric_average_option(type, 1e14, start, end, end);
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            const double expected = 1e14 * std::erf(sigma / (2.0 * std::sqrt(2.0)));
+            CHECK(*price == Catch::Approx(expected).epsilon(1e-12).margin(1e-12));
+            const auto invalid = engine.price(*make_geometric_average_option(type, 1e14, start, end, end, 1e14), context);
+            REQUIRE_FALSE(invalid);
+            CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+        }
+        const auto expired = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 110.0, end);
+        const auto settled = engine.price(*make_geometric_average_option(type, 100.0, start, end, end), expired);
+        REQUIRE(settled);
+        CHECK(*settled == (type == OptionType::call ? 10.0 : 0.0));
+    }
+}
+
 TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

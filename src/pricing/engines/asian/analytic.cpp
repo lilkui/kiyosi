@@ -66,6 +66,11 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     if (tau == 0.0)
         return make_pricing_result(payoff(option.option_type(), realized > 0.0 ? realized : spot, strike));
     const double sigma = context.model_parameters().volatility();
+    if (option.averaging_start_date() == option.expiry_date()) {
+        return price_at_volatility(
+            *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date()),
+            context, sigma, GreeksRequest{});
+    }
     const double rate = context.model_parameters().risk_free_rate();
     const double carry = rate - context.model_parameters().dividend_yield();
     const double period = actual_365_fixed_year_fraction(averaging_start, expiry);

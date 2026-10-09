@@ -12,6 +12,7 @@ from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
+    GeometricAveragePriceOption,
     PhoenixOption,
     SnowballOption,
 )
@@ -24,6 +25,43 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_single_fixing_geometric_asians_retain_european_time_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.AnalyticGeometricAveragePriceEngine()
+        for direction in ("call", "put"):
+            for sigma in (1e-13, 0.2):
+                with self.subTest(direction=direction, sigma=sigma):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=0, dividend_yield=0, volatility=sigma,
+                        ),
+                        spot_price=1e14, valuation_time=start,
+                    )
+                    terms = dict(
+                        option_type=direction, strike=1e14,
+                        effective_date=start, averaging_start_date=end, expiry_date=end,
+                    )
+                    actual = engine.price(GeometricAveragePriceOption(**terms), context)
+                    expected = 1e14 * math.erf(sigma / (2 * math.sqrt(2)))
+                    self.assertAlmostEqual(actual, expected, delta=max(1e-12, expected * 1e-12))
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine.price(GeometricAveragePriceOption(**terms, realized_average=1e14), context)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+            expired = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2,
+                ),
+                spot_price=110, valuation_time=end,
+            )
+            settled = engine.price(
+                GeometricAveragePriceOption(
+                    option_type=direction, strike=100,
+                    effective_date=start, averaging_start_date=end, expiry_date=end,
+                ),
+                expired,
+            )
+            self.assertEqual(settled, 10 if direction == "call" else 0)
+
     def test_implied_volatility_rejects_unconditional_fixed_phoenix_cashflows(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 1, 6), date(2025, 1, 10)
         for rate in (0, 0.05):
