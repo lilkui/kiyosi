@@ -62,11 +62,6 @@ Returns
 float
     Instrument price. No Greeks are calculated.
 
-Analytic barrier and binary-barrier engines approximate scheduled monitoring
-with a BGK barrier shift. Untouched contracts with future observations require
-a final observation at expiry; shorter monitoring windows raise KiyosiError
-with category UNSUPPORTED_OPERATION. Resolved settlements remain supported.
-
 Raises
 ------
 KiyosiError
@@ -127,12 +122,18 @@ KiyosiError
 template <typename Engine>
 nb::class_<Engine> bind_stateless_engine(nb::module_& module, const char* name)
 {
-    nb::class_<Engine> binding{
-        module, name,
-        R"doc(Stateless pricing engine.
+    std::string description = R"doc(Stateless pricing engine.
 
 The engine has no configuration and may be reused across supported instruments
-and contexts. Concurrent calls are safe.)doc"};
+and contexts. Concurrent calls are safe.)doc";
+    if constexpr (std::same_as<Engine, AnalyticBarrierEngine> || std::same_as<Engine, AnalyticBinaryBarrierEngine>)
+        description += R"doc(
+
+Scheduled monitoring is approximated with a BGK barrier shift. Untouched contracts
+with future observations require a final observation at expiry; shorter monitoring
+windows raise KiyosiError with category UNSUPPORTED_OPERATION. Resolved settlements
+remain supported.)doc";
+    nb::class_<Engine> binding{module, name, description.c_str()};
     binding.def(nb::init<>(), R"doc(Create a stateless pricing engine.
 
 Returns
