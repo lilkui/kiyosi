@@ -211,15 +211,6 @@ namespace detail {
                              settlement_timing, observation_mode, std::move(observation_dates), touch_state);
 }
 
-[[nodiscard]] inline Result<TouchOption> make_asset_touch_option(
-    Date effective_date, Date expiry_date, double barrier_level, BarrierType barrier_type,
-    kiyosi::SettlementTiming settlement_timing, kiyosi::ObservationMode observation_mode,
-    std::vector<Date> observation_dates, std::optional<BarrierTouchState> touch_state)
-{
-    return make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, barrier_type,
-                             settlement_timing, observation_mode, std::move(observation_dates), touch_state);
-}
-
 } // namespace detail
 
 /// Default monitoring frequency for Touch factories.
@@ -285,7 +276,7 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     kiyosi::ObservationMode observation_mode = default_touch_observation_mode,
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
-    return detail::make_asset_touch_option(effective_date, expiry_date, barrier_level, BarrierType::up_and_in,
+    return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::up_and_in,
                                            settlement_timing, observation_mode,
                                            std::move(observation_dates), touch_state);
 }
@@ -298,7 +289,7 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     kiyosi::ObservationMode observation_mode = default_touch_observation_mode,
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
-    return detail::make_asset_touch_option(effective_date, expiry_date, barrier_level, BarrierType::down_and_in,
+    return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::down_and_in,
                                            settlement_timing, observation_mode,
                                            std::move(observation_dates), touch_state);
 }
@@ -310,7 +301,7 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     kiyosi::ObservationMode observation_mode = default_touch_observation_mode,
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
-    return detail::make_asset_touch_option(effective_date, expiry_date, barrier_level, BarrierType::up_and_out,
+    return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::up_and_out,
                                            SettlementTiming::at_expiry, observation_mode,
                                            std::move(observation_dates), touch_state);
 }
@@ -322,7 +313,7 @@ inline constexpr SettlementTiming default_one_touch_settlement_timing = Settleme
     kiyosi::ObservationMode observation_mode = default_touch_observation_mode,
     std::vector<Date> observation_dates = {}, std::optional<BarrierTouchState> touch_state = std::nullopt)
 {
-    return detail::make_asset_touch_option(effective_date, expiry_date, barrier_level, BarrierType::down_and_out,
+    return detail::make_touch_option(effective_date, expiry_date, barrier_level, AssetOrNothingPayoff{}, BarrierType::down_and_out,
                                            SettlementTiming::at_expiry, observation_mode,
                                            std::move(observation_dates), touch_state);
 }
