@@ -326,7 +326,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
             )
 
-    def test_finite_differences_settle_without_a_spatial_grid(self):
+    def test_determined_cashflows_bypass_grids_and_reject_implied_volatility(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         common = {
             "knock_out_levels": [120, 120],
@@ -420,6 +420,16 @@ class KiyosiPythonTests(unittest.TestCase):
                         finite_difference(asset_upper_boundary=1),
                     ):
                         self.assertEqual(engine.price(option, context), expected)
+                    for engine in (
+                        monte_carlo(path_count=64, seed=73),
+                        finite_difference(),
+                    ):
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(engine, option, context, expected)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                        )
                     with self.assertRaises(kiyosi.KiyosiError) as error:
                         finite_difference(asset_step_count=2).price(option, context)
                     self.assertEqual(

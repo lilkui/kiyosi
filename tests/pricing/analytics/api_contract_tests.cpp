@@ -859,7 +859,7 @@ TEST_CASE("Implied ternary volatility requires remaining cashflow exposure", "[p
     check(FiniteDifferenceTernarySnowballEngine{});
 }
 
-TEST_CASE("Finite differences settle determined cashflows without a spatial grid", "[pricing-api][audit-fixes]")
+TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatility", "[pricing-api][audit-fixes]")
 {
     const auto check = [&](const auto& option, const auto& monte_carlo, const auto& finite_difference) {
         using Engine = std::remove_cvref_t<decltype(finite_difference)>;
@@ -871,6 +871,11 @@ TEST_CASE("Finite differences settle determined cashflows without a spatial grid
                 const auto actual = engine.price(option, context);
                 REQUIRE(actual);
                 CHECK(*actual == *expected);
+            }
+            for (const auto implied : {implied_volatility(monte_carlo, option, context, *expected),
+                                       implied_volatility(finite_difference, option, context, *expected)}) {
+                REQUIRE_FALSE(implied);
+                CHECK(implied.error().category == ErrorCategory::unsupported_operation);
             }
             const auto invalid = Engine{{.asset_step_count = 2}}.price(option, context);
             REQUIRE_FALSE(invalid);
