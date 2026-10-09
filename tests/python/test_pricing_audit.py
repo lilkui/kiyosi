@@ -32,6 +32,25 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_barrier_expiry_settles_before_rebate_discounting(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = BarrierOption(
+            option_type="call", strike=80, effective_date=start, expiry_date=end,
+            barrier_level=120, barrier_type="up_and_out", rebate=7,
+            rebate_timing="at_hit", touch_state="untouched",
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=-0.02, dividend_yield=-0.04, volatility=0.2,
+            ), spot_price=100, valuation_time=end,
+        )
+        for engine in (pricing.AnalyticBarrierEngine(), pricing.FiniteDifferenceBarrierEngine()):
+            with self.subTest(engine=type(engine).__name__):
+                self.assertEqual(engine.price(option, context), 20)
+                joint = engine.price_with_greeks(option, context, all_greeks=True)
+                self.assertEqual(joint.price, 20)
+                self.assertIsNone(joint.gamma)
+
     def test_pricing_preserves_adjacent_spot_strike_and_barrier_values(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         sigma = 1e-16

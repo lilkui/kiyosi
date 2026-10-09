@@ -55,6 +55,8 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
+    if (t == 0.0)
+        return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = log_price_ratio(barrier, spot);
     double hit_discount = 0.0;
@@ -72,8 +74,6 @@ Result<PricingResult> AnalyticBarrierEngine::price_native(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
     }
-    if (t == 0.0)
-        return make_pricing_result(knock_in ? option.rebate() : vanilla->price());
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
     const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
     const double x = option.strike();
