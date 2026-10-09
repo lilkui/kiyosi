@@ -1,14 +1,21 @@
 #include "_binding.hpp"
 
+#include <string>
+#include <string_view>
+
 using namespace nb::literals;
 
 namespace kiyosi::python_binding {
 
 namespace {
 
-constexpr const char* cash_one_touch_doc = R"doc(Create a cash one-touch option.
+std::string touch_option_doc(const char* kind, const char* settlement_note,
+                             const char* parameters, const char* rejected_terms)
+{
+    const char* article = std::string_view{kind}.starts_with("asset") ? "an " : "a ";
+    return std::string{"Create "} + article + kind + R"doc( option.
 
-The factory name selects an upper or lower barrier.
+The factory name selects an upper or lower barrier.)doc" + settlement_note + R"doc(
 ``touch_state`` describes observations before the valuation time.
 
 Parameters
@@ -17,125 +24,32 @@ effective_date, expiry_date : datetime.date
     Contract effective and expiry dates, each anchored at 00:00 UTC.
 barrier_level : float
     Positive barrier level.
-payout : float
+)doc" + parameters + R"doc(observation_mode : {'continuous', 'scheduled'}, optional
+    Continuous or scheduled monitoring.
+observation_dates : iterable[datetime.date], optional
+    Required schedule for scheduled monitoring.
+touch_state : {'untouched', 'touched'} or None, optional
+    History strictly before valuation. Required once prior monitoring was possible.
+
+Returns
+-------
+TouchOption
+    Validated immutable )doc" + kind + R"doc( option.
+
+Raises
+------
+TypeError
+    If an argument has an incompatible representation.
+KiyosiError
+    If the core rejects the )doc" + rejected_terms + ".";
+}
+
+constexpr const char* payout_doc = R"doc(payout : float
     Fixed cash payout.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
+)doc";
+constexpr const char* settlement_doc = R"doc(settlement_timing : {'at_hit', 'at_expiry'}, optional
     Settle at the barrier hit or at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous or scheduled monitoring.
-observation_dates : iterable[datetime.date], optional
-    Required schedule for scheduled monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    History strictly before valuation. Required once prior monitoring was possible.
-
-Returns
--------
-TouchOption
-    Validated immutable cash one-touch option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the payoff, barrier, dates, or observation schedule.)doc";
-
-constexpr const char* cash_no_touch_doc = R"doc(Create a cash no-touch option.
-
-The factory name selects an upper or lower barrier. No-touch payoffs settle at
-expiry.
-``touch_state`` describes observations before the valuation time.
-
-Parameters
-----------
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-payout : float
-    Fixed cash payout.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous or scheduled monitoring.
-observation_dates : iterable[datetime.date], optional
-    Required schedule for scheduled monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    History strictly before valuation. Required once prior monitoring was possible.
-
-Returns
--------
-TouchOption
-    Validated immutable cash no-touch option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the payoff, barrier, dates, or observation schedule.)doc";
-
-constexpr const char* asset_one_touch_doc = R"doc(Create an asset one-touch option.
-
-The factory name selects an upper or lower barrier.
-``touch_state`` describes observations before the valuation time.
-
-Parameters
-----------
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-settlement_timing : {'at_hit', 'at_expiry'}, optional
-    Settle at the barrier hit or at expiry.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous or scheduled monitoring.
-observation_dates : iterable[datetime.date], optional
-    Required schedule for scheduled monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    History strictly before valuation. Required once prior monitoring was possible.
-
-Returns
--------
-TouchOption
-    Validated immutable asset one-touch option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the barrier, dates, or observation schedule.)doc";
-
-constexpr const char* asset_no_touch_doc = R"doc(Create an asset no-touch option.
-
-The factory name selects an upper or lower barrier. No-touch payoffs settle at
-expiry.
-``touch_state`` describes observations before the valuation time.
-
-Parameters
-----------
-effective_date, expiry_date : datetime.date
-    Contract effective and expiry dates, each anchored at 00:00 UTC.
-barrier_level : float
-    Positive barrier level.
-observation_mode : {'continuous', 'scheduled'}, optional
-    Continuous or scheduled monitoring.
-observation_dates : iterable[datetime.date], optional
-    Required schedule for scheduled monitoring.
-touch_state : {'untouched', 'touched'} or None, optional
-    History strictly before valuation. Required once prior monitoring was possible.
-
-Returns
--------
-TouchOption
-    Validated immutable asset no-touch option.
-
-Raises
-------
-TypeError
-    If an argument has an incompatible representation.
-KiyosiError
-    If the core rejects the barrier, dates, or observation schedule.)doc";
-
+)doc";
 template <typename Instrument>
 void bind_common_option_properties(nb::class_<Instrument>& binding, const char* name,
                                    std::initializer_list<const char*> fields = {"option_type", "strike", "effective_date", "expiry_date"})
@@ -147,6 +61,23 @@ void bind_common_option_properties(nb::class_<Instrument>& binding, const char* 
         .def_prop_ro("expiry_date", [](const Instrument& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(binding);
     bind_repr(binding, name, fields);
+}
+
+template <typename Instrument>
+void bind_strike_option(nb::module_& module, const char* name,
+                        Result<Instrument> (*factory)(OptionType, double, Date, Date),
+                        const char* description, const char* constructor_doc)
+{
+    auto binding = nb::class_<Instrument>(module, name, description)
+        .def(nb::new_([factory](PythonChoice<OptionType> type, PythonReal strike,
+                               PythonDate effective_date, PythonDate expiry_date) {
+            return unwrap(factory(type, real_number(strike, "strike"),
+                                  calendar_date(effective_date, "effective_date"),
+                                  calendar_date(expiry_date, "expiry_date")));
+        }),
+        nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+        constructor_doc);
+    bind_common_option_properties(binding, name);
 }
 
 template <typename AverageOptionType>
@@ -202,18 +133,23 @@ KiyosiError
 
 void bind_instruments(nb::module_& module)
 {
-    auto european = nb::class_<EuropeanOption>(
-                        module, "EuropeanOption", R"doc(Immutable validated European vanilla option.
+    const std::string cash_one_touch_doc = touch_option_doc(
+        "cash one-touch", "", (std::string{payout_doc} + settlement_doc).c_str(),
+        "payoff, barrier, dates, or observation schedule");
+    const std::string cash_no_touch_doc = touch_option_doc(
+        "cash no-touch", " No-touch payoffs settle at\nexpiry.", payout_doc,
+        "payoff, barrier, dates, or observation schedule");
+    const std::string asset_one_touch_doc = touch_option_doc(
+        "asset one-touch", "", settlement_doc, "barrier, dates, or observation schedule");
+    const std::string asset_no_touch_doc = touch_option_doc(
+        "asset no-touch", " No-touch payoffs settle at\nexpiry.", "",
+        "barrier, dates, or observation schedule");
 
-The payoff can be exercised only at expiry.)doc")
-                        .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
-                                         PythonDate expiry_date) {
-                                 return unwrap(make_european_option(
-                                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                                     calendar_date(expiry_date, "expiry_date")));
-                             }),
-                             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-                             R"doc(Create a validated European option.
+    bind_strike_option(module, "EuropeanOption", &make_european_option,
+        R"doc(Immutable validated European vanilla option.
+
+The payoff can be exercised only at expiry.)doc",
+        R"doc(Create a validated European option.
 
 Parameters
 ----------
@@ -232,20 +168,12 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the strike or date ordering.)doc");
-    bind_common_option_properties(european, "EuropeanOption");
 
-    auto american = nb::class_<AmericanOption>(
-                        module, "AmericanOption", R"doc(Immutable validated American vanilla option.
+    bind_strike_option(module, "AmericanOption", &make_american_option,
+        R"doc(Immutable validated American vanilla option.
 
-The payoff may be exercised from the effective date through expiry.)doc")
-                        .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
-                                         PythonDate expiry_date) {
-                                 return unwrap(make_american_option(
-                                     type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                                     calendar_date(expiry_date, "expiry_date")));
-                             }),
-                             nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-                             R"doc(Create a validated American option.
+The payoff may be exercised from the effective date through expiry.)doc",
+        R"doc(Create a validated American option.
 
 Parameters
 ----------
@@ -264,7 +192,6 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the strike or date ordering.)doc");
-    bind_common_option_properties(american, "AmericanOption");
 
     auto cash = nb::class_<CashOrNothingOption>(
                     module, "CashOrNothingOption", R"doc(Immutable validated cash-or-nothing digital option.)doc")
@@ -300,16 +227,9 @@ KiyosiError
                                  "Fixed in-the-money cash payout.");
     bind_common_option_properties(cash, "CashOrNothingOption", {"option_type", "strike", "payout", "effective_date", "expiry_date"});
 
-    auto asset = nb::class_<AssetOrNothingOption>(
-                     module, "AssetOrNothingOption", R"doc(Immutable validated asset-or-nothing digital option.)doc")
-                     .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
-                                      PythonDate expiry_date) {
-                              return unwrap(make_asset_or_nothing_option(
-                                  type, real_number(strike, "strike"), calendar_date(effective_date, "effective_date"),
-                                  calendar_date(expiry_date, "expiry_date")));
-                          }),
-                          nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
-                          R"doc(Create a validated asset-or-nothing option.
+    bind_strike_option(module, "AssetOrNothingOption", &make_asset_or_nothing_option,
+        R"doc(Immutable validated asset-or-nothing digital option.)doc",
+        R"doc(Create a validated asset-or-nothing option.
 
 Parameters
 ----------
@@ -328,7 +248,6 @@ TypeError
     If an argument has an incompatible representation.
 KiyosiError
     If the core rejects the strike or date ordering.)doc");
-    bind_common_option_properties(asset, "AssetOrNothingOption");
 
     bind_average_option(module, "GeometricAveragePriceOption", &make_geometric_average_option);
     bind_average_option(module, "ArithmeticAveragePriceOption", &make_arithmetic_average_option);
@@ -518,36 +437,36 @@ factory functions.)doc")
                                                                                                                                                                                                                                                                                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                                                                            real_number(barrier, "barrier_level"), real_number(payout, "payout"),
                                                                                                                                                                                                                                                                                                                                            settlement_timing,
-                                                                                                                                                                                                                                                                                                                                           observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc);
+                                                                                                                                                                                                                                                                                                                                           observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc.c_str());
     module.def("cash_one_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, PythonChoice<SettlementTiming> settlement_timing, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_one_touch_down(
                                                                                                                                                                                                                                                                                                                                              calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                                                                              real_number(barrier, "barrier_level"), real_number(payout, "payout"),
                                                                                                                                                                                                                                                                                                                                              settlement_timing,
-                                                                                                                                                                                                                                                                                                                                             observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc);
+                                                                                                                                                                                                                                                                                                                                             observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_one_touch_doc.c_str());
     module.def("cash_no_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_no_touch_up(
                                                                                                                                                                                                                                                                                         calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                         real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                                                                                                                                                                                                                                                                                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc);
+                                                                                                                                                                                                                                                                                        observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc.c_str());
     module.def("cash_no_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonReal payout, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_cash_no_touch_down(
                                                                                                                                                                                                                                                                                           calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                           real_number(barrier, "barrier_level"), real_number(payout, "payout"),
-                                                                                                                                                                                                                                                                                          observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc);
+                                                                                                                                                                                                                                                                                          observation_mode, date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, cash_no_touch_doc.c_str());
     module.def("asset_one_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<SettlementTiming> settlement_timing, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_asset_one_touch_up(
                                                                                                                                                                                                                                                                                                                          calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                                                          real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
-                                                                                                                                                                                                                                                                                                                         date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc);
+                                                                                                                                                                                                                                                                                                                         date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc.c_str());
     module.def("asset_one_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<SettlementTiming> settlement_timing, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_asset_one_touch_down(
                                                                                                                                                                                                                                                                                                                            calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                                                                            real_number(barrier, "barrier_level"), settlement_timing, observation_mode,
-                                                                                                                                                                                                                                                                                                                           date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc);
+                                                                                                                                                                                                                                                                                                                           date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_one_touch_doc.c_str());
     module.def("asset_no_touch_up", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_asset_no_touch_up(
                                                                                                                                                                                                                                                                       calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                       real_number(barrier, "barrier_level"), observation_mode,
-                                                                                                                                                                                                                                                                      date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc);
+                                                                                                                                                                                                                                                                      date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc.c_str());
     module.def("asset_no_touch_down", [](PythonDate effective_date, PythonDate expiry_date, PythonReal barrier, PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(make_asset_no_touch_down(
                                                                                                                                                                                                                                                                         calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
                                                                                                                                                                                                                                                                         real_number(barrier, "barrier_level"), observation_mode,
-                                                                                                                                                                                                                                                                        date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc);
+                                                                                                                                                                                                                                                                        date_sequence(observation_dates, "observation_dates"), touch_state)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "barrier_level"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, asset_no_touch_doc.c_str());
 
     auto accumulator = nb::class_<Accumulator>(
                            module, "Accumulator", R"doc(Immutable validated accumulator contract.)doc")
