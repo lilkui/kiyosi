@@ -7,7 +7,7 @@
 #include <cmath>
 #include <limits>
 
-#include "../../detail/black_scholes.hpp"
+#include "../../detail/barrier_settlement.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
@@ -24,33 +24,20 @@ Result<double> AnalyticBarrierEngine::price(
         if (!schedule_valid) return std::unexpected(schedule_valid.error());
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
+    if (const auto settled = resolved_barrier_price(option, context)) return *settled;
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const auto& terms = option.barrier_terms();
-    const auto prior_touch = terms.was_touched_before(context.valuation_time());
-    if (!prior_touch) return std::unexpected(prior_touch.error());
     double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool touched_now = terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(spot);
-    const bool touched = *prior_touch || touched_now;
-    if (touched && !knock_in)
-        return checked_price(option.rebate() * (option.rebate_timing() == RebateTiming::at_hit
-                                                    ? (*prior_touch ? 0.0 : 1.0)
-                                                    : std::exp(-rate * t)));
-    const bool monitoring_finished = !terms.is_continuous() &&
-                                     start_of_day(terms.observation_dates().back()) <= context.valuation_time();
-    if (!touched && monitoring_finished && knock_in)
-        return checked_price(option.rebate() * std::exp(-rate * t));
     const auto vanilla = price_at_volatility(
         *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
         context.model_parameters().volatility(), GreeksRequest{});
     if (!vanilla) return std::unexpected(vanilla.error());
-    if (touched || monitoring_finished)
-        return checked_price(vanilla->price());
     const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
     if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {

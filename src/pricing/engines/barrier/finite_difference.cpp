@@ -6,7 +6,7 @@
 #include <cmath>
 #include <vector>
 
-#include "../../detail/black_scholes.hpp"
+#include "../../detail/barrier_settlement.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -107,36 +107,7 @@ Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option,
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective_date(), option.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
-    const auto& terms = option.barrier_terms();
-    const auto prior_touch = terms.was_touched_before(context.valuation_time());
-    if (!prior_touch) return std::unexpected(prior_touch.error());
-    const bool knock_in = terms.is_knock_in();
-    const bool touched = terms.is_breached_by(context.spot_price());
-    const bool observed_now = terms.is_monitored_at(context.valuation_time());
-    const double t = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
-    const auto vanilla_price = [&]() -> Result<double> {
-        auto vanilla = price_at_volatility(*make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),
-                                           context, context.model_parameters().volatility(), GreeksRequest{});
-        if (!vanilla) return std::unexpected(vanilla.error());
-        return vanilla->price();
-    };
-    if (*prior_touch || (touched && observed_now)) {
-        if (!knock_in)
-            return checked_price(option.rebate_timing() == RebateTiming::at_hit
-                                     ? (*prior_touch ? 0.0 : option.rebate())
-                                     : option.rebate() *
-                                           std::exp(-context.model_parameters().risk_free_rate() * t));
-        auto vanilla = vanilla_price();
-        if (!vanilla) return std::unexpected(vanilla.error());
-        return checked_price(*vanilla);
-    }
-    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time()) {
-        if (knock_in)
-            return checked_price(option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * t));
-        auto vanilla = vanilla_price();
-        if (!vanilla) return std::unexpected(vanilla.error());
-        return checked_price(*vanilla);
-    }
+    if (const auto settled = resolved_barrier_price(option, context)) return *settled;
     const auto price = barrier_fd(option, context, settings_);
     if (!price) return std::unexpected(price.error());
     return checked_price(*price);
