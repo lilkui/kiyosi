@@ -19,9 +19,6 @@
 namespace kiyosi {
 namespace {
 
-enum class PathRetention : std::uint8_t { full,
-                                          terminal };
-
 struct SimulationParameters {
     double spot;
     double rate;
@@ -57,17 +54,11 @@ Result<SimulationParameters> simulation_parameters(
                                 drift, diffusion};
 }
 
-Result<std::vector<double>> simulate_paths(
-    SimulationParameters parameters, MonteCarloSettings settings, PathRetention retention)
+template <typename Observe>
+Result<void> simulate_paths(
+    SimulationParameters parameters, MonteCarloSettings settings, const Observe& observe)
 {
-
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
-    const auto stride = retention == PathRetention::full
-                            ? static_cast<std::size_t>(settings.step_count)
-                            : std::size_t{1};
-    const auto size = static_cast<std::size_t>(path_count) * stride;
-    std::vector<double> paths(size);
-
     std::mt19937_64 generator = [&] {
         if (settings.seed) return std::mt19937_64{*settings.seed};
         std::random_device source;
@@ -77,12 +68,6 @@ Result<std::vector<double>> simulate_paths(
     std::normal_distribution<double> normal;
     const int half_count = path_count / 2;
     for (int path = 0; path < half_count; ++path) {
-        const auto positive = static_cast<std::size_t>(path) * stride;
-        const auto negative = static_cast<std::size_t>(path + half_count) * stride;
-        if (retention == PathRetention::full) {
-            paths[positive] = parameters.spot;
-            paths[negative] = parameters.spot;
-        }
         double positive_spot = parameters.spot;
         double negative_spot = parameters.spot;
         for (int step = 1; step < settings.step_count; ++step) {
@@ -93,17 +78,10 @@ Result<std::vector<double>> simulate_paths(
                 !std::isfinite(negative_spot) || negative_spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "Monte Carlo simulation produced a non-finite path"});
-            if (retention == PathRetention::full) {
-                paths[positive + static_cast<std::size_t>(step)] = positive_spot;
-                paths[negative + static_cast<std::size_t>(step)] = negative_spot;
-            }
-        }
-        if (retention == PathRetention::terminal) {
-            paths[positive] = positive_spot;
-            paths[negative] = negative_spot;
+            observe(path, path + half_count, step, positive_spot, negative_spot);
         }
     }
-    return paths;
+    return {};
 }
 
 double payoff(OptionType type, double spot, double strike)
@@ -180,11 +158,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        auto paths = simulate_paths(*parameters, simulation, PathRetention::terminal);
-        if (!paths) return std::unexpected(paths.error());
         detail::MonteCarloMean payoffs{};
-        for (const double terminal_spot : *paths)
-            payoffs.add(payoff(option.option_type(), terminal_spot, option.strike()));
+        const auto simulated = simulate_paths(*parameters, simulation, [&](int, int, int, double positive, double negative) {
+            payoffs.add(payoff(option.option_type(), positive, option.strike()));
+            payoffs.add(payoff(option.option_type(), negative, option.strike()));
+        });
+        if (!simulated) return std::unexpected(simulated.error());
         mean = payoffs.value();
     }
     const double value = mean *
@@ -223,21 +202,25 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        auto paths = simulate_paths(*parameters, settings_, PathRetention::full);
-        if (!paths) return std::unexpected(paths.error());
-        const std::size_t path_count = paths->size() / static_cast<std::size_t>(settings_.step_count);
-        cash_flows.resize(path_count);
+        const auto path_count = static_cast<std::size_t>(settings_.path_count + settings_.path_count % 2);
         const auto stride = static_cast<std::size_t>(settings_.step_count);
+        std::vector<double> paths(path_count * stride, parameters->spot);
+        const auto simulated = simulate_paths(*parameters, settings_, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
+            paths[static_cast<std::size_t>(positive) * stride + static_cast<std::size_t>(step)] = positive_spot;
+            paths[static_cast<std::size_t>(negative) * stride + static_cast<std::size_t>(step)] = negative_spot;
+        });
+        if (!simulated) return std::unexpected(simulated.error());
+        cash_flows.resize(path_count);
         for (std::size_t path = 0; path < path_count; ++path)
             cash_flows[path] = payoff(
-                option.option_type(), (*paths)[path * stride + stride - 1], option.strike());
+                option.option_type(), paths[path * stride + stride - 1], option.strike());
         for (int step = settings_.step_count - 2; step >= 1; --step) {
             for (double& value : cash_flows)
                 value *= discount;
             detail::QuadraticRegressionMatrix matrix{};
             std::size_t sample_count = 0;
             for (std::size_t path = 0; path < path_count; ++path) {
-                const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
+                const double spot = paths[path * stride + static_cast<std::size_t>(step)];
                 if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
                     ++sample_count;
                     const double scaled = spot / option.strike();
@@ -253,7 +236,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_native(
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
             for (std::size_t path = 0; path < path_count; ++path) {
-                const double spot = (*paths)[path * stride + static_cast<std::size_t>(step)];
+                const double spot = paths[path * stride + static_cast<std::size_t>(step)];
                 const double intrinsic = payoff(option.option_type(), spot, option.strike());
                 if (intrinsic <= 0.0) continue;
                 const double scaled = spot / option.strike();
