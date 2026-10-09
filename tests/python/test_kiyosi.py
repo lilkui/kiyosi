@@ -2461,6 +2461,30 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(measure=name):
                 self.assertIsNone(getattr(basic, name))
 
+    def test_greek_requests_deduplicate_and_validate_the_entire_iterable(self):
+        engine = AnalyticVanillaEngine()
+        names = get_args(kiyosi.Greek)
+        consumed = 0
+
+        def repeated():
+            nonlocal consumed
+            for _ in range(1000):
+                for name in names:
+                    consumed += 1
+                    yield name
+
+        result = engine.price_with_greeks(self.option, self.context, repeated())
+        full = engine.price_with_greeks(self.option, self.context, all_greeks=True)
+        self.assertEqual(consumed, 1000 * len(names))
+        for name in ("price", *names):
+            with self.subTest(measure=name):
+                self.assertEqual(getattr(result, name), getattr(full, name))
+        for invalid, error_type in (("unknown", ValueError), (1, TypeError)):
+            with self.subTest(invalid=invalid), self.assertRaises(error_type):
+                engine.price_with_greeks(
+                    self.option, self.context, iter((*names, invalid))
+                )
+
     def test_greek_iterators_initialize_once_and_preserve_errors(self):
         engine = AnalyticVanillaEngine()
         for phase in ("initialization", "advance"):
@@ -2469,7 +2493,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
                 class FailingGreeks:
                     iter_calls = 0
-                    first = True
+                    remaining = iter(get_args(kiyosi.Greek))
                     iteration_phase = phase
                     iteration_failure = failure
 
@@ -2480,9 +2504,9 @@ class KiyosiPythonTests(unittest.TestCase):
                         return self
 
                     def __next__(self):
-                        if self.first:
-                            self.first = False
-                            return "delta"
+                        name = next(self.remaining, None)
+                        if name is not None:
+                            return name
                         raise self.iteration_failure
 
                 values = FailingGreeks()

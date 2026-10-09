@@ -1,4 +1,5 @@
 #include "_binding.hpp"
+#include <algorithm>
 
 using namespace nb::literals;
 
@@ -12,13 +13,12 @@ NumericalShiftSettings numerical_settings(
     nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days);
 
-std::vector<Greek> requested_greeks(nb::handle value)
+GreeksRequest requested_greeks(nb::handle value)
 {
-    std::vector<Greek> selected;
-    if (nb::isinstance<nb::str>(value)) {
-        selected.push_back(string_enum<Greek>(value, "greeks"));
-        return selected;
-    }
+    if (nb::isinstance<nb::str>(value))
+        return GreeksRequest{string_enum<Greek>(value, "greeks")};
+    std::array<Greek, greek_count> selected{};
+    std::size_t count = 0;
     nb::iterator iterator;
     try {
         iterator = nb::iter(value);
@@ -30,9 +30,12 @@ std::vector<Greek> requested_greeks(nb::handle value)
         const nb::handle greek = *iterator;
         if (!nb::isinstance<nb::str>(greek))
             type_error("greeks", "a Greek name or an iterable of Greek names");
-        selected.push_back(string_enum<Greek>(greek, "greeks"));
+        const auto choice = string_enum<Greek>(greek, "greeks");
+        const auto unique = std::span{selected}.first(count);
+        if (std::ranges::find(unique, choice) == unique.end())
+            selected[count++] = choice;
     }
-    return selected;
+    return GreeksRequest{std::span{selected}.first(count)};
 }
 
 template <typename Engine, typename Instrument>
@@ -76,8 +79,7 @@ KiyosiError
             const bool all = all_greeks.ptr() == Py_True;
             if (all && !greeks.is_none()) type_error("greeks", "omitted when all_greeks is True");
             if (!all && greeks.is_none()) type_error("greeks", "provided unless all_greeks is True");
-            const auto selected = all ? std::vector<Greek>{} : requested_greeks(greeks);
-            const GreeksRequest request = all ? GreeksRequest{true} : GreeksRequest{std::span<const Greek>{selected}};
+            const GreeksRequest request = all ? GreeksRequest{true} : requested_greeks(greeks);
             const auto settings = numerical_settings(
                 spot_shift, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
