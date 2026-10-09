@@ -17,13 +17,12 @@ inline Result<void> validate_trading_expiry(const TradingCalendar& calendar, Dat
     return {};
 }
 
-/// Trading days in (start, end]; `include_start` also yields `start` when it is a midnight Date.
+/// Trading days in (start, end].
 inline std::vector<Date> trading_dates(
-    const TradingCalendar& calendar, Timestamp start, Date end, bool include_start = false)
+    const TradingCalendar& calendar, Timestamp start, Date end)
 {
     std::vector<Date> dates;
-    auto first = include_start && start == start_of_day(date_of(start)) ? date_of(start)
-                                                                        : date_of(start) + std::chrono::days{1};
+    const auto first = date_of(start) + std::chrono::days{1};
     for (auto value = first; value <= end; value += std::chrono::days{1})
         if (calendar.is_trading_day(value)) dates.push_back(value);
     return dates;
