@@ -9,11 +9,11 @@ namespace kiyosi {
 
 namespace detail {
 
-/// Expands common preset fields, transferring the observation dates into the result.
+/// Expands common preset fields and constant ladders, transferring the observation dates into the result.
 template <typename Terms>
 [[nodiscard]] SnowballTerms common_snowball_terms(Terms& terms)
 {
-    return {.initial_spot = terms.initial_spot,
+    SnowballTerms expanded{.initial_spot = terms.initial_spot,
             .knock_in_level = terms.knock_in_level,
             .upper_strike = terms.initial_spot,
             .lower_strike = 0.0,
@@ -23,6 +23,13 @@ template <typename Terms>
             .principal_ratio = terms.principal_ratio,
             .effective_date = terms.effective_date,
             .expiry_date = terms.expiry_date};
+    if constexpr (requires { terms.coupon_rate; }) {
+        expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
+        expanded.maturity_coupon_rate = terms.coupon_rate;
+    }
+    if constexpr (requires { terms.knock_out_level; })
+        expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
+    return expanded;
 }
 
 } // namespace detail
@@ -49,9 +56,6 @@ struct StandardSnowballTerms {
     StandardSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
-    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
     return make_snowball_option(std::move(expanded));
 }
 
@@ -80,8 +84,6 @@ struct StepDownSnowballTerms {
     for (std::size_t index = 0; index < terms.observation_dates.size(); ++index)
         knock_out_levels.push_back(terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement);
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
     expanded.knock_out_levels = std::move(knock_out_levels);
     return make_snowball_option(std::move(expanded));
 }
@@ -146,7 +148,6 @@ struct DualCouponSnowballTerms {
     auto expanded = detail::common_snowball_terms(terms);
     expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_coupon_rate);
     expanded.maturity_coupon_rate = terms.maturity_coupon_rate;
-    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
     return make_snowball_option(std::move(expanded));
 }
 
@@ -169,12 +170,8 @@ struct ParachuteSnowballTerms {
 [[nodiscard]] inline Result<SnowballOption> make_parachute_snowball(
     ParachuteSnowballTerms terms)
 {
-    std::vector<double> knock_out_levels(terms.observation_dates.size(), terms.knock_out_level);
-    if (!knock_out_levels.empty()) knock_out_levels.back() = terms.final_knock_out_level;
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
-    expanded.knock_out_levels = std::move(knock_out_levels);
+    if (!expanded.knock_out_levels.empty()) expanded.knock_out_levels.back() = terms.final_knock_out_level;
     return make_snowball_option(std::move(expanded));
 }
 
@@ -198,9 +195,6 @@ struct OtmSnowballTerms {
     OtmSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
-    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
     expanded.upper_strike = terms.upper_strike;
     return make_snowball_option(std::move(expanded));
 }
@@ -225,9 +219,6 @@ struct LossCappedSnowballTerms {
     LossCappedSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
-    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
     expanded.lower_strike = terms.lower_strike;
     return make_snowball_option(std::move(expanded));
 }
@@ -241,9 +232,6 @@ using EuropeanSnowballTerms = StandardSnowballTerms;
     EuropeanSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    expanded.knock_out_coupon_rates = std::vector<double>(expanded.observation_dates.size(), terms.coupon_rate);
-    expanded.maturity_coupon_rate = terms.coupon_rate;
-    expanded.knock_out_levels = std::vector<double>(expanded.observation_dates.size(), terms.knock_out_level);
     expanded.knock_in_observation_mode = KnockInObservationMode::at_expiry;
     return make_snowball_option(std::move(expanded));
 }
