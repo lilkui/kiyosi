@@ -36,8 +36,6 @@ Result<double> simulation_time(const PricingContext& context, Date effective_dat
 Result<SimulationParameters> simulation_parameters(
     const PricingContext& context, double time, MonteCarloSettings settings)
 {
-    const auto valid = detail::validate_monte_carlo_settings(settings);
-    if (!valid) return std::unexpected(valid.error());
     const double volatility = context.model_parameters().volatility();
     const double dt = time / static_cast<double>(settings.step_count - 1);
     const double sqrt_dt = std::sqrt(dt);
