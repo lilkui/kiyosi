@@ -4,6 +4,7 @@
 #include <cmath>
 #include <vector>
 
+#include "../../detail/accumulator_state.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
@@ -33,16 +34,6 @@ void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std
     }
 }
 
-Result<PricingResult> terminal_value(const Accumulator& option, const PricingContext& context)
-{
-    double quantity = option.accumulated_quantity();
-    const double value = context.spot_price();
-    if (value < option.knock_out_level())
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                            : option.daily_quantity();
-    return make_pricing_result(quantity * (value - option.strike()));
-}
-
 } // namespace
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
@@ -56,18 +47,11 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         settings_, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
 
+    const auto initial = accumulator_initial_state(option, context);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
+
     const double spot = context.spot_price();
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
-    if (time_to_expiry == 0.0) return terminal_value(option, context);
-
-    double quantity = option.accumulated_quantity();
-    if (context.valuation_time() == start_of_day(context.valuation_date()) &&
-        context.calendar().is_trading_day(context.valuation_date())) {
-        if (spot >= option.knock_out_level())
-            return make_pricing_result(quantity * (spot - option.strike()));
-        quantity += spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                           : option.daily_quantity();
-    }
 
     const double relevant = highest_finite_difference_level(option, context);
     const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
@@ -124,7 +108,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept.swap(next_intercept);
     }
 
-    return make_pricing_result(space->interpolate(slope, spot) * quantity +
+    return make_pricing_result(space->interpolate(slope, spot) * initial.quantity +
                                space->interpolate(intercept, spot));
 }
 

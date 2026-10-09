@@ -1,11 +1,11 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
 #include <cmath>
-#include <optional>
 #include <random>
 #include <vector>
 
 #include "../monte_carlo_mean.hpp"
+#include "../../detail/accumulator_state.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
 #include "../monte_carlo_cuda_host.hpp"
@@ -16,27 +16,6 @@ using namespace detail;
 namespace {
 
 using SimulationStep = detail::CudaSimulationStep;
-
-struct InitialState {
-    double quantity{};
-    std::optional<double> settlement;
-};
-
-InitialState initial_state(const Accumulator& option, const PricingContext& context)
-{
-    const Timestamp valuation = context.valuation_time();
-    const double value = context.spot_price();
-    double quantity = option.accumulated_quantity();
-    if (valuation == start_of_day(date_of(valuation)) &&
-        context.calendar().is_trading_day(date_of(valuation))) {
-        if (value >= option.knock_out_level())
-            return {quantity, quantity * (value - option.strike())};
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                            : option.daily_quantity();
-    }
-    if (valuation == option.expiry_date()) return {quantity, quantity * (value - option.strike())};
-    return {quantity, std::nullopt};
-}
 
 Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option,
                                                        const PricingContext& context)
@@ -88,7 +67,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_native(
     auto expiry_valid = validate_trading_expiry(context.calendar(), option.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
 
-    const auto initial = initial_state(option, context);
+    const auto initial = accumulator_initial_state(option, context);
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const auto steps = prepare_simulation(option, context);
