@@ -375,6 +375,44 @@ class PricingAuditTests(unittest.TestCase):
                     engine, option, context, quote, lower_bound=0.2, upper_bound=0.4,
                 ), 0.2)
 
+    def test_implied_volatility_resolves_the_final_barrier_observation(self):
+        start, final_observation, end = date(2025, 1, 1), date(2025, 6, 2), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2)
+        for delay in (timedelta(0), timedelta(microseconds=1)):
+            valuation = datetime(2025, 6, 2, tzinfo=timezone.utc) + delay
+            context = PricingContext(model_parameters=parameters, spot_price=100, valuation_time=valuation)
+            terms = dict(option_type="call", strike=100, effective_date=start, expiry_date=end,
+                         barrier_level=120, barrier_type="up_and_in", observation_mode="scheduled",
+                         observation_dates=[start, final_observation])
+            discount = math.exp(-0.05 * (datetime(2026, 1, 1, tzinfo=timezone.utc) - valuation).total_seconds()
+                                / (365 * 86400))
+            for history in ("untouched", "touched"):
+                option = BarrierOption(**terms, rebate=5, touch_state=history)
+                for engine in (pricing.AnalyticBarrierEngine(), pricing.FiniteDifferenceBarrierEngine()):
+                    with self.subTest(delay=delay, history=history, engine=type(engine).__name__):
+                        quote = engine.price(option, context)
+                        if history == "touched":
+                            self.assertEqual(implied_volatility(
+                                engine, option, context, quote, lower_bound=0.2, upper_bound=0.4,
+                            ), 0.2)
+                            continue
+                        self.assertAlmostEqual(quote, 5 * discount)
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            implied_volatility(engine, option, context, quote, lower_bound=0.1, upper_bound=0.4)
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+            for option in (
+                cash_binary_barrier_option(**terms, payout=5, touch_state="untouched"),
+                cash_one_touch_up(effective_date=start, expiry_date=end, barrier_level=120, payout=5,
+                                  observation_mode="scheduled", observation_dates=[final_observation],
+                                  touch_state="untouched"),
+            ):
+                with self.subTest(delay=delay, instrument=type(option).__name__):
+                    engine = pricing.AnalyticBinaryBarrierEngine()
+                    self.assertEqual(engine.price(option, context), 0)
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        implied_volatility(engine, option, context, 0, lower_bound=0.1, upper_bound=0.4)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION)
+
     def test_implied_volatility_rejects_volatility_independent_accumulated_forwards(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for rate in (0, 0.04):

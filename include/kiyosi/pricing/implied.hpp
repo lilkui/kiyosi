@@ -172,7 +172,7 @@ template <typename Engine, typename Option>
                              (terms.is_monitored_at(context.valuation_time()) &&
                               terms.is_breached_by(context.spot_price()));
         const bool monitoring_finished = !terms.is_continuous() &&
-                                         !terms.has_remaining_observation(context.valuation_time());
+                                         start_of_day(terms.observation_dates().back()) <= context.valuation_time();
         if constexpr (requires { option.is_one_touch(); })
             identifiable = identifiable && !touched && !monitoring_finished;
         else {

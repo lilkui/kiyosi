@@ -149,6 +149,56 @@ TEST_CASE("Implied volatility rejects zero-payoff barrier contracts", "[audit-fi
     }
 }
 
+TEST_CASE("Implied volatility resolves the final barrier observation", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto final_observation = day(2025, 6, 2);
+    const auto end = day(2026, 1, 1);
+    for (const auto delay : {std::chrono::microseconds{0}, std::chrono::microseconds{1}}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0,
+                                                  start_of_day(final_observation) + delay);
+        const auto check_fixed = [&](const auto& engine, const auto& option, double expected) {
+            const auto quote = engine.price(option, context);
+            REQUIRE(quote);
+            CHECK(*quote == Catch::Approx(expected));
+            const auto result = implied_volatility(engine, option, context, *quote,
+                                                   {.lower_bound = 0.1, .upper_bound = 0.4});
+            REQUIRE_FALSE(result);
+            CHECK(result.error().category == ErrorCategory::unsupported_operation);
+        };
+        const double discount = std::exp(-0.05 * *year_fraction(context.valuation_time(), start_of_day(end)));
+        for (const auto history : {BarrierTouchState::untouched, BarrierTouchState::touched}) {
+            const auto option = *make_barrier_option(
+                {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
+                 .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in, .rebate = 5.0,
+                 .observation_mode = ObservationMode::scheduled,
+                 .observation_dates = {start, final_observation}, .touch_state = history});
+            const auto check = [&](const auto& engine) {
+                if (history == BarrierTouchState::untouched) {
+                    check_fixed(engine, option, 5.0 * discount);
+                } else {
+                    const auto quote = engine.price(option, context);
+                    REQUIRE(quote);
+                    const auto result = implied_volatility(engine, option, context, *quote,
+                                                           {.lower_bound = 0.2, .upper_bound = 0.4});
+                    REQUIRE(result);
+                    CHECK(*result == 0.2);
+                }
+            };
+            check(AnalyticBarrierEngine{});
+            check(FiniteDifferenceBarrierEngine{});
+        }
+        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(
+            {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
+             .barrier_level = 120.0, .barrier_type = BarrierType::up_and_in,
+             .observation_mode = ObservationMode::scheduled, .observation_dates = {final_observation},
+             .touch_state = BarrierTouchState::untouched}, 5.0), 0.0);
+        check_fixed(AnalyticBinaryBarrierEngine{}, *make_cash_one_touch_up(
+            start, end, 120.0, 5.0, SettlementTiming::at_expiry, ObservationMode::scheduled,
+            {final_observation}, BarrierTouchState::untouched), 0.0);
+    }
+}
+
 void check_rank_deficient_american_continuation(MonteCarloBackend backend)
 {
     const auto start = day(2025, 1, 1);
