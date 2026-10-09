@@ -89,30 +89,12 @@ private:
 };
 
 /// An autocallable note carrying a downside knock-in barrier.
-class KnockInAutocallableNote {
+class KnockInAutocallableNote : public AutocallableNote {
 public:
     KnockInAutocallableNote(const KnockInAutocallableNote&) = default;
     KnockInAutocallableNote(KnockInAutocallableNote&&) = default;
     ~KnockInAutocallableNote() = default;
 
-    /// Returns the reference spot used to normalize contract levels.
-    double initial_spot() const noexcept { return note_.initial_spot(); }
-    /// Returns one positive knock-out level per observation date.
-    const std::vector<double>& knock_out_levels() const noexcept { return note_.knock_out_levels(); }
-    /// Returns the upper settlement strike.
-    double upper_strike() const noexcept { return note_.upper_strike(); }
-    /// Returns the lower settlement strike.
-    double lower_strike() const noexcept { return note_.lower_strike(); }
-    /// Returns the strictly ordered knock-out observation dates.
-    const std::vector<Date>& observation_dates() const noexcept { return note_.observation_dates(); }
-    /// Returns the non-negative normalized principal repayment component.
-    double principal_ratio() const noexcept { return note_.principal_ratio(); }
-    /// Returns the first date of the note life.
-    Date effective_date() const noexcept { return note_.effective_date(); }
-    /// Returns the final date of the note life.
-    Date expiry_date() const noexcept { return note_.expiry_date(); }
-    /// Returns the supplied state before valuation, or nullopt when history is unknown.
-    std::optional<AutocallableBarrierState> barrier_state() const noexcept { return note_.barrier_state(); }
     /// Returns the positive downside knock-in level.
     double knock_in_level() const noexcept { return knock_in_level_; }
     /// Returns the knock-in monitoring frequency.
@@ -130,11 +112,10 @@ private:
                             double upper_strike, double lower_strike, std::vector<Date> observation_dates,
                             KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                             double principal_ratio, Date effective_date, Date expiry_date)
-        : note_(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
+        : AutocallableNote(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
                 std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}
 
-    AutocallableNote note_;
     double knock_in_level_;
     KnockInObservationMode knock_in_observation_mode_;
 
