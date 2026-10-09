@@ -236,6 +236,34 @@ class PricingAuditTests(unittest.TestCase):
                         expected = spot * math.erf(sigma / (2 * math.sqrt(2)))
                         self.assertAlmostEqual(actual, expected, delta=max(1e-24, expected * 1e-12))
 
+    def test_geometric_asians_retain_small_positive_variance_across_averaging_windows(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction in ("call", "put"):
+            for spot in (100, 1e8, 1e14):
+                for sigma in (1e-160, 1e-13, 1e-12, 1e-8, 1e-4, 0.2):
+                    for window in (0, 1, 2):
+                        with self.subTest(direction=direction, spot=spot, sigma=sigma, window=window):
+                            valuation = start + timedelta(days=120) if window == 2 else start
+                            averaging = start + timedelta(days=120) if window == 1 else start
+                            future = 1 if window == 0 else 245 / 365
+                            lead = 120 / 365 if window == 1 else 0
+                            weight = future if window == 2 else 1
+                            rate = 0.5 * sigma * sigma * (1 - weight * (lead + future / 3) / (lead + future / 2))
+                            deviation = sigma * weight * math.sqrt(lead + future / 3)
+                            expected = spot * math.exp(-rate * (lead + future)) * math.erf(deviation / (2 * math.sqrt(2)))
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=rate, dividend_yield=0, volatility=sigma,
+                                ), spot_price=spot, valuation_time=valuation,
+                            )
+                            option = GeometricAveragePriceOption(
+                                option_type=direction, strike=spot, effective_date=start,
+                                averaging_start_date=averaging, expiry_date=end,
+                                realized_average=spot if window == 2 else 0,
+                            )
+                            price = pricing.AnalyticGeometricAveragePriceEngine().price(option, context)
+                            self.assertAlmostEqual(price, expected, delta=max(expected * 1e-9, 1e-170))
+
     def test_single_fixing_geometric_asians_retain_european_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticGeometricAveragePriceEngine()

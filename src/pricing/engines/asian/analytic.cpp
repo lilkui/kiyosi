@@ -101,16 +101,33 @@ Result<PricingResult> AnalyticGeometricAveragePriceEngine::price_native(
     const double future = actual_365_fixed_year_fraction(std::max(valuation, averaging_start), expiry);
     const double weight = period > 0.0 ? future / period : 1.0;
     // The future log-average has Brownian variance proportional to lead + future / 3.
-    const double variance = sigma * sigma * weight * weight * (lead + future / 3.0);
-    double mean_log = weight * std::log(spot) +
-                      weight * (carry - 0.5 * sigma * sigma) * (lead + future / 2.0);
-    if (valuation > averaging_start) mean_log += (1.0 - weight) * std::log(realized);
-    const double forward = std::exp(mean_log + 0.5 * variance);
-    const double deviation = std::sqrt(variance);
+    const double variance_time = lead + future / 3.0;
+    const double variance = sigma * sigma * weight * weight * variance_time;
+    double log_forward_ratio = weight * (carry - 0.5 * sigma * sigma) * (lead + future / 2.0) + 0.5 * variance;
+    if (valuation > averaging_start) {
+        const double relative_realized = (realized - spot) / spot;
+        const double log_realized_ratio = std::abs(relative_realized) < 0.5
+                                              ? std::log1p(relative_realized)
+                                              : std::log(realized) - std::log(spot);
+        log_forward_ratio += (1.0 - weight) * log_realized_ratio;
+    }
+    const double deviation = sigma * weight * std::sqrt(variance_time);
+    if (deviation < 1e-5) {
+        const auto parameters = make_bsm_parameters(rate, rate - log_forward_ratio / tau, sigma);
+        if (!parameters)
+            return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid carry"});
+        const auto equivalent_context = *make_pricing_context(*parameters, spot, valuation, context.calendar());
+        const auto equivalent_option = *make_european_option(option.option_type(), strike, option.effective_date(), option.expiry_date());
+        return price_at_volatility(equivalent_option, equivalent_context,
+                                   sigma * weight * std::sqrt(variance_time / tau), GreeksRequest{});
+    }
+    const double forward = spot * std::exp(log_forward_ratio);
     const double value = [&] {
-        if (deviation < 1e-12)
-            return std::exp(-rate * tau) * payoff(option.option_type(), forward, strike);
-        const double d1 = (mean_log - std::log(strike) + variance) / deviation;
+        const double relative_spot = (spot - strike) / strike;
+        const double log_moneyness = std::abs(relative_spot) < 0.5
+                                        ? std::log1p(relative_spot)
+                                        : std::log(spot) - std::log(strike);
+        const double d1 = (log_moneyness + log_forward_ratio + 0.5 * variance) / deviation;
         const double d2 = d1 - deviation;
         return std::exp(-rate * tau) * sign *
                (forward * normal_cdf(sign * d1) - strike * normal_cdf(sign * d2));

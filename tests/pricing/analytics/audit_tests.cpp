@@ -167,6 +167,35 @@ TEST_CASE("Quadrature vanilla retains small positive volatility time value", "[a
     }
 }
 
+TEST_CASE("Geometric Asians retain small positive variance across averaging windows", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double spot : {100.0, 1e8, 1e14}) {
+            for (const double sigma : {1e-160, 1e-13, 1e-12, 1e-8, 1e-4, 0.2}) {
+                for (const int window : {0, 1, 2}) {
+                    CAPTURE(type, spot, sigma, window);
+                    const auto valuation = window == 2 ? start + std::chrono::days{120} : start;
+                    const auto averaging = window == 1 ? start + std::chrono::days{120} : start;
+                    const double future = window == 0 ? 1.0 : 245.0 / 365.0;
+                    const double lead = window == 1 ? 120.0 / 365.0 : 0.0;
+                    const double weight = window == 2 ? future : 1.0;
+                    // Center the geometric forward on strike; the lognormal time value is an erf difference.
+                    const double rate = 0.5 * sigma * sigma * (1.0 - weight * (lead + future / 3.0) / (lead + future / 2.0));
+                    const double deviation = sigma * weight * std::sqrt(lead + future / 3.0);
+                    const double expected = spot * std::exp(-rate * (lead + future)) * std::erf(deviation / (2.0 * std::sqrt(2.0)));
+                    const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, sigma), spot, valuation);
+                    const auto option = *make_geometric_average_option(type, spot, start, averaging, end, window == 2 ? spot : 0.0);
+                    const auto price = AnalyticGeometricAveragePriceEngine{}.price(option, context);
+                    REQUIRE(price);
+                    CHECK(*price == Catch::Approx(expected).epsilon(1e-9).margin(1e-170));
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Single-fixing geometric Asians retain European time value", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);
