@@ -30,11 +30,16 @@ struct SimulationInputs {
 
 template <typename Note>
 Result<SimulationInputs> prepare_simulation(
-    const Note& note, const PricingContext& context, std::size_t next_observation)
+    const Note& note, const PricingContext& context, std::size_t next_observation, bool daily_knock_in)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const Timestamp valuation = context.valuation_time();
-    const auto dates = trading_dates(context.calendar(), valuation, note.expiry_date());
+    const auto dates = [&] {
+        if (daily_knock_in) return trading_dates(context.calendar(), valuation, note.expiry_date());
+        std::vector<Date> events(note.observation_dates().begin() + next_observation, note.observation_dates().end());
+        if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
+        return events;
+    }();
     std::vector<CudaStructuredStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
@@ -103,7 +108,7 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
     const auto initial = autocallable_initial_state(note, context, program);
     if (initial.settlement) return checked_price(*initial.settlement);
 
-    const auto inputs = prepare_simulation(note, context, initial.next_observation);
+    const auto inputs = prepare_simulation(note, context, initial.next_observation, program.has_knock_in && program.daily_knock_in);
     if (!inputs) return std::unexpected(inputs.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
