@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
-#include <initializer_list>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -36,6 +35,13 @@ inline std::array<double, 3> diffusion_coefficients(double node, double rate, do
 /// One theta-weighted Black-Scholes time step solved with the Thomas algorithm.
 /// Reuses its coefficient buffers so a full backward march allocates once.
 class FiniteDifferenceStep {
+    struct Layer {
+        std::span<const double> old;
+        std::span<double> next;
+        std::span<double> rhs;
+        Boundaries boundaries;
+    };
+
 public:
     /// Requires size >= 4 from validated grid settings; every layer must have this size.
     explicit FiniteDifferenceStep(std::size_t size)
@@ -49,36 +55,9 @@ public:
         double dividend, double volatility, double theta, double lower_boundary, double asset_upper_boundary,
         Constraint constraint)
     {
-        next.front() = lower_boundary;
-        next.back() = asset_upper_boundary;
-        const int asset_step_count = static_cast<int>(old.size()) - 1;
-        for (int index = 1; index < asset_step_count; ++index) {
-            const double i = static_cast<double>(index);
-            const auto [a, b, c] = diffusion_coefficients(i, rate, dividend, volatility);
-            const auto position = static_cast<std::size_t>(index - 1);
-            if (const auto fixed = constraint(index)) {
-                lower_[position] = upper_diagonal_[position] = 0.0;
-                diagonal_[position] = 1.0;
-                rhs_[position] = *fixed;
-                continue;
-            }
-            rhs_[position] = old[static_cast<std::size_t>(index)] +
-                             (1.0 - theta) * dt *
-                                 (a * old[position] + b * old[static_cast<std::size_t>(index)] +
-                                  c * old[static_cast<std::size_t>(index) + 1]);
-            if (index == 1) rhs_[position] += theta * dt * a * next.front();
-            if (index == asset_step_count - 1) rhs_[position] += theta * dt * c * next.back();
-            lower_[position] = -theta * dt * a;
-            diagonal_[position] = 1.0 - theta * dt * b;
-            upper_diagonal_[position] = -theta * dt * c;
-        }
-        if (theta == 0.0) {
-            std::ranges::copy(rhs_, next.begin() + 1);
-            return std::ranges::all_of(next, [](double value) { return std::isfinite(value); });
-        }
-        if (!solve({rhs_})) return false;
-        std::ranges::copy(rhs_, next.begin() + 1);
-        return std::isfinite(next.front()) && std::isfinite(next.back());
+        return advance_layers(
+            std::array{Layer{old, next, rhs_, {lower_boundary, asset_upper_boundary}}}, dt,
+            {rate, dividend, volatility, theta}, constraint);
     }
 
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
@@ -96,72 +75,76 @@ public:
         const DiffusionParameters& parameters,
         Boundaries first_boundaries, Boundaries second_boundaries)
     {
-        const auto [rate, dividend, volatility, theta] = parameters;
-        first_next.front() = first_boundaries.lower;
-        first_next.back() = first_boundaries.upper;
-        second_next.front() = second_boundaries.lower;
-        second_next.back() = second_boundaries.upper;
         paired_rhs_.resize(rhs_.size());
-        const int asset_step_count = static_cast<int>(first_old.size()) - 1;
+        return advance_layers(
+            std::array{Layer{first_old, first_next, rhs_, first_boundaries},
+                       Layer{second_old, second_next, paired_rhs_, second_boundaries}},
+            dt, parameters, [](int) -> std::optional<double> { return std::nullopt; });
+    }
+
+private:
+    template <std::size_t Count, typename Constraint>
+    bool advance_layers(const std::array<Layer, Count>& layers, double dt,
+                        const DiffusionParameters& parameters, Constraint constraint)
+    {
+        const auto [rate, dividend, volatility, theta] = parameters;
+        for (const auto& layer : layers) {
+            layer.next.front() = layer.boundaries.lower;
+            layer.next.back() = layer.boundaries.upper;
+        }
+        const int asset_step_count = static_cast<int>(layers.front().old.size()) - 1;
         for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
             const auto [a, b, c] = diffusion_coefficients(i, rate, dividend, volatility);
             const auto position = static_cast<std::size_t>(index - 1);
-            rhs_[position] = first_old[static_cast<std::size_t>(index)] +
-                             (1.0 - theta) * dt *
-                                 (a * first_old[position] +
-                                  b * first_old[static_cast<std::size_t>(index)] +
-                                  c * first_old[static_cast<std::size_t>(index) + 1]);
-            paired_rhs_[position] = second_old[static_cast<std::size_t>(index)] +
-                                    (1.0 - theta) * dt *
-                                        (a * second_old[position] +
-                                         b * second_old[static_cast<std::size_t>(index)] +
-                                         c * second_old[static_cast<std::size_t>(index) + 1]);
-            if (index == 1) {
-                rhs_[position] += theta * dt * a * first_next.front();
-                paired_rhs_[position] += theta * dt * a * second_next.front();
+            if (const auto fixed = constraint(index)) {
+                lower_[position] = upper_diagonal_[position] = 0.0;
+                diagonal_[position] = 1.0;
+                for (const auto& layer : layers)
+                    layer.rhs[position] = *fixed;
+                continue;
             }
-            if (index == asset_step_count - 1) {
-                rhs_[position] += theta * dt * c * first_next.back();
-                paired_rhs_[position] += theta * dt * c * second_next.back();
+            for (const auto& layer : layers) {
+                layer.rhs[position] = layer.old[static_cast<std::size_t>(index)] +
+                                      (1.0 - theta) * dt *
+                                          (a * layer.old[position] + b * layer.old[static_cast<std::size_t>(index)] +
+                                           c * layer.old[static_cast<std::size_t>(index) + 1]);
+                if (index == 1) layer.rhs[position] += theta * dt * a * layer.next.front();
+                if (index == asset_step_count - 1) layer.rhs[position] += theta * dt * c * layer.next.back();
             }
             lower_[position] = -theta * dt * a;
             diagonal_[position] = 1.0 - theta * dt * b;
             upper_diagonal_[position] = -theta * dt * c;
         }
-        if (theta == 0.0) {
-            std::ranges::copy(rhs_, first_next.begin() + 1);
-            std::ranges::copy(paired_rhs_, second_next.begin() + 1);
-            return std::ranges::all_of(first_next, [](double value) { return std::isfinite(value); }) &&
-                   std::ranges::all_of(second_next,
-                                       [](double value) { return std::isfinite(value); });
-        }
-        if (!solve({rhs_, paired_rhs_})) return false;
-        std::ranges::copy(rhs_, first_next.begin() + 1);
-        std::ranges::copy(paired_rhs_, second_next.begin() + 1);
-        return std::isfinite(first_next.front()) && std::isfinite(first_next.back()) &&
-               std::isfinite(second_next.front()) && std::isfinite(second_next.back());
+        if (theta != 0.0 && !solve(layers)) return false;
+        for (const auto& layer : layers)
+            std::ranges::copy(layer.rhs, layer.next.begin() + 1);
+        return std::ranges::all_of(layers, [theta](const auto& layer) {
+            if (theta == 0.0)
+                return std::ranges::all_of(layer.next, [](double value) { return std::isfinite(value); });
+            return std::isfinite(layer.next.front()) && std::isfinite(layer.next.back());
+        });
     }
 
-private:
     // Factor the matrix once and validate every solved layer before callers copy any interiors.
-    bool solve(std::initializer_list<std::span<double>> layers)
+    template <std::size_t Count>
+    bool solve(const std::array<Layer, Count>& layers)
     {
         for (std::size_t index = 1; index < diagonal_.size(); ++index) {
             if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
             const double factor = lower_[index] / diagonal_[index - 1];
             diagonal_[index] -= factor * upper_diagonal_[index - 1];
-            for (const auto rhs : layers)
-                rhs[index] -= factor * rhs[index - 1];
+            for (const auto& layer : layers)
+                layer.rhs[index] -= factor * layer.rhs[index - 1];
         }
         if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
-        for (const auto rhs : layers)
-            rhs.back() /= diagonal_.back();
+        for (const auto& layer : layers)
+            layer.rhs.back() /= diagonal_.back();
         for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
-            for (const auto rhs : layers)
-                rhs[index] = (rhs[index] - upper_diagonal_[index] * rhs[index + 1]) / diagonal_[index];
-        return std::ranges::all_of(layers, [](const auto rhs) {
-            return std::ranges::all_of(rhs, [](double value) { return std::isfinite(value); });
+            for (const auto& layer : layers)
+                layer.rhs[index] = (layer.rhs[index] - upper_diagonal_[index] * layer.rhs[index + 1]) / diagonal_[index];
+        return std::ranges::all_of(layers, [](const auto& layer) {
+            return std::ranges::all_of(layer.rhs, [](double value) { return std::isfinite(value); });
         });
     }
 
