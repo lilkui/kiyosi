@@ -122,13 +122,9 @@ Result<double> AnalyticGeometricAveragePriceEngine::price(
         const double log_moneyness = log_price_ratio(spot, strike);
         const double d1 = (log_moneyness + log_forward_ratio + 0.5 * variance) / deviation;
         const double d2 = d1 - deviation;
-        const double asset_value = sign * d1 < -10.0
-                                       ? exponential_normal_cdf(std::log(spot) + log_forward_ratio - rate * tau, sign * d1)
-                                       : spot * std::exp(log_forward_ratio - rate * tau) * normal_cdf(sign * d1);
-        const double cash_value = sign * d2 < -10.0
-                                      ? exponential_normal_cdf(std::log(strike) - rate * tau, sign * d2)
-                                      : strike * std::exp(-rate * tau) * normal_cdf(sign * d2);
-        return sign * (asset_value - cash_value);
+        return black_scholes_values(sign, spot, strike, log_forward_ratio - rate * tau, -rate * tau,
+                                    {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)})
+            .price;
     }();
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return std::max(value, 0.0);
@@ -216,13 +212,10 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
     }
     const double d1 = (log_price_ratio(spot, adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
-    const double asset_value = sign * d1 < -10.0
-                                   ? exponential_normal_cdf(std::log(spot) + (b_a - rate) * tau, sign * d1)
-                                   : spot * std::exp((b_a - rate) * tau) * normal_cdf(sign * d1);
-    const double cash_value = sign * d2 < -10.0
-                                  ? exponential_normal_cdf(std::log(adjusted_strike) - rate * tau, sign * d2)
-                                  : adjusted_strike * std::exp(-rate * tau) * normal_cdf(sign * d2);
-    const double value = scale * sign * (asset_value - cash_value);
+    const double value = scale * black_scholes_values(
+                                     sign, spot, adjusted_strike, (b_a - rate) * tau, -rate * tau,
+                                     {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)})
+                                     .price;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return std::max(value, 0.0);
 }

@@ -19,6 +19,25 @@ struct BlackScholesProbabilities {
     double cash;
 };
 
+struct BlackScholesValues {
+    double asset;
+    double cash;
+    double price;
+};
+
+inline BlackScholesValues black_scholes_values(
+    double sign, double spot, double strike, double log_asset_discount, double log_cash_discount,
+    const BlackScholesProbabilities& probabilities)
+{
+    const double asset = sign * probabilities.d1 < -10.0
+                             ? exponential_normal_cdf(std::log(spot) + log_asset_discount, sign * probabilities.d1)
+                             : spot * std::exp(log_asset_discount) * probabilities.asset;
+    const double cash = sign * probabilities.d2 < -10.0
+                            ? exponential_normal_cdf(std::log(strike) + log_cash_discount, sign * probabilities.d2)
+                            : strike * std::exp(log_cash_discount) * probabilities.cash;
+    return {asset, cash, sign * (asset - cash)};
+}
+
 inline BlackScholesProbabilities black_scholes_probabilities(
     double sign, double spot, double strike, double rate, double dividend, double volatility, double time)
 {
@@ -84,20 +103,18 @@ inline Result<PricingResult> price_at_volatility(
     const double cumulative_d1 = probabilities.asset;
     const double cumulative_d2 = probabilities.cash;
 
-    const double asset_value = sign * d1 < -10.0
-                                   ? exponential_normal_cdf(std::log(spot) - dividend * year_fraction, sign * d1)
-                                   : spot * dividend_discount_factor * cumulative_d1;
-    const double cash_value = sign * d2 < -10.0
-                                  ? exponential_normal_cdf(std::log(strike) - rate * year_fraction, sign * d2)
-                                  : strike * rate_discount_factor * cumulative_d2;
-    double value = sign * (asset_value - cash_value);
+    const auto values = black_scholes_values(sign, spot, strike, -dividend * year_fraction,
+                                             -rate * year_fraction, probabilities);
+    const double asset_value = values.asset;
+    const double cash_value = values.cash;
+    double value = values.price;
     const double standardized_forward = d1 - 0.5 * volatility_time;
     if (volatility_time < 1e-5 && std::abs(standardized_forward) < 10.0) {
         // Expand the CDF difference before scaling to preserve time value at tiny positive volatility.
         const double squared_forward = standardized_forward * standardized_forward;
         const double time_value = std::exp(std::log(spot) - dividend * year_fraction +
-                                          std::log(volatility) + std::log(sqrt_time) - 0.5 * squared_forward +
-                                          std::log(inverse_sqrt_two_pi)) *
+                                           std::log(volatility) + std::log(sqrt_time) - 0.5 * squared_forward +
+                                           std::log(inverse_sqrt_two_pi)) *
                                   (1.0 + (squared_forward - 1.0) * volatility_time * volatility_time / 24.0);
         value = sign * strike * rate_discount_factor *
                     std::expm1(standardized_forward * volatility_time) * cumulative_d2 +
