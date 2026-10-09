@@ -46,7 +46,7 @@ double divided_exprel(double x, double y)
     }
     return (exprel(x) - exprel(y)) / (x - y);
 }
-double divided_exprel_increment(double x, double y, double h)
+double divided_exprel_increment_ratio(double x, double y, double h)
 {
     // Factor h out of the second divided difference instead of subtracting near-equal moments.
     if (std::max(std::abs(x + h), std::abs(y)) < 0.5) {
@@ -62,10 +62,10 @@ double divided_exprel_increment(double x, double y, double h)
             factorial *= n + 3;
             sum += homogeneous_three / factorial;
         }
-        return h * sum;
+        return sum;
     }
     const double first_increment = (std::exp(x) * exprel(h) - exprel(x)) / (x + h);
-    return h * (first_increment - divided_exprel(x, y)) / (x + h - y);
+    return (first_increment - divided_exprel(x, y)) / (x + h - y);
 }
 } // namespace
 
@@ -177,11 +177,14 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
         }
     }
     const double vol2 = sigma * sigma;
+    double variance_time = 0.0;
     const double log_variance = [&] {
         if (vol2 * tau < 1e-4) {
             const double mean = exprel(carry * delta);
-            const double excess = 2.0 * divided_exprel_increment(2.0 * carry * delta, carry * delta, vol2 * delta) / (mean * mean);
-            return vol2 * t1 + std::log1p(excess);
+            const double coefficient = 2.0 * delta * divided_exprel_increment_ratio(2.0 * carry * delta, carry * delta, vol2 * delta) / (mean * mean);
+            const double excess = vol2 * coefficient;
+            variance_time = t1 + coefficient * (excess == 0.0 ? 1.0 : std::log1p(excess) / excess);
+            return vol2 * variance_time;
         }
         // The second moment is a divided difference of (exp(x) - 1) / x.
         const double m2 = 2.0 * std::exp((2.0 * carry + vol2) * t1) *
@@ -191,7 +194,10 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
     if (!std::isfinite(log_variance) || log_variance < -1e-12)
         return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid variance"});
     const double b_a = std::log(m1) / tau;
-    const double adjusted_vol = std::sqrt(std::max(0.0, log_variance / tau));
+    // Keep sigma outside the square root when sigma squared can underflow.
+    const double adjusted_vol = vol2 * tau < 1e-4
+                                    ? sigma * std::sqrt(std::max(0.0, variance_time / tau))
+                                    : std::sqrt(std::max(0.0, log_variance / tau));
     const double root = adjusted_vol * std::sqrt(tau);
     if (root == 0.0) {
         const double forward = spot * std::exp((rate - (rate - b_a)) * tau);

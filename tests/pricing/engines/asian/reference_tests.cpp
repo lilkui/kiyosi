@@ -3,6 +3,8 @@
 
 #include <array>
 #include <chrono>
+#include <cmath>
+#include <numbers>
 #include <string>
 #include <utility>
 
@@ -12,6 +14,32 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Arithmetic Asians retain time value when squared volatility underflows", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2025} / 1 / 1};
+    const auto end = Date{std::chrono::year{2026} / 1 / 1};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const auto [spot, sigma] : {std::pair{100.0, 1e-170}, {1e160, 1e-160}, {1e300, 1e-200}}) {
+            for (int window = 0; window < 3; ++window) {
+                CAPTURE(type, spot, sigma, window);
+                const auto valuation = window == 2 ? start + std::chrono::days{120} : start;
+                const auto averaging = window == 1 ? start + std::chrono::days{120} : start;
+                const double future = window == 0 ? 1.0 : 245.0 / 365.0;
+                const double lead = window == 1 ? 120.0 / 365.0 : 0.0;
+                const double scale = window == 2 ? future : 1.0;
+                // ATM small-volatility limit from the integrated Brownian variance.
+                const double expected = scale * spot * sigma * std::sqrt((lead + future / 3.0) / (2.0 * std::numbers::pi));
+                const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, valuation);
+                const auto option = *make_arithmetic_average_option(type, spot, start, averaging, end, window == 2 ? spot : 0.0);
+                const auto price = TurnbullWakemanArithmeticAveragePriceEngine{}.price(option, context);
+                REQUIRE(price);
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 1e-12));
+            }
+        }
+    }
+}
 
 TEST_CASE("Asian analytic prices retain scaled normal tails", "[audit-fixes]")
 {
@@ -200,7 +228,7 @@ TEST_CASE("Arithmetic Asian implied volatility rejects locked realized payoffs",
             const auto quote = engine.price(option, context);
             REQUIRE(quote);
             const auto implied = implied_volatility(engine, option, context, *quote,
-                                                     {.lower_bound = 0.05, .upper_bound = 0.4});
+                                                    {.lower_bound = 0.05, .upper_bound = 0.4});
             if (realized < 200.0) {
                 REQUIRE(implied);
                 CHECK_THAT(*implied, Catch::Matchers::WithinAbs(0.2, 1e-6));
@@ -218,7 +246,7 @@ TEST_CASE("Arithmetic Asian implied volatility rejects locked realized payoffs",
         const auto quote = geometric_engine.price(geometric, context);
         REQUIRE(quote);
         const auto implied = implied_volatility(geometric_engine, geometric, context, *quote,
-                                                 {.lower_bound = 0.05, .upper_bound = 0.4, .price_tolerance = 1e-30});
+                                                {.lower_bound = 0.05, .upper_bound = 0.4, .price_tolerance = 1e-30});
         REQUIRE(implied);
         CHECK_THAT(*implied, Catch::Matchers::WithinAbs(0.2, 1e-6));
     }
