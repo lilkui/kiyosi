@@ -6,11 +6,10 @@
 #include <random>
 #include <vector>
 
-#include "../monte_carlo_mean.hpp"
 #include "../../detail/accumulator_state.hpp"
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/math.hpp"
-#include "../monte_carlo_cuda_host.hpp"
+#include "../monte_carlo_host.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -88,16 +87,9 @@ Result<double> MonteCarloAccumulatorEngine::price(
                                      "CUDA support is not enabled in this build"});
 #endif
     }
-    std::mt19937_64 generator(settings_.seed ? *settings_.seed : std::random_device{}());
-    MonteCarloMean mean{};
-    for (int path = 0; path < settings_.path_count; ++path) {
-        // Early termination must not change the random draws of later paths.
-        std::mt19937_64 path_generator{generator()};
-        const auto payoff = path_payoff(option, context, *steps, initial.quantity, path_generator);
-        if (!payoff) return std::unexpected(payoff.error());
-        mean.add(*payoff);
-    }
-    return checked_price(mean.value());
+    return cpu_path_mean(settings_, [&](auto& generator) {
+        return path_payoff(option, context, *steps, initial.quantity, generator);
+    });
 }
 
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,

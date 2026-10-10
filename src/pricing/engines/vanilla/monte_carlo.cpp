@@ -16,7 +16,7 @@
 #include "../monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
-#include "../monte_carlo_cuda_host.hpp"
+#include "../monte_carlo_host.hpp"
 #endif
 
 namespace kiyosi {

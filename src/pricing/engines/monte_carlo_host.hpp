@@ -7,11 +7,29 @@
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 #include "monte_carlo_cuda.hpp"
+#include "monte_carlo_mean.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
+
+template <typename PathPayoff>
+Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
+{
+    std::mt19937_64 generator(settings.seed ? *settings.seed : std::random_device{}());
+    MonteCarloMean mean{};
+    for (int path = 0; path < settings.path_count; ++path) {
+        // Early termination must not change the random draws of later paths.
+        std::mt19937_64 path_generator{generator()};
+        const auto payoff = path_payoff(path_generator);
+        if (!payoff) return std::unexpected(payoff.error());
+        mean.add(*payoff);
+    }
+    return checked_price(mean.value());
+}
 
 inline Result<CudaSimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
 {

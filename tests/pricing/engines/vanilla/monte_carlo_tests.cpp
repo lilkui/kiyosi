@@ -10,7 +10,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
-#include "pricing/engines/monte_carlo_cuda_host.hpp"
+#include "pricing/engines/monte_carlo_host.hpp"
 #include "pricing/engines/monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
