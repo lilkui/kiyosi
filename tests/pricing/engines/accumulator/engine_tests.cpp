@@ -14,6 +14,7 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "pricing/engines/monte_carlo_random.hpp"
 
 namespace {
 using kiyosi::test::day;
@@ -22,7 +23,7 @@ double reference_accumulator_price(const kiyosi::Accumulator& option,
                                    const kiyosi::PricingContext& context,
                                    kiyosi::TradingDayMonteCarloSettings settings)
 {
-    const auto path_payoff = [&](std::mt19937_64& generator) {
+    const auto path_payoff = [&](kiyosi::detail::Pcg32& generator) {
         const double rate = context.model_parameters().risk_free_rate();
         const double dividend = context.model_parameters().dividend_yield();
         const double sigma = context.model_parameters().volatility();
@@ -63,7 +64,7 @@ double reference_accumulator_price(const kiyosi::Accumulator& option,
     std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
     for (int path = 0; path < settings.path_count; ++path) {
-        std::mt19937_64 path_generator{generator()};
+        kiyosi::detail::Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
         sum += path_payoff(path_generator);
     }
     return sum / static_cast<double>(settings.path_count);

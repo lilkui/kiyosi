@@ -17,6 +17,47 @@
 #include <cuda_runtime_api.h>
 #endif
 
+TEST_CASE("Trading-day random generator matches the PCG32 reference sequence", "[monte-carlo-performance]")
+{
+    kiyosi::detail::Pcg32 generator{42, 54};
+    for (const auto expected : std::array<std::uint32_t, 6>{0xa15c02b7, 0x7b47f409, 0xba1d3330,
+                                                            0x83d2f293, 0xbfa4784b, 0xcbed606e})
+        CHECK(generator() == expected);
+}
+
+TEST_CASE("Trading-day path streams preserve normal moments and independent prefixes", "[monte-carlo-performance]")
+{
+    constexpr int count = 100'000;
+    for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
+        CAPTURE(seed);
+        std::vector<double> prefixes;
+        prefixes.reserve(count);
+        double squares = 0.0, products = 0.0;
+        const auto first = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
+            std::normal_distribution<double> normal;
+            const double value = normal(generator);
+            const double next = normal(generator);
+            prefixes.push_back(value);
+            squares += value * value;
+            products += value * next;
+            return value;
+        });
+        REQUIRE(first);
+        CHECK_THAT(*first, Catch::Matchers::WithinAbs(0.0, 0.02));
+        CHECK_THAT(squares / count, Catch::Matchers::WithinAbs(1.0, 0.02));
+        CHECK_THAT(products / count, Catch::Matchers::WithinAbs(0.0, 0.02));
+        std::size_t path = 0;
+        const auto shortened = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
+            std::normal_distribution<double> normal;
+            const double value = normal(generator);
+            REQUIRE(value == prefixes[path++]);
+            return value;
+        });
+        REQUIRE(shortened);
+        CHECK(*shortened == *first);
+    }
+}
+
 TEST_CASE("Monte Carlo averages retain finite extreme and subnormal payoffs", "[audit-fixes]")
 {
     using kiyosi::detail::MonteCarloMean;

@@ -29,8 +29,8 @@ struct MonteCarloSettings {
 /// Accumulator and autocallable products step the trading calendar directly, so no step
 /// count is needed; settings are validated when price() is called. These engines accept
 /// 1..10,000,000 paths.
-/// CPU paths use separate generators, so early knock-out cannot shift later paths' draws.
-/// Seeded prices are reproducible within a standard-library implementation and backend.
+/// CPU paths use separate PCG32 streams, so early knock-out cannot shift later paths' draws.
+/// Seeded prices are reproducible within a library version, standard-library implementation and backend.
 struct TradingDayMonteCarloSettings {
     int path_count = 20'000;                            ///< Number of simulated paths; 1..10,000,000.
     std::optional<std::uint64_t> seed = 1;              ///< Deterministic seed, or system entropy when absent.

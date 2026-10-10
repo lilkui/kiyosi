@@ -19,6 +19,7 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "pricing/engines/monte_carlo_random.hpp"
 
 namespace {
 
@@ -122,7 +123,7 @@ double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                                        const kiyosi::PricingContext& context,
                                        kiyosi::TradingDayMonteCarloSettings settings)
 {
-    const auto path_payoff = [&](std::mt19937_64& generator) {
+    const auto path_payoff = [&](kiyosi::detail::Pcg32& generator) {
         if (note.barrier_state() == kiyosi::AutocallableBarrierState::knocked_out) return 0.0;
 
         const double rate = context.model_parameters().risk_free_rate();
@@ -171,7 +172,7 @@ double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
     std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
     for (int path = 0; path < settings.path_count; ++path) {
-        std::mt19937_64 path_generator{generator()};
+        kiyosi::detail::Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
         sum += path_payoff(path_generator);
     }
     return sum / static_cast<double>(settings.path_count);

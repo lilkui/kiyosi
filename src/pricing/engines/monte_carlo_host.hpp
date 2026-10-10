@@ -12,6 +12,7 @@
 
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
+#include "monte_carlo_random.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
@@ -23,7 +24,7 @@ Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathP
     MonteCarloMean mean{};
     for (int path = 0; path < settings.path_count; ++path) {
         // Early termination must not change the random draws of later paths.
-        std::mt19937_64 path_generator{generator()};
+        Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
         const auto payoff = path_payoff(path_generator);
         if (!payoff) return std::unexpected(payoff.error());
         mean.add(*payoff);

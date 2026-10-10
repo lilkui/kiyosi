@@ -37,7 +37,7 @@ Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option
 
 Result<double> path_payoff(const Accumulator& option, const PricingContext& context,
                            const std::vector<SimulationStep>& steps, double quantity,
-                           std::mt19937_64& generator)
+                           Pcg32& generator)
 {
     double value = context.spot_price();
 
