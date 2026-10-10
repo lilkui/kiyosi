@@ -49,7 +49,7 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
 }
 
 /// One theta-weighted Black-Scholes time step solved with the Thomas algorithm.
-/// Reuses its coefficient buffers so a full backward march allocates once.
+/// Reuses buffers and factorizations for identical time steps and constraint masks.
 class FiniteDifferenceStep {
     struct Layer {
         std::span<const double> old;
@@ -61,7 +61,8 @@ class FiniteDifferenceStep {
 public:
     /// Requires size >= 4 from validated grid settings; every layer must have this size.
     explicit FiniteDifferenceStep(std::size_t size)
-        : lower_(size - 2), diagonal_(size - 2), upper_diagonal_(size - 2), rhs_(size - 2) {}
+        : lower_(size - 2), diagonal_(size - 2), upper_diagonal_(size - 2), rhs_(size - 2),
+          fixed_(size - 2), multipliers_(size - 2), inverse_(size - 2) {}
 
     /// `constraint` pins a node to a fixed value, which barrier and autocallable engines use to
     /// overwrite knocked-out regions in place.
@@ -95,6 +96,8 @@ private:
                         const DiffusionParameters& parameters, Constraint constraint)
     {
         const double theta = parameters.theta;
+        bool reuse = factor_dt_ == dt && factor_parameters_ == parameters;
+        factor_parameters_.reset();
         for (const auto& layer : layers) {
             layer.next.front() = layer.boundaries.lower;
             layer.next.back() = layer.boundaries.upper;
@@ -112,7 +115,10 @@ private:
             const auto [a, b, c] = parameters.sinh_spacing == 0.0
                                        ? diffusion_coefficients(i, parameters)
                                        : coefficients_[position];
-            if (const auto fixed = constraint(index)) {
+            const auto fixed = constraint(index);
+            reuse = reuse && fixed_[position] == fixed.has_value();
+            fixed_[position] = fixed.has_value();
+            if (fixed) {
                 lower_[position] = upper_diagonal_[position] = 0.0;
                 diagonal_[position] = 1.0;
                 for (const auto& layer : layers)
@@ -131,33 +137,51 @@ private:
             diagonal_[position] = 1.0 - theta * dt * b;
             upper_diagonal_[position] = -theta * dt * c;
         }
-        if (theta != 0.0 && !solve(layers)) return false;
+        if (theta != 0.0 && !solve(layers, reuse)) return false;
         for (const auto& layer : layers)
             std::ranges::copy(layer.rhs, layer.next.begin() + 1);
-        return std::ranges::all_of(layers, [theta](const auto& layer) {
+        const bool valid = std::ranges::all_of(layers, [theta](const auto& layer) {
             if (theta == 0.0)
                 return std::ranges::all_of(layer.next, [](double value) { return std::isfinite(value); });
             return std::isfinite(layer.next.front()) && std::isfinite(layer.next.back());
         });
+        if (valid && theta != 0.0) {
+            factor_dt_ = dt;
+            factor_parameters_ = parameters;
+        }
+        return valid;
     }
 
     // Factor the matrix once and validate every solved layer before callers copy any interiors.
     template <std::size_t count>
-    bool solve(const std::array<Layer, count>& layers)
+    bool solve(const std::array<Layer, count>& layers, bool reuse)
     {
+        if (reuse) std::ranges::copy(factored_diagonal_, diagonal_.begin());
         for (std::size_t index = 1; index < diagonal_.size(); ++index) {
             if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
-            const double factor = lower_[index] / diagonal_[index - 1];
-            diagonal_[index] -= factor * upper_diagonal_[index - 1];
+            const double factor = reuse ? multipliers_[index] : lower_[index] / diagonal_[index - 1];
+            if (!reuse) {
+                multipliers_[index] = factor;
+                diagonal_[index] -= factor * upper_diagonal_[index - 1];
+            }
             for (const auto& layer : layers)
                 layer.rhs[index] -= factor * layer.rhs[index - 1];
         }
         if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
+        if (!reuse) {
+            factored_diagonal_ = diagonal_;
+            for (std::size_t index = 0; index < diagonal_.size(); ++index)
+                inverse_[index] = 1.0 / diagonal_[index];
+        }
         for (const auto& layer : layers)
-            layer.rhs.back() /= diagonal_.back();
+            layer.rhs.back() = std::isfinite(inverse_.back()) ? layer.rhs.back() * inverse_.back()
+                                                              : layer.rhs.back() / diagonal_.back();
         for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
-            for (const auto& layer : layers)
-                layer.rhs[index] = (layer.rhs[index] - upper_diagonal_[index] * layer.rhs[index + 1]) / diagonal_[index];
+            for (const auto& layer : layers) {
+                const double value = layer.rhs[index] - upper_diagonal_[index] * layer.rhs[index + 1];
+                // A finite pivot can have an overflowing reciprocal.
+                layer.rhs[index] = std::isfinite(inverse_[index]) ? value * inverse_[index] : value / diagonal_[index];
+            }
         return std::ranges::all_of(layers, [](const auto& layer) {
             return std::ranges::all_of(layer.rhs, [](double value) { return std::isfinite(value); });
         });
@@ -165,6 +189,10 @@ private:
 
     std::vector<double> lower_, diagonal_, upper_diagonal_, rhs_;
     std::vector<double> paired_rhs_;
+    double factor_dt_{};
+    std::optional<DiffusionParameters> factor_parameters_;
+    std::vector<bool> fixed_;
+    std::vector<double> factored_diagonal_, multipliers_, inverse_;
     std::optional<DiffusionParameters> cached_parameters_;
     std::vector<std::array<double, 3>> coefficients_;
 };

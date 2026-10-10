@@ -80,7 +80,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
     const auto sinh_spacing = GENERATE(0.0, 0.2);
     constexpr double upper = 240.0;
     const double spacing = upper / static_cast<double>(size - 1);
-    const std::array time_step_count{0.17, 0.03, 0.11};
+    const std::array time_step_count{0.17, 0.17, 0.03, 0.11, 0.11};
 
     for (const double theta : {0.0, 1.0, 0.5}) {
         CAPTURE(theta);
@@ -180,6 +180,53 @@ TEST_CASE("Stretched finite-difference coefficients follow parameter changes", "
         const auto unconstrained = [](int) -> std::optional<double> { return std::nullopt; };
         REQUIRE(reused.advance(old, actual, 0.1, parameters, 0.0, 16.0, unconstrained));
         REQUIRE(fresh.advance(old, expected, 0.1, parameters, 0.0, 16.0, unconstrained));
+        CHECK(actual == expected);
+    }
+}
+
+TEST_CASE("Finite-difference factors follow time steps parameters and constraint masks", "[fd-factor-cache]")
+{
+    using namespace kiyosi::detail;
+    FiniteDifferenceStep reused{7};
+    const std::vector<double> old{0.0, 1.0, 4.0, 9.0, 16.0, 25.0, 36.0};
+    for (const double spacing : {0.0, 0.1, 0.0})
+        for (const double theta : {1.0, 0.5, 0.0, 0.5})
+            for (const double rate : {0.03, -0.01})
+                for (const double dividend : {0.01, 0.02})
+                    for (const double volatility : {0.2, 0.4})
+                        for (const double dt : {0.1, 0.1, 0.05})
+                            for (const int pin : {0, 2, 2, 3, 0})
+                                for (const double value : {7.0, 8.0}) {
+                                    CAPTURE(spacing, theta, rate, dividend, volatility, dt, pin, value);
+                                    const DiffusionParameters parameters{rate, dividend, volatility, theta, spacing};
+                                    const auto constraint = [=](int index) -> std::optional<double> {
+                                        return index == pin ? std::optional{value} : std::nullopt;
+                                    };
+                                    FiniteDifferenceStep fresh{7};
+                                    std::vector<double> actual(7), expected(7);
+                                    REQUIRE(reused.advance(old, actual, dt, parameters, 0.0, 36.0, constraint));
+                                    REQUIRE(fresh.advance(old, expected, dt, parameters, 0.0, 36.0, constraint));
+                                    CHECK(actual == expected);
+                                    if (pin != 0) CHECK(actual[static_cast<std::size_t>(pin)] == value);
+                                }
+}
+
+TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-factor-cache]")
+{
+    using namespace kiyosi::detail;
+    FiniteDifferenceStep reused{5};
+    const std::vector<double> old{0.0, 1.0, 4.0, 9.0, 16.0};
+    std::vector<double> actual(5), expected(5);
+    const DiffusionParameters valid{0.03, 0.01, 0.2, 0.5};
+    REQUIRE(reused.advance(old, actual, 0.1, valid, 0.0, 16.0));
+    for (int attempt = 0; attempt < 2; ++attempt) {
+        CHECK_FALSE(reused.advance(old, actual, 0.1, {-10.0, -10.0, 0.0, 1.0}, 0.0, 16.0));
+        auto invalid_old = old;
+        invalid_old[2] = std::numeric_limits<double>::infinity();
+        CHECK_FALSE(reused.advance(invalid_old, actual, 0.1, valid, 0.0, 16.0));
+        FiniteDifferenceStep fresh{5};
+        REQUIRE(reused.advance(old, actual, 0.1, valid, 0.0, 16.0));
+        REQUIRE(fresh.advance(old, expected, 0.1, valid, 0.0, 16.0));
         CHECK(actual == expected);
     }
 }
