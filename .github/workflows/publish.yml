@@ -28,6 +28,7 @@ permissions:
 jobs:
   test-oracle:
     name: Check QuantLib reference generation
+    if: github.event_name != 'release'
     # Use Windows to reproduce the committed reference bytes.
     runs-on: windows-2022
     steps:
@@ -42,6 +43,7 @@ jobs:
 
   test-core:
     name: Test C++ core on ${{ matrix.os }}
+    if: github.event_name != 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -67,6 +69,7 @@ jobs:
 
   test-cpu:
     name: Test Python with CUDA disabled
+    if: github.event_name != 'release'
     runs-on: ubuntu-24.04
     env:
       CMAKE_ARGS: -DKIYOSI_ENABLE_CUDA=OFF
@@ -83,6 +86,7 @@ jobs:
 
   build:
     name: Build wheels on ${{ matrix.os }}
+    if: github.event_name != 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -91,16 +95,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           persist-credentials: false
-
-      - name: Verify release tag
-        if: github.event_name == 'release'
-        run: >-
-          python -c "import os, pathlib, re; text = pathlib.Path('CMakeLists.txt').read_text();
-          version = re.search(r'project\(kiyosi VERSION ([0-9.]+)', text).group(1);
-          tag = os.environ['GITHUB_REF_NAME'];
-          assert tag == f'v{version}', f'release tag {tag!r} does not match package version {version!r}'"
 
       - name: Install CUDA Toolkit
         if: runner.os == 'Windows'
@@ -136,7 +131,7 @@ jobs:
   test-gpu:
     name: Test C++ CUDA backend and release wheel on GPU
     # Public pull requests must not execute on the self-hosted runner.
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.event_name != 'release'
     needs: build
     # Runner supplies CMake 3.28+, Ninja, C++23 tools, CUDA Toolkit, and a wheel-supported GPU.
     runs-on: [self-hosted, Linux, X64, gpu]
@@ -146,7 +141,6 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
           persist-credentials: false
       - uses: actions/setup-python@v6
         with:
@@ -173,20 +167,58 @@ jobs:
   publish:
     name: Publish distributions to PyPI
     if: github.event_name == 'release'
-    needs: [build, test-cpu, test-core, test-gpu, test-oracle]
     runs-on: ubuntu-24.04
     environment:
       name: pypi
       url: https://pypi.org/project/kiyosi/
     permissions:
+      contents: read
+      actions: read
       id-token: write
 
     steps:
-      - uses: actions/download-artifact@v8
+      - uses: actions/checkout@v7
         with:
-          pattern: distributions-*
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Verify release tag
+        run: >-
+          python -c "import os, pathlib, re; text = pathlib.Path('CMakeLists.txt').read_text();
+          version = re.search(r'project\(kiyosi VERSION ([0-9.]+)', text).group(1);
+          tag = os.environ['GITHUB_REF_NAME'];
+          assert tag == f'v{version}', f'release tag {tag!r} does not match package version {version!r}'"
+
+      - name: Find successful CI for release commit
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          run_id=$(gh api --method GET "repos/$GITHUB_REPOSITORY/actions/workflows/publish.yml/runs" \
+            -f head_sha="$sha" -f branch=main -f event=push -f status=success -F per_page=1 \
+            --jq '.workflow_runs[0].id // empty')
+          if [[ -z "$run_id" ]]; then
+            echo "::error::No successful main CI run found for release commit $sha"
+            exit 1
+          fi
+          echo "run-id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download Linux distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: distributions-ubuntu-24.04
+          run-id: ${{ steps.ci.outputs.run-id }}
+          github-token: ${{ github.token }}
           path: dist
-          merge-multiple: true
+
+      - name: Download Windows distributions
+        uses: actions/download-artifact@v8
+        with:
+          name: distributions-windows-2022
+          run-id: ${{ steps.ci.outputs.run-id }}
+          github-token: ${{ github.token }}
+          path: dist
 
       - name: Publish distributions
         uses: pypa/gh-action-pypi-publish@release/v1
