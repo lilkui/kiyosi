@@ -15,12 +15,13 @@ namespace kiyosi {
 using namespace detail;
 namespace {
 // Valuation time and observation dates have been validated by price.
-Result<double> barrier_fd(const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings)
+Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingContext& context,
+                                 FiniteDifferenceSettings settings, GreeksRequest output)
 {
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
     const bool knock_in = option.barrier_terms().is_knock_in();
-    if (time_to_expiry == 0.0) return knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0);
+    if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
     const int asset_step_count = settings.asset_step_count;
@@ -93,10 +94,13 @@ Result<double> barrier_fd(const BarrierOption& option, const PricingContext& con
         for (std::size_t index = 0; index < old.size(); ++index)
             old[index] = std::max(vanilla[index] - old[index] + rebate, 0.0);
     }
-    return space->interpolate(old, spot);
+    return make_pricing_result(space->interpolate(old, spot),
+                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
 }
 } // namespace
-Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(
+    const BarrierOption& option, const PricingContext& context, GreeksRequest output) const
 {
     auto settings_valid = detail::validate_finite_difference_settings(
         settings_, general_fd_max_asset_steps, general_fd_max_time_steps);
@@ -107,15 +111,24 @@ Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option,
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective_date(), option.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
     }
-    if (const auto settled = resolved_barrier_price(option, context)) return *settled;
-    const auto price = barrier_fd(option, context, settings_);
-    if (!price) return std::unexpected(price.error());
-    return checked_price(*price);
+    if (const auto settled = resolved_barrier_price(option, context)) {
+        if (!*settled) return std::unexpected(settled->error());
+        return make_pricing_result(**settled);
+    }
+    return barrier_fd(option, context, settings_, output);
+}
+Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
 }
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         const auto output = detail::at_spot_discontinuity(option, context, detail::symmetric_shift(context.spot_price(), settings.spot_shift)) ? GreeksRequest{} : greeks;
+                                         return engine.price_native(option, context, output);
+                                     });
 }
 
 } // namespace kiyosi

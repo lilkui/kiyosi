@@ -4,6 +4,7 @@ from datetime import date
 
 from kiyosi import pricing
 from kiyosi.instruments import (
+    BarrierOption,
     BinarySnowballOption,
     SnowballOption,
     asset_no_touch_down,
@@ -19,6 +20,47 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AuditFixTests(unittest.TestCase):
+    def test_finite_difference_barrier_native_spot_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        engine = pricing.FiniteDifferenceBarrierEngine(
+            asset_step_count=800, time_step_count=400
+        )
+        for kind in ("down_and_in", "down_and_out", "up_and_in", "up_and_out"):
+            up = kind.startswith("up")
+            barrier = 120 if up else 80
+            option = BarrierOption(
+                option_type="call",
+                strike=100,
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=barrier,
+                barrier_type=kind,
+            )
+            context = PricingContext(
+                model_parameters=parameters, spot_price=100, valuation_time=start
+            )
+            result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+            expected = pricing.AnalyticBarrierEngine().price_with_greeks(
+                option, context, ["delta", "gamma"]
+            )
+            with self.subTest(kind=kind):
+                self.assertEqual(result.price, engine.price(option, context))
+                self.assertAlmostEqual(result.delta, expected.delta, delta=0.003)
+                self.assertAlmostEqual(result.gamma, expected.gamma, delta=0.0005)
+                self.assertIsNone(result.vega)
+            for spot in (barrier, barrier + (-0.001 if up else 0.001)):
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=spot, valuation_time=start
+                )
+                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                with self.subTest(kind=kind, spot=spot):
+                    self.assertEqual(result.price, engine.price(option, context))
+                    self.assertIsNone(result.delta)
+                    self.assertIsNone(result.gamma)
+
     def test_monte_carlo_implied_coupons_solve_affine_curve_directly(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

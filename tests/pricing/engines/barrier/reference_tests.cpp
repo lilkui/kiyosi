@@ -2,8 +2,10 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <chrono>
+#include <memory>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "support/reference_harness.hpp"
@@ -13,6 +15,66 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Finite-difference barrier spot Greeks reuse one solve", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto queries = std::make_shared<int>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, calendar);
+    const auto option = *make_barrier_option(
+        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}});
+    const FiniteDifferenceBarrierEngine engine{800, 400};
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    const int price_queries = std::exchange(*queries, 0);
+    REQUIRE(price_queries > 0);
+    const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+    REQUIRE(result);
+    CHECK(*queries == price_queries);
+    CHECK(result->price() == *price);
+    const auto vanilla = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto expected = AnalyticVanillaEngine{}.price_with_greeks(vanilla, context, {Greek::delta, Greek::gamma});
+    REQUIRE(expected);
+    REQUIRE(result->has(Greek::delta));
+    REQUIRE(result->has(Greek::gamma));
+    CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(*expected->require(Greek::delta), 0.001));
+    CHECK_THAT(*result->require(Greek::gamma), Catch::Matchers::WithinAbs(*expected->require(Greek::gamma), 0.0001));
+    CHECK_FALSE(result->has(Greek::vega));
+}
+
+TEST_CASE("Finite-difference barrier native Greeks respect monitored boundaries", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
+    const FiniteDifferenceBarrierEngine engine{800, 400};
+    for (const auto kind : {BarrierType::down_and_in, BarrierType::down_and_out, BarrierType::up_and_in, BarrierType::up_and_out}) {
+        const bool up = kind == BarrierType::up_and_in || kind == BarrierType::up_and_out;
+        const double barrier = up ? 120.0 : 80.0;
+        const auto option = *make_barrier_option(
+            {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind});
+        const auto context = *make_pricing_context(parameters, 100.0, start);
+        const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        const auto expected = AnalyticBarrierEngine{}.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        REQUIRE(actual);
+        REQUIRE(expected);
+        REQUIRE(actual->has(Greek::delta));
+        REQUIRE(actual->has(Greek::gamma));
+        CAPTURE(kind);
+        CHECK_THAT(*actual->require(Greek::delta), Catch::Matchers::WithinAbs(*expected->require(Greek::delta), 0.003));
+        CHECK_THAT(*actual->require(Greek::gamma), Catch::Matchers::WithinAbs(*expected->require(Greek::gamma), 0.0005));
+        for (const double spot : {barrier, barrier + (up ? -0.001 : 0.001)}) {
+            const auto boundary = *make_pricing_context(parameters, spot, start);
+            const auto result = engine.price_with_greeks(option, boundary, {Greek::delta, Greek::gamma});
+            REQUIRE(result);
+            CHECK(result->price() == *engine.price(option, boundary));
+            CHECK_FALSE(result->has(Greek::delta));
+            CHECK_FALSE(result->has(Greek::gamma));
+        }
+    }
+}
 
 TEST_CASE("Finite-difference knock-in prices preserve small positive values", "[audit-fixes]")
 {
