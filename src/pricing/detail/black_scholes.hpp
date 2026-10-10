@@ -173,13 +173,7 @@ inline Result<PricingResult> price_at_volatility(
     const std::optional<double> rho = want(Greek::rho)
                                           ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit}
                                           : std::nullopt;
-    auto output = make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
-    if (!output) return std::unexpected(output.error());
-    if (!output->all_finite()) {
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "analytic pricing produced a non-finite result"});
-    }
-    return output;
+    return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
 }
 
 } // namespace kiyosi::detail

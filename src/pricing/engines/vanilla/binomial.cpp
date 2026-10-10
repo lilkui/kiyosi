@@ -111,15 +111,9 @@ Result<PricingResult> price_binomial(
         }
     }
 
-    auto output = make_pricing_result(values[0], {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt},
-                                                  {Greek::gamma,
-                                                   gamma_available ? std::optional<double>{gamma} : std::nullopt}});
-    if (!output) return std::unexpected(output.error());
-    if (!output->all_finite()) {
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "binomial pricing produced a non-finite result"});
-    }
-    return output;
+    return make_pricing_result(values[0], {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{delta} : std::nullopt},
+                                           {Greek::gamma,
+                                            gamma_available ? std::optional<double>{gamma} : std::nullopt}});
 }
 } // namespace
 

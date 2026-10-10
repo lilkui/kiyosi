@@ -78,11 +78,7 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
             }
         }
     }
-    auto result = make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
-    if (!result) return std::unexpected(result.error());
-    if (!result->all_finite())
-        return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    return result;
+    return make_pricing_result(value, {{Greek::delta, delta}, {Greek::gamma, gamma}});
 }
 
 Result<double> AnalyticDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
