@@ -194,24 +194,25 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
 #endif
     } else {
         const auto path_count = static_cast<std::size_t>(settings_.path_count) + settings_.path_count % 2;
-        const auto stride = static_cast<std::size_t>(settings_.step_count);
-        std::vector<double> paths(path_count * stride, parameters->spot);
+        const auto step_count = static_cast<std::size_t>(settings_.step_count);
+        // Regression visits every path at one time, so keep each time slice contiguous.
+        std::vector<double> paths(path_count * step_count, parameters->spot);
         const auto simulated = simulate_paths(*parameters, settings_, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
-            paths[static_cast<std::size_t>(positive) * stride + static_cast<std::size_t>(step)] = positive_spot;
-            paths[static_cast<std::size_t>(negative) * stride + static_cast<std::size_t>(step)] = negative_spot;
+            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
+            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot;
         });
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         for (std::size_t path = 0; path < path_count; ++path)
             cash_flows[path] = payoff(
-                option.option_type(), paths[path * stride + stride - 1], option.strike());
+                option.option_type(), paths[(step_count - 1) * path_count + path], option.strike());
         for (int step = settings_.step_count - 2; step >= 1; --step) {
             for (double& value : cash_flows)
                 value *= discount;
             detail::QuadraticRegressionMatrix matrix{};
             std::size_t sample_count = 0;
             for (std::size_t path = 0; path < path_count; ++path) {
-                const double spot = paths[path * stride + static_cast<std::size_t>(step)];
+                const double spot = paths[static_cast<std::size_t>(step) * path_count + path];
                 if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
                     ++sample_count;
                     const double scaled = spot / option.strike();
@@ -227,7 +228,7 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
             for (std::size_t path = 0; path < path_count; ++path) {
-                const double spot = paths[path * stride + static_cast<std::size_t>(step)];
+                const double spot = paths[static_cast<std::size_t>(step) * path_count + path];
                 const double intrinsic = payoff(option.option_type(), spot, option.strike());
                 if (intrinsic <= 0.0) continue;
                 const double scaled = spot / option.strike();

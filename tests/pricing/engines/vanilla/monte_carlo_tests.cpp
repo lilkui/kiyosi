@@ -341,6 +341,26 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
     }
 }
 
+TEST_CASE("American Monte Carlo preserves paired paths across time grids", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_american_option(type, 100.0, start, end);
+        for (const int steps : {3, 7, 50}) {
+            for (const int paths : {1, 3, 19'999}) {
+                CAPTURE(type, steps, paths);
+                const auto odd = MonteCarloVanillaEngine{paths, steps, 42}.price(option, context);
+                const auto even = MonteCarloVanillaEngine{paths + 1, steps, 42}.price(option, context);
+                REQUIRE(odd);
+                REQUIRE(even);
+                CHECK(*odd == *even);
+            }
+        }
+    }
+}
+
 TEST_CASE("American Monte Carlo includes immediate exercise in the exercise window")
 {
     const auto valuation = day(2025, 1, 6);

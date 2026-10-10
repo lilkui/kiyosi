@@ -231,6 +231,30 @@ class KiyosiPythonTests(unittest.TestCase):
                         for actual, expected in zip(prices(scale), base):
                             self.assertAlmostEqual(actual, expected, delta=1e-9)
 
+    def test_american_monte_carlo_preserves_paired_paths_across_time_grids(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for direction in ("call", "put"):
+            option = AmericanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for steps in (3, 7, 50):
+                for paths in (1, 3, 19999):
+                    with self.subTest(direction=direction, steps=steps, paths=paths):
+                        odd = pricing.MonteCarloVanillaEngine(
+                            path_count=paths, step_count=steps, seed=42
+                        ).price(option, context)
+                        even = pricing.MonteCarloVanillaEngine(
+                            path_count=paths + 1, step_count=steps, seed=42
+                        ).price(option, context)
+                        self.assertEqual(odd, even)
+
     def test_american_monte_carlo_prices_are_currency_scale_invariant(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
