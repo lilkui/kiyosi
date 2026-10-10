@@ -131,6 +131,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const FiniteDifferenceSnowballEngine snowball_engine{};
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out});
     const FiniteDifferenceBarrierEngine barrier_engine{};
+    const FiniteDifferenceVanillaEngine vanilla_engine{};
+    register_calculation("analytics/kiyosi/european/fd/vanna", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::vanna}); }, "price");
+    register_calculation("analytics/kiyosi/european/fd/zomma", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::zomma}); }, "price");
     register_price("analytics/kiyosi/barrier/fd/price", barrier, barrier_engine, base_context);
     register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);

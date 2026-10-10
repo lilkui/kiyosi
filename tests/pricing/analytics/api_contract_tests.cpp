@@ -223,6 +223,71 @@ TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
     }
 }
 
+TEST_CASE("Mixed volatility Greeks reuse shifted native derivatives", "[pricing-api][mixed-native]")
+{
+    struct PolynomialEngine {
+        std::vector<PricingContext>* calls;
+        Result<double> price(const EuropeanOption&, const PricingContext& context) const
+        {
+            calls->push_back(context);
+            return context.spot_price() * context.spot_price() * context.model_parameters().volatility();
+        }
+    };
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    for (const bool provide_native : {true, false}) {
+        std::vector<PricingContext> calls;
+        const PolynomialEngine engine{&calls};
+        const auto evaluate = [&](const auto& shifted_engine, const PricingContext& context, GreeksRequest request) {
+            const auto price = shifted_engine.price(option, context);
+            return make_pricing_result(*price, {{Greek::delta, provide_native && request.has(Greek::delta)
+                                                                   ? std::optional{2.0 * context.spot_price() * context.model_parameters().volatility()}
+                                                                   : std::nullopt},
+                                                {Greek::gamma, provide_native && request.has(Greek::gamma)
+                                                                   ? std::optional{2.0 * context.model_parameters().volatility()}
+                                                                   : std::nullopt}});
+        };
+        const auto result = detail::price_with_greeks(engine, option, market(),
+                                                      {Greek::vanna, Greek::zomma}, {.spot_shift = 1.0}, evaluate);
+        REQUIRE(result);
+        CHECK(greek_value(*result, Greek::vanna) == Catch::Approx(2.0).margin(1e-8));
+        CHECK(greek_value(*result, Greek::zomma) == Catch::Approx(0.02).margin(1e-8));
+        CHECK_FALSE(result->has(Greek::delta));
+        CHECK_FALSE(result->has(Greek::gamma));
+        CHECK(calls.size() == (provide_native ? 3 : 7));
+    }
+}
+
+TEST_CASE("Finite-difference mixed volatility Greeks track analytic sensitivities", "[pricing-api][mixed-native]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const GreeksRequest request{Greek::vanna, Greek::zomma};
+    const auto expected = AnalyticVanillaEngine{}.price_with_greeks(option, market(), request);
+    const auto actual = FiniteDifferenceVanillaEngine{{400, 400}}.price_with_greeks(option, market(), request);
+    REQUIRE(expected);
+    REQUIRE(actual);
+    for (const auto greek : {Greek::vanna, Greek::zomma})
+        CHECK(greek_value(*actual, greek) == Catch::Approx(greek_value(*expected, greek)).epsilon(0.02).margin(1e-6));
+}
+
+TEST_CASE("Shifted native derivative failures propagate", "[pricing-api][mixed-native]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    std::vector<PricingContext> calls;
+    const RecordingPriceEngine engine{&calls};
+    const auto result = detail::price_with_greeks(engine, option, market(), {Greek::vanna}, {},
+                                                  [&](const auto&, const PricingContext& context, GreeksRequest request) -> Result<PricingResult> {
+                                                      if (context.model_parameters().volatility() > 0.3) {
+                                                          CHECK(request.has(Greek::delta));
+                                                          CHECK_FALSE(request.has(Greek::gamma));
+                                                          return std::unexpected(Error{ErrorCategory::invalid_result, "shifted solve failed"});
+                                                      }
+                                                      return make_pricing_result(1.0);
+                                                  });
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == ErrorCategory::invalid_result);
+    CHECK(calls.empty());
+}
+
 TEST_CASE("Time Greeks reuse spot prices only at the valuation time", "[pricing-api]")
 {
     struct TimePriceEngine {

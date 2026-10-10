@@ -127,10 +127,11 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context, 
 
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
-template <typename Engine, typename Option>
+template <typename Engine, typename Option, typename Native = decltype(nullptr)>
 Result<PricingResult> complete_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
-    GreeksRequest greeks, NumericalShiftSettings settings, const PricingResult& native)
+    GreeksRequest greeks, NumericalShiftSettings settings, const PricingResult& native,
+    const Native& evaluate_native = nullptr)
 {
     const double spot = context.spot_price();
     const double volatility = context.model_parameters().volatility();
@@ -189,18 +190,47 @@ Result<PricingResult> complete_greeks(
         (need(Greek::vega) || (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))))) {
         const double volatility_high = volatility + volatility_shift;
         const double volatility_low = volatility - volatility_shift;
+        std::optional<PricingResult> native_high, native_low;
+        if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+            if (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))) {
+                const auto evaluate = [&](double shifted_volatility) -> Result<PricingResult> {
+                    const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
+                    if (!shifted) return std::unexpected(shifted.error());
+                    const GreeksRequest derivatives = need(Greek::vanna)
+                                                          ? (need(Greek::zomma) ? GreeksRequest{Greek::delta, Greek::gamma} : GreeksRequest{Greek::delta})
+                                                          : GreeksRequest{Greek::gamma};
+                    auto result = evaluate_native(engine, *shifted, derivatives);
+                    const auto value = price_value(result);
+                    if (!value) return std::unexpected(value.error());
+                    if (!result->all_finite())
+                        return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+                    return result;
+                };
+                const auto high = evaluate(volatility_high);
+                if (!high) return std::unexpected(high.error());
+                const auto low = evaluate(volatility_low);
+                if (!low) return std::unexpected(low.error());
+                native_high = *high;
+                native_low = *low;
+            }
+        }
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
-        const auto v_up = need_volatility_prices ? detail::shifted_value(
-                                                       engine, option, context, spot, volatility_high, rate, valuation_time)
-                                                 : p0;
+        const auto v_up = native_high ? Result<double>{native_high->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_high, rate, valuation_time)
+                                                                                                      : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        const auto v_down = need_volatility_prices ? detail::shifted_value(
-                                                         engine, option, context, spot, volatility_low, rate, valuation_time)
-                                                   : p0;
+        const auto v_down = native_low ? Result<double>{native_low->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_low, rate, valuation_time)
+                                                                                                      : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
-        if (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))) {
+        const bool native_vanna = native_high && native_high->has(Greek::delta) && native_low->has(Greek::delta);
+        const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
+        if (need(Greek::vanna) && native_vanna)
+            vanna = (**native_high->get(Greek::delta) - **native_low->get(Greek::delta)) / (2.0 * vol_scale);
+        if (need(Greek::zomma) && native_zomma)
+            zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
+
+        if (spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma))) {
             const auto d_up = detail::shifted_value(
                 engine, option, context, spot + h, volatility_high, rate, valuation_time);
             if (!d_up) return std::unexpected(d_up.error());
@@ -213,10 +243,10 @@ Result<PricingResult> complete_greeks(
             const auto d_down_low = detail::shifted_value(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
-            if (need(Greek::vanna)) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
-                                            (4.0 * h * vol_scale);
+            if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
+                                                             (4.0 * h * vol_scale);
 
-            if (need(Greek::zomma)) {
+            if (need(Greek::zomma) && !native_zomma) {
                 const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;
                 const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / h / h;
                 zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
@@ -364,7 +394,12 @@ Result<PricingResult> price_with_greeks(
                                      evaluate_native, native_complete);
         }
     }
-    auto native = evaluate_native(engine);
+    auto native = [&] {
+        if constexpr (requires { evaluate_native(engine, context, greeks); })
+            return evaluate_native(engine, context, greeks);
+        else
+            return evaluate_native(engine);
+    }();
     const auto value = price_value(native);
     if (!value) return std::unexpected(value.error());
     *native = native->selected(greeks);
@@ -382,10 +417,10 @@ Result<PricingResult> price_with_greeks(
             grid.asset_upper_boundary = default_finite_difference_upper_boundary(option, context);
             // Preserve settlements that never construct an asset grid.
             if (std::isfinite(*grid.asset_upper_boundary))
-                return complete_greeks(Engine{grid}, option, context, greeks, settings, *native);
+                return complete_greeks(Engine{grid}, option, context, greeks, settings, *native, evaluate_native);
         }
     }
-    return complete_greeks(engine, option, context, greeks, settings, *native);
+    return complete_greeks(engine, option, context, greeks, settings, *native, evaluate_native);
 }
 
 template <typename Engine, typename Option>
