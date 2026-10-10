@@ -158,8 +158,11 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
         if (!simulated) return std::unexpected(simulated.error());
         mean = payoffs.value();
     }
-    const double value = mean *
-                         std::exp(-parameters->rate * *time);
+    const double discount = std::exp(-parameters->rate * *time);
+    // Combine scales when the discount alone loses precision or leaves the finite range.
+    const double value = mean == 0.0               ? 0.0
+                         : std::isnormal(discount) ? mean * discount
+                                                   : std::exp(std::log(mean) - parameters->rate * *time);
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return value;

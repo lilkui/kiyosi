@@ -7,6 +7,41 @@
 
 #include "support/common.hpp"
 
+namespace {
+void check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend backend)
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1);
+    const auto end = test::day(2026, 1, 1);
+    const MonteCarloVanillaEngine engine{10'000, 2, 42, backend};
+    const auto unit_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 1.0, start);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto unit = engine.price(*make_european_option(type, 1.0, start, end), unit_context);
+        REQUIRE(unit);
+        for (const double rate : {710.0, 740.0, 750.0, -750.0}) {
+            CAPTURE(backend, type, rate);
+            const double amount = rate > 0.0 ? 1e300 : 1e-300;
+            const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 0.2), amount, start);
+            const auto price = engine.price(*make_european_option(type, amount, start, end), context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(*unit * std::exp(std::log(amount) - rate)).epsilon(2e-12).margin(0.0));
+        }
+    }
+}
+} // namespace
+
+TEST_CASE("European Monte Carlo preserves prices across extreme discount scales", "[audit-fixes]")
+{
+    check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend::cpu);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA European Monte Carlo preserves prices across extreme discount scales", "[cuda][audit-fixes]")
+{
+    check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend::cuda);
+}
+#endif
+
 TEST_CASE("Prices survive underflowing discount factors", "[audit-fixes]")
 {
     using namespace kiyosi;
