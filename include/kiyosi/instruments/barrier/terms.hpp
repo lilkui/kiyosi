@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include <algorithm>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -128,9 +129,7 @@ public:
     {
         if (date < effective_date_ || date > expiry_date_) return false;
         if (is_continuous()) return true;
-        for (const Date event : observation_dates_.dates())
-            if (event == date) return true;
-        return false;
+        return std::ranges::binary_search(observation_dates_.dates(), date);
     }
 
     /// Tests whether monitoring occurs at this exact valuation instant.
