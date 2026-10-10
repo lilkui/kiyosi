@@ -72,3 +72,30 @@ TEST_CASE("Prices survive underflowing discount factors", "[audit-fixes]")
         }
     }
 }
+
+TEST_CASE("Resolved barrier settlements preserve extreme discount scales", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1);
+    const auto end = test::day(2026, 1, 1);
+    for (const double rate : {740.0, 750.0, -750.0}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 0.2), 150.0, start);
+        for (const double amount : {0.0, rate > 0.0 ? 1e300 : 1e-300}) {
+            CAPTURE(rate, amount);
+            const double expected = amount == 0.0 ? 0.0 : std::exp(std::log(amount) - rate);
+            const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .rebate = amount});
+            for (const auto& result : {AnalyticBarrierEngine{}.price(barrier, context),
+                                       FiniteDifferenceBarrierEngine{}.price(barrier, context)}) {
+                REQUIRE(result);
+                CHECK(*result == Catch::Approx(expected).epsilon(2e-12).margin(0.0));
+            }
+            if (amount != 0.0) {
+                const auto touch = make_cash_one_touch_up(start, end, 120.0, amount, SettlementTiming::at_expiry);
+                REQUIRE(touch);
+                const auto result = AnalyticBinaryBarrierEngine{}.price(*touch, context);
+                REQUIRE(result);
+                CHECK(*result == Catch::Approx(expected).epsilon(2e-12).margin(0.0));
+            }
+        }
+    }
+}

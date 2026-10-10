@@ -51,7 +51,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const auto rebate_value = [&](double tau) {
         if (tau != cached_rebate_tau) {
             cached_rebate_tau = tau;
-            cached_rebate = option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau);
+            cached_rebate = option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : scaled_exponential(option.rebate(), -rate * tau);
         }
         return cached_rebate;
     };
@@ -98,7 +98,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         constraint);
     if (!marched) return std::unexpected(marched.error());
     if (knock_in) {
-        const double rebate = option.rebate() * std::exp(-rate * time_to_expiry);
+        const double rebate = scaled_exponential(option.rebate(), -rate * time_to_expiry);
         for (std::size_t index = 0; index < old.size(); ++index)
             old[index] = std::max(vanilla[index] - old[index] + rebate, 0.0);
     }

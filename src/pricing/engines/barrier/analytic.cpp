@@ -64,7 +64,7 @@ Result<double> AnalyticBarrierEngine::price(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
     }
-    const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t);
+    const double root_time = sigma * std::sqrt(t), discounted_rebate = scaled_exponential(option.rebate(), -rate * t);
     const double mu = (rate - dividend) / sigma / sigma - 0.5;
     const double x = option.strike();
     const double log_moneyness = log_price_ratio(spot, x);
@@ -81,12 +81,12 @@ Result<double> AnalyticBarrierEngine::price(
                 phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
             scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
                 scaled_normal_cdf(option.rebate(), -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
-            option.rebate() * (hit_rebate ? hit_discount : discount)};
+            hit_rebate ? option.rebate() * hit_discount : discounted_rebate};
     };
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;
     const auto f = factors(eta, call ? 1.0 : -1.0);
-    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == RebateTiming::at_hit ? values[5] : option.rebate() * discount - values[4]; };
+    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == RebateTiming::at_hit ? values[5] : discounted_rebate - values[4]; };
     double value = 0.0;
     if (call) {
         if (knock_in) value = upper ? (x > barrier ? f[0] + f[4] : f[1] - f[2] + f[3] + f[4]) : (x > barrier ? f[2] + f[4] : f[0] - f[1] + f[3] + f[4]);

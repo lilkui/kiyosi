@@ -3,11 +3,64 @@ import unittest
 from datetime import date
 
 from kiyosi import pricing
-from kiyosi.instruments import AssetOrNothingOption, CashOrNothingOption, EuropeanOption
+from kiyosi.instruments import (
+    AssetOrNothingOption,
+    BarrierOption,
+    CashOrNothingOption,
+    EuropeanOption,
+    cash_one_touch_up,
+)
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class DiscountUnderflowTests(unittest.TestCase):
+    def test_resolved_barrier_settlements_preserve_extreme_discount_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for rate in (740, 750, -750):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=rate, volatility=0.2
+                ),
+                spot_price=150,
+                valuation_time=start,
+            )
+            for amount in (0, 1e300 if rate > 0 else 1e-300):
+                terms = {
+                    "effective_date": start,
+                    "expiry_date": end,
+                    "barrier_level": 120,
+                }
+                barrier = BarrierOption(
+                    **terms,
+                    option_type="call",
+                    strike=100,
+                    barrier_type="up_and_out",
+                    rebate=amount,
+                )
+                expected = math.exp(math.log(amount) - rate) if amount else 0
+                cases = [
+                    (pricing.AnalyticBarrierEngine(), barrier),
+                    (pricing.FiniteDifferenceBarrierEngine(), barrier),
+                ]
+                if amount:
+                    cases.append(
+                        (
+                            pricing.AnalyticBinaryBarrierEngine(),
+                            cash_one_touch_up(
+                                **terms, payout=amount, settlement_timing="at_expiry"
+                            ),
+                        )
+                    )
+                for engine, option in cases:
+                    with self.subTest(
+                        rate=rate, amount=amount, engine=type(engine).__name__
+                    ):
+                        self.assertTrue(
+                            math.isclose(
+                                engine.price(option, context), expected, rel_tol=2e-12
+                            )
+                        )
+
     def test_monte_carlo_preserves_extreme_discount_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.MonteCarloVanillaEngine(path_count=10_000, seed=42)

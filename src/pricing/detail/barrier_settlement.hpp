@@ -23,11 +23,11 @@ inline std::optional<Result<double>> resolved_barrier_price(
     if (touched && !terms.is_knock_in())
         return checked_price(option.rebate_timing() == RebateTiming::at_hit
                                  ? (*prior_touch ? 0.0 : option.rebate())
-                                 : option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * time));
+                                 : scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
     const bool monitoring_finished = !terms.is_continuous() &&
                                      start_of_day(terms.observation_dates().back()) <= context.valuation_time();
     if (!touched && monitoring_finished && terms.is_knock_in())
-        return checked_price(option.rebate() * std::exp(-context.model_parameters().risk_free_rate() * time));
+        return checked_price(scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
     if (touched || monitoring_finished) {
         const auto vanilla = price_at_volatility(
             *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),

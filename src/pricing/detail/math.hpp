@@ -67,6 +67,16 @@ inline double exponential_normal_cdf(double log_weight, double value) noexcept
     return std::exp(log_weight + log_normal_cdf(value));
 }
 
+inline double scaled_exponential(double amount, double exponent) noexcept
+{
+    if (amount == 0.0) return 0.0;
+    const double weight = std::exp(exponent);
+    const double result = amount * weight;
+    return std::isnormal(weight) && std::isfinite(result)
+               ? result
+               : std::exp(std::log(amount) + exponent);
+}
+
 inline double scaled_normal_cdf(double amount, double log_weight, double value) noexcept
 {
     if (amount == 0.0) return 0.0;

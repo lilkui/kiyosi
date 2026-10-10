@@ -42,8 +42,8 @@ Result<double> vanilla_digital(const BinaryBarrierContractView& option, const Pr
 {
     if (!option.option_type)
         return checked_price(option.asset_settlement
-                                 ? context.spot_price() * std::exp(-context.model_parameters().dividend_yield() * time)
-                                 : option.payout * std::exp(-context.model_parameters().risk_free_rate() * time));
+                                 ? scaled_exponential(context.spot_price(), -context.model_parameters().dividend_yield() * time)
+                                 : scaled_exponential(option.payout, -context.model_parameters().risk_free_rate() * time));
     const auto& terms = *option.barrier_terms;
     const AnalyticDigitalEngine engine;
     const auto price = option.asset_settlement
@@ -112,7 +112,7 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         const double weight = knock_in ? probability : 1.0 - probability;
         if (weight == 0.0) return 0.0;
         const double amount = option.asset_settlement ? spot : option.payout;
-        return checked_price(amount * std::exp(-(option.asset_settlement ? dividend : rate) * time + std::log(weight)));
+        return checked_price(scaled_exponential(amount, -(option.asset_settlement ? dividend : rate) * time + std::log(weight)));
     }
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double log_moneyness = log_price_ratio(spot, option.strike);
