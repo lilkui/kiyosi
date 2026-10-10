@@ -120,6 +120,7 @@ int main(int argc, char** argv)
         if (benchmark::ReportUnrecognizedArguments(argc, argv)) return 1;
         register_matrix();
         kiyosi::benchmark_support::register_monte_carlo_cases();
+        kiyosi::benchmark_support::register_analytics_cases();
 #if KIYOSI_HAS_QUANTLIB
         kiyosi::benchmark_support::register_quantlib_matrix();
 #endif

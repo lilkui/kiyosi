@@ -24,6 +24,16 @@ On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_b
 
 ## Scenario and interpretation
 
+The `analytics/kiyosi/` cases measure accumulator and snowball finite-difference
+delta/gamma requests beside price-only baselines using the same contracts and
+default 200-by-200 grids. They value at noon on 2025-01-01 to avoid a current
+observation discontinuity. A European Monte Carlo implied-volatility case uses
+5,000 paths, seed 42, and the default solver settings; the input quote is prepared
+before timing. The `volatility` counter records the solved value. Each timed
+Greek request retains the complete result so its sensitivities cannot be optimized
+away. Run these cases with `--benchmark_filter=^analytics/`; `compare.py` continues
+to report only the pricing matrix.
+
 - Common market: valuation on 2025-01-01, expiry on 2026-01-01, spot and vanilla strike 100, flat risk-free rate 4%, dividend yield 1%, volatility 20%, Actual/365 Fixed.
 - Instruments and engines are constructed before timing. Each iteration calls Kiyosi `price()` or forces a QuantLib `recalculate()` followed by `NPV()`; plain repeated `NPV()` would report a cached lookup. The warmup price is included as a `price` counter for checking that paired cases value similar contracts.
 - CPU cases report CPU time; CUDA cases report wall time, which includes GPU synchronization inside the pricing call.

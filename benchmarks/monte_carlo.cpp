@@ -118,6 +118,28 @@ void register_monte_carlo(const std::string& name, const auto& scenario, auto en
 
 } // namespace
 
+void kiyosi::benchmark_support::register_analytics_cases()
+{
+    using namespace kiyosi;
+    const auto [european, base_context] = monte_carlo_scenario();
+    const auto context = *make_pricing_context(
+        base_context.model_parameters(), base_context.spot_price(),
+        base_context.valuation_time() + std::chrono::hours{12}, base_context.calendar());
+    const auto accumulator = accumulator_scenario().first;
+    const auto snowball = snowball_scenario().first;
+    const FiniteDifferenceAccumulatorEngine accumulator_engine{};
+    const FiniteDifferenceSnowballEngine snowball_engine{};
+    register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);
+    register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
+    register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
+    register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
+    const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
+    const auto quote = monte_carlo.price(european, context);
+    register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {
+                             if (!quote) return std::unexpected(quote.error());
+                             return implied_volatility(monte_carlo, european, context, *quote); }, "volatility");
+}
+
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;

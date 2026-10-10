@@ -28,16 +28,21 @@ struct FailingEngine {
     }
 };
 
-TEST_CASE("Pricing benchmarks report warmup and measured failures", "[benchmarks]")
+TEST_CASE("Pricing and analytics benchmarks report warmup and measured failures", "[benchmarks]")
 {
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, kiyosi::test::day(2025, 1, 1));
-    for (const int failure_call : {0, 1, 2}) {
-        CAPTURE(failure_call);
+    for (const auto [failure_call, analytics] : {std::pair{0, false}, {1, false}, {2, false}, {0, true}, {1, true}, {2, true}}) {
+        CAPTURE(failure_call, analytics);
         int calls = 0;
         benchmark::ClearRegisteredBenchmarks();
-        kiyosi::benchmark_support::register_price("test/pricing", 0, FailingEngine{&calls, failure_call}, context)
-            ->Iterations(3);
+        auto* registration = analytics
+                                 ? kiyosi::benchmark_support::register_calculation("test/pricing", [&]() -> kiyosi::Result<kiyosi::PricingResult> {
+                                       const auto value = FailingEngine{&calls, failure_call}.price(0, context);
+                                       if (!value) return std::unexpected(value.error());
+                                       return kiyosi::make_pricing_result(*value, {{kiyosi::Greek::delta, 7.0}, {kiyosi::Greek::gamma, -3.0}}); }, "price")
+                                 : kiyosi::benchmark_support::register_price("test/pricing", 0, FailingEngine{&calls, failure_call}, context);
+        registration->Iterations(3);
         PricingReporter reporter;
         const auto matched = benchmark::RunSpecifiedBenchmarks(&reporter, "test/pricing");
         benchmark::ClearRegisteredBenchmarks();
