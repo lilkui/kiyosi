@@ -441,7 +441,7 @@ inline std::vector<double> real_sequence(nb::handle values, std::string_view fie
 void bind_error_category(nb::module_& module);
 void bind_market(nb::module_& module);
 void bind_instruments(nb::module_& module);
-void bind_structured_instruments(nb::module_& module);
+void bind_autocallable_instruments(nb::module_& module);
 void bind_results(nb::module_& module);
 void bind_engines(nb::module_& module);
 void bind_analytics(nb::module_& module);

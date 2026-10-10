@@ -124,8 +124,8 @@ target_sources(kiyosi
         src/pricing/engines/digital/analytic.cpp
         src/pricing/engines/digital/finite_difference.cpp
         src/pricing/engines/digital/integral.cpp
-        src/pricing/engines/structured/finite_difference.cpp
-        src/pricing/engines/structured/monte_carlo.cpp
+        src/pricing/engines/autocallable/finite_difference.cpp
+        src/pricing/engines/autocallable/monte_carlo.cpp
         src/pricing/engines/vanilla/analytic.cpp
         src/pricing/engines/vanilla/binomial.cpp
         src/pricing/engines/vanilla/bjerksund_stensland.cpp
@@ -151,10 +151,10 @@ target_sources(kiyosi
             include/kiyosi/instruments/barrier/binary.hpp
             include/kiyosi/instruments/barrier/option.hpp
             include/kiyosi/instruments/barrier/terms.hpp
-            include/kiyosi/instruments/structured/autocallable.hpp
-            include/kiyosi/instruments/structured/phoenix.hpp
-            include/kiyosi/instruments/structured/presets.hpp
-            include/kiyosi/instruments/structured/snowball.hpp
+            include/kiyosi/instruments/autocallable/note.hpp
+            include/kiyosi/instruments/autocallable/phoenix.hpp
+            include/kiyosi/instruments/autocallable/presets.hpp
+            include/kiyosi/instruments/autocallable/snowball.hpp
             include/kiyosi/market/bsm_parameters.hpp
             include/kiyosi/market/calendar.hpp
             include/kiyosi/market/context.hpp
@@ -180,8 +180,8 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/digital/analytic.hpp
             include/kiyosi/pricing/engines/digital/finite_difference.hpp
             include/kiyosi/pricing/engines/digital/integral.hpp
-            include/kiyosi/pricing/engines/structured/finite_difference.hpp
-            include/kiyosi/pricing/engines/structured/monte_carlo.hpp
+            include/kiyosi/pricing/engines/autocallable/finite_difference.hpp
+            include/kiyosi/pricing/engines/autocallable/monte_carlo.hpp
             include/kiyosi/pricing/engines/vanilla/analytic.hpp
             include/kiyosi/pricing/engines/vanilla/binomial.hpp
             include/kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp
@@ -286,7 +286,7 @@ if(KIYOSI_BUILD_PYTHON)
         python/kiyosi/_native.cpp
         python/kiyosi/_market.cpp
         python/kiyosi/_instruments.cpp
-        python/kiyosi/_structured.cpp
+        python/kiyosi/_autocallable.cpp
         python/kiyosi/_pricing.cpp
     )
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)

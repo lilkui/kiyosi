@@ -52,7 +52,7 @@ TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
     }
 }
 
-TEST_CASE("Structured engines validate observation dates against each market calendar")
+TEST_CASE("Autocallable engines validate observation dates against each market calendar")
 {
     const auto effective = day(2025, 1, 3);
     const auto expiry = day(2025, 1, 6);
@@ -76,7 +76,7 @@ TEST_CASE("Structured engines validate observation dates against each market cal
     }
 }
 
-TEST_CASE("Structured engines reject nominal weekend expiry and accept adjusted expiry")
+TEST_CASE("Autocallable engines reject nominal weekend expiry and accept adjusted expiry")
 {
     const auto nominal = day(2025, 1, 5);
     const auto calendar = kiyosi::weekdays_calendar();
@@ -250,7 +250,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
     CHECK(price(snowball_down, 70.0) == Catch::Approx(0.70));
 }
 
-TEST_CASE("Structured Monte Carlo skips knock-in on a non-trading valuation day")
+TEST_CASE("Autocallable Monte Carlo skips knock-in on a non-trading valuation day")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2025, 1, 6);
@@ -328,7 +328,7 @@ TEST_CASE("Ternary snowball expiry_date settlement applies final observations")
     CHECK(price(ternary, 79.0) == Catch::Approx(1.02));
 }
 
-TEST_CASE("Structured Monte Carlo processes valuation-date observation events once")
+TEST_CASE("Autocallable Monte Carlo processes valuation-date observation events once")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto valuation = day(2025, 7, 1);
@@ -412,7 +412,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
           Catch::Approx(1.0 + 0.08 * kiyosi::year_fraction(effective_date, valuation).value()));
 }
 
-TEST_CASE("Structured Monte Carlo settles deterministic states before simulation")
+TEST_CASE("Autocallable Monte Carlo settles deterministic states before simulation")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto valuation = day(2025, 7, 1);
@@ -484,7 +484,7 @@ TEST_CASE("Structured Monte Carlo settles deterministic states before simulation
     CHECK(non_finite.error().category == kiyosi::ErrorCategory::invalid_result);
 }
 
-TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
+TEST_CASE("Autocallable Monte Carlo prepares stable calendar inputs once")
 {
     const auto valuation = day(2025, 1, 1);
     const auto first_observation = day(2025, 1, 4);
@@ -527,7 +527,7 @@ TEST_CASE("Structured Monte Carlo prepares stable calendar inputs once")
     CHECK(std::isfinite(*unseeded));
 }
 
-TEST_CASE("Structured CUDA selection validates and preserves deterministic settlements")
+TEST_CASE("Autocallable CUDA selection validates and preserves deterministic settlements")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 1, 6);
@@ -577,7 +577,7 @@ TEST_CASE("Structured CUDA selection validates and preserves deterministic settl
 }
 
 #if KIYOSI_HAS_CUDA
-TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
+TEST_CASE("Autocallable CUDA Monte Carlo prices every public autocallable engine")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 4, 1);
@@ -675,7 +675,7 @@ TEST_CASE("Structured CUDA Monte Carlo prices every public autocallable engine")
           *original_seed);
 }
 
-TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch state")
+TEST_CASE("Autocallable CUDA Monte Carlo preserves coupons and historical touch state")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2025, 1, 4);
@@ -758,7 +758,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
 }
 #endif
 
-TEST_CASE("Structured finite difference preserves future observation indices")
+TEST_CASE("Autocallable finite difference preserves future observation indices")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto valuation_date = day(2025, 1, 2);
@@ -818,7 +818,7 @@ TEST_CASE("Binary snowball finite difference prices active and knocked-out state
     }
 }
 
-TEST_CASE("Structured engines enumerate dates only for daily monitoring")
+TEST_CASE("Autocallable engines enumerate dates only for daily monitoring")
 {
     const auto valuation = day(2025, 1, 1);
     const auto first_observation = day(2025, 1, 4);

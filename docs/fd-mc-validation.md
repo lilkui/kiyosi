@@ -3,7 +3,7 @@
 The C++ regression suite compares finite-difference and Monte Carlo prices for
 standard, binary, and ternary snowballs, phoenixes, and accumulators. It requires
 neither QuantLib nor Python. These are numerical consistency checks, supplemented
-by independently calculated settlement and limiting-payoff checks: the structured
+by independently calculated settlement and limiting-payoff checks: the autocallable
 engines share payoff rules, so agreement alone is not an independent payoff oracle.
 
 ## Running
@@ -68,13 +68,13 @@ accuracy guarantees for arbitrary contracts or default engine settings.
   budget and must not exceed the preceding change, allowing a floor of 10% of
   the FD budget for small nonmonotone changes around discontinuities.
 - **Domain truncation:** widen the asset domain from 300 to 450 (default) or
-  375 (extended structured cases). Extended accumulators use 128 to 160 to
+  375 (extended autocallable cases). Extended accumulators use 128 to 160 to
   resolve the current-day knock-out jump within the engine's 2000-node limit;
   daily knock-out terminates continuation above 110. Preserve fine-grid spacing
   and time steps in every domain comparison. The price change
   must be at most 10% of the FD budget.
 - **MC precision:** use 12 fixed, distinct seeds. Each batch has 32,768 paths
-  in the default suite, 131,072 in extended structured cases, and 524,288 in
+  in the default suite, 131,072 in extended autocallable cases, and 524,288 in
   extended accumulator cases. For batch means `x[b]`, estimate the standard error
   of their overall mean as `sqrt(sum((x[b] - mean)^2) / (12 * 11))`.
   The four-standard-error envelope must fit its fixed MC budget independently

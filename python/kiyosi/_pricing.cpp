@@ -105,7 +105,7 @@ missing feasible measures use numerical price differences. Unrequested or
 undefined measures are None, never zero sentinels. At expiry or a monitored
 barrier hit-state boundary, only price is available. Feasible bumped valuation
 failures fail the entire operation.
-At current structured-product event thresholds, undefined spot and time
+At current autocallable-product event thresholds, undefined spot and time
 sensitivities remain None while feasible rate and volatility sensitivities survive.
 
 Shift keyword arguments are absolute, use core-owned defaults, and follow
@@ -168,7 +168,7 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 
 Settings are stored without domain validation and are validated when price() is called.
 Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
-time steps. Accumulator and structured engines accept 3..2,000 asset steps and
+time steps. Accumulator and autocallable engines accept 3..2,000 asset steps and
 1..2,000 time steps. The shared validator checks only the common lower bounds.)doc"};
     binding
         .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
@@ -216,14 +216,14 @@ OverflowError
 }
 
 template <typename Engine>
-nb::class_<Engine> bind_structured_monte_carlo_engine(nb::module_& module, const char* name)
+nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, const char* name)
 {
     nb::class_<Engine> binding{
         module, name,
         R"doc(Trading-day Monte Carlo engine with immutable configuration.
 
 Settings are stored without domain validation and are validated when price() is called.
-Accumulator and structured engines accept 1..10,000,000 paths.)doc"};
+Accumulator and autocallable engines accept 1..10,000,000 paths.)doc"};
     binding
         .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                  return Engine{TradingDayMonteCarloSettings{
@@ -672,7 +672,7 @@ Settings are validated when price() is called.)doc")
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
         module, "FiniteDifferenceAccumulatorEngine");
     bind_engine_price<FiniteDifferenceAccumulatorEngine, Accumulator>(module, finite_accumulator);
-    auto monte_carlo_accumulator = bind_structured_monte_carlo_engine<MonteCarloAccumulatorEngine>(
+    auto monte_carlo_accumulator = bind_trading_day_monte_carlo_engine<MonteCarloAccumulatorEngine>(
         module, "MonteCarloAccumulatorEngine");
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
@@ -689,16 +689,16 @@ Settings are validated when price() is called.)doc")
         module, "FiniteDifferencePhoenixEngine");
     bind_engine_price<FiniteDifferencePhoenixEngine, PhoenixOption>(module, finite_phoenix);
 
-    auto monte_carlo_snowball = bind_structured_monte_carlo_engine<MonteCarloSnowballEngine>(
+    auto monte_carlo_snowball = bind_trading_day_monte_carlo_engine<MonteCarloSnowballEngine>(
         module, "MonteCarloSnowballEngine");
     bind_engine_price<MonteCarloSnowballEngine, SnowballOption>(module, monte_carlo_snowball);
-    auto monte_carlo_binary = bind_structured_monte_carlo_engine<MonteCarloBinarySnowballEngine>(
+    auto monte_carlo_binary = bind_trading_day_monte_carlo_engine<MonteCarloBinarySnowballEngine>(
         module, "MonteCarloBinarySnowballEngine");
     bind_engine_price<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module, monte_carlo_binary);
-    auto monte_carlo_ternary = bind_structured_monte_carlo_engine<MonteCarloTernarySnowballEngine>(
+    auto monte_carlo_ternary = bind_trading_day_monte_carlo_engine<MonteCarloTernarySnowballEngine>(
         module, "MonteCarloTernarySnowballEngine");
     bind_engine_price<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module, monte_carlo_ternary);
-    auto monte_carlo_phoenix = bind_structured_monte_carlo_engine<MonteCarloPhoenixEngine>(
+    auto monte_carlo_phoenix = bind_trading_day_monte_carlo_engine<MonteCarloPhoenixEngine>(
         module, "MonteCarloPhoenixEngine");
     bind_engine_price<MonteCarloPhoenixEngine, PhoenixOption>(module, monte_carlo_phoenix);
 }

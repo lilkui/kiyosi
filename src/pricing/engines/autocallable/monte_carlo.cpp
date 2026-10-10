@@ -1,4 +1,4 @@
-#include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
 
@@ -23,7 +23,7 @@ using namespace detail;
 namespace {
 
 struct SimulationInputs {
-    std::vector<CudaStructuredStep> step_count;
+    std::vector<CudaAutocallableStep> step_count;
     double terminal_discount;
 };
 
@@ -39,7 +39,7 @@ Result<SimulationInputs> prepare_simulation(
         if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
         return events;
     }();
-    std::vector<CudaStructuredStep> steps;
+    std::vector<CudaAutocallableStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
     for (const Date current : dates) {
@@ -111,7 +111,7 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
     if (!inputs) return std::unexpected(inputs.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto mean = cuda_mean(cuda_structured_price(
+        const auto mean = cuda_mean(cuda_autocallable_price(
             {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
              context.spot_price(), inputs->terminal_discount, program, initial.path},
             inputs->step_count));

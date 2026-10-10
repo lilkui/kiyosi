@@ -6,8 +6,8 @@
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/instruments/structured/phoenix.hpp>
-#include <kiyosi/instruments/structured/snowball.hpp>
+#include <kiyosi/instruments/autocallable/phoenix.hpp>
+#include <kiyosi/instruments/autocallable/snowball.hpp>
 
 #include "autocallable_program.hpp"
 

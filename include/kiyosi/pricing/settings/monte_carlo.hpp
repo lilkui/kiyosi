@@ -26,8 +26,8 @@ struct MonteCarloSettings {
     MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
 };
 
-/// Structured products step the trading calendar directly, so no step count is needed; settings
-/// are validated when price() is called. Accumulator and autocallable engines accept
+/// Accumulator and autocallable products step the trading calendar directly, so no step
+/// count is needed; settings are validated when price() is called. These engines accept
 /// 1..10,000,000 paths.
 /// CPU paths use separate generators, so early knock-out cannot shift later paths' draws.
 /// Seeded prices are reproducible within a standard-library implementation and backend.
@@ -51,7 +51,7 @@ template <typename Settings>
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      std::same_as<Settings, MonteCarloSettings>
                                          ? "Monte Carlo path count is out of range"
-                                         : "structured Monte Carlo path count is out of range"});
+                                         : "trading-day Monte Carlo path count is out of range"});
     if constexpr (std::same_as<Settings, MonteCarloSettings>)
         if (settings.step_count < 2 || settings.step_count > maximum_vanilla_monte_carlo_step_count)
             return std::unexpected(Error{ErrorCategory::invalid_parameter,

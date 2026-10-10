@@ -343,7 +343,7 @@ lower_strike : float
 
 } // namespace
 
-void bind_structured_instruments(nb::module_& module)
+void bind_autocallable_instruments(nb::module_& module)
 {
     auto snowball = nb::class_<SnowballOption>(
                         module, "SnowballOption", R"doc(Immutable validated snowball option.)doc")

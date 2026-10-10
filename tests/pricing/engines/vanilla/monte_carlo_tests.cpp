@@ -126,11 +126,11 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
         REQUIRE(scaled);
         CHECK_THAT(*scaled / 1e303, Catch::Matchers::WithinRel(*base, 1e-12));
     }
-    const MonteCarloBinarySnowballEngine structured{{100'000, 42, backend}};
+    const MonteCarloBinarySnowballEngine autocallable{{100'000, 42, backend}};
     for (const double principal : {1e305, std::numeric_limits<double>::denorm_min()}) {
         const auto option = *make_binary_snowball_option(
             {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {120.0}, .observation_dates = {next_day}, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day});
-        const auto price = structured.price(option, *make_pricing_context(parameters, 100.0, start));
+        const auto price = autocallable.price(option, *make_pricing_context(parameters, 100.0, start));
         REQUIRE(price);
         CHECK(*price == principal);
     }
@@ -474,7 +474,7 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
     const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
     const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
-    const MonteCarloBinarySnowballEngine structured{{64, 42, MonteCarloBackend::cuda}};
+    const MonteCarloBinarySnowballEngine autocallable{{64, 42, MonteCarloBackend::cuda}};
     const auto unstable = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1000.0), 100.0, start);
     for (int device = 0; device < device_count; ++device) {
         CAPTURE(device);
@@ -490,7 +490,7 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
         check_device();
         REQUIRE(accrual.price(accumulator, context));
         check_device();
-        REQUIRE(structured.price(note, context));
+        REQUIRE(autocallable.price(note, context));
         check_device();
         const auto failed = vanilla.price(european, unstable);
         REQUIRE_FALSE(failed);

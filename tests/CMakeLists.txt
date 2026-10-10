@@ -8,7 +8,7 @@ add_executable(kiyosi_tests
     instruments/barrier/binary_tests.cpp
     instruments/barrier/option_tests.cpp
     instruments/barrier/terms_tests.cpp
-    instruments/structured/snowball_tests.cpp
+    instruments/autocallable/snowball_tests.cpp
     market/calendar_tests.cpp
     market/context_tests.cpp
     pricing/integration_tests.cpp
@@ -29,7 +29,7 @@ add_executable(kiyosi_tests
     pricing/engines/binary_barrier/reference_tests.cpp
     pricing/engines/digital/settlement_tests.cpp
     pricing/engines/digital/overflow_tests.cpp
-    pricing/engines/structured/autocallable_tests.cpp
+    pricing/engines/autocallable/autocallable_tests.cpp
     pricing/engines/vanilla/analytic_tests.cpp
     pricing/engines/vanilla/binomial_tests.cpp
     pricing/engines/vanilla/finite_difference_tests.cpp

@@ -525,7 +525,7 @@ KiyosiError
     bind_repr(accumulator, "Accumulator",
               {"strike", "knock_out_level", "daily_quantity", "acceleration_factor", "accumulated_quantity", "effective_date", "expiry_date"});
 
-    bind_structured_instruments(module);
+    bind_autocallable_instruments(module);
 }
 
 } // namespace kiyosi::python_binding

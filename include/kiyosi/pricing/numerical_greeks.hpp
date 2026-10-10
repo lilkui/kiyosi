@@ -9,7 +9,7 @@
 #include <random>
 
 #include <kiyosi/instruments/barrier/terms.hpp>
-#include <kiyosi/instruments/structured/autocallable.hpp>
+#include <kiyosi/instruments/autocallable/note.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>

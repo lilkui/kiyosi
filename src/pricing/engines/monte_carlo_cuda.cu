@@ -264,8 +264,8 @@ __global__ void simulate_accumulator_paths(
     payoffs[path] = payoff;
 }
 
-__global__ void simulate_structured_paths(
-    CudaStructuredRequest request, const CudaStructuredStep* steps, std::size_t step_count,
+__global__ void simulate_autocallable_paths(
+    CudaAutocallableRequest request, const CudaAutocallableStep* steps, std::size_t step_count,
     double* payoffs, int* invalid)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
@@ -511,8 +511,8 @@ CudaPricingResult cuda_accumulator_price(
     return finish_path_simulation(payoffs, invalid, total, request.path_count);
 }
 
-CudaPricingResult cuda_structured_price(
-    CudaStructuredRequest request, std::span<const CudaStructuredStep> steps)
+CudaPricingResult cuda_autocallable_price(
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps)
 {
     const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
@@ -528,8 +528,8 @@ CudaPricingResult cuda_structured_price(
 
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_structured_paths<<<block_count, threads_per_block>>>(
-        request, static_cast<const CudaStructuredStep*>(device_steps.get()), steps.size(),
+    simulate_autocallable_paths<<<block_count, threads_per_block>>>(
+        request, static_cast<const CudaAutocallableStep*>(device_steps.get()), steps.size(),
         static_cast<double*>(payoffs.get()), static_cast<int*>(invalid.get()));
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);

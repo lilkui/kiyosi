@@ -1,4 +1,4 @@
-#include <kiyosi/pricing/engines/structured/finite_difference.hpp>
+#include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
 

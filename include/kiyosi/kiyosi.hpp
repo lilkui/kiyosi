@@ -28,10 +28,10 @@
 #include <kiyosi/instruments/exercise_based_option.hpp>
 #include <kiyosi/instruments/option_terms.hpp>
 #include <kiyosi/instruments/payoff.hpp>
-#include <kiyosi/instruments/structured/autocallable.hpp>
-#include <kiyosi/instruments/structured/phoenix.hpp>
-#include <kiyosi/instruments/structured/presets.hpp>
-#include <kiyosi/instruments/structured/snowball.hpp>
+#include <kiyosi/instruments/autocallable/note.hpp>
+#include <kiyosi/instruments/autocallable/phoenix.hpp>
+#include <kiyosi/instruments/autocallable/presets.hpp>
+#include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
 
 #include <kiyosi/pricing/implied.hpp>
@@ -53,8 +53,8 @@
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/integral.hpp>
-#include <kiyosi/pricing/engines/structured/finite_difference.hpp>
-#include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
+#include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/vanilla/analytic.hpp>
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 #include <kiyosi/pricing/engines/vanilla/bjerksund_stensland.hpp>

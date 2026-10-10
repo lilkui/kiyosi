@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-#include <kiyosi/instruments/structured/autocallable.hpp>
+#include <kiyosi/instruments/autocallable/note.hpp>
 
 namespace kiyosi {
 

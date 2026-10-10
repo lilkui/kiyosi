@@ -204,7 +204,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     }
 }
 
-TEST_CASE("Structured observations occur at midnight only", "[architecture]")
+TEST_CASE("Autocallable observations occur at midnight only", "[architecture]")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto observation_date = day(2025, 7, 1);

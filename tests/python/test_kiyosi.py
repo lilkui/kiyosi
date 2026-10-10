@@ -291,7 +291,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 base = price(1)
                 with self.subTest(backend=backend, strike=strike):
                     self.assertAlmostEqual(price(1e303), base, delta=abs(base) * 1e-12)
-            structured = pricing.MonteCarloBinarySnowballEngine(
+            autocallable = pricing.MonteCarloBinarySnowballEngine(
                 path_count=100000, seed=42, backend=backend
             )
             for principal in (1e305, math.ulp(0.0)):
@@ -307,7 +307,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 context = PricingContext(
                     model_parameters=parameters, spot_price=100, valuation_time=start
                 )
-                self.assertEqual(structured.price(option, context), principal)
+                self.assertEqual(autocallable.price(option, context), principal)
             overflow = BinarySnowballOption(
                 knock_out_coupon_rates=[1e308],
                 maturity_coupon_rate=1e308,
@@ -2881,7 +2881,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 )
                 self.assertEqual(getattr(note, field), terms[field])
 
-    def test_structured_history_is_explicit_after_observation(self):
+    def test_autocallable_history_is_explicit_after_observation(self):
         terms = {
             "knock_out_coupon_rates": [0.05, 0.05],
             "maturity_coupon_rate": 0.05,

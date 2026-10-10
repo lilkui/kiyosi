@@ -3,7 +3,7 @@
 #include <utility>
 #include <vector>
 
-#include <kiyosi/instruments/structured/snowball.hpp>
+#include <kiyosi/instruments/autocallable/snowball.hpp>
 
 namespace kiyosi {
 

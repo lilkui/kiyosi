@@ -3,8 +3,8 @@
 #include <cstdint>
 #include <optional>
 
-#include <kiyosi/instruments/structured/phoenix.hpp>
-#include <kiyosi/instruments/structured/snowball.hpp>
+#include <kiyosi/instruments/autocallable/phoenix.hpp>
+#include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>

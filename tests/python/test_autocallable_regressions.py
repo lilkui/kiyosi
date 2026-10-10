@@ -11,7 +11,7 @@ from kiyosi.market import (
 )
 
 
-class StructuredRegressionTests(unittest.TestCase):
+class AutocallableRegressionTests(unittest.TestCase):
     def test_event_only_monte_carlo_ignores_unobserved_trading_days(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

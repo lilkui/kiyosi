@@ -154,7 +154,7 @@ void check_scenario(const Scenario& scenario, bool extended)
                                : effective_date;
     const auto market = checked(make_pricing_context(
         checked(make_bsm_parameters(0.04, 0.01, scenario.volatility)), scenario.spot, valuation));
-    // Native price units: normalized structured notes; accumulator quantity*price.
+    // Native price units: normalized autocallable notes; accumulator quantity*price.
     DYNAMIC_SECTION(scenario.name << ": snowball")
     {
         compare(checked(make_snowball_option(note_terms<SnowballTerms>(scenario))), market,

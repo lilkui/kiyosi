@@ -7,11 +7,11 @@
 #include <type_traits>
 
 #include <kiyosi/instruments/asian.hpp>
-#include <kiyosi/instruments/structured/phoenix.hpp>
-#include <kiyosi/instruments/structured/snowball.hpp>
+#include <kiyosi/instruments/autocallable/phoenix.hpp>
+#include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
-#include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
