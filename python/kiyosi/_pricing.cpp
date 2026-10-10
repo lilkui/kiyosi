@@ -69,7 +69,13 @@ Raises
 ------
 KiyosiError
     If instrument terms, context, engine settings, backend availability, or
-    the requested valuation are invalid.)doc");
+    the requested valuation are invalid.
+
+Notes
+-----
+Operational exceptions and cancellation follow the package-level contract in
+:mod:`kiyosi`: allocation failures raise MemoryError, and Python signal handling
+is deferred until the synchronous core computation returns.)doc");
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
@@ -118,7 +124,13 @@ TypeError
 OverflowError
     If time_shift_days is outside the C++ int range.
 KiyosiError
-    If the Greek request or settings are invalid, or a required valuation fails.)doc");
+    If the Greek request or settings are invalid, or a required valuation fails.
+
+Notes
+-----
+Operational exceptions and cancellation follow the package-level contract in
+:mod:`kiyosi`: allocation failures raise MemoryError, and Python signal handling
+is deferred until the synchronous core computation returns.)doc");
 }
 
 template <typename Engine>
