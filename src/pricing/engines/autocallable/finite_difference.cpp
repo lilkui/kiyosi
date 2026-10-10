@@ -138,8 +138,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
-    for (std::size_t step = grid.size() - 1; step-- > 0;) {
-        const double dt = grid[step + 1] - grid[step];
+    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+        const double dt = grid.time_steps[step];
         const bool advanced = [&] {
             if (needs_knock_in_layer)
                 return stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt);
@@ -149,10 +149,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        const auto observation_index = event_index(grid[step]);
+        const auto observation_index = event_index(grid.times[step]);
         const auto event = observation_index ? autocallable_event(note, *observation_index) : AutocallableEvent{};
         const bool daily = monitors_daily &&
-                           std::ranges::binary_search(trading_times, grid[step]);
+                           std::ranges::binary_search(trading_times, grid.times[step]);
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.

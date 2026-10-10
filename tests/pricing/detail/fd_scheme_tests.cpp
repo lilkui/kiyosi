@@ -67,10 +67,47 @@ TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying 
     for (const int steps : {400, 800, 1600}) {
         CAPTURE(steps);
         const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps, {0.0, maturity});
-        CHECK(grid.front() == 0.0);
-        CHECK(grid.back() == maturity);
-        CHECK(grid.size() == static_cast<std::size_t>(steps + 1));
+        CHECK(grid.times.front() == 0.0);
+        CHECK(grid.times.back() == maturity);
+        CHECK(grid.times.size() == static_cast<std::size_t>(steps + 1));
     }
+}
+
+TEST_CASE("Uniform finite-difference intervals share one exact width", "[fd-performance]")
+{
+    for (const double maturity : {91.0 / 365.0, 1.0, 2.75}) {
+        for (const int steps : {1, 3, 80, 200, 1000}) {
+            CAPTURE(maturity, steps);
+            const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps);
+            REQUIRE(grid.time_steps.size() == static_cast<std::size_t>(steps));
+            CHECK(std::ranges::all_of(grid.time_steps, [=](double dt) { return dt == maturity / steps; }));
+            CHECK(grid.times.front() == 0.0);
+            CHECK(grid.times.back() == maturity);
+        }
+    }
+}
+
+TEST_CASE("Finite-difference event intervals retain exact anchors and split widths", "[fd-performance]")
+{
+    const double maturity = 91.0 / 365.0;
+    const double middle = maturity / 2.0;
+    const double before = std::nextafter(middle, 0.0);
+    const double after = std::nextafter(middle, maturity);
+    const auto grid = kiyosi::detail::make_finite_difference_time_grid(
+        maturity, 4, {after, middle, before, before, 0.0, maturity});
+    const std::vector expected_times{0.0, maturity / 4.0, before, middle, after, maturity * 3.0 / 4.0, maturity};
+    const std::vector expected_steps{maturity / 4.0, before - maturity / 4.0, middle - before,
+                                     after - middle, maturity * 3.0 / 4.0 - after, maturity / 4.0};
+    CHECK(grid.times == expected_times);
+    CHECK(grid.time_steps == expected_steps);
+    CHECK(std::ranges::all_of(grid.time_steps, [](double dt) { return dt > 0.0; }));
+    const auto stable = kiyosi::detail::check_explicit_stability(
+        kiyosi::FiniteDifferenceScheme::explicit_euler, grid, 0.2, 0.04, 0.01, 3);
+    REQUIRE(stable);
+    const auto unstable = kiyosi::detail::check_explicit_stability(
+        kiyosi::FiniteDifferenceScheme::explicit_euler, grid, 0.2, 0.04, 0.01, 200);
+    REQUIRE_FALSE(unstable);
+    CHECK(unstable.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
 
 TEST_CASE("Paired finite-difference advances match independent layers")

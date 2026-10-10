@@ -10,6 +10,8 @@
 
 #include <kiyosi/core/error.hpp>
 
+#include "fd_grid.hpp"
+
 namespace kiyosi::detail {
 
 struct DiffusionParameters {
@@ -241,21 +243,21 @@ template <typename BoundaryValues,
           typename Event = decltype([](std::vector<double>&, double, double) {}),
           typename Constraint = decltype([](int, double) { return std::optional<double>{}; })>
 [[nodiscard]] inline Result<void> march_backward(
-    std::span<const double> grid, const DiffusionParameters& parameters, std::vector<double>& layer,
+    const FiniteDifferenceTimeGrid& grid, const DiffusionParameters& parameters, std::vector<double>& layer,
     BoundaryValues boundaries, Event event = {}, Constraint constraint = {})
 {
-    const double maturity = grid.back();
+    const double maturity = grid.times.back();
     std::vector<double> next(layer.size());
     FiniteDifferenceStep stepper(layer.size());
-    for (std::size_t step = grid.size() - 1; step-- > 0;) {
-        const double dt = grid[step + 1] - grid[step];
-        const double tau = maturity - grid[step];
+    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+        const double dt = grid.time_steps[step];
+        const double tau = maturity - grid.times[step];
         const Boundaries edges = boundaries(tau);
         if (!stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper,
                              [&](int index) { return constraint(index, tau); }))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        event(next, tau, grid[step]);
+        event(next, tau, grid.times[step]);
         layer.swap(next);
     }
     return {};

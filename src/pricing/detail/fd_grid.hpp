@@ -13,8 +13,13 @@
 
 namespace kiyosi::detail {
 
-/// Uniform time grid merged with the supplied event times, deduplicated and sorted.
-inline std::vector<double> make_finite_difference_time_grid(double maturity, int steps, std::vector<double> events = {})
+struct FiniteDifferenceTimeGrid {
+    std::vector<double> times;
+    std::vector<double> time_steps;
+};
+
+/// Exact event times with canonical widths for unsplit uniform intervals.
+inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity, int steps, std::vector<double> events = {})
 {
     // Preserve exact endpoints: rounding maturity * steps / steps can add a node
     // beyond expiry_date and cause event-driven engines to apply terminal cashflows twice.
@@ -24,7 +29,22 @@ inline std::vector<double> make_finite_difference_time_grid(double maturity, int
         events.push_back(maturity * index / steps);
     std::ranges::sort(events);
     events.erase(std::ranges::unique(events).begin(), events.end());
-    return events;
+    FiniteDifferenceTimeGrid grid{std::move(events), {}};
+    grid.time_steps.reserve(grid.times.size() - 1);
+    const double uniform_dt = maturity / steps;
+    int uniform_index = 1;
+    double uniform_start = 0.0;
+    for (std::size_t index = 0; index + 1 < grid.times.size(); ++index) {
+        const double uniform_end = uniform_index == steps ? maturity : maturity * uniform_index / steps;
+        const double start = grid.times[index], end = grid.times[index + 1];
+        // Subtraction rounds equal uniform intervals differently and defeats factor reuse.
+        grid.time_steps.push_back(start == uniform_start && end == uniform_end ? uniform_dt : end - start);
+        if (end == uniform_end) {
+            uniform_start = uniform_end;
+            ++uniform_index;
+        }
+    }
+    return grid;
 }
 
 [[nodiscard]] inline double scheme_theta(FiniteDifferenceScheme scheme) noexcept
@@ -36,15 +56,13 @@ inline std::vector<double> make_finite_difference_time_grid(double maturity, int
 
 /// Rejects explicit-Euler grids whose largest step breaks positivity of the update at the top node.
 [[nodiscard]] inline Result<void> check_explicit_stability(
-    FiniteDifferenceScheme scheme, std::span<const double> grid, double volatility, double rate, double dividend,
+    FiniteDifferenceScheme scheme, const FiniteDifferenceTimeGrid& grid, double volatility, double rate, double dividend,
     int asset_step_count)
 {
     if (scheme != FiniteDifferenceScheme::explicit_euler) return {};
-    const auto steps = grid | std::views::adjacent_transform<2>(
-                                  [](double start, double end) { return end - start; });
     const double nodes = static_cast<double>(asset_step_count);
     const double diffusion = std::max(volatility * volatility * nodes * nodes, std::abs(rate - dividend) * nodes);
-    if (std::ranges::max(steps) * (diffusion + rate) > 1.0)
+    if (std::ranges::max(grid.time_steps) * (diffusion + rate) > 1.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "explicit finite-difference grid is unstable"});
     return {};

@@ -81,12 +81,12 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
-    for (std::size_t step = grid.size() - 1; step-- > 0;) {
-        const double dt = grid[step + 1] - grid[step];
+    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+        const double dt = grid.time_steps[step];
         if (!stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        if (std::ranges::binary_search(trading_times, grid[step])) {
+        if (std::ranges::binary_search(trading_times, grid.times[step])) {
             for (std::size_t index = 0; index < size; ++index) {
                 const double asset = space->spacing * static_cast<double>(index);
                 if (asset >= option.knock_out_level()) {
