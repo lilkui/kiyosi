@@ -13,10 +13,6 @@
 namespace kiyosi {
 using namespace detail;
 namespace {
-struct BinaryBarrierFormulaTerms {
-    double a1, b1, a2, b2, a3, b3, a4, b4;
-};
-
 struct BinaryBarrierContractView {
     const BarrierTerms* barrier_terms{};
     std::optional<OptionType> option_type;
@@ -116,21 +112,18 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
     const double y2 = log_ratio / volatility_time + (1 + mu) * volatility_time;
-    const auto common = [&](double eta, double phi) {
-        return BinaryBarrierFormulaTerms{
-            scaled_normal_cdf(spot, -dividend * time, phi * x1), scaled_normal_cdf(option.payout, -rate * time, phi * x1 - phi * volatility_time),
-            scaled_normal_cdf(spot, -dividend * time, phi * x2), scaled_normal_cdf(option.payout, -rate * time, phi * x2 - phi * volatility_time),
-            scaled_normal_cdf(spot, -dividend * time + (2 * (mu + 1)) * log_ratio, eta * y1), scaled_normal_cdf(option.payout, -rate * time + (2 * mu) * log_ratio, eta * y1 - eta * volatility_time),
-            scaled_normal_cdf(spot, -dividend * time + (2 * (mu + 1)) * log_ratio, eta * y2), scaled_normal_cdf(option.payout, -rate * time + (2 * mu) * log_ratio, eta * y2 - eta * volatility_time)};
-    };
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)
                                           : (knock_in ? (down ? -1.0 : 1.0) : (down ? 1.0 : -1.0));
-    const auto formula_terms = common(down ? 1.0 : -1.0, phi);
-    const double f1 = option.asset_settlement ? formula_terms.a1 : formula_terms.b1;
-    const double f2 = option.asset_settlement ? formula_terms.a2 : formula_terms.b2;
-    const double f3 = option.asset_settlement ? formula_terms.a3 : formula_terms.b3;
-    const double f4 = option.asset_settlement ? formula_terms.a4 : formula_terms.b4;
+    const double eta = down ? 1.0 : -1.0;
+    const double amount = option.asset_settlement ? spot : option.payout;
+    const double log_discount = -(option.asset_settlement ? dividend : rate) * time;
+    const double reflected_log_discount = log_discount + (2 * (option.asset_settlement ? mu + 1 : mu)) * log_ratio;
+    const double shift = option.asset_settlement ? 0.0 : volatility_time;
+    const double f1 = scaled_normal_cdf(amount, log_discount, phi * x1 - phi * shift);
+    const double f2 = scaled_normal_cdf(amount, log_discount, phi * x2 - phi * shift);
+    const double f3 = scaled_normal_cdf(amount, reflected_log_discount, eta * y1 - eta * shift);
+    const double f4 = scaled_normal_cdf(amount, reflected_log_discount, eta * y2 - eta * shift);
     double value = 0.0;
     if (!option.option_type) {
         value = knock_in ? f2 + f4 : f2 - f4;
