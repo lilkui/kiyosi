@@ -28,6 +28,11 @@ struct RegressionStatistics {
     unsigned long long sample_count;
 };
 
+struct RegressionSolution {
+    double coefficients[3]; // NOLINT(modernize-avoid-c-arrays): shared host/device regression uses device-accessible storage.
+    bool valid;
+};
+
 struct DeviceDeleter {
     void operator()(void* pointer) const noexcept
     {
@@ -177,7 +182,7 @@ __global__ void discount_and_collect_statistics(
 }
 
 __global__ void reduce_statistics(const RegressionStatistics* partials,
-                                  int count, RegressionStatistics* total)
+                                  int count, RegressionSolution* solution)
 {
     __shared__ RegressionStatistics sums[threads_per_block]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
     const int thread = static_cast<int>(threadIdx.x);
@@ -192,23 +197,34 @@ __global__ void reduce_statistics(const RegressionStatistics* partials,
             sums[thread] = add_statistics(sums[thread], sums[thread + offset]);
         __syncthreads();
     }
-    if (thread == 0) *total = sums[0];
+    if (thread == 0) {
+        const auto statistics = sums[0];
+        solution->valid = false;
+        if (statistics.sample_count == 0) return;
+        const double sample_count = static_cast<double>(statistics.sample_count);
+        const double matrix[3][4] = {
+            // NOLINT(modernize-avoid-c-arrays): device code cannot call host std::array methods.
+            {sample_count, statistics.sum_x, statistics.sum_x2, statistics.sum_y},
+            {statistics.sum_x, statistics.sum_x2, statistics.sum_x3, statistics.sum_xy},
+            {statistics.sum_x2, statistics.sum_x3, statistics.sum_x4, statistics.sum_x2y},
+        };
+        solution->valid = solve_quadratic(matrix, solution->coefficients);
+    }
 }
 
 __global__ void apply_exercise(CudaAmericanRequest request, int step,
                                const double* paths, double* cash_flows,
-                               double coefficient_0, double coefficient_1,
-                               double coefficient_2)
+                               const RegressionSolution* solution)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (path >= request.path_count) return;
+    if (path >= request.path_count || !solution->valid) return;
     const auto offset = static_cast<std::size_t>(step) * request.path_count;
     const double spot = paths[offset + path];
     const double intrinsic = payoff(request.payoff_sign, spot, request.strike);
     if (intrinsic <= 0.0) return;
     const double scaled = spot / request.strike;
-    const double continuation = coefficient_0 +
-                                scaled * (coefficient_1 + scaled * coefficient_2);
+    const double continuation = solution->coefficients[0] +
+                                scaled * (solution->coefficients[1] + scaled * solution->coefficients[2]);
     if (isfinite(continuation) && intrinsic / request.strike > continuation)
         cash_flows[path] = intrinsic;
 }
@@ -414,7 +430,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         partials, static_cast<std::size_t>(path_block_count) *
                       sizeof(RegressionStatistics));
     if (allocation.status != CudaPricingStatus::success) return allocation;
-    allocation = allocate(summary, sizeof(RegressionStatistics));
+    allocation = allocate(summary, sizeof(RegressionSolution));
     if (allocation.status != CudaPricingStatus::success) return allocation;
 
     cudaError_t status = cudaMemset(invalid.get(), 0, sizeof(int));
@@ -446,28 +462,13 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         if (status != cudaSuccess) return error_result(status);
         reduce_statistics<<<1, threads_per_block>>>(
             static_cast<const RegressionStatistics*>(partials.get()), path_block_count,
-            static_cast<RegressionStatistics*>(summary.get()));
+            static_cast<RegressionSolution*>(summary.get()));
         status = cudaGetLastError();
         if (status != cudaSuccess) return error_result(status);
 
-        RegressionStatistics statistics{};
-        status = cudaMemcpy(&statistics, summary.get(), sizeof(statistics),
-                            cudaMemcpyDeviceToHost);
-        if (status != cudaSuccess) return error_result(status);
-        if (statistics.sample_count == 0) continue;
-        const double sample_count = static_cast<double>(statistics.sample_count);
-        const QuadraticRegressionMatrix matrix{{
-            {sample_count, statistics.sum_x, statistics.sum_x2, statistics.sum_y},
-            {statistics.sum_x, statistics.sum_x2, statistics.sum_x3, statistics.sum_xy},
-            {statistics.sum_x2, statistics.sum_x3, statistics.sum_x4,
-             statistics.sum_x2y},
-        }};
-        std::array<double, 3> coefficients{};
-        if (!solve_quadratic(matrix, coefficients)) continue;
         apply_exercise<<<path_block_count, threads_per_block>>>(
             request, step, static_cast<const double*>(paths.get()),
-            static_cast<double*>(cash_flows.get()), coefficients[0], coefficients[1],
-            coefficients[2]);
+            static_cast<double*>(cash_flows.get()), static_cast<const RegressionSolution*>(summary.get()));
         status = cudaGetLastError();
         if (status != cudaSuccess) return error_result(status);
     }

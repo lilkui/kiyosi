@@ -3,17 +3,59 @@
 #include <cuda_runtime.h>
 
 #include <algorithm>
+#include <array>
 #include <limits>
 #include <memory>
 #include <vector>
 
 #include "pricing/engines/monte_carlo_cuda_reduction.hpp"
+#include "pricing/engines/vanilla/monte_carlo_regression.hpp"
 
 namespace {
 struct DeviceDeleter {
     void operator()(void* pointer) const { cudaFree(pointer); }
 };
+
+__global__ void solve_regression(const double* input, double* output)
+{
+    double samples[3][4];     // NOLINT(modernize-avoid-c-arrays): exercise the shared solver with device-accessible storage.
+    double coefficients[3]{}; // NOLINT(modernize-avoid-c-arrays): device code cannot call host std::array methods.
+    for (int row = 0; row < 3; ++row)
+        for (int column = 0; column < 4; ++column)
+            samples[row][column] = input[row * 4 + column];
+    output[3] = kiyosi::detail::solve_quadratic(samples, coefficients) ? 1.0 : 0.0;
+    for (int index = 0; index < 3; ++index)
+        output[index] = coefficients[index];
+}
 } // namespace
+
+TEST_CASE("CUDA regression solves quadratic and reduced bases", "[cuda]")
+{
+    void* input_pointer = nullptr;
+    REQUIRE(cudaMalloc(&input_pointer, 12 * sizeof(double)) == cudaSuccess);
+    const std::unique_ptr<void, DeviceDeleter> input{input_pointer};
+    void* output_pointer = nullptr;
+    REQUIRE(cudaMalloc(&output_pointer, 4 * sizeof(double)) == cudaSuccess);
+    const std::unique_ptr<void, DeviceDeleter> output{output_pointer};
+    const auto check = [&](const std::array<double, 12>& samples, const std::array<double, 3>& expected, bool valid) {
+        REQUIRE(cudaMemcpy(input.get(), samples.data(), sizeof(samples), cudaMemcpyHostToDevice) == cudaSuccess);
+        solve_regression<<<1, 1>>>(static_cast<const double*>(input.get()), static_cast<double*>(output.get()));
+        REQUIRE(cudaGetLastError() == cudaSuccess);
+        std::array<double, 4> actual{};
+        REQUIRE(cudaMemcpy(actual.data(), output.get(), sizeof(actual), cudaMemcpyDeviceToHost) == cudaSuccess);
+        CHECK(actual[3] == (valid ? 1.0 : 0.0));
+        if (valid)
+            for (int index = 0; index < 3; ++index)
+                CHECK(actual[index] == Catch::Approx(expected[index]).margin(1e-12));
+    };
+    check({3, 0, 2, 14, 0, 2, 0, 6, 2, 0, 2, 12}, {2, 3, 4}, true);
+    check({2, 1, 1, 7, 1, 1, 1, 5, 1, 1, 1, 5}, {2, 3, 0}, true);
+    check({4, 4, 4, 20, 4, 4, 4, 20, 4, 4, 4, 20}, {5, 0, 0}, true);
+    check({}, {}, false);
+    std::array<double, 12> non_finite{};
+    non_finite[0] = std::numeric_limits<double>::quiet_NaN();
+    check(non_finite, {}, false);
+}
 
 TEST_CASE("CUDA payoff reduction preserves weights and extreme values across blocks", "[cuda][monte-carlo-performance]")
 {
