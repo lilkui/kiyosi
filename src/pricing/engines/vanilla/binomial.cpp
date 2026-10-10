@@ -19,32 +19,28 @@ Result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, bool american, GreeksRequest requested_output)
 {
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
-    const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
-    if (!valid_expiry) return std::unexpected(valid_expiry.error());
-    if (settings.step_count <= 0 || settings.step_count > 1'000'000) {
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "binomial step count must be between 1 and 1000000"});
-    }
+    const auto step = binomial_time_step(context, option.effective_date(), option.expiry_date(), settings);
+    if (!step) return std::unexpected(step.error());
 
     const double spot = context.spot_price();
     const double strike = option.strike();
     const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
-    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
-    if (time == 0.0) {
+    const double dt = *step;
+    if (dt == 0.0) {
         return make_pricing_result(std::max(sign * (spot - strike), 0.0));
     }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
-    const double dt = time / static_cast<double>(settings.step_count);
     const double root_dt = std::sqrt(dt);
-    const double up = std::exp(volatility * root_dt);
+    const double log_up = volatility * root_dt;
+    const double up = std::exp(log_up);
     const double down = 1.0 / up;
-    const double growth = std::exp((rate - dividend) * dt);
     const double discount = std::exp(-rate * dt);
-    const double probability = (growth - down) / (up - down);
-    if (!std::isfinite(up) || !std::isfinite(down) || !std::isfinite(discount) ||
+    // Avoid subtracting nearly equal exponentials at the admissible volatility boundary.
+    const double probability = std::expm1((rate - dividend) * dt + log_up) / std::expm1(2.0 * log_up);
+    if (!std::isfinite(up) || !std::isfinite(down) || up == down || !std::isfinite(discount) ||
         !std::isfinite(probability) || probability < 0.0 || probability > 1.0) {
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "binomial parameters produced an unstable tree"});

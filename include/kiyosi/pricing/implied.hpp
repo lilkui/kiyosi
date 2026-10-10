@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <limits>
 #include <numeric>
 #include <random>
 
@@ -9,6 +10,7 @@
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
+#include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
@@ -42,6 +44,7 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
 } // namespace detail
 
 /// Bisects the engine's price curve in volatility; the caller's bounds must bracket the quote.
+/// For CRR trees, the interval is intersected with the tree's admissible volatility range.
 /// @tparam Engine Pricing engine providing `price(option, context)`.
 /// @tparam Option Instrument accepted by the engine.
 /// @param engine Pricing engine used for each trial volatility.
@@ -72,6 +75,22 @@ template <typename Engine, typename Option>
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
             return implied_volatility(Engine{simulation}, option, context, observed_price, settings);
+        }
+    }
+
+    if constexpr (std::same_as<Engine, CoxRossRubinsteinVanillaEngine>) {
+        const auto step = detail::binomial_time_step(context, option.effective_date(), option.expiry_date(), engine.settings());
+        if (!step) return std::unexpected(step.error());
+        if (*step > 0.0) {
+            const auto& parameters = context.model_parameters();
+            const double drift = (parameters.risk_free_rate() - parameters.dividend_yield()) * *step;
+            // Round into the valid tree domain so the endpoint probability stays in [0, 1].
+            const double minimum = std::nextafter(std::abs(drift) / std::sqrt(*step),
+                                                  std::numeric_limits<double>::infinity());
+            if (std::isfinite(minimum)) settings.lower_bound = std::max(settings.lower_bound, minimum);
+            if (settings.lower_bound >= settings.upper_bound)
+                return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
+                                             "volatility bounds exclude the binomial tree domain"});
         }
     }
 

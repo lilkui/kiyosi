@@ -353,6 +353,7 @@ observed_price : float
     Target instrument price.
 lower_bound, upper_bound : float, optional
     Volatility search interval. Omitted values use core defaults.
+    CRR searches intersect this interval with the tree's admissible volatility range.
 price_tolerance : float, optional
     Absolute price-error tolerance; Monte Carlo sampling error is not bounded.
 parameter_tolerance : float, optional

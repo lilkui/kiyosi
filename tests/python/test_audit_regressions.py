@@ -2,8 +2,9 @@ import math
 import unittest
 from datetime import date
 
-from kiyosi import pricing
+from kiyosi import ErrorCategory, KiyosiError, pricing
 from kiyosi.instruments import (
+    AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
     CashOrNothingOption,
@@ -15,6 +16,92 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AuditRegressionTests(unittest.TestCase):
+    def test_binomial_implied_volatility_respects_the_tree_domain(self):
+        start, end = date(2025, 1, 6), date(2026, 1, 6)
+        for rate in (-0.01, 0.02, 0.05):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate,
+                    dividend_yield=0.02,
+                    volatility=0.2,
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
+            for engine in (
+                pricing.CoxRossRubinsteinVanillaEngine(1),
+                pricing.CoxRossRubinsteinVanillaEngine(),
+            ):
+                for direction in ("call", "put"):
+                    for option_type in (EuropeanOption, AmericanOption):
+                        with self.subTest(
+                            rate=rate,
+                            steps=engine.step_count,
+                            direction=direction,
+                            option=option_type.__name__,
+                        ):
+                            option = option_type(
+                                option_type=direction,
+                                strike=100,
+                                effective_date=start,
+                                expiry_date=end,
+                            )
+                            quote = engine.price(option, context)
+                            self.assertAlmostEqual(
+                                pricing.implied_volatility(
+                                    engine, option, context, quote
+                                ),
+                                0.2,
+                                delta=1e-7,
+                            )
+                            with self.assertRaises(KiyosiError) as excluded:
+                                pricing.implied_volatility(
+                                    engine,
+                                    option,
+                                    context,
+                                    quote,
+                                    lower_bound=0.3,
+                                    upper_bound=0.4,
+                                )
+                            self.assertEqual(
+                                excluded.exception.category,
+                                ErrorCategory.UNBRACKETED_VOLATILITY,
+                            )
+                            if rate != 0.02:
+                                with self.assertRaises(KiyosiError) as infeasible:
+                                    pricing.implied_volatility(
+                                        engine,
+                                        option,
+                                        context,
+                                        quote,
+                                        upper_bound=0.001,
+                                    )
+                                self.assertEqual(
+                                    infeasible.exception.category,
+                                    ErrorCategory.UNBRACKETED_VOLATILITY,
+                                )
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        for steps in (0, 1000001):
+            with self.assertRaises(KiyosiError) as invalid:
+                pricing.implied_volatility(
+                    pricing.CoxRossRubinsteinVanillaEngine(steps), option, context, 10
+                )
+            self.assertEqual(
+                invalid.exception.category, ErrorCategory.INVALID_PARAMETER
+            )
+        collapsed_context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=1e-20
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        with self.assertRaises(KiyosiError) as collapsed:
+            pricing.CoxRossRubinsteinVanillaEngine().price(option, collapsed_context)
+        self.assertEqual(collapsed.exception.category, ErrorCategory.INVALID_RESULT)
+
     def test_barrier_prices_retain_scaled_normal_tails(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         parameters = BlackScholesMertonParameters(

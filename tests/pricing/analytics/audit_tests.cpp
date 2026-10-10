@@ -13,6 +13,51 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Binomial implied volatility respects the tree domain", "[audit-fixes][binomial-implied]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    for (const double rate : {-0.01, 0.02, 0.05}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.02, 0.2), 100.0, start);
+        for (const int steps : {1, BinomialSettings{}.step_count}) {
+            const CoxRossRubinsteinVanillaEngine engine{steps};
+            for (const auto type : {OptionType::call, OptionType::put}) {
+                CAPTURE(rate, steps, type);
+                const auto check = [&](const auto& option) {
+                    const auto quote = engine.price(option, context);
+                    REQUIRE(quote);
+                    const auto solved = implied_volatility(engine, option, context, *quote);
+                    REQUIRE(solved);
+                    CHECK(*solved == Catch::Approx(0.2).margin(1e-7));
+                    const auto excluded = implied_volatility(engine, option, context, *quote,
+                                                             {.lower_bound = 0.3, .upper_bound = 0.4});
+                    REQUIRE_FALSE(excluded);
+                    CHECK(excluded.error().category == ErrorCategory::unbracketed_volatility);
+                    if (rate != 0.02) {
+                        const auto infeasible = implied_volatility(engine, option, context, *quote,
+                                                                   {.upper_bound = 0.001});
+                        REQUIRE_FALSE(infeasible);
+                        CHECK(infeasible.error().category == ErrorCategory::unbracketed_volatility);
+                    }
+                };
+                check(*make_european_option(type, 100.0, start, end));
+                check(*make_american_option(type, 100.0, start, end));
+            }
+        }
+    }
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    for (const int steps : {0, 1'000'001}) {
+        const auto invalid = implied_volatility(CoxRossRubinsteinVanillaEngine{steps}, option, context, 10.0);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    }
+    const auto collapsed_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-20), 100.0, start);
+    const auto collapsed = CoxRossRubinsteinVanillaEngine{}.price(option, collapsed_context);
+    REQUIRE_FALSE(collapsed);
+    CHECK(collapsed.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Barrier prices retain scaled normal tails", "[audit-fixes][scaled-barrier-tails]")
 {
     const auto start = day(2025, 1, 6);
