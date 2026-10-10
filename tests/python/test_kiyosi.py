@@ -7,8 +7,10 @@ import sys
 import textwrap
 import unittest
 from datetime import UTC, date, datetime, timedelta, timezone
+from fractions import Fraction
 from pathlib import Path
 from typing import get_args
+from unittest.mock import patch
 
 import kiyosi
 
@@ -3337,6 +3339,43 @@ class KiyosiPythonTests(unittest.TestCase):
                             engine.price(option, context), 1.08, delta=1e-6
                         )
 
+    def test_builtin_numeric_conversions_avoid_numbers_imports(self):
+        with patch("builtins.__import__", wraps=__import__) as imports:
+            parameters = BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0.02, volatility=0.2
+            )
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=32, step_count=2, seed=2**64 - 1
+            )
+        self.assertEqual(parameters.risk_free_rate, 0)
+        self.assertEqual(parameters.dividend_yield, 0.02)
+        self.assertEqual(parameters.volatility, 0.2)
+        self.assertEqual(engine.path_count, 32)
+        self.assertEqual(engine.step_count, 2)
+        self.assertEqual(engine.seed, 2**64 - 1)
+        self.assertNotIn("numbers", [call.args[0] for call in imports.call_args_list])
+
+    def test_real_numeric_conversions_preserve_protocols(self):
+        class FloatSubclass(float):
+            pass
+
+        for value in (Fraction(1, 5), FloatSubclass(0.2)):
+            with self.subTest(value=value):
+                parameters = BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=value
+                )
+                self.assertEqual(parameters.volatility, 0.2)
+
+        @numbers.Real.register
+        class BrokenReal:
+            def __float__(self):
+                raise RuntimeError("float failed")
+
+        with self.assertRaisesRegex(RuntimeError, "float failed"):
+            BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=BrokenReal()
+            )
+
     def test_numeric_and_date_boundaries_are_checked(self):
         with self.assertRaises(TypeError):
             EuropeanOption(
@@ -3349,8 +3388,9 @@ class KiyosiPythonTests(unittest.TestCase):
             BlackScholesMertonParameters(
                 risk_free_rate=True, dividend_yield=0.02, volatility=0.2
             )
-        with self.assertRaises(TypeError):
-            pricing.FiniteDifferenceVanillaEngine(asset_step_count=1.5)
+        for value in (True, 1.5):
+            with self.subTest(asset_step_count=value), self.assertRaises(TypeError):
+                pricing.FiniteDifferenceVanillaEngine(asset_step_count=value)
         with self.assertRaises(TypeError):
             pricing.MonteCarloVanillaEngine(seed=True)
         with self.assertRaises(OverflowError):

@@ -308,10 +308,12 @@ PythonChoice<Enum>::operator Enum() const
 
 inline double real_number(nb::handle value, std::string_view field)
 {
-    const nb::object real_type = nb::module_::import_("numbers").attr("Real");
-    const int is_real = PyObject_IsInstance(value.ptr(), real_type.ptr());
-    if (is_real < 0) throw nb::python_error();
-    if (PyBool_Check(value.ptr()) || is_real == 0) type_error(field, "a real number");
+    if (!PyFloat_CheckExact(value.ptr()) && !PyLong_CheckExact(value.ptr())) {
+        const nb::object real_type = nb::module_::import_("numbers").attr("Real");
+        const int is_real = PyObject_IsInstance(value.ptr(), real_type.ptr());
+        if (is_real < 0) throw nb::python_error();
+        if (PyBool_Check(value.ptr()) || is_real == 0) type_error(field, "a real number");
+    }
     const double converted = PyFloat_AsDouble(value.ptr());
     if (PyErr_Occurred()) throw nb::python_error();
     return converted;
@@ -319,10 +321,12 @@ inline double real_number(nb::handle value, std::string_view field)
 
 inline int integer(nb::handle value, std::string_view field)
 {
-    const nb::object integer_type = nb::module_::import_("numbers").attr("Integral");
-    const int is_integer = PyObject_IsInstance(value.ptr(), integer_type.ptr());
-    if (is_integer < 0) throw nb::python_error();
-    if (PyBool_Check(value.ptr()) || is_integer == 0) type_error(field, "an integer");
+    if (!PyLong_CheckExact(value.ptr())) {
+        const nb::object integer_type = nb::module_::import_("numbers").attr("Integral");
+        const int is_integer = PyObject_IsInstance(value.ptr(), integer_type.ptr());
+        if (is_integer < 0) throw nb::python_error();
+        if (PyBool_Check(value.ptr()) || is_integer == 0) type_error(field, "an integer");
+    }
     const long long converted = PyLong_AsLongLong(value.ptr());
     if (PyErr_Occurred()) throw nb::python_error();
     if (!std::in_range<int>(converted))
@@ -333,11 +337,13 @@ inline int integer(nb::handle value, std::string_view field)
 inline std::optional<std::uint64_t> optional_seed(nb::handle value)
 {
     if (value.is_none()) return std::nullopt;
-    const nb::object integer_type = nb::module_::import_("numbers").attr("Integral");
-    const int is_integer = PyObject_IsInstance(value.ptr(), integer_type.ptr());
-    if (is_integer < 0) throw nb::python_error();
-    if (PyBool_Check(value.ptr()) || is_integer == 0)
-        type_error("seed", "a non-negative integer or None");
+    if (!PyLong_CheckExact(value.ptr())) {
+        const nb::object integer_type = nb::module_::import_("numbers").attr("Integral");
+        const int is_integer = PyObject_IsInstance(value.ptr(), integer_type.ptr());
+        if (is_integer < 0) throw nb::python_error();
+        if (PyBool_Check(value.ptr()) || is_integer == 0)
+            type_error("seed", "a non-negative integer or None");
+    }
     const nb::object index = nb::steal<nb::object>(PyNumber_Index(value.ptr()));
     if (!index.is_valid()) throw nb::python_error();
     const unsigned long long converted = PyLong_AsUnsignedLongLong(index.ptr());
