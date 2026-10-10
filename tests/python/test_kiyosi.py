@@ -2344,7 +2344,7 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         note = BinarySnowballOption(
             knock_out_coupon_rates=[0.1],
-            maturity_coupon_rate=0.1,
+            maturity_coupon_rate=0.2,
             knock_out_levels=[120],
             observation_dates=[end],
             effective_date=start,

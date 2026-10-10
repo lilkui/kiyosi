@@ -13,6 +13,42 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_fixed_autocallable_prices_skip_simulation_after_validation(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = SnowballOption(
+            knock_out_coupon_rates=[0],
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=75,
+            knock_out_levels=[110],
+            upper_strike=100,
+            lower_strike=100,
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
+            knock_in_observation_mode="every_trading_day",
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for backend in ("cpu", "cuda"):
+            with self.subTest(backend=backend):
+                self.assertEqual(
+                    pricing.MonteCarloSnowballEngine(
+                        path_count=20_000, seed=42, backend=backend
+                    ).price(note, context),
+                    1,
+                )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            pricing.MonteCarloSnowballEngine(path_count=0).price(note, context)
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+        )
+
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(

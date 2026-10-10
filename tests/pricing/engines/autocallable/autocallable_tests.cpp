@@ -151,6 +151,31 @@ TEST_CASE("Fixed autocallable implied volatility rejects before simulation", "[m
     CHECK(invalid_calendar.error().category == ErrorCategory::invalid_date);
 }
 
+TEST_CASE("Fixed autocallable prices skip simulation after validation", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start, calendar);
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+    for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+        queries->store(0);
+        const auto price = MonteCarloSnowballEngine{20'000, 42, backend}.price(note, context);
+        REQUIRE(price);
+        CHECK(*price == 1.0);
+        CHECK(queries->load() < 10);
+    }
+    const auto invalid = MonteCarloSnowballEngine{0, 42}.price(note, context);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    const auto later = *make_pricing_context(context.model_parameters(), 100.0, start + std::chrono::days{1}, calendar);
+    const auto missing_history = MonteCarloSnowballEngine{20'000, 42}.price(note, later);
+    REQUIRE_FALSE(missing_history);
+    CHECK(missing_history.error().category == ErrorCategory::invalid_parameter);
+}
+
 TEST_CASE("Fixed autocallable implied volatility preserves non-finite pricing errors", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

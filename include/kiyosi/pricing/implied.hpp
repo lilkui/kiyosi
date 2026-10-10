@@ -103,7 +103,7 @@ template <typename Engine, typename Option>
         if (!valid) return std::unexpected(valid.error());
         const auto program = detail::autocallable_program(option);
         const auto initial = detail::autocallable_initial_state(option, context, program);
-        if (!initial.settlement && !detail::autocallable_has_volatility_exposure(option, context, program, initial))
+        if (!initial.settlement && detail::autocallable_fixed_value(option, context, program, initial))
             return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                          "volatility does not affect the remaining cashflows"});
     }
@@ -135,7 +135,7 @@ template <typename Engine, typename Option>
         const auto program = detail::autocallable_program(option);
         const auto initial = detail::autocallable_initial_state(option, context, program);
         identifiable = identifiable && !initial.settlement &&
-                       detail::autocallable_has_volatility_exposure(option, context, program, initial);
+                       !detail::autocallable_fixed_value(option, context, program, initial);
     }
     if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); }) {
         const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&

@@ -116,6 +116,8 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
     if (initial.settlement) return checked_price(*initial.settlement);
+    if (const auto fixed = autocallable_fixed_value(note, context, program, initial))
+        return checked_price(*fixed);
 
     const auto inputs = prepare_simulation(note, context, initial.next_observation,
                                            program.has_knock_in && program.daily_knock_in && !initial.path.knocked_in);
