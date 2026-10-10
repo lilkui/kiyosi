@@ -49,6 +49,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const auto initial = autocallable_initial_state(note, context, program);
 
     if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (const auto fixed = autocallable_fixed_value(note, context, program, initial))
+        return make_pricing_result(*fixed,
+                                   {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
+                                    {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
 
     const double spot = context.spot_price();
     const double relevant = highest_finite_difference_level(note, context);

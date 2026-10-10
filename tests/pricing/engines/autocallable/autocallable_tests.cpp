@@ -151,7 +151,7 @@ TEST_CASE("Fixed autocallable implied volatility rejects before simulation", "[m
     CHECK(invalid_calendar.error().category == ErrorCategory::invalid_date);
 }
 
-TEST_CASE("Fixed autocallable prices skip simulation after validation", "[monte-carlo-performance]")
+TEST_CASE("Fixed autocallable prices skip numerical work after validation", "[monte-carlo-performance][fd-performance]")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
@@ -167,6 +167,18 @@ TEST_CASE("Fixed autocallable prices skip simulation after validation", "[monte-
         CHECK(*price == 1.0);
         CHECK(queries->load() < 10);
     }
+    // A fixed payoff needs no spatial domain, even when a configured grid would clip it.
+    const FiniteDifferenceSnowballEngine finite_difference{{.asset_upper_boundary = 1.0}};
+    queries->store(0);
+    const auto fixed = finite_difference.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+    REQUIRE(fixed);
+    CHECK(fixed->price() == 1.0);
+    CHECK(test::greek_value(*fixed, Greek::delta) == 0.0);
+    CHECK(test::greek_value(*fixed, Greek::gamma) == 0.0);
+    CHECK(queries->load() < 10);
+    const auto invalid_grid = FiniteDifferenceSnowballEngine{{.time_step_count = 0}}.price(note, context);
+    REQUIRE_FALSE(invalid_grid);
+    CHECK(invalid_grid.error().category == ErrorCategory::invalid_parameter);
     const auto invalid = MonteCarloSnowballEngine{0, 42}.price(note, context);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
@@ -174,6 +186,26 @@ TEST_CASE("Fixed autocallable prices skip simulation after validation", "[monte-
     const auto missing_history = MonteCarloSnowballEngine{20'000, 42}.price(note, later);
     REQUIRE_FALSE(missing_history);
     CHECK(missing_history.error().category == ErrorCategory::invalid_parameter);
+    const auto fd_missing_history = finite_difference.price(note, later);
+    REQUIRE_FALSE(fd_missing_history);
+    CHECK(fd_missing_history.error().category == ErrorCategory::invalid_parameter);
+}
+
+TEST_CASE("Fixed finite-difference autocallables retain rate sensitivity", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto note = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {110.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+    const auto fixed = FiniteDifferenceBinarySnowballEngine{}.price_with_greeks(
+        note, context, {Greek::delta, Greek::gamma, Greek::vega, Greek::rho});
+    REQUIRE(fixed);
+    CHECK(fixed->price() == std::exp(-0.04));
+    CHECK(test::greek_value(*fixed, Greek::delta) == 0.0);
+    CHECK(test::greek_value(*fixed, Greek::gamma) == 0.0);
+    CHECK(test::greek_value(*fixed, Greek::vega) == 0.0);
+    CHECK(test::greek_value(*fixed, Greek::rho) == Catch::Approx(-std::exp(-0.04) / 100.0).margin(1e-8));
 }
 
 TEST_CASE("Fixed autocallable implied volatility preserves non-finite pricing errors", "[monte-carlo-performance]")

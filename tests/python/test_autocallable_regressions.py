@@ -13,7 +13,7 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
-    def test_fixed_autocallable_prices_skip_simulation_after_validation(self):
+    def test_fixed_autocallable_prices_skip_numerical_work_after_validation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = SnowballOption(
             knock_out_coupon_rates=[0],
@@ -48,6 +48,42 @@ class AutocallableRegressionTests(unittest.TestCase):
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
+        engine = pricing.FiniteDifferenceSnowballEngine(asset_upper_boundary=1)
+        result = engine.price_with_greeks(note, context, ["delta", "gamma"])
+        self.assertEqual((result.price, result.delta, result.gamma), (1, 0, 0))
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            pricing.FiniteDifferenceSnowballEngine(time_step_count=0).price(
+                note, context
+            )
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+        )
+
+    def test_fixed_finite_difference_autocallables_retain_rate_sensitivity(self):
+        import math
+
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[0],
+            maturity_coupon_rate=0,
+            knock_out_levels=[110],
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        result = pricing.FiniteDifferenceBinarySnowballEngine().price_with_greeks(
+            note, context, ["delta", "gamma", "vega", "rho"]
+        )
+        self.assertEqual(result.price, math.exp(-0.04))
+        self.assertEqual((result.delta, result.gamma, result.vega), (0, 0, 0))
+        self.assertAlmostEqual(result.rho, -math.exp(-0.04) / 100, delta=1e-8)
 
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
