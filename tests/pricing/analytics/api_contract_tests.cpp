@@ -223,6 +223,45 @@ TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
     }
 }
 
+TEST_CASE("Time Greeks reuse spot prices only at the valuation time", "[pricing-api]")
+{
+    struct TimePriceEngine {
+        std::size_t* calls;
+        Result<double> price(const EuropeanOption&, const PricingContext& context) const
+        {
+            ++*calls;
+            using Days = std::chrono::duration<double, std::ratio<86400>>;
+            const double elapsed = Days{context.valuation_time() - start_of_day(effective)}.count();
+            return context.spot_price() * context.spot_price() * (1.0 + elapsed);
+        }
+    };
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const std::array requests{GreeksRequest{true},
+                              GreeksRequest{Greek::delta, Greek::gamma, Greek::charm, Greek::color},
+                              GreeksRequest{Greek::charm, Greek::color}};
+    for (const auto date : {effective, valuation}) {
+        const std::array<std::size_t, 3> expected_calls = date == effective
+                                                              ? std::array<std::size_t, 3>{16, 6, 6}
+                                                              : std::array<std::size_t, 3>{19, 9, 7};
+        for (std::size_t index = 0; index < requests.size(); ++index) {
+            CAPTURE(date, index);
+            std::size_t calls = 0;
+            const auto result = detail::price_with_greeks(
+                TimePriceEngine{&calls}, option, market(100.0, date), requests[index], {.spot_shift = 1.0});
+            REQUIRE(result);
+            CHECK(calls == expected_calls[index]);
+            const double scale = 1.0 + static_cast<double>((date - effective).count());
+            CHECK(result->price() == 10000.0 * scale);
+            CHECK(greek_value(*result, Greek::charm) == Catch::Approx(200.0));
+            CHECK(greek_value(*result, Greek::color) == Catch::Approx(2.0));
+            if (requests[index].has(Greek::delta))
+                CHECK(greek_value(*result, Greek::delta) == Catch::Approx(200.0 * scale));
+            if (requests[index].has(Greek::gamma))
+                CHECK(greek_value(*result, Greek::gamma) == Catch::Approx(2.0 * scale));
+        }
+    }
+}
+
 TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);

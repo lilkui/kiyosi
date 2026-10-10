@@ -149,6 +149,8 @@ Result<PricingResult> complete_greeks(
     auto delta = *native.get(Greek::delta);
     auto gamma = *native.get(Greek::gamma);
     auto speed = *native.get(Greek::speed);
+    std::optional<double> spot_up;
+    std::optional<double> spot_down;
     if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) || need(Greek::speed))) {
         const auto p_up = detail::shifted_value(
             engine, option, context, spot + h, volatility, rate, valuation_time);
@@ -156,6 +158,8 @@ Result<PricingResult> complete_greeks(
         const auto p_down = detail::shifted_value(
             engine, option, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
+        spot_up = *p_up;
+        spot_down = *p_down;
         if (need(Greek::delta)) delta = (*p_up - *p_down) / (2.0 * h);
         // Divide separately so powers of the shift cannot overflow or underflow.
         if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
@@ -304,17 +308,25 @@ Result<PricingResult> complete_greeks(
             if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
 
             if (spot_stencil_available && (need(Greek::charm) || need(Greek::color))) {
-                const auto d_before = detail::shifted_value(
-                    engine, option, context, spot + h, volatility, rate, before);
+                const auto d_before = before == valuation_time && spot_up
+                                          ? Result<double>{*spot_up}
+                                          : detail::shifted_value(
+                                                engine, option, context, spot + h, volatility, rate, before);
                 if (!d_before) return std::unexpected(d_before.error());
-                const auto d_before_low = detail::shifted_value(
-                    engine, option, context, spot - h, volatility, rate, before);
+                const auto d_before_low = before == valuation_time && spot_down
+                                              ? Result<double>{*spot_down}
+                                              : detail::shifted_value(
+                                                    engine, option, context, spot - h, volatility, rate, before);
                 if (!d_before_low) return std::unexpected(d_before_low.error());
-                const auto d_after = detail::shifted_value(
-                    engine, option, context, spot + h, volatility, rate, after);
+                const auto d_after = after == valuation_time && spot_up
+                                         ? Result<double>{*spot_up}
+                                         : detail::shifted_value(
+                                               engine, option, context, spot + h, volatility, rate, after);
                 if (!d_after) return std::unexpected(d_after.error());
-                const auto d_after_low = detail::shifted_value(
-                    engine, option, context, spot - h, volatility, rate, after);
+                const auto d_after_low = after == valuation_time && spot_down
+                                             ? Result<double>{*spot_down}
+                                             : detail::shifted_value(
+                                                   engine, option, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
                 if (need(Greek::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
                                                 (2.0 * h * day_scale);
