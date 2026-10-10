@@ -2057,11 +2057,9 @@ class KiyosiPythonTests(unittest.TestCase):
                         )
 
     def test_coupon_choice_conversion_is_process_safe(self):
-        code = textwrap.dedent(f"""
-            import sys
+        code = textwrap.dedent("""
             from datetime import date
-            sys.path.insert(0, {str(Path(sys.modules["kiyosi._native"].__file__).parent)!r})
-            import _native as k
+            from kiyosi import _native as k
             start, end = date(2025, 1, 1), date(2026, 1, 1)
             context = k.PricingContext(
                 model_parameters=k.BlackScholesMertonParameters(
