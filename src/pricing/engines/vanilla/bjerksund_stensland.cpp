@@ -104,10 +104,13 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "Bjerksund-Stensland exercise boundaries must exceed the strike"});
     const double variance = volatility * volatility;
-    const double radicand = std::pow((rate - dividend) / variance - 0.5, 2.0) + 2.0 * rate / variance;
-    if (radicand <= 0.0 || !std::isfinite(radicand)) return european_value;
-    const double beta = (0.5 - (rate - dividend) / variance) + std::sqrt(radicand);
-    if (!std::isfinite(beta) || beta <= 1.0) return european_value;
+    const double offset = carry - 0.5 * variance;
+    const double root = std::hypot(offset, std::sqrt(2.0) * std::sqrt(rate) * volatility);
+    // Rationalize the positive-carry root to avoid subtracting nearly equal numbers.
+    const double beta = offset > 0.0 ? rate / (0.5 * root + 0.5 * offset) : (root - offset) / variance;
+    if (variance == 0.0 || !std::isfinite(variance) || !std::isfinite(beta) || beta <= 1.0)
+        return std::unexpected(Error{ErrorCategory::invalid_result,
+                                     "Bjerksund-Stensland exercise exponent is numerically unstable"});
     const double b_inf = beta / (beta - 1.0) * strike;
     const double b_zero = std::max(strike, rate / dividend * strike);
     const double split_time = 0.5 * (std::sqrt(5.0) - 1.0) * time;

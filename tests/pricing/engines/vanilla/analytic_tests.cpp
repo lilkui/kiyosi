@@ -15,6 +15,37 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Bjerksund-Stensland retains small-volatility early exercise value", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2035, 1, 1);
+    const BjerksundStenslandVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const bool call = type == OptionType::call;
+        const auto option = *make_american_option(type, call ? 100.0 : 150.0, start, end);
+        for (const double sigma : {1e-6, 1e-10, 1e-20, 1e-100, 1e-150, 1e-200, 1e200}) {
+            CAPTURE(type, sigma);
+            const auto parameters = *make_bsm_parameters(call ? 0.1 : 0.05, call ? 0.05 : 0.1, sigma);
+            const auto context = *make_pricing_context(parameters, call ? 150.0 : 100.0, start);
+            const auto price = engine.price(option, context);
+            const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+            if (sigma == 1e-200 || sigma == 1e200) {
+                REQUIRE_FALSE(price);
+                CHECK(price.error().category == ErrorCategory::invalid_result);
+                REQUIRE_FALSE(joint);
+                CHECK(joint.error().category == ErrorCategory::invalid_result);
+            } else {
+                REQUIRE(price);
+                // Exercising at log(4/3)/0.05 years gives 56.25 even with no volatility.
+                CHECK_THAT(*price, Catch::Matchers::WithinAbs(56.25, 1e-8));
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+            }
+        }
+    }
+}
+
 TEST_CASE("Bjerksund-Stensland prices preserve extreme monetary scales", "[audit-fixes]")
 {
     using namespace kiyosi;

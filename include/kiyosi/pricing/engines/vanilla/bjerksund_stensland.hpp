@@ -16,6 +16,7 @@ public:
     /// Prices an American vanilla option with the two-step approximation.
     /// @return Price, a contract or context error, or `unsupported_operation` for a negative transformed
     /// rate or nonphysical exercise boundaries. Use a tree or finite-difference engine for those inputs.
+    /// Returns `invalid_result` when the exercise exponent or price cannot be represented reliably.
     [[nodiscard]] Result<double> price(
         const AmericanOption& option, const PricingContext& context) const;
 
