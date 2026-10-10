@@ -97,13 +97,13 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     }
     if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
         return knock_in ? 0.0 : vanilla_digital(option, context, time);
-    const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
-    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     double barrier = terms.barrier_level();
     if (terms.observation_mode() == ObservationMode::scheduled)
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.mean_observation_year_fraction()));
+    const auto monitoring_valid = validate_analytic_barrier_monitoring(terms, spot, barrier);
+    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     const double log_ratio = log_price_ratio(barrier, spot);
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;

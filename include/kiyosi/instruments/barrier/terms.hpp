@@ -206,11 +206,16 @@ private:
 
 namespace detail {
 // Analytic formulas monitor through expiry; callers resolve touched and completed states first.
-[[nodiscard]] inline Result<void> validate_analytic_barrier_monitoring_window(const BarrierTerms& terms)
+[[nodiscard]] inline Result<void> validate_analytic_barrier_monitoring(
+    const BarrierTerms& terms, double spot, double shifted_barrier)
 {
-    if (!terms.is_continuous() && terms.observation_dates().back() != terms.expiry_date())
+    if (terms.is_continuous()) return {};
+    if (terms.observation_dates().back() != terms.expiry_date())
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "analytic barrier monitoring must end at expiry"});
+    if (terms.is_up() ? spot >= shifted_barrier : spot <= shifted_barrier)
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "spot must lie on the unbreached side of the shifted analytic barrier"});
     return {};
 }
 } // namespace detail

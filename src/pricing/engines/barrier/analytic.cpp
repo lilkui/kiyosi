@@ -34,12 +34,12 @@ Result<double> AnalyticBarrierEngine::price(
     double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const auto monitoring_valid = validate_analytic_barrier_monitoring_window(terms);
-    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     if (option.observation_mode() == ObservationMode::scheduled) {
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
+    const auto monitoring_valid = validate_analytic_barrier_monitoring(terms, spot, barrier);
+    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
     const auto vanilla = price_at_volatility(
         *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
         sigma, GreeksRequest{});

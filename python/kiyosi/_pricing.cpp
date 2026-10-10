@@ -133,8 +133,9 @@ and contexts. Concurrent calls are safe.)doc";
 
 Scheduled monitoring is approximated with a BGK barrier shift. Untouched contracts
 with future observations require a final observation at expiry; shorter monitoring
-windows raise KiyosiError with category UNSUPPORTED_OPERATION. Resolved settlements
-remain supported.)doc";
+windows raise KiyosiError with category UNSUPPORTED_OPERATION. Spot must lie strictly
+on the unbreached side of the shifted barrier; otherwise the approximation raises
+the same error. Resolved settlements remain supported.)doc";
     nb::class_<Engine> binding{module, name, description.c_str()};
     binding.def(nb::init<>(), R"doc(Create a stateless pricing engine.
 

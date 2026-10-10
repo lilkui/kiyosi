@@ -13,6 +13,58 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic scheduled barriers enforce the shifted spot domain", "[audit-fixes][scheduled-barrier-domain]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto valuation = start_of_day(start) + std::chrono::hours{12};
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    for (const auto kind : {BarrierType::up_and_in, BarrierType::up_and_out,
+                            BarrierType::down_and_in, BarrierType::down_and_out}) {
+        const bool up = is_up_barrier(kind);
+        const bool knock_in = is_knock_in_barrier(kind);
+        const double barrier = up ? 120.0 : 80.0;
+        const double shifted = barrier * std::exp((up ? 1.0 : -1.0) * 0.5825971579390107 * 0.2);
+        const auto check = [&](const auto& engine, const auto& option) {
+            for (const double spot : {std::nextafter(shifted, 100.0), shifted,
+                                      std::nextafter(shifted, up ? 200.0 : 0.0), up ? 150.0 : 50.0}) {
+                CAPTURE(kind, spot);
+                const auto context = *make_pricing_context(parameters, spot, valuation, all_days_calendar());
+                const auto price = engine.price(option, context);
+                if (up ? spot < shifted : spot > shifted) {
+                    REQUIRE(price);
+                    continue;
+                }
+                REQUIRE_FALSE(price);
+                CHECK(price.error().category == ErrorCategory::unsupported_operation);
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE_FALSE(joint);
+                CHECK(joint.error().category == ErrorCategory::unsupported_operation);
+            }
+        };
+        check(AnalyticBarrierEngine{}, *make_barrier_option(
+                                           {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}}));
+        const BinaryBarrierTerms terms{
+            .option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = kind, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}};
+        const AnalyticBinaryBarrierEngine binary_engine;
+        check(binary_engine, *make_cash_binary_barrier_option(terms, 10.0));
+        check(binary_engine, *make_asset_binary_barrier_option(terms));
+        if (knock_in) {
+            const auto cash = up ? make_cash_one_touch_up : make_cash_one_touch_down;
+            const auto asset = up ? make_asset_one_touch_up : make_asset_one_touch_down;
+            for (const auto timing : {SettlementTiming::at_hit, SettlementTiming::at_expiry}) {
+                check(binary_engine, *cash(start, end, barrier, 10.0, timing, ObservationMode::scheduled, {end}, std::nullopt));
+                check(binary_engine, *asset(start, end, barrier, timing, ObservationMode::scheduled, {end}, std::nullopt));
+            }
+        } else {
+            const auto cash = up ? make_cash_no_touch_up : make_cash_no_touch_down;
+            const auto asset = up ? make_asset_no_touch_up : make_asset_no_touch_down;
+            check(binary_engine, *cash(start, end, barrier, 10.0, ObservationMode::scheduled, {end}, std::nullopt));
+            check(binary_engine, *asset(start, end, barrier, ObservationMode::scheduled, {end}, std::nullopt));
+        }
+    }
+}
+
 TEST_CASE("Binomial implied volatility respects the tree domain", "[audit-fixes][binomial-implied]")
 {
     const auto start = day(2025, 1, 6);

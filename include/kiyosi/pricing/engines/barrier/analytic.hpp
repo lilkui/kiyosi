@@ -9,7 +9,9 @@ namespace kiyosi {
 
 /// Closed-form Reiner-Rubinstein barrier valuation with a BGK shift for scheduled monitoring.
 /// Untouched contracts with future scheduled observations require a final observation at expiry;
-/// shorter monitoring windows return unsupported_operation. Resolved settlements remain supported.
+/// shorter monitoring windows return unsupported_operation. Spot must lie strictly on the unbreached
+/// side of the shifted barrier; otherwise the approximation returns unsupported_operation.
+/// Resolved settlements remain supported.
 class KIYOSI_EXPORT AnalyticBarrierEngine {
 public:
     /// Prices a barrier option analytically.
