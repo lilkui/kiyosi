@@ -62,18 +62,14 @@ Result<double> FiniteDifferenceAccumulatorEngine::price(
     const auto future_trading_dates =
         trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
     std::vector<double> trading_times;
-    std::vector<double> anchors{0.0, time_to_expiry};
     trading_times.reserve(future_trading_dates.size());
-    for (const Date value : future_trading_dates) {
-        const double time = actual_365_fixed_year_fraction(context.valuation_time(), value);
-        trading_times.push_back(time);
-        if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
-    }
+    for (const Date value : future_trading_dates)
+        trading_times.push_back(actual_365_fixed_year_fraction(context.valuation_time(), value));
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, std::move(anchors));
+    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, trading_times);
     if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());

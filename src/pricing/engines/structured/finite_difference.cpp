@@ -58,7 +58,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     const Timestamp valuation = context.valuation_time();
     const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
 
-    std::vector<double> anchors{0.0, time_to_expiry};
+    std::vector<double> anchors;
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
@@ -66,7 +66,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
         if (value <= valuation) continue;
         const double time = actual_365_fixed_year_fraction(valuation, value);
         observation_events.push_back({time, index});
-        if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
+        anchors.push_back(time);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
@@ -80,7 +80,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
         for (const Date value : future_trading_dates) {
             const double time = actual_365_fixed_year_fraction(valuation, value);
             trading_times.push_back(time);
-            if (time > 0.0 && time < time_to_expiry) anchors.push_back(time);
+            anchors.push_back(time);
         }
     }
 
