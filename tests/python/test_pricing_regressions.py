@@ -15,6 +15,59 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_zero_exposure_accumulators_skip_numerical_work_after_validation(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = Accumulator(
+            strike=100,
+            knock_out_level=110,
+            daily_quantity=0,
+            acceleration_factor=2,
+            accumulated_quantity=0,
+            effective_date=start,
+            expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=90, valuation_time=start
+        )
+        for engine in (
+            pricing.MonteCarloAccumulatorEngine(path_count=2000, seed=42),
+            pricing.MonteCarloAccumulatorEngine(
+                path_count=2000, seed=42, backend="cuda"
+            ),
+            pricing.FiniteDifferenceAccumulatorEngine(asset_upper_boundary=1),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                self.assertEqual(engine.price(option, context), 0)
+                result = engine.price_with_greeks(
+                    option, context, ["delta", "gamma", "vega", "rho"]
+                )
+                self.assertEqual(
+                    (result.price, result.delta, result.gamma, result.vega, result.rho),
+                    (0, 0, 0, 0, 0),
+                )
+                expired = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=90,
+                    valuation_time=date(2026, 1, 2),
+                )
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(option, expired)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE
+                )
+        for engine in (
+            pricing.MonteCarloAccumulatorEngine(path_count=0),
+            pricing.FiniteDifferenceAccumulatorEngine(time_step_count=0),
+        ):
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price(option, context)
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
+
     def test_structured_finite_difference_spot_greeks_reuse_native_layers(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

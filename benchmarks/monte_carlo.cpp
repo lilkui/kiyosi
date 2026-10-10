@@ -137,6 +137,10 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/barrier/fd/price", barrier, barrier_engine, base_context);
     register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);
+    const auto empty_accumulator = *make_accumulator(
+        {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 0.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+    register_price("analytics/kiyosi/accumulator/fd/zero_exposure/price", empty_accumulator, accumulator_engine, context);
+    register_price("analytics/kiyosi/accumulator/mc/zero_exposure/price", empty_accumulator, MonteCarloAccumulatorEngine{2'000, 42}, context);
     register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
     register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");

@@ -18,6 +18,7 @@ inline AccumulatorInitialState accumulator_initial_state(
     const Timestamp valuation = context.valuation_time();
     const double value = context.spot_price();
     double quantity = option.accumulated_quantity();
+    if (quantity == 0.0 && option.daily_quantity() == 0.0) return {quantity, 0.0};
     if (valuation == start_of_day(date_of(valuation)) &&
         context.calendar().is_trading_day(date_of(valuation))) {
         if (value >= option.knock_out_level())

@@ -19,6 +19,45 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Zero-exposure accumulators skip numerical work after validation", "[fd-performance][monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto option = *make_accumulator(
+        {.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 0.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = start, .expiry_date = end});
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
+    for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}}) {
+        const auto context = *make_pricing_context(parameters, 90.0, valuation, calendar);
+        const auto check = [&](const auto& engine) {
+            queries->store(0);
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == 0.0);
+            CHECK(queries->load() < 3);
+            const auto greeks = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::vega, Greek::rho});
+            REQUIRE(greeks);
+            CHECK(greeks->price() == 0.0);
+            for (const auto greek : {Greek::delta, Greek::gamma, Greek::vega, Greek::rho})
+                CHECK(test::greek_value(*greeks, greek) == 0.0);
+            const auto expired = *make_pricing_context(parameters, 90.0, end + std::chrono::days{1}, calendar);
+            const auto invalid = engine.price(option, expired);
+            REQUIRE_FALSE(invalid);
+            CHECK(invalid.error().category == ErrorCategory::invalid_time_range);
+        };
+        check(MonteCarloAccumulatorEngine{2'000, 42});
+        check(MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda});
+        check(FiniteDifferenceAccumulatorEngine{{.asset_upper_boundary = 1.0}});
+        const auto invalid_mc = MonteCarloAccumulatorEngine{0, 42}.price(option, context);
+        REQUIRE_FALSE(invalid_mc);
+        CHECK(invalid_mc.error().category == ErrorCategory::invalid_parameter);
+        const auto invalid_fd = FiniteDifferenceAccumulatorEngine{{.time_step_count = 0}}.price(option, context);
+        REQUIRE_FALSE(invalid_fd);
+        CHECK(invalid_fd.error().category == ErrorCategory::invalid_parameter);
+    }
+}
+
 TEST_CASE("Accumulator finite-difference spot Greeks reuse one solve", "[fd-performance]")
 {
     using namespace kiyosi;
