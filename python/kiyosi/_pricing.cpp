@@ -423,6 +423,7 @@ float
     Implied annualized coupon rate.
 
 An unseeded Monte Carlo engine uses one random seed throughout this solve.
+Monte Carlo first tries a verified affine solve; other engines use bisection.
 
 Raises
 ------

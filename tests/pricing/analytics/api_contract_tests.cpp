@@ -504,6 +504,45 @@ TEST_CASE("Implied solvers control price and parameter tolerances separately", "
     }
 }
 
+TEST_CASE("Monte Carlo implied coupons solve the sampled affine curve directly", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.0, start);
+    const MonteCarloBinarySnowballEngine engine{{512, 42}};
+    for (const double coupon : {0.073, -0.17}) {
+        const auto note = *make_binary_snowball_option(
+            {.knock_out_coupon_rates = {coupon, coupon + 0.01}, .maturity_coupon_rate = coupon + 0.02, .knock_out_levels = {110.0, 110.0}, .observation_dates = {day(2025, 7, 1), end}, .effective_date = start, .expiry_date = end});
+        const auto quote = engine.price(note, context);
+        REQUIRE(quote);
+        for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
+            CAPTURE(coupon, convention);
+            const auto solved = implied_coupon(engine, note, context, *quote, convention,
+                                               {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
+            REQUIRE(solved);
+            CHECK(*solved == Catch::Approx(coupon).margin(1e-10));
+            CHECK(engine.settings().seed == 42);
+        }
+    }
+}
+
+TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[pricing-api][audit-fixes]")
+{
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 71.46981808356617, start);
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.073, 0.073}, .maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 72.54516454112279, .knock_out_levels = {93.43788934756687, 93.43788934756687}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {day(2025, 7, 1), end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+    const FiniteDifferenceSnowballEngine engine{{5, 10}};
+    const auto quote = engine.price(note, context);
+    REQUIRE(quote);
+    const auto solved = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
+                                       {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12});
+    REQUIRE(solved);
+    CHECK(*solved == Catch::Approx(0.073).margin(1e-9));
+    const auto repriced = engine.price(*detail::replace_coupon(note, *solved, CouponQuoteConvention::shift_maturity_coupon), context);
+    REQUIRE(repriced);
+    CHECK(*repriced == Catch::Approx(*quote).margin(1e-10));
+}
+
 TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);

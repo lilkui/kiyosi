@@ -4,6 +4,8 @@ from datetime import date
 
 from kiyosi import pricing
 from kiyosi.instruments import (
+    BinarySnowballOption,
+    SnowballOption,
     asset_no_touch_down,
     asset_no_touch_up,
     asset_one_touch_down,
@@ -17,6 +19,88 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AuditFixTests(unittest.TestCase):
+    def test_monte_carlo_implied_coupons_solve_affine_curve_directly(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.MonteCarloBinarySnowballEngine(path_count=512, seed=42)
+        for coupon in (0.073, -0.17):
+            note = BinarySnowballOption(
+                knock_out_coupon_rates=[coupon, coupon + 0.01],
+                maturity_coupon_rate=coupon + 0.02,
+                knock_out_levels=[110, 110],
+                observation_dates=[date(2025, 7, 1), end],
+                effective_date=start,
+                expiry_date=end,
+            )
+            quote = engine.price(note, context)
+            for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
+                with self.subTest(coupon=coupon, convention=convention):
+                    solved = pricing.implied_coupon(
+                        engine,
+                        note,
+                        context,
+                        quote,
+                        quote_convention=convention,
+                        lower_bound=-1,
+                        upper_bound=2,
+                        price_tolerance=1e-10,
+                        parameter_tolerance=1e-12,
+                        max_iterations=1,
+                    )
+                    self.assertAlmostEqual(solved, coupon, delta=1e-10)
+
+    def test_finite_difference_implied_coupons_retain_nonlinear_interpolation(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+            ),
+            spot_price=71.46981808356617,
+            valuation_time=start,
+        )
+        terms = {
+            "initial_spot": 100,
+            "knock_in_level": 72.54516454112279,
+            "knock_out_levels": [93.43788934756687, 93.43788934756687],
+            "upper_strike": 100,
+            "lower_strike": 0,
+            "observation_dates": [date(2025, 7, 1), end],
+            "knock_in_observation_mode": "at_expiry",
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        note = SnowballOption(
+            **terms, knock_out_coupon_rates=[0.073, 0.073], maturity_coupon_rate=0.073
+        )
+        engine = pricing.FiniteDifferenceSnowballEngine(
+            asset_step_count=5, time_step_count=10
+        )
+        quote = engine.price(note, context)
+        solved = pricing.implied_coupon(
+            engine,
+            note,
+            context,
+            quote,
+            quote_convention="shift_maturity_coupon",
+            lower_bound=-1,
+            upper_bound=2,
+            price_tolerance=1e-10,
+            parameter_tolerance=1e-12,
+        )
+        self.assertAlmostEqual(solved, 0.073, delta=1e-9)
+        repriced = SnowballOption(
+            **terms,
+            knock_out_coupon_rates=[solved, solved],
+            maturity_coupon_rate=solved,
+        )
+        self.assertAlmostEqual(engine.price(repriced, context), quote, delta=1e-10)
+
     def test_touch_prices_survive_volatility_variance_underflow(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticBinaryBarrierEngine()

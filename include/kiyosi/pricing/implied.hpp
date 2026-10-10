@@ -4,12 +4,14 @@
 #include <limits>
 #include <numeric>
 #include <random>
+#include <type_traits>
 
 #include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/instruments/structured/phoenix.hpp>
 #include <kiyosi/instruments/structured/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
+#include <kiyosi/pricing/engines/structured/monte_carlo.hpp>
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -359,13 +361,25 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         if (!priced) return std::unexpected(priced.error());
         return *priced - observed_price;
     };
+    if constexpr (std::is_same_v<Engine, MonteCarloAutocallableEngine<Option>>) {
+        // Fixed paths make coupon payoffs affine; halve prices only if their span overflows.
+        const double span = *upper_price - *lower_price;
+        const double fraction = std::isfinite(span)
+                                    ? (observed_price - *lower_price) / span
+                                    : (0.5 * observed_price - 0.5 * *lower_price) / (0.5 * *upper_price - 0.5 * *lower_price);
+        const double coupon = std::lerp(lo, hi, fraction);
+        const auto residual = evaluate(coupon);
+        if (!residual) return std::unexpected(residual.error());
+        if (std::abs(*residual) <= settings.price_tolerance) return coupon;
+        // Resolve simulation roundoff with the existing convergence controls.
+    }
     return detail::bisect_implied(settings, flo, evaluate,
                                   "implied-coupon solver did not converge");
 }
 
 } // namespace detail
 
-/// Bisects a Snowball engine's price curve in its knock-out coupon.
+/// Solves a Snowball engine's price curve in its knock-out coupon.
 /// @param engine Pricing engine used for each trial coupon.
 /// @param option Snowball-family instrument to value.
 /// @param context Market state used for every trial.
@@ -374,6 +388,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// Monte Carlo uses verified affine interpolation, with bisection for residual roundoff; other engines bisect.
 /// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
@@ -390,9 +405,10 @@ template <typename Engine, typename Option>
         });
 }
 
-/// Bisects the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
+/// Solves the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// Monte Carlo uses verified affine interpolation, with bisection for residual roundoff; other engines bisect.
 /// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
