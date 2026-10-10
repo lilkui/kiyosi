@@ -77,6 +77,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
 {
     const auto size = GENERATE(std::size_t{4}, std::size_t{7});
     const auto volatility = GENERATE(0.2, 0.001);
+    const auto sinh_spacing = GENERATE(0.0, 0.2);
     constexpr double upper = 240.0;
     const double spacing = upper / static_cast<double>(size - 1);
     const std::array time_step_count{0.17, 0.03, 0.11};
@@ -84,7 +85,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
     for (const double theta : {0.0, 1.0, 0.5}) {
         CAPTURE(theta);
         const kiyosi::detail::DiffusionParameters parameters{
-            .rate = 0.03, .dividend = 0.01, .volatility = volatility, .theta = theta};
+            .rate = 0.03, .dividend = 0.01, .volatility = volatility, .theta = theta, .sinh_spacing = sinh_spacing};
         kiyosi::detail::LinearBoundaryStepper paired{size, upper, spacing, parameters};
         kiyosi::detail::LinearBoundaryStepper first_independent{size, upper, spacing, parameters};
         kiyosi::detail::LinearBoundaryStepper second_independent{size, upper, spacing, parameters};
@@ -123,7 +124,7 @@ TEST_CASE("Implicit finite-difference steps preserve finiteness failure guarante
         const std::vector<double> old{1.0, 2.0, infinity, 4.0, 5.0};
         std::vector<double> next(size, sentinel);
 
-        CHECK_FALSE(step.advance(old, next, 0.1, 0.03, 0.01, 0.2, 1.0, 0.0, 10.0));
+        CHECK_FALSE(step.advance(old, next, 0.1, {0.03, 0.01, 0.2, 1.0}, 0.0, 10.0));
         CHECK(next[1] == sentinel);
         CHECK(next[2] == sentinel);
         CHECK(next[3] == sentinel);
@@ -155,7 +156,7 @@ TEST_CASE("Implicit finite-difference steps preserve finiteness failure guarante
             std::vector<double> next(size, sentinel);
 
             CHECK_FALSE(step.advance(
-                old, next, 0.1, 0.03, 0.01, 0.2, 1.0, lower, upper,
+                old, next, 0.1, {0.03, 0.01, 0.2, 1.0}, lower, upper,
                 [](int) -> std::optional<double> { return 7.0; }));
             CHECK(next[1] == 7.0);
             CHECK(next[2] == 7.0);

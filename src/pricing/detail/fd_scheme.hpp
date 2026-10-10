@@ -65,32 +65,14 @@ public:
 
     /// `constraint` pins a node to a fixed value, which barrier and autocallable engines use to
     /// overwrite knocked-out regions in place.
-    template <typename Constraint>
-    bool advance(
-        const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
-        double dividend, double volatility, double theta, double lower_boundary, double asset_upper_boundary,
-        Constraint constraint)
-    {
-        return advance(old, next, dt, {rate, dividend, volatility, theta},
-                       lower_boundary, asset_upper_boundary, constraint);
-    }
-
-    template <typename Constraint>
+    template <typename Constraint = decltype([](int) { return std::optional<double>{}; })>
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt,
                  const DiffusionParameters& parameters, double lower_boundary,
-                 double upper_boundary, Constraint constraint)
+                 double upper_boundary, Constraint constraint = {})
     {
         return advance_layers(
             std::array{Layer{old, next, rhs_, {lower_boundary, upper_boundary}}}, dt,
             parameters, constraint);
-    }
-
-    bool advance(const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
-                 double dividend, double volatility, double theta, double lower_boundary,
-                 double asset_upper_boundary)
-    {
-        return advance(old, next, dt, rate, dividend, volatility, theta, lower_boundary, asset_upper_boundary,
-                       [](int) -> std::optional<double> { return std::nullopt; });
     }
 
     /// Advances two unconstrained layers that share the same finite-difference matrix.
@@ -198,8 +180,7 @@ public:
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt)
     {
         const Boundaries edges = boundary_values(old, dt);
-        return step_.advance(old, next, dt, parameters_.rate, parameters_.dividend,
-                             parameters_.volatility, parameters_.theta, edges.lower, edges.upper);
+        return step_.advance(old, next, dt, parameters_, edges.lower, edges.upper);
     }
 
     bool advance_pair(
