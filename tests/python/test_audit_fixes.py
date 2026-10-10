@@ -6,7 +6,10 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     BarrierOption,
     BinarySnowballOption,
+    EuropeanOption,
+    PhoenixOption,
     SnowballOption,
+    TernarySnowballOption,
     asset_no_touch_down,
     asset_no_touch_up,
     asset_one_touch_down,
@@ -20,6 +23,103 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AuditFixTests(unittest.TestCase):
+    def test_knocked_in_finite_difference_autocallables(self):
+        start, valuation, middle, end = (
+            date(2025, 1, 1),
+            date(2025, 1, 2),
+            date(2025, 7, 1),
+            date(2026, 1, 1),
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=70,
+            valuation_time=valuation,
+        )
+
+        def put_price(strike):
+            return pricing.AnalyticVanillaEngine().price(
+                EuropeanOption(
+                    option_type="put",
+                    strike=strike,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                context,
+            )
+
+        def discount(value):
+            return math.exp(-0.04 * (value - valuation).days / 365)
+
+        downside = discount(end) - (put_price(100) - put_price(60)) / 100
+        coupons = 0.08 * (
+            (valuation - start).days / 365
+            + (middle - valuation).days / 365 * discount(middle)
+            + (end - middle).days / 365 * discount(end)
+        )
+        for state in ("none", "knocked_in"):
+            terms = {
+                "knock_in_level": 75,
+                "knock_out_levels": [200, 200, 200],
+                "observation_dates": [valuation, middle, end],
+                "knock_in_observation_mode": "every_trading_day",
+                "barrier_state": state,
+                "effective_date": start,
+                "expiry_date": end,
+            }
+            downside_terms = {
+                "initial_spot": 100,
+                "upper_strike": 100,
+                "lower_strike": 60,
+            }
+            snowball = SnowballOption(
+                **terms,
+                **downside_terms,
+                knock_out_coupon_rates=[0.1, 0.1, 0.1],
+                maturity_coupon_rate=0.8,
+            )
+            phoenix = PhoenixOption(
+                **terms,
+                **downside_terms,
+                coupon_rate=0.08,
+                coupon_barrier_levels=[0, 0, 0],
+            )
+            ternary = TernarySnowballOption(
+                **terms,
+                knock_out_coupon_rates=[0.1, 0.1, 0.1],
+                maturity_coupon_rate=0.8,
+                minimum_coupon_rate=0.02,
+            )
+            for scheme in ("crank_nicolson", "implicit_euler"):
+                for note, engine_type, expected in (
+                    (snowball, pricing.FiniteDifferenceSnowballEngine, downside),
+                    (
+                        phoenix,
+                        pricing.FiniteDifferencePhoenixEngine,
+                        downside + coupons,
+                    ),
+                    (
+                        ternary,
+                        pricing.FiniteDifferenceTernarySnowballEngine,
+                        1.02 * discount(end),
+                    ),
+                ):
+                    engine = engine_type(
+                        asset_step_count=800,
+                        time_step_count=400,
+                        asset_upper_boundary=800,
+                        scheme=scheme,
+                    )
+                    with self.subTest(state=state, scheme=scheme, note=type(note)):
+                        result = engine.price_with_greeks(
+                            note, context, ["delta", "gamma"]
+                        )
+                        self.assertAlmostEqual(result.price, expected, delta=0.0002)
+                        self.assertEqual(result.price, engine.price(note, context))
+                        self.assertIsNotNone(result.delta)
+                        self.assertIsNotNone(result.gamma)
+
     def test_finite_difference_barrier_native_spot_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

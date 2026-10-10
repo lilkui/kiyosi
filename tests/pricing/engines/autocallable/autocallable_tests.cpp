@@ -25,6 +25,47 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downside", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), valuation = day(2025, 1, 2), middle = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 70.0, valuation, all_days_calendar());
+    const auto put_price = [&](double strike) {
+        return *AnalyticVanillaEngine{}.price(*make_european_option(OptionType::put, strike, start, end), context);
+    };
+    const auto discount = [&](Date date) { return std::exp(-0.04 * *year_fraction(valuation, date)); };
+    const double downside = discount(end) - (put_price(100.0) - put_price(60.0)) / 100.0;
+    const double coupons = 0.08 * (*year_fraction(start, valuation) +
+                                   *year_fraction(valuation, middle) * discount(middle) +
+                                   *year_fraction(middle, end) * discount(end));
+    for (const auto state : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in}) {
+        const auto snowball = *make_snowball_option(
+            {.knock_out_coupon_rates = {0.1, 0.1, 0.1}, .maturity_coupon_rate = 0.8, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {200.0, 200.0, 200.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {valuation, middle, end}, .barrier_state = state, .effective_date = start, .expiry_date = end});
+        const auto phoenix = *make_phoenix_option(
+            {.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {200.0, 200.0, 200.0}, .coupon_barrier_levels = {0.0, 0.0, 0.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {valuation, middle, end}, .barrier_state = state, .effective_date = start, .expiry_date = end});
+        const auto ternary = *make_ternary_snowball_option(
+            {.knock_out_coupon_rates = {0.1, 0.1, 0.1}, .maturity_coupon_rate = 0.8, .minimum_coupon_rate = 0.02, .knock_in_level = 75.0, .knock_out_levels = {200.0, 200.0, 200.0}, .observation_dates = {valuation, middle, end}, .barrier_state = state, .effective_date = start, .expiry_date = end});
+        for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler}) {
+            const FiniteDifferenceSettings settings{.asset_step_count = 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 800.0};
+            const auto check = [&](const auto& note, double expected) {
+                const FiniteDifferenceAutocallableEngine<std::remove_cvref_t<decltype(note)>> engine{settings};
+                const auto price = engine.price(note, context);
+                const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+                REQUIRE(price);
+                REQUIRE(result);
+                CHECK(*price == Catch::Approx(expected).margin(0.0002));
+                CHECK(result->price() == *price);
+                CHECK(result->has(Greek::delta));
+                CHECK(result->has(Greek::gamma));
+            };
+            CAPTURE(state, scheme);
+            check(snowball, downside);
+            check(phoenix, downside + coupons);
+            check(ternary, 1.02 * discount(end));
+        }
+    }
+}
+
 TEST_CASE("Autocallable finite-difference spot Greeks reuse one solve", "[fd-performance]")
 {
     using namespace kiyosi;

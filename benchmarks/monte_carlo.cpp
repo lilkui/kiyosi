@@ -79,7 +79,7 @@ auto phoenix_scenario()
         context};
 }
 
-auto snowball_scenario()
+auto snowball_scenario(kiyosi::AutocallableBarrierState barrier_state = kiyosi::AutocallableBarrierState::none)
 {
     const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
     const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
@@ -99,7 +99,7 @@ auto snowball_scenario()
                                        .lower_strike = 60.0,
                                        .observation_dates = observations,
                                        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
+                                       .barrier_state = barrier_state,
                                        .principal_ratio = 1.0,
                                        .effective_date = effective_date,
                                        .expiry_date = expiry_date}),
@@ -137,6 +137,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
     register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
+    const auto knocked_in = snowball_scenario(AutocallableBarrierState::knocked_in).first;
+    register_price("analytics/kiyosi/snowball/fd/knocked_in/price", knocked_in, snowball_engine, context);
     const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
     const auto quote = monte_carlo.price(european, context);
     register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {

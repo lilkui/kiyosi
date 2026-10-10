@@ -69,6 +69,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         anchors.push_back(time);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
+    const bool needs_knock_in_layer = monitors_knock_in && !initial.path.knocked_in;
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
@@ -105,7 +106,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
     std::vector<double> alive(size), next_alive(size);
     std::vector<double> knocked_in, next_knocked_in; // NOLINT(misc-const-correctness): used for knock-in note types.
-    if constexpr (monitors_knock_in) {
+    if (needs_knock_in_layer) {
         knocked_in.resize(size);
         next_knocked_in.resize(size);
     }
@@ -118,13 +119,13 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         if (expiry_event.active && value >= expiry_event.knock_out_level) {
             alive[index] = note.principal_ratio() +
                            program_observation_coupon(expiry_event, value);
-            if constexpr (monitors_knock_in) knocked_in[index] = alive[index];
+            if (needs_knock_in_layer) knocked_in[index] = alive[index];
         } else {
             const double coupon = expiry_event.active && program.carries_observation_coupon
                                       ? program_observation_coupon(expiry_event, value)
                                       : 0.0;
             alive[index] = program_terminal_settlement(program, value, ki) + coupon;
-            if constexpr (monitors_knock_in)
+            if (needs_knock_in_layer)
                 knocked_in[index] = program_terminal_settlement(program, value, true) + coupon;
         }
     }
@@ -135,7 +136,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     for (std::size_t step = grid.size() - 1; step-- > 0;) {
         const double dt = grid[step + 1] - grid[step];
         const bool advanced = [&] {
-            if constexpr (monitors_knock_in)
+            if (needs_knock_in_layer)
                 return stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, dt);
             else
                 return stepper.advance(alive, next_alive, dt);
@@ -150,16 +151,16 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         for (std::size_t index = 0; index < size; ++index) {
             const double value = asset(index);
             bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
-            if constexpr (monitors_knock_in) transitioned = daily && value < note.knock_in_level();
+            if constexpr (monitors_knock_in) transitioned = needs_knock_in_layer && daily && value < note.knock_in_level();
             if (event.active && value >= event.knock_out_level) {
                 next_alive[index] = note.principal_ratio() +
                                     program_observation_coupon(event, value);
-                if constexpr (monitors_knock_in) next_knocked_in[index] = next_alive[index];
+                if (needs_knock_in_layer) next_knocked_in[index] = next_alive[index];
             } else if (event.active) {
                 const double coupon = program.carries_observation_coupon
                                           ? program_observation_coupon(event, value)
                                           : 0.0;
-                if constexpr (monitors_knock_in) {
+                if (needs_knock_in_layer) {
                     const double continuation_in = next_knocked_in[index];
                     const double continuation_out = transitioned ? continuation_in : next_alive[index];
                     next_knocked_in[index] = continuation_in + coupon;
@@ -168,17 +169,16 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
                     next_alive[index] = next_alive[index] + coupon;
                 }
             } else if (transitioned) {
-                if constexpr (monitors_knock_in) next_alive[index] = next_knocked_in[index];
+                next_alive[index] = next_knocked_in[index];
             }
         }
         alive.swap(next_alive);
-        if constexpr (monitors_knock_in) knocked_in.swap(next_knocked_in);
+        if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
     }
 
-    const auto& layer = initial.path.knocked_in ? knocked_in : alive;
-    return make_pricing_result(initial.path.coupons + space->interpolate(layer, spot),
-                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(layer, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(layer, spot)} : std::nullopt}});
+    return make_pricing_result(initial.path.coupons + space->interpolate(alive, spot),
+                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt}});
 }
 
 template <typename Note>
