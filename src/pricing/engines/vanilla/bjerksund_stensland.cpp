@@ -34,33 +34,47 @@ double phi(double spot, double time, double gamma, double boundary, double strik
            exponential_normal_cdf(log_weight + kappa * (log_strike_boundary - log_spot), second);
 }
 
-double exponential_bivariate_normal_cdf(double log_weight, double first, double second, double correlation)
+struct BivariateQuadrature {
+    double angle;
+    std::array<std::array<double, 2>, 20> points;
+};
+
+BivariateQuadrature bivariate_quadrature(double correlation)
 {
     constexpr std::array<double, 10> abscissas = {
         0.07652652113349733, 0.22778585114164508, 0.37370608871541956,
         0.5108670019508271, 0.636053680726515, 0.7463319064601508,
         0.8391169718222188, 0.9122344282513259, 0.9639719272779138, 0.9931285991850949};
+    BivariateQuadrature quadrature{std::asin(correlation), {}};
+    for (int index = 0; index < 20; ++index) {
+        const double sign = index % 2 == 0 ? -1.0 : 1.0;
+        const double sine = std::sin(quadrature.angle * 0.5 * (1.0 + sign * abscissas[index / 2]));
+        quadrature.points[index] = {sine, 1.0 - sine * sine};
+    }
+    return quadrature;
+}
+
+double exponential_bivariate_normal_cdf(double log_weight, double first, double second,
+                                        const BivariateQuadrature& quadrature, double sign)
+{
     constexpr std::array<double, 10> weights = {
         0.15275338713072585, 0.14917298647260375, 0.14209610931838205,
         0.13168863844917663, 0.11819453196151842, 0.10193011981724044,
         0.08327674157670475, 0.06267204833410906, 0.04060142980038694, 0.01761400713915212};
-    const double angle = std::asin(correlation);
     const double product = first * second;
     const double half_sum = 0.5 * (first * first + second * second);
     double integral = 0.0;
-    for (int index = 0; index < 10; ++index) {
-        for (const double sign : {-1.0, 1.0}) {
-            const double sine = std::sin(angle * 0.5 * (1.0 + sign * abscissas[index]));
-            integral += weights[index] * std::exp(log_weight + (sine * product - half_sum) / (1.0 - sine * sine));
-        }
+    for (int index = 0; index < 20; ++index) {
+        const auto [sine, denominator] = quadrature.points[index];
+        integral += weights[index / 2] * std::exp(log_weight + (sign * sine * product - half_sum) / denominator);
     }
     return std::exp(log_weight + log_normal_cdf(first) + log_normal_cdf(second)) +
-           angle * integral / (4.0 * std::numbers::pi);
+           (sign * quadrature.angle) * integral / (4.0 * std::numbers::pi);
 }
 
 double ksi(double spot, double time, double gamma, double boundary, double outer_boundary,
            double inner_boundary, double split_time, double rate, double carry, double volatility,
-           double power_boundary)
+           double power_boundary, const BivariateQuadrature& quadrature)
 {
     const double variance = volatility * volatility;
     const double split_root = volatility * std::sqrt(split_time);
@@ -84,14 +98,13 @@ double ksi(double spot, double time, double gamma, double boundary, double outer
     const double f4 = (log_spot - log_boundary + 2.0 * (log_inner - log_outer) +
                        drift * time) /
                       root;
-    const double correlation = std::sqrt(split_time / time);
     const double lambda = -rate + gamma * carry + 0.5 * gamma * (gamma - 1.0) * variance;
     const double kappa = 2.0 * carry / variance + 2.0 * gamma - 1.0;
     const double log_weight = lambda * time + gamma * (log_spot - std::log(power_boundary));
-    return exponential_bivariate_normal_cdf(log_weight, -e1, -f1, correlation) -
-           exponential_bivariate_normal_cdf(log_weight + kappa * (log_outer - log_spot), -e2, -f2, correlation) -
-           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_spot), -e3, -f3, -correlation) +
-           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_outer), -e4, -f4, -correlation);
+    return exponential_bivariate_normal_cdf(log_weight, -e1, -f1, quadrature, 1.0) -
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_outer - log_spot), -e2, -f2, quadrature, 1.0) -
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_spot), -e3, -f3, quadrature, -1.0) +
+           exponential_bivariate_normal_cdf(log_weight + kappa * (log_inner - log_outer), -e4, -f4, quadrature, -1.0);
 }
 
 Result<double> bjerksund_call(double spot, double strike, double time, double rate, double dividend, double volatility,
@@ -123,6 +136,7 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "Bjerksund-Stensland exercise boundaries must exceed the strike"});
     if (spot >= outer) return spot - strike;
+    const auto quadrature = bivariate_quadrature(std::sqrt(split_time / time));
     // Normalize beta powers before evaluation so neither alpha nor spot^beta overflows separately.
     return (outer - strike) * std::exp(beta * (std::log(spot) - std::log(outer))) -
            (outer - strike) * phi(spot, split_time, beta, outer, outer, rate, dividend, volatility, outer) +
@@ -131,11 +145,11 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
            strike * phi(spot, split_time, 0.0, outer, outer, rate, dividend, volatility, 1.0) +
            strike * phi(spot, split_time, 0.0, inner, outer, rate, dividend, volatility, 1.0) +
            (inner - strike) * phi(spot, split_time, beta, inner, outer, rate, dividend, volatility, inner) -
-           (inner - strike) * ksi(spot, time, beta, inner, outer, inner, split_time, rate, carry, volatility, inner) +
-           ksi(spot, time, 1.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0) -
-           ksi(spot, time, 1.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0) -
-           strike * ksi(spot, time, 0.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0) +
-           strike * ksi(spot, time, 0.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0);
+           (inner - strike) * ksi(spot, time, beta, inner, outer, inner, split_time, rate, carry, volatility, inner, quadrature) +
+           ksi(spot, time, 1.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0, quadrature) -
+           ksi(spot, time, 1.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0, quadrature) -
+           strike * ksi(spot, time, 0.0, inner, outer, inner, split_time, rate, carry, volatility, 1.0, quadrature) +
+           strike * ksi(spot, time, 0.0, strike, outer, inner, split_time, rate, carry, volatility, 1.0, quadrature);
 }
 } // namespace
 

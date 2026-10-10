@@ -15,6 +15,31 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Bjerksund-Stensland quadrature preserves continuation prices", "[pricing-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.03, 0.2), 100.0, start);
+    const BjerksundStenslandVanillaEngine engine;
+    // Preserve the established 2002 approximation while sharing positive/negative correlation geometry.
+    struct Reference {
+        int days;
+        double call;
+        double put;
+    };
+    for (const auto row : {Reference{91, 4.1945462483931095, 3.7306674960129627},
+                           Reference{365, 8.652695436032069, 6.932464292493037},
+                           Reference{3650, 25.33817727859211, 15.052781075279043}}) {
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(row.days, type);
+            const auto option = *make_american_option(type, 100.0, start, start + std::chrono::days{row.days});
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK_THAT(*price, Catch::Matchers::WithinAbs(type == OptionType::call ? row.call : row.put, 1e-11));
+        }
+    }
+}
+
 TEST_CASE("Bjerksund-Stensland retains small-volatility early exercise value", "[audit-fixes]")
 {
     using namespace kiyosi;
