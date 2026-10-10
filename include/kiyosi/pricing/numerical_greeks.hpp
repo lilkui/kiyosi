@@ -68,6 +68,18 @@ inline Result<void> validate_greeks_settings(NumericalShiftSettings settings)
     return {};
 }
 
+// Use the rounded upper bump on both sides; a collapsed or asymmetric stencil is unavailable.
+inline double symmetric_shift(double value, double requested)
+{
+    const double high = value + requested;
+    const double shift = high - value;
+    const double low = value - shift;
+    return std::isfinite(high) && std::isfinite(shift) && shift > 0.0 &&
+                   std::isfinite(low) && value - low == shift
+               ? shift
+               : 0.0;
+}
+
 template <typename Option>
 bool greeks_unavailable(const Option& option, const PricingContext& context)
 {
@@ -135,9 +147,9 @@ Result<PricingResult> complete_greeks(
     const auto need = [&](Greek measure) {
         return greeks.has(measure) && !native.has(measure);
     };
-    const double h = settings.spot_shift;
+    const double h = symmetric_shift(spot, settings.spot_shift);
     const bool spot_discontinuity = at_spot_discontinuity(option, context);
-    const bool spot_stencil_available = !at_spot_discontinuity(option, context, h) && spot > h &&
+    const bool spot_stencil_available = h > 0.0 && !at_spot_discontinuity(option, context, h) && spot > h &&
                                         std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
     auto delta = *native.get(Greek::delta);
     auto gamma = *native.get(Greek::gamma);
@@ -154,7 +166,7 @@ Result<PricingResult> complete_greeks(
         if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
 
         const double two_h = 2.0 * h;
-        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && std::isfinite(spot + two_h) &&
+        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && symmetric_shift(spot, two_h) == two_h &&
             !at_spot_discontinuity(option, context, two_h)) {
             const auto p_up2 = detail::shifted_value(
                 engine, option, context, spot + two_h, volatility, rate, valuation_time);
@@ -170,16 +182,14 @@ Result<PricingResult> complete_greeks(
     auto vega = *native.get(Greek::vega);
     auto vanna = *native.get(Greek::vanna);
     auto zomma = *native.get(Greek::zomma);
-    const double vol_scale = 100.0 * settings.volatility_shift;
+    const double volatility_shift = symmetric_shift(volatility, settings.volatility_shift);
+    const double vol_scale = 100.0 * volatility_shift;
     const bool volatility_stencil_available =
-        volatility > settings.volatility_shift &&
-        volatility + settings.volatility_shift > volatility &&
-        volatility - settings.volatility_shift < volatility &&
-        std::isfinite(volatility + settings.volatility_shift) && std::isfinite(vol_scale);
+        volatility_shift > 0.0 && volatility > volatility_shift && std::isfinite(vol_scale);
     if (volatility_stencil_available &&
         (need(Greek::vega) || (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))))) {
-        const double volatility_high = volatility + settings.volatility_shift;
-        const double volatility_low = volatility - settings.volatility_shift;
+        const double volatility_high = volatility + volatility_shift;
+        const double volatility_low = volatility - volatility_shift;
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
         const auto v_up = need_volatility_prices ? detail::shifted_value(
                                                        engine, option, context, spot, volatility_high, rate, valuation_time)
@@ -216,15 +226,14 @@ Result<PricingResult> complete_greeks(
     }
 
     auto rho = *native.get(Greek::rho);
-    const double rate_scale = 200.0 * settings.rate_shift;
-    if (need(Greek::rho) && std::isfinite(rate + settings.rate_shift) &&
-        rate + settings.rate_shift > rate && rate - settings.rate_shift < rate &&
-        std::isfinite(rate - settings.rate_shift) && std::isfinite(rate_scale)) {
+    const double rate_shift = symmetric_shift(rate, settings.rate_shift);
+    const double rate_scale = 200.0 * rate_shift;
+    if (need(Greek::rho) && rate_shift > 0.0 && std::isfinite(rate_scale)) {
         const auto r_up = detail::shifted_value(
-            engine, option, context, spot, volatility, rate + settings.rate_shift, valuation_time);
+            engine, option, context, spot, volatility, rate + rate_shift, valuation_time);
         if (!r_up) return std::unexpected(r_up.error());
         const auto r_down = detail::shifted_value(
-            engine, option, context, spot, volatility, rate - settings.rate_shift, valuation_time);
+            engine, option, context, spot, volatility, rate - rate_shift, valuation_time);
         if (!r_down) return std::unexpected(r_down.error());
         rho = (*r_up - *r_down) / rate_scale;
     }

@@ -13,6 +13,34 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Numerical Greeks use representable symmetric bumps", "[audit-fixes][rounded-bumps]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.01);
+    for (const double spot : {100.0, 1e12, 1e13, 1e14}) {
+        CAPTURE(spot);
+        const auto option = *make_european_option(OptionType::call, spot * 0.01, start, end);
+        const auto context = *make_pricing_context(parameters, spot, start);
+        const auto check = [](const auto& result) {
+            REQUIRE(result);
+            CHECK(greek_value(*result, Greek::delta) == Catch::Approx(1.0).epsilon(1e-12));
+            CHECK(greek_value(*result, Greek::gamma) == 0.0);
+            CHECK(greek_value(*result, Greek::speed) == Catch::Approx(0.0).margin(1e-6));
+        };
+        check(calculate_numerical_greeks(AnalyticVanillaEngine{}, option, context));
+        check(QuadratureVanillaEngine{}.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed}));
+        if (spot == 1e14) {
+            const auto collapsed = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, context, {.spot_shift = 0.004});
+            REQUIRE(collapsed);
+            CHECK_FALSE(collapsed->has(Greek::delta));
+            CHECK_FALSE(collapsed->has(Greek::gamma));
+            CHECK_FALSE(collapsed->has(Greek::speed));
+            CHECK(greek_value(*collapsed, Greek::vega) == 0.0);
+        }
+    }
+}
+
 TEST_CASE("Pricing preserves adjacent spot strike and barrier values", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);
