@@ -7,6 +7,7 @@ on:
       - pyproject.toml
       - CMakeLists.txt
       - CMakePresets.json
+      - benchmarks/**
       - cmake/**
       - examples/**
       - include/**
@@ -49,7 +50,10 @@ jobs:
           persist-credentials: false
       - name: Build and test Linux core
         if: runner.os == 'Linux'
-        run: cmake --workflow --preset linux-release
+        run: |
+          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON
+          cmake --build --preset linux-release
+          ctest --preset linux-release
       - name: Build and test Windows core
         if: runner.os == 'Windows'
         shell: pwsh
