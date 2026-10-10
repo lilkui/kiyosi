@@ -29,7 +29,9 @@ TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downs
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), valuation = day(2025, 1, 2), middle = day(2025, 7, 1), end = day(2026, 1, 1);
-    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 70.0, valuation, all_days_calendar());
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 70.0, valuation, calendar);
     const auto put_price = [&](double strike) {
         return *AnalyticVanillaEngine{}.price(*make_european_option(OptionType::put, strike, start, end), context);
     };
@@ -49,7 +51,9 @@ TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downs
             const FiniteDifferenceSettings settings{.asset_step_count = 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 800.0};
             const auto check = [&](const auto& note, double expected) {
                 const FiniteDifferenceAutocallableEngine<std::remove_cvref_t<decltype(note)>> engine{settings};
+                queries->store(0);
                 const auto price = engine.price(note, context);
+                CHECK(queries->load() < 10);
                 const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
                 REQUIRE(price);
                 REQUIRE(result);
@@ -63,6 +67,11 @@ TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downs
             check(phoenix, downside + coupons);
             check(ternary, 1.02 * discount(end));
         }
+        const auto explicit_price = FiniteDifferenceTernarySnowballEngine{
+            {80, 200, FiniteDifferenceScheme::explicit_euler, 800.0}}
+                                        .price(ternary, context);
+        REQUIRE(explicit_price);
+        CHECK(*explicit_price == Catch::Approx(1.02 * discount(end)).margin(0.0002));
     }
 }
 

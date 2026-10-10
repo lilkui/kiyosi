@@ -74,7 +74,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
     std::vector<double> trading_times;
-    if (monitors_daily) {
+    // Daily subdivisions can still be required for explicit-Euler stability after knock-in.
+    if (monitors_daily && (needs_knock_in_layer || settings_.scheme == FiniteDifferenceScheme::explicit_euler)) {
         const auto future_trading_dates =
             trading_dates(context.calendar(), valuation, note.expiry_date());
         trading_times.reserve(future_trading_dates.size());
