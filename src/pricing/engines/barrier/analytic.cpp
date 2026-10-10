@@ -64,7 +64,7 @@ Result<double> AnalyticBarrierEngine::price(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
     }
-    const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
+    const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t);
     const double mu = (rate - dividend) / sigma / sigma - 0.5;
     const double x = option.strike();
     const double log_moneyness = log_price_ratio(spot, x);
@@ -74,12 +74,13 @@ Result<double> AnalyticBarrierEngine::price(
     const auto factors = [&](double eta, double phi) {
         return std::array<double, 6>{
             vanilla->price(),
-            phi * spot * carry * normal_cdf(phi * x2) - phi * x * discount * normal_cdf(phi * x2 - phi * root_time),
-            phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
-                phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y1 - eta * root_time),
-            phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
-                phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
-            option.rebate() * discount * (normal_cdf(eta * x2 - eta * root_time) - exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y2 - eta * root_time)),
+            phi * scaled_normal_cdf(spot, -dividend * t, phi * x2) - phi * scaled_normal_cdf(x, -rate * t, phi * x2 - phi * root_time),
+            phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
+                phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y1 - eta * root_time),
+            phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
+                phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
+            scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
+                scaled_normal_cdf(option.rebate(), -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
             option.rebate() * (hit_rebate ? hit_discount : discount)};
     };
     const bool call = option.option_type() == OptionType::call;

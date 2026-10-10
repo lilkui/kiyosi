@@ -67,6 +67,13 @@ inline double exponential_normal_cdf(double log_weight, double value) noexcept
     return std::exp(log_weight + log_normal_cdf(value));
 }
 
+inline double scaled_normal_cdf(double amount, double log_weight, double value) noexcept
+{
+    if (amount == 0.0) return 0.0;
+    // Include the payoff before exponentiating a probability or weight that could underflow.
+    return exponential_normal_cdf(std::log(amount) + log_weight, value);
+}
+
 inline double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate) noexcept
 {
     if (t == 0.0) return 1.0;

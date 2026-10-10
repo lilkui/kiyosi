@@ -117,12 +117,11 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
     const double y2 = log_ratio / volatility_time + (1 + mu) * volatility_time;
     const auto common = [&](double eta, double phi) {
-        const double rate_discount = std::exp(-rate * time), dividend_discount = std::exp(-dividend * time);
         return BinaryBarrierFormulaTerms{
-            spot * dividend_discount * normal_cdf(phi * x1), option.payout * rate_discount * normal_cdf(phi * x1 - phi * volatility_time),
-            spot * dividend_discount * normal_cdf(phi * x2), option.payout * rate_discount * normal_cdf(phi * x2 - phi * volatility_time),
-            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y1), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y1 - eta * volatility_time),
-            spot * dividend_discount * exponential_normal_cdf((2 * (mu + 1)) * log_ratio, eta * y2), option.payout * rate_discount * exponential_normal_cdf((2 * mu) * log_ratio, eta * y2 - eta * volatility_time)};
+            scaled_normal_cdf(spot, -dividend * time, phi * x1), scaled_normal_cdf(option.payout, -rate * time, phi * x1 - phi * volatility_time),
+            scaled_normal_cdf(spot, -dividend * time, phi * x2), scaled_normal_cdf(option.payout, -rate * time, phi * x2 - phi * volatility_time),
+            scaled_normal_cdf(spot, -dividend * time + (2 * (mu + 1)) * log_ratio, eta * y1), scaled_normal_cdf(option.payout, -rate * time + (2 * mu) * log_ratio, eta * y1 - eta * volatility_time),
+            scaled_normal_cdf(spot, -dividend * time + (2 * (mu + 1)) * log_ratio, eta * y2), scaled_normal_cdf(option.payout, -rate * time + (2 * mu) * log_ratio, eta * y2 - eta * volatility_time)};
     };
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
     const double phi = option.option_type ? (call ? 1.0 : -1.0)

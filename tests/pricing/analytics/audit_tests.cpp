@@ -13,6 +13,43 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Barrier prices retain scaled normal tails", "[audit-fixes][scaled-barrier-tails]")
+{
+    const auto start = day(2025, 1, 6);
+    const auto end = day(2026, 1, 6);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    for (const double spot : {1e200, 1e300}) {
+        for (const double multiple : {1000.0, 1500.0}) {
+            CAPTURE(spot, multiple);
+            const double barrier = 0.8 * spot;
+            const double strike = multiple * spot;
+            const auto context = *make_pricing_context(parameters, spot, start);
+            const auto reflected = *make_pricing_context(parameters, barrier * (barrier / spot), start);
+            const auto check = [&](const auto& engine, const auto& option, const auto& vanilla_engine, const auto& vanilla) {
+                // With zero carry, down-and-in calls equal S/H times the vanilla at H^2/S.
+                const auto reference = vanilla_engine.price(vanilla, reflected);
+                const auto price = engine.price(option, context);
+                REQUIRE(reference);
+                REQUIRE(price);
+                const double expected = (spot / barrier) * *reference;
+                REQUIRE(expected > 0.0);
+                CHECK(*price == Catch::Approx(expected).epsilon(1e-8).margin(0.0));
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+            };
+            const BinaryBarrierTerms terms{.option_type = OptionType::call, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = BarrierType::down_and_in};
+            check(AnalyticBarrierEngine{},
+                  *make_barrier_option({.option_type = OptionType::call, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = BarrierType::down_and_in}),
+                  AnalyticVanillaEngine{}, *make_european_option(OptionType::call, strike, start, end));
+            check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms),
+                  AnalyticDigitalEngine{}, *make_asset_or_nothing_option(OptionType::call, strike, start, end));
+            check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, spot),
+                  AnalyticDigitalEngine{}, *make_cash_or_nothing_option(OptionType::call, strike, spot, start, end));
+        }
+    }
+}
+
 TEST_CASE("Numerical Greeks use representable symmetric bumps", "[audit-fixes][rounded-bumps]")
 {
     const auto start = day(2025, 1, 6);
