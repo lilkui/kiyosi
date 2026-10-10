@@ -25,6 +25,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event_name == 'release' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+
 jobs:
   test-oracle:
     name: Check QuantLib reference generation
@@ -85,12 +89,22 @@ jobs:
       - run: python -m unittest discover -s tests/python -p 'test_*.py'
 
   build:
-    name: Build wheels on ${{ matrix.os }}
+    name: Build wheels on ${{ matrix.os }} ${{ matrix.wheel }}
     if: github.event_name != 'release'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, windows-2022]
+        include:
+          - os: ubuntu-24.04
+            wheel: ''
+          - os: windows-2022
+            wheel: cp311-win_amd64
+          - os: windows-2022
+            wheel: cp312-win_amd64
+          - os: windows-2022
+            wheel: cp313-win_amd64
+          - os: windows-2022
+            wheel: cp314-win_amd64
 
     steps:
       - uses: actions/checkout@v7
@@ -105,8 +119,20 @@ jobs:
           method: network
           sub-packages: '["nvcc", "cudart", "cuobjdump", "curand_dev", "visual_studio_integration"]'
 
+      - name: Cache cibuildwheel tools
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/cibw-cache
+          key: cibw-${{ matrix.os }}-${{ matrix.wheel }}-${{ hashFiles('pyproject.toml', '.github/workflows/publish.yml') }}
+          restore-keys: |
+            cibw-${{ matrix.os }}-${{ matrix.wheel }}-
+
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.2.0
+        with:
+          only: ${{ matrix.wheel }}
+        env:
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
 
       - name: Build source distribution
         if: runner.os == 'Linux'
@@ -124,7 +150,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: distributions-${{ matrix.os }}
+          name: distributions-${{ matrix.os }}${{ matrix.wheel && format('-{0}', matrix.wheel) || '' }}
           path: wheelhouse/*
           if-no-files-found: error
 
@@ -179,10 +205,18 @@ jobs:
       - name: Download Windows distributions
         uses: actions/download-artifact@v8
         with:
-          name: distributions-windows-2022
+          pattern: distributions-windows-2022-*
+          merge-multiple: true
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
           path: dist
+
+      - name: Check Windows wheel completeness
+        run: >-
+          python -c "from pathlib import Path;
+          missing = [abi for abi in ('cp311', 'cp312', 'cp313', 'cp314')
+          if len(list(Path('dist').glob(f'kiyosi-*-{abi}-{abi}-win_amd64.whl'))) != 1];
+          assert not missing, f'expected one Windows wheel per Python version: {missing}'"
 
       - name: Publish distributions
         uses: pypa/gh-action-pypi-publish@release/v1
