@@ -59,7 +59,7 @@ Result<double> AnalyticBarrierEngine::price(
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});
         hit_discount = barrier_hit_discount(std::abs(log_ratio), upper,
-                                            drift, variance, t, rate);
+                                            drift, sigma, t, rate);
         if (!std::isfinite(hit_discount))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "barrier rebate discounting is numerically unstable"});

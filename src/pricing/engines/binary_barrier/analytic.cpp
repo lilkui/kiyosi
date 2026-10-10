@@ -104,7 +104,15 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
         return checked_price(option.payout * barrier_hit_discount(
-                                                 std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, variance, time, rate));
+                                                 std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, volatility, time, rate));
+    }
+    if (!option.option_type && volatility * volatility == 0.0) {
+        const double probability = barrier_hit_discount(std::abs(log_ratio), upper, rate - dividend,
+                                                        volatility, time, 0.0);
+        const double weight = knock_in ? probability : 1.0 - probability;
+        if (weight == 0.0) return 0.0;
+        const double amount = option.asset_settlement ? spot : option.payout;
+        return checked_price(amount * std::exp(-(option.asset_settlement ? dividend : rate) * time + std::log(weight)));
     }
     const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
     const double log_moneyness = log_price_ratio(spot, option.strike);

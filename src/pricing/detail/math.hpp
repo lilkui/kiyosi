@@ -74,15 +74,22 @@ inline double scaled_normal_cdf(double amount, double log_weight, double value) 
     return exponential_normal_cdf(std::log(amount) + log_weight, value);
 }
 
-inline double barrier_hit_discount(double distance, bool upper, double drift, double variance, double t, double rate) noexcept
+inline double barrier_hit_discount(double distance, bool upper, double drift, double volatility, double t, double rate) noexcept
 {
     if (t == 0.0) return 1.0;
+    const double variance = volatility * volatility;
     const double signed_drift = upper ? -drift : drift;
+    if (variance == 0.0) {
+        if (signed_drift >= 0.0) return 0.0;
+        // Keep the normal boundary at expiry even when squaring volatility underflows.
+        return exponential_normal_cdf(rate * (distance / signed_drift),
+                                      standardize_forward(-signed_drift * t - distance, volatility, std::sqrt(t)));
+    }
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
     if (discriminant < 0.0)
         return std::numeric_limits<double>::quiet_NaN();
     const double root = std::sqrt(discriminant);
-    const double root_time = std::sqrt(variance * t);
+    const double root_time = volatility * std::sqrt(t);
     // Rationalize the small root difference to retain discounting as variance approaches zero.
     const double first_exponent = signed_drift < 0.0 ? -2.0 * rate / (root - signed_drift) : (-signed_drift - root) / variance;
     const double second_exponent = signed_drift > 0.0 ? 2.0 * rate / (root + signed_drift) : (-signed_drift + root) / variance;

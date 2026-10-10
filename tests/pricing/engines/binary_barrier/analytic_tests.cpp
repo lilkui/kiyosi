@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -13,6 +14,47 @@ namespace {
 
 using kiyosi::test::day;
 
+}
+
+TEST_CASE("Touch prices survive volatility variance underflow", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const AnalyticBinaryBarrierEngine engine;
+    for (const bool up : {true, false}) {
+        const double barrier = up ? 101.0 : 99.0;
+        for (const double sigma : {1e-200, std::numeric_limits<double>::denorm_min()}) {
+            for (const bool crossing : {false, true}) {
+                const double dividend = crossing ? (up ? 0.0 : 0.1) : 0.05;
+                const auto context = *make_pricing_context(*make_bsm_parameters(0.05, dividend, sigma), 100.0, start);
+                const double hit_time = crossing ? std::log1p((barrier - 100.0) / 100.0) / (0.05 - dividend) : 0.0;
+                for (const auto timing : {SettlementTiming::at_hit, SettlementTiming::at_expiry}) {
+                    CAPTURE(up, sigma, crossing, timing);
+                    const auto cash = *(up ? make_cash_one_touch_up : make_cash_one_touch_down)(start, end, barrier, 1.0, timing, ObservationMode::continuous, {}, std::nullopt);
+                    const auto asset = *(up ? make_asset_one_touch_up : make_asset_one_touch_down)(start, end, barrier, timing, ObservationMode::continuous, {}, std::nullopt);
+                    const double discount = std::exp(-0.05 * (timing == SettlementTiming::at_hit ? hit_time : 1.0));
+                    const auto cash_price = engine.price(cash, context), asset_price = engine.price(asset, context);
+                    REQUIRE(cash_price);
+                    REQUIRE(asset_price);
+                    CHECK_THAT(*cash_price, Catch::Matchers::WithinAbs(crossing ? discount : 0.0, 1e-12));
+                    CHECK_THAT(*asset_price, Catch::Matchers::WithinAbs(crossing ? (timing == SettlementTiming::at_hit ? barrier * discount : 100.0 * std::exp(-dividend)) : 0.0, 1e-10));
+                }
+                const auto cash_no_touch = *(up ? make_cash_no_touch_up : make_cash_no_touch_down)(start, end, barrier, 1.0, ObservationMode::continuous, {}, std::nullopt);
+                const auto asset_no_touch = *(up ? make_asset_no_touch_up : make_asset_no_touch_down)(start, end, barrier, ObservationMode::continuous, {}, std::nullopt);
+                const auto cash_price = engine.price(cash_no_touch, context), asset_price = engine.price(asset_no_touch, context);
+                REQUIRE(cash_price);
+                REQUIRE(asset_price);
+                CHECK_THAT(*cash_price, Catch::Matchers::WithinAbs(crossing ? 0.0 : std::exp(-0.05), 1e-12));
+                CHECK_THAT(*asset_price, Catch::Matchers::WithinAbs(crossing ? 0.0 : 100.0 * std::exp(-dividend), 1e-10));
+            }
+        }
+        const double drift = std::log1p((barrier - 100.0) / 100.0);
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, -drift, 1e-200), 100.0, start);
+        const auto boundary = *(up ? make_cash_one_touch_up : make_cash_one_touch_down)(start, end, barrier, 1.0, SettlementTiming::at_expiry, ObservationMode::continuous, {}, std::nullopt);
+        const auto price = engine.price(boundary, context);
+        REQUIRE(price);
+        CHECK(*price == 0.5);
+    }
 }
 
 TEST_CASE("Scheduled one-touch expires at its final fixing", "[audit-fixes]")
