@@ -10,6 +10,13 @@
 
 namespace kiyosi::detail {
 
+inline Result<double> time_to_expiry(Timestamp valuation_time, Date effective_date, Date expiry_date)
+{
+    const auto valid = validate_valuation_within_instrument_life(valuation_time, effective_date, expiry_date);
+    if (!valid) return std::unexpected(valid.error());
+    return actual_365_fixed_year_fraction(valuation_time, expiry_date);
+}
+
 inline constexpr double percentage_points_per_unit = 100.0;
 inline constexpr double inverse_sqrt_two = 1.0 / std::numbers::sqrt2;
 inline constexpr double inverse_sqrt_two_pi = std::numbers::inv_sqrtpi * inverse_sqrt_two;

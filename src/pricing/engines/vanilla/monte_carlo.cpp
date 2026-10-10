@@ -29,13 +29,6 @@ struct SimulationParameters {
     double diffusion;
 };
 
-Result<double> simulation_time(const PricingContext& context, Date effective_date, Date expiry_date)
-{
-    const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
-    if (!valid) return std::unexpected(valid.error());
-    return detail::actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
-}
-
 Result<SimulationParameters> simulation_parameters(
     const PricingContext& context, double time, MonteCarloSettings settings)
 {
@@ -136,7 +129,7 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
 
 Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {
-    const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
+    const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
     const auto valid = detail::validate_monte_carlo_settings(settings_);
     if (!valid) return std::unexpected(valid.error());
@@ -174,7 +167,7 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
 
 Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
-    const auto time = simulation_time(context, option.effective_date(), option.expiry_date());
+    const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
     const auto valid = detail::validate_monte_carlo_settings(settings_);
     if (!valid) return std::unexpected(valid.error());

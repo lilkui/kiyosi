@@ -15,12 +15,6 @@ double payoff(OptionType type, double value, double strike)
 {
     return std::max((type == OptionType::call ? 1.0 : -1.0) * (value - strike), 0.0);
 }
-Result<double> time_to_expiry(const PricingContext& context, Date effective_date, Date expiry_date)
-{
-    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
-    if (!valid) return std::unexpected(valid.error());
-    return actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
-}
 double exprel(double value)
 {
     return value == 0.0 ? 1.0 : std::expm1(value) / value;
@@ -72,7 +66,7 @@ double divided_exprel_increment_ratio(double x, double y, double h)
 Result<double> AnalyticGeometricAveragePriceEngine::price(
     const GeometricAveragePriceOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
+    auto tau_result = time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
     const double spot = context.spot_price();
@@ -133,7 +127,7 @@ Result<double> AnalyticGeometricAveragePriceEngine::price(
 Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
     const ArithmeticAveragePriceOption& option, const PricingContext& context) const
 {
-    auto tau_result = time_to_expiry(context, option.effective_date(), option.expiry_date());
+    auto tau_result = time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!tau_result) return std::unexpected(tau_result.error());
     const double tau = *tau_result;
     const Timestamp valuation = context.valuation_time();
