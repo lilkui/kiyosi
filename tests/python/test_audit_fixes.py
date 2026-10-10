@@ -1,6 +1,7 @@
 import math
 import unittest
 from datetime import date
+from unittest.mock import patch
 
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -19,10 +20,40 @@ from kiyosi.instruments import (
     cash_one_touch_down,
     cash_one_touch_up,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+    fixed_interval_schedule,
+)
 
 
 class AuditFixTests(unittest.TestCase):
+    def test_schedule_iteration_is_lazy_and_retains_its_owner(self):
+        schedule = fixed_interval_schedule(
+            start=date(2025, 1, 1),
+            end=date(2025, 1, 5),
+            interval_days=1,
+            calendar=all_days_calendar(),
+        )
+        expected = schedule.dates
+        with patch("datetime.date", wraps=date) as converted:
+            iterator = iter(schedule)
+            independent = iter(schedule)
+            self.assertIs(iter(iterator), iterator)
+            self.assertEqual(converted.call_count, 0)
+            self.assertEqual(next(iterator), expected[0])
+            self.assertEqual(converted.call_count, 1)
+            self.assertEqual(next(iterator), expected[1])
+            self.assertEqual(next(independent), expected[0])
+            self.assertEqual(converted.call_count, 3)
+        del schedule
+        self.assertEqual(list(iterator), expected[2:])
+        self.assertEqual(list(independent), expected[1:])
+        for _ in range(2):
+            with self.assertRaises(StopIteration):
+                next(iterator)
+
     def test_knocked_in_finite_difference_autocallables(self):
         start, valuation, middle, end = (
             date(2025, 1, 1),

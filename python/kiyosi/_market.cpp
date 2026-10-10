@@ -187,7 +187,7 @@ KiyosiError
                         module, "ObservationSchedule", R"doc(Immutable ordered observation dates.
 
 The sequence supports ``len(schedule)``, integer indexing, negative indexing,
-and iteration.)doc")
+and lazy iteration. Iterators retain the immutable schedule until exhausted.)doc")
                         .def("__len__", &ObservationSchedule::size)
                         .def("__getitem__", [](const ObservationSchedule& schedule, nb::ssize_t index) {
                             const auto size = static_cast<nb::ssize_t>(schedule.size());
@@ -195,8 +195,10 @@ and iteration.)doc")
                             if (index < 0 || index >= size) throw nb::index_error();
                             return python_date(schedule[static_cast<std::size_t>(index)]);
                         })
-                        .def("__iter__", [](const ObservationSchedule& schedule) {
-                            return PythonDateIterator{python_dates(schedule.dates()).attr("__iter__")()};
+                        .def("__iter__", [](nb::handle schedule) {
+                            auto iterator = nb::steal<PythonDateIterator>(PySeqIter_New(schedule.ptr()));
+                            if (!iterator.is_valid()) throw nb::python_error();
+                            return iterator;
                         })
                         .def_prop_ro("dates", [](const ObservationSchedule& schedule) { return python_dates(schedule.dates()); }, "Copy of the ordered observation dates.");
     bind_value_equality(schedule);
