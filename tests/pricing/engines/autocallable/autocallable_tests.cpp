@@ -24,6 +24,25 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Knocked-in autocallables simulate only remaining observation dates", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), valuation = day(2025, 1, 2), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 70.0, valuation, calendar);
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {1e6}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end});
+    const auto actual = MonteCarloSnowballEngine{{50'000, 42}}.price(note, context);
+    REQUIRE(actual);
+    // Calendar validation remains necessary; daily continuation queries do not.
+    CHECK(queries->load() < 10);
+    const auto put = *make_european_option(OptionType::put, 100.0, start, end);
+    const auto expected = AnalyticVanillaEngine{}.price(put, context);
+    REQUIRE(expected);
+    CHECK(*actual == Catch::Approx(1.0 - *expected / 100.0).margin(0.002));
+}
+
 TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
 {
     const auto start = day(2025, 1, 1);

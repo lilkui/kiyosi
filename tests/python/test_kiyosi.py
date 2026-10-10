@@ -30,6 +30,7 @@ from kiyosi.instruments import (
     EuropeanOption,
     GeometricAveragePriceOption,
     PhoenixOption,
+    SnowballOption,
     TernarySnowballOption,
     TouchOption,
     asset_binary_barrier_option,
@@ -83,6 +84,39 @@ def utc_timestamp(value):
 
 
 class KiyosiPythonTests(unittest.TestCase):
+    def test_knocked_in_autocallable_matches_remaining_european_payoff(self):
+        start, valuation, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=70,
+            valuation_time=valuation,
+            calendar=market.all_days_calendar(),
+        )
+        note = SnowballOption(
+            knock_out_coupon_rates=[0],
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=75,
+            knock_out_levels=[1e6],
+            upper_strike=100,
+            lower_strike=0,
+            observation_dates=[end],
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="knocked_in",
+            effective_date=start,
+            expiry_date=end,
+        )
+        put = EuropeanOption(
+            option_type="put", strike=100, effective_date=start, expiry_date=end
+        )
+        expected = 1 - AnalyticVanillaEngine().price(put, context) / 100
+        actual = pricing.MonteCarloSnowballEngine(path_count=50000, seed=42).price(
+            note, context
+        )
+        self.assertAlmostEqual(actual, expected, delta=0.002)
+
     def test_bjerksund_preserves_extreme_monetary_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
