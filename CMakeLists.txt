@@ -24,7 +24,7 @@ if(KIYOSI_ENABLE_CUDA)
         message(FATAL_ERROR "KIYOSI_ENABLE_CUDA requires a CUDA compiler")
     endif()
     enable_language(CUDA)
-    find_package(CUDAToolkit REQUIRED)
+    find_package(CUDAToolkit 11.2 REQUIRED)
 endif()
 
 add_library(kiyosi_warnings INTERFACE)

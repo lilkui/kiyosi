@@ -4,11 +4,14 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <future>
 #include <limits>
 #include <memory>
 #include <vector>
 
 #include "pricing/engines/monte_carlo_cuda_reduction.hpp"
+#include "pricing/engines/monte_carlo_cuda.hpp"
 #include "pricing/engines/vanilla/monte_carlo_regression.hpp"
 
 namespace {
@@ -28,6 +31,56 @@ __global__ void solve_regression(const double* input, double* output)
         output[index] = coefficients[index];
 }
 } // namespace
+
+TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][monte-carlo-performance]")
+{
+    using namespace kiyosi::detail;
+    const auto price = [] {
+        const std::array<CudaSimulationStep, 1> accumulator_steps{{{0.0, 0.1, 0.99}}};
+        const std::array<CudaAutocallableStep, 1> autocallable_steps{{{{0.0, 0.1, 0.99}, {110.0, 0.01, 0.0, false, true}}}};
+        AutocallableProgram program{};
+        program.principal_ratio = 1.0;
+        return std::array{
+            cuda_european_price({512, 42, 100.0, 100.0, 0.01, 0.2, 1}),
+            cuda_american_price({512, 3, 42, 100.0, 100.0, 0.01, 0.1, 0.99, -1}),
+            cuda_accumulator_price({512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0}, accumulator_steps),
+            cuda_autocallable_price({512, 42, 100.0, 0.99, program, {}}, autocallable_steps)};
+    };
+    for (const auto result : price())
+        REQUIRE(result.status == CudaPricingStatus::success);
+
+    for (const unsigned flags : {cudaStreamDefault, cudaStreamNonBlocking}) {
+        CAPTURE(flags);
+        cudaStream_t unrelated{};
+        REQUIRE(cudaStreamCreateWithFlags(&unrelated, flags) == cudaSuccess);
+        struct Gate {
+            std::promise<void> entered;
+            std::promise<void> release;
+        } gate;
+        const auto launched = cudaLaunchHostFunc(unrelated, [](void* data) {
+            auto& gate = *static_cast<Gate*>(data);
+            auto released = gate.release.get_future();
+            gate.entered.set_value();
+            released.wait(); }, &gate);
+        if (launched != cudaSuccess) {
+            cudaStreamDestroy(unrelated);
+            FAIL("Could not enqueue the unrelated stream gate");
+        }
+        gate.entered.get_future().wait();
+        auto pending = std::async(std::launch::async, price);
+        const auto completion = pending.wait_for(std::chrono::seconds(2));
+        // Release the gate before assertions so a regression cannot deadlock cleanup.
+        gate.release.set_value();
+        const auto synchronized = cudaStreamSynchronize(unrelated);
+        const auto destroyed = cudaStreamDestroy(unrelated);
+        const auto results = pending.get();
+        CHECK(completion == std::future_status::ready);
+        CHECK(synchronized == cudaSuccess);
+        CHECK(destroyed == cudaSuccess);
+        for (const auto result : results)
+            CHECK(result.status == CudaPricingStatus::success);
+    }
+}
 
 TEST_CASE("CUDA regression solves quadratic and reduced bases", "[cuda]")
 {

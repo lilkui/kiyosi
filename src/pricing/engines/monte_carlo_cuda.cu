@@ -33,10 +33,23 @@ struct RegressionSolution {
     bool valid;
 };
 
+struct StreamDeleter {
+    void operator()(cudaStream_t stream) const noexcept
+    {
+        // Failed requests may still be reading caller-owned host inputs.
+        cudaStreamSynchronize(stream);
+        cudaStreamDestroy(stream);
+    }
+};
+
+using CudaStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, StreamDeleter>;
+
 struct DeviceDeleter {
+    cudaStream_t stream{};
+
     void operator()(void* pointer) const noexcept
     {
-        if (pointer != nullptr) cudaFree(pointer);
+        if (pointer != nullptr) cudaFreeAsync(pointer, stream);
     }
 };
 
@@ -61,13 +74,30 @@ CudaPricingResult error_result(cudaError_t error)
     return {CudaPricingStatus::failure, 0.0, cudaGetErrorString(error)};
 }
 
-CudaPricingResult allocate(DeviceMemory& memory, std::size_t size)
+CudaPricingResult create_stream(CudaStream& stream)
+{
+    cudaStream_t handle = nullptr;
+    const cudaError_t status = cudaStreamCreateWithFlags(&handle, cudaStreamNonBlocking);
+    if (status != cudaSuccess) return error_result(status);
+    stream.reset(handle);
+    return {CudaPricingStatus::success, 0.0, nullptr};
+}
+
+CudaPricingResult allocate(DeviceMemory& memory, std::size_t size, cudaStream_t stream)
 {
     void* pointer = nullptr;
-    const cudaError_t status = cudaMalloc(&pointer, size);
+    const cudaError_t status = cudaMallocAsync(&pointer, size, stream);
     if (status != cudaSuccess) return error_result(status);
-    memory.reset(pointer);
+    memory = DeviceMemory{pointer, DeviceDeleter{stream}};
     return {CudaPricingStatus::success, 0.0, nullptr};
+}
+
+CudaPricingResult download(void* host, const void* device, std::size_t size, cudaStream_t stream)
+{
+    auto status = cudaMemcpyAsync(host, device, size, cudaMemcpyDeviceToHost, stream);
+    if (status == cudaSuccess) status = cudaStreamSynchronize(stream);
+    return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
+                                 : error_result(status);
 }
 
 CudaPricingResult check_device_available()
@@ -79,6 +109,14 @@ CudaPricingResult check_device_available()
     if (status != cudaSuccess) return error_result(status);
     if (device_count == 0)
         return {CudaPricingStatus::unavailable, 0.0, "No CUDA device is available"};
+    int device = 0;
+    auto capability = cudaGetDevice(&device);
+    if (capability != cudaSuccess) return error_result(capability);
+    int memory_pools = 0;
+    capability = cudaDeviceGetAttribute(&memory_pools, cudaDevAttrMemoryPoolsSupported, device);
+    if (capability != cudaSuccess) return error_result(capability);
+    if (!memory_pools)
+        return {CudaPricingStatus::unavailable, 0.0, "CUDA device does not support stream-ordered memory allocation"};
     return {CudaPricingStatus::success, 0.0, nullptr};
 }
 
@@ -325,38 +363,38 @@ __global__ void simulate_autocallable_paths(
 
 template <typename Step>
     requires std::is_trivially_copyable_v<Step>
-CudaPricingResult upload_steps(DeviceMemory& memory, std::span<const Step> steps)
+CudaPricingResult upload_steps(DeviceMemory& memory, std::span<const Step> steps, cudaStream_t stream)
 {
     if (steps.empty()) return {CudaPricingStatus::success, 0.0, nullptr};
-    auto result = allocate(memory, steps.size_bytes());
+    auto result = allocate(memory, steps.size_bytes(), stream);
     if (result.status != CudaPricingStatus::success) return result;
-    const cudaError_t status = cudaMemcpy(
-        memory.get(), steps.data(), steps.size_bytes(), cudaMemcpyHostToDevice);
+    const cudaError_t status = cudaMemcpyAsync(
+        memory.get(), steps.data(), steps.size_bytes(), cudaMemcpyHostToDevice, stream);
     return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
                                  : error_result(status);
 }
 
-CudaPricingResult reduce_payoff_mean(const double* payoffs, int count, double* total, MonteCarloMean* partials)
+CudaPricingResult reduce_payoff_mean(const double* payoffs, int count, double* total, MonteCarloMean* partials, cudaStream_t stream)
 {
     const int block_count = std::min((count + threads_per_block - 1) / threads_per_block, 256);
-    reduce_payoffs<<<block_count, threads_per_block>>>(payoffs, count, partials);
+    reduce_payoffs<<<block_count, threads_per_block, 0, stream>>>(payoffs, count, partials);
     auto status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    reduce_payoffs<<<1, threads_per_block>>>(static_cast<const MonteCarloMean*>(partials), block_count, total);
+    reduce_payoffs<<<1, threads_per_block, 0, stream>>>(static_cast<const MonteCarloMean*>(partials), block_count, total);
     status = cudaGetLastError();
     return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
                                  : error_result(status);
 }
 
-CudaPricingResult finish_path_simulation(const PathOutputs& outputs, int path_count)
+CudaPricingResult finish_path_simulation(const PathOutputs& outputs, int path_count, cudaStream_t stream)
 {
     const auto reduction = reduce_payoff_mean(
-        outputs.payoffs, path_count, &outputs.result->mean, outputs.partials);
+        outputs.payoffs, path_count, &outputs.result->mean, outputs.partials, stream);
     if (reduction.status != CudaPricingStatus::success) return reduction;
 
     PathSimulationResult result{};
-    const auto status = cudaMemcpy(&result, outputs.result, sizeof(result), cudaMemcpyDeviceToHost);
-    if (status != cudaSuccess) return error_result(status);
+    const auto transfer = download(&result, outputs.result, sizeof(result), stream);
+    if (transfer.status != CudaPricingStatus::success) return transfer;
     if (result.invalid != 0)
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo simulation produced a non-finite path"};
@@ -367,20 +405,20 @@ CudaPricingResult finish_path_simulation(const PathOutputs& outputs, int path_co
     return {CudaPricingStatus::success, result.mean, nullptr};
 }
 
-CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs)
+CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs, cudaStream_t stream)
 {
     static_assert(sizeof(double) % alignof(MonteCarloMean) == 0);
     static_assert(sizeof(MonteCarloMean) % alignof(PathSimulationResult) == 0);
     const int block_count = std::min((path_count + threads_per_block - 1) / threads_per_block, 256);
     const auto payoff_bytes = static_cast<std::size_t>(path_count) * sizeof(double);
     const auto partial_bytes = static_cast<std::size_t>(block_count) * sizeof(MonteCarloMean);
-    const auto result = allocate(outputs.memory, payoff_bytes + partial_bytes + sizeof(PathSimulationResult));
+    const auto result = allocate(outputs.memory, payoff_bytes + partial_bytes + sizeof(PathSimulationResult), stream);
     if (result.status != CudaPricingStatus::success) return result;
     auto* storage = static_cast<std::byte*>(outputs.memory.get());
     outputs.payoffs = reinterpret_cast<double*>(storage);
     outputs.partials = reinterpret_cast<MonteCarloMean*>(storage + payoff_bytes);
     outputs.result = reinterpret_cast<PathSimulationResult*>(storage + payoff_bytes + partial_bytes);
-    const cudaError_t status = cudaMemset(outputs.result, 0, sizeof(PathSimulationResult));
+    const cudaError_t status = cudaMemsetAsync(outputs.result, 0, sizeof(PathSimulationResult), stream);
     return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
                                  : error_result(status);
 }
@@ -391,24 +429,32 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request)
 {
     const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
+    CudaStream owned_stream;
+    const auto created = create_stream(owned_stream);
+    if (created.status != CudaPricingStatus::success) return created;
+    const auto stream = owned_stream.get();
 
     const int pair_count = request.path_count / 2;
     PathOutputs outputs;
-    const auto allocation = allocate_path_outputs(request.path_count, outputs);
+    const auto allocation = allocate_path_outputs(request.path_count, outputs, stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
 
     const int block_count = (pair_count + threads_per_block - 1) / threads_per_block;
-    simulate_payoff_pairs<<<block_count, threads_per_block>>>(
+    simulate_payoff_pairs<<<block_count, threads_per_block, 0, stream>>>(
         request, pair_count, outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(outputs, request.path_count);
+    return finish_path_simulation(outputs, request.path_count, stream);
 }
 
 CudaPricingResult cuda_american_price(CudaAmericanRequest request)
 {
     const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
+    CudaStream owned_stream;
+    const auto created = create_stream(owned_stream);
+    if (created.status != CudaPricingStatus::success) return created;
+    const auto stream = owned_stream.get();
 
     const int pair_count = request.path_count / 2;
     const int pair_block_count =
@@ -421,55 +467,53 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
     DeviceMemory partials;
     DeviceMemory summary;
     auto allocation = allocate(
-        paths, static_cast<std::size_t>(request.path_count) *
-                   static_cast<std::size_t>(request.step_count) * sizeof(double));
+        paths, static_cast<std::size_t>(request.path_count) * static_cast<std::size_t>(request.step_count) * sizeof(double), stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     allocation = allocate(
-        cash_flows, static_cast<std::size_t>(request.path_count) * sizeof(double));
+        cash_flows, static_cast<std::size_t>(request.path_count) * sizeof(double), stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
-    allocation = allocate(invalid, sizeof(int));
+    allocation = allocate(invalid, sizeof(int), stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     allocation = allocate(
-        partials, static_cast<std::size_t>(path_block_count) *
-                      sizeof(RegressionStatistics));
+        partials, static_cast<std::size_t>(path_block_count) * sizeof(RegressionStatistics), stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
-    allocation = allocate(summary, sizeof(RegressionSolution));
+    allocation = allocate(summary, sizeof(RegressionSolution), stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
 
-    cudaError_t status = cudaMemset(invalid.get(), 0, sizeof(int));
+    cudaError_t status = cudaMemsetAsync(invalid.get(), 0, sizeof(int), stream);
     if (status != cudaSuccess) return error_result(status);
-    simulate_american_pairs<<<pair_block_count, threads_per_block>>>(
+    simulate_american_pairs<<<pair_block_count, threads_per_block, 0, stream>>>(
         request, pair_count, static_cast<double*>(paths.get()),
         static_cast<int*>(invalid.get()));
     status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
     int invalid_result = 0;
-    status = cudaMemcpy(&invalid_result, invalid.get(), sizeof(int), cudaMemcpyDeviceToHost);
-    if (status != cudaSuccess) return error_result(status);
+    const auto invalid_transfer = download(&invalid_result, invalid.get(), sizeof(int), stream);
+    if (invalid_transfer.status != CudaPricingStatus::success) return invalid_transfer;
     if (invalid_result != 0)
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo simulation produced a non-finite path"};
 
-    initialize_cash_flows<<<path_block_count, threads_per_block>>>(
+    initialize_cash_flows<<<path_block_count, threads_per_block, 0, stream>>>(
         request, static_cast<const double*>(paths.get()),
         static_cast<double*>(cash_flows.get()));
     status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
 
     for (int step = request.step_count - 2; step >= 1; --step) {
-        discount_and_collect_statistics<<<path_block_count, threads_per_block>>>(
+        discount_and_collect_statistics<<<path_block_count, threads_per_block, 0, stream>>>(
             request, step, static_cast<const double*>(paths.get()),
             static_cast<double*>(cash_flows.get()),
             static_cast<RegressionStatistics*>(partials.get()));
         status = cudaGetLastError();
         if (status != cudaSuccess) return error_result(status);
-        reduce_statistics<<<1, threads_per_block>>>(
+        reduce_statistics<<<1, threads_per_block, 0, stream>>>(
             static_cast<const RegressionStatistics*>(partials.get()), path_block_count,
             static_cast<RegressionSolution*>(summary.get()));
         status = cudaGetLastError();
         if (status != cudaSuccess) return error_result(status);
 
-        apply_exercise<<<path_block_count, threads_per_block>>>(
+        apply_exercise<<<path_block_count, threads_per_block, 0, stream>>>(
             request, step, static_cast<const double*>(paths.get()),
             static_cast<double*>(cash_flows.get()), static_cast<const RegressionSolution*>(summary.get()));
         status = cudaGetLastError();
@@ -478,11 +522,11 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
 
     const auto reduction = reduce_payoff_mean(
         static_cast<const double*>(cash_flows.get()), request.path_count,
-        static_cast<double*>(summary.get()), static_cast<MonteCarloMean*>(partials.get()));
+        static_cast<double*>(summary.get()), static_cast<MonteCarloMean*>(partials.get()), stream);
     if (reduction.status != CudaPricingStatus::success) return reduction;
     double payoff_mean = 0.0;
-    status = cudaMemcpy(&payoff_mean, summary.get(), sizeof(double), cudaMemcpyDeviceToHost);
-    if (status != cudaSuccess) return error_result(status);
+    const auto transfer = download(&payoff_mean, summary.get(), sizeof(double), stream);
+    if (transfer.status != CudaPricingStatus::success) return transfer;
     if (!std::isfinite(payoff_mean))
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo reduction produced a non-finite result"};
@@ -494,22 +538,26 @@ CudaPricingResult cuda_accumulator_price(
 {
     const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
+    CudaStream owned_stream;
+    const auto created = create_stream(owned_stream);
+    if (created.status != CudaPricingStatus::success) return created;
+    const auto stream = owned_stream.get();
 
     DeviceMemory device_steps;
-    auto result = upload_steps(device_steps, steps);
+    auto result = upload_steps(device_steps, steps, stream);
     if (result.status != CudaPricingStatus::success) return result;
     PathOutputs outputs;
-    result = allocate_path_outputs(request.path_count, outputs);
+    result = allocate_path_outputs(request.path_count, outputs, stream);
     if (result.status != CudaPricingStatus::success) return result;
 
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_accumulator_paths<<<block_count, threads_per_block>>>(
+    simulate_accumulator_paths<<<block_count, threads_per_block, 0, stream>>>(
         request, static_cast<const CudaSimulationStep*>(device_steps.get()), steps.size(),
         outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(outputs, request.path_count);
+    return finish_path_simulation(outputs, request.path_count, stream);
 }
 
 CudaPricingResult cuda_autocallable_price(
@@ -517,22 +565,26 @@ CudaPricingResult cuda_autocallable_price(
 {
     const auto device = check_device_available();
     if (device.status != CudaPricingStatus::success) return device;
+    CudaStream owned_stream;
+    const auto created = create_stream(owned_stream);
+    if (created.status != CudaPricingStatus::success) return created;
+    const auto stream = owned_stream.get();
 
     DeviceMemory device_steps;
-    auto result = upload_steps(device_steps, steps);
+    auto result = upload_steps(device_steps, steps, stream);
     if (result.status != CudaPricingStatus::success) return result;
     PathOutputs outputs;
-    result = allocate_path_outputs(request.path_count, outputs);
+    result = allocate_path_outputs(request.path_count, outputs, stream);
     if (result.status != CudaPricingStatus::success) return result;
 
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_autocallable_paths<<<block_count, threads_per_block>>>(
+    simulate_autocallable_paths<<<block_count, threads_per_block, 0, stream>>>(
         request, static_cast<const CudaAutocallableStep*>(device_steps.get()), steps.size(),
         outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(outputs, request.path_count);
+    return finish_path_simulation(outputs, request.path_count, stream);
 }
 
 } // namespace kiyosi::detail
