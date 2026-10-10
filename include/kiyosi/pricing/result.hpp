@@ -14,6 +14,15 @@
 
 namespace kiyosi {
 
+namespace detail {
+inline Result<double> checked_price(double value)
+{
+    if (!std::isfinite(value))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
+    return value;
+}
+} // namespace detail
+
 /// Public Greek contract:
 /// - delta, gamma, and speed are price changes per one spot unit, squared spot unit, and cubed
 ///   spot unit, respectively;

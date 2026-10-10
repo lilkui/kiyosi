@@ -25,9 +25,7 @@ template <typename Engine, typename Option>
 {
     auto priced = engine.price(option, context);
     if (!priced) return std::unexpected(priced.error());
-    if (!std::isfinite(*priced))
-        return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
-    return *priced;
+    return checked_price(*priced);
 }
 
 [[nodiscard]] inline Result<PricingContext> shifted_context(
@@ -52,10 +50,7 @@ template <typename Engine, typename Option>
 inline Result<double> price_value(const Result<PricingResult>& result)
 {
     if (!result) return std::unexpected(result.error());
-    const auto value = result->price();
-    if (!std::isfinite(value))
-        return std::unexpected(Error{ErrorCategory::invalid_result, "pricing produced no finite price"});
-    return value;
+    return checked_price(result->price());
 }
 
 inline Result<void> validate_greeks_settings(NumericalShiftSettings settings)
