@@ -14,6 +14,37 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barriers retain tiny positive volatility time value", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const AnalyticBarrierEngine engine;
+    for (const auto type : {BarrierType::down_and_in, BarrierType::down_and_out,
+                            BarrierType::up_and_in, BarrierType::up_and_out}) {
+        const bool up = type == BarrierType::up_and_in || type == BarrierType::up_and_out;
+        const bool knock_in = type == BarrierType::up_and_in || type == BarrierType::down_and_in;
+        for (const auto direction : {OptionType::call, OptionType::put}) {
+            for (const double spot : {1e16, 1e150}) {
+                for (const double sigma : {1e-12, 1e-16, 1e-20, 1e-200}) {
+                    CAPTURE(type, direction, spot, sigma);
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, sigma), spot, start);
+                    const auto option = *make_barrier_option(
+                        {.option_type = direction, .strike = spot, .effective_date = start, .expiry_date = end, .barrier_level = (up ? 1.2 : 0.8) * spot, .barrier_type = type});
+                    const auto price = engine.price(option, context);
+                    REQUIRE(price);
+                    // Barrier-hit probabilities are negligible; knock-outs retain the vanilla time value.
+                    const double expected = knock_in ? 0.0 : spot * sigma / std::sqrt(2.0 * std::numbers::pi);
+                    CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 1e-12));
+                    const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                    REQUIRE(joint);
+                    CHECK(joint->price() == *price);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic barrier prices preserve finite extreme monetary scales")
 {
     using namespace kiyosi;

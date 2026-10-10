@@ -40,11 +40,11 @@ Result<double> AnalyticBarrierEngine::price(
         barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
                             std::sqrt(terms.mean_observation_year_fraction()));
     }
+    const auto vanilla = price_at_volatility(
+        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
+        sigma, GreeksRequest{});
+    if (!vanilla) return std::unexpected(vanilla.error());
     if (t == 0.0) {
-        const auto vanilla = price_at_volatility(
-            *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
-            context.model_parameters().volatility(), GreeksRequest{});
-        if (!vanilla) return std::unexpected(vanilla.error());
         return checked_price(knock_in ? option.rebate() : vanilla->price());
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
@@ -65,16 +65,15 @@ Result<double> AnalyticBarrierEngine::price(
                                          "barrier rebate discounting is numerically unstable"});
     }
     const double root_time = sigma * std::sqrt(t), discount = std::exp(-rate * t), carry = std::exp(-dividend * t);
-    const double mu = (rate - dividend - 0.5 * sigma * sigma) / (sigma * sigma);
+    const double mu = (rate - dividend) / sigma / sigma - 0.5;
     const double x = option.strike();
     const double log_moneyness = log_price_ratio(spot, x);
-    const double x1 = log_moneyness / root_time + (1.0 + mu) * root_time;
     const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;
     const double y2 = log_ratio / root_time + (1.0 + mu) * root_time;
     const auto factors = [&](double eta, double phi) {
         return std::array<double, 6>{
-            phi * spot * carry * normal_cdf(phi * x1) - phi * x * discount * normal_cdf(phi * x1 - phi * root_time),
+            vanilla->price(),
             phi * spot * carry * normal_cdf(phi * x2) - phi * x * discount * normal_cdf(phi * x2 - phi * root_time),
             phi * spot * carry * exponential_normal_cdf((2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
                 phi * x * discount * exponential_normal_cdf((2.0 * mu) * log_ratio, eta * y1 - eta * root_time),

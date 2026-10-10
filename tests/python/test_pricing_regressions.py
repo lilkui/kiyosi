@@ -1,13 +1,56 @@
+import math
 import unittest
 from datetime import date
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import AmericanOption
+from kiyosi.instruments import AmericanOption, BarrierOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_analytic_barriers_retain_tiny_positive_volatility_time_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.AnalyticBarrierEngine()
+        for kind in ("down_and_in", "down_and_out", "up_and_in", "up_and_out"):
+            for direction in ("call", "put"):
+                for spot in (1e16, 1e150):
+                    for sigma in (1e-12, 1e-16, 1e-20, 1e-200):
+                        with self.subTest(
+                            kind=kind, direction=direction, spot=spot, sigma=sigma
+                        ):
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=0, dividend_yield=0, volatility=sigma
+                                ),
+                                spot_price=spot,
+                                valuation_time=start,
+                            )
+                            option = BarrierOption(
+                                option_type=direction,
+                                strike=spot,
+                                effective_date=start,
+                                expiry_date=end,
+                                barrier_level=(1.2 if kind.startswith("up") else 0.8)
+                                * spot,
+                                barrier_type=kind,
+                            )
+                            actual = engine.price(option, context)
+                            expected = (
+                                0
+                                if kind.endswith("in")
+                                else spot * sigma / math.sqrt(2 * math.pi)
+                            )
+                            self.assertTrue(
+                                math.isclose(actual, expected, rel_tol=1e-12)
+                            )
+                            self.assertEqual(
+                                engine.price_with_greeks(
+                                    option, context, "delta"
+                                ).price,
+                                actual,
+                            )
+
     def test_bjerksund_retains_small_volatility_early_exercise_value(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         engine = pricing.BjerksundStenslandVanillaEngine()
