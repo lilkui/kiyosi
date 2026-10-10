@@ -11,6 +11,27 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
+TEST_CASE("Deep in-the-money digital prices survive overflowing discount factors", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    constexpr double settlement = 1e-300;
+    const auto context = *make_pricing_context(*make_bsm_parameters(-710.0, -710.0, 0.2), settlement, start);
+    const double expected = std::exp(std::log(settlement) + 710.0);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const double strike = type == OptionType::call ? 1e-304 : 1e-296;
+        const auto check = [&](const auto& option) {
+            for (const auto& result : {AnalyticDigitalEngine{}.price(option, context), QuadratureDigitalEngine{}.price(option, context)}) {
+                CAPTURE(type);
+                REQUIRE(result);
+                CHECK(*result == Catch::Approx(expected).epsilon(1e-12));
+            }
+        };
+        check(*make_cash_or_nothing_option(type, strike, settlement, start, end));
+        check(*make_asset_or_nothing_option(type, strike, start, end));
+    }
+}
+
 TEST_CASE("Digital prices survive overflowing discounted settlements", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

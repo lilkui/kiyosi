@@ -9,6 +9,45 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class DigitalOverflowTests(unittest.TestCase):
+    def test_deep_in_the_money_digital_prices_survive_overflowing_discount_factors(
+        self,
+    ):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        settlement = 1e-300
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=-710, dividend_yield=-710, volatility=0.2
+            ),
+            spot_price=settlement,
+            valuation_time=start,
+        )
+        expected = math.exp(math.log(settlement) + 710)
+        for direction in ("call", "put"):
+            terms = {
+                "option_type": direction,
+                "strike": 1e-304 if direction == "call" else 1e-296,
+                "effective_date": start,
+                "expiry_date": end,
+            }
+            for option in (
+                CashOrNothingOption(**terms, payout=settlement),
+                AssetOrNothingOption(**terms),
+            ):
+                for engine in (
+                    pricing.AnalyticDigitalEngine(),
+                    pricing.QuadratureDigitalEngine(),
+                ):
+                    with self.subTest(
+                        direction=direction,
+                        option=type(option).__name__,
+                        engine=type(engine).__name__,
+                    ):
+                        self.assertTrue(
+                            math.isclose(
+                                engine.price(option, context), expected, rel_tol=1e-12
+                            )
+                        )
+
     def test_digital_prices_survive_overflowing_discounted_settlements(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         settlement = 1.75e308

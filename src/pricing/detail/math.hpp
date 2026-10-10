@@ -114,7 +114,10 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
         return scaled_tail ? inverse_sqrt_two_pi * std::exp(log_weight - 0.5 * value * value) : normal_pdf(value);
     };
     const double density = density_at(lower);
-    if (density == 0.0) return threshold < 0.0 ? scale : 0.0;
+    if (density == 0.0) {
+        if (threshold >= 0.0) return 0.0;
+        return std::isfinite(scale) ? scale : scaled_normal_cdf(weight, log_discount, -threshold);
+    }
     // Extend until the endpoint density is exp(-72) times the starting density.
     const double upper = std::hypot(lower, 12.0);
     constexpr int panels = 2048;
