@@ -105,7 +105,7 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
                                      "Bjerksund-Stensland exercise boundaries must exceed the strike"});
     const double variance = volatility * volatility;
     const double offset = carry - 0.5 * variance;
-    const double root = std::hypot(offset, std::sqrt(2.0) * std::sqrt(rate) * volatility);
+    const double root = std::hypot(offset, std::numbers::sqrt2 * std::sqrt(rate) * volatility);
     // Rationalize the positive-carry root to avoid subtracting nearly equal numbers.
     const double beta = offset > 0.0 ? rate / (0.5 * root + 0.5 * offset) : (root - offset) / variance;
     if (variance == 0.0 || !std::isfinite(variance) || !std::isfinite(beta) || beta <= 1.0)

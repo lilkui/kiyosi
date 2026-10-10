@@ -102,15 +102,15 @@ inline double barrier_hit_discount(double distance, bool upper, double drift, do
 }
 
 /// Simpson integration of a scaled normal tail; reflect negative thresholds to avoid long intervals.
-inline double normal_tail_integral(double threshold, double weight = 1.0, double log_discount = 0.0) noexcept
+inline double normal_tail_integral(double threshold, double amount = 1.0, double log_discount = 0.0) noexcept
 {
     if (std::isnan(threshold)) return threshold;
     const double lower = std::abs(threshold);
     const bool scaled_tail = threshold > 10.0;
     const double discount = scaled_tail ? 1.0 : std::exp(log_discount);
-    const double scale = scaled_tail ? 1.0 : weight * discount;
+    const double scale = scaled_tail ? 1.0 : amount * discount;
     const bool direct_scale = std::isnormal(discount) && std::isfinite(scale);
-    const double log_weight = scaled_tail ? std::log(weight) + log_discount : 0.0;
+    const double log_weight = scaled_tail ? std::log(amount) + log_discount : 0.0;
     // Scale before exponentiating so representable prices survive probability underflow.
     const auto density_at = [&](double value) {
         return scaled_tail ? inverse_sqrt_two_pi * std::exp(log_weight - 0.5 * value * value) : normal_pdf(value);
@@ -118,7 +118,7 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
     const double density = density_at(lower);
     if (density == 0.0) {
         if (threshold >= 0.0) return 0.0;
-        return direct_scale ? scale : scaled_normal_cdf(weight, log_discount, -threshold);
+        return direct_scale ? scale : scaled_normal_cdf(amount, log_discount, -threshold);
     }
     // Extend until the endpoint density is exp(-72) times the starting density.
     const double upper = std::hypot(lower, 12.0);
@@ -136,7 +136,7 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
     const double tail = sum * step / 3.0;
     const double probability = threshold < 0.0 ? 1.0 - tail : tail;
     return direct_scale ? scale * probability
-                        : std::exp(std::log(weight) + log_discount + std::log(probability));
+                        : std::exp(std::log(amount) + log_discount + std::log(probability));
 }
 
 } // namespace kiyosi::detail
