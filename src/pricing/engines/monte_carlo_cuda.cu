@@ -1,7 +1,9 @@
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
+#include "monte_carlo_cuda_reduction.hpp"
 #include "vanilla/monte_carlo_regression.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <memory>
@@ -13,7 +15,7 @@
 namespace kiyosi::detail {
 namespace {
 
-constexpr int threads_per_block = 256;
+constexpr int threads_per_block = monte_carlo_reduction_threads;
 
 struct RegressionStatistics {
     double sum_x;
@@ -211,24 +213,6 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
         cash_flows[path] = intrinsic;
 }
 
-__global__ void reduce_payoffs(const double* payoffs, int count, double* total)
-{
-    __shared__ MonteCarloMean means[threads_per_block]; // NOLINT(modernize-avoid-c-arrays): CUDA shared memory needs device-accessible array storage.
-    const int thread = static_cast<int>(threadIdx.x);
-    MonteCarloMean mean{};
-    for (int index = thread; index < count; index += threads_per_block)
-        mean.add(payoffs[index]);
-    means[thread] = mean;
-    __syncthreads();
-
-    for (int offset = threads_per_block / 2; offset > 0; offset /= 2) {
-        if (thread < offset)
-            means[thread].merge(means[thread + offset]);
-        __syncthreads();
-    }
-    if (thread == 0) *total = means[0].value();
-}
-
 __global__ void simulate_accumulator_paths(
     CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count,
     double* payoffs, int* invalid)
@@ -324,17 +308,33 @@ CudaPricingResult upload_steps(DeviceMemory& memory, std::span<const Step> steps
                                  : error_result(status);
 }
 
+CudaPricingResult reduce_payoff_mean(const double* payoffs, int count, double* total, DeviceMemory& partials)
+{
+    const int block_count = std::min((count + threads_per_block - 1) / threads_per_block, 256);
+    if (!partials) {
+        const auto result = allocate(partials, static_cast<std::size_t>(block_count) * sizeof(MonteCarloMean));
+        if (result.status != CudaPricingStatus::success) return result;
+    }
+    reduce_payoffs<<<block_count, threads_per_block>>>(payoffs, count, static_cast<MonteCarloMean*>(partials.get()));
+    auto status = cudaGetLastError();
+    if (status != cudaSuccess) return error_result(status);
+    reduce_payoffs<<<1, threads_per_block>>>(static_cast<const MonteCarloMean*>(partials.get()), block_count, total);
+    status = cudaGetLastError();
+    return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
+                                 : error_result(status);
+}
+
 CudaPricingResult finish_path_simulation(
     DeviceMemory& payoffs, DeviceMemory& invalid, DeviceMemory& total, int path_count)
 {
-    reduce_payoffs<<<1, threads_per_block>>>(
+    DeviceMemory partials;
+    const auto reduction = reduce_payoff_mean(
         static_cast<const double*>(payoffs.get()), path_count,
-        static_cast<double*>(total.get()));
-    cudaError_t status = cudaGetLastError();
-    if (status != cudaSuccess) return error_result(status);
+        static_cast<double*>(total.get()), partials);
+    if (reduction.status != CudaPricingStatus::success) return reduction;
 
     int invalid_result = 0;
-    status = cudaMemcpy(&invalid_result, invalid.get(), sizeof(int), cudaMemcpyDeviceToHost);
+    auto status = cudaMemcpy(&invalid_result, invalid.get(), sizeof(int), cudaMemcpyDeviceToHost);
     if (status != cudaSuccess) return error_result(status);
     if (invalid_result != 0)
         return {CudaPricingStatus::invalid_result, 0.0,
@@ -472,11 +472,10 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request)
         if (status != cudaSuccess) return error_result(status);
     }
 
-    reduce_payoffs<<<1, threads_per_block>>>(
+    const auto reduction = reduce_payoff_mean(
         static_cast<const double*>(cash_flows.get()), request.path_count,
-        static_cast<double*>(summary.get()));
-    status = cudaGetLastError();
-    if (status != cudaSuccess) return error_result(status);
+        static_cast<double*>(summary.get()), partials);
+    if (reduction.status != CudaPricingStatus::success) return reduction;
     double payoff_mean = 0.0;
     status = cudaMemcpy(&payoff_mean, summary.get(), sizeof(double), cudaMemcpyDeviceToHost);
     if (status != cudaSuccess) return error_result(status);

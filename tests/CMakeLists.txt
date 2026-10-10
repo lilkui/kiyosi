@@ -41,6 +41,7 @@ set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MO
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
 if(KIYOSI_ENABLE_CUDA)
     target_link_libraries(kiyosi_tests PRIVATE CUDA::cudart_static)
+    target_sources(kiyosi_tests PRIVATE pricing/engines/monte_carlo_cuda_tests.cu)
 endif()
 target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(kiyosi_tests PRIVATE
