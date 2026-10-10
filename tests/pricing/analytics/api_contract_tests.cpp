@@ -109,12 +109,12 @@ TEST_CASE("Analytic engines retain low-volatility prices and default implied vol
     const auto check = [&](const auto& option, const auto& engine, double expected) {
         const auto value = engine.price(option, low);
         REQUIRE(value);
-        CHECK(*value == Catch::Approx(expected).margin(1e-9));
+        CHECK(*value == Catch::Approx(expected).epsilon(0.0).margin(1e-9));
         const auto quote = engine.price(option, context);
         REQUIRE(quote);
         const auto implied = implied_volatility(engine, option, context, *quote);
         REQUIRE(implied);
-        CHECK(*implied == Catch::Approx(0.2).margin(1e-6));
+        CHECK(*implied == Catch::Approx(0.2).epsilon(0.0).margin(1e-6));
     };
     const BarrierOptionTerms terms{
         .option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out};
@@ -176,7 +176,7 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
         CHECK(call.model_parameters().risk_free_rate() == 0.04);
     }
     CHECK(greek_value(*basic, Greek::delta) == Catch::Approx(200.0));
-    CHECK(greek_value(*basic, Greek::gamma) == Catch::Approx(2.0).margin(1e-5));
+    CHECK(greek_value(*basic, Greek::gamma) == Catch::Approx(2.0).epsilon(0.0).margin(1e-5));
     calls.clear();
     const auto supplied = *make_pricing_result(10000.0, {{Greek::delta, 17.0},
                                                          {Greek::gamma, 0.0}});
@@ -558,7 +558,7 @@ TEST_CASE("Monte Carlo implied coupons solve the sampled affine curve directly",
             const auto solved = implied_coupon(engine, note, context, *quote, convention,
                                                {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
             REQUIRE(solved);
-            CHECK(*solved == Catch::Approx(coupon).margin(1e-10));
+            CHECK(*solved == Catch::Approx(coupon).epsilon(0.0).margin(1e-10));
             CHECK(engine.settings().seed == 42);
         }
     }
@@ -576,10 +576,10 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     const auto solved = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
                                        {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12});
     REQUIRE(solved);
-    CHECK(*solved == Catch::Approx(0.073).margin(1e-9));
+    CHECK(*solved == Catch::Approx(0.073).epsilon(0.0).margin(1e-9));
     const auto repriced = engine.price(*detail::replace_coupon(note, *solved, CouponQuoteConvention::shift_maturity_coupon), context);
     REQUIRE(repriced);
-    CHECK(*repriced == Catch::Approx(*quote).margin(1e-10));
+    CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(1e-10));
 }
 
 TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
@@ -598,12 +598,12 @@ TEST_CASE("Implied solvers keep one seed for every trial without changing the en
 
     const auto volatility = kiyosi::implied_volatility(engine, option, market(), 0.3);
     REQUIRE(volatility);
-    CHECK(*volatility == Catch::Approx(0.3).margin(1e-8));
+    CHECK(*volatility == Catch::Approx(0.3).epsilon(0.0).margin(1e-8));
     check_calls();
 
     const auto coupon = kiyosi::implied_coupon(engine, phoenix, market(), 0.125);
     REQUIRE(coupon);
-    CHECK(*coupon == Catch::Approx(0.125).margin(1e-8));
+    CHECK(*coupon == Catch::Approx(0.125).epsilon(0.0).margin(1e-8));
     check_calls();
     CHECK_FALSE(engine.settings().seed.has_value());
 
@@ -755,7 +755,7 @@ TEST_CASE("Implied Phoenix coupon requires a payable coupon", "[pricing-api][aud
                     CHECK(implied.error().category == kiyosi::ErrorCategory::unsupported_operation);
                 } else {
                     REQUIRE(implied);
-                    CHECK(*implied == Catch::Approx(0.1).margin(1e-7));
+                    CHECK(*implied == Catch::Approx(0.1).epsilon(0.0).margin(1e-7));
                 }
             }
         }
@@ -785,7 +785,7 @@ TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote conventi
                     CHECK(implied.error().category == kiyosi::ErrorCategory::unsupported_operation);
                 } else {
                     REQUIRE(implied);
-                    CHECK(*implied == Catch::Approx(0.1).margin(1e-7));
+                    CHECK(*implied == Catch::Approx(0.1).epsilon(0.0).margin(1e-7));
                 }
             }
         }
@@ -808,7 +808,7 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
         CHECK(rejected_price.error().category == ErrorCategory::invalid_schedule);
         const auto quote = engine.price(owner, context);
         REQUIRE(quote);
-        CHECK(*quote == Catch::Approx(1.1).margin(1e-12));
+        CHECK(*quote == Catch::Approx(1.1).epsilon(0.0).margin(1e-12));
         for (const auto convention : {CouponQuoteConvention::preserve_maturity_coupon,
                                       CouponQuoteConvention::shift_maturity_coupon}) {
             const auto rejected = implied_coupon(engine, note, context, *quote, convention);
@@ -816,7 +816,7 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
             CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
             const auto solved = implied_coupon(engine, owner, context, *quote, convention);
             REQUIRE(solved);
-            CHECK(*solved == Catch::Approx(0.1).margin(1e-7));
+            CHECK(*solved == Catch::Approx(0.1).epsilon(0.0).margin(1e-7));
         }
     };
     const auto snowball = *make_snowball_option(

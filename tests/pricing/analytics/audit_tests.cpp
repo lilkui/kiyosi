@@ -80,7 +80,7 @@ TEST_CASE("Binomial implied volatility respects the tree domain", "[audit-fixes]
                     REQUIRE(quote);
                     const auto solved = implied_volatility(engine, option, context, *quote);
                     REQUIRE(solved);
-                    CHECK(*solved == Catch::Approx(0.2).margin(1e-7));
+                    CHECK(*solved == Catch::Approx(0.2).epsilon(0.0).margin(1e-7));
                     const auto excluded = implied_volatility(engine, option, context, *quote,
                                                              {.lower_bound = 0.3, .upper_bound = 0.4});
                     REQUIRE_FALSE(excluded);
@@ -355,7 +355,7 @@ void check_rank_deficient_american_continuation(MonteCarloBackend backend)
             CAPTURE(sigma, paths);
             const auto price = MonteCarloVanillaEngine{paths, 50, 42, backend}.price(option, context);
             REQUIRE(price);
-            CHECK(*price == Catch::Approx(expected).margin(sigma == 1e-8 ? 1e-6 : 0.02));
+            CHECK(*price == Catch::Approx(expected).epsilon(0.0).margin(sigma == 1e-8 ? 1e-6 : 0.02));
         }
     }
 }
@@ -746,7 +746,7 @@ TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api
                     REQUIRE(result);
                     CHECK(*result == bounds.lower_bound);
                 } else {
-                    CHECK(*quote == Catch::Approx(1.0 + (valuation == fixing ? 0.1 * 2.0 / 365.0 : 0.0)).margin(1e-10));
+                    CHECK(*quote == Catch::Approx(1.0 + (valuation == fixing ? 0.1 * 2.0 / 365.0 : 0.0)).epsilon(0.0).margin(1e-10));
                     REQUIRE_FALSE(result);
                     CHECK(result.error().category == ErrorCategory::unsupported_operation);
                 }

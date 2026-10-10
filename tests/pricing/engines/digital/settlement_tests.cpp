@@ -28,7 +28,7 @@ TEST_CASE("Digital prices preserve subnormal volatility", "[audit-fixes]")
                     const auto check = [&](const auto& engine, const auto& option, double expected) {
                         const auto price = engine.price(option, context);
                         REQUIRE(price);
-                        CHECK(*price == Catch::Approx(expected).margin(1e-10));
+                        CHECK(*price == Catch::Approx(expected).epsilon(0.0).margin(1e-10));
                     };
                     check(AnalyticDigitalEngine{}, cash, 10.0 * probability);
                     check(QuadratureDigitalEngine{}, cash, 10.0 * probability);

@@ -455,5 +455,5 @@ TEST_CASE("Negative Binary Snowball coupon can be implied")
     const auto implied = kiyosi::implied_coupon(engine, *option, context, *price,
                                                 kiyosi::CouponQuoteConvention::preserve_maturity_coupon, {-0.2, 0.2});
     REQUIRE(implied);
-    CHECK(*implied == Catch::Approx(-0.1).margin(1e-7));
+    CHECK(*implied == Catch::Approx(-0.1).epsilon(0.0).margin(1e-7));
 }

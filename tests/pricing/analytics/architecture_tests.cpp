@@ -147,7 +147,7 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     const auto check = [&](const auto& engine, double tolerance) {
         const auto priced = engine.price(option, context);
         REQUIRE(priced);
-        CHECK(*priced == Catch::Approx(expected).margin(tolerance));
+        CHECK(*priced == Catch::Approx(expected).epsilon(0.0).margin(tolerance));
     };
     check(kiyosi::AnalyticVanillaEngine{}, 1e-10);
     check(kiyosi::QuadratureVanillaEngine{}, 1e-6);
@@ -197,7 +197,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     {
         const auto volatility = kiyosi::implied_volatility(engine, option, context, 0.3);
         REQUIRE(volatility);
-        CHECK(*volatility == Catch::Approx(0.3).margin(1e-8));
+        CHECK(*volatility == Catch::Approx(0.3).epsilon(0.0).margin(1e-8));
         REQUIRE_FALSE(moments.empty());
         for (const auto moment : moments)
             CHECK(moment == noon);
@@ -227,7 +227,7 @@ TEST_CASE("Structured observations occur at midnight only", "[architecture]")
                                         ? 1.0 + 10.0 *
                                                     kiyosi::year_fraction(effective_date, observation_date).value()
                                         : 1.1;
-            CHECK(*priced == Catch::Approx(expected).margin(1e-8));
+            CHECK(*priced == Catch::Approx(expected).epsilon(0.0).margin(1e-8));
         }
     };
     check(kiyosi::MonteCarloBinarySnowballEngine{{32, 7}});
@@ -259,7 +259,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
         const double coupon = hour == 0 ? 0.2 : 0.8;
         const double remaining = hour == 0 ? 1.0 / 365.0 : 0.5 / 365.0;
         const double expected = (1.0 + coupon * 2.0 / 365.0) * std::exp(-400.0 * remaining);
-        CHECK(*priced == Catch::Approx(expected).margin(1e-10));
+        CHECK(*priced == Catch::Approx(expected).epsilon(0.0).margin(1e-10));
     }
 }
 

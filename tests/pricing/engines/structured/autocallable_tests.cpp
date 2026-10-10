@@ -356,7 +356,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
     REQUIRE(second);
     CHECK(*first == *second);
     CHECK(*first ==
-          Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective_date, valuation).value()).margin(1e-10));
+          Catch::Approx(1.0 + 10.0 * kiyosi::year_fraction(effective_date, valuation).value()).epsilon(0.0).margin(1e-10));
     for (const auto elapsed : {std::chrono::hours{12}, std::chrono::hours{24}}) {
         const auto later_context = *kiyosi::make_pricing_context(
             context.model_parameters(), 100.0, kiyosi::start_of_day(valuation) + elapsed);
@@ -364,6 +364,7 @@ TEST_CASE("Structured Monte Carlo processes valuation-date observation events on
         REQUIRE(later);
         CHECK(*later == Catch::Approx(
                             1.0 + 0.10 * kiyosi::year_fraction(effective_date, expiry_date).value())
+                            .epsilon(0.0)
                             .margin(1e-10));
     }
     const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {99.0, 10.0, 0.10},
@@ -722,7 +723,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
         kiyosi::MonteCarloSnowballEngine{settings}.price(snowball, context(70.0, day(2025, 1, 2)));
     REQUIRE(snowball_result);
     CHECK(*snowball_result ==
-          Catch::Approx(0.7).margin(1e-8));
+          Catch::Approx(0.7).epsilon(0.0).margin(1e-8));
 
     const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.08},
                                                                 .maturity_coupon_rate = 0.06,
@@ -739,7 +740,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
         kiyosi::MonteCarloTernarySnowballEngine{settings}.price(ternary, context(100.0, day(2025, 1, 2)));
     REQUIRE(ternary_result);
     CHECK(*ternary_result ==
-          Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-12));
+          Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).epsilon(0.0).margin(1e-12));
 
     const auto binary = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
                                                               .maturity_coupon_rate = 0.06,
@@ -753,7 +754,7 @@ TEST_CASE("Structured CUDA Monte Carlo preserves coupons and historical touch st
         kiyosi::MonteCarloBinarySnowballEngine{settings}.price(binary, context(100.0, effective_date));
     REQUIRE(binary_result);
     CHECK(*binary_result ==
-          Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).margin(1e-12));
+          Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).epsilon(0.0).margin(1e-12));
 }
 #endif
 
@@ -780,7 +781,7 @@ TEST_CASE("Structured finite difference preserves future observation indices")
 
     REQUIRE(result);
     const double expected = 1.0 + 0.2 * *kiyosi::year_fraction(effective_date, future_observation);
-    CHECK(*result == Catch::Approx(expected).margin(1e-12));
+    CHECK(*result == Catch::Approx(expected).epsilon(0.0).margin(1e-12));
 }
 
 TEST_CASE("Binary snowball finite difference prices active and knocked-out states")

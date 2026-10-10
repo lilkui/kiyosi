@@ -287,6 +287,6 @@ TEST_CASE("Accumulator CUDA Monte Carlo preserves accrual and seeded execution")
     REQUIRE(second);
     const double first_price = *first;
     CHECK(first_price == *second);
-    CHECK(first_price == Catch::Approx(-110.0).margin(1e-5));
+    CHECK(first_price == Catch::Approx(-110.0).epsilon(0.0).margin(1e-5));
 }
 #endif

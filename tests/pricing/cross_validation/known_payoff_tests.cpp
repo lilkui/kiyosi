@@ -329,10 +329,10 @@ TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]
                 200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper};
             const auto called = kiyosi::FiniteDifferenceBinarySnowballEngine{grid}.price(note, context);
             REQUIRE(called);
-            CHECK(*called == Catch::Approx(1.0 + 0.1 / 365.0).margin(1e-12));
+            CHECK(*called == Catch::Approx(1.0 + 0.1 / 365.0).epsilon(0.0).margin(1e-12));
             const auto settled = kiyosi::FiniteDifferenceAccumulatorEngine{grid}.price(accumulator, context);
             REQUIRE(settled);
-            CHECK(*settled == Catch::Approx(3.0 * (spot - 100.0)).margin(1e-12));
+            CHECK(*settled == Catch::Approx(3.0 * (spot - 100.0)).epsilon(0.0).margin(1e-12));
         }
     }
 }
