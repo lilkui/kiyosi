@@ -166,3 +166,19 @@ TEST_CASE("Implicit finite-difference steps preserve finiteness failure guarante
         check_boundaries(0.0, infinity);
     }
 }
+
+TEST_CASE("Stretched finite-difference coefficients follow parameter changes", "[audit-fixes]")
+{
+    kiyosi::detail::FiniteDifferenceStep reused{5};
+    const std::vector<double> old{0.0, 1.0, 4.0, 9.0, 16.0};
+    for (const double volatility : {0.2, 0.4, 0.2}) {
+        const kiyosi::detail::DiffusionParameters parameters{
+            .rate = 0.03, .dividend = 0.01, .volatility = volatility, .theta = 0.5, .sinh_spacing = 0.1};
+        kiyosi::detail::FiniteDifferenceStep fresh{5};
+        std::vector<double> actual(5), expected(5);
+        const auto unconstrained = [](int) -> std::optional<double> { return std::nullopt; };
+        REQUIRE(reused.advance(old, actual, 0.1, parameters, 0.0, 16.0, unconstrained));
+        REQUIRE(fresh.advance(old, expected, 0.1, parameters, 0.0, 16.0, unconstrained));
+        CHECK(actual == expected);
+    }
+}

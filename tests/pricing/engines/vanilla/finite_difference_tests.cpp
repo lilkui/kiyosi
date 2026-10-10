@@ -156,6 +156,29 @@ TEST_CASE("American finite-difference boundaries preserve continuation value", "
     }
 }
 
+TEST_CASE("American finite-difference domains preserve long-expiry exercise value", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2035, 1, 1);
+    const auto context = *kiyosi::make_pricing_context(
+        *kiyosi::make_bsm_parameters(0.03, 0.05, 1.0), 100.0, start);
+    const auto option = *kiyosi::make_american_option(kiyosi::OptionType::call, 100.0, start, end);
+    // QuantLib 1.43 FdBlackScholesVanillaEngine, 3200 time and asset steps, 2 damping steps.
+    constexpr double reference = 69.73204196706111;
+    const auto coarse = kiyosi::FiniteDifferenceVanillaEngine{}.price(option, context);
+    const kiyosi::FiniteDifferenceVanillaEngine fine{{800, 1600}};
+    const auto refined = fine.price(option, context);
+    REQUIRE(coarse);
+    REQUIRE(refined);
+    CHECK_THAT(*coarse, Catch::Matchers::WithinAbs(reference, 0.2));
+    CHECK_THAT(*refined, Catch::Matchers::WithinAbs(reference, 0.03));
+    CHECK(std::abs(*refined - reference) < std::abs(*coarse - reference));
+    const auto joint = fine.price_with_greeks(option, context, {kiyosi::Greek::vega});
+    REQUIRE(joint);
+    CHECK(joint->price() == *refined);
+    CHECK(joint->has(kiyosi::Greek::vega));
+}
+
 TEST_CASE("Finite-difference engines reject invalid grids")
 {
     const auto valuation = day(2025, 1, 1);

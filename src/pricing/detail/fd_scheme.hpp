@@ -17,6 +17,8 @@ struct DiffusionParameters {
     double dividend;
     double volatility;
     double theta;
+    double sinh_spacing = 0.0;
+    friend bool operator==(const DiffusionParameters&, const DiffusionParameters&) = default;
 };
 
 struct Boundaries {
@@ -29,6 +31,20 @@ inline std::array<double, 3> diffusion_coefficients(double node, double rate, do
     const double drift = (rate - dividend) * node;
     // Switch to one-sided drift when the centered stencil would have a negative off-diagonal.
     const double diffusion = std::max(0.5 * volatility * volatility * node * node, 0.5 * std::abs(drift));
+    return {diffusion - 0.5 * drift, -2.0 * diffusion - rate, diffusion + 0.5 * drift};
+}
+
+inline std::array<double, 3> diffusion_coefficients(double node, const DiffusionParameters& parameters)
+{
+    const double rate = parameters.rate;
+    const double dividend = parameters.dividend;
+    const double volatility = parameters.volatility;
+    const double spacing = parameters.sinh_spacing;
+    if (spacing == 0.0) return diffusion_coefficients(node, rate, dividend, volatility);
+    const double tangent = std::tanh(node * spacing);
+    const double drift = ((rate - dividend) - 0.5 * volatility * volatility * tangent * tangent) * tangent / spacing;
+    const double scaled_volatility = volatility * tangent / spacing;
+    const double diffusion = std::max(0.5 * scaled_volatility * scaled_volatility, 0.5 * std::abs(drift));
     return {diffusion - 0.5 * drift, -2.0 * diffusion - rate, diffusion + 0.5 * drift};
 }
 
@@ -55,9 +71,18 @@ public:
         double dividend, double volatility, double theta, double lower_boundary, double asset_upper_boundary,
         Constraint constraint)
     {
+        return advance(old, next, dt, {rate, dividend, volatility, theta},
+                       lower_boundary, asset_upper_boundary, constraint);
+    }
+
+    template <typename Constraint>
+    bool advance(const std::vector<double>& old, std::vector<double>& next, double dt,
+                 const DiffusionParameters& parameters, double lower_boundary,
+                 double upper_boundary, Constraint constraint)
+    {
         return advance_layers(
-            std::array{Layer{old, next, rhs_, {lower_boundary, asset_upper_boundary}}}, dt,
-            {rate, dividend, volatility, theta}, constraint);
+            std::array{Layer{old, next, rhs_, {lower_boundary, upper_boundary}}}, dt,
+            parameters, constraint);
     }
 
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt, double rate,
@@ -87,16 +112,24 @@ private:
     bool advance_layers(const std::array<Layer, count>& layers, double dt,
                         const DiffusionParameters& parameters, Constraint constraint)
     {
-        const auto [rate, dividend, volatility, theta] = parameters;
+        const double theta = parameters.theta;
         for (const auto& layer : layers) {
             layer.next.front() = layer.boundaries.lower;
             layer.next.back() = layer.boundaries.upper;
         }
         const int asset_step_count = static_cast<int>(layers.front().old.size()) - 1;
+        if (parameters.sinh_spacing != 0.0 && cached_parameters_ != parameters) {
+            coefficients_.resize(diagonal_.size());
+            for (int index = 1; index < asset_step_count; ++index)
+                coefficients_[static_cast<std::size_t>(index - 1)] = diffusion_coefficients(index, parameters);
+            cached_parameters_ = parameters;
+        }
         for (int index = 1; index < asset_step_count; ++index) {
             const double i = static_cast<double>(index);
-            const auto [a, b, c] = diffusion_coefficients(i, rate, dividend, volatility);
             const auto position = static_cast<std::size_t>(index - 1);
+            const auto [a, b, c] = parameters.sinh_spacing == 0.0
+                                       ? diffusion_coefficients(i, parameters)
+                                       : coefficients_[position];
             if (const auto fixed = constraint(index)) {
                 lower_[position] = upper_diagonal_[position] = 0.0;
                 diagonal_[position] = 1.0;
@@ -150,6 +183,8 @@ private:
 
     std::vector<double> lower_, diagonal_, upper_diagonal_, rhs_;
     std::vector<double> paired_rhs_;
+    std::optional<DiffusionParameters> cached_parameters_;
+    std::vector<std::array<double, 3>> coefficients_;
 };
 
 /// Stepper for layers that grow without bound at the top of the grid, such as autocallable
@@ -207,8 +242,7 @@ template <typename BoundaryValues,
         const double dt = grid[step + 1] - grid[step];
         const double tau = maturity - grid[step];
         const Boundaries edges = boundaries(tau);
-        if (!stepper.advance(layer, next, dt, parameters.rate, parameters.dividend,
-                             parameters.volatility, parameters.theta, edges.lower, edges.upper,
+        if (!stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper,
                              [&](int index) { return constraint(index, tau); }))
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});

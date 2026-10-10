@@ -2,9 +2,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <optional>
 
+#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/instruments/vanilla.hpp>
 
 namespace kiyosi {
 
@@ -20,6 +23,8 @@ enum class FiniteDifferenceScheme : unsigned char {
 /// barrier engines accept at most 10,000 asset and 100,000 time steps; accumulator and
 /// autocallable engines accept at most 2,000 of each. An explicit scheme may impose a
 /// further stability constraint for the chosen market and grid.
+/// American vanilla engines stretch the asset grid and widen automatic domains with volatility
+/// and maturity. Explicit upper boundaries still require a domain-convergence check.
 struct FiniteDifferenceSettings {
     int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.
     int time_step_count = 200;                                              ///< Number of time steps; must be positive.
@@ -54,6 +59,14 @@ template <typename Option, typename Context>
 double default_finite_difference_upper_boundary(const Option& option, const Context& context)
 {
     const double relevant = highest_finite_difference_level(option, context);
+    if constexpr (std::same_as<Option, AmericanOption>) {
+        const auto& parameters = context.model_parameters();
+        const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
+        const double sigma = parameters.volatility();
+        const double drift = parameters.risk_free_rate() - parameters.dividend_yield() - 0.5 * sigma * sigma;
+        const double width = std::max(std::log(4.0), 4.0 * sigma * std::sqrt(time) + std::abs(drift) * time);
+        return std::exp(std::log(relevant) + width);
+    }
     if constexpr (requires { option.barrier_level(); })
         return std::max(4.0 * relevant, option.barrier_level() + relevant);
     return 4.0 * relevant;
