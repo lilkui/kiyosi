@@ -46,7 +46,15 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     auto active = [&](double time) { return option.observation_mode() == ObservationMode::continuous || std::ranges::binary_search(observation_times, time); };
     auto payoff = [&](double asset) { return std::max((option.option_type() == OptionType::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
-    auto rebate_value = [&](double tau) { return option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau); };
+    double cached_rebate_tau = -1.0;
+    double cached_rebate = 0.0;
+    const auto rebate_value = [&](double tau) {
+        if (tau != cached_rebate_tau) {
+            cached_rebate_tau = tau;
+            cached_rebate = option.rebate_timing() == RebateTiming::at_hit ? option.rebate() : option.rebate() * std::exp(-rate * tau);
+        }
+        return cached_rebate;
+    };
     std::vector<double> old(space->size());
     for (int index = 0; index <= asset_step_count; ++index)
         old[index] = payoff(spacing * index);
