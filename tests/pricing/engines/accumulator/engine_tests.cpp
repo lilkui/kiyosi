@@ -19,6 +19,30 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Accumulator finite-difference spot Greeks reuse one solve", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 70.0,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const auto option = *make_accumulator(
+        {.strike = 50.0, .knock_out_level = 200.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+    const FiniteDifferenceAccumulatorEngine engine{};
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    const int price_queries = queries->exchange(0);
+    const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+    REQUIRE(result);
+    CHECK(queries->load() == price_queries);
+    CHECK(result->price() == *price);
+    const double time = *year_fraction(context.valuation_time(), start_of_day(end));
+    CHECK(test::greek_value(*result, Greek::delta) == Catch::Approx(3.0 * std::exp(-0.01 * time)).margin(1e-7));
+    CHECK(test::greek_value(*result, Greek::gamma) == Catch::Approx(0.0).margin(1e-10));
+    CHECK_FALSE(result->has(Greek::vega));
+}
+
 double reference_accumulator_price(const kiyosi::Accumulator& option,
                                    const kiyosi::PricingContext& context,
                                    kiyosi::TradingDayMonteCarloSettings settings)

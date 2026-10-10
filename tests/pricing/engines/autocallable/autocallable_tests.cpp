@@ -25,6 +25,32 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable finite-difference spot Greeks reuse one solve", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 70.0,
+                                               day(2025, 1, 2), calendar);
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {200.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end});
+    const FiniteDifferenceSnowballEngine engine{{.asset_step_count = 800, .time_step_count = 200, .asset_upper_boundary = 800.0}};
+    const auto price = engine.price(note, context);
+    REQUIRE(price);
+    const int price_queries = queries->exchange(0);
+    const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+    REQUIRE(result);
+    CHECK(queries->load() == price_queries);
+    CHECK(result->price() == *price);
+    const auto put = *make_european_option(OptionType::put, 100.0, start, end);
+    const auto expected = AnalyticVanillaEngine{}.price_with_greeks(put, context, {Greek::delta, Greek::gamma});
+    REQUIRE(expected);
+    CHECK(test::greek_value(*result, Greek::delta) == Catch::Approx(-test::greek_value(*expected, Greek::delta) / 100.0).margin(1e-5));
+    CHECK(test::greek_value(*result, Greek::gamma) == Catch::Approx(-test::greek_value(*expected, Greek::gamma) / 100.0).margin(1e-6));
+    CHECK_FALSE(result->has(Greek::vega));
+}
+
 TEST_CASE("Knocked-in autocallables simulate only remaining observation dates", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

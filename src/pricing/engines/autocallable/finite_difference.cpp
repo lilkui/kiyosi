@@ -28,8 +28,8 @@ struct ObservationEvent {
 } // namespace
 
 template <typename Note>
-Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
-    const Note& note, const PricingContext& context) const
+Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
+    const Note& note, const PricingContext& context, GreeksRequest output) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -48,7 +48,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
 
-    if (initial.settlement) return checked_price(*initial.settlement);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const double spot = context.spot_price();
     const double relevant = highest_finite_difference_level(note, context);
@@ -175,19 +175,28 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
         if constexpr (monitors_knock_in) knocked_in.swap(next_knocked_in);
     }
 
-    if constexpr (monitors_knock_in)
-        return checked_price(initial.path.coupons + space->interpolate(initial.path.knocked_in ? knocked_in
-                                                                                               : alive,
-                                                                       spot));
-    else
-        return checked_price(initial.path.coupons + space->interpolate(alive, spot));
+    const auto& layer = initial.path.knocked_in ? knocked_in : alive;
+    return make_pricing_result(initial.path.coupons + space->interpolate(layer, spot),
+                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(layer, spot)} : std::nullopt},
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(layer, spot)} : std::nullopt}});
+}
+
+template <typename Note>
+Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
+    const Note& note, const PricingContext& context) const
+{
+    return detail::price_value(price_native(note, context, GreeksRequest{}));
 }
 
 template <typename Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                                   GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         const auto output = detail::at_spot_discontinuity(option, context, detail::symmetric_shift(context.spot_price(), settings.spot_shift)) ? GreeksRequest{} : greeks;
+                                         return engine.price_native(option, context, output);
+                                     });
 }
 
 template class FiniteDifferenceAutocallableEngine<PhoenixOption>;

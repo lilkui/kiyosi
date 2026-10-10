@@ -4,11 +4,85 @@ from datetime import date
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import AmericanOption, BarrierOption
+from kiyosi.instruments import (
+    Accumulator,
+    AmericanOption,
+    BarrierOption,
+    EuropeanOption,
+    SnowballOption,
+)
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_structured_finite_difference_spot_greeks_reuse_native_layers(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=70,
+            valuation_time=date(2025, 1, 2),
+        )
+        accumulator = Accumulator(
+            strike=50,
+            knock_out_level=200,
+            daily_quantity=0,
+            acceleration_factor=1,
+            accumulated_quantity=3,
+            effective_date=start,
+            expiry_date=end,
+        )
+        note = SnowballOption(
+            knock_out_coupon_rates=[0],
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=75,
+            knock_out_levels=[200],
+            upper_strike=100,
+            lower_strike=0,
+            observation_dates=[end],
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="knocked_in",
+            effective_date=start,
+            expiry_date=end,
+        )
+        put = EuropeanOption(
+            option_type="put", strike=100, effective_date=start, expiry_date=end
+        )
+        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+            put, context, ["delta", "gamma"]
+        )
+        time = (end - date(2025, 1, 2)).days / 365
+        for engine, option, delta, gamma in (
+            (
+                pricing.FiniteDifferenceAccumulatorEngine(),
+                accumulator,
+                3 * math.exp(-0.01 * time),
+                0,
+            ),
+            (
+                pricing.FiniteDifferenceSnowballEngine(
+                    asset_step_count=800, asset_upper_boundary=800
+                ),
+                note,
+                -expected.delta / 100,
+                -expected.gamma / 100,
+            ),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                result = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                shifted = engine.price_with_greeks(
+                    option, context, ["delta", "gamma"], spot_shift=0.1
+                )
+                self.assertEqual(result.price, engine.price(option, context))
+                self.assertEqual(
+                    (result.delta, result.gamma), (shifted.delta, shifted.gamma)
+                )
+                self.assertAlmostEqual(result.delta, delta, delta=1e-5)
+                self.assertAlmostEqual(result.gamma, gamma, delta=1e-6)
+                self.assertIsNone(result.vega)
+
     def test_analytic_barriers_retain_tiny_positive_volatility_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticBarrierEngine()

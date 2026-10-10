@@ -38,8 +38,8 @@ void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std
 
 } // namespace
 
-Result<double> FiniteDifferenceAccumulatorEngine::price(
-    const Accumulator& option, const PricingContext& context) const
+Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
+    const Accumulator& option, const PricingContext& context, GreeksRequest output) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -50,7 +50,7 @@ Result<double> FiniteDifferenceAccumulatorEngine::price(
     if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const auto initial = accumulator_initial_state(option, context);
-    if (initial.settlement) return checked_price(*initial.settlement);
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const double spot = context.spot_price();
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
@@ -106,14 +106,26 @@ Result<double> FiniteDifferenceAccumulatorEngine::price(
         intercept.swap(next_intercept);
     }
 
-    return checked_price(space->interpolate(slope, spot) * initial.quantity +
-                         space->interpolate(intercept, spot));
+    return make_pricing_result(space->interpolate(slope, spot) * initial.quantity +
+                                   space->interpolate(intercept, spot),
+                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(slope, spot) * initial.quantity + space->delta(intercept, spot)} : std::nullopt},
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(slope, spot) * initial.quantity + space->gamma(intercept, spot)} : std::nullopt}});
+}
+
+Result<double> FiniteDifferenceAccumulatorEngine::price(
+    const Accumulator& option, const PricingContext& context) const
+{
+    return detail::price_value(price_native(option, context, GreeksRequest{}));
 }
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                            GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine) {
+                                         const auto output = detail::at_spot_discontinuity(option, context, detail::symmetric_shift(context.spot_price(), settings.spot_shift)) ? GreeksRequest{} : greeks;
+                                         return engine.price_native(option, context, output);
+                                     });
 }
 
 } // namespace kiyosi

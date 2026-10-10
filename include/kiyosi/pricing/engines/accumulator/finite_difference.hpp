@@ -25,6 +25,7 @@ public:
     [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// Delta and gamma reuse the solved layers; other measures use numerical price differences.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
@@ -32,6 +33,9 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    [[nodiscard]] Result<PricingResult> price_native(
+        const Accumulator& option, const PricingContext& context, GreeksRequest output) const;
+
     FiniteDifferenceSettings settings_;
 };
 
