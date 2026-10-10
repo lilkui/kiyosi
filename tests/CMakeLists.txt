@@ -17,6 +17,7 @@ add_executable(kiyosi_tests
     pricing/cross_validation/known_payoff_tests.cpp
     pricing/analytics/api_contract_tests.cpp
     pricing/analytics/audit_tests.cpp
+    pricing/analytics/discount_tests.cpp
     pricing/analytics/architecture_tests.cpp
     pricing/analytics/numerical_validation_tests.cpp
     pricing/detail/fd_scheme_tests.cpp

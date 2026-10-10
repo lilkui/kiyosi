@@ -107,7 +107,9 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
     if (std::isnan(threshold)) return threshold;
     const double lower = std::abs(threshold);
     const bool scaled_tail = threshold > 10.0;
-    const double scale = scaled_tail ? 1.0 : weight * std::exp(log_discount);
+    const double discount = scaled_tail ? 1.0 : std::exp(log_discount);
+    const double scale = scaled_tail ? 1.0 : weight * discount;
+    const bool direct_scale = std::isnormal(discount) && std::isfinite(scale);
     const double log_weight = scaled_tail ? std::log(weight) + log_discount : 0.0;
     // Scale before exponentiating so representable prices survive probability underflow.
     const auto density_at = [&](double value) {
@@ -116,7 +118,7 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
     const double density = density_at(lower);
     if (density == 0.0) {
         if (threshold >= 0.0) return 0.0;
-        return std::isfinite(scale) ? scale : scaled_normal_cdf(weight, log_discount, -threshold);
+        return direct_scale ? scale : scaled_normal_cdf(weight, log_discount, -threshold);
     }
     // Extend until the endpoint density is exp(-72) times the starting density.
     const double upper = std::hypot(lower, 12.0);
@@ -133,8 +135,8 @@ inline double normal_tail_integral(double threshold, double weight = 1.0, double
     }
     const double tail = sum * step / 3.0;
     const double probability = threshold < 0.0 ? 1.0 - tail : tail;
-    return std::isfinite(scale) ? scale * probability
-                                : std::exp(std::log(weight) + log_discount + std::log(probability));
+    return direct_scale ? scale * probability
+                        : std::exp(std::log(weight) + log_discount + std::log(probability));
 }
 
 } // namespace kiyosi::detail

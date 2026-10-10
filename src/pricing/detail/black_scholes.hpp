@@ -29,12 +29,16 @@ inline BlackScholesValues black_scholes_values(
     double sign, double spot, double strike, double log_asset_discount, double log_cash_discount,
     const BlackScholesProbabilities& probabilities)
 {
-    const double asset = sign * probabilities.d1 < -10.0
+    const double asset_discount = std::exp(log_asset_discount);
+    const double cash_discount = std::exp(log_cash_discount);
+    const double discounted_asset = spot * asset_discount;
+    const double discounted_cash = strike * cash_discount;
+    const double asset = sign * probabilities.d1 < -10.0 || !std::isnormal(asset_discount) || !std::isfinite(discounted_asset)
                              ? exponential_normal_cdf(std::log(spot) + log_asset_discount, sign * probabilities.d1)
-                             : spot * std::exp(log_asset_discount) * probabilities.asset;
-    const double cash = sign * probabilities.d2 < -10.0
+                             : discounted_asset * probabilities.asset;
+    const double cash = sign * probabilities.d2 < -10.0 || !std::isnormal(cash_discount) || !std::isfinite(discounted_cash)
                             ? exponential_normal_cdf(std::log(strike) + log_cash_discount, sign * probabilities.d2)
-                            : strike * std::exp(log_cash_discount) * probabilities.cash;
+                            : discounted_cash * probabilities.cash;
     return {asset, cash, sign * (asset - cash)};
 }
 
@@ -99,9 +103,7 @@ inline Result<PricingResult> price_at_volatility(
     const double d1 = probabilities.d1;
     const double d2 = probabilities.d2;
     const double dividend_discount_factor = std::exp(-dividend * year_fraction);
-    const double rate_discount_factor = std::exp(-rate * year_fraction);
     const double cumulative_d1 = probabilities.asset;
-    const double cumulative_d2 = probabilities.cash;
 
     const auto values = black_scholes_values(sign, spot, strike, -dividend * year_fraction,
                                              -rate * year_fraction, probabilities);
@@ -116,8 +118,7 @@ inline Result<PricingResult> price_at_volatility(
                                            std::log(volatility) + std::log(sqrt_time) - 0.5 * squared_forward +
                                            std::log(inverse_sqrt_two_pi)) *
                                   (1.0 + (squared_forward - 1.0) * volatility_time * volatility_time / 24.0);
-        value = sign * strike * rate_discount_factor *
-                    std::expm1(standardized_forward * volatility_time) * cumulative_d2 +
+        value = sign * cash_value * std::expm1(standardized_forward * volatility_time) +
                 time_value;
     }
     if (!std::isfinite(value))
