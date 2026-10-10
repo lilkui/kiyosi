@@ -14,6 +14,32 @@
 #include "pricing/engines/monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA packed path outputs preserve block boundaries and failure flags", "[cuda][cuda-workspace]")
+{
+    using namespace kiyosi::detail;
+    for (const int count : {2, 256, 258, 65'538, 100'002}) {
+        CAPTURE(count);
+        CudaEuropeanRequest request{count, 42, 100.0, 90.0, 0.0, 0.0, 1};
+        const auto valid = cuda_european_price(request);
+        REQUIRE(valid.status == CudaPricingStatus::success);
+        CHECK(valid.payoff_mean == 10.0);
+        request.drift = 1000.0;
+        CHECK(cuda_european_price(request).status == CudaPricingStatus::invalid_result);
+        request.drift = 0.0;
+        const auto recovered = cuda_european_price(request);
+        REQUIRE(recovered.status == CudaPricingStatus::success);
+        CHECK(recovered.payoff_mean == 10.0);
+    }
+    for (const int count : {1, 255, 257, 65'537}) {
+        const auto result = cuda_autocallable_price(
+            {.path_count = count, .seed = 42, .spot = 100.0, .terminal_discount = 0.9, .program = {.principal_ratio = 2.0, .terminal_kind = AutocallableTerminalKind::fixed}}, {});
+        REQUIRE(result.status == CudaPricingStatus::success);
+        CHECK(result.payoff_mean == 1.8);
+    }
+}
+#endif
+
+#if KIYOSI_HAS_CUDA
 #include <cuda_runtime_api.h>
 #endif
 

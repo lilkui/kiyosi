@@ -42,3 +42,31 @@ to report only the pricing matrix.
 - Results compare these configured implementations, not equal amounts of internal work. Kiyosi `price()` and QuantLib `NPV()` both request price only. The Bjerksund–Stensland engines use different published approximations (Kiyosi 2002, QuantLib 1993); finite difference grids, integration methods, and Monte Carlo regression also differ. Inspect price differences before interpreting speed ratios.
 
 Run on an otherwise idle machine, use the same compiler optimization level for both libraries, and keep the QuantLib version and CPU/GPU details with published results.
+
+## CUDA workload selection
+
+Use the default CPU backend for small European Monte Carlo requests. CUDA setup
+and synchronization can cost more than the single terminal-price simulation.
+Select CUDA explicitly after measuring the intended path count and product; a
+daily path or American regression has substantially more work per path.
+
+On 2026-10-10, Release MSVC 19.51 on a Ryzen 9 5900X and RTX 3090 measured these
+median wall times for the matrix scenarios (three repetitions, 0.1 s minimum):
+
+| Monte Carlo scenario | CPU | CUDA |
+| --- | ---: | ---: |
+| European, 5,000 paths | 107 µs | 373 µs |
+| American, 5,000 paths | 2,666 µs | 1,001 µs |
+| Snowball, 2,000 paths | 10,643 µs | 1,542 µs |
+
+CUDA path outputs share one allocation per pricing call, including reduction
+scratch space, and return the mean and invalid-path flag in one host transfer.
+This reduced the European CUDA case from 404 µs to 373 µs on this machine;
+the remaining setup cost still makes CPU preferable for this small request.
+The workspace belongs to the call, so concurrent pricing does not share mutable
+buffers. These timings describe this hardware and workload, not a universal
+backend crossover.
+
+The analytics cases also include a fixed-cashflow snowball Monte Carlo price and
+European FD vanna/zomma requests. The former measures validation and direct
+settlement; the latter measure reuse of native delta/gamma at shifted volatility.
