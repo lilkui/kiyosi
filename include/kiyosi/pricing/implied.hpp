@@ -58,6 +58,8 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
 /// applies to that sampled price curve and does not bound sampling error.
 /// A root is not guaranteed unique; known states with volatility-independent remaining
 /// cashflows, including fixed touch payments, are rejected.
+/// Built-in autocallable Monte Carlo engines reject fixed cashflows after input validation,
+/// before executing a simulation backend.
 /// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> implied_volatility(
@@ -96,6 +98,16 @@ template <typename Engine, typename Option>
         }
     }
 
+    if constexpr (std::same_as<Engine, MonteCarloAutocallableEngine<Option>>) {
+        const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
+        if (!valid) return std::unexpected(valid.error());
+        const auto program = detail::autocallable_program(option);
+        const auto initial = detail::autocallable_initial_state(option, context, program);
+        if (!initial.settlement && !detail::autocallable_has_volatility_exposure(option, context, program, initial))
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "volatility does not affect the remaining cashflows"});
+    }
+
     const auto evaluate = [&](double volatility) -> Result<double> {
         auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
                                                context.model_parameters().risk_free_rate(),
@@ -120,41 +132,10 @@ template <typename Engine, typename Option>
         identifiable = identifiable && detail::arithmetic_average_adjusted_strike(option, context.valuation_time()) > 0.0;
     if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption> ||
                   std::same_as<Option, SnowballOption> || std::same_as<Option, PhoenixOption>) {
-        const double rate = context.model_parameters().risk_free_rate();
         const auto program = detail::autocallable_program(option);
         const auto initial = detail::autocallable_initial_state(option, context, program);
-        const bool knocked_in = initial.path.knocked_in;
-        const double terminal_coupon = knocked_in ? program.knocked_in_terminal_coupon
-                                                  : program.intact_terminal_coupon;
-        bool exposed = false;
-        if constexpr (requires { option.knock_in_level(); }) {
-            if constexpr (std::same_as<Option, TernarySnowballOption>) {
-                exposed = !knocked_in && option.minimum_coupon_rate() != option.maturity_coupon_rate();
-            } else {
-                exposed = program.lower_strike != program.upper_strike;
-                if constexpr (std::same_as<Option, SnowballOption>)
-                    exposed = exposed || (!knocked_in && option.maturity_coupon_rate() != 0.0);
-            }
-        }
-        const double maturity_value =
-            (program.principal_ratio + terminal_coupon) *
-            std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date()));
-        double remaining_coupon_value = 0.0;
-        for (std::size_t i = option.observation_dates().size(); i-- > 0;) {
-            const Date date = option.observation_dates()[i];
-            if (start_of_day(date) <= context.valuation_time()) continue;
-            const auto event = detail::autocallable_event(option, i);
-            const double coupon = event.coupon;
-            const double discount = std::exp(-rate * detail::actual_365_fixed_year_fraction(context.valuation_time(), date));
-            // Phoenix pays the current coupon in either branch; knock-out loses only later coupons.
-            const double knock_out_value = (program.principal_ratio + (program.carries_observation_coupon ? 0.0 : coupon)) * discount;
-            exposed = exposed || knock_out_value != maturity_value + remaining_coupon_value;
-            if (program.carries_observation_coupon) {
-                exposed = exposed || (coupon != 0.0 && event.coupon_barrier != 0.0);
-                remaining_coupon_value += coupon * discount;
-            }
-        }
-        identifiable = identifiable && !initial.settlement && exposed;
+        identifiable = identifiable && !initial.settlement &&
+                       detail::autocallable_has_volatility_exposure(option, context, program, initial);
     }
     if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); }) {
         const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&

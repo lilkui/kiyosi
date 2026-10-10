@@ -1,6 +1,8 @@
 #pragma once
 
 #include <algorithm>
+#include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <optional>
 
@@ -112,6 +114,43 @@ AutocallableInitialState autocallable_initial_state(const Note& note, const Pric
                                  program, value, initial.path.knocked_in);
     }
     return initial;
+}
+
+// Callers validate the note and history and resolve initial settlements first.
+template <typename Note>
+bool autocallable_has_volatility_exposure(const Note& note, const PricingContext& context,
+                                          const AutocallableProgram& program,
+                                          const AutocallableInitialState& initial)
+{
+    const bool knocked_in = initial.path.knocked_in;
+    if constexpr (requires { note.knock_in_level(); }) {
+        if constexpr (std::same_as<Note, TernarySnowballOption>) {
+            if (!knocked_in && note.minimum_coupon_rate() != note.maturity_coupon_rate()) return true;
+        } else {
+            if (program.lower_strike != program.upper_strike) return true;
+            if constexpr (std::same_as<Note, SnowballOption>)
+                if (!knocked_in && note.maturity_coupon_rate() != 0.0) return true;
+        }
+    }
+    const double rate = context.model_parameters().risk_free_rate();
+    const double terminal_coupon = knocked_in ? program.knocked_in_terminal_coupon : program.intact_terminal_coupon;
+    const double maturity_value = (program.principal_ratio + terminal_coupon) *
+                                  std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), note.expiry_date()));
+    if (!std::isfinite(maturity_value)) return true;
+    double remaining_coupon_value = 0.0;
+    for (std::size_t i = note.observation_dates().size(); i-- > initial.next_observation;) {
+        const auto event = autocallable_event(note, i);
+        const double discount = std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), note.observation_dates()[i]));
+        // Phoenix pays the current coupon in either branch; knock-out loses only later coupons.
+        const double knock_out_value = (program.principal_ratio + (program.carries_observation_coupon ? 0.0 : event.coupon)) * discount;
+        if (!std::isfinite(knock_out_value) || knock_out_value != maturity_value + remaining_coupon_value) return true;
+        if (program.carries_observation_coupon) {
+            if (event.coupon != 0.0 && event.coupon_barrier != 0.0) return true;
+            remaining_coupon_value += event.coupon * discount;
+            if (!std::isfinite(remaining_coupon_value)) return true;
+        }
+    }
+    return false;
 }
 
 } // namespace kiyosi::detail

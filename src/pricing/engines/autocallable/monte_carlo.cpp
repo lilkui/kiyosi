@@ -87,8 +87,8 @@ Result<double> path_payoff(double initial_spot, const AutocallableProgram& progr
 } // namespace
 
 template <typename Note>
-Result<double> MonteCarloAutocallableEngine<Note>::price(
-    const Note& note, const PricingContext& context) const
+Result<void> detail::validate_monte_carlo_autocallable(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
 {
     auto note_validation = validate_autocallable_note(note);
     if (!note_validation) return std::unexpected(note_validation.error());
@@ -98,10 +98,20 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
     if (!schedule) return std::unexpected(schedule.error());
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
-    const auto settings_valid = validate_monte_carlo_settings(settings_);
+    const auto settings_valid = validate_monte_carlo_settings(settings);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
+
+    return {};
+}
+
+template <typename Note>
+Result<double> MonteCarloAutocallableEngine<Note>::price(
+    const Note& note, const PricingContext& context) const
+{
+    const auto valid = validate_monte_carlo_autocallable(note, context, settings_);
+    if (!valid) return std::unexpected(valid.error());
 
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
@@ -135,6 +145,15 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
 {
     return detail::price_with_greeks(*this, option, context, greeks, settings);
 }
+
+template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
+    const PhoenixOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
+    const SnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
+    const BinarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
+    const TernarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
 
 template class MonteCarloAutocallableEngine<PhoenixOption>;
 template class MonteCarloAutocallableEngine<SnowballOption>;

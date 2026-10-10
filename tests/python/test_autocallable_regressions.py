@@ -1,6 +1,7 @@
 import unittest
 from datetime import date
 
+import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import BinarySnowballOption, SnowballOption
 from kiyosi.market import (
@@ -12,6 +13,37 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = BinarySnowballOption(
+            knock_out_coupon_rates=[1e308],
+            maturity_coupon_rate=1e308,
+            knock_out_levels=[110],
+            observation_dates=[end],
+            principal_ratio=1e308,
+            effective_date=start,
+            expiry_date=end,
+        )
+        for valuation in (start, end):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=0.2
+                ),
+                spot_price=100,
+                valuation_time=valuation,
+            )
+            with self.subTest(valuation=valuation):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    pricing.implied_volatility(
+                        pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1),
+                        note,
+                        context,
+                        1,
+                    )
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+                )
+
     def test_event_only_monte_carlo_ignores_unobserved_trading_days(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

@@ -120,6 +120,52 @@ TEST_CASE("Knocked-in autocallables simulate only remaining observation dates", 
     CHECK(*actual == Catch::Approx(1.0 - *expected / 100.0).margin(0.002));
 }
 
+TEST_CASE("Fixed autocallable implied volatility rejects before simulation", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start, calendar);
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+    const MonteCarloSnowballEngine engine{20'000, 42};
+    const auto implied = implied_volatility(engine, note, context, 1.0);
+    REQUIRE_FALSE(implied);
+    CHECK(implied.error().category == ErrorCategory::unsupported_operation);
+    CHECK(queries->exchange(0) < 20);
+    const auto cuda = implied_volatility(MonteCarloSnowballEngine{20'000, 42, MonteCarloBackend::cuda}, note, context, 1.0);
+    REQUIRE_FALSE(cuda);
+    CHECK(cuda.error().category == ErrorCategory::unsupported_operation);
+    const auto invalid = implied_volatility(MonteCarloSnowballEngine{0, 42}, note, context, 1.0);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    const auto later = *make_pricing_context(context.model_parameters(), 100.0, start + std::chrono::days{1}, calendar);
+    const auto missing_history = implied_volatility(engine, note, later, 1.0);
+    REQUIRE_FALSE(missing_history);
+    CHECK(missing_history.error().category == ErrorCategory::invalid_parameter);
+    const auto closed = *make_trading_calendar([](Date) { return false; }, 365);
+    const auto closed_context = *make_pricing_context(context.model_parameters(), 100.0, start, closed);
+    const auto invalid_calendar = implied_volatility(engine, note, closed_context, 1.0);
+    REQUIRE_FALSE(invalid_calendar);
+    CHECK(invalid_calendar.error().category == ErrorCategory::invalid_date);
+}
+
+TEST_CASE("Fixed autocallable implied volatility preserves non-finite pricing errors", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto note = make_binary_snowball_option(
+        {.knock_out_coupon_rates = {1e308}, .maturity_coupon_rate = 1e308, .knock_out_levels = {110.0}, .observation_dates = {end}, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end});
+    REQUIRE(note);
+    for (const Date date : {start, end}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, date);
+        const auto result = implied_volatility(MonteCarloBinarySnowballEngine{2, 1}, *note, context, 1.0);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_result);
+    }
+}
+
 TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
 {
     const auto start = day(2025, 1, 1);

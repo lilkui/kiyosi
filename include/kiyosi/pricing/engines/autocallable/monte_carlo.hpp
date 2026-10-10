@@ -12,6 +12,13 @@
 
 namespace kiyosi {
 
+namespace detail {
+// Shared by pricing and the implied-volatility preflight; does not execute a backend.
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT Result<void> validate_monte_carlo_autocallable(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings);
+} // namespace detail
+
 /// Simulates observation dates and expiry, adding trading days for daily knock-in monitoring.
 /// Accepts 1..10,000,000 paths.
 template <typename Note>
