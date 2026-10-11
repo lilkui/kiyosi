@@ -7,9 +7,13 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
+    AssetOrNothingOption,
     BarrierOption,
+    CashOrNothingOption,
     EuropeanOption,
     SnowballOption,
+    asset_binary_barrier_option,
+    cash_binary_barrier_option,
     cash_one_touch_down,
     cash_one_touch_up,
 )
@@ -17,6 +21,54 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_binary_barrier_branches_preserve_in_out_parity(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticBinaryBarrierEngine()
+        for up in (False, True):
+            for direction in ("call", "put"):
+                for strike in (70, 80, 100, 120, 130):
+                    for asset in (False, True):
+                        with self.subTest(
+                            up=up, direction=direction, strike=strike, asset=asset
+                        ):
+                            terms = {
+                                "option_type": direction,
+                                "strike": strike,
+                                "effective_date": start,
+                                "expiry_date": end,
+                            }
+                            vanilla = (
+                                AssetOrNothingOption(**terms)
+                                if asset
+                                else CashOrNothingOption(**terms, payout=10)
+                            )
+                            factory = (
+                                asset_binary_barrier_option
+                                if asset
+                                else cash_binary_barrier_option
+                            )
+                            if not asset:
+                                terms["payout"] = 10
+                            terms["barrier_level"] = 120 if up else 80
+                            prefix = "up" if up else "down"
+                            knock_in = factory(**terms, barrier_type=f"{prefix}_and_in")
+                            knock_out = factory(
+                                **terms, barrier_type=f"{prefix}_and_out"
+                            )
+                            self.assertAlmostEqual(
+                                engine.price(knock_in, context)
+                                + engine.price(knock_out, context),
+                                pricing.AnalyticDigitalEngine().price(vanilla, context),
+                                delta=1e-10,
+                            )
+
     def test_binomial_mixed_greeks_track_analytic_sensitivities(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         request = ["vanna", "zomma", "charm", "color"]

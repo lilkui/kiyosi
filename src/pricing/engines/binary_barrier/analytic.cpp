@@ -128,23 +128,23 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const double log_discount = -(option.asset_settlement ? dividend : rate) * time;
     const double reflected_log_discount = log_discount + (2 * (option.asset_settlement ? mu + 1 : mu)) * log_ratio;
     const double shift = option.asset_settlement ? 0.0 : volatility_time;
-    const double f1 = scaled_normal_cdf(amount, log_discount, phi * x1 - phi * shift);
-    const double f2 = scaled_normal_cdf(amount, log_discount, phi * x2 - phi * shift);
-    const double f3 = scaled_normal_cdf(amount, reflected_log_discount, eta * y1 - eta * shift);
-    const double f4 = scaled_normal_cdf(amount, reflected_log_discount, eta * y2 - eta * shift);
+    const auto f1 = [&] { return scaled_normal_cdf(amount, log_discount, phi * x1 - phi * shift); };
+    const auto f2 = [&] { return scaled_normal_cdf(amount, log_discount, phi * x2 - phi * shift); };
+    const auto f3 = [&] { return scaled_normal_cdf(amount, reflected_log_discount, eta * y1 - eta * shift); };
+    const auto f4 = [&] { return scaled_normal_cdf(amount, reflected_log_discount, eta * y2 - eta * shift); };
     double value = 0.0;
     if (!option.option_type) {
-        value = knock_in ? f2 + f4 : f2 - f4;
+        value = knock_in ? f2() + f4() : f2() - f4();
     } else if (knock_in) {
-        if (call) value = down ? (option.strike > barrier ? f3 : f1 - f2 + f4)
-                               : (option.strike > barrier ? f1 : f2 - f3 + f4);
-        else value = down ? (option.strike > barrier ? f2 - f3 + f4 : f1)
-                          : (option.strike > barrier ? f1 - f2 + f4 : f3);
+        if (call) value = down ? (option.strike > barrier ? f3() : f1() - f2() + f4())
+                               : (option.strike > barrier ? f1() : f2() - f3() + f4());
+        else value = down ? (option.strike > barrier ? f2() - f3() + f4() : f1())
+                          : (option.strike > barrier ? f1() - f2() + f4() : f3());
     } else {
-        if (call) value = down ? (option.strike > barrier ? f1 - f3 : f2 - f4)
-                               : (option.strike > barrier ? 0.0 : f1 - f2 + f3 - f4);
-        else value = down ? (option.strike > barrier ? f1 - f2 + f3 - f4 : 0.0)
-                          : (option.strike > barrier ? f2 - f4 : f1 - f3);
+        if (call) value = down ? (option.strike > barrier ? f1() - f3() : f2() - f4())
+                               : (option.strike > barrier ? 0.0 : f1() - f2() + f3() - f4());
+        else value = down ? (option.strike > barrier ? f1() - f2() + f3() - f4() : 0.0)
+                          : (option.strike > barrier ? f2() - f4() : f1() - f3());
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
     return std::max(value, 0.0);

@@ -16,6 +16,35 @@ using kiyosi::test::day;
 
 }
 
+TEST_CASE("Binary barrier branches preserve in-out parity", "[binary-barrier-branches]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const AnalyticBinaryBarrierEngine engine;
+    for (const bool up : {false, true})
+        for (const auto type : {OptionType::call, OptionType::put})
+            for (const double strike : {70.0, 80.0, 100.0, 120.0, 130.0})
+                for (const bool asset : {false, true}) {
+                    CAPTURE(up, type, strike, asset);
+                    const BinaryBarrierTerms in_terms{
+                        .option_type = type, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? BarrierType::up_and_in : BarrierType::down_and_in};
+                    auto out_terms = in_terms;
+                    out_terms.barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out;
+                    const auto knock_in = asset ? make_asset_binary_barrier_option(in_terms) : make_cash_binary_barrier_option(in_terms, 10.0);
+                    const auto knock_out = asset ? make_asset_binary_barrier_option(out_terms) : make_cash_binary_barrier_option(out_terms, 10.0);
+                    REQUIRE(knock_in);
+                    REQUIRE(knock_out);
+                    const auto in_price = engine.price(*knock_in, context), out_price = engine.price(*knock_out, context);
+                    const auto vanilla = asset ? AnalyticDigitalEngine{}.price(*make_asset_or_nothing_option(type, strike, start, end), context)
+                                               : AnalyticDigitalEngine{}.price(*make_cash_or_nothing_option(type, strike, 10.0, start, end), context);
+                    REQUIRE(in_price);
+                    REQUIRE(out_price);
+                    REQUIRE(vanilla);
+                    CHECK_THAT(*in_price + *out_price, Catch::Matchers::WithinAbs(*vanilla, 1e-10));
+                }
+}
+
 TEST_CASE("Touch prices survive volatility variance underflow", "[audit-fixes]")
 {
     using namespace kiyosi;

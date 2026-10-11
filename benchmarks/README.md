@@ -134,3 +134,10 @@ falling from 2.185 to 1.311 ms for vanna, 3.069 to 1.314 ms for zomma,
 2.191 to 1.312 ms for charm, and 3.067 to 1.316 ms for color (three repetitions,
 0.15 s minimum). Prices were unchanged; C++ and Python checks compare mixed
 Greeks against analytic values, including American calls without dividends.
+
+Analytic binary barriers and touches also evaluate only the formula terms needed
+by their payoff branch. On the same machine and compiler, median wall times for
+the cash/asset binary matrix cases fell from 166/157 ns to 121/110 ns, and
+cash/asset touches from 174/166 ns to 119/113 ns (three repetitions, 0.15 s
+minimum). Prices were unchanged; QuantLib references and C++/Python in-out
+parity checks cover the formula branches and strikes at the barrier.
