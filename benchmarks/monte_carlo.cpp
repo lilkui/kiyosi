@@ -153,6 +153,10 @@ void kiyosi::benchmark_support::register_analytics_cases()
         {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 0.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/zero_exposure/price", empty_accumulator, accumulator_engine, context);
     register_price("analytics/kiyosi/accumulator/mc/zero_exposure/price", empty_accumulator, MonteCarloAccumulatorEngine{2'000, 42}, context);
+    const auto inactive_accumulator = *make_accumulator(
+        {.strike = 110.0, .knock_out_level = 105.0, .daily_quantity = 1.0, .acceleration_factor = 0.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+    register_price("analytics/kiyosi/accumulator/fd/zero_acceleration/price", inactive_accumulator, accumulator_engine, context);
+    register_price("analytics/kiyosi/accumulator/mc/zero_acceleration/price", inactive_accumulator, MonteCarloAccumulatorEngine{20'000, 42}, context);
     register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
     const auto coupon_quote = snowball_engine.price(snowball, context);

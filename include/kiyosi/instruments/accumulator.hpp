@@ -60,6 +60,16 @@ private:
     friend Result<Accumulator> make_accumulator(AccumulatorTerms);
 };
 
+namespace detail {
+
+inline bool accumulator_accrues(const Accumulator& option) noexcept
+{
+    return option.daily_quantity() != 0.0 &&
+           (option.acceleration_factor() != 0.0 || option.knock_out_level() > option.strike());
+}
+
+} // namespace detail
+
 [[nodiscard]] inline Result<Accumulator> make_accumulator(AccumulatorTerms terms)
 {
     const auto [strike, knock_out_level, daily_quantity, acceleration_factor, accumulated_quantity, effective_date, expiry_date] = terms;

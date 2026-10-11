@@ -7,6 +7,7 @@
 #include <type_traits>
 
 #include <kiyosi/instruments/asian.hpp>
+#include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/instruments/autocallable/phoenix.hpp>
 #include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
@@ -142,8 +143,7 @@ template <typename Engine, typename Option>
         const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&
                                      context.calendar().is_trading_day(context.valuation_date()) &&
                                      context.spot_price() >= option.knock_out_level();
-        const bool accrues = option.daily_quantity() != 0.0 &&
-                             (option.acceleration_factor() != 0.0 || option.knock_out_level() > option.strike());
+        const bool accrues = detail::accumulator_accrues(option);
         // With zero rates and no new accrual, stopping an accumulated forward preserves its expectation.
         const bool exposed_quantity = option.accumulated_quantity() != 0.0 &&
                                       (context.model_parameters().risk_free_rate() != 0.0 ||
