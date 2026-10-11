@@ -107,6 +107,72 @@ TEST_CASE("CUDA workspaces preserve sample changes and recover from invalid path
             }
 }
 
+TEST_CASE("CUDA American growth caches preserve scalar prices and recover from failures", "[cuda][cuda-workspace]")
+{
+    using namespace kiyosi::detail;
+    CudaWorkspace workspace;
+    const auto check = [&](CudaAmericanRequest request) {
+        const auto expected = cuda_american_price(request);
+        REQUIRE(expected.status == CudaPricingStatus::success);
+        for (int repetition = 0; repetition < 2; ++repetition) {
+            const auto actual = cuda_american_price(request, &workspace, true);
+            REQUIRE(actual.status == CudaPricingStatus::success);
+            CHECK(actual.payoff_mean == expected.payoff_mean);
+        }
+    };
+    for (const int count : {2, 510, 512, 514, 65'538, 512, 2}) {
+        CudaAmericanRequest request{count, 3, 42, 100.25, 100.0, 0.01, 0.2, 0.99, -1};
+        for (const int steps : {3, 7, 3}) {
+            request.step_count = steps;
+            check(request);
+            for (const auto seed : {std::numeric_limits<std::uint64_t>::max(), std::uint64_t{42}}) {
+                request.seed = seed;
+                check(request);
+            }
+            for (const double drift : {-0.02, 0.01}) {
+                request.drift = drift;
+                check(request);
+            }
+            for (const double diffusion : {0.0, 0.1, 0.2}) {
+                request.diffusion = diffusion;
+                check(request);
+            }
+            for (const double spot : {92.0, 108.0, 100.25}) {
+                request.spot = spot;
+                check(request);
+            }
+            request.payoff_sign = 1;
+            request.strike = 95.0;
+            request.discount = 0.98;
+            check(request);
+            request.payoff_sign = -1;
+            check(request);
+        }
+        auto invalid = request;
+        invalid.drift = 1000.0;
+        CHECK(cuda_american_price(invalid, &workspace, true).status == CudaPricingStatus::invalid_result);
+        check(request);
+        invalid = request;
+        invalid.spot = std::numeric_limits<double>::infinity();
+        CHECK(cuda_american_price(invalid, &workspace, true).status == CudaPricingStatus::invalid_result);
+        check(request);
+        auto uncached = request;
+        uncached.step_count = 9;
+        const auto scalar = cuda_american_price(uncached);
+        const auto reused_buffer = cuda_american_price(uncached, &workspace);
+        REQUIRE(scalar.status == CudaPricingStatus::success);
+        REQUIRE(reused_buffer.status == CudaPricingStatus::success);
+        CHECK(reused_buffer.payoff_mean == scalar.payoff_mean);
+        check(request);
+        const auto european = cuda_european_price({count, 42, 100.25, 100.0, 0.01, 0.2, 1}, &workspace);
+        REQUIRE(european.status == CudaPricingStatus::success);
+        check(request);
+        const auto european_again = cuda_european_price({count, 42, 100.25, 100.0, 0.01, 0.2, 1}, &workspace);
+        REQUIRE(european_again.status == CudaPricingStatus::success);
+        CHECK(european_again.payoff_mean == european.payoff_mean);
+    }
+}
+
 TEST_CASE("CUDA shared spot paths preserve independent settlements and recover from failures", "[cuda][cuda-spot-samples]")
 {
     using namespace kiyosi::detail;

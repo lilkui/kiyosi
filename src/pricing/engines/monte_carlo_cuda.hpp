@@ -104,7 +104,8 @@ private:
 };
 
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace = nullptr);
-[[nodiscard]] CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace* workspace = nullptr);
+[[nodiscard]] CudaPricingResult cuda_american_price(
+    CudaAmericanRequest request, CudaWorkspace* workspace = nullptr, bool cache_growth = false);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
     CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_price(

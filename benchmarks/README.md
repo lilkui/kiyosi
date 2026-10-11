@@ -350,7 +350,7 @@ A 2026-10-11 Release MSVC probe with a one-year ATM put, rate 5%, dividend yield
 paths (median of three runs). Scalar pricing stayed near 145 and 1450 ms.
 The cache adds 8 bytes per rounded-even path per time interval (39.2 MB at
 100,000 paths and 50 steps), only for requests using spot stencils. All storage
-is local to the request; CUDA keeps its existing path. C++ and Python regression
+is local to the request; exercise regressions remain independent. C++ and Python regression
 checks retain exact seeded scalar stencils, including mixed Greeks, odd/even
 path counts, different seeds, failures and concurrent calls. The analytics
 suite includes `american/mc/price` and `american/mc/delta_gamma`.
@@ -420,3 +420,19 @@ median rollback time fell from 283.1 to 260.3 us; at 200, from 703.4 to 666.8 us
 remained identical. The second entry costs about 40 bytes per interior node.
 `accumulator/fd/calendar_weekdays/price` covers the calendar pricing workload;
 C++ and Python regressions retain constraint, failure and calendar results.
+
+CUDA American Monte Carlo spot stencils now cache growth factors in the same
+allocation as the path buffer, fitting every exercise regression independently.
+Scalar pricing and unavailable spot stencils avoid this cache. It adds 8 bytes
+per rounded-even path per time interval (392 MB at one million paths and 50
+steps); all storage is request-local. A 2026-10-11 Release MSVC/CUDA probe on an
+RTX 3090 under Windows WDDM, with a one-year ATM put, noon valuation, rate 5%,
+dividend yield 2%, volatility 20%, seed 42 and 50 steps, measured full Greek
+requests falling from 63.94 to 52.88 ms at 100,000 paths and from 428.24 to
+372.23 ms at one million paths (median of five calls). Price and all ten Greeks
+remained bit-for-bit identical. At one million paths, delta/gamma stayed near
+77–79 ms: allocation costs absorb much of the simulation saving for that
+smaller request. C++ and Python checks cover cache keys, CUDA block boundaries,
+mixed Greeks, unavailable stencils, failures and concurrent calls. Analytics
+cases include `american/mc_cuda/price`, `delta_gamma`, `speed`, `all` and
+`unavailable_delta` at 100,000 paths.

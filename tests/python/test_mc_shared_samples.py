@@ -410,6 +410,70 @@ class SharedSampleTests(unittest.TestCase):
     @unittest.skipUnless(
         os.environ.get("KIYOSI_TEST_CUDA") == "enabled", "CUDA disabled"
     )
+    def test_cuda_american_spot_greeks_match_seeded_scalar_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        spot, shift = 100.25, 8.0
+        vol_shift = (0.2 + 0.01) - 0.2
+        for direction in ("call", "put"):
+            option = AmericanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for paths in (1, 510, 511, 512, 513, 1025):
+                for seed in (42, 2**64 - 1):
+                    engine = pricing.MonteCarloVanillaEngine(
+                        path_count=paths, step_count=7, seed=seed, backend="cuda"
+                    )
+
+                    def context(value, volatility):
+                        return PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=0.04,
+                                dividend_yield=0.01,
+                                volatility=volatility,
+                            ),
+                            spot_price=value,
+                            valuation_time=start,
+                        )
+
+                    rows = [
+                        [
+                            engine.price(option, context(value, volatility))
+                            for value in (spot - shift, spot, spot + shift)
+                        ]
+                        for volatility in (0.2 - vol_shift, 0.2, 0.2 + vol_shift)
+                    ]
+                    low, middle, high = rows[1]
+                    delta = (high - low) / (2 * shift)
+                    gamma = (high - 2 * middle + low) / shift / shift
+                    vanna = ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0])) / (
+                        4 * shift * (100 * vol_shift)
+                    )
+                    zomma = (
+                        (rows[2][2] - 2 * rows[2][1] + rows[2][0]) / shift / shift
+                        - (rows[0][2] - 2 * rows[0][1] + rows[0][0]) / shift / shift
+                    ) / (2 * (100 * vol_shift))
+                    with self.subTest(direction=direction, paths=paths, seed=seed):
+                        result = engine.price_with_greeks(
+                            option,
+                            context(spot, 0.2),
+                            ["delta", "gamma", "vanna", "zomma"],
+                            spot_shift=shift,
+                            volatility_shift=0.01,
+                        )
+                        self.assertEqual(result.price, middle)
+                        self.assertEqual(result.delta, delta)
+                        self.assertEqual(result.gamma, gamma)
+                        self.assertEqual(result.vanna, vanna)
+                        self.assertEqual(result.zomma, zomma)
+                        unavailable = engine.price_with_greeks(
+                            option, context(spot, 0.2), ["delta"], spot_shift=200
+                        )
+                        self.assertEqual(unavailable.price, middle)
+                        self.assertIsNone(unavailable.delta)
+
+    @unittest.skipUnless(
+        os.environ.get("KIYOSI_TEST_CUDA") == "enabled", "CUDA disabled"
+    )
     def test_cuda_structured_spot_greeks_match_seeded_scalar_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)

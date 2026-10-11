@@ -183,22 +183,31 @@ __global__ void simulate_payoff_pairs(CudaEuropeanRequest request, int pair_coun
 }
 
 __global__ void simulate_american_pairs(CudaAmericanRequest request, int pair_count,
-                                        double* paths, int* invalid)
+                                        double* paths, int* invalid, double2* growth, bool reuse)
 {
     const int pair = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (pair >= pair_count) return;
 
     const int negative_path = pair + pair_count;
     curandStatePhilox4_32_10_t generator;
-    curand_init(request.seed, static_cast<unsigned long long>(pair), 0, &generator);
+    if (!reuse) curand_init(request.seed, static_cast<unsigned long long>(pair), 0, &generator);
     double positive_spot = request.spot;
     double negative_spot = request.spot;
     paths[pair] = positive_spot;
     paths[negative_path] = negative_spot;
     for (int step = 1; step < request.step_count; ++step) {
-        const double normal = curand_normal_double(&generator);
-        positive_spot *= exp(request.drift + request.diffusion * normal);
-        negative_spot *= exp(request.drift - request.diffusion * normal);
+        const auto growth_offset = static_cast<std::size_t>(step - 1) * pair_count + pair;
+        double2 factors;
+        if (reuse) {
+            factors = growth[growth_offset];
+        } else {
+            const double normal = curand_normal_double(&generator);
+            factors = {exp(request.drift + request.diffusion * normal),
+                       exp(request.drift - request.diffusion * normal)};
+            if (growth) growth[growth_offset] = factors;
+        }
+        positive_spot *= factors.x;
+        negative_spot *= factors.y;
         if (!isfinite(positive_spot) || positive_spot <= 0.0 ||
             !isfinite(negative_spot) || negative_spot <= 0.0) {
             atomicExch(invalid, 1);
@@ -591,6 +600,7 @@ CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs, cu
 struct CudaWorkspace::Impl {
     CudaStream owned_stream;
     DeviceMemory steps, paths, cash_flows, invalid, partials, summary, normals, growth;
+    CudaAmericanRequest american_samples{};
     std::array<PathOutputs, 5> outputs;
     int pair_count{};
     std::uint64_t seed{};
@@ -716,7 +726,7 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace
     return result;
 }
 
-CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace* workspace)
+CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace* workspace, bool cache_growth)
 {
     CudaWorkspace local;
     auto& storage = (workspace ? *workspace : local).storage();
@@ -725,6 +735,11 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     const auto stream = storage.owned_stream.get();
     const RequestCompletion completion{stream};
 
+    const auto& samples = storage.american_samples;
+    const bool reuse = cache_growth && samples.path_count == request.path_count &&
+                       samples.step_count == request.step_count && samples.seed == request.seed &&
+                       samples.drift == request.drift && samples.diffusion == request.diffusion;
+    storage.american_samples.path_count = 0;
     const int pair_count = request.path_count / 2;
     const int pair_block_count =
         (pair_count + threads_per_block - 1) / threads_per_block;
@@ -735,8 +750,9 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     auto& invalid = storage.invalid;
     auto& partials = storage.partials;
     auto& summary = storage.summary;
-    auto allocation = allocate(
-        paths, static_cast<std::size_t>(request.path_count) * static_cast<std::size_t>(request.step_count) * sizeof(double), stream);
+    const auto path_bytes = static_cast<std::size_t>(request.path_count) * request.step_count * sizeof(double);
+    const auto growth_bytes = cache_growth ? static_cast<std::size_t>(pair_count) * (request.step_count - 1) * sizeof(double2) : 0;
+    auto allocation = allocate(paths, path_bytes + growth_bytes, stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     allocation = allocate(
         cash_flows, static_cast<std::size_t>(request.path_count) * sizeof(double), stream);
@@ -753,7 +769,8 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     if (status != cudaSuccess) return error_result(status);
     simulate_american_pairs<<<pair_block_count, threads_per_block, 0, stream>>>(
         request, pair_count, static_cast<double*>(paths.get()),
-        static_cast<int*>(invalid.get()));
+        static_cast<int*>(invalid.get()),
+        cache_growth ? reinterpret_cast<double2*>(static_cast<char*>(paths.get()) + path_bytes) : nullptr, reuse);
     status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
     int invalid_result = 0;
@@ -799,6 +816,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     if (!std::isfinite(payoff_mean))
         return {CudaPricingStatus::invalid_result, 0.0,
                 "CUDA Monte Carlo reduction produced a non-finite result"};
+    if (cache_growth) storage.american_samples = request;
     return {CudaPricingStatus::success, payoff_mean, nullptr};
 }
 

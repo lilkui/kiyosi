@@ -145,7 +145,7 @@ Result<double> cuda_payoff_mean(const EuropeanOption& option,
 Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
                                             SimulationParameters parameters,
                                             MonteCarloSettings settings,
-                                            double discount, detail::CudaWorkspace* workspace)
+                                            double discount, detail::CudaWorkspace* workspace, bool cache_growth)
 {
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
@@ -161,7 +161,7 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
                                                              discount,
                                                              option.option_type() == OptionType::call ? 1 : -1,
                                                          },
-                                                         workspace));
+                                                         workspace, cache_growth));
 }
 #endif
 
@@ -314,7 +314,8 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
-            cuda_american_cash_flow_mean(option, *parameters, settings, discount, workspace);
+            cuda_american_cash_flow_mean(option, *parameters, settings, discount, workspace,
+                                         samples && samples->cache_growth);
         if (!cuda_result) return std::unexpected(cuda_result.error());
         mean = *cuda_result;
 #else
@@ -434,8 +435,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed) ||
              (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
              greeks.has(Greek::charm) || greeks.has(Greek::color))};
-        const AmericanPricer prices{seeded.settings(), workspace,
-                                    seeded.settings().backend == MonteCarloBackend::cpu ? &samples : nullptr};
+        const AmericanPricer prices{seeded.settings(), workspace, &samples};
         const auto native = [&]() -> Result<PricingResult> {
         const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
