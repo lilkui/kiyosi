@@ -3750,6 +3750,46 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertEqual(context.valuation_time, datetime(2025, 1, 6, tzinfo=UTC))
 
+    def test_bulk_date_conversion_preserves_subclasses_and_iterable_errors(self):
+        class StoredDate(date):
+            year = property(lambda self: 67562)
+            month = property(lambda self: 257)
+            day = property(lambda self: 257)
+
+        dates = [StoredDate(2025, 1, 1) + timedelta(days=i) for i in range(1, 253)]
+        terms = {
+            "knock_out_coupon_rates": [0.08] * len(dates),
+            "maturity_coupon_rate": 0.06,
+            "knock_out_levels": [110] * len(dates),
+            "effective_date": date(2025, 1, 1),
+            "expiry_date": dates[-1],
+        }
+        with patch("builtins.__import__", wraps=__import__) as imported:
+            note = BinarySnowballOption(observation_dates=iter(dates), **terms)
+        self.assertLessEqual(
+            sum(call.args[0] == "datetime" for call in imported.call_args_list), 3
+        )
+        expected = [date(2025, 1, 1) + timedelta(days=i) for i in range(1, 253)]
+        with patch("builtins.__import__", wraps=__import__) as imported:
+            actual = note.observation_dates
+        self.assertEqual(actual, expected)
+        self.assertLessEqual(
+            sum(call.args[0] == "datetime" for call in imported.call_args_list), 1
+        )
+        self.assertTrue(all(type(value) is date for value in note.observation_dates))
+        for invalid in (datetime(2025, 1, 3, tzinfo=UTC), "2025-01-03", None):
+            with self.subTest(invalid=invalid), self.assertRaises(TypeError):
+                BinarySnowballOption(
+                    observation_dates=iter([dates[0], invalid, *dates[2:]]), **terms
+                )
+
+        def broken_dates():
+            yield dates[0]
+            raise RuntimeError("schedule unavailable")
+
+        with self.assertRaisesRegex(RuntimeError, "schedule unavailable"):
+            BinarySnowballOption(observation_dates=broken_dates(), **terms)
+
     def test_datetime_subclasses_use_stored_components_and_builtin_utc_conversion(self):
         class ShadowedTimestamp(datetime):
             year = property(lambda self: 67562)

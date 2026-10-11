@@ -5,6 +5,7 @@
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
+#include <datetime.h>
 
 #include <array>
 #include <chrono>
@@ -353,37 +354,40 @@ inline std::optional<std::uint64_t> optional_seed(nb::handle value)
     return static_cast<std::uint64_t>(converted);
 }
 
-inline Date calendar_date(nb::handle value, std::string_view field)
+inline const PyDateTime_CAPI* datetime_api()
 {
-    const nb::object datetime_module = nb::module_::import_("datetime");
-    const nb::object date_type = datetime_module.attr("date");
-    const nb::object datetime_type = datetime_module.attr("datetime");
-    const int is_date = PyObject_IsInstance(value.ptr(), date_type.ptr());
-    const int is_datetime = PyObject_IsInstance(value.ptr(), datetime_type.ptr());
-    if (is_date < 0 || is_datetime < 0) throw nb::python_error();
-    if (is_date == 0 || is_datetime != 0) type_error(field, "a datetime.date");
-    const nb::object object = nb::borrow<nb::object>(value);
-    // Built-in descriptors read stored components, bypassing subclass properties that can narrow or wrap.
-    return Date{std::chrono::year{nb::cast<int>(date_type.attr("year").attr("__get__")(object))} /
-                std::chrono::month{nb::cast<unsigned>(date_type.attr("month").attr("__get__")(object))} /
-                std::chrono::day{nb::cast<unsigned>(date_type.attr("day").attr("__get__")(object))}};
+    const auto* api = static_cast<const PyDateTime_CAPI*>(PyCapsule_Import(PyDateTime_CAPSULE_NAME, 0));
+    if (!api) throw nb::python_error();
+    return api;
 }
 
-inline PythonDateObject python_date(Date value)
+inline Date calendar_date(nb::handle value, std::string_view field, const PyDateTime_CAPI* api = datetime_api())
+{
+    if (!PyObject_TypeCheck(value.ptr(), api->DateType) || PyObject_TypeCheck(value.ptr(), api->DateTimeType))
+        type_error(field, "a datetime.date");
+    // Read stored components, bypassing subclass properties that can narrow or wrap.
+    return Date{std::chrono::year{PyDateTime_GET_YEAR(value.ptr())} /
+                std::chrono::month{static_cast<unsigned>(PyDateTime_GET_MONTH(value.ptr()))} /
+                std::chrono::day{static_cast<unsigned>(PyDateTime_GET_DAY(value.ptr()))}};
+}
+
+inline PythonDateObject python_date(Date value, const PyDateTime_CAPI* api = datetime_api())
 {
     const auto parts = std::chrono::year_month_day{value};
-    const nb::object datetime = nb::module_::import_("datetime");
-    return PythonDateObject{datetime.attr("date")(
-        static_cast<int>(parts.year()), static_cast<unsigned>(parts.month()),
-        static_cast<unsigned>(parts.day()))};
+    PyObject* result = api->Date_FromDate(
+        static_cast<int>(parts.year()), static_cast<int>(static_cast<unsigned>(parts.month())),
+        static_cast<int>(static_cast<unsigned>(parts.day())), api->DateType);
+    if (!result) throw nb::python_error();
+    return PythonDateObject{nb::steal<nb::object>(result)};
 }
 
 /// Returns a fresh Python list of date values; requires the GIL.
 inline PythonDateList python_dates(std::span<const Date> values)
 {
     PythonDateList output;
+    const auto* api = datetime_api();
     for (const Date value : values)
-        output.append(python_date(value));
+        output.append(python_date(value, api));
     return output;
 }
 
@@ -425,8 +429,9 @@ inline Timestamp valuation_time(nb::handle value)
 inline std::vector<Date> date_sequence(nb::handle values, std::string_view field)
 {
     std::vector<Date> output;
+    const auto* api = datetime_api();
     for (nb::handle item : nb::borrow<nb::iterable>(values))
-        output.push_back(calendar_date(item, field));
+        output.push_back(calendar_date(item, field, api));
     return output;
 }
 

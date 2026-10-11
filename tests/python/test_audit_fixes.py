@@ -39,7 +39,7 @@ class AuditFixTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         expected = schedule.dates
-        with patch("datetime.date", wraps=date) as converted:
+        with patch("builtins.__import__", wraps=__import__) as converted:
             iterator = iter(schedule)
             independent = iter(schedule)
             self.assertIs(iter(iterator), iterator)
