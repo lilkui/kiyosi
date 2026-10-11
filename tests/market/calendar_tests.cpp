@@ -248,3 +248,28 @@ TEST_CASE("Fixed-interval schedules bound additions by remaining dates", "[sched
         CHECK(schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
     }
 }
+
+TEST_CASE("Schedule builders search each market closure only once", "[schedule]")
+{
+    const auto start = day(2025, 1, 1);
+    for (const int years : {1, 10}) {
+        const auto end = day(2025 + years, 1, 1);
+        const auto first_open = start + (end - start) / 2;
+        const std::vector<kiyosi::Date> expected{first_open, end};
+        for (const bool monthly : {false, true}) {
+            CAPTURE(years, monthly);
+            std::size_t calls = 0;
+            const auto calendar = *kiyosi::make_trading_calendar(
+                [&](kiyosi::Date date) {
+                    ++calls;
+                    return date == first_open || date == end;
+                },
+                252);
+            const auto schedule = monthly ? kiyosi::make_monthly_schedule(start, end, 1, calendar)
+                                          : kiyosi::make_fixed_interval_schedule(start, end, std::chrono::days{1}, calendar);
+            REQUIRE(schedule);
+            CHECK(schedule->dates() == expected);
+            CHECK(calls <= static_cast<std::size_t>((end - start).count()) + expected.size());
+        }
+    }
+}

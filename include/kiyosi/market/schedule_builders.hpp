@@ -51,9 +51,10 @@ namespace detail {
     std::vector<Date> dates;
     for (auto target = start; interval <= end - target;) {
         target += interval;
+        if (!dates.empty() && target <= dates.back()) continue;
         auto adjusted = detail::following_date(target, end, calendar);
         if (!adjusted) break;
-        if (dates.empty() || dates.back() != *adjusted) dates.push_back(*adjusted);
+        dates.push_back(*adjusted);
     }
     return detail::make_observation_schedule(std::move(dates), start, end, calendar);
 }
@@ -84,9 +85,10 @@ namespace detail {
     for (std::int64_t month = lock_up_months; month <= months_until_end; ++month) {
         const auto target = detail::add_months(start, static_cast<int>(month));
         if (target > end) break;
+        if (!dates.empty() && target <= dates.back()) continue;
         auto adjusted = detail::following_date(target, end, calendar);
         if (!adjusted) break;
-        if (dates.empty() || dates.back() != *adjusted) dates.push_back(*adjusted);
+        dates.push_back(*adjusted);
     }
     return detail::make_observation_schedule(std::move(dates), start, end, calendar);
 }
