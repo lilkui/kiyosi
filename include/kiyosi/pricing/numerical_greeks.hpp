@@ -245,29 +245,29 @@ Result<PricingResult> complete_greeks(
                 native_low = *low;
             }
         }
+        const bool native_vanna = native_high && native_high->has(Greek::delta) && native_low->has(Greek::delta);
+        const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
+        const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
         const auto v_up = native_high ? Result<double>{native_high->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_high, rate, valuation_time)
                                                                                                       : p0;
         if (!v_up) return std::unexpected(v_up.error());
+        // Keep each model's spot stencil together so simulation caches survive the whole stencil.
+        const auto d_up = scalar_mixed ? detail::shifted_value(engine, option, context, spot + h, volatility_high, rate, valuation_time) : p0;
+        if (!d_up) return std::unexpected(d_up.error());
+        const auto d_down = scalar_mixed ? detail::shifted_value(engine, option, context, spot - h, volatility_high, rate, valuation_time) : p0;
+        if (!d_down) return std::unexpected(d_down.error());
         const auto v_down = native_low ? Result<double>{native_low->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_low, rate, valuation_time)
                                                                                                       : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
-        const bool native_vanna = native_high && native_high->has(Greek::delta) && native_low->has(Greek::delta);
-        const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
         if (need(Greek::vanna) && native_vanna)
             vanna = (**native_high->get(Greek::delta) - **native_low->get(Greek::delta)) / (2.0 * vol_scale);
         if (need(Greek::zomma) && native_zomma)
             zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
 
-        if (spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma))) {
-            const auto d_up = detail::shifted_value(
-                engine, option, context, spot + h, volatility_high, rate, valuation_time);
-            if (!d_up) return std::unexpected(d_up.error());
-            const auto d_down = detail::shifted_value(
-                engine, option, context, spot - h, volatility_high, rate, valuation_time);
-            if (!d_down) return std::unexpected(d_down.error());
+        if (scalar_mixed) {
             const auto d_up_low = detail::shifted_value(
                 engine, option, context, spot + h, volatility_low, rate, valuation_time);
             if (!d_up_low) return std::unexpected(d_up_low.error());
@@ -385,10 +385,17 @@ Result<PricingResult> complete_greeks(
             }
             const bool native_charm = native_before && native_before->has(Greek::delta) && native_after->has(Greek::delta);
             const bool native_color = native_before && native_before->has(Greek::gamma) && native_after->has(Greek::gamma);
+            const bool scalar_mixed = spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color));
             const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
             const auto t_before = native_before ? Result<double>{native_before->price()} : !need_time_prices || before == valuation_time ? p0
                                                                                                                                          : detail::shifted_value(engine, option, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
+            const auto d_before = !scalar_mixed ? p0 : before == valuation_time && spot_up ? Result<double>{*spot_up}
+                                                                                           : detail::shifted_value(engine, option, context, spot + h, volatility, rate, before);
+            if (!d_before) return std::unexpected(d_before.error());
+            const auto d_before_low = !scalar_mixed ? p0 : before == valuation_time && spot_down ? Result<double>{*spot_down}
+                                                                                                 : detail::shifted_value(engine, option, context, spot - h, volatility, rate, before);
+            if (!d_before_low) return std::unexpected(d_before_low.error());
             const auto t_after = native_after ? Result<double>{native_after->price()} : !need_time_prices || after == valuation_time ? p0
                                                                                                                                      : detail::shifted_value(engine, option, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
@@ -399,17 +406,7 @@ Result<PricingResult> complete_greeks(
             if (need(Greek::color) && native_color)
                 color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
 
-            if (spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color))) {
-                const auto d_before = before == valuation_time && spot_up
-                                          ? Result<double>{*spot_up}
-                                          : detail::shifted_value(
-                                                engine, option, context, spot + h, volatility, rate, before);
-                if (!d_before) return std::unexpected(d_before.error());
-                const auto d_before_low = before == valuation_time && spot_down
-                                              ? Result<double>{*spot_down}
-                                              : detail::shifted_value(
-                                                    engine, option, context, spot - h, volatility, rate, before);
-                if (!d_before_low) return std::unexpected(d_before_low.error());
+            if (scalar_mixed) {
                 const auto d_after = after == valuation_time && spot_up
                                          ? Result<double>{*spot_up}
                                          : detail::shifted_value(

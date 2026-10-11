@@ -16,6 +16,37 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Numerical Greeks keep model and time spot stencils contiguous", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    struct RecordingEngine {
+        mutable std::vector<std::tuple<double, double, Timestamp>> models;
+        Result<double> price(const EuropeanOption& option, const PricingContext& context) const
+        {
+            const auto& model = context.model_parameters();
+            models.emplace_back(model.volatility(), model.risk_free_rate(), context.valuation_time());
+            return MonteCarloVanillaEngine{127, 2, 42}.price(option, context);
+        }
+    };
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    for (const auto valuation : {start_of_day(start) + std::chrono::hours{12}, start_of_day(day(2025, 7, 1))}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
+        const RecordingEngine engine;
+        const auto result = detail::price_with_greeks(engine, option, context, true, {});
+        const auto expected = MonteCarloVanillaEngine{127, 2, 42}.price_with_greeks(option, context, true);
+        REQUIRE(result);
+        REQUIRE(expected);
+        CHECK(result->price() == expected->price());
+        CHECK(result->values_view() == expected->values_view());
+        CHECK(engine.models.size() == 19);
+        int rebuilds = 1;
+        for (std::size_t i = 1; i < engine.models.size(); ++i)
+            if (engine.models[i] != engine.models[i - 1]) ++rebuilds;
+        CHECK(rebuilds == 7);
+    }
+}
+
 TEST_CASE("Product finite-difference speed preserves shifted gamma and stencil errors", "[fd-speed]")
 {
     using namespace kiyosi;
