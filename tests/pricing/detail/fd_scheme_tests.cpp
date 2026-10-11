@@ -244,6 +244,21 @@ TEST_CASE("Finite-difference merging preserves adjacent events and later uniform
     CHECK(later.time_steps == std::vector<double>{event, 2.0 / 3.0 - event, 1.0 / 3.0});
 }
 
+TEST_CASE("Implicit Euler skips overflowing zero-weight terms", "[fd-performance]")
+{
+    using namespace kiyosi::detail;
+    constexpr double value = 1e308;
+    const DiffusionParameters parameters{0.0, 0.0, 2.0, 1.0};
+    std::vector<double> old(5, value), next(5);
+    FiniteDifferenceStep step{old.size()};
+    for (int iteration = 0; iteration < 2; ++iteration) {
+        REQUIRE(step.advance(old, next, 0.01, parameters, value, value));
+        for (const double actual : next)
+            CHECK_THAT(actual, Catch::Matchers::WithinRel(value, 1e-14));
+        old.swap(next);
+    }
+}
+
 TEST_CASE("Paired finite-difference advances match independent layers")
 {
     const auto size = GENERATE(std::size_t{4}, std::size_t{7});

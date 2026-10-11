@@ -126,10 +126,8 @@ private:
             first = std::min(first, position);
             last = position + 1;
             for (const auto& layer : layers) {
-                layer.rhs[position] = layer.old[static_cast<std::size_t>(index)] +
-                                      (1.0 - theta) * dt *
-                                          (a * layer.old[position] + b * layer.old[static_cast<std::size_t>(index)] +
-                                           c * layer.old[static_cast<std::size_t>(index) + 1]);
+                // Implicit Euler has no explicit term; evaluating it can overflow before multiplication by zero.
+                layer.rhs[position] = theta == 1.0 ? layer.old[static_cast<std::size_t>(index)] : layer.old[static_cast<std::size_t>(index)] + (1.0 - theta) * dt * (a * layer.old[position] + b * layer.old[static_cast<std::size_t>(index)] + c * layer.old[static_cast<std::size_t>(index) + 1]);
                 if (index == 1) layer.rhs[position] += theta * dt * a * layer.next.front();
                 if (index == asset_step_count - 1) layer.rhs[position] += theta * dt * c * layer.next.back();
             }

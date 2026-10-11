@@ -1163,6 +1163,30 @@ class PricingRegressionTests(unittest.TestCase):
                             actual,
                         )
 
+    def test_implicit_euler_preserves_large_finite_currency_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=200, time_step_count=200, scheme="implicit_euler"
+        )
+        for direction in ("call", "put"):
+            prices = []
+            for amount in (100, 1e305, 1e306):
+                option = EuropeanOption(
+                    option_type=direction,
+                    strike=amount,
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                context = PricingContext(
+                    model_parameters=parameters, spot_price=amount, valuation_time=start
+                )
+                prices.append(engine.price(option, context) / amount)
+            for scaled in prices[1:]:
+                self.assertTrue(math.isclose(scaled, prices[0], rel_tol=1e-12))
+
     def test_american_fd_domains_preserve_long_expiry_exercise_value(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         context = PricingContext(

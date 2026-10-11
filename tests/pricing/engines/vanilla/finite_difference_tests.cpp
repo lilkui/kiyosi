@@ -243,6 +243,25 @@ TEST_CASE("American finite-difference domains preserve long-expiry exercise valu
     CHECK(joint->has(kiyosi::Greek::vega));
 }
 
+TEST_CASE("Implicit Euler vanilla prices preserve large finite currency scales", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
+    const FiniteDifferenceVanillaEngine engine{{200, 200, FiniteDifferenceScheme::implicit_euler}};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto base = engine.price(*make_european_option(type, 100.0, start, end),
+                                       *make_pricing_context(parameters, 100.0, start));
+        REQUIRE(base);
+        for (const double amount : {1e305, 1e306}) {
+            const auto scaled = engine.price(*make_european_option(type, amount, start, end),
+                                             *make_pricing_context(parameters, amount, start));
+            REQUIRE(scaled);
+            CHECK_THAT(*scaled / amount, Catch::Matchers::WithinRel(*base / 100.0, 1e-12));
+        }
+    }
+}
+
 TEST_CASE("Finite-difference engines reject invalid grids")
 {
     const auto valuation = day(2025, 1, 1);
