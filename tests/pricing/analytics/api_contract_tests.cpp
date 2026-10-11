@@ -733,7 +733,14 @@ TEST_CASE("Implied solvers control price and parameter tolerances separately", "
                                                     {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
         const auto coupon = kiyosi::implied_coupon(engine, phoenix, market(), 0.37,
                                                    {0.1, 0.9, price_tolerance, parameter_tolerance, 1});
-        for (const auto& result : {vol, coupon}) {
+        if (price_tolerance > 0.0 && parameter_tolerance > 0.0) {
+            REQUIRE(vol);
+            CHECK((std::abs(*vol - 0.37) <= price_tolerance || parameter_tolerance >= 0.8));
+        } else {
+            REQUIRE_FALSE(vol);
+            CHECK(vol.error().category == ErrorCategory::invalid_parameter);
+        }
+        for (const auto& result : {coupon}) {
             if (price_tolerance == 0.0 || parameter_tolerance == 0.0) {
                 REQUIRE_FALSE(result);
                 CHECK(result.error().category == ErrorCategory::invalid_parameter);
@@ -746,6 +753,77 @@ TEST_CASE("Implied solvers control price and parameter tolerances separately", "
             }
         }
     }
+}
+
+template <typename Engine>
+struct CountedVolatilityEngine {
+    Engine engine;
+    int* calls;
+    Result<double> price(const EuropeanOption& option, const PricingContext& context) const
+    {
+        ++*calls;
+        return engine.price(option, context);
+    }
+};
+
+TEST_CASE("Implied volatility interpolates expensive price curves within the bracket", "[pricing-api][implied-performance]")
+{
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto check = [&](const auto& engine) {
+        const auto quote = engine.price(option, context);
+        REQUIRE(quote);
+        int calls = 0;
+        const auto solved = implied_volatility(CountedVolatilityEngine{engine, &calls}, option, context, *quote,
+                                               {.parameter_tolerance = 1e-12, .max_iterations = 12});
+        REQUIRE(solved);
+        CHECK(calls <= 14);
+        CHECK(*solved == Catch::Approx(0.2).margin(1e-8));
+        const auto shifted = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, *solved), 100.0, start);
+        const auto price = engine.price(option, shifted);
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(*quote).epsilon(0.0).margin(1e-8));
+    };
+    check(AnalyticVanillaEngine{});
+    check(FiniteDifferenceVanillaEngine{});
+    check(MonteCarloVanillaEngine{5'000, 10, 42});
+}
+
+TEST_CASE("Brent safeguards flat steep and decreasing curves and propagates failures", "[pricing-api][implied-performance]")
+{
+    const ImpliedVolatilitySettings settings{.lower_bound = 0.0001, .upper_bound = 4.0, .price_tolerance = 1e-14, .parameter_tolerance = 1e-12};
+    for (const double root : {0.0002, 0.2, 3.99}) {
+        for (const double direction : {-1.0, 1.0}) {
+            for (const int curve : {0, 1, 2, 3}) {
+                CAPTURE(root, direction, curve);
+                const auto residual = [&](double value) -> Result<double> {
+                    REQUIRE(value >= settings.lower_bound);
+                    REQUIRE(value <= settings.upper_bound);
+                    if (curve == 0) return direction * (value * value * value - root * root * root);
+                    if (curve == 1) return direction * (std::exp(value) - std::exp(root));
+                    const double magnitude = curve == 2 ? std::numeric_limits<double>::max() : std::numeric_limits<double>::infinity();
+                    return direction * (value < root ? -magnitude : magnitude);
+                };
+                const auto result = detail::brent_implied_volatility(settings, *residual(settings.lower_bound),
+                                                                     *residual(settings.upper_bound), residual);
+                REQUIRE(result);
+                CHECK((std::abs(*residual(*result)) <= settings.price_tolerance || std::abs(*result - root) <= settings.parameter_tolerance));
+            }
+        }
+    }
+    auto limited = settings;
+    limited.max_iterations = 1;
+    const auto quadratic = [](double value) -> Result<double> { return value * value - 0.25; };
+    const auto exhausted = detail::brent_implied_volatility(limited, *quadratic(limited.lower_bound),
+                                                            *quadratic(limited.upper_bound), quadratic);
+    REQUIRE_FALSE(exhausted);
+    CHECK(exhausted.error().category == ErrorCategory::solver_non_convergence);
+    const auto failed = detail::brent_implied_volatility(settings, -1.0, 1.0,
+                                                         [](double) -> Result<double> { return std::unexpected(Error{ErrorCategory::invalid_schedule, "trial rejected"}); });
+    REQUIRE_FALSE(failed);
+    CHECK(failed.error().category == ErrorCategory::invalid_schedule);
+    CHECK(failed.error().message == "trial rejected");
 }
 
 TEST_CASE("Built-in implied coupons solve affine price curves directly", "[pricing-api][audit-fixes]")

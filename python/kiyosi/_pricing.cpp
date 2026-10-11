@@ -354,6 +354,8 @@ KiyosiError
         "max_iterations"_a = ImpliedVolatilitySettings{}.max_iterations,
         R"doc(Solve for the volatility that matches an observed price.
 
+Uses safeguarded Brent interpolation, with bisection when needed to retain the bracket.
+
 Parameters
 ----------
 engine : pricing engine

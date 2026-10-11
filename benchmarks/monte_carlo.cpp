@@ -190,6 +190,10 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto no_dividend = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 100.0, european.effective_date());
     const auto american_call = *make_american_option(OptionType::call, 100.0, european.effective_date(), european.expiry_date());
     register_price("analytics/kiyosi/american/mc/no_dividend/price", american_call, MonteCarloVanillaEngine{100'000, 50, 42}, no_dividend);
+    const auto fd_quote = vanilla_engine.price(european, context);
+    register_calculation("analytics/kiyosi/european/fd/implied_volatility", [=]() -> Result<double> {
+                             if (!fd_quote) return std::unexpected(fd_quote.error());
+                             return implied_volatility(vanilla_engine, european, context, *fd_quote); }, "volatility");
     const auto quote = monte_carlo.price(european, context);
     register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {
                              if (!quote) return std::unexpected(quote.error());

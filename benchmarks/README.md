@@ -34,6 +34,14 @@ Greek request retains the complete result so its sensitivities cannot be optimiz
 away. Run these cases with `--benchmark_filter=^analytics/`; `compare.py` continues
 to report only the pricing matrix.
 
+European FD and MC implied-volatility cases use safeguarded Brent interpolation.
+For the audit's at-the-money one-year call, the FD solver used 7 price calls
+instead of 32; the 5,000-path MC solver used 10 instead of 32. Five-run median
+wall times with Release MSVC 19.51 on a Ryzen 9 5900X fell from 13.64 ms to
+2.97 ms and from 3.29 ms to 1.01 ms respectively, both recovering volatility
+0.20. Bounds, price and
+parameter tolerances, and per-solve Monte Carlo seed sharing are retained.
+
 The snowball FD implied-coupon case prepares its quote before timing and records
 the solved rate in the `coupon` counter. Built-in MC and FD coupon solvers verify
 an interpolated candidate before falling back to bisection, retaining the price

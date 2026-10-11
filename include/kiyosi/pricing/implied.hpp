@@ -1,10 +1,12 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numeric>
 #include <random>
 #include <type_traits>
+#include <utility>
 
 #include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/instruments/accumulator.hpp>
@@ -22,6 +24,61 @@
 namespace kiyosi {
 
 namespace detail {
+
+// Brent interpolation keeps the bracket and falls back to bisection when progress is uncertain.
+template <typename Evaluate>
+Result<double> brent_implied_volatility(const ImpliedVolatilitySettings& settings,
+                                        double fa, double fb, const Evaluate& evaluate)
+{
+    double a = settings.lower_bound;
+    double b = settings.upper_bound;
+    if (std::abs(fa) < std::abs(fb)) {
+        std::swap(a, b);
+        std::swap(fa, fb);
+    }
+    double c = a, fc = fa, d = c;
+    bool bisected = true;
+    for (int iteration = 0; iteration < settings.max_iterations; ++iteration) {
+        const double scale = std::max({std::abs(fa), std::abs(fb), std::abs(fc)});
+        const double ya = fa / scale, yb = fb / scale, yc = fc / scale;
+        double trial = std::lerp(a, b, ya / (ya - yb));
+        if (fa != fc && fb != fc)
+            trial = a * (yb / (ya - yb)) * (yc / (ya - yc)) +
+                    b * (ya / (yb - ya)) * (yc / (yb - yc)) +
+                    c * (ya / (yc - ya)) * (yb / (yc - yb));
+        const double quarter = std::lerp(a, b, 0.25);
+        if (!std::isfinite(trial) || trial <= std::min(quarter, b) || trial >= std::max(quarter, b) ||
+            (bisected && std::abs(trial - b) >= 0.5 * std::abs(b - c)) ||
+            (!bisected && std::abs(trial - b) >= 0.5 * std::abs(c - d)) ||
+            (bisected && std::abs(b - c) <= settings.parameter_tolerance) ||
+            (!bisected && std::abs(c - d) <= settings.parameter_tolerance)) {
+            trial = std::midpoint(a, b);
+            bisected = true;
+        } else {
+            bisected = false;
+        }
+        const auto residual = evaluate(trial);
+        if (!residual) return std::unexpected(residual.error());
+        if (std::abs(*residual) <= settings.price_tolerance || std::abs(b - a) <= settings.parameter_tolerance)
+            return trial;
+        d = c;
+        c = b;
+        fc = fb;
+        if ((fa < 0.0) != (*residual < 0.0)) {
+            b = trial;
+            fb = *residual;
+        } else {
+            a = trial;
+            fa = *residual;
+        }
+        if (std::abs(fa) < std::abs(fb)) {
+            std::swap(a, b);
+            std::swap(fa, fb);
+        }
+    }
+    return std::unexpected(Error{ErrorCategory::solver_non_convergence,
+                                 "implied-volatility solver did not converge"});
+}
 
 // Callers validate settings, endpoint residuals, and identifiability before iterating.
 template <typename Settings, typename Evaluate>
@@ -47,7 +104,7 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
 
 } // namespace detail
 
-/// Bisects the engine's price curve in volatility; the caller's bounds must bracket the quote.
+/// Uses safeguarded Brent interpolation in volatility; the caller's bounds must bracket the quote.
 /// For CRR trees, the interval is intersected with the tree's admissible volatility range.
 /// @tparam Engine Pricing engine providing `price(option, context)`.
 /// @tparam Option Instrument accepted by the engine.
@@ -182,8 +239,7 @@ template <typename Engine, typename Option>
     if ((elo < 0.0) == (ehi < 0.0))
         return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
                                      "price is not bracketed by volatility bounds"});
-    return detail::bisect_implied(settings, elo, evaluate,
-                                  "implied-volatility solver did not converge");
+    return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
 }
 
 namespace detail {

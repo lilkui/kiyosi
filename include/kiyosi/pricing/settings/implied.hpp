@@ -17,7 +17,7 @@ struct ImpliedVolatilitySettings {
     double upper_bound = 4.0;          ///< Upper volatility bound, greater than the lower bound.
     double price_tolerance = 1e-8;     ///< Positive absolute price-error tolerance.
     double parameter_tolerance = 1e-8; ///< Positive absolute volatility-interval tolerance.
-    int max_iterations = 100;          ///< Positive maximum bisection iteration count.
+    int max_iterations = 100;          ///< Positive maximum Brent iteration count, excluding endpoint prices.
 };
 
 /// Bracketing bounds and convergence controls for the implied-coupon solver.

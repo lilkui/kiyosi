@@ -194,6 +194,43 @@ class AuditFixTests(unittest.TestCase):
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
 
+    def test_implied_volatility_interpolates_expensive_price_curves(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for engine in (
+            pricing.AnalyticVanillaEngine(),
+            pricing.FiniteDifferenceVanillaEngine(),
+            pricing.MonteCarloVanillaEngine(path_count=5000, step_count=10, seed=42),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                quote = engine.price(option, context)
+                solved = pricing.implied_volatility(
+                    engine,
+                    option,
+                    context,
+                    quote,
+                    parameter_tolerance=1e-12,
+                    max_iterations=12,
+                )
+                self.assertAlmostEqual(solved, 0.2, delta=1e-8)
+                shifted = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.04, dividend_yield=0.01, volatility=solved
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                self.assertAlmostEqual(engine.price(option, shifted), quote, delta=1e-8)
+
     def test_builtin_implied_coupons_solve_affine_curve_directly(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
