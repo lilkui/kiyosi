@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <array>
+#include <memory>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -769,6 +770,60 @@ TEST_CASE("Built-in implied coupons solve affine price curves directly", "[prici
     };
     check(MonteCarloBinarySnowballEngine{{512, 42}});
     check(FiniteDifferenceBinarySnowballEngine{});
+}
+
+TEST_CASE("Monte Carlo coupon bounds share paths without changing endpoint prices", "[pricing-api][monte-carlo-performance]")
+{
+    const auto start = day(2025, 1, 1), fixing = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<int>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    for (const auto mode : {KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day}) {
+        for (const auto valuation_date : {start, fixing, end}) {
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.0, valuation_date, calendar);
+            const auto check = [&](const auto& note) {
+                using Note = std::decay_t<decltype(note)>;
+                for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+#if !KIYOSI_HAS_CUDA
+                    if (backend == MonteCarloBackend::cuda) continue;
+#endif
+                    const MonteCarloAutocallableEngine<Note> engine{{512, 42, backend}};
+                    const auto replace = [&](double coupon) {
+                        if constexpr (std::same_as<Note, PhoenixOption>) return detail::replace_coupon(note, coupon);
+                        else return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon);
+                    };
+                    for (const auto bounds : {std::array{-1.0, 2.0}, std::array{0.0, 2.0}}) {
+                        const auto lower = replace(bounds[0]), upper = replace(bounds[1]);
+                        REQUIRE(lower);
+                        REQUIRE(upper);
+                        const auto prices = detail::monte_carlo_coupon_prices(*lower, *upper, context, engine.settings());
+                        REQUIRE(prices);
+                        const auto first = engine.price(*lower, context), second = engine.price(*upper, context);
+                        REQUIRE(first);
+                        REQUIRE(second);
+                        CHECK((*prices)[0] == *first);
+                        CHECK((*prices)[1] == *second);
+                    }
+                    *queries = 0;
+                    const auto quote = engine.price(note, context);
+                    REQUIRE(quote);
+                    const int price_queries = std::exchange(*queries, 0);
+                    const ImpliedCouponSettings settings{.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .max_iterations = 1};
+                    const auto solved = [&] {
+                        if constexpr (std::same_as<Note, PhoenixOption>) return implied_coupon(engine, note, context, *quote, settings);
+                        else return implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon, settings);
+                    }();
+                    REQUIRE(solved);
+                    CHECK(*solved == Catch::Approx(0.073).margin(1e-10));
+                    if (detail::autocallable_program(note).has_knock_in && mode == KnockInObservationMode::every_trading_day && valuation_date == start)
+                        CHECK(*queries < 3 * price_queries);
+                }
+            };
+            check(*make_phoenix_option({.coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0}, .coupon_barrier_levels = {90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {fixing, end}, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+            check(*make_snowball_option({.knock_out_coupon_rates = {0.073, 0.083}, .maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {fixing, end}, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+            check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.073, 0.083}, .maturity_coupon_rate = 0.093, .knock_out_levels = {110.0, 110.0}, .observation_dates = {fixing, end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+            check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.073, 0.083}, .maturity_coupon_rate = 0.093, .minimum_coupon_rate = -2.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0}, .observation_dates = {fixing, end}, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+        }
+    }
 }
 
 TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[pricing-api][audit-fixes]")

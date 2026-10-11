@@ -42,6 +42,13 @@ On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall time
 falling from 43.069 ms to 4.726 ms (three repetitions, 0.15 s minimum), with
 the recovered coupon remaining 0.08.
 
+The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
+prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
+the interpolated coupon with a separate price. Bounds that require different
+knock-in time grids retain separate simulations. On the same CPU, five-run
+median timings for the daily-monitoring audit scenario fell from 238.95 ms to
+160.47 ms, with the recovered coupon remaining 0.08.
+
 - Common market: valuation on 2025-01-01, expiry on 2026-01-01, spot and vanilla strike 100, flat risk-free rate 4%, dividend yield 1%, volatility 20%, Actual/365 Fixed.
 - Instruments and engines are constructed before timing. Each iteration calls Kiyosi `price()` or forces a QuantLib `recalculate()` followed by `NPV()`; plain repeated `NPV()` would report a cached lookup. The warmup price is included as a `price` counter for checking that paired cases value similar contracts.
 - CPU cases report CPU time; CUDA cases report wall time, which includes GPU synchronization inside the pricing call.

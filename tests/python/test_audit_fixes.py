@@ -1,4 +1,5 @@
 import math
+import os
 import unittest
 from datetime import date
 from unittest.mock import patch
@@ -235,6 +236,113 @@ class AuditFixTests(unittest.TestCase):
                             max_iterations=1,
                         )
                         self.assertAlmostEqual(solved, coupon, delta=1e-10)
+
+    def test_monte_carlo_coupon_solve_preserves_monitoring_and_current_cashflows(self):
+        start, fixing, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        backends = ["cpu"] + (
+            ["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else []
+        )
+        for mode in ("at_expiry", "every_trading_day"):
+            common = {
+                "knock_out_levels": [110, 110],
+                "observation_dates": [fixing, end],
+                "effective_date": start,
+                "expiry_date": end,
+                "barrier_state": "none",
+            }
+            knock_in = {"knock_in_level": 80, "knock_in_observation_mode": mode}
+            downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 100}
+            coupons = {
+                "knock_out_coupon_rates": [0.073, 0.083],
+                "maturity_coupon_rate": 0.073,
+            }
+            cases = (
+                (
+                    PhoenixOption(
+                        **common,
+                        **knock_in,
+                        **downside,
+                        coupon_rate=0.073,
+                        coupon_barrier_levels=[90, 90],
+                    ),
+                    pricing.MonteCarloPhoenixEngine,
+                ),
+                (
+                    SnowballOption(**common, **knock_in, **downside, **coupons),
+                    pricing.MonteCarloSnowballEngine,
+                ),
+                (
+                    BinarySnowballOption(**common, **coupons),
+                    pricing.MonteCarloBinarySnowballEngine,
+                ),
+                (
+                    TernarySnowballOption(
+                        **common, **knock_in, **coupons, minimum_coupon_rate=-2
+                    ),
+                    pricing.MonteCarloTernarySnowballEngine,
+                ),
+            )
+            for note, engine_type in cases:
+                for backend in backends:
+                    engine = engine_type(path_count=512, seed=42, backend=backend)
+                    for valuation in (start, fixing, end):
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+                            ),
+                            spot_price=100,
+                            valuation_time=valuation,
+                        )
+                        quote = engine.price(note, context)
+                        conventions = (
+                            (None,)
+                            if isinstance(note, PhoenixOption)
+                            else ("shift_maturity_coupon", "preserve_maturity_coupon")
+                        )
+                        for convention in conventions:
+                            kwargs = (
+                                {}
+                                if convention is None
+                                else {"quote_convention": convention}
+                            )
+                            with self.subTest(
+                                note=type(note).__name__,
+                                backend=backend,
+                                valuation=valuation,
+                                mode=mode,
+                                convention=convention,
+                            ):
+                                if (
+                                    valuation == end
+                                    and convention == "preserve_maturity_coupon"
+                                ):
+                                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                                        pricing.implied_coupon(
+                                            engine,
+                                            note,
+                                            context,
+                                            quote,
+                                            lower_bound=-1,
+                                            upper_bound=2,
+                                            **kwargs,
+                                        )
+                                    self.assertEqual(
+                                        error.exception.category,
+                                        kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                                    )
+                                    continue
+                                solved = pricing.implied_coupon(
+                                    engine,
+                                    note,
+                                    context,
+                                    quote,
+                                    lower_bound=-1,
+                                    upper_bound=2,
+                                    price_tolerance=1e-10,
+                                    max_iterations=1,
+                                    **kwargs,
+                                )
+                                self.assertAlmostEqual(solved, 0.073, delta=1e-10)
 
     def test_finite_difference_implied_coupons_retain_nonlinear_interpolation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

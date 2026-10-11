@@ -47,6 +47,7 @@ struct CudaSimulationStep {
 struct CudaAutocallableStep {
     CudaSimulationStep simulation;
     AutocallableEvent event;
+    double alternate_coupon{};
 };
 
 struct CudaAccumulatorRequest {
@@ -67,12 +68,15 @@ struct CudaAutocallableRequest {
     double terminal_discount;
     AutocallableProgram program;
     AutocallablePathState initial_state;
+    AutocallableProgram alternate_program{};
+    AutocallablePathState alternate_initial_state{};
 };
 
 struct CudaPricingResult {
     CudaPricingStatus status;
     double payoff_mean;
     const char* message;
+    double alternate_payoff_mean{};
 };
 
 [[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request);
@@ -80,6 +84,8 @@ struct CudaPricingResult {
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
     CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps);
 [[nodiscard]] CudaPricingResult cuda_autocallable_price(
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps);
+[[nodiscard]] CudaPricingResult cuda_autocallable_coupon_prices(
     CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps);
 
 } // namespace kiyosi::detail

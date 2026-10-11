@@ -164,6 +164,12 @@ void kiyosi::benchmark_support::register_analytics_cases()
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return implied_coupon(snowball_engine, snowball, context, *coupon_quote,
                                                    CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
+    const MonteCarloSnowballEngine coupon_engine{20'000, 42};
+    const auto monte_carlo_quote = coupon_engine.price(snowball, context);
+    register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=]() -> Result<double> {
+                             if (!monte_carlo_quote) return std::unexpected(monte_carlo_quote.error());
+                             return implied_coupon(coupon_engine, snowball, context, *monte_carlo_quote,
+                                                   CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
     register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
     const auto knocked_in = snowball_scenario(AutocallableBarrierState::knocked_in).first;
     register_price("analytics/kiyosi/snowball/fd/knocked_in/price", knocked_in, snowball_engine, context);

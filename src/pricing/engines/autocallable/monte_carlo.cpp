@@ -29,7 +29,8 @@ struct SimulationInputs {
 
 template <typename Note>
 Result<SimulationInputs> prepare_simulation(
-    const Note& note, const PricingContext& context, std::size_t next_observation, bool daily_knock_in)
+    const Note& note, const PricingContext& context, std::size_t next_observation, bool daily_knock_in,
+    const Note* alternate = nullptr)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const Timestamp valuation = context.valuation_time();
@@ -44,23 +45,27 @@ Result<SimulationInputs> prepare_simulation(
     auto previous = valuation;
     for (const Date current : dates) {
         AutocallableEvent event{};
+        double alternate_coupon = 0.0;
         if (next_observation < note.observation_dates().size() &&
             note.observation_dates()[next_observation] == current) {
             event = autocallable_event(note, next_observation);
+            if (alternate) alternate_coupon = autocallable_event(*alternate, next_observation).coupon;
             ++next_observation;
         }
         const auto step = simulation_step(context, previous, current);
         if (!step) return std::unexpected(step.error());
-        steps.push_back({*step, event});
+        steps.push_back({*step, event, alternate_coupon});
         previous = current;
     }
     return SimulationInputs{std::move(steps),
                             std::exp(-rate * actual_365_fixed_year_fraction(valuation, note.expiry_date()))};
 }
 
-Result<double> path_payoff(double initial_spot, const AutocallableProgram& program,
-                           const SimulationInputs& inputs, AutocallablePathState state,
-                           Pcg32& generator)
+template <bool Paired = false>
+Result<std::array<double, 2>> path_payoff(double initial_spot, const AutocallableProgram& program,
+                                          const SimulationInputs& inputs, AutocallablePathState state,
+                                          Pcg32& generator, const AutocallableProgram& alternate_program = {},
+                                          AutocallablePathState alternate_state = {})
 {
     double value = initial_spot;
     std::normal_distribution<double> normal;
@@ -73,15 +78,31 @@ Result<double> path_payoff(double initial_spot, const AutocallableProgram& progr
         state.knocked_in = program_knocked_in(program, value, state.knocked_in, false);
         if (!step.event.active) continue;
         const double coupon = program_observation_coupon(step.event, value);
-        if (value >= step.event.knock_out_level)
-            return (program.principal_ratio + coupon) * step.simulation.discount +
-                   state.coupons;
+        double alternate_coupon = 0.0;
+        if constexpr (Paired) {
+            auto event = step.event;
+            event.coupon = step.alternate_coupon;
+            alternate_coupon = program_observation_coupon(event, value);
+        }
+        if (value >= step.event.knock_out_level) {
+            const double payoff = (program.principal_ratio + coupon) * step.simulation.discount + state.coupons;
+            double alternate_payoff = 0.0;
+            if constexpr (Paired)
+                alternate_payoff = (alternate_program.principal_ratio + alternate_coupon) * step.simulation.discount + alternate_state.coupons;
+            return std::array{payoff, alternate_payoff};
+        }
         if (program.carries_observation_coupon)
             state.coupons += coupon * step.simulation.discount;
+        if constexpr (Paired)
+            if (alternate_program.carries_observation_coupon)
+                alternate_state.coupons += alternate_coupon * step.simulation.discount;
     }
     state.knocked_in = program_knocked_in(program, value, state.knocked_in, true);
-    return state.coupons + inputs.terminal_discount *
-                               program_terminal_settlement(program, value, state.knocked_in);
+    const double payoff = state.coupons + inputs.terminal_discount * program_terminal_settlement(program, value, state.knocked_in);
+    double alternate_payoff = 0.0;
+    if constexpr (Paired)
+        alternate_payoff = alternate_state.coupons + inputs.terminal_discount * program_terminal_settlement(alternate_program, value, state.knocked_in);
+    return std::array{payoff, alternate_payoff};
 }
 
 } // namespace
@@ -136,9 +157,71 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
 #endif
     }
 
-    return cpu_path_mean(settings_, [&](auto& generator) {
-        return path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
+    return cpu_path_mean(settings_, [&](auto& generator) -> Result<double> {
+        const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
+        if (!payoff) return std::unexpected(payoff.error());
+        return (*payoff)[0];
     });
+}
+
+template <typename Note>
+Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
+    const Note& lower, const Note& upper, const PricingContext& context,
+    const TradingDayMonteCarloSettings& settings)
+{
+    for (const auto* note : {&lower, &upper}) {
+        const auto valid = validate_monte_carlo_autocallable(*note, context, settings);
+        if (!valid) return std::unexpected(valid.error());
+    }
+    const auto program = autocallable_program(lower);
+    const auto alternate_program = autocallable_program(upper);
+    const auto initial = autocallable_initial_state(lower, context, program);
+    const auto alternate_initial = autocallable_initial_state(upper, context, alternate_program);
+    const bool daily = program_knock_in_affects_payoff(program) && program.daily_knock_in && !initial.path.knocked_in;
+    const bool alternate_daily = program_knock_in_affects_payoff(alternate_program) && alternate_program.daily_knock_in && !alternate_initial.path.knocked_in;
+    // Preserve each endpoint's shortcuts and random time grid when a coupon removes knock-in exposure.
+    if (initial.settlement || alternate_initial.settlement ||
+        autocallable_fixed_value(lower, context, program, initial) ||
+        autocallable_fixed_value(upper, context, alternate_program, alternate_initial) || daily != alternate_daily) {
+        const MonteCarloAutocallableEngine<Note> engine{settings};
+        const auto first = engine.price(lower, context);
+        if (!first) return std::unexpected(first.error());
+        const auto second = engine.price(upper, context);
+        if (!second) return std::unexpected(second.error());
+        return std::array{*first, *second};
+    }
+    const auto inputs = prepare_simulation(lower, context, initial.next_observation, daily, &upper);
+    if (!inputs) return std::unexpected(inputs.error());
+    if (settings.backend == MonteCarloBackend::cuda) {
+#if KIYOSI_HAS_CUDA
+        const auto result = cuda_autocallable_coupon_prices(
+            {settings.path_count, settings.seed ? *settings.seed : random_seed(), context.spot_price(),
+             inputs->terminal_discount, program, initial.path, alternate_program, alternate_initial.path},
+            inputs->step_count);
+        const auto first = cuda_mean(result);
+        if (!first) return std::unexpected(first.error());
+        return std::array{*first, result.alternate_payoff_mean};
+#else
+        return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
+#endif
+    }
+    std::mt19937_64 generator(settings.seed ? *settings.seed : std::random_device{}());
+    std::array<MonteCarloMean, 2> means{};
+    for (int path = 0; path < settings.path_count; ++path) {
+        Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
+        const auto payoff = path_payoff<true>(context.spot_price(), program, *inputs, initial.path,
+                                              path_generator, alternate_program, alternate_initial.path);
+        if (!payoff) return std::unexpected(payoff.error());
+        for (std::size_t i = 0; i < means.size(); ++i)
+            means[i].add((*payoff)[i]);
+    }
+    std::array<double, 2> prices{};
+    for (std::size_t i = 0; i < prices.size(); ++i) {
+        const auto price = checked_price(means[i].value());
+        if (!price) return std::unexpected(price.error());
+        prices[i] = *price;
+    }
+    return prices;
 }
 
 template <typename Note>
@@ -161,5 +244,14 @@ template class MonteCarloAutocallableEngine<PhoenixOption>;
 template class MonteCarloAutocallableEngine<SnowballOption>;
 template class MonteCarloAutocallableEngine<BinarySnowballOption>;
 template class MonteCarloAutocallableEngine<TernarySnowballOption>;
+
+template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
+    const PhoenixOption&, const PhoenixOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
+    const SnowballOption&, const SnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
+    const BinarySnowballOption&, const BinarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
+    const TernarySnowballOption&, const TernarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
 
 } // namespace kiyosi

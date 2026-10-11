@@ -323,16 +323,30 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 
     const double lo = settings.lower_bound;
     const double hi = settings.upper_bound;
-    const auto lower_price = price_at_coupon(lo);
-    if (!lower_price) return std::unexpected(lower_price.error());
-    const auto upper_price = price_at_coupon(hi);
-    if (!upper_price) return std::unexpected(upper_price.error());
+    const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
+        if constexpr (std::same_as<Engine, MonteCarloAutocallableEngine<Option>>) {
+            const auto lower = replace_coupon(option, lo);
+            if (!lower) return std::unexpected(lower.error());
+            const auto upper = replace_coupon(option, hi);
+            if (!upper) return std::unexpected(upper.error());
+            return monte_carlo_coupon_prices(*lower, *upper, context, engine.settings());
+        } else {
+            const auto lower = price_at_coupon(lo);
+            if (!lower) return std::unexpected(lower.error());
+            const auto upper = price_at_coupon(hi);
+            if (!upper) return std::unexpected(upper.error());
+            return std::array{*lower, *upper};
+        }
+    }();
+    if (!endpoint_prices) return std::unexpected(endpoint_prices.error());
+    const double lower_price = (*endpoint_prices)[0];
+    const double upper_price = (*endpoint_prices)[1];
     // Coupon shifts change payoffs affinely; equal endpoint prices have no sampled quote exposure.
-    if (*lower_price == *upper_price)
+    if (lower_price == upper_price)
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "coupon does not affect the remaining cashflows"});
-    const double flo = *lower_price - observed_price;
-    const double fhi = *upper_price - observed_price;
+    const double flo = lower_price - observed_price;
+    const double fhi = upper_price - observed_price;
     if (std::abs(flo) <= settings.price_tolerance) return lo;
     if (std::abs(fhi) <= settings.price_tolerance) return hi;
     if ((flo < 0.0) == (fhi < 0.0))
@@ -346,10 +360,10 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
     if constexpr (std::is_same_v<Engine, MonteCarloAutocallableEngine<Option>> ||
                   std::is_same_v<Engine, FiniteDifferenceAutocallableEngine<Option>>) {
         // Coupon payoffs are affine; halve prices only if their span overflows.
-        const double span = *upper_price - *lower_price;
+        const double span = upper_price - lower_price;
         const double fraction = std::isfinite(span)
-                                    ? (observed_price - *lower_price) / span
-                                    : (0.5 * observed_price - 0.5 * *lower_price) / (0.5 * *upper_price - 0.5 * *lower_price);
+                                    ? (observed_price - lower_price) / span
+                                    : (0.5 * observed_price - 0.5 * lower_price) / (0.5 * upper_price - 0.5 * lower_price);
         const double coupon = std::lerp(lo, hi, fraction);
         const auto residual = evaluate(coupon);
         if (!residual) return std::unexpected(residual.error());
@@ -371,7 +385,8 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param settings Finite coupon bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// Built-in Monte Carlo and FD engines try interpolation, verify its price residual, then bisect if needed.
+/// Built-in Monte Carlo engines share paths between coupon bounds. Built-in Monte Carlo and FD
+/// engines try interpolation, verify its price residual, then bisect if needed.
 /// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>
@@ -391,7 +406,8 @@ template <typename Engine, typename Option>
 /// Solves the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
-/// Built-in Monte Carlo and FD engines try interpolation, verify its price residual, then bisect if needed.
+/// Built-in Monte Carlo engines share paths between coupon bounds. Built-in Monte Carlo and FD
+/// engines try interpolation, verify its price residual, then bisect if needed.
 /// States with no quoted coupon exposure on the engine's sampled price curve are rejected.
 /// @return Implied coupon, or a validation, bracketing, pricing, or convergence error.
 template <typename Engine, typename Option>

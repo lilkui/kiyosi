@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 
@@ -17,6 +18,12 @@ namespace detail {
 template <typename Note>
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_monte_carlo_autocallable(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings);
+
+// Coupon variants share asset paths; the implied solver supplies otherwise identical notes.
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT Result<std::array<double, 2>> monte_carlo_coupon_prices(
+    const Note& lower, const Note& upper, const PricingContext& context,
+    const TradingDayMonteCarloSettings& settings);
 } // namespace detail
 
 /// Simulates observation dates and expiry, adding trading days for daily knock-in monitoring.

@@ -314,9 +314,10 @@ __global__ void simulate_accumulator_paths(
     payoffs[path] = payoff;
 }
 
+template <bool Paired>
 __global__ void simulate_autocallable_paths(
     CudaAutocallableRequest request, const CudaAutocallableStep* steps, std::size_t step_count,
-    double* payoffs, int* invalid)
+    double* payoffs, double* alternate_payoffs, int* invalid)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (path >= request.path_count) return;
@@ -325,6 +326,10 @@ __global__ void simulate_autocallable_paths(
     curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
     double spot = request.spot;
     auto state = request.initial_state;
+    auto alternate_state = request.alternate_initial_state;
+    double payoff = 0.0;
+    double alternate_payoff = 0.0;
+    bool knocked_out = false;
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
         spot *= exp(step.simulation.drift +
@@ -332,33 +337,43 @@ __global__ void simulate_autocallable_paths(
         if (!isfinite(spot) || spot <= 0.0) {
             atomicExch(invalid, 1);
             payoffs[path] = 0.0;
+            if constexpr (Paired) alternate_payoffs[path] = 0.0;
             return;
         }
-        state.knocked_in = program_knocked_in(
-            request.program, spot, state.knocked_in, false);
+        state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, false);
         if (!step.event.active) continue;
         const double coupon = program_observation_coupon(step.event, spot);
+        double alternate_coupon = 0.0;
+        if constexpr (Paired) {
+            auto event = step.event;
+            event.coupon = step.alternate_coupon;
+            alternate_coupon = program_observation_coupon(event, spot);
+        }
         if (spot >= step.event.knock_out_level) {
-            const double payoff =
-                (request.program.principal_ratio + coupon) * step.simulation.discount +
-                state.coupons;
-            if (!isfinite(payoff)) atomicExch(invalid, 1);
-            payoffs[path] = isfinite(payoff) ? payoff : 0.0;
-            return;
+            payoff = (request.program.principal_ratio + coupon) * step.simulation.discount + state.coupons;
+            if constexpr (Paired)
+                alternate_payoff = (request.alternate_program.principal_ratio + alternate_coupon) * step.simulation.discount + alternate_state.coupons;
+            knocked_out = true;
+            break;
         }
         if (request.program.carries_observation_coupon)
             state.coupons += coupon * step.simulation.discount;
+        if constexpr (Paired)
+            if (request.alternate_program.carries_observation_coupon)
+                alternate_state.coupons += alternate_coupon * step.simulation.discount;
     }
-    state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, true);
-    const double payoff = state.coupons +
-                          request.terminal_discount * program_terminal_settlement(
-                                                          request.program, spot, state.knocked_in);
-    if (!isfinite(payoff)) {
-        atomicExch(invalid, 1);
-        payoffs[path] = 0.0;
-        return;
+    if (!knocked_out) {
+        state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, true);
+        payoff = state.coupons + request.terminal_discount * program_terminal_settlement(request.program, spot, state.knocked_in);
+        if constexpr (Paired)
+            alternate_payoff = alternate_state.coupons + request.terminal_discount * program_terminal_settlement(request.alternate_program, spot, state.knocked_in);
     }
-    payoffs[path] = payoff;
+    if (!isfinite(payoff)) atomicExch(invalid, 1);
+    payoffs[path] = isfinite(payoff) ? payoff : 0.0;
+    if constexpr (Paired) {
+        if (!isfinite(alternate_payoff)) atomicExch(invalid, 1);
+        alternate_payoffs[path] = isfinite(alternate_payoff) ? alternate_payoff : 0.0;
+    }
 }
 
 template <typename Step>
@@ -560,7 +575,8 @@ CudaPricingResult cuda_accumulator_price(
     return finish_path_simulation(outputs, request.path_count, stream);
 }
 
-CudaPricingResult cuda_autocallable_price(
+template <bool Paired>
+CudaPricingResult autocallable_prices(
     CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps)
 {
     const auto device = check_device_available();
@@ -577,14 +593,38 @@ CudaPricingResult cuda_autocallable_price(
     result = allocate_path_outputs(request.path_count, outputs, stream);
     if (result.status != CudaPricingStatus::success) return result;
 
+    PathOutputs alternate_outputs;
+    if constexpr (Paired) {
+        result = allocate_path_outputs(request.path_count, alternate_outputs, stream);
+        if (result.status != CudaPricingStatus::success) return result;
+    }
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_autocallable_paths<<<block_count, threads_per_block, 0, stream>>>(
+    simulate_autocallable_paths<Paired><<<block_count, threads_per_block, 0, stream>>>(
         request, static_cast<const CudaAutocallableStep*>(device_steps.get()), steps.size(),
-        outputs.payoffs, &outputs.result->invalid);
+        outputs.payoffs, alternate_outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(outputs, request.path_count, stream);
+    result = finish_path_simulation(outputs, request.path_count, stream);
+    if (result.status != CudaPricingStatus::success) return result;
+    if constexpr (Paired) {
+        const auto alternate = finish_path_simulation(alternate_outputs, request.path_count, stream);
+        if (alternate.status != CudaPricingStatus::success) return alternate;
+        result.alternate_payoff_mean = alternate.payoff_mean;
+    }
+    return result;
+}
+
+CudaPricingResult cuda_autocallable_price(
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps)
+{
+    return autocallable_prices<false>(request, steps);
+}
+
+CudaPricingResult cuda_autocallable_coupon_prices(
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps)
+{
+    return autocallable_prices<true>(request, steps);
 }
 
 } // namespace kiyosi::detail
