@@ -293,6 +293,18 @@ C++ and Python checks cover odd/even path counts, seeds, early knock-out,
 different accrual branches, unavailable event-boundary Greeks and expiry;
 C++ also checks failures, concurrent calls and unseeded settings.
 
+CPU autocallable Monte Carlo spot Greeks likewise share draws and growth factors,
+with independent coupon, knock-in and knock-out states for each spot bump. A
+2026-10-11 one-year, all-days-calendar, noon-valuation snowball probe with seed 42
+measured delta/gamma falling from 336 to 148 ms at 20,000 paths and from 1669 to
+735 ms at 100,000 paths (median of five runs, same Release MSVC compiler and CPU).
+Price and spot Greeks were bit-for-bit identical to separate seeded valuations.
+Storage is independent of path count. The analytics suite includes
+`snowball/mc/price` and `snowball/mc/delta_gamma`. C++ and Python regressions cover
+all four note types, daily/expiry knock-in, different knock-out dates, odd/even
+path counts and seeds; C++ also checks expiry, event boundaries, errors and
+concurrent requests. CUDA retains its existing execution path.
+
 Continuous up-barrier FD boundaries return the rebate directly instead of
 computing a vanilla upper-boundary value that is immediately replaced. A
 2026-10-11 Release MSVC comparison using spot 100.25, strike 100 and barrier 110

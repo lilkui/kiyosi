@@ -44,6 +44,7 @@ public:
     [[nodiscard]] Result<double> price(const Note& note, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// CPU spot sensitivities share per-path draws with separate event states and constant storage.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 

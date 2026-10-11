@@ -20,6 +20,8 @@ namespace kiyosi {
 
 class MonteCarloVanillaEngine;
 class MonteCarloAccumulatorEngine;
+template <typename Note>
+class MonteCarloAutocallableEngine;
 class Accumulator;
 
 namespace detail {
@@ -512,7 +514,8 @@ template <typename Engine, typename Option>
 {
     if constexpr ((std::same_as<Engine, MonteCarloVanillaEngine> &&
                    (std::same_as<Option, AmericanOption> || std::same_as<Option, EuropeanOption>)) ||
-                  (std::same_as<Engine, MonteCarloAccumulatorEngine> && std::same_as<Option, Accumulator>))
+                  (std::same_as<Engine, MonteCarloAccumulatorEngine> && std::same_as<Option, Accumulator>) ||
+                  std::same_as<Engine, MonteCarloAutocallableEngine<Option>>)
         return engine.price_with_greeks(option, context, true, settings);
     else
         return detail::price_with_greeks(engine, option, context, true, settings);

@@ -20,6 +20,111 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_shared_spot_simulations_match_separate_seeded_prices(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        terms = {
+            "knock_out_levels": [101, 100, 99],
+            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
+            "barrier_state": "none",
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        cases = [
+            (
+                BinarySnowballOption(
+                    knock_out_coupon_rates=[0.08] * 3,
+                    maturity_coupon_rate=0.05,
+                    **terms,
+                ),
+                pricing.MonteCarloBinarySnowballEngine,
+            ),
+        ]
+        for mode in ("every_trading_day", "at_expiry"):
+            common = {**terms, "knock_in_level": 99, "knock_in_observation_mode": mode}
+            cases.extend(
+                [
+                    (
+                        SnowballOption(
+                            knock_out_coupon_rates=[0.08] * 3,
+                            maturity_coupon_rate=0.06,
+                            initial_spot=100,
+                            upper_strike=100,
+                            lower_strike=60,
+                            **common,
+                        ),
+                        pricing.MonteCarloSnowballEngine,
+                    ),
+                    (
+                        PhoenixOption(
+                            coupon_rate=0.08,
+                            initial_spot=100,
+                            coupon_barrier_levels=[100, 99, 98],
+                            upper_strike=100,
+                            lower_strike=60,
+                            **common,
+                        ),
+                        pricing.MonteCarloPhoenixEngine,
+                    ),
+                    (
+                        TernarySnowballOption(
+                            knock_out_coupon_rates=[0.08] * 3,
+                            maturity_coupon_rate=0.06,
+                            minimum_coupon_rate=0.02,
+                            **common,
+                        ),
+                        pricing.MonteCarloTernarySnowballEngine,
+                    ),
+                ]
+            )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.8
+        )
+        spot, shift = 100.25, 0.2
+        h = (spot + shift) - spot
+        contexts = [
+            PricingContext(
+                model_parameters=parameters,
+                spot_price=spot + offset * h,
+                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+                calendar=all_days_calendar(),
+            )
+            for offset in (0, 1, -1, 2, -2)
+        ]
+        for note, engine_type in cases:
+            for paths in (1, 31, 32):
+                for seed in (42, 2**64 - 1):
+                    with self.subTest(note=type(note).__name__, paths=paths, seed=seed):
+                        engine = engine_type(path_count=paths, seed=seed)
+                        p, up, down, up2, down2 = [
+                            engine.price(note, ctx) for ctx in contexts
+                        ]
+                        result = engine.price_with_greeks(
+                            note,
+                            contexts[0],
+                            ["delta", "gamma", "speed"],
+                            spot_shift=shift,
+                        )
+                        self.assertEqual(result.price, p)
+                        self.assertEqual(result.delta, (up - down) / (2 * h))
+                        self.assertEqual(result.gamma, (up - 2 * p + down) / h / h)
+                        self.assertEqual(
+                            result.speed,
+                            (up2 - 2 * up + 2 * down - down2) / h / h / (2 * h),
+                        )
+                        numerical = pricing.calculate_numerical_greeks(
+                            engine, note, contexts[0], spot_shift=shift
+                        )
+                        self.assertEqual(
+                            (result.price, result.delta, result.gamma, result.speed),
+                            (
+                                numerical.price,
+                                numerical.delta,
+                                numerical.gamma,
+                                numerical.speed,
+                            ),
+                        )
+                        self.assertIsNone(result.vega)
+
     def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
         import math
 

@@ -25,6 +25,71 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[autocallable-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const std::vector<Date> observations{day(2025, 1, 3), day(2025, 1, 8), end};
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const NumericalShiftSettings shifts{.spot_shift = 0.2};
+    const auto check = [&](const auto& note) {
+        using Note = std::remove_cvref_t<decltype(note)>;
+        for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+            for (const int paths : {1, 31, 32})
+                for (const double spot : {98.0, 99.0, 100.25, 101.0, 103.0})
+                    for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
+                        CAPTURE(seed, paths, spot, valuation.time_since_epoch().count());
+                        const MonteCarloAutocallableEngine<Note> engine{paths, seed};
+                        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), spot, valuation, calendar);
+                        queries->store(0);
+                        const auto expected = detail::price_with_greeks(engine, note, context, true, shifts);
+                        REQUIRE(expected);
+                        const int scalar_queries = queries->exchange(0);
+                        const auto numerical = calculate_numerical_greeks(engine, note, context, shifts);
+                        REQUIRE(numerical);
+                        if (spot == 100.25 && valuation == start_of_day(start) + std::chrono::hours{12})
+                            CHECK(queries->load() < scalar_queries);
+                        CHECK(numerical->price() == expected->price());
+                        CHECK(numerical->values_view() == expected->values_view());
+                        for (const GreeksRequest request : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}}) {
+                            const auto actual = engine.price_with_greeks(note, context, request, shifts);
+                            REQUIRE(actual);
+                            CHECK(actual->price() == expected->price());
+                            CHECK(actual->values_view() == expected->selected(request).values_view());
+                        }
+                    }
+        const MonteCarloAutocallableEngine<Note> engine{127, 42};
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), 100.25, start_of_day(start) + std::chrono::hours{12}, calendar);
+        auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true, shifts); });
+        auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true, shifts); });
+        const auto a = first.get(), b = second.get();
+        REQUIRE(a);
+        REQUIRE(b);
+        CHECK(a->price() == b->price());
+        CHECK(a->values_view() == b->values_view());
+        const auto bad_paths = MonteCarloAutocallableEngine<Note>{0, 42}.price_with_greeks(note, context, true);
+        REQUIRE_FALSE(bad_paths);
+        CHECK(bad_paths.error().category == ErrorCategory::invalid_parameter);
+        const auto bad_shifts = engine.price_with_greeks(note, context, true, {.spot_shift = 0.0});
+        REQUIRE_FALSE(bad_shifts);
+        CHECK(bad_shifts.error().category == ErrorCategory::invalid_parameter);
+        const auto expired = *make_pricing_context(context.model_parameters(), 100.25, end + std::chrono::days{1}, calendar);
+        const auto bad_time = engine.price_with_greeks(note, expired, true);
+        REQUIRE_FALSE(bad_time);
+        CHECK(bad_time.error().category == ErrorCategory::invalid_time_range);
+        const MonteCarloAutocallableEngine<Note> unseeded{31, std::nullopt};
+        REQUIRE(unseeded.price_with_greeks(note, context, true));
+        CHECK_FALSE(unseeded.settings().seed);
+    };
+    for (const auto mode : {KnockInObservationMode::every_trading_day, KnockInObservationMode::at_expiry}) {
+        check(*make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+        check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .coupon_barrier_levels = {100.0, 99.0, 98.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+        check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+    }
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.05, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+}
+
 TEST_CASE("Autocallable FD event skipping preserves coupons knock-out and daily knock-in", "[fd-performance]")
 {
     using namespace kiyosi;

@@ -105,6 +105,97 @@ Result<std::array<double, 2>> path_payoff(double initial_spot, const Autocallabl
     return std::array{payoff, alternate_payoff};
 }
 
+struct PathState {
+    double spot;
+    AutocallablePathState path;
+    std::optional<double> payoff;
+};
+
+template <std::size_t count>
+Result<std::array<double, count>> path_payoffs(
+    const AutocallableProgram& program, const SimulationInputs& inputs,
+    std::array<PathState, count> states, Pcg32& generator)
+{
+    std::normal_distribution<double> normal;
+    for (const auto& step : inputs.step_count) {
+        const double growth = std::exp(step.simulation.drift + step.simulation.diffusion * normal(generator));
+        for (auto& state : states) {
+            if (state.payoff) continue;
+            state.spot *= growth;
+            if (!std::isfinite(state.spot) || state.spot <= 0.0)
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "Monte Carlo simulation produced an invalid asset price"});
+            state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, false);
+            if (!step.event.active) continue;
+            const double coupon = program_observation_coupon(step.event, state.spot);
+            if (state.spot >= step.event.knock_out_level)
+                state.payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.path.coupons;
+            else if (program.carries_observation_coupon)
+                state.path.coupons += step.simulation.discount.apply(coupon);
+        }
+        if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
+    }
+    std::array<double, count> payoffs{};
+    for (std::size_t i = 0; i < count; ++i) {
+        auto& state = states[i];
+        state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, true);
+        payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + inputs.terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+    }
+    return payoffs;
+}
+
+template <std::size_t count, typename Note>
+Result<PricingResult> price_spot_bumps(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    GreeksRequest greeks, double h)
+{
+    constexpr std::array offsets{0.0, 1.0, -1.0, 2.0, -2.0};
+    const auto program = autocallable_program(note);
+    const auto base = autocallable_initial_state(note, context, program);
+    std::array<PathState, count> initial{};
+    for (std::size_t i = 0; i < count; ++i) {
+        const double spot = context.spot_price() + offsets[i] * h;
+        const auto shifted = shifted_context(context, spot, context.model_parameters().volatility(),
+                                             context.model_parameters().risk_free_rate(), context.valuation_time());
+        if (!shifted) return std::unexpected(shifted.error());
+        const auto state = autocallable_initial_state(note, *shifted, program);
+        const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, *shifted, program, state);
+        if (fixed) {
+            const auto value = checked_price(*fixed);
+            if (!value) return std::unexpected(value.error());
+        }
+        initial[i] = {spot, state.path, fixed};
+    }
+    std::array<MonteCarloMean, count> means{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        const auto inputs = prepare_simulation(note, context, base.next_observation,
+                                               program_knock_in_affects_payoff(program) && program.daily_knock_in && !base.path.knocked_in);
+        if (!inputs) return std::unexpected(inputs.error());
+        std::mt19937_64 generator{*settings.seed};
+        for (int path = 0; path < settings.path_count; ++path) {
+            // Each path keeps its scalar stream even when spot bumps knock out on different dates.
+            Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
+            const auto payoffs = path_payoffs(program, *inputs, initial, path_generator);
+            if (!payoffs) return std::unexpected(payoffs.error());
+            for (std::size_t i = 0; i < count; ++i)
+                if (!initial[i].payoff) means[i].add((*payoffs)[i]);
+        }
+    }
+    std::array<double, count> prices{};
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : means[i].value());
+        if (!value) return std::unexpected(value.error());
+        prices[i] = *value;
+    }
+    std::optional<double> speed;
+    if constexpr (count == 5)
+        speed = (prices[3] - 2.0 * prices[1] + 2.0 * prices[2] - prices[4]) / h / h / (2.0 * h);
+    return make_pricing_result(prices[0],
+                               {{Greek::delta, greeks.has(Greek::delta) ? std::optional{(prices[1] - prices[2]) / (2.0 * h)} : std::nullopt},
+                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{(prices[1] - 2.0 * prices[0] + prices[2]) / h / h} : std::nullopt},
+                                {Greek::speed, speed}});
+}
+
 } // namespace
 
 template <typename Note>
@@ -228,7 +319,29 @@ template <typename Note>
 Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& seeded) -> Result<PricingResult> {
+                                         const auto valid = validate_monte_carlo_autocallable(option, context, seeded.settings());
+                                         if (!valid) return std::unexpected(valid.error());
+                                         const double spot = context.spot_price();
+                                         const double h = symmetric_shift(spot, settings.spot_shift);
+                                         const double two_h = 2.0 * h;
+                                         const bool speed_available = std::isfinite(two_h) && spot > two_h &&
+                                                                      symmetric_shift(spot, two_h) == two_h &&
+                                                                      !at_spot_discontinuity(option, context, two_h);
+                                         if (seeded.settings().backend == MonteCarloBackend::cpu &&
+                                             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed)) &&
+                                             h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
+                                             !at_spot_discontinuity(option, context, h) &&
+                                             (!greeks.has(Greek::speed) || speed_available)) {
+                                             if (greeks.has(Greek::speed))
+                                                 return price_spot_bumps<5>(option, context, seeded.settings(), greeks, h);
+                                             return price_spot_bumps<3>(option, context, seeded.settings(), greeks, h);
+                                         }
+                                         const auto value = seeded.price(option, context);
+                                         if (!value) return std::unexpected(value.error());
+                                         return make_pricing_result(*value);
+                                     });
 }
 
 template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
