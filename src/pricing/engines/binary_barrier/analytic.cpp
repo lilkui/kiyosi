@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 
 #include <algorithm>
@@ -160,6 +161,22 @@ struct BinaryBarrierPricer {
     }
 };
 } // namespace
+
+template <>
+Result<double> implied_volatility<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(
+    const AnalyticBinaryBarrierEngine&, const BinaryBarrierOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility(BinaryBarrierPricer{}, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<AnalyticBinaryBarrierEngine, TouchOption>(
+    const AnalyticBinaryBarrierEngine&, const TouchOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility(BinaryBarrierPricer{}, option, context, observed_price, settings);
+}
 
 Result<double> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const

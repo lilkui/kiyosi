@@ -16,6 +16,8 @@
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
 #include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -242,6 +244,22 @@ template <typename Engine, typename Option>
                                      "price is not bracketed by volatility bounds"});
     return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
 }
+
+/// Scheduled analytic barriers validate their calendar once per solve.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<AnalyticBarrierEngine, BarrierOption>(
+    const AnalyticBarrierEngine& engine, const BarrierOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(
+    const AnalyticBinaryBarrierEngine& engine, const BinaryBarrierOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<AnalyticBinaryBarrierEngine, TouchOption>(
+    const AnalyticBinaryBarrierEngine& engine, const TouchOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
 
 template <>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(

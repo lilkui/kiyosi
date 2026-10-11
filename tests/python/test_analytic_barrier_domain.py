@@ -84,6 +84,26 @@ class AnalyticBarrierDomainTests(unittest.TestCase):
                 self.assertEqual(actual.price, engine.price(option, context))
                 for greek in greeks:
                     self.assertEqual(getattr(actual, greek), getattr(expected, greek))
+                solved = pricing.implied_volatility(
+                    engine,
+                    option,
+                    context,
+                    actual.price,
+                    lower_bound=0.15,
+                    upper_bound=0.25,
+                )
+                self.assertAlmostEqual(solved, 0.2, delta=1e-7)
+                with self.assertRaises(kiyosi.KiyosiError) as invalid:
+                    pricing.implied_volatility(
+                        engine,
+                        option,
+                        context,
+                        actual.price,
+                        lower_bound=0,
+                    )
+                self.assertEqual(
+                    invalid.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                )
 
     def test_binary_barriers_survive_volatility_variance_underflow(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

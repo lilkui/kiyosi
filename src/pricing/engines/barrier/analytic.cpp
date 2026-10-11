@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -114,6 +115,14 @@ struct BarrierPricer {
     }
 };
 } // namespace
+
+template <>
+Result<double> implied_volatility<AnalyticBarrierEngine, BarrierOption>(
+    const AnalyticBarrierEngine&, const BarrierOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility(BarrierPricer{}, option, context, observed_price, settings);
+}
 
 Result<double> AnalyticBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {

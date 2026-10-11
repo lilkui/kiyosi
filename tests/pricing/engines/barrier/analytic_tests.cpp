@@ -62,6 +62,35 @@ TEST_CASE("Scheduled analytic Greeks validate calendars once per request", "[ana
         *queries = 0;
         REQUIRE_FALSE(engine.price_with_greeks(option, context, true, {.spot_shift = 0.0}));
         CHECK(*queries == 0);
+
+        const auto quote = engine.price(option, context);
+        REQUIRE(quote);
+        const ImpliedVolatilitySettings bounds{.lower_bound = 0.15, .upper_bound = 0.25};
+        *queries = 0;
+        const auto solved = implied_volatility(engine, option, context, *quote, bounds);
+        REQUIRE(solved);
+        CHECK_THAT(*solved, Catch::Matchers::WithinAbs(0.2, 1e-7));
+        CHECK(*queries == dates.size());
+        *queries = 0;
+        auto solve_task = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, *quote, bounds); });
+        const auto concurrent_solve = implied_volatility(engine, option, context, *quote, bounds);
+        const auto first_solve = solve_task.get();
+        REQUIRE(first_solve);
+        REQUIRE(concurrent_solve);
+        CHECK(*first_solve == *solved);
+        CHECK(*concurrent_solve == *solved);
+        CHECK(*queries == 2 * dates.size());
+        *allowed = false;
+        const auto rejected_solve = implied_volatility(engine, option, context, *quote, bounds);
+        REQUIRE_FALSE(rejected_solve);
+        CHECK(rejected_solve.error().category == ErrorCategory::invalid_date);
+        *allowed = true;
+        *queries = 0;
+        REQUIRE(implied_volatility(engine, option, context, *quote, bounds));
+        CHECK(*queries == dates.size());
+        *queries = 0;
+        REQUIRE_FALSE(implied_volatility(engine, option, context, *quote, {.lower_bound = 0.0}));
+        CHECK(*queries == 0);
     };
     check(AnalyticBarrierEngine{}, *make_barrier_option(
                                        {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched}));
