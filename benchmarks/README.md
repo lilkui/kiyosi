@@ -375,3 +375,13 @@ The analytics suite includes accumulator and snowball `mc_cuda/price` and
 `mc_cuda/delta_gamma` cases at 250,000 paths. Payoff buffers use 24 bytes per
 path for delta/gamma and up to 40 for speed, plus reduction and step buffers;
 all storage remains local to the request.
+
+Analytic vanilla delta/rho-only requests skip density and log-weight calculations
+used by other Greeks. A 2026-10-11 Release MSVC probe through the public C++
+`price_with_greeks` API, using a one-year ATM call, rate 5%, dividend yield 2%
+and volatility 20%, measured delta falling from 145.1 to 111.0 ns and rho from
+151.2 to 118.3 ns (median of seven batches of one million calls). C++ and Python
+regressions preserve exact prices and selected values against full analytic
+results for calls and puts, deep tails, tiny/large volatility and expiry;
+unrequested Greeks remain unavailable. The analytics suite includes
+`european/analytic/delta` and `european/analytic/rho`.

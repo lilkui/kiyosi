@@ -29,6 +29,61 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_analytic_delta_and_rho_selections_retain_full_valuation_results(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.AnalyticVanillaEngine()
+        names = (
+            "delta",
+            "gamma",
+            "speed",
+            "theta",
+            "charm",
+            "color",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
+        )
+        for direction in ("call", "put"):
+            option = EuropeanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for volatility in (0.2, 1e-20, 1e-200, 1e308):
+                for spot in (0.01, 100, 1e100):
+                    for valuation in (start, datetime(2025, 1, 1, 12, tzinfo=UTC), end):
+                        with self.subTest(
+                            direction=direction,
+                            volatility=volatility,
+                            spot=spot,
+                            valuation=valuation,
+                        ):
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=0.05,
+                                    dividend_yield=0.02,
+                                    volatility=volatility,
+                                ),
+                                spot_price=spot,
+                                valuation_time=valuation,
+                            )
+                            full = engine.price_with_greeks(
+                                option, context, all_greeks=True
+                            )
+                            scalar = engine.price(option, context)
+                            for request in (["delta"], ["rho"], ["delta", "rho"]):
+                                selected = engine.price_with_greeks(
+                                    option, context, request
+                                )
+                                self.assertEqual(selected.price, scalar)
+                                self.assertEqual(selected.price, full.price)
+                                for name in names:
+                                    self.assertEqual(
+                                        getattr(selected, name),
+                                        getattr(full, name)
+                                        if name in request
+                                        else None,
+                                    )
+
     def test_shared_analytic_engine_prices_are_consistent_across_threads(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

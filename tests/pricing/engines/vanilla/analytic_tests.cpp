@@ -202,6 +202,39 @@ TEST_CASE("Analytic European prices preserve the large-volatility limit", "[audi
     }
 }
 
+TEST_CASE("Analytic delta and rho selections retain full valuation results", "[analytic-selected]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const AnalyticVanillaEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, 100.0, start, end);
+        for (const double volatility : {0.2, 1e-20, 1e-200, 1e308}) {
+            for (const double spot : {0.01, 100.0, 1e100}) {
+                for (const auto valuation : {Timestamp{start}, Timestamp{start} + std::chrono::hours{12}, Timestamp{end}}) {
+                    CAPTURE(type, volatility, spot, valuation);
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, volatility), spot, valuation);
+                    const auto full = engine.price_with_greeks(option, context, true);
+                    const auto scalar = engine.price(option, context);
+                    REQUIRE(full);
+                    REQUIRE(scalar);
+                    for (const auto request : {GreeksRequest{Greek::delta}, GreeksRequest{Greek::rho}, GreeksRequest{Greek::delta, Greek::rho}}) {
+                        const auto selected = engine.price_with_greeks(option, context, request);
+                        REQUIRE(selected);
+                        CHECK(selected->price() == *scalar);
+                        CHECK(selected->price() == full->price());
+                        for (std::size_t index = 0; index < greek_count; ++index) {
+                            const auto greek = static_cast<Greek>(index);
+                            CHECK(selected->get(greek).value() == (request.has(greek) ? full->get(greek).value() : std::nullopt));
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic charm retains dividend carry when density underflows")
 {
     const auto start = day(2025, 1, 1);

@@ -122,6 +122,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
 {
     using namespace kiyosi;
     const auto [european, base_context] = monte_carlo_scenario();
+    register_calculation("analytics/kiyosi/european/analytic/delta", [=] { return AnalyticVanillaEngine{}.price_with_greeks(european, base_context, {Greek::delta}); }, "price");
+    register_calculation("analytics/kiyosi/european/analytic/rho", [=] { return AnalyticVanillaEngine{}.price_with_greeks(european, base_context, {Greek::rho}); }, "price");
     const auto context = *make_pricing_context(
         base_context.model_parameters(), base_context.spot_price(),
         base_context.valuation_time() + std::chrono::hours{12}, base_context.calendar());
