@@ -4,6 +4,7 @@
 #include "vanilla/monte_carlo_regression.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <memory>
@@ -48,7 +49,16 @@ using CudaStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, StreamDe
 struct RequestCompletion {
     cudaStream_t stream;
     // Caller-owned step arrays must remain alive even when a queued operation fails.
-    ~RequestCompletion() { cudaStreamSynchronize(stream); }
+    ~RequestCompletion()
+    {
+        if (stream) cudaStreamSynchronize(stream);
+    }
+    cudaError_t synchronize()
+    {
+        const auto status = cudaStreamSynchronize(stream);
+        if (status == cudaSuccess) stream = nullptr;
+        return status;
+    }
 };
 
 struct DeviceDeleter {
@@ -558,6 +568,18 @@ CudaPricingResult reduce_payoff_mean(const double* payoffs, int count, double* t
                                  : error_result(status);
 }
 
+CudaPricingResult checked_path_simulation_result(const PathSimulationResult& result)
+{
+    if (result.invalid != 0)
+        return {CudaPricingStatus::invalid_result, 0.0,
+                "CUDA Monte Carlo simulation produced a non-finite path"};
+
+    if (!std::isfinite(result.mean))
+        return {CudaPricingStatus::invalid_result, 0.0,
+                "CUDA Monte Carlo reduction produced a non-finite result"};
+    return {CudaPricingStatus::success, result.mean, nullptr};
+}
+
 CudaPricingResult finish_path_simulation(const PathOutputs& outputs, int path_count, cudaStream_t stream)
 {
     const auto reduction = reduce_payoff_mean(
@@ -567,14 +589,7 @@ CudaPricingResult finish_path_simulation(const PathOutputs& outputs, int path_co
     PathSimulationResult result{};
     const auto transfer = download(&result, outputs.result, sizeof(result), stream);
     if (transfer.status != CudaPricingStatus::success) return transfer;
-    if (result.invalid != 0)
-        return {CudaPricingStatus::invalid_result, 0.0,
-                "CUDA Monte Carlo simulation produced a non-finite path"};
-
-    if (!std::isfinite(result.mean))
-        return {CudaPricingStatus::invalid_result, 0.0,
-                "CUDA Monte Carlo reduction produced a non-finite result"};
-    return {CudaPricingStatus::success, result.mean, nullptr};
+    return checked_path_simulation_result(result);
 }
 
 CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs, cudaStream_t stream)
@@ -635,7 +650,9 @@ CudaSpotPricingResult spot_prices(std::span<const Request> requests, std::span<c
     const auto created = storage.prepare();
     if (created.status != CudaPricingStatus::success) return {created};
     const auto stream = storage.owned_stream.get();
-    const RequestCompletion completion{stream};
+    // Keep host results alive through completion on every return path.
+    std::array<PathSimulationResult, 5> results{};
+    RequestCompletion completion{stream};
     auto result = upload_steps(storage.steps, steps, stream);
     if (result.status != CudaPricingStatus::success) return {result};
     SpotRequests<Request> batch{};
@@ -655,7 +672,19 @@ CudaSpotPricingResult spot_prices(std::span<const Request> requests, std::span<c
     if (status != cudaSuccess) return {error_result(status)};
     CudaSpotPricingResult prices{};
     for (int bump = 0; bump < batch.count; ++bump) {
-        prices.result = finish_path_simulation(storage.outputs[bump], path_count, stream);
+        const auto& outputs = storage.outputs[bump];
+        prices.result = reduce_payoff_mean(outputs.payoffs, path_count, &outputs.result->mean, outputs.partials, stream);
+        if (prices.result.status != CudaPricingStatus::success) return prices;
+    }
+    for (int bump = 0; bump < batch.count; ++bump) {
+        const auto transferred = cudaMemcpyAsync(&results[bump], storage.outputs[bump].result,
+                                                 sizeof(PathSimulationResult), cudaMemcpyDeviceToHost, stream);
+        if (transferred != cudaSuccess) return {error_result(transferred)};
+    }
+    const auto completed = completion.synchronize();
+    if (completed != cudaSuccess) return {error_result(completed)};
+    for (int bump = 0; bump < batch.count; ++bump) {
+        prices.result = checked_path_simulation_result(results[bump]);
         if (prices.result.status != CudaPricingStatus::success) return prices;
         prices.payoff_means[bump] = prices.result.payoff_mean;
     }

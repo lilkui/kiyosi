@@ -486,3 +486,11 @@ valuation, rate 5%, dividend yield 2%, volatility 20%, one million paths and
 seed 42 reduced unavailable-delta allocation from 12,000,078 bytes to zero.
 Its price remained exactly 6.3236944868234461; both scalar and Greek requests
 took about 20 ms. Requests with feasible stencils retain their shared samples.
+
+CUDA accumulator and autocallable spot batches queue all payoff reductions and
+host transfers before one readback wait. Error exits still wait for queued
+accesses to caller-owned inputs and host results. A 2026-10-11 Release CUDA 13.4
+probe on an RTX 3090 used a reused workspace, one simulation step, 250,000 paths,
+seed 42 and five spots. Median wall time fell from 497–498 us to 475–478 us
+(seven batches of 50 calls per run, two runs), with every price bit-for-bit
+equal to its scalar valuation. These timings depend on hardware and workload.

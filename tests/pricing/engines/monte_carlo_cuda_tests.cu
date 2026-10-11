@@ -41,11 +41,19 @@ TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][m
         const std::array<CudaAutocallableStep, 1> autocallable_steps{{{{0.0, 0.1, 0.99}, {110.0, 0.01, 0.0, false, true}}}};
         AutocallableProgram program{};
         program.principal_ratio = 1.0;
+        const std::array<CudaAccumulatorRequest, 3> accumulators{{{512, 42, 90.0, 90.0, 120.0, 1.0, 2.0, 0.0},
+                                                                  {512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0},
+                                                                  {512, 42, 110.0, 90.0, 120.0, 1.0, 2.0, 0.0}}};
+        const std::array<CudaAutocallableRequest, 3> notes{{{512, 42, 90.0, {0.99}, program, {}},
+                                                            {512, 42, 100.0, {0.99}, program, {}},
+                                                            {512, 42, 110.0, {0.99}, program, {}}}};
         return std::array{
             cuda_european_price({512, 42, 100.0, 100.0, 0.01, 0.2, 1}, &workspace),
             cuda_american_price({512, 3, 42, 100.0, 100.0, 0.01, 0.1, 0.99, -1}, &workspace),
             cuda_accumulator_price({512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0}, accumulator_steps, &workspace),
-            cuda_autocallable_price({512, 42, 100.0, {0.99}, program, {}}, autocallable_steps, &workspace)};
+            cuda_autocallable_price({512, 42, 100.0, {0.99}, program, {}}, autocallable_steps, &workspace),
+            cuda_accumulator_spot_prices(accumulators, accumulator_steps, &workspace).result,
+            cuda_autocallable_spot_prices(notes, autocallable_steps, &workspace).result};
     };
     for (const auto result : price())
         REQUIRE(result.status == CudaPricingStatus::success);
@@ -177,7 +185,7 @@ TEST_CASE("CUDA shared spot paths preserve independent settlements and recover f
 {
     using namespace kiyosi::detail;
     CudaWorkspace workspace;
-    for (const int paths : {1, 255, 256, 257})
+    for (const int paths : {1, 255, 256, 257, 65'537, 100'003})
         for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
             for (const double diffusion : {0.0, 0.1}) {
                 CAPTURE(paths, seed, diffusion);
