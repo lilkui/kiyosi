@@ -126,7 +126,8 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
                                      "Bjerksund-Stensland exercise exponent is numerically unstable"});
     const double b_inf = beta / (beta - 1.0) * strike;
     const double b_zero = std::max(strike, rate / dividend * strike);
-    const double split_time = 0.5 * (std::sqrt(5.0) - 1.0) * time;
+    const double split_ratio = 0.5 * (std::sqrt(5.0) - 1.0);
+    const double split_time = split_ratio * time;
     const double scale = (strike / (b_inf - b_zero)) * (strike / b_zero);
     const double h1 = -(carry * split_time + 2.0 * volatility * std::sqrt(split_time)) * scale;
     const double h2 = -(carry * time + 2.0 * volatility * std::sqrt(time)) * scale;
@@ -136,7 +137,7 @@ Result<double> bjerksund_call(double spot, double strike, double time, double ra
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "Bjerksund-Stensland exercise boundaries must exceed the strike"});
     if (spot >= outer) return spot - strike;
-    const auto quadrature = bivariate_quadrature(std::sqrt(split_time / time));
+    static const auto quadrature = bivariate_quadrature(std::sqrt(split_ratio));
     // Normalize beta powers before evaluation so neither alpha nor spot^beta overflows separately.
     return (outer - strike) * std::exp(beta * (std::log(spot) - std::log(outer))) -
            (outer - strike) * phi(spot, split_time, beta, outer, outer, rate, dividend, volatility, outer) +

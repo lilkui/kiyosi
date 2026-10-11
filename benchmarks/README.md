@@ -240,3 +240,10 @@ machine measured 0.475 to 0.442 ms for a down-and-out call, with identical price
 across both barrier directions and knock states. A separate 72-scenario check
 retained identical price, delta, gamma, and speed for continuous and scheduled
 monitoring across all three schemes and both supported rebate timings.
+
+Bjerksund-Stensland caches immutable bivariate quadrature geometry for its fixed
+time-split ratio. On the same machine, the American matrix case fell from
+3.675 to 3.561 us (median of five repetitions, 0.15 s minimum). All 432 checked
+call/put scenarios retained identical prices across eight maturities, three
+spots, three volatilities, and three rate/dividend pairs. C++ and Python retain
+continuation-price references from one day to ten years.

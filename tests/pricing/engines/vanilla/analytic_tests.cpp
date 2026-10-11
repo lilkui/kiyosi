@@ -21,14 +21,19 @@ TEST_CASE("Bjerksund-Stensland quadrature preserves continuation prices", "[pric
     const auto start = day(2025, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.03, 0.2), 100.0, start);
     const BjerksundStenslandVanillaEngine engine;
-    // Preserve the established 2002 approximation while sharing positive/negative correlation geometry.
+    // Preserve the established 2002 approximation across calls with different maturities.
     struct Reference {
         int days;
         double call;
         double put;
     };
-    for (const auto row : {Reference{91, 4.1945462483931095, 3.7306674960129627},
+    for (const auto row : {Reference{1, 0.4203293406666333, 0.41497263683106667},
+                           Reference{7, 1.1233367180705613, 1.0862318403299156},
+                           Reference{30, 2.362502879143129, 2.205771411369753},
+                           Reference{91, 4.1945462483931095, 3.7306674960129627},
+                           Reference{180, 5.986257668860937, 5.094433820244056},
                            Reference{365, 8.652695436032069, 6.932464292493037},
+                           Reference{1000, 14.425584357882556, 10.310794114806157},
                            Reference{3650, 25.33817727859211, 15.052781075279043}}) {
         for (const auto type : {OptionType::call, OptionType::put}) {
             CAPTURE(row.days, type);

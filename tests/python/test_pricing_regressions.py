@@ -28,6 +28,40 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_bjerksund_quadrature_preserves_continuation_across_maturities(self):
+        start = date(2025, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05,
+                dividend_yield=0.03,
+                volatility=0.2,
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.BjerksundStenslandVanillaEngine()
+        for days, call, put in (
+            (1, 0.4203293406666333, 0.41497263683106667),
+            (7, 1.1233367180705613, 1.0862318403299156),
+            (30, 2.362502879143129, 2.205771411369753),
+            (91, 4.1945462483931095, 3.7306674960129627),
+            (180, 5.986257668860937, 5.094433820244056),
+            (365, 8.652695436032069, 6.932464292493037),
+            (1000, 14.425584357882556, 10.310794114806157),
+            (3650, 25.33817727859211, 15.052781075279043),
+        ):
+            for kind, expected in (("call", call), ("put", put)):
+                with self.subTest(days=days, kind=kind):
+                    option = AmericanOption(
+                        option_type=kind,
+                        strike=100,
+                        effective_date=start,
+                        expiry_date=start + timedelta(days=days),
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=1e-11
+                    )
+
     def test_product_fd_speed_preserves_shifted_gamma_and_stencil_errors(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
