@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <algorithm>
 #include <array>
@@ -126,6 +127,32 @@ TEST_CASE("Finite-difference event intervals retain exact anchors and split widt
         kiyosi::FiniteDifferenceScheme::explicit_euler, grid, 0.2, 0.04, 0.01, 200);
     REQUIRE_FALSE(unstable);
     CHECK(unstable.error().category == kiyosi::ErrorCategory::invalid_parameter);
+}
+
+TEST_CASE("Daily finite-difference anchors replace rounded uniform duplicates", "[fd-performance]")
+{
+    std::vector<double> events;
+    for (int day = 0; day <= 366; ++day)
+        events.push_back(day / 365.0);
+    const auto grid = kiyosi::detail::make_finite_difference_time_grid(366.0 / 365.0, 366, events);
+    CHECK(grid.times == events);
+    REQUIRE(grid.time_steps.size() == 366);
+    for (const double dt : grid.time_steps)
+        CHECK_THAT(dt, Catch::Matchers::WithinAbs(1.0 / 365.0, 3e-16));
+}
+
+TEST_CASE("Finite-difference merging preserves adjacent events and later uniform widths", "[fd-performance]")
+{
+    const double middle = 0.5;
+    const double before = std::nextafter(middle, 0.0), after = std::nextafter(middle, 1.0);
+    const auto adjacent = kiyosi::detail::make_finite_difference_time_grid(1.0, 4, {after, before, before});
+    CHECK(adjacent.times == std::vector<double>{0.0, 0.25, before, after, 0.75, 1.0});
+    CHECK(adjacent.time_steps == std::vector<double>{0.25, before - 0.25, after - before, 0.75 - after, 0.25});
+
+    const double event = std::nextafter(1.0 / 3.0, 1.0);
+    const auto later = kiyosi::detail::make_finite_difference_time_grid(1.0, 3, {event});
+    CHECK(later.times == std::vector<double>{0.0, event, 2.0 / 3.0, 1.0});
+    CHECK(later.time_steps == std::vector<double>{event, 2.0 / 3.0 - event, 1.0 / 3.0});
 }
 
 TEST_CASE("Paired finite-difference advances match independent layers")

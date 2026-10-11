@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <limits>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -25,8 +26,20 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity
     // beyond expiry_date and cause event-driven engines to apply terminal cashflows twice.
     events.push_back(0.0);
     events.push_back(maturity);
-    for (int index = 1; index < steps; ++index)
-        events.push_back(maturity * index / steps);
+    std::ranges::sort(events);
+    const std::size_t event_count = events.size();
+    events.reserve(event_count + static_cast<std::size_t>(steps) - 1);
+    const double tolerance = 4.0 * std::numeric_limits<double>::epsilon() * maturity;
+    std::size_t next_event = 0;
+    for (int index = 1; index < steps; ++index) {
+        const double time = maturity * index / steps;
+        while (next_event < event_count && events[next_event] < time)
+            ++next_event;
+        // Preserve every event; omit only uniform nodes within rounding error of an event.
+        if ((next_event < event_count && std::abs(events[next_event] - time) <= tolerance) ||
+            (next_event > 0 && std::abs(events[next_event - 1] - time) <= tolerance)) continue;
+        events.push_back(time);
+    }
     std::ranges::sort(events);
     events.erase(std::ranges::unique(events).begin(), events.end());
     FiniteDifferenceTimeGrid grid{std::move(events), {}};
@@ -35,8 +48,13 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity
     int uniform_index = 1;
     double uniform_start = 0.0;
     for (std::size_t index = 0; index + 1 < grid.times.size(); ++index) {
-        const double uniform_end = uniform_index == steps ? maturity : maturity * uniform_index / steps;
         const double start = grid.times[index], end = grid.times[index + 1];
+        double uniform_end = uniform_index == steps ? maturity : maturity * uniform_index / steps;
+        while (uniform_index < steps && uniform_end < end) {
+            uniform_start = uniform_end;
+            ++uniform_index;
+            uniform_end = uniform_index == steps ? maturity : maturity * uniform_index / steps;
+        }
         // Subtraction rounds equal uniform intervals differently and defeats factor reuse.
         grid.time_steps.push_back(start == uniform_start && end == uniform_end ? uniform_dt : end - start);
         if (end == uniform_end) {

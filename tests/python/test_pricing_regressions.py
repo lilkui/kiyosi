@@ -17,10 +17,46 @@ from kiyosi.instruments import (
     cash_one_touch_down,
     cash_one_touch_up,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+)
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_accumulator_daily_leap_year_grid_preserves_settlement_price(self):
+        start, end = date(2024, 1, 1), date(2025, 1, 1)
+        option = Accumulator(
+            strike=100,
+            knock_out_level=115,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=0,
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        for scheme, nodes, expected in (
+            ("crank_nicolson", 200, -2058.336718606278),
+            ("implicit_euler", 200, -2048.4071966441415),
+            ("explicit_euler", 40, -2253.4061717943714),
+        ):
+            with self.subTest(scheme=scheme):
+                engine = pricing.FiniteDifferenceAccumulatorEngine(
+                    asset_step_count=nodes, time_step_count=366, scheme=scheme
+                )
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=1e-8
+                )
+
     def test_vanilla_fd_speed_reuses_fixed_grid_gamma_with_custom_shifts(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

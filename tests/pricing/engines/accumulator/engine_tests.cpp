@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <random>
+#include <tuple>
 
 #include <kiyosi/kiyosi.hpp>
 
@@ -18,6 +19,23 @@
 
 namespace {
 using kiyosi::test::day;
+
+TEST_CASE("Accumulator daily leap-year grids preserve settlement prices", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2024, 1, 1), end = day(2025, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, all_days_calendar());
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = start, .expiry_date = end});
+    // Prices from the original grid, including its redundant near-zero time steps.
+    for (const auto [scheme, nodes, expected] : {
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, 200, -2058.336718606278},
+             std::tuple{FiniteDifferenceScheme::implicit_euler, 200, -2048.4071966441415},
+             std::tuple{FiniteDifferenceScheme::explicit_euler, 40, -2253.4061717943714}}) {
+        const auto price = FiniteDifferenceAccumulatorEngine{{nodes, 366, scheme}}.price(option, context);
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(expected).margin(1e-8));
+    }
+}
 
 TEST_CASE("Zero-exposure accumulators skip numerical work after validation", "[fd-performance][monte-carlo-performance]")
 {
