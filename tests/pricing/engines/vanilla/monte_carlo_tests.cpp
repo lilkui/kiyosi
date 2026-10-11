@@ -5,6 +5,7 @@
 #include <cmath>
 #include <future>
 #include <limits>
+#include <random>
 #include <string>
 #include <type_traits>
 #include <tuple>
@@ -85,7 +86,33 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
     }
 }
 
-TEST_CASE("Monte Carlo averages retain finite extreme and subnormal payoffs", "[audit-fixes]")
+TEST_CASE("Monte Carlo sample accumulation matches partial merging across scales", "[mc-mean]")
+{
+    using kiyosi::detail::MonteCarloMean;
+    MonteCarloMean direct{}, merged{};
+    const auto check = [&](double sample) {
+        direct.add(sample);
+        int exponent = 0;
+        const double fraction = std::frexp(sample, &exponent);
+        merged.merge({fraction, 0.0, exponent, 1});
+        CHECK(direct.sum == merged.sum);
+        CHECK(direct.correction == merged.correction);
+        CHECK(direct.exponent == merged.exponent);
+        CHECK(direct.count == merged.count);
+        CHECK(direct.value() == merged.value());
+    };
+    const double maximum = std::numeric_limits<double>::max();
+    const double minimum = std::numeric_limits<double>::denorm_min();
+    for (const double sample : {0.0, maximum, maximum, -maximum, -maximum, minimum, minimum, -minimum, -0.0, 10.0, -10.0})
+        check(sample);
+    std::mt19937_64 generator{42};
+    std::uniform_real_distribution<double> fraction{-1.0, 1.0};
+    std::uniform_int_distribution<int> exponent{-1073, 1024};
+    for (int sample = 0; sample < 2048; ++sample)
+        check(std::ldexp(fraction(generator), exponent(generator)));
+}
+
+TEST_CASE("Monte Carlo averages retain finite extreme and subnormal payoffs", "[audit-fixes][mc-mean]")
 {
     using kiyosi::detail::MonteCarloMean;
     const double maximum = std::numeric_limits<double>::max();

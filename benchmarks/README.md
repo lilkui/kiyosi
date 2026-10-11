@@ -115,5 +115,13 @@ machine measured 1,476 ms before and 1,436 ms after (median of five runs). The
 put price stayed exactly 6.642721968042257; sparse/singular regressions, currency
 scaling and odd path counts retain their existing regression checks.
 
+Individual Monte Carlo payoffs use scaled compensated addition directly;
+partial sums still use the general merge for CUDA block reduction. A European
+call probe (100,000 paths, seed 42, spot/strike 100, 5% rate, 2% dividend,
+20% volatility, one year) measured 2.293 ms before and 2.207 ms after on the same
+machine (median of five batches of 100 prices). The price remained exactly
+9.229877273858007. Tests compare accumulation with partial merging over extreme
+scales and cancellation, and exercise CUDA reduction across block boundaries.
+
 The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
 to expose the cost of processing asset nodes on steps without observations.

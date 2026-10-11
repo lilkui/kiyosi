@@ -21,7 +21,22 @@ struct MonteCarloMean {
     {
         int sample_exponent = 0;
         const double fraction = std::frexp(sample, &sample_exponent);
-        merge({fraction, 0.0, sample_exponent, 1});
+        if (sum == 0.0) {
+            sum = fraction;
+            correction = 0.0;
+            exponent = sample_exponent;
+        } else if (fraction != 0.0) {
+            if (sample_exponent > exponent) {
+                sum = std::ldexp(sum, exponent - sample_exponent);
+                correction = std::ldexp(correction, exponent - sample_exponent);
+                exponent = sample_exponent;
+            }
+            const double adjusted = std::ldexp(fraction, sample_exponent - exponent) - correction;
+            const double next = sum + adjusted;
+            correction = (next - sum) - adjusted;
+            sum = next;
+        }
+        ++count;
     }
 
     KIYOSI_HOST_DEVICE void merge(const MonteCarloMean& other)
