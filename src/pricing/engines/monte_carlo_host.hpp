@@ -18,6 +18,20 @@
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
 
+#if KIYOSI_HAS_CUDA
+template <typename Price>
+struct CudaMonteCarloPricer {
+    Price evaluate;
+    mutable CudaWorkspace workspace{};
+
+    template <typename Option>
+    Result<double> price(const Option& option, const PricingContext& context) const
+    {
+        return evaluate(option, context, &workspace);
+    }
+};
+#endif
+
 template <std::size_t count>
 Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
 {

@@ -212,11 +212,13 @@ Result<void> detail::validate_monte_carlo_autocallable(
     return {};
 }
 
+namespace {
 template <typename Note>
-Result<double> MonteCarloAutocallableEngine<Note>::price(
-    const Note& note, const PricingContext& context) const
+Result<double> price_autocallable(
+    const Note& note, const PricingContext& context,
+    const TradingDayMonteCarloSettings& settings, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
-    const auto valid = validate_monte_carlo_autocallable(note, context, settings_);
+    const auto valid = validate_monte_carlo_autocallable(note, context, settings);
     if (!valid) return std::unexpected(valid.error());
 
     const auto program = autocallable_program(note);
@@ -228,12 +230,12 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
     const auto inputs = prepare_simulation(note, context, initial.next_observation,
                                            program_knock_in_affects_payoff(program) && program.daily_knock_in && !initial.path.knocked_in);
     if (!inputs) return std::unexpected(inputs.error());
-    if (settings_.backend == MonteCarloBackend::cuda) {
+    if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto mean = cuda_mean(cuda_autocallable_price(
-            {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
+            {settings.path_count, settings.seed ? *settings.seed : random_seed(),
              context.spot_price(), inputs->terminal_discount, program, initial.path},
-            inputs->step_count));
+            inputs->step_count, workspace));
         if (!mean) return std::unexpected(mean.error());
         return checked_price(*mean);
 #else
@@ -242,11 +244,18 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
 #endif
     }
 
-    return cpu_path_mean(settings_, [&](auto& generator) -> Result<double> {
+    return cpu_path_mean(settings, [&](auto& generator) -> Result<double> {
         const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
         if (!payoff) return std::unexpected(payoff.error());
         return (*payoff)[0];
     });
+}
+} // namespace
+
+template <typename Note>
+Result<double> MonteCarloAutocallableEngine<Note>::price(const Note& note, const PricingContext& context) const
+{
+    return price_autocallable(note, context, settings_);
 }
 
 template <typename Note>
@@ -313,6 +322,16 @@ template <typename Note>
 Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+#if KIYOSI_HAS_CUDA
+    if (settings_.backend == MonteCarloBackend::cuda)
+        return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+            const CudaMonteCarloPricer prices{[&](const Note& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
+                return price_autocallable(instrument, shifted, seeded.settings(), workspace);
+            }};
+            const auto value = prices.price(option, context);
+            if (!value) return std::unexpected(value.error());
+            return detail::complete_greeks(prices, option, context, greeks, settings, *make_pricing_result(*value)); }, true);
+#endif
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
                                          const auto native = [&]() -> Result<PricingResult> {
                                          const auto valid = validate_monte_carlo_autocallable(option, context, seeded.settings());

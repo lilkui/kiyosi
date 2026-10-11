@@ -16,6 +16,7 @@
 #include "../../detail/math.hpp"
 #include "monte_carlo_regression.hpp"
 #include "../monte_carlo_mean.hpp"
+#include "../monte_carlo_cuda.hpp"
 
 #if KIYOSI_HAS_CUDA
 #include "../monte_carlo_host.hpp"
@@ -89,47 +90,50 @@ double payoff(OptionType type, double spot, double strike)
 #if KIYOSI_HAS_CUDA
 Result<double> cuda_payoff_mean(const EuropeanOption& option,
                                 SimulationParameters parameters,
-                                MonteCarloSettings settings)
+                                MonteCarloSettings settings, detail::CudaWorkspace* workspace)
 {
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
     return detail::cuda_mean(detail::cuda_european_price({
-        path_count,
-        settings.seed ? *settings.seed : detail::random_seed(),
-        parameters.spot,
-        option.strike(),
-        parameters.drift,
-        parameters.diffusion,
-        option.option_type() == OptionType::call ? 1 : -1,
-    }));
+                                                             path_count,
+                                                             settings.seed ? *settings.seed : detail::random_seed(),
+                                                             parameters.spot,
+                                                             option.strike(),
+                                                             parameters.drift,
+                                                             parameters.diffusion,
+                                                             option.option_type() == OptionType::call ? 1 : -1,
+                                                         },
+                                                         workspace));
 }
 
 Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
                                             SimulationParameters parameters,
                                             MonteCarloSettings settings,
-                                            double discount)
+                                            double discount, detail::CudaWorkspace* workspace)
 {
     const int path_count = settings.path_count % 2 == 0
                                ? settings.path_count
                                : settings.path_count + 1;
     return detail::cuda_mean(detail::cuda_american_price({
-        path_count,
-        settings.step_count,
-        settings.seed ? *settings.seed : detail::random_seed(),
-        parameters.spot,
-        option.strike(),
-        parameters.drift,
-        parameters.diffusion,
-        discount,
-        option.option_type() == OptionType::call ? 1 : -1,
-    }));
+                                                             path_count,
+                                                             settings.step_count,
+                                                             settings.seed ? *settings.seed : detail::random_seed(),
+                                                             parameters.spot,
+                                                             option.strike(),
+                                                             parameters.drift,
+                                                             parameters.diffusion,
+                                                             discount,
+                                                             option.option_type() == OptionType::call ? 1 : -1,
+                                                         },
+                                                         workspace));
 }
 #endif
 
 template <typename Simulate>
 Result<double> price_european(const EuropeanOption& option, const PricingContext& context,
-                              MonteCarloSettings settings, const Simulate& simulate)
+                              MonteCarloSettings settings, const Simulate& simulate,
+                              [[maybe_unused]] detail::CudaWorkspace* workspace = nullptr)
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
@@ -144,7 +148,7 @@ Result<double> price_european(const EuropeanOption& option, const PricingContext
     double mean = 0.0;
     if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-        const auto cuda_result = cuda_payoff_mean(option, *parameters, simulation);
+        const auto cuda_result = cuda_payoff_mean(option, *parameters, simulation, workspace);
         if (!cuda_result) return std::unexpected(cuda_result.error());
         mean = *cuda_result;
 #else
@@ -179,6 +183,10 @@ public:
 
     Result<double> price(const EuropeanOption& option, const PricingContext& context) const
     {
+        detail::CudaWorkspace* workspace = nullptr;
+#if KIYOSI_HAS_CUDA
+        workspace = &workspace_;
+#endif
         return price_european(option, context, settings_, [&](auto parameters, auto simulation, const auto& observe) {
             if (normal_draws_.empty()) {
                 std::mt19937_64 generator{*simulation.seed};
@@ -206,8 +214,7 @@ public:
                                                               "Monte Carlo simulation produced a non-finite path"})};
                 observe(path, path + half_count, 1, positive, negative);
             }
-            return Result<void>{};
-        });
+            return Result<void>{}; }, workspace);
     }
 
 private:
@@ -216,6 +223,9 @@ private:
     mutable std::vector<std::array<double, 2>> growth_;
     mutable double drift_ = std::numeric_limits<double>::quiet_NaN();
     mutable double diffusion_ = std::numeric_limits<double>::quiet_NaN();
+#if KIYOSI_HAS_CUDA
+    mutable detail::CudaWorkspace workspace_;
+#endif
 };
 
 } // namespace
@@ -238,7 +248,8 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
 namespace {
 
 Result<double> price_american(const AmericanOption& option, const PricingContext& context,
-                              MonteCarloSettings settings, bool terminal_only)
+                              MonteCarloSettings settings, bool terminal_only,
+                              [[maybe_unused]] detail::CudaWorkspace* workspace = nullptr)
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
@@ -254,7 +265,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         context.model_parameters().risk_free_rate() >= 0.0) {
         const auto european = *make_european_option(
             option.option_type(), option.strike(), option.effective_date(), option.expiry_date());
-        const auto value = MonteCarloVanillaEngine{settings}.price(european, context);
+        const auto value = price_european(european, context, settings, [](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe); }, workspace);
         if (!value) return std::unexpected(value.error());
         return std::max(*value, payoff(option.option_type(), context.spot_price(), option.strike()));
     }
@@ -267,7 +278,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
-            cuda_american_cash_flow_mean(option, *parameters, settings, discount);
+            cuda_american_cash_flow_mean(option, *parameters, settings, discount, workspace);
         if (!cuda_result) return std::unexpected(cuda_result.error());
         mean = *cuda_result;
 #else
@@ -351,8 +362,6 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    if (settings_.backend != MonteCarloBackend::cpu)
-        return detail::price_with_greeks(*this, option, context, greeks, settings);
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
         const EuropeanMonteCarloSamples samples{seeded.settings()};
         const auto value = samples.price(option, context);
@@ -363,8 +372,23 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    struct AmericanPricer {
+        MonteCarloSettings settings;
+        detail::CudaWorkspace* workspace{};
+        Result<double> price(const AmericanOption& instrument, const PricingContext& shifted) const
+        {
+            return price_american(instrument, shifted, settings, true, workspace);
+        }
+    };
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-        const auto value = seeded.price(option, context);
+        detail::CudaWorkspace* workspace = nullptr;
+#if KIYOSI_HAS_CUDA
+        detail::CudaWorkspace owned_workspace;
+        if (seeded.settings().backend == MonteCarloBackend::cuda) workspace = &owned_workspace;
+#endif
+        const AmericanPricer prices{seeded.settings(), workspace};
+        const auto native = [&]() -> Result<PricingResult> {
+        const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
         const double rate = context.model_parameters().risk_free_rate();
         const double shift = detail::symmetric_shift(rate, settings.rate_shift);
@@ -376,7 +400,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
                 const auto shifted = detail::shifted_context(context, context.spot_price(),
                                                              context.model_parameters().volatility(), shifted_rate, context.valuation_time());
                 if (!shifted) return std::unexpected(shifted.error());
-                return price_american(option, *shifted, seeded.settings(), false);
+                return price_american(option, *shifted, seeded.settings(), false, workspace);
             };
             const auto high = evaluate(rate + shift);
             if (!high) return std::unexpected(high.error());
@@ -385,7 +409,9 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
             return make_pricing_result(*value, {{Greek::rho, (*high - *low) / (200.0 * shift)}});
         }
         return make_pricing_result(*value);
-    });
+        }();
+        if (!native) return std::unexpected(native.error());
+        return detail::complete_greeks(prices, option, context, greeks, settings, *native); }, true);
 }
 
 } // namespace kiyosi

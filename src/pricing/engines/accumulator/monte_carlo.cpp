@@ -147,12 +147,11 @@ Result<std::array<double, count>> price_spot_bumps(
     return prices;
 }
 
-} // namespace
-
-Result<double> MonteCarloAccumulatorEngine::price(
-    const Accumulator& option, const PricingContext& context) const
+Result<double> price_accumulator(
+    const Accumulator& option, const PricingContext& context,
+    const TradingDayMonteCarloSettings& settings, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
-    const auto valid = validate_pricing(option, context, settings_);
+    const auto valid = validate_pricing(option, context, settings);
     if (!valid) return std::unexpected(valid.error());
 
     const auto initial = accumulator_initial_state(option, context);
@@ -160,13 +159,13 @@ Result<double> MonteCarloAccumulatorEngine::price(
 
     const auto steps = prepare_simulation(option, context);
     if (!steps) return std::unexpected(steps.error());
-    if (settings_.backend == MonteCarloBackend::cuda) {
+    if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto mean = cuda_mean(detail::cuda_accumulator_price(
-            {settings_.path_count, settings_.seed ? *settings_.seed : random_seed(),
+            {settings.path_count, settings.seed ? *settings.seed : random_seed(),
              context.spot_price(), option.strike(), option.knock_out_level(),
              option.daily_quantity(), option.acceleration_factor(), initial.quantity},
-            *steps));
+            *steps, workspace));
         if (!mean) return std::unexpected(mean.error());
         return checked_price(*mean);
 #else
@@ -174,14 +173,31 @@ Result<double> MonteCarloAccumulatorEngine::price(
                                      "CUDA support is not enabled in this build"});
 #endif
     }
-    return cpu_path_mean(settings_, [&](auto& generator) {
+    return cpu_path_mean(settings, [&](auto& generator) {
         return path_payoff(option, context, *steps, initial.quantity, generator);
     });
+}
+
+} // namespace
+
+Result<double> MonteCarloAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
+{
+    return price_accumulator(option, context, settings_);
 }
 
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+#if KIYOSI_HAS_CUDA
+    if (settings_.backend == MonteCarloBackend::cuda)
+        return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+            const CudaMonteCarloPricer prices{[&](const Accumulator& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
+                return price_accumulator(instrument, shifted, seeded.settings(), workspace);
+            }};
+            const auto value = prices.price(option, context);
+            if (!value) return std::unexpected(value.error());
+            return detail::complete_greeks(prices, option, context, greeks, settings, *make_pricing_result(*value)); }, true);
+#endif
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
                                          const auto native = [&]() -> Result<PricingResult> {
                                          const auto valid = validate_pricing(option, context, seeded.settings());

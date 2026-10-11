@@ -1,11 +1,24 @@
+import os
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import Accumulator, EuropeanOption
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.instruments import (
+    Accumulator,
+    AmericanOption,
+    BinarySnowballOption,
+    EuropeanOption,
+    PhoenixOption,
+    SnowballOption,
+    TernarySnowballOption,
+)
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+)
 
 GREEKS = (
     "delta",
@@ -189,6 +202,7 @@ class SharedSampleTests(unittest.TestCase):
         )
         spot = 100.25
         valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        calendar = all_days_calendar()
         cases = (
             (
                 EuropeanOption(
@@ -211,6 +225,73 @@ class SharedSampleTests(unittest.TestCase):
                 pricing.MonteCarloAccumulatorEngine(path_count=31, seed=42),
             ),
         )
+        common = {
+            "knock_out_levels": [110, 110, 110],
+            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_state": "none",
+        }
+        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
+        downside = {
+            "initial_spot": 100,
+            "knock_in_level": 80,
+            "upper_strike": 100,
+            "lower_strike": 60,
+            "knock_in_observation_mode": "every_trading_day",
+        }
+        cases += (
+            (
+                AmericanOption(
+                    option_type="put", strike=100, effective_date=start, expiry_date=end
+                ),
+                pricing.MonteCarloVanillaEngine(path_count=31, step_count=5, seed=42),
+            ),
+            (
+                BinarySnowballOption(**common, **coupons),
+                pricing.MonteCarloBinarySnowballEngine(path_count=31, seed=42),
+            ),
+            (
+                TernarySnowballOption(
+                    **common,
+                    **coupons,
+                    knock_in_level=80,
+                    minimum_coupon_rate=0.02,
+                    knock_in_observation_mode="every_trading_day",
+                ),
+                pricing.MonteCarloTernarySnowballEngine(path_count=31, seed=42),
+            ),
+            (
+                SnowballOption(**common, **coupons, **downside),
+                pricing.MonteCarloSnowballEngine(path_count=31, seed=42),
+            ),
+            (
+                PhoenixOption(
+                    **common,
+                    **downside,
+                    coupon_rate=0.08,
+                    coupon_barrier_levels=[90] * 3,
+                ),
+                pricing.MonteCarloPhoenixEngine(path_count=31, seed=42),
+            ),
+        )
+        if os.environ.get("KIYOSI_TEST_CUDA") == "enabled":
+            cases += tuple(
+                (
+                    option,
+                    type(engine)(
+                        path_count=31,
+                        seed=42,
+                        backend="cuda",
+                        **(
+                            {"step_count": 5}
+                            if isinstance(engine, pricing.MonteCarloVanillaEngine)
+                            else {}
+                        ),
+                    ),
+                )
+                for option, engine in cases
+            )
         for option, engine in cases:
             for shift in (0.01, 0.2):
                 with self.subTest(engine=type(engine).__name__, shift=shift):
@@ -220,6 +301,7 @@ class SharedSampleTests(unittest.TestCase):
                             model_parameters=parameters,
                             spot_price=value,
                             valuation_time=valuation,
+                            calendar=calendar,
                         )
                         for value in (spot - h, spot, spot + h)
                     ]
@@ -244,6 +326,7 @@ class SharedSampleTests(unittest.TestCase):
                                         model_parameters=model,
                                         spot_price=value,
                                         valuation_time=valuation,
+                                        calendar=calendar,
                                     ),
                                 )
                                 for value in (spot, spot + h, spot - h)

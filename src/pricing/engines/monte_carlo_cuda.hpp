@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 
 #include <kiyosi/pricing/detail/autocallable_program.hpp>
@@ -81,13 +82,28 @@ struct CudaPricingResult {
     double alternate_payoff_mean{};
 };
 
-[[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request);
-[[nodiscard]] CudaPricingResult cuda_american_price(CudaAmericanRequest request);
+// One operation owns this workspace; it must not be shared across concurrent calls.
+// Resources are created lazily so settlements still work without a CUDA device.
+class CudaWorkspace {
+public:
+    struct Impl;
+    CudaWorkspace();
+    ~CudaWorkspace();
+    CudaWorkspace(const CudaWorkspace&) = delete;
+    CudaWorkspace& operator=(const CudaWorkspace&) = delete;
+    Impl& storage();
+
+private:
+    std::unique_ptr<Impl> impl_;
+};
+
+[[nodiscard]] CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace = nullptr);
+[[nodiscard]] CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
-    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps);
+    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_price(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps);
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_coupon_prices(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps);
+    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 
 } // namespace kiyosi::detail

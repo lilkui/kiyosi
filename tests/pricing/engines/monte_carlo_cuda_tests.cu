@@ -36,15 +36,16 @@ TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][m
 {
     using namespace kiyosi::detail;
     const auto price = [] {
+        CudaWorkspace workspace;
         const std::array<CudaSimulationStep, 1> accumulator_steps{{{0.0, 0.1, 0.99}}};
         const std::array<CudaAutocallableStep, 1> autocallable_steps{{{{0.0, 0.1, 0.99}, {110.0, 0.01, 0.0, false, true}}}};
         AutocallableProgram program{};
         program.principal_ratio = 1.0;
         return std::array{
-            cuda_european_price({512, 42, 100.0, 100.0, 0.01, 0.2, 1}),
-            cuda_american_price({512, 3, 42, 100.0, 100.0, 0.01, 0.1, 0.99, -1}),
-            cuda_accumulator_price({512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0}, accumulator_steps),
-            cuda_autocallable_price({512, 42, 100.0, {0.99}, program, {}}, autocallable_steps)};
+            cuda_european_price({512, 42, 100.0, 100.0, 0.01, 0.2, 1}, &workspace),
+            cuda_american_price({512, 3, 42, 100.0, 100.0, 0.01, 0.1, 0.99, -1}, &workspace),
+            cuda_accumulator_price({512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0}, accumulator_steps, &workspace),
+            cuda_autocallable_price({512, 42, 100.0, {0.99}, program, {}}, autocallable_steps, &workspace)};
     };
     for (const auto result : price())
         REQUIRE(result.status == CudaPricingStatus::success);
@@ -80,6 +81,30 @@ TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][m
         for (const auto result : results)
             CHECK(result.status == CudaPricingStatus::success);
     }
+}
+
+TEST_CASE("CUDA workspaces preserve sample changes and recover from invalid paths", "[cuda][cuda-workspace]")
+{
+    using namespace kiyosi::detail;
+    CudaWorkspace workspace;
+    for (const int count : {2, 256, 258, 65'538, 100'002, 256, 2})
+        for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+            for (const double diffusion : {0.2, 0.3}) {
+                CudaEuropeanRequest request{count, seed, 100.25, 100.0, 0.01, diffusion, 1};
+                const auto expected = cuda_european_price(request);
+                REQUIRE(expected.status == CudaPricingStatus::success);
+                for (int repetition = 0; repetition < 2; ++repetition) {
+                    const auto actual = cuda_european_price(request, &workspace);
+                    REQUIRE(actual.status == CudaPricingStatus::success);
+                    CHECK(actual.payoff_mean == expected.payoff_mean);
+                }
+                request.drift = 1000.0;
+                CHECK(cuda_european_price(request, &workspace).status == CudaPricingStatus::invalid_result);
+                request.drift = 0.01;
+                const auto recovered = cuda_european_price(request, &workspace);
+                REQUIRE(recovered.status == CudaPricingStatus::success);
+                CHECK(recovered.payoff_mean == expected.payoff_mean);
+            }
 }
 
 TEST_CASE("CUDA regression solves quadratic and reduced bases", "[cuda]")
