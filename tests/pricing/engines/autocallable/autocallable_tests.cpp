@@ -25,6 +25,70 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated workspaces", "[implied-workspace]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const std::vector<Date> observations{day(2025, 1, 3), day(2025, 1, 8), end};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+    const auto check = [&](const auto& option, const auto& make_engine) {
+        for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+#if !KIYOSI_HAS_CUDA
+            if (backend == MonteCarloBackend::cuda) continue;
+#endif
+            for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+                for (const int paths : {127, 128}) {
+                    CAPTURE(backend, seed, paths);
+                    const auto engine = make_engine(TradingDayMonteCarloSettings{paths, seed, backend});
+                    const auto quote = engine.price(option, context);
+                    REQUIRE(quote);
+                    const auto compare = [&](double price, ImpliedVolatilitySettings settings) {
+                        // The original scalar path creates fresh pricing storage for each trial.
+                        const auto expected = detail::solve_implied_volatility(engine, option, context, price, settings,
+                                                                               [](const auto& scalar, const auto& instrument, const auto& shifted) {
+                                                                                   return detail::numerical_value(scalar, instrument, shifted);
+                                                                               });
+                        const auto actual = implied_volatility(engine, option, context, price, settings);
+                        REQUIRE(actual.has_value() == expected.has_value());
+                        if (expected) CHECK(*actual == *expected);
+                        else CHECK(actual.error().category == expected.error().category);
+                        return actual;
+                    };
+                    const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4};
+                    const auto expected = compare(*quote, bounds);
+                    REQUIRE(expected);
+                    (void)compare(*quote, {});
+                    (void)compare(*quote, {.lower_bound = 0.1, .upper_bound = 0.4, .max_iterations = 1});
+                    const auto rejected = compare(1e10, bounds);
+                    REQUIRE_FALSE(rejected);
+                    CHECK(rejected.error().category == ErrorCategory::unbracketed_volatility);
+                    (void)compare(*quote, {.lower_bound = 0.0});
+                    auto first = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, *quote, bounds); });
+                    auto second = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, *quote, bounds); });
+                    const auto a = first.get(), b = second.get();
+                    REQUIRE(a);
+                    REQUIRE(b);
+                    CHECK(*a == *expected);
+                    CHECK(*b == *expected);
+                    CHECK(engine.settings().seed == seed);
+                }
+        }
+    };
+    check(*make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}),
+          [](auto settings) { return MonteCarloAccumulatorEngine{settings}; });
+    for (const auto mode : {KnockInObservationMode::every_trading_day, KnockInObservationMode::at_expiry}) {
+        check(*make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}),
+              [](auto settings) { return MonteCarloSnowballEngine{settings}; });
+        check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .coupon_barrier_levels = {100.0, 99.0, 98.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}),
+              [](auto settings) { return MonteCarloPhoenixEngine{settings}; });
+        check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}),
+              [](auto settings) { return MonteCarloTernarySnowballEngine{settings}; });
+    }
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.05, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}),
+          [](auto settings) { return MonteCarloBinarySnowballEngine{settings}; });
+}
+
 TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[autocallable-shared-samples]")
 {
     using namespace kiyosi;

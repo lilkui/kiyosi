@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <array>
@@ -207,6 +208,22 @@ Result<double> price_accumulator(
 Result<double> MonteCarloAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
 {
     return price_accumulator(option, context, settings_);
+}
+
+template <>
+Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
+    const MonteCarloAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    CudaWorkspace* workspace = nullptr;
+#if KIYOSI_HAS_CUDA
+    CudaWorkspace storage;
+    workspace = &storage;
+#endif
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+                                            [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+                                                return price_accumulator(instrument, shifted, seeded.settings(), workspace);
+                                            });
 }
 
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,

@@ -104,29 +104,11 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
     return std::unexpected(Error{ErrorCategory::solver_non_convergence, failure_message});
 }
 
-} // namespace detail
-
-/// Uses safeguarded Brent interpolation in volatility; the caller's bounds must bracket the quote.
-/// For CRR trees, the interval is intersected with the tree's admissible volatility range.
-/// @tparam Engine Pricing engine providing `price(option, context)`.
-/// @tparam Option Instrument accepted by the engine.
-/// @param engine Pricing engine used for each trial volatility.
-/// @param option Instrument to value.
-/// @param context Market state whose volatility is replaced for each trial.
-/// @param observed_price Finite market price to match.
-/// @param settings Positive bounds and convergence controls.
-/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
-/// applies to that sampled price curve and does not bound sampling error.
-/// CPU European Monte Carlo trials reuse per-solve samples with storage linear in path count.
-/// A root is not guaranteed unique; known states with volatility-independent remaining
-/// cashflows, including fixed touch payments, are rejected.
-/// Built-in autocallable Monte Carlo engines reject fixed cashflows after input validation,
-/// before executing a simulation backend.
-/// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
-template <typename Engine, typename Option>
-[[nodiscard]] Result<double> implied_volatility(
+// Keep validation and seeding identical when a solver supplies request-local pricing storage.
+template <typename Engine, typename Option, typename Price>
+[[nodiscard]] Result<double> solve_implied_volatility(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedVolatilitySettings settings = {})
+    ImpliedVolatilitySettings settings, const Price& price)
 {
     if (!std::isfinite(observed_price))
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "observed price must be finite"});
@@ -140,7 +122,7 @@ template <typename Engine, typename Option>
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
-            return implied_volatility(Engine{simulation}, option, context, observed_price, settings);
+            return solve_implied_volatility(Engine{simulation}, option, context, observed_price, settings, price);
         }
     }
 
@@ -175,7 +157,7 @@ template <typename Engine, typename Option>
                                                context.model_parameters().risk_free_rate(),
                                                context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
-        auto priced = detail::numerical_value(engine, option, *shifted);
+        auto priced = price(engine, option, *shifted);
         if (!priced) return std::unexpected(priced.error());
         return *priced - observed_price;
     };
@@ -245,6 +227,37 @@ template <typename Engine, typename Option>
     return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
 }
 
+} // namespace detail
+
+/// Uses safeguarded Brent interpolation in volatility; the caller's bounds must bracket the quote.
+/// For CRR trees, the interval is intersected with the tree's admissible volatility range.
+/// @tparam Engine Pricing engine providing `price(option, context)`.
+/// @tparam Option Instrument accepted by the engine.
+/// @param engine Pricing engine used for each trial volatility.
+/// @param option Instrument to value.
+/// @param context Market state whose volatility is replaced for each trial.
+/// @param observed_price Finite market price to match.
+/// @param settings Positive bounds and convergence controls.
+/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// applies to that sampled price curve and does not bound sampling error.
+/// CPU European Monte Carlo trials reuse per-solve samples with storage linear in path count.
+/// CUDA accumulator and autocallable trials reuse a workspace local to each solve.
+/// A root is not guaranteed unique; known states with volatility-independent remaining
+/// cashflows, including fixed touch payments, are rejected.
+/// Built-in autocallable Monte Carlo engines reject fixed cashflows after input validation,
+/// before executing a simulation backend.
+/// @return Implied volatility, or a validation, bracketing, pricing, or convergence error.
+template <typename Engine, typename Option>
+[[nodiscard]] Result<double> implied_volatility(
+    const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
+    ImpliedVolatilitySettings settings = {})
+{
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+                                            [](const auto& pricing_engine, const auto& instrument, const auto& shifted) {
+                                                return detail::numerical_value(pricing_engine, instrument, shifted);
+                                            });
+}
+
 /// Scheduled analytic barriers validate their calendar once per solve.
 template <>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<AnalyticBarrierEngine, BarrierOption>(
@@ -270,6 +283,32 @@ template <>
 template <>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
     const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+/// Reuses CUDA buffers within one solve without sharing storage between requests.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
+    const MonteCarloAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloSnowballEngine, SnowballOption>(
+    const MonteCarloSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloPhoenixEngine, PhoenixOption>(
+    const MonteCarloPhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloBinarySnowballEngine, BinarySnowballOption>(
+    const MonteCarloBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloTernarySnowballEngine, TernarySnowballOption>(
+    const MonteCarloTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings);
 
 namespace detail {

@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -273,12 +274,60 @@ Result<double> price_autocallable(
         return (*payoff)[0];
     });
 }
+template <typename Note>
+Result<double> implied_volatility_autocallable(
+    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    CudaWorkspace* workspace = nullptr;
+#if KIYOSI_HAS_CUDA
+    CudaWorkspace storage;
+    workspace = &storage;
+#endif
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+                                            [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+                                                return price_autocallable(instrument, shifted, seeded.settings(), workspace);
+                                            });
+}
+
 } // namespace
 
 template <typename Note>
 Result<double> MonteCarloAutocallableEngine<Note>::price(const Note& note, const PricingContext& context) const
 {
     return price_autocallable(note, context, settings_);
+}
+
+template <>
+Result<double> implied_volatility<MonteCarloSnowballEngine, SnowballOption>(
+    const MonteCarloSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility_autocallable(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<MonteCarloPhoenixEngine, PhoenixOption>(
+    const MonteCarloPhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility_autocallable(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<MonteCarloBinarySnowballEngine, BinarySnowballOption>(
+    const MonteCarloBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility_autocallable(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<MonteCarloTernarySnowballEngine, TernarySnowballOption>(
+    const MonteCarloTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility_autocallable(engine, option, context, observed_price, settings);
 }
 
 template <typename Note>

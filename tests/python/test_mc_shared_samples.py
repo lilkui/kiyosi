@@ -272,6 +272,127 @@ class SharedSampleTests(unittest.TestCase):
                             expected,
                         )
 
+    def test_trading_day_implied_volatility_uses_isolated_workspaces(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            calendar=all_days_calendar(),
+        )
+        common = {
+            "knock_out_levels": [101, 100, 99],
+            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
+            "barrier_state": "none",
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
+        downside = {
+            "initial_spot": 100,
+            "knock_in_level": 99,
+            "upper_strike": 100,
+            "lower_strike": 60,
+            "knock_in_observation_mode": "every_trading_day",
+        }
+        cases = (
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=115,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloAccumulatorEngine,
+            ),
+            (
+                SnowballOption(**common, **coupons, **downside),
+                pricing.MonteCarloSnowballEngine,
+            ),
+            (
+                PhoenixOption(
+                    **common,
+                    **downside,
+                    coupon_rate=0.08,
+                    coupon_barrier_levels=[100, 99, 98],
+                ),
+                pricing.MonteCarloPhoenixEngine,
+            ),
+            (
+                BinarySnowballOption(**common, **coupons),
+                pricing.MonteCarloBinarySnowballEngine,
+            ),
+            (
+                TernarySnowballOption(
+                    **common,
+                    **coupons,
+                    knock_in_level=99,
+                    minimum_coupon_rate=0.02,
+                    knock_in_observation_mode="every_trading_day",
+                ),
+                pricing.MonteCarloTernarySnowballEngine,
+            ),
+        )
+        backends = (
+            ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        )
+        for option, engine_type in cases:
+            for backend in backends:
+                with self.subTest(option=type(option).__name__, backend=backend):
+                    engine = engine_type(path_count=128, seed=42, backend=backend)
+                    quote = engine.price(option, context)
+                    bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
+                    expected = pricing.implied_volatility(
+                        engine, option, context, quote, **bounds
+                    )
+                    shifted = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=0.04,
+                            dividend_yield=0.01,
+                            volatility=expected,
+                        ),
+                        spot_price=context.spot_price,
+                        valuation_time=context.valuation_time,
+                        calendar=all_days_calendar(),
+                    )
+                    # Sampled barrier decisions can leave a residual at the parameter tolerance.
+                    self.assertAlmostEqual(
+                        engine.price(option, shifted), quote, delta=1e-4
+                    )
+                    with ThreadPoolExecutor(max_workers=2) as executor:
+                        tasks = [
+                            executor.submit(
+                                pricing.implied_volatility,
+                                engine,
+                                option,
+                                context,
+                                quote,
+                                **bounds,
+                            )
+                            for _ in range(2)
+                        ]
+                        self.assertEqual(
+                            [task.result() for task in tasks], [expected, expected]
+                        )
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        pricing.implied_volatility(
+                            engine, option, context, 1e10, **bounds
+                        )
+                    self.assertEqual(
+                        error.exception.category,
+                        kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                    )
+                    self.assertEqual(
+                        pricing.implied_volatility(
+                            engine, option, context, quote, **bounds
+                        ),
+                        expected,
+                    )
+
     def test_implied_volatility_failures_and_concurrency(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(

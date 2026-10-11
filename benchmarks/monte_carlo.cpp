@@ -145,6 +145,14 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/mc_cuda/delta_gamma", [=] { return cuda_accumulator.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_price("analytics/kiyosi/snowball/mc_cuda/price", snowball, cuda_snowball, context)->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc_cuda/delta_gamma", [=] { return cuda_snowball.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    const auto accumulator_quote = cuda_accumulator.price(accumulator, context);
+    register_calculation("analytics/kiyosi/accumulator/mc_cuda/implied_volatility", [=]() -> Result<double> {
+        if (!accumulator_quote) return std::unexpected(accumulator_quote.error());
+        return implied_volatility(cuda_accumulator, accumulator, context, *accumulator_quote); }, "volatility")->UseRealTime();
+    const auto snowball_quote = cuda_snowball.price(snowball, context);
+    register_calculation("analytics/kiyosi/snowball/mc_cuda/implied_volatility", [=]() -> Result<double> {
+        if (!snowball_quote) return std::unexpected(snowball_quote.error());
+        return implied_volatility(cuda_snowball, snowball, context, *snowball_quote); }, "volatility")->UseRealTime();
 #endif
     const auto daily_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), all_days_calendar());
     register_price("analytics/kiyosi/accumulator/fd/calendar_daily/price", accumulator,
