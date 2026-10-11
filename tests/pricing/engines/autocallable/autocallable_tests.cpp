@@ -25,6 +25,39 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Expiry-only knock-in layers reproduce analytic terminal portfolios", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto put = [&](double strike) {
+        return *AnalyticVanillaEngine{}.price(*make_european_option(OptionType::put, strike, start, end), context);
+    };
+    const double discount = std::exp(-0.04);
+    const double downside = discount - (put(100.0) - put(60.0)) / 100.0;
+    const double digital = *AnalyticDigitalEngine{}.price(*make_cash_or_nothing_option(OptionType::call, 100.0, 1.0, start, end), context);
+    const auto snowball = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.06}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 100.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+    const auto phoenix = *make_phoenix_option(
+        {.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 100.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {0.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+    const auto ternary = *make_ternary_snowball_option(
+        {.knock_out_coupon_rates = {0.06}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 100.0, .knock_out_levels = {110.0}, .observation_dates = {end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+    for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::explicit_euler}) {
+        const auto check = [&](const auto& note, double expected) {
+            const FiniteDifferenceAutocallableEngine<std::remove_cvref_t<decltype(note)>> engine{{200, 2000, scheme, 400.0}};
+            const auto actual = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+            REQUIRE(actual);
+            CHECK(actual->price() == Catch::Approx(expected).margin(0.002));
+            CHECK(actual->has(Greek::delta));
+            CHECK(actual->has(Greek::gamma));
+        };
+        CAPTURE(scheme);
+        check(snowball, downside + 0.06 * digital);
+        check(phoenix, downside + 0.08 * discount);
+        check(ternary, 1.02 * discount + 0.04 * digital);
+    }
+}
+
 TEST_CASE("Autocallables omit daily simulation only when knock-in cannot change settlement", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

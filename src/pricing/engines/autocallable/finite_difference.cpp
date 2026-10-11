@@ -73,10 +73,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         anchors.push_back(time);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
-    const bool needs_knock_in_layer = monitors_knock_in && !initial.path.knocked_in;
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
+    const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in;
     std::vector<double> trading_times;
     // Daily subdivisions can still be required for explicit-Euler stability after knock-in.
     if (monitors_daily && (needs_knock_in_layer || settings_.scheme == FiniteDifferenceScheme::explicit_euler)) {

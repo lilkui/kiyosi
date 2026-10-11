@@ -3,7 +3,14 @@ from datetime import date
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import BinarySnowballOption, SnowballOption
+from kiyosi.instruments import (
+    BinarySnowballOption,
+    CashOrNothingOption,
+    EuropeanOption,
+    PhoenixOption,
+    SnowballOption,
+    TernarySnowballOption,
+)
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -13,6 +20,99 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(self):
+        import math
+
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        common = {
+            "knock_in_level": 100,
+            "knock_out_levels": [110],
+            "observation_dates": [end],
+            "knock_in_observation_mode": "at_expiry",
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        snowball = SnowballOption(
+            **common,
+            knock_out_coupon_rates=[0.06],
+            maturity_coupon_rate=0.06,
+            initial_spot=100,
+            upper_strike=100,
+            lower_strike=60,
+        )
+        phoenix = PhoenixOption(
+            **common,
+            coupon_rate=0.08,
+            coupon_barrier_levels=[0],
+            initial_spot=100,
+            upper_strike=100,
+            lower_strike=60,
+        )
+        ternary = TernarySnowballOption(
+            **common,
+            knock_out_coupon_rates=[0.06],
+            maturity_coupon_rate=0.06,
+            minimum_coupon_rate=0.02,
+        )
+        put_prices = [
+            pricing.AnalyticVanillaEngine().price(
+                EuropeanOption(
+                    option_type="put",
+                    strike=strike,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                context,
+            )
+            for strike in (100, 60)
+        ]
+        discount = math.exp(-0.04)
+        downside = discount - (put_prices[0] - put_prices[1]) / 100
+        digital = pricing.AnalyticDigitalEngine().price(
+            CashOrNothingOption(
+                option_type="call",
+                strike=100,
+                payout=1,
+                effective_date=start,
+                expiry_date=end,
+            ),
+            context,
+        )
+        cases = (
+            (
+                snowball,
+                pricing.FiniteDifferenceSnowballEngine,
+                downside + 0.06 * digital,
+            ),
+            (
+                phoenix,
+                pricing.FiniteDifferencePhoenixEngine,
+                downside + 0.08 * discount,
+            ),
+            (
+                ternary,
+                pricing.FiniteDifferenceTernarySnowballEngine,
+                1.02 * discount + 0.04 * digital,
+            ),
+        )
+        for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
+            for note, engine_type, expected in cases:
+                with self.subTest(scheme=scheme, note=type(note).__name__):
+                    actual = engine_type(
+                        asset_step_count=200,
+                        time_step_count=2000,
+                        scheme=scheme,
+                        asset_upper_boundary=400,
+                    ).price(note, context)
+                    self.assertAlmostEqual(actual, expected, delta=0.002)
+
     def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(self):
         start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         terms = {

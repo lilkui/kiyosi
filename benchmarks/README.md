@@ -75,3 +75,6 @@ daily knock-in simulation because both terminal states pay the same amount.
 
 European FD charm/color cases measure native delta/gamma differences at shifted
 valuation times, using a noon valuation to allow a symmetric time stencil.
+
+The expiry-only snowball FD case measures a single terminal knock-in condition;
+no daily transition layer is needed.
