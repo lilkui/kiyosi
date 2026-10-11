@@ -364,6 +364,109 @@ class SharedSampleTests(unittest.TestCase):
                         if "zomma" in names:
                             self.assertEqual(selected.zomma, zomma)
 
+    @unittest.skipUnless(
+        os.environ.get("KIYOSI_TEST_CUDA") == "enabled", "CUDA disabled"
+    )
+    def test_cuda_structured_spot_greeks_match_seeded_scalar_prices(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        calendar = all_days_calendar()
+        contexts = [
+            PricingContext(
+                model_parameters=model,
+                spot_price=spot,
+                valuation_time=valuation,
+                calendar=calendar,
+            )
+            for spot in (100.25, 101.25, 99.25, 102.25, 98.25)
+        ]
+        common = {
+            "effective_date": start,
+            "expiry_date": end,
+            "knock_out_levels": [100, 102, 110],
+            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
+            "barrier_state": "none",
+        }
+        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
+        cases = [
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=102,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloAccumulatorEngine,
+            ),
+            (
+                BinarySnowballOption(**common, **coupons),
+                pricing.MonteCarloBinarySnowballEngine,
+            ),
+        ]
+        for mode in ("every_trading_day", "at_expiry"):
+            downside = {
+                "initial_spot": 100,
+                "knock_in_level": 100,
+                "upper_strike": 100,
+                "lower_strike": 60,
+                "knock_in_observation_mode": mode,
+            }
+            cases.extend(
+                [
+                    (
+                        TernarySnowballOption(
+                            **common,
+                            **coupons,
+                            knock_in_level=100,
+                            minimum_coupon_rate=0.02,
+                            knock_in_observation_mode=mode,
+                        ),
+                        pricing.MonteCarloTernarySnowballEngine,
+                    ),
+                    (
+                        SnowballOption(**common, **coupons, **downside),
+                        pricing.MonteCarloSnowballEngine,
+                    ),
+                    (
+                        PhoenixOption(
+                            **common,
+                            **downside,
+                            coupon_rate=0.08,
+                            coupon_barrier_levels=[100] * 3,
+                        ),
+                        pricing.MonteCarloPhoenixEngine,
+                    ),
+                ]
+            )
+        for option, engine_class in cases:
+            for paths in (255, 256, 257):
+                for seed in (42, 2**64 - 1):
+                    with self.subTest(
+                        engine=engine_class.__name__, paths=paths, seed=seed
+                    ):
+                        engine = engine_class(
+                            path_count=paths, seed=seed, backend="cuda"
+                        )
+                        center, up, down, up2, down2 = [
+                            engine.price(option, ctx) for ctx in contexts
+                        ]
+                        for names in (["delta", "gamma"], ["delta", "gamma", "speed"]):
+                            result = engine.price_with_greeks(
+                                option, contexts[0], names, spot_shift=1
+                            )
+                            self.assertEqual(result.price, center)
+                            self.assertEqual(result.delta, (up - down) / 2)
+                            self.assertEqual(result.gamma, up - 2 * center + down)
+                            if "speed" in names:
+                                self.assertEqual(
+                                    result.speed, (up2 - 2 * up + 2 * down - down2) / 2
+                                )
+
     def test_american_unavailable_stencils_retain_scalar_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

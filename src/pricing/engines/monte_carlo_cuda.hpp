@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -82,6 +83,11 @@ struct CudaPricingResult {
     double alternate_payoff_mean{};
 };
 
+struct CudaSpotPricingResult {
+    CudaPricingResult result;
+    std::array<double, 5> payoff_means{};
+};
+
 // One operation owns this workspace; it must not be shared across concurrent calls.
 // Resources are created lazily so settlements still work without a CUDA device.
 class CudaWorkspace {
@@ -105,5 +111,10 @@ private:
     CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_coupon_prices(
     CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
+// Internal batches contain 1..5 requests with identical path counts, seeds and simulation steps.
+[[nodiscard]] CudaSpotPricingResult cuda_accumulator_spot_prices(
+    std::span<const CudaAccumulatorRequest> requests, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace = nullptr);
+[[nodiscard]] CudaSpotPricingResult cuda_autocallable_spot_prices(
+    std::span<const CudaAutocallableRequest> requests, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 
 } // namespace kiyosi::detail

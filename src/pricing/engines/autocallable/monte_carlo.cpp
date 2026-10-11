@@ -147,7 +147,7 @@ Result<std::array<double, count>> path_payoffs(
 template <std::size_t count, typename Note>
 Result<std::array<double, count>> price_spot_bumps(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
-    double h)
+    double h, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
     constexpr std::array offsets = count == 2 ? std::array{1.0, -1.0, 0.0, 0.0, 0.0} : std::array{0.0, 1.0, -1.0, 2.0, -2.0};
     const auto program = autocallable_program(note);
@@ -166,24 +166,47 @@ Result<std::array<double, count>> price_spot_bumps(
         }
         initial[i] = {spot, state.path, fixed};
     }
-    std::array<MonteCarloMean, count> means{};
+    std::array<double, count> prices{};
     if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
         const auto inputs = prepare_simulation(note, context, base.next_observation,
                                                program_knock_in_affects_payoff(program) && program.daily_knock_in && !base.path.knocked_in);
         if (!inputs) return std::unexpected(inputs.error());
-        std::mt19937_64 generator{*settings.seed};
-        for (int path = 0; path < settings.path_count; ++path) {
-            // Each path keeps its scalar stream even when spot bumps knock out on different dates.
-            Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-            const auto payoffs = path_payoffs(program, *inputs, initial, path_generator);
-            if (!payoffs) return std::unexpected(payoffs.error());
+        if (settings.backend == MonteCarloBackend::cuda) {
+#if KIYOSI_HAS_CUDA
+            std::array<CudaAutocallableRequest, count> requests{};
+            std::array<std::size_t, count> indices{};
+            std::size_t active = 0;
+            for (std::size_t i = 0; i < count; ++i) {
+                if (initial[i].payoff) continue;
+                indices[active] = i;
+                requests[active++] = {settings.path_count, *settings.seed, initial[i].spot,
+                                      inputs->terminal_discount, program, initial[i].path};
+            }
+            const auto result = cuda_autocallable_spot_prices(std::span{requests}.first(active), inputs->step_count, workspace);
+            const auto valid = cuda_mean(result.result);
+            if (!valid) return std::unexpected(valid.error());
+            for (std::size_t i = 0; i < active; ++i)
+                prices[indices[i]] = result.payoff_means[i];
+#else
+            return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
+#endif
+        } else {
+            std::array<MonteCarloMean, count> means{};
+            std::mt19937_64 generator{*settings.seed};
+            for (int path = 0; path < settings.path_count; ++path) {
+                // Each path keeps its scalar stream even when spot bumps knock out on different dates.
+                Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
+                const auto payoffs = path_payoffs(program, *inputs, initial, path_generator);
+                if (!payoffs) return std::unexpected(payoffs.error());
+                for (std::size_t i = 0; i < count; ++i)
+                    if (!initial[i].payoff) means[i].add((*payoffs)[i]);
+            }
             for (std::size_t i = 0; i < count; ++i)
-                if (!initial[i].payoff) means[i].add((*payoffs)[i]);
+                prices[i] = means[i].value();
         }
     }
-    std::array<double, count> prices{};
     for (std::size_t i = 0; i < count; ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : means[i].value());
+        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
         if (!value) return std::unexpected(value.error());
         prices[i] = *value;
     }
@@ -322,56 +345,59 @@ template <typename Note>
 Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    return detail::price_with_greeks(
+        *this, option, context, greeks, settings,
+        [&](const auto& seeded) -> Result<PricingResult> {
+            const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
+                const auto native = [&]() -> Result<PricingResult> {
+                    const auto valid = validate_monte_carlo_autocallable(option, context, seeded.settings());
+                    if (!valid) return std::unexpected(valid.error());
+                    const double spot = context.spot_price();
+                    const double h = symmetric_shift(spot, settings.spot_shift);
+                    const double two_h = 2.0 * h;
+                    const bool speed_available = std::isfinite(two_h) && spot > two_h &&
+                                                 symmetric_shift(spot, two_h) == two_h &&
+                                                 !at_spot_discontinuity(option, context, two_h);
+                    if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed)) &&
+                        h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
+                        !at_spot_discontinuity(option, context, h) &&
+                        (!greeks.has(Greek::speed) || speed_available)) {
+                        if (greeks.has(Greek::speed))
+                            return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h, workspace), greeks, h);
+                        return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h, workspace), greeks, h);
+                    }
+                    const auto value = scalar.price(option, context);
+                    if (!value) return std::unexpected(value.error());
+                    return make_pricing_result(*value);
+                }();
+                if (!native) return std::unexpected(native.error());
+                const double h = symmetric_shift(context.spot_price(), settings.spot_shift);
+                const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
+                                   context.spot_price() > h && !at_spot_discontinuity(option, context, h);
+                const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
+                    const auto valid = validate_monte_carlo_autocallable(option, shifted, seeded.settings());
+                    if (!valid) return std::unexpected(valid.error());
+                    if (center) return price_spot_bumps<3>(option, shifted, seeded.settings(), shift, workspace);
+                    const auto values = price_spot_bumps<2>(option, shifted, seeded.settings(), shift, workspace);
+                    if (!values) return std::unexpected(values.error());
+                    return std::array{0.0, (*values)[0], (*values)[1]};
+                };
+                const MonteCarloMixedPricer prices{scalar, context, mixed ? h : 0.0,
+                                                   symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
+                                                   greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
+                return detail::complete_greeks(prices, option, context, greeks, settings, *native);
+            };
 #if KIYOSI_HAS_CUDA
-    if (settings_.backend == MonteCarloBackend::cuda)
-        return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-            const CudaMonteCarloPricer prices{[&](const Note& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
-                return price_autocallable(instrument, shifted, seeded.settings(), workspace);
-            }};
-            const auto value = prices.price(option, context);
-            if (!value) return std::unexpected(value.error());
-            return detail::complete_greeks(prices, option, context, greeks, settings, *make_pricing_result(*value)); }, true);
+            if (seeded.settings().backend == MonteCarloBackend::cuda) {
+                const CudaMonteCarloPricer prices{[&](const Note& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
+                    return price_autocallable(instrument, shifted, seeded.settings(), workspace);
+                }};
+                return calculate(prices, &prices.workspace);
+            }
 #endif
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-                                         const auto native = [&]() -> Result<PricingResult> {
-                                         const auto valid = validate_monte_carlo_autocallable(option, context, seeded.settings());
-                                         if (!valid) return std::unexpected(valid.error());
-                                         const double spot = context.spot_price();
-                                         const double h = symmetric_shift(spot, settings.spot_shift);
-                                         const double two_h = 2.0 * h;
-                                         const bool speed_available = std::isfinite(two_h) && spot > two_h &&
-                                                                      symmetric_shift(spot, two_h) == two_h &&
-                                                                      !at_spot_discontinuity(option, context, two_h);
-                                         if (seeded.settings().backend == MonteCarloBackend::cpu &&
-                                             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed)) &&
-                                             h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
-                                             !at_spot_discontinuity(option, context, h) &&
-                                             (!greeks.has(Greek::speed) || speed_available)) {
-                                             if (greeks.has(Greek::speed))
-                                                 return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h), greeks, h);
-                                             return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h), greeks, h);
-                                         }
-                                         const auto value = seeded.price(option, context);
-                                         if (!value) return std::unexpected(value.error());
-                                         return make_pricing_result(*value);
-                                         }();
-                                         if (!native) return std::unexpected(native.error());
-                                         const double h = symmetric_shift(context.spot_price(), settings.spot_shift);
-                                         const bool mixed = seeded.settings().backend == MonteCarloBackend::cpu &&
-                                                            (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
-                                                            context.spot_price() > h && !at_spot_discontinuity(option, context, h);
-                                         const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
-                                             const auto valid = validate_monte_carlo_autocallable(option, shifted, seeded.settings());
-                                             if (!valid) return std::unexpected(valid.error());
-                                             if (center) return price_spot_bumps<3>(option, shifted, seeded.settings(), shift);
-                                             const auto values = price_spot_bumps<2>(option, shifted, seeded.settings(), shift);
-                                             if (!values) return std::unexpected(values.error());
-                                             return std::array{0.0, (*values)[0], (*values)[1]};
-                                         };
-                                         const MonteCarloMixedPricer prices{seeded, context, mixed ? h : 0.0,
-                                                                            symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
-                                                                            greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
-                                         return detail::complete_greeks(prices, option, context, greeks, settings, *native); }, true);
+            return calculate(seeded, nullptr);
+        },
+        true);
 }
 
 template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(

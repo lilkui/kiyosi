@@ -411,6 +411,119 @@ __global__ void simulate_autocallable_paths(
     }
 }
 
+template <typename Request>
+struct SpotRequests {
+    // Kernel parameters and per-thread states cannot use host-only std::array accessors.
+    Request values[5];  // NOLINT(modernize-avoid-c-arrays)
+    double* payoffs[5]; // NOLINT(modernize-avoid-c-arrays)
+    int count;
+    int* invalid;
+};
+
+template <typename Request>
+__device__ void write_spot_payoff(const SpotRequests<Request>& requests, int bump, int path, double value)
+{
+    if (!isfinite(value)) atomicExch(requests.invalid, 1);
+    requests.payoffs[bump][path] = isfinite(value) ? value : 0.0;
+}
+
+__global__ void simulate_accumulator_spot_paths(
+    SpotRequests<CudaAccumulatorRequest> requests, const CudaSimulationStep* steps, std::size_t step_count)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (path >= requests.values[0].path_count) return;
+    curandStatePhilox4_32_10_t generator;
+    curand_init(requests.values[0].seed, static_cast<unsigned long long>(path), 0, &generator);
+    double spots[5], quantities[5]; // NOLINT(modernize-avoid-c-arrays)
+    bool done[5]{};                 // NOLINT(modernize-avoid-c-arrays)
+    int remaining = requests.count;
+    for (int bump = 0; bump < requests.count; ++bump) {
+        spots[bump] = requests.values[bump].spot;
+        quantities[bump] = requests.values[bump].initial_quantity;
+    }
+    MonteCarloDiscount discount;
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        const double growth = exp(step.drift + step.diffusion * curand_normal_double(&generator));
+        discount = step.discount;
+        for (int bump = 0; bump < requests.count; ++bump) {
+            if (done[bump]) continue;
+            const auto request = requests.values[bump];
+            spots[bump] *= growth;
+            if (!isfinite(spots[bump]) || spots[bump] <= 0.0) {
+                atomicExch(requests.invalid, 1);
+                for (int output = 0; output < requests.count; ++output)
+                    requests.payoffs[output][path] = 0.0;
+                return;
+            }
+            if (spots[bump] >= request.knock_out) {
+                write_spot_payoff(requests, bump, path, discount.apply(quantities[bump] * (spots[bump] - request.strike)));
+                done[bump] = true;
+                --remaining;
+            } else {
+                quantities[bump] += spots[bump] < request.strike
+                                        ? request.daily_quantity * request.acceleration
+                                        : request.daily_quantity;
+            }
+        }
+        if (remaining == 0) break;
+    }
+    for (int bump = 0; bump < requests.count; ++bump)
+        if (!done[bump])
+            write_spot_payoff(requests, bump, path, discount.apply(quantities[bump] * (spots[bump] - requests.values[bump].strike)));
+}
+
+__global__ void simulate_autocallable_spot_paths(
+    SpotRequests<CudaAutocallableRequest> requests, const CudaAutocallableStep* steps, std::size_t step_count)
+{
+    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (path >= requests.values[0].path_count) return;
+    curandStatePhilox4_32_10_t generator;
+    curand_init(requests.values[0].seed, static_cast<unsigned long long>(path), 0, &generator);
+    double spots[5];                 // NOLINT(modernize-avoid-c-arrays)
+    AutocallablePathState states[5]; // NOLINT(modernize-avoid-c-arrays)
+    bool done[5]{};                  // NOLINT(modernize-avoid-c-arrays)
+    int remaining = requests.count;
+    for (int bump = 0; bump < requests.count; ++bump) {
+        spots[bump] = requests.values[bump].spot;
+        states[bump] = requests.values[bump].initial_state;
+    }
+    for (std::size_t index = 0; index < step_count; ++index) {
+        const auto step = steps[index];
+        const double growth = exp(step.simulation.drift + step.simulation.diffusion * curand_normal_double(&generator));
+        for (int bump = 0; bump < requests.count; ++bump) {
+            if (done[bump]) continue;
+            const auto& program = requests.values[bump].program;
+            auto& state = states[bump];
+            spots[bump] *= growth;
+            if (!isfinite(spots[bump]) || spots[bump] <= 0.0) {
+                atomicExch(requests.invalid, 1);
+                for (int output = 0; output < requests.count; ++output)
+                    requests.payoffs[output][path] = 0.0;
+                return;
+            }
+            state.knocked_in = program_knocked_in(program, spots[bump], state.knocked_in, false);
+            if (!step.event.active) continue;
+            const double coupon = program_observation_coupon(step.event, spots[bump]);
+            if (spots[bump] >= step.event.knock_out_level) {
+                write_spot_payoff(requests, bump, path, step.simulation.discount.apply(program.principal_ratio + coupon) + state.coupons);
+                done[bump] = true;
+                --remaining;
+            } else if (program.carries_observation_coupon) {
+                state.coupons += step.simulation.discount.apply(coupon);
+            }
+        }
+        if (remaining == 0) break;
+    }
+    for (int bump = 0; bump < requests.count; ++bump) {
+        if (done[bump]) continue;
+        const auto request = requests.values[bump];
+        auto state = states[bump];
+        state.knocked_in = program_knocked_in(request.program, spots[bump], state.knocked_in, true);
+        write_spot_payoff(requests, bump, path, state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.program, spots[bump], state.knocked_in)));
+    }
+}
+
 template <typename Step>
     requires std::is_trivially_copyable_v<Step>
 CudaPricingResult upload_steps(DeviceMemory& memory, std::span<const Step> steps, cudaStream_t stream)
@@ -478,7 +591,7 @@ CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs, cu
 struct CudaWorkspace::Impl {
     CudaStream owned_stream;
     DeviceMemory steps, paths, cash_flows, invalid, partials, summary, normals, growth;
-    PathOutputs outputs, alternate_outputs;
+    std::array<PathOutputs, 5> outputs;
     int pair_count{};
     std::uint64_t seed{};
     double drift = std::numeric_limits<double>::quiet_NaN();
@@ -502,6 +615,60 @@ CudaWorkspace::Impl& CudaWorkspace::storage()
     return *impl_;
 }
 
+namespace {
+template <typename Request, typename Step, typename Launch>
+CudaSpotPricingResult spot_prices(std::span<const Request> requests, std::span<const Step> steps,
+                                  CudaWorkspace* workspace, const Launch& launch)
+{
+    CudaWorkspace local;
+    auto& storage = (workspace ? *workspace : local).storage();
+    const auto created = storage.prepare();
+    if (created.status != CudaPricingStatus::success) return {created};
+    const auto stream = storage.owned_stream.get();
+    const RequestCompletion completion{stream};
+    auto result = upload_steps(storage.steps, steps, stream);
+    if (result.status != CudaPricingStatus::success) return {result};
+    SpotRequests<Request> batch{};
+    batch.count = static_cast<int>(requests.size());
+    for (int bump = 0; bump < batch.count; ++bump) {
+        batch.values[bump] = requests[bump];
+        auto& outputs = storage.outputs[bump];
+        result = allocate_path_outputs(requests[bump].path_count, outputs, stream);
+        if (result.status != CudaPricingStatus::success) return {result};
+        batch.payoffs[bump] = outputs.payoffs;
+    }
+    batch.invalid = &storage.outputs[0].result->invalid;
+    const int path_count = requests[0].path_count;
+    launch(batch, static_cast<const Step*>(storage.steps.get()), steps.size(),
+           (path_count + threads_per_block - 1) / threads_per_block, stream);
+    const auto status = cudaGetLastError();
+    if (status != cudaSuccess) return {error_result(status)};
+    CudaSpotPricingResult prices{};
+    for (int bump = 0; bump < batch.count; ++bump) {
+        prices.result = finish_path_simulation(storage.outputs[bump], path_count, stream);
+        if (prices.result.status != CudaPricingStatus::success) return prices;
+        prices.payoff_means[bump] = prices.result.payoff_mean;
+    }
+    return prices;
+}
+} // namespace
+
+CudaSpotPricingResult cuda_accumulator_spot_prices(
+    std::span<const CudaAccumulatorRequest> requests, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace)
+{
+    return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
+        simulate_accumulator_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
+    });
+}
+
+CudaSpotPricingResult cuda_autocallable_spot_prices(
+    std::span<const CudaAutocallableRequest> requests, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
+{
+    return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
+        simulate_autocallable_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
+    });
+}
+
 CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace* workspace)
 {
     CudaWorkspace local;
@@ -514,7 +681,7 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace
     const int pair_count = request.path_count / 2;
     const bool new_samples = storage.pair_count != pair_count || storage.seed != request.seed;
     if (new_samples) storage.pair_count = 0;
-    auto& outputs = storage.outputs;
+    auto& outputs = storage.outputs[0];
     auto allocation = allocate_path_outputs(request.path_count, outputs, stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     if (workspace) {
@@ -648,7 +815,7 @@ CudaPricingResult cuda_accumulator_price(
     auto& device_steps = storage.steps;
     auto result = upload_steps(device_steps, steps, stream);
     if (result.status != CudaPricingStatus::success) return result;
-    auto& outputs = storage.outputs;
+    auto& outputs = storage.outputs[0];
     result = allocate_path_outputs(request.path_count, outputs, stream);
     if (result.status != CudaPricingStatus::success) return result;
 
@@ -676,11 +843,11 @@ CudaPricingResult autocallable_prices(
     auto& device_steps = storage.steps;
     auto result = upload_steps(device_steps, steps, stream);
     if (result.status != CudaPricingStatus::success) return result;
-    auto& outputs = storage.outputs;
+    auto& outputs = storage.outputs[0];
     result = allocate_path_outputs(request.path_count, outputs, stream);
     if (result.status != CudaPricingStatus::success) return result;
 
-    auto& alternate_outputs = storage.alternate_outputs;
+    auto& alternate_outputs = storage.outputs[1];
     if constexpr (Paired) {
         result = allocate_path_outputs(request.path_count, alternate_outputs, stream);
         if (result.status != CudaPricingStatus::success) return result;

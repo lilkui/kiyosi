@@ -107,6 +107,59 @@ TEST_CASE("CUDA workspaces preserve sample changes and recover from invalid path
             }
 }
 
+TEST_CASE("CUDA shared spot paths preserve independent settlements and recover from failures", "[cuda][cuda-spot-samples]")
+{
+    using namespace kiyosi::detail;
+    CudaWorkspace workspace;
+    for (const int paths : {1, 255, 256, 257})
+        for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+            for (const double diffusion : {0.0, 0.1}) {
+                CAPTURE(paths, seed, diffusion);
+                const std::array<double, 5> spots{90.0, 100.0, 110.0, 120.0, 50.0};
+                std::array<CudaSimulationStep, 3> steps{{{0.1, diffusion, {0.99}}, {0.1, diffusion, {0.98}}, {0.1, diffusion, {0.97}}}};
+                std::array<CudaAutocallableStep, 3> events{};
+                for (std::size_t index = 0; index < events.size(); ++index)
+                    events[index] = {steps[index], {115.0, 0.01 * (index + 1), 105.0, true, true}};
+                const AutocallableProgram program{1.0, 100.0, 100.0, 60.0, 100.0, 0.08, 0.0,
+                                                  AutocallableTerminalKind::downside_if_knocked_in, true, true, true};
+                std::array<CudaAccumulatorRequest, 5> accumulators{};
+                std::array<CudaAutocallableRequest, 5> notes{};
+                std::array<double, 5> expected_accumulators{}, expected_notes{};
+                for (std::size_t index = 0; index < spots.size(); ++index) {
+                    accumulators[index] = {paths, seed, spots[index], 100.0, 115.0, 1.0, 2.0, 2.0};
+                    notes[index] = {paths, seed, spots[index], {0.97}, program, {0.0, index % 2 == 1}};
+                    const auto accumulator = cuda_accumulator_price(accumulators[index], steps);
+                    const auto note = cuda_autocallable_price(notes[index], events);
+                    REQUIRE(accumulator.status == CudaPricingStatus::success);
+                    REQUIRE(note.status == CudaPricingStatus::success);
+                    expected_accumulators[index] = accumulator.payoff_mean;
+                    expected_notes[index] = note.payoff_mean;
+                }
+                for (const std::size_t count : {5, 2, 3, 1, 4, 5}) {
+                    const auto accumulator = cuda_accumulator_spot_prices(std::span{accumulators}.first(count), steps, &workspace);
+                    const auto note = cuda_autocallable_spot_prices(std::span{notes}.first(count), events, &workspace);
+                    REQUIRE(accumulator.result.status == CudaPricingStatus::success);
+                    REQUIRE(note.result.status == CudaPricingStatus::success);
+                    for (std::size_t index = 0; index < count; ++index) {
+                        CHECK(accumulator.payoff_means[index] == expected_accumulators[index]);
+                        CHECK(note.payoff_means[index] == expected_notes[index]);
+                    }
+                }
+                accumulators.back().spot = std::numeric_limits<double>::infinity();
+                notes.back().spot = std::numeric_limits<double>::infinity();
+                CHECK(cuda_accumulator_spot_prices(accumulators, steps, &workspace).result.status == CudaPricingStatus::invalid_result);
+                CHECK(cuda_autocallable_spot_prices(notes, events, &workspace).result.status == CudaPricingStatus::invalid_result);
+                accumulators.back().spot = spots.back();
+                notes.back().spot = spots.back();
+                const auto accumulator = cuda_accumulator_spot_prices(accumulators, steps, &workspace);
+                const auto note = cuda_autocallable_spot_prices(notes, events, &workspace);
+                REQUIRE(accumulator.result.status == CudaPricingStatus::success);
+                REQUIRE(note.result.status == CudaPricingStatus::success);
+                CHECK(accumulator.payoff_means == expected_accumulators);
+                CHECK(note.payoff_means == expected_notes);
+            }
+}
+
 TEST_CASE("CUDA regression solves quadratic and reduced bases", "[cuda]")
 {
     void* input_pointer = nullptr;

@@ -359,3 +359,19 @@ million paths this avoids 392 MB of unused growth storage. The analytics suite
 includes `american/mc/unavailable_delta` and `american/mc/unavailable_vanna`;
 C++ and Python regressions preserve prices and unavailable results for calls
 and puts.
+
+CUDA accumulator and autocallable spot stencils now share each path's random
+draws and growth factors, retaining independent settlement states and the scalar
+payoff reductions. On 2026-10-11, a one-year all-days-calendar noon-valuation
+probe on an RTX 3090 with seed 42 and one million paths measured accumulator
+delta/gamma falling from 234.6 to 102.2 ms and snowball from 226.1 to 91.4 ms
+(median of five calls, same Release MSVC compiler and GPU). Scalar prices stayed
+near 79 and 77 ms. Prices and checked Greeks were bit-for-bit identical to
+separate seeded scalar valuations. C++ checks cover batches of one to five
+spots, CUDA block boundaries, different settlement dates and failure recovery;
+Python covers all four note types and both knock-in monitoring modes. Existing
+checks retain mixed Greeks, extreme discounts and concurrent requests.
+The analytics suite includes accumulator and snowball `mc_cuda/price` and
+`mc_cuda/delta_gamma` cases at 250,000 paths. Payoff buffers use 24 bytes per
+path for delta/gamma and up to 40 for speed, plus reduction and step buffers;
+all storage remains local to the request.
