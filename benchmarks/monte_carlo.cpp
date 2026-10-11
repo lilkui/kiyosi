@@ -161,6 +161,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const MonteCarloVanillaEngine monte_carlo_engine{100'000, 50, 42};
     const auto american_put = *make_american_option(OptionType::put, 100.0, european.effective_date(), european.expiry_date());
     register_price("analytics/kiyosi/american/mc/price", american_put, monte_carlo_engine, context)->UseRealTime();
+    const double american_quote = *monte_carlo_engine.price(american_put, context);
+    register_calculation("analytics/kiyosi/american/mc/implied_volatility", [=] { return implied_volatility(monte_carlo_engine, american_put, context, american_quote); }, "volatility")->UseRealTime();
     register_calculation("analytics/kiyosi/american/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/american/mc/unavailable_delta", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::delta}, {.spot_shift = 200.0}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/american/mc/unavailable_speed", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();

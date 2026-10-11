@@ -17,6 +17,8 @@ namespace kiyosi {
 /// American calls with nonpositive dividends and nonnegative rates use that distribution too,
 /// retaining the immediate-exercise lower bound. Rate stencils crossing zero use exercise-grid
 /// simulations on both sides to avoid mixing sampled estimators.
+/// American implied-volatility solves reuse request-local path and cash-flow buffers
+/// on CPU and device workspaces on CUDA; every trial recomputes its exercise decisions.
 class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
     /// Creates an engine with aggregate Monte Carlo settings.

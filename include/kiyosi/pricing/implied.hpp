@@ -248,6 +248,12 @@ template <>
     const MonteCarloVanillaEngine& engine, const EuropeanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings);
 
+/// Reuses request-local exercise buffers across trials; growth factors are recomputed.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
+    const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
 namespace detail {
 
 inline Result<double> shifted_maturity_coupon(

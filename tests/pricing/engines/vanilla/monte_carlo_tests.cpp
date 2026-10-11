@@ -506,6 +506,59 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
     CHECK(invalid_quote.error().category == ErrorCategory::invalid_parameter);
 }
 
+TEST_CASE("American implied volatility retains scalar trials and request isolation", "[mc-american-implied]")
+{
+    using namespace kiyosi;
+    struct ScalarEngine {
+        MonteCarloVanillaEngine engine;
+        Result<double> price(const AmericanOption& option, const PricingContext& context) const
+        {
+            return engine.price(option, context);
+        }
+    };
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
+    for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+#if !KIYOSI_HAS_CUDA
+        if (backend == MonteCarloBackend::cuda) continue;
+#endif
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            const auto option = *make_american_option(type, 100.0, start, end);
+            for (const int paths : {127, 128, 1001}) {
+                const MonteCarloVanillaEngine engine{paths, 7, 42, backend};
+                const double quote = *engine.price(option, context);
+                for (const double observed : {quote, -1.0})
+                    for (const auto settings : {ImpliedVolatilitySettings{},
+                                                ImpliedVolatilitySettings{.lower_bound = 0.1, .upper_bound = 0.4},
+                                                ImpliedVolatilitySettings{.max_iterations = 1},
+                                                ImpliedVolatilitySettings{.upper_bound = 1000.0}}) {
+                        CAPTURE(backend, type, paths, observed);
+                        const auto expected = implied_volatility(ScalarEngine{engine}, option, context, observed, settings);
+                        const auto actual = implied_volatility(engine, option, context, observed, settings);
+                        REQUIRE(actual.has_value() == expected.has_value());
+                        if (expected) CHECK(*actual == *expected);
+                        else CHECK(actual.error().category == expected.error().category);
+                    }
+                const auto expected = implied_volatility(engine, option, context, quote);
+                REQUIRE(expected);
+                auto task = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, quote); });
+                const auto concurrent = implied_volatility(engine, option, context, quote);
+                const auto result = task.get();
+                REQUIRE(result);
+                REQUIRE(concurrent);
+                CHECK(*result == *expected);
+                CHECK(*concurrent == *expected);
+            }
+        }
+    }
+    const auto option = *make_american_option(OptionType::put, 100.0, start, end);
+    const MonteCarloVanillaEngine unseeded{1001, 7};
+    const auto random = implied_volatility(unseeded, option, context, 7.0);
+    if (random) CHECK(std::isfinite(*random));
+    else CHECK(random.error().category == ErrorCategory::unbracketed_volatility);
+    CHECK_FALSE(unseeded.settings().seed);
+}
+
 TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[mc-shared-samples]")
 {
     using namespace kiyosi;

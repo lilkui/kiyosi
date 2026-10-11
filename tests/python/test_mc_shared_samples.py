@@ -153,6 +153,64 @@ class SharedSampleTests(unittest.TestCase):
                                 )
                                 self.assertAlmostEqual(repriced, quote, delta=1e-7)
 
+    def test_american_implied_volatility_reuses_isolated_trial_buffers(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=start,
+        )
+        backends = (
+            ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        )
+        for backend in backends:
+            for direction in ("call", "put"):
+                option = AmericanOption(
+                    option_type=direction,
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                for paths in (1000, 1001):
+                    with self.subTest(
+                        backend=backend, direction=direction, paths=paths
+                    ):
+                        engine = pricing.MonteCarloVanillaEngine(
+                            path_count=paths, step_count=7, seed=42, backend=backend
+                        )
+                        quote = engine.price(option, context)
+                        expected = pricing.implied_volatility(
+                            engine, option, context, quote
+                        )
+                        # Sampled exercise decisions make the price curve discontinuous.
+                        self.assertAlmostEqual(expected, 0.2, delta=1e-3)
+                        with ThreadPoolExecutor(max_workers=2) as executor:
+                            tasks = [
+                                executor.submit(
+                                    pricing.implied_volatility,
+                                    engine,
+                                    option,
+                                    context,
+                                    quote,
+                                )
+                                for _ in range(2)
+                            ]
+                            self.assertEqual(
+                                [task.result() for task in tasks], [expected, expected]
+                            )
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            pricing.implied_volatility(engine, option, context, -1)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                        )
+                        self.assertEqual(
+                            pricing.implied_volatility(engine, option, context, quote),
+                            expected,
+                        )
+
     def test_implied_volatility_failures_and_concurrency(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(

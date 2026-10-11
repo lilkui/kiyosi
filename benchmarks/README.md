@@ -459,3 +459,13 @@ shift at spot 100. A 2026-10-11 Release run at 100,000 paths and 50 steps measur
 148.1 ms versus 147.9 ms for CPU scalar pricing, and 6.22 ms versus 6.27 ms on
 CUDA (median of three benchmark repetitions). Native gamma-derived speed keeps
 its smaller stencil; unavailable speed does not suppress feasible delta/gamma.
+
+American Monte Carlo implied volatility retains path and cash-flow buffers for
+one solve, and reuses its CUDA workspace. Each trial regenerates growth factors
+and refits exercise regressions. A 2026-10-11 Release MSVC allocation probe for
+a one-year ATM put, noon valuation, rate 5%, dividend yield 2%, volatility 20%,
+100,000 paths, 50 steps and seed 42 reduced cumulative allocation from
+1,264,802,418 to 40,800,078 bytes (31 large path matrices to one). The solved
+volatility was bit-for-bit identical at 0.2000129745263024.
+`american/mc/implied_volatility` tracks the solve workload; caches are never
+shared between requests or stored in the public engine.

@@ -35,6 +35,7 @@ struct SimulationParameters {
 struct AmericanMonteCarloSamples {
     bool cache_growth;
     std::vector<double> paths;
+    std::vector<double> cash_flows;
     std::vector<std::array<double, 2>> growth;
     double drift = std::numeric_limits<double>::quiet_NaN();
     double diffusion = std::numeric_limits<double>::quiet_NaN();
@@ -310,7 +311,6 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     const double discount = std::exp(-context.model_parameters().risk_free_rate() *
                                      *time / static_cast<double>(settings.step_count - 1));
     double mean = 0.0;
-    std::vector<double> cash_flows;
     if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
@@ -327,7 +327,9 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         const auto step_count = static_cast<std::size_t>(settings.step_count);
         // Regression visits every path at one time, so keep each time slice contiguous.
         std::vector<double> owned_paths;
+        std::vector<double> owned_cash_flows;
         auto& paths = samples ? samples->paths : owned_paths;
+        auto& cash_flows = samples ? samples->cash_flows : owned_cash_flows;
         paths.resize(path_count * step_count);
         const auto simulated = simulate_paths(*parameters, settings, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
             paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
@@ -390,7 +392,39 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     return value;
 }
 
+class AmericanMonteCarloPricer {
+public:
+    explicit AmericanMonteCarloPricer(MonteCarloSettings settings, bool cache_growth = false)
+        : settings_(settings), samples_{.cache_growth = cache_growth} {}
+
+    MonteCarloSettings settings() const noexcept { return settings_; }
+
+    Result<double> price(const AmericanOption& option, const PricingContext& context, bool terminal_only = true) const
+    {
+        detail::CudaWorkspace* workspace = nullptr;
+#if KIYOSI_HAS_CUDA
+        if (settings_.backend == MonteCarloBackend::cuda) workspace = &workspace_;
+#endif
+        return price_american(option, context, settings_, terminal_only, workspace, &samples_);
+    }
+
+private:
+    MonteCarloSettings settings_;
+    mutable AmericanMonteCarloSamples samples_;
+#if KIYOSI_HAS_CUDA
+    mutable detail::CudaWorkspace workspace_;
+#endif
+};
+
 } // namespace
+
+template <>
+Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
+    const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility(AmericanMonteCarloPricer{engine.settings()}, option, context, observed_price, settings);
+}
 
 Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
 {
@@ -410,21 +444,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    struct AmericanPricer {
-        MonteCarloSettings settings;
-        detail::CudaWorkspace* workspace{};
-        AmericanMonteCarloSamples* samples{};
-        Result<double> price(const AmericanOption& instrument, const PricingContext& shifted) const
-        {
-            return price_american(instrument, shifted, settings, true, workspace, samples);
-        }
-    };
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-        detail::CudaWorkspace* workspace = nullptr;
-#if KIYOSI_HAS_CUDA
-        detail::CudaWorkspace owned_workspace;
-        if (seeded.settings().backend == MonteCarloBackend::cuda) workspace = &owned_workspace;
-#endif
         const double spot_shift = detail::symmetric_shift(context.spot_price(), settings.spot_shift);
         const double volatility_shift = detail::symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift);
         const bool volatility_available = volatility_shift > 0.0 &&
@@ -433,12 +453,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         const double two_h = 2.0 * spot_shift;
         const bool speed_available = std::isfinite(two_h) && context.spot_price() > two_h &&
                                      detail::symmetric_shift(context.spot_price(), two_h) == two_h;
-        AmericanMonteCarloSamples samples{.cache_growth =
+        const bool cache_growth =
             spot_shift > 0.0 && context.spot_price() > spot_shift &&
             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available) ||
              (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
-             greeks.has(Greek::charm) || greeks.has(Greek::color))};
-        const AmericanPricer prices{seeded.settings(), workspace, &samples};
+             greeks.has(Greek::charm) || greeks.has(Greek::color));
+        const AmericanMonteCarloPricer prices{seeded.settings(), cache_growth};
         const auto native = [&]() -> Result<PricingResult> {
         const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
@@ -452,7 +472,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
                 const auto shifted = detail::shifted_context(context, context.spot_price(),
                                                              context.model_parameters().volatility(), shifted_rate, context.valuation_time());
                 if (!shifted) return std::unexpected(shifted.error());
-                return price_american(option, *shifted, seeded.settings(), false, workspace, prices.samples);
+                return prices.price(option, *shifted, false);
             };
             const auto high = evaluate(rate + shift);
             if (!high) return std::unexpected(high.error());
