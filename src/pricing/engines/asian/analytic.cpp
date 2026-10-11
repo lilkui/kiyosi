@@ -166,8 +166,10 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
         if (adjusted_strike <= 0.0) {
             if (sign < 0.0)
                 return 0.0;
-            const double expected = realized * remaining / average_period + spot * m1 * tau / average_period;
-            return checked_price(std::max(expected - strike, 0.0) * std::exp(-rate * tau));
+            const double accrued = std::max(realized * (remaining / average_period) - strike, 0.0);
+            // Discount the nonnegative components before their intermediates can overflow.
+            return checked_price(scaled_exponential(accrued, -rate * tau) +
+                                 scaled_exponential(spot, std::log(m1) + std::log(scale) - rate * tau));
         }
     }
     const double vol2 = sigma * sigma;

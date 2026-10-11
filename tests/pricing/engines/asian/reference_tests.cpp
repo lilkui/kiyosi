@@ -15,6 +15,54 @@ using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
 
+TEST_CASE("Accrued arithmetic Asian calls retain representable discounted prices", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2025} / 1 / 1};
+    struct Case {
+        int elapsed_years;
+        double amount;
+        double rate;
+        double dividend;
+        double strike_fraction;
+        double expected;
+    };
+    // Independent 80-digit evaluation of the discounted expected arithmetic payoff.
+    const std::array cases{
+        Case{2, 1e308, 0.0, 0.0, 0.25, 7.5e307},
+        Case{2, 1e308, 0.05, 0.05, 0.25, 7.134220683755355e307},
+        Case{2, 1e308, 2.0, 0.0, 0.25, 2.0050048747581985e307},
+        Case{1, 1e300, 750.0, 750.0, 0.25, 1.4262637226062548e-26},
+        Case{1, 1e-300, -750.0, -750.0, 0.25, 3.943870906091103e25},
+        Case{1, 100.0, 0.04, 0.01, 0.5, 48.76732432807474},
+    };
+    const TurnbullWakemanArithmeticAveragePriceEngine engine;
+    for (const auto& test : cases) {
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(test.elapsed_years, test.amount, test.rate, test.dividend, type);
+            const auto valuation = start + std::chrono::days{365 * test.elapsed_years};
+            const auto end = valuation + std::chrono::days{365};
+            const auto option = *make_arithmetic_average_option(
+                type, test.amount * test.strike_fraction, start, start, end, test.amount);
+            const auto context = *make_pricing_context(
+                *make_bsm_parameters(test.rate, test.dividend, 0.2), test.amount, valuation);
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            if (type == OptionType::call)
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(test.expected, 1e-12));
+            else
+                CHECK(*price == 0.0);
+        }
+    }
+    const auto valuation = start + std::chrono::days{365};
+    const auto option = *make_arithmetic_average_option(
+        OptionType::call, 25.0, start, start, valuation + std::chrono::days{365}, 100.0);
+    const auto context = *make_pricing_context(*make_bsm_parameters(-750.0, -750.0, 0.2), 100.0, valuation);
+    const auto overflow = engine.price(option, context);
+    REQUIRE_FALSE(overflow);
+    CHECK(overflow.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Arithmetic Asians retain time value when squared volatility underflows", "[audit-fixes]")
 {
     using namespace kiyosi;
