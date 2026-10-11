@@ -231,15 +231,23 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
                 if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
                     ++sample_count;
                     const double scaled = spot / option.strike();
-                    const std::array<double, 3> basis{1.0, scaled, scaled * scaled};
-                    for (int row = 0; row < 3; ++row) {
-                        for (int column = 0; column < 3; ++column)
-                            matrix[row][column] += basis[row] * basis[column];
-                        matrix[row][3] += basis[row] * (cash_flows[path] / option.strike());
-                    }
+                    const double square = scaled * scaled;
+                    const double target = cash_flows[path] / option.strike();
+                    matrix[0][0] += 1.0;
+                    matrix[0][1] += scaled;
+                    matrix[0][2] += square;
+                    matrix[1][1] += square;
+                    matrix[1][2] += scaled * square;
+                    matrix[2][2] += square * square;
+                    matrix[0][3] += target;
+                    matrix[1][3] += scaled * target;
+                    matrix[2][3] += square * target;
                 }
             }
             if (sample_count == 0) continue;
+            matrix[1][0] = matrix[0][1];
+            matrix[2][0] = matrix[0][2];
+            matrix[2][1] = matrix[1][2];
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
             for (std::size_t path = 0; path < path_count; ++path) {

@@ -108,5 +108,12 @@ fell from 325 ns to 229 ns per price (median of five runs). All 48 checked
 combinations of barrier type, call/put, strike and rebate retained identical
 prices; in-out parity also checks both rebate timings and strikes at the barrier.
 
+American CPU Monte Carlo accumulates one triangle of the symmetric regression
+matrix and fills its three mirrored entries once per exercise date. With one
+million paths, 50 steps and seed 42 (`bm_monte_carlo_american_cpu`), the same
+machine measured 1,476 ms before and 1,436 ms after (median of five runs). The
+put price stayed exactly 6.642721968042257; sparse/singular regressions, currency
+scaling and odd path counts retain their existing regression checks.
+
 The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
 to expose the cost of processing asset nodes on steps without observations.

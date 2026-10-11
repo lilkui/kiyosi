@@ -222,7 +222,7 @@ TEST_CASE("CUDA Monte Carlo averages finite payoffs without overflowing", "[cuda
 }
 #endif
 
-TEST_CASE("American Monte Carlo prices are invariant to currency scale")
+TEST_CASE("American Monte Carlo prices are invariant to currency scale", "[mc-regression]")
 {
     check_american_currency_scale(kiyosi::MonteCarloBackend::cpu);
 }
@@ -465,7 +465,7 @@ TEST_CASE("American Monte Carlo rate Greeks retain one estimator across zero", "
     }
 }
 
-TEST_CASE("American Monte Carlo preserves paired paths across time grids", "[monte-carlo-performance]")
+TEST_CASE("American Monte Carlo preserves paired paths across time grids", "[monte-carlo-performance][mc-regression]")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
@@ -497,7 +497,7 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     CHECK_THAT(*result, Catch::Matchers::WithinAbs(50.0, 1e-10));
 }
 
-TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbacks")
+TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbacks", "[mc-regression]")
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry_date = valuation + std::chrono::days{365};
