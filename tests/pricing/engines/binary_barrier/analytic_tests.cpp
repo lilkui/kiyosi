@@ -45,6 +45,35 @@ TEST_CASE("Binary barrier branches preserve in-out parity", "[binary-barrier-bra
                 }
 }
 
+TEST_CASE("Binary barrier prices survive volatility variance underflow", "[binary-barrier-underflow]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const AnalyticBinaryBarrierEngine engine;
+    for (const double sigma : {1e-160, 1e-200})
+        for (const double rate : {0.0, 0.05})
+            for (const double spot : {90.0, 100.0, 110.0})
+                for (const auto direction : {OptionType::call, OptionType::put})
+                    for (const auto type : {BarrierType::down_and_in, BarrierType::down_and_out,
+                                            BarrierType::up_and_in, BarrierType::up_and_out})
+                        for (const bool asset : {false, true}) {
+                            CAPTURE(sigma, rate, spot, direction, type, asset);
+                            const bool up = type == BarrierType::up_and_in || type == BarrierType::up_and_out;
+                            const bool knock_in = type == BarrierType::up_and_in || type == BarrierType::down_and_in;
+                            const BinaryBarrierTerms terms{.option_type = direction, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = type};
+                            const auto option = *(asset ? make_asset_binary_barrier_option(terms) : make_cash_binary_barrier_option(terms, 10.0));
+                            const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, sigma), spot, start);
+                            const double probability = spot == 100.0 ? 0.5 : ((direction == OptionType::call ? spot > 100.0 : spot < 100.0) ? 1.0 : 0.0);
+                            const double expected = knock_in ? 0.0 : (asset ? spot : 10.0) * std::exp(-rate) * probability;
+                            const auto price = engine.price(option, context);
+                            REQUIRE(price);
+                            CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected, 1e-11));
+                            const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                            REQUIRE(joint);
+                            CHECK(joint->price() == *price);
+                        }
+}
+
 TEST_CASE("Touch prices survive volatility variance underflow", "[audit-fixes]")
 {
     using namespace kiyosi;

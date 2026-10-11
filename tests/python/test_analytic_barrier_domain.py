@@ -1,3 +1,4 @@
+import math
 import unittest
 from datetime import UTC, date, datetime
 
@@ -24,6 +25,76 @@ from kiyosi.market import (
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_binary_barriers_survive_volatility_variance_underflow(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.AnalyticBinaryBarrierEngine()
+        for sigma in (1e-160, 1e-200):
+            for rate in (0.0, 0.05):
+                parameters = BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=rate, volatility=sigma
+                )
+                for spot in (90, 100, 110):
+                    context = PricingContext(
+                        model_parameters=parameters,
+                        spot_price=spot,
+                        valuation_time=start,
+                    )
+                    for direction in ("call", "put"):
+                        probability = (
+                            0.5
+                            if spot == 100
+                            else float(
+                                spot > 100 if direction == "call" else spot < 100
+                            )
+                        )
+                        for up in (False, True):
+                            for knock_in in (False, True):
+                                terms = {
+                                    "option_type": direction,
+                                    "strike": 100,
+                                    "effective_date": start,
+                                    "expiry_date": end,
+                                    "barrier_level": 120 if up else 80,
+                                    "barrier_type": ("up" if up else "down")
+                                    + ("_and_in" if knock_in else "_and_out"),
+                                }
+                                for asset in (False, True):
+                                    with self.subTest(
+                                        sigma=sigma,
+                                        rate=rate,
+                                        spot=spot,
+                                        direction=direction,
+                                        up=up,
+                                        knock_in=knock_in,
+                                        asset=asset,
+                                    ):
+                                        option = (
+                                            asset_binary_barrier_option(**terms)
+                                            if asset
+                                            else cash_binary_barrier_option(
+                                                **terms, payout=10
+                                            )
+                                        )
+                                        expected = (
+                                            0
+                                            if knock_in
+                                            else (
+                                                (spot if asset else 10)
+                                                * math.exp(-rate)
+                                                * probability
+                                            )
+                                        )
+                                        price = engine.price(option, context)
+                                        self.assertAlmostEqual(
+                                            price, expected, delta=1e-11
+                                        )
+                                        self.assertEqual(
+                                            engine.price_with_greeks(
+                                                option, context, "delta"
+                                            ).price,
+                                            price,
+                                        )
+
     def test_scheduled_analytic_barriers_reject_spots_outside_shifted_domain(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

@@ -114,7 +114,7 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         const double amount = option.asset_settlement ? spot : option.payout;
         return checked_price(scaled_exponential(amount, -(option.asset_settlement ? dividend : rate) * time + std::log(weight)));
     }
-    const double mu = (rate - dividend - .5 * volatility * volatility) / (volatility * volatility);
+    const double mu = (rate - dividend) / volatility / volatility - 0.5;
     const double log_moneyness = log_price_ratio(spot, option.strike);
     const double x1 = log_moneyness / volatility_time + (1 + mu) * volatility_time;
     const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
