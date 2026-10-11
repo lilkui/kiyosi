@@ -27,6 +27,10 @@ inline AccumulatorInitialState accumulator_initial_state(
                                             : option.daily_quantity();
     }
     if (valuation == option.expiry_date()) return {quantity, quantity * (value - option.strike())};
+    // Stopping a martingale preserves the expected value of a fixed position.
+    if (!accumulator_accrues(option) && context.model_parameters().risk_free_rate() == 0.0 &&
+        context.model_parameters().dividend_yield() == 0.0)
+        return {quantity, quantity * (value - option.strike())};
     return {quantity, std::nullopt};
 }
 

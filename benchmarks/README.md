@@ -179,3 +179,11 @@ repetitions, 0.15 s minimum). Prices were unchanged in all six measured FD cases
 the other four improved by 1.3% to 5.5%. An isolated 200-node rollback probe fell
 from 2.241 to 2.042 us per step. Tests cover quadratic evolution, parameter/grid
 changes, constraints, paired layers, and recovery after failed solves.
+
+The accumulator `zero_carry` cases retain three units without future purchases
+and set both rates to zero. The stopped asset is a martingale, so both engines
+return the exact value 150 without simulation or rollback. C++ and Python checks
+cover positive and negative values, inactive acceleration, spot Greeks, and
+required validation; nonzero rates or future accrual retain numerical pricing.
+On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall
+times of 36.8 ns for MC and 47.2 ns for FD (three repetitions, 0.15 s minimum).

@@ -21,6 +21,46 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_accumulator_fixed_position_uses_exact_zero_carry_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engines = [
+            pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+            pricing.MonteCarloAccumulatorEngine(
+                path_count=2000, seed=42, backend="cuda"
+            ),
+            pricing.FiniteDifferenceAccumulatorEngine(),
+        ]
+        for strike in (50, 105, 110):
+            option = Accumulator(
+                strike=strike,
+                knock_out_level=105,
+                daily_quantity=0 if strike == 50 else 1,
+                acceleration_factor=0,
+                accumulated_quantity=3,
+                effective_date=start,
+                expiry_date=end,
+            )
+            for hour in (0, 12):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0, dividend_yield=0, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=datetime(2025, 1, 1, hour, tzinfo=UTC),
+                )
+                for engine in engines:
+                    with self.subTest(
+                        strike=strike, hour=hour, engine=type(engine).__name__
+                    ):
+                        self.assertEqual(
+                            engine.price(option, context), 3 * (100 - strike)
+                        )
+                        greeks = engine.price_with_greeks(
+                            option, context, ["delta", "gamma"]
+                        )
+                        self.assertAlmostEqual(greeks.delta, 3, delta=1e-9)
+                        self.assertAlmostEqual(greeks.gamma, 0, delta=1e-8)
+
     def test_binomial_speed_tracks_analytic_sensitivity_with_default_shifts(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.CoxRossRubinsteinVanillaEngine(step_count=1000)

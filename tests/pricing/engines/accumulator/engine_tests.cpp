@@ -163,6 +163,58 @@ double reference_accumulator_price(const kiyosi::Accumulator& option,
 }
 } // namespace
 
+TEST_CASE("Fixed-position accumulators use exact zero-carry values", "[fd-performance][monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    for (const double strike : {50.0, 105.0, 110.0}) {
+        const auto option = *make_accumulator({.strike = strike, .knock_out_level = 105.0, .daily_quantity = strike == 50.0 ? 0.0 : 1.0, .acceleration_factor = 0.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+        for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}}) {
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, valuation, calendar);
+            const auto check = [&](const auto& engine) {
+                queries->store(0);
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == 3.0 * (100.0 - strike));
+                CHECK(queries->load() <= 2);
+                const auto greeks = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                REQUIRE(greeks);
+                CHECK(test::greek_value(*greeks, Greek::delta) == Catch::Approx(3.0).margin(1e-9));
+                CHECK(test::greek_value(*greeks, Greek::gamma) == Catch::Approx(0.0).margin(1e-8));
+            };
+            check(MonteCarloAccumulatorEngine{32, 7});
+            check(MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda});
+            check(FiniteDifferenceAccumulatorEngine{});
+            const auto invalid_mc = MonteCarloAccumulatorEngine{0, 42}.price(option, context);
+            REQUIRE_FALSE(invalid_mc);
+            CHECK(invalid_mc.error().category == ErrorCategory::invalid_parameter);
+            const auto invalid_fd = FiniteDifferenceAccumulatorEngine{{.time_step_count = 0}}.price(option, context);
+            REQUIRE_FALSE(invalid_fd);
+            CHECK(invalid_fd.error().category == ErrorCategory::invalid_parameter);
+        }
+    }
+}
+
+TEST_CASE("Accumulator exact-value shortcut requires zero carry and no accrual")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 6);
+    const TradingDayMonteCarloSettings settings{32, 7};
+    for (const auto [rate, dividend, daily] : std::array{
+             std::array{0.04, 0.0, 0.0}, std::array{0.0, 0.01, 0.0},
+             std::array{0.04, 0.04, 0.0}, std::array{0.0, 0.0, 1.0}}) {
+        const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = daily, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2),
+                                                   90.0, start_of_day(start) + std::chrono::hours{12});
+        const auto price = MonteCarloAccumulatorEngine{settings}.price(option, context);
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(reference_accumulator_price(option, context, settings)).margin(1e-12));
+        CHECK(*price != -30.0);
+    }
+}
+
 TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
 {
     const auto effective_date = day(2025, 1, 1);
