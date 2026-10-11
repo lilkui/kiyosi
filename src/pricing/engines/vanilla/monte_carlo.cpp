@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <array>
@@ -174,6 +175,8 @@ class EuropeanMonteCarloSamples {
 public:
     explicit EuropeanMonteCarloSamples(MonteCarloSettings settings) : settings_(settings) {}
 
+    MonteCarloSettings settings() const noexcept { return settings_; }
+
     Result<double> price(const EuropeanOption& option, const PricingContext& context) const
     {
         return price_european(option, context, settings_, [&](auto parameters, auto simulation, const auto& observe) {
@@ -216,6 +219,14 @@ private:
 };
 
 } // namespace
+
+template <>
+Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
+    const MonteCarloVanillaEngine& engine, const EuropeanOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return implied_volatility(EuropeanMonteCarloSamples{engine.settings()}, option, context, observed_price, settings);
+}
 
 Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
 {

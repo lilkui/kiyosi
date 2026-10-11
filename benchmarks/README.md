@@ -279,6 +279,17 @@ odd/even path counts, seeds, custom shifts, life boundaries and concurrent calls
 The per-request cache uses about 12 bytes per requested path (1.2 MB at 100,000
 paths); CUDA and American pricing keep their existing execution paths.
 
+European Monte Carlo implied-volatility solves reuse the same per-request cache
+across trial volatilities, retaining scalar summation and the generic solver's
+validation, seeding and bracketing behavior. A 2026-10-11 one-year ATM call probe
+with seed 42 measured 1.01 to 0.51 ms at 5,000 paths, 21.56 to 11.86 ms at 100,000
+paths and 215.90 to 120.18 ms at 1,000,000 paths (median of five runs, same Release
+MSVC compiler and CPU). Solved volatilities were bit-for-bit identical. The
+analytics suite includes `european/mc/implied_volatility`; C++ and Python
+regressions cover calls/puts, seeds, odd/even path counts, custom bounds, expiry,
+errors and concurrent solves. The cache stays local to each call and uses the
+same linear storage as European Greek requests.
+
 CPU accumulator Monte Carlo evaluates spot bumps together, sharing each Gaussian
 draw and growth factor while retaining separate accrual and knock-out states.
 On 2026-10-11, a one-year, all-days-calendar, noon-valuation probe with spot 100.25,

@@ -115,6 +115,7 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
 /// @param settings Positive bounds and convergence controls.
 /// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
+/// CPU European Monte Carlo trials reuse per-solve samples with storage linear in path count.
 /// A root is not guaranteed unique; known states with volatility-independent remaining
 /// cashflows, including fixed touch payments, are rejected.
 /// Built-in autocallable Monte Carlo engines reject fixed cashflows after input validation,
@@ -241,6 +242,11 @@ template <typename Engine, typename Option>
                                      "price is not bracketed by volatility bounds"});
     return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
 }
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
+    const MonteCarloVanillaEngine& engine, const EuropeanOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
 
 namespace detail {
 

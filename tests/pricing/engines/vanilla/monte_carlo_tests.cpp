@@ -395,6 +395,76 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
     }
 }
 
+TEST_CASE("European Monte Carlo implied volatility reuses samples without changing results", "[mc-implied-samples]")
+{
+    using namespace kiyosi;
+    struct ScalarEngine {
+        MonteCarloVanillaEngine engine;
+        Result<double> price(const EuropeanOption& option, const PricingContext& context) const
+        {
+            return engine.price(option, context);
+        }
+    };
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, 100.0, start, end);
+        for (const int paths : {1, 127, 128, 1001})
+            for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+                for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
+                    CAPTURE(type, paths, seed, valuation.time_since_epoch().count());
+                    const MonteCarloVanillaEngine engine{paths, 50, seed};
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
+                    const auto quote = engine.price(option, context);
+                    REQUIRE(quote);
+                    for (const double observed : {*quote, -1.0})
+                        for (const auto settings : {ImpliedVolatilitySettings{},
+                                                    ImpliedVolatilitySettings{.lower_bound = 0.1, .upper_bound = 0.4},
+                                                    ImpliedVolatilitySettings{.max_iterations = 1},
+                                                    ImpliedVolatilitySettings{.upper_bound = 1000.0}}) {
+                            const auto expected = implied_volatility(ScalarEngine{engine}, option, context, observed, settings);
+                            const auto actual = implied_volatility(engine, option, context, observed, settings);
+                            REQUIRE(actual.has_value() == expected.has_value());
+                            if (expected) {
+                                CHECK(*actual == *expected);
+                            } else
+                                CHECK(actual.error().category == expected.error().category);
+                        }
+                }
+    }
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
+    const MonteCarloVanillaEngine engine{1001, 50, 42};
+    const double quote = *engine.price(option, context);
+    const auto expected = implied_volatility(engine, option, context, quote);
+    REQUIRE(expected);
+    CHECK_THAT(*expected, Catch::Matchers::WithinAbs(0.2, 1e-8));
+    std::array<std::future<Result<double>>, 2> concurrent;
+    for (auto& task : concurrent)
+        task = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, quote); });
+    for (auto& task : concurrent) {
+        const auto actual = task.get();
+        REQUIRE(actual);
+        CHECK(*actual == *expected);
+    }
+    const MonteCarloVanillaEngine unseeded{1001, 50};
+    const auto random = implied_volatility(unseeded, option, context, quote);
+    // A fresh sampled curve need not bracket a quote from another seed.
+    if (random)
+        CHECK(std::isfinite(*random));
+    else
+        CHECK(random.error().category == ErrorCategory::unbracketed_volatility);
+    CHECK_FALSE(unseeded.settings().seed);
+    const auto invalid_paths = implied_volatility(MonteCarloVanillaEngine{0, 50, 42}, option, context, quote);
+    REQUIRE_FALSE(invalid_paths);
+    CHECK(invalid_paths.error().category == ErrorCategory::invalid_parameter);
+    const auto invalid_settings = implied_volatility(engine, option, context, quote, {.lower_bound = 0.0});
+    REQUIRE_FALSE(invalid_settings);
+    CHECK(invalid_settings.error().category == ErrorCategory::invalid_parameter);
+    const auto invalid_quote = implied_volatility(engine, option, context, std::numeric_limits<double>::infinity());
+    REQUIRE_FALSE(invalid_quote);
+    CHECK(invalid_quote.error().category == ErrorCategory::invalid_parameter);
+}
+
 TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[mc-shared-samples]")
 {
     using namespace kiyosi;

@@ -22,6 +22,105 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    def test_implied_volatility_recovers_seeded_quotes(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction in ("call", "put"):
+            option = EuropeanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for paths in (1, 127, 128, 1001):
+                for seed in (42, 2**64 - 1):
+                    for valuation in (start, datetime(2025, 1, 1, 12, tzinfo=UTC)):
+                        with self.subTest(
+                            direction=direction,
+                            paths=paths,
+                            seed=seed,
+                            valuation=valuation,
+                        ):
+                            engine = pricing.MonteCarloVanillaEngine(
+                                path_count=paths, seed=seed
+                            )
+                            context = PricingContext(
+                                model_parameters=BlackScholesMertonParameters(
+                                    risk_free_rate=0.04,
+                                    dividend_yield=0.01,
+                                    volatility=0.2,
+                                ),
+                                spot_price=100.25,
+                                valuation_time=valuation,
+                            )
+                            quote = engine.price(option, context)
+                            for bounds in (
+                                {"lower_bound": 0.1, "upper_bound": 0.4},
+                                {"lower_bound": 0.15, "upper_bound": 0.25},
+                            ):
+                                volatility = pricing.implied_volatility(
+                                    engine, option, context, quote, **bounds
+                                )
+                                repriced = engine.price(
+                                    option,
+                                    PricingContext(
+                                        model_parameters=BlackScholesMertonParameters(
+                                            risk_free_rate=0.04,
+                                            dividend_yield=0.01,
+                                            volatility=volatility,
+                                        ),
+                                        spot_price=100.25,
+                                        valuation_time=valuation,
+                                    ),
+                                )
+                                self.assertAlmostEqual(repriced, quote, delta=1e-7)
+
+    def test_implied_volatility_failures_and_concurrency(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=100.25, valuation_time=start
+        )
+        engine = pricing.MonteCarloVanillaEngine(path_count=1001, seed=42)
+        quote = engine.price(option, context)
+        expected = pricing.implied_volatility(engine, option, context, quote)
+        self.assertAlmostEqual(expected, 0.2, delta=1e-8)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            tasks = [
+                executor.submit(
+                    pricing.implied_volatility, engine, option, context, quote
+                )
+                for _ in range(2)
+            ]
+            for task in tasks:
+                self.assertEqual(task.result(), expected)
+        for observed, settings, category in (
+            (float("inf"), {}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+            (quote, {"lower_bound": 0}, kiyosi.ErrorCategory.INVALID_PARAMETER),
+            (-1, {}, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY),
+            (quote, {"upper_bound": 1000}, kiyosi.ErrorCategory.INVALID_RESULT),
+        ):
+            with self.subTest(observed=observed, settings=settings):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    pricing.implied_volatility(
+                        engine, option, context, observed, **settings
+                    )
+                self.assertEqual(error.exception.category, category)
+        expiry_context = PricingContext(
+            model_parameters=parameters, spot_price=100.25, valuation_time=end
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            pricing.implied_volatility(
+                engine, option, expiry_context, engine.price(option, expiry_context)
+            )
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+        )
+        self.assertEqual(
+            pricing.implied_volatility(engine, option, context, quote), expected
+        )
+
     def test_numerical_and_selected_greeks_match_the_engine_api(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         names = GREEKS
