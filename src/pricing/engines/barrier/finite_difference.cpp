@@ -104,7 +104,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        if (active(grid.times[step]))
+        if (option.observation_mode() == ObservationMode::scheduled && active(grid.times[step]))
             for (int index = 0; index <= asset_step_count; ++index)
                 if (knocked(spacing * index)) next[index] = rebate_value(tau);
         old.swap(next);

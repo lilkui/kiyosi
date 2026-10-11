@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <chrono>
@@ -120,12 +121,14 @@ TEST_CASE("Finite-difference barrier rebates preserve payment timing and discoun
 {
     using namespace kiyosi;
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
-    const FiniteDifferenceBarrierEngine engine{{.asset_step_count = 800, .time_step_count = 400, .asset_upper_boundary = 400.0}};
+    const auto scheme = GENERATE(FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson);
+    const bool explicit_scheme = scheme == FiniteDifferenceScheme::explicit_euler;
+    const FiniteDifferenceBarrierEngine engine{{.asset_step_count = explicit_scheme ? 80 : 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 400.0}};
     for (const double rate : {-0.04, 0.04}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.01, 0.2), 100.0, start);
         for (const auto kind : {BarrierType::down_and_out, BarrierType::up_and_out}) {
             for (const auto timing : {RebateTiming::at_hit, RebateTiming::at_expiry}) {
-                CAPTURE(rate, kind, timing);
+                CAPTURE(scheme, rate, kind, timing);
                 const auto option = *make_barrier_option(
                     {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = kind == BarrierType::up_and_out ? 120.0 : 80.0, .barrier_type = kind, .rebate = 5.0, .rebate_timing = timing});
                 const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
@@ -133,9 +136,9 @@ TEST_CASE("Finite-difference barrier rebates preserve payment timing and discoun
                 REQUIRE(actual);
                 REQUIRE(expected);
                 CHECK(actual->price() == *engine.price(option, context));
-                CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(expected->price(), 0.01));
-                CHECK_THAT(*actual->require(Greek::delta), Catch::Matchers::WithinAbs(*expected->require(Greek::delta), 0.003));
-                CHECK_THAT(*actual->require(Greek::gamma), Catch::Matchers::WithinAbs(*expected->require(Greek::gamma), 0.0005));
+                CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(expected->price(), explicit_scheme ? 0.1 : 0.01));
+                CHECK_THAT(*actual->require(Greek::delta), Catch::Matchers::WithinAbs(*expected->require(Greek::delta), explicit_scheme ? 0.01 : 0.003));
+                CHECK_THAT(*actual->require(Greek::gamma), Catch::Matchers::WithinAbs(*expected->require(Greek::gamma), explicit_scheme ? 0.002 : 0.0005));
             }
         }
     }

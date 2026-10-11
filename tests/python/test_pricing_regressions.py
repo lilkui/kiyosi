@@ -741,6 +741,68 @@ class PricingRegressionTests(unittest.TestCase):
                                     delta=1e-10,
                                 )
 
+    def test_continuous_fd_barriers_preserve_rebates_across_schemes(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            explicit = scheme == "explicit_euler"
+            engine = pricing.FiniteDifferenceBarrierEngine(
+                asset_step_count=80 if explicit else 800,
+                time_step_count=400,
+                scheme=scheme,
+                asset_upper_boundary=400,
+            )
+            for rate in (-0.04, 0.04):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate,
+                        dividend_yield=0.01,
+                        volatility=0.2,
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                for up in (False, True):
+                    for timing in ("at_hit", "at_expiry"):
+                        with self.subTest(
+                            scheme=scheme, rate=rate, up=up, timing=timing
+                        ):
+                            option = BarrierOption(
+                                option_type="call",
+                                strike=100,
+                                effective_date=start,
+                                expiry_date=end,
+                                barrier_level=120 if up else 80,
+                                barrier_type="up_and_out" if up else "down_and_out",
+                                rebate=5,
+                                rebate_timing=timing,
+                            )
+                            actual = engine.price_with_greeks(
+                                option, context, greeks=["delta", "gamma"]
+                            )
+                            expected = (
+                                pricing.AnalyticBarrierEngine().price_with_greeks(
+                                    option, context, greeks=["delta", "gamma"]
+                                )
+                            )
+                            self.assertEqual(
+                                actual.price, engine.price(option, context)
+                            )
+                            self.assertAlmostEqual(
+                                actual.price,
+                                expected.price,
+                                delta=0.1 if explicit else 0.01,
+                            )
+                            self.assertAlmostEqual(
+                                actual.delta,
+                                expected.delta,
+                                delta=0.01 if explicit else 0.003,
+                            )
+                            self.assertAlmostEqual(
+                                actual.gamma,
+                                expected.gamma,
+                                delta=0.002 if explicit else 0.0005,
+                            )
+
     def test_american_mc_skips_grids_without_early_exercise_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         terms = {

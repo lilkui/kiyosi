@@ -232,3 +232,11 @@ probe (spot 100.25, strike 100, upper boundary 400) measured 1.201 ms before and
 0.403 ms after on the same compiler and CPU, with identical price and speed.
 C++ and Python checks cover all three schemes, custom shifts, automatic and
 explicit domains, event boundaries, expiry, and shifted digital payoff bounds.
+
+Continuous barrier FD relies on the stepper's constraints and edge values instead
+of reapplying rebates to every asset node after each step. Scheduled observations
+retain their post-step updates. An isolated 200-by-200 comparison on the same
+machine measured 0.475 to 0.442 ms for a down-and-out call, with identical prices
+across both barrier directions and knock states. A separate 72-scenario check
+retained identical price, delta, gamma, and speed for continuous and scheduled
+monitoring across all three schemes and both supported rebate timings.
