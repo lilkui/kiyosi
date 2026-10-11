@@ -1,5 +1,5 @@
 import unittest
-from datetime import date
+from datetime import UTC, date, datetime
 
 import kiyosi
 from kiyosi import pricing
@@ -20,6 +20,93 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_irrelevant_knock_in_events_preserve_spot_and_time_greeks(self):
+        import math
+
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        note = SnowballOption(
+            knock_out_coupon_rates=[0],
+            maturity_coupon_rate=0,
+            initial_spot=100,
+            knock_in_level=75,
+            knock_out_levels=[110],
+            upper_strike=100,
+            lower_strike=100,
+            observation_dates=[end],
+            barrier_state="none",
+            knock_in_observation_mode="every_trading_day",
+            effective_date=start,
+            expiry_date=end,
+        )
+        for engine in (
+            pricing.FiniteDifferenceSnowballEngine(),
+            pricing.MonteCarloSnowballEngine(path_count=64, seed=42),
+        ):
+            for time in (
+                datetime(2025, 1, 1, tzinfo=UTC),
+                datetime(2025, 1, 2, 12, tzinfo=UTC),
+            ):
+                with self.subTest(engine=type(engine).__name__, time=time):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+                        ),
+                        spot_price=75,
+                        valuation_time=time,
+                    )
+                    result = engine.price_with_greeks(
+                        note, context, ["delta", "gamma", "theta", "charm", "color"]
+                    )
+                    years = (
+                        datetime(2026, 1, 1, tzinfo=UTC) - time
+                    ).total_seconds() / (365 * 86400)
+                    self.assertAlmostEqual(
+                        result.price, math.exp(-0.04 * years), delta=1e-12
+                    )
+                    self.assertEqual(
+                        (result.delta, result.gamma, result.charm, result.color),
+                        (0, 0, 0, 0),
+                    )
+                    self.assertIsNotNone(result.theta)
+                    self.assertAlmostEqual(
+                        result.theta, 0.04 / 365 * result.price, delta=1e-8
+                    )
+
+    def test_completed_knock_in_preserves_time_greeks_without_hiding_live_events(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=75,
+            valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
+        )
+        for engine in (
+            pricing.FiniteDifferenceSnowballEngine(),
+            pricing.MonteCarloSnowballEngine(path_count=64, seed=42),
+        ):
+            for state in ("none", "knocked_in"):
+                with self.subTest(engine=type(engine).__name__, state=state):
+                    note = SnowballOption(
+                        knock_out_coupon_rates=[0.08],
+                        maturity_coupon_rate=0.06,
+                        initial_spot=100,
+                        knock_in_level=75,
+                        knock_out_levels=[110],
+                        upper_strike=100,
+                        lower_strike=60,
+                        observation_dates=[end],
+                        barrier_state=state,
+                        effective_date=start,
+                        expiry_date=end,
+                        knock_in_observation_mode="every_trading_day",
+                    )
+                    result = engine.price_with_greeks(
+                        note, context, ["theta", "charm", "color"]
+                    )
+                    for value in (result.theta, result.charm, result.color):
+                        self.assertEqual(value is not None, state == "knocked_in")
+
     def test_fd_event_skipping_preserves_path_dependent_prices_and_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

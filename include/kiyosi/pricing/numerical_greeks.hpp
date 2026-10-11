@@ -11,6 +11,7 @@
 #include <kiyosi/instruments/barrier/terms.hpp>
 #include <kiyosi/instruments/autocallable/note.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
@@ -118,6 +119,7 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context, 
             // Native pricing has already validated history; absent initial history
             // therefore means not knocked in, just as in the pricing engines.
             return option.barrier_state() != AutocallableBarrierState::knocked_in &&
+                   program_knock_in_affects_payoff(autocallable_program(option)) &&
                    option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
                    context.calendar().is_trading_day(context.valuation_date()) &&
                    crosses(option.knock_in_level());
@@ -314,7 +316,9 @@ Result<PricingResult> complete_greeks(
         if constexpr (requires { option.accumulated_quantity(); } || requires { option.knock_in_observation_mode(); }) {
             bool daily_events = true; // NOLINT(misc-const-correctness): daily monitoring depends on the option type.
             if constexpr (requires { option.knock_in_observation_mode(); })
-                daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
+                daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
+                               option.barrier_state() != AutocallableBarrierState::knocked_in &&
+                               program_knock_in_affects_payoff(autocallable_program(option));
             if (daily_events)
                 for (Date date = date_of(before); date <= date_of(after); date += std::chrono::days{1})
                     if (crosses_event(date) && context.calendar().is_trading_day(date)) {

@@ -59,6 +59,45 @@ static_assert(std::is_same_v<decltype(AnalyticVanillaEngine{}.price(
                                  std::declval<const EuropeanOption&>(), std::declval<const PricingContext&>())),
                              Result<double>>);
 
+TEST_CASE("Irrelevant knock-in events preserve spot and time Greeks", "[pricing-api][knock-in-greeks]")
+{
+    const auto note = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
+    const auto check = [&](const auto& engine) {
+        for (const Timestamp time : {start_of_day(effective), start_of_day(effective) + std::chrono::hours{36}}) {
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 75.0, time);
+            const auto result = engine.price_with_greeks(note, context,
+                                                         {Greek::delta, Greek::gamma, Greek::theta, Greek::charm, Greek::color});
+            REQUIRE(result);
+            const double years = std::chrono::duration<double, std::ratio<31'536'000>>{start_of_day(expiry) - time}.count();
+            CHECK(result->price() == Catch::Approx(std::exp(-0.04 * years)));
+            for (const Greek greek : {Greek::delta, Greek::gamma, Greek::charm, Greek::color})
+                CHECK(greek_value(*result, greek) == 0.0);
+            CHECK(greek_value(*result, Greek::theta) == Catch::Approx(0.04 / 365.0 * result->price()).margin(1e-8));
+        }
+    };
+    check(FiniteDifferenceSnowballEngine{});
+    check(MonteCarloSnowballEngine{{64, 42}});
+}
+
+TEST_CASE("Completed knock-in preserves time Greeks without hiding live events", "[pricing-api][knock-in-greeks]")
+{
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 75.0,
+                                               start_of_day(effective) + std::chrono::hours{36});
+    const auto check = [&](const auto& engine) {
+        for (const auto state : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in}) {
+            const auto note = *make_snowball_option(
+                {.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry}, .barrier_state = state, .effective_date = effective, .expiry_date = expiry});
+            const auto result = engine.price_with_greeks(note, context, {Greek::theta, Greek::charm, Greek::color});
+            REQUIRE(result);
+            for (const Greek greek : {Greek::theta, Greek::charm, Greek::color})
+                CHECK(result->has(greek) == (state == AutocallableBarrierState::knocked_in));
+        }
+    };
+    check(FiniteDifferenceSnowballEngine{});
+    check(MonteCarloSnowballEngine{{64, 42}});
+}
+
 TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observations", "[pricing-api][audit-fixes]")
 {
     const auto context = market(100.0, effective);
