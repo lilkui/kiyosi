@@ -19,6 +19,7 @@ public:
     [[nodiscard]] Result<double> price(const BarrierOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// Scheduled dates are validated once per call against the context's calendar.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 };

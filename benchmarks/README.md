@@ -469,3 +469,11 @@ a one-year ATM put, noon valuation, rate 5%, dividend yield 2%, volatility 20%,
 volatility was bit-for-bit identical at 0.2000129745263024.
 `american/mc/implied_volatility` tracks the solve workload; caches are never
 shared between requests or stored in the public engine.
+
+Scheduled analytic barrier, binary barrier and touch Greeks validate the
+calendar once per request, while each shifted price retains its other domain
+checks. The `barrier/analytic/scheduled_dense` cases compare the request with
+independent scalar stencils over 2,608 weekday observations in 2025–2035.
+A 2026-10-11 Release MSVC run measured 38.3 us versus 454.1 us (median of five
+repetitions), with identical prices and Greeks. Calendar queries fell from
+33,904 to 2,608; subsequent calls validate again, including after a rejection.

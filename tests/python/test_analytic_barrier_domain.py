@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
 from kiyosi import pricing
@@ -25,6 +25,66 @@ from kiyosi.market import (
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_dense_scheduled_greeks_preserve_independent_stencils(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        common = {
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_level": 80,
+            "observation_mode": "scheduled",
+            "touch_state": "untouched",
+            "observation_dates": [start + timedelta(days=i) for i in range(1, 366)],
+        }
+        terms = dict(
+            common, option_type="call", strike=100, barrier_type="down_and_out"
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            calendar=all_days_calendar(),
+        )
+        contracts = [
+            (pricing.AnalyticBarrierEngine(), BarrierOption(**terms)),
+            (
+                pricing.AnalyticBinaryBarrierEngine(),
+                cash_binary_barrier_option(**terms, payout=10),
+            ),
+            (
+                pricing.AnalyticBinaryBarrierEngine(),
+                asset_binary_barrier_option(**terms),
+            ),
+            (
+                pricing.AnalyticBinaryBarrierEngine(),
+                cash_no_touch_down(**common, payout=10),
+            ),
+            (
+                pricing.AnalyticBinaryBarrierEngine(),
+                asset_one_touch_down(**common, settlement_timing="at_expiry"),
+            ),
+        ]
+        greeks = (
+            "delta",
+            "gamma",
+            "speed",
+            "theta",
+            "charm",
+            "color",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
+        )
+        for engine, option in contracts:
+            with self.subTest(option=type(option).__name__):
+                expected = pricing.calculate_numerical_greeks(engine, option, context)
+                actual = engine.price_with_greeks(option, context, greeks)
+                self.assertEqual(actual.price, engine.price(option, context))
+                for greek in greeks:
+                    self.assertEqual(getattr(actual, greek), getattr(expected, greek))
+
     def test_binary_barriers_survive_volatility_variance_underflow(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticBinaryBarrierEngine()

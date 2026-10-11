@@ -1,8 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <future>
 #include <limits>
+#include <memory>
 #include <numbers>
 #include <string>
 #include <type_traits>
@@ -13,6 +16,61 @@
 namespace {
 
 using kiyosi::test::day;
+
+TEST_CASE("Scheduled analytic Greeks validate calendars once per request", "[analytic-schedule]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2035, 1, 1);
+    std::vector<Date> dates;
+    for (auto date = start + std::chrono::days{1}; date <= end; date += std::chrono::days{1})
+        if (weekdays_calendar().is_trading_day(date)) dates.push_back(date);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto allowed = std::make_shared<std::atomic<bool>>(true);
+    const auto calendar = *make_trading_calendar([queries, allowed](Date date) {
+        ++*queries;
+        return *allowed && weekdays_calendar().is_trading_day(date);
+    },
+                                                 252);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const auto check = [&](const auto& engine, const auto& option) {
+        const auto expected = calculate_numerical_greeks(engine, option, context);
+        REQUIRE(expected);
+        *queries = 0;
+        const auto result = engine.price_with_greeks(option, context, true);
+        REQUIRE(result);
+        CHECK(result->price() == expected->price());
+        CHECK(result->values_view() == expected->values_view());
+        CHECK(*queries == dates.size());
+        *queries = 0;
+        auto task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+        const auto concurrent = engine.price_with_greeks(option, context, true);
+        const auto first = task.get();
+        REQUIRE(first);
+        REQUIRE(concurrent);
+        CHECK(first->values_view() == result->values_view());
+        CHECK(concurrent->values_view() == result->values_view());
+        CHECK(*queries == 2 * dates.size());
+        *allowed = false;
+        const auto rejected = engine.price_with_greeks(option, context, true);
+        REQUIRE_FALSE(rejected);
+        CHECK(rejected.error().category == ErrorCategory::invalid_date);
+        *allowed = true;
+        *queries = 0;
+        REQUIRE(engine.price_with_greeks(option, context, true));
+        CHECK(*queries == dates.size());
+        *queries = 0;
+        REQUIRE_FALSE(engine.price_with_greeks(option, context, true, {.spot_shift = 0.0}));
+        CHECK(*queries == 0);
+    };
+    check(AnalyticBarrierEngine{}, *make_barrier_option(
+                                       {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched}));
+    const BinaryBarrierTerms terms{.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched};
+    check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, 10.0));
+    check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms));
+    check(AnalyticBinaryBarrierEngine{}, *make_cash_no_touch_down(start, end, 80.0, 10.0, ObservationMode::scheduled, dates, BarrierTouchState::untouched));
+    check(AnalyticBinaryBarrierEngine{}, *make_asset_one_touch_down(start, end, 80.0, SettlementTiming::at_expiry, ObservationMode::scheduled, dates, BarrierTouchState::untouched));
+}
 
 TEST_CASE("Analytic barrier branches preserve in-out parity and rebate timing", "[barrier-factors]")
 {

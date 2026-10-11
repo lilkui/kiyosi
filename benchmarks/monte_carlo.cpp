@@ -155,6 +155,13 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const FiniteDifferenceSnowballEngine snowball_engine{};
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out});
     const FiniteDifferenceBarrierEngine barrier_engine{};
+    const Date dense_expiry{std::chrono::year{2035} / 1 / 1};
+    std::vector<Date> dense_dates;
+    for (auto date = european.effective_date() + std::chrono::days{1}; date <= dense_expiry; date += std::chrono::days{1})
+        if (weekdays_calendar().is_trading_day(date)) dense_dates.push_back(date);
+    const auto dense_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dense_dates, .touch_state = BarrierTouchState::untouched});
+    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
+    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
     const auto upper_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out});
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};

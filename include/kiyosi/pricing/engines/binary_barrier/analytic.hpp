@@ -13,6 +13,7 @@ namespace kiyosi {
 /// Spot must lie strictly on the unbreached side of the shifted barrier;
 /// otherwise the approximation returns unsupported_operation.
 /// Resolved settlements remain supported.
+/// Greek requests validate scheduled dates once per call against the context's calendar.
 class KIYOSI_EXPORT AnalyticBinaryBarrierEngine {
 public:
     /// Prices a strike-based binary barrier option.

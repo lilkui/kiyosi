@@ -11,16 +11,18 @@
 
 namespace kiyosi {
 using namespace detail;
+namespace {
 
-Result<double> AnalyticBarrierEngine::price(
-    const BarrierOption& option, const PricingContext& context) const
+Result<double> price_barrier(
+    const BarrierOption& option, const PricingContext& context, bool& schedule_validated)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation_mode() == ObservationMode::scheduled) {
+    if (!schedule_validated && option.observation_mode() == ObservationMode::scheduled) {
         auto schedule_valid = validate_observation_dates(option.observation_dates(), option.effective_date(),
                                                          option.expiry_date(), context.calendar());
         if (!schedule_valid) return std::unexpected(schedule_valid.error());
+        schedule_validated = true;
         // ponytail: scheduled dates use a BGK barrier shift; exact discrete monitoring needs a separate engine.
     }
     if (const auto settled = resolved_barrier_price(option, context)) return *settled;
@@ -104,10 +106,24 @@ Result<double> AnalyticBarrierEngine::price(
     return value;
 }
 
+struct BarrierPricer {
+    mutable bool schedule_validated{};
+    Result<double> price(const BarrierOption& option, const PricingContext& context) const
+    {
+        return price_barrier(option, context, schedule_validated);
+    }
+};
+} // namespace
+
+Result<double> AnalyticBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
+{
+    return BarrierPricer{}.price(option, context);
+}
+
 Result<PricingResult> AnalyticBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(BarrierPricer{}, option, context, greeks, settings);
 }
 
 } // namespace kiyosi

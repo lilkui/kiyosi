@@ -63,14 +63,15 @@ double terminal_payoff(const BinaryBarrierContractView& option, double spot, boo
     return terms.is_knock_in() == touched && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
 }
 
-Result<double> price_contract(const BinaryBarrierContractView& option, const PricingContext& context)
+Result<double> price_contract(const BinaryBarrierContractView& option, const PricingContext& context, bool& schedule_validated)
 {
     const auto& terms = *option.barrier_terms;
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), terms.effective_date(), terms.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (terms.observation_mode() == ObservationMode::scheduled) {
+    if (!schedule_validated && terms.observation_mode() == ObservationMode::scheduled) {
         auto schedule = validate_observation_dates(terms.observation_dates(), terms.effective_date(), terms.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
+        schedule_validated = true;
     }
     const auto prior_touch = terms.was_touched_before(context.valuation_time());
     if (!prior_touch) return std::unexpected(prior_touch.error());
@@ -149,29 +150,38 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
     return std::max(value, 0.0);
 }
+
+struct BinaryBarrierPricer {
+    mutable bool schedule_validated{};
+    template <typename Option>
+    Result<double> price(const Option& option, const PricingContext& context) const
+    {
+        return price_contract(make_contract_view(option), context, schedule_validated);
+    }
+};
 } // namespace
 
 Result<double> AnalyticBinaryBarrierEngine::price(
     const BinaryBarrierOption& option, const PricingContext& context) const
 {
-    return price_contract(make_contract_view(option), context);
+    return BinaryBarrierPricer{}.price(option, context);
 }
 
 Result<double> AnalyticBinaryBarrierEngine::price(
     const TouchOption& option, const PricingContext& context) const
 {
-    return price_contract(make_contract_view(option), context);
+    return BinaryBarrierPricer{}.price(option, context);
 }
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const BinaryBarrierOption& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(BinaryBarrierPricer{}, option, context, greeks, settings);
 }
 
 Result<PricingResult> AnalyticBinaryBarrierEngine::price_with_greeks(const TouchOption& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(BinaryBarrierPricer{}, option, context, greeks, settings);
 }
 
 } // namespace kiyosi
