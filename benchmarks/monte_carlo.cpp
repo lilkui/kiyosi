@@ -184,6 +184,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/american/mc_cuda/unavailable_speed", [=] { return cuda_american.price_with_greeks(american_put, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
 #endif
     register_calculation("analytics/kiyosi/european/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::delta, Greek::gamma}); }, "price");
+    register_calculation("analytics/kiyosi/european/mc/unavailable_delta", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::delta}, {.spot_shift = 200.0}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/european/mc/unavailable_speed", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/european/mc/unavailable_vanna", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::vanna}, {.volatility_shift = 0.3}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
     register_calculation("analytics/kiyosi/european/mc/numerical_all", [=] { return calculate_numerical_greeks(monte_carlo_engine, european, context); }, "price");
     register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,

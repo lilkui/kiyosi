@@ -622,6 +622,41 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
     CHECK_FALSE(unseeded.settings().seed);
 }
 
+TEST_CASE("European Monte Carlo unavailable stencils retain scalar prices", "[mc-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const MonteCarloVanillaEngine engine{513, 50, 42};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, 100.0, start, end);
+        const auto scalar = engine.price(option, context);
+        REQUIRE(scalar);
+        for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed, Greek::charm, Greek::color,
+                                 Greek::vega, Greek::vanna, Greek::zomma, Greek::rho}) {
+            const auto shifts = greek == Greek::rho                                                      ? NumericalShiftSettings{.rate_shift = 1e307}
+                                : greek == Greek::vega || greek == Greek::vanna || greek == Greek::zomma ? NumericalShiftSettings{.volatility_shift = 0.3}
+                                : greek == Greek::speed                                                  ? NumericalShiftSettings{.spot_shift = 60.0}
+                                                                                                         : NumericalShiftSettings{.spot_shift = 200.0};
+            const auto result = engine.price_with_greeks(option, context, {greek}, shifts);
+            REQUIRE(result);
+            CHECK(result->price() == *scalar);
+            CHECK_FALSE(result->has(greek));
+        }
+        const GreeksRequest request{Greek::delta, Greek::gamma, Greek::speed, Greek::charm, Greek::color,
+                                    Greek::vega, Greek::vanna, Greek::zomma, Greek::rho};
+        const auto result = engine.price_with_greeks(option, context, request, {.spot_shift = 200.0, .volatility_shift = 0.3, .rate_shift = 1e307});
+        REQUIRE(result);
+        CHECK(result->price() == *scalar);
+        CHECK(result->values_view() == make_pricing_result(*scalar)->values_view());
+        const auto mixed = engine.price_with_greeks(option, context, {Greek::delta, Greek::vega}, {.spot_shift = 200.0});
+        const auto expected = detail::price_with_greeks(engine, option, context, {Greek::delta, Greek::vega}, {.spot_shift = 200.0});
+        REQUIRE(mixed);
+        REQUIRE(expected);
+        CHECK(mixed->values_view() == expected->values_view());
+    }
+}
+
 TEST_CASE("American Monte Carlo unavailable stencils retain scalar prices", "[mc-american-samples]")
 {
     using namespace kiyosi;

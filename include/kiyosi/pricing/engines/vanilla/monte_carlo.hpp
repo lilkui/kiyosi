@@ -35,7 +35,8 @@ public:
     [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    /// CPU European requests reuse per-call samples, with transient storage linear in path count.
+    /// CPU European requests with feasible stencils reuse per-call samples, with storage linear in path count.
+    /// Requests without feasible stencils stream the scalar price without retaining samples.
     /// CPU and CUDA American requests reuse a path buffer; spot stencils also cache growth factors,
     /// adding about 8 bytes per rounded-even path per time interval. All storage is request-local.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,

@@ -435,6 +435,26 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+        const double spot = context.spot_price();
+        const double h = detail::symmetric_shift(spot, settings.spot_shift);
+        const double two_h = 2.0 * h;
+        const double volatility = context.model_parameters().volatility();
+        const double volatility_shift = detail::symmetric_shift(volatility, settings.volatility_shift);
+        const bool volatility_available = volatility_shift > 0.0 && volatility > volatility_shift &&
+                                          std::isfinite(100.0 * volatility_shift);
+        const double rate_shift = detail::symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+        const bool rate_available = rate_shift > 0.0 && std::isfinite(200.0 * rate_shift);
+        const bool speed_available = std::isfinite(two_h) && spot > two_h &&
+                                     detail::symmetric_shift(spot, two_h) == two_h;
+        const bool cache_samples = greeks.has(Greek::theta) ||
+            (volatility_available && greeks.has(Greek::vega)) || (rate_available && greeks.has(Greek::rho)) ||
+            (h > 0.0 && spot > h &&
+             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::charm) || greeks.has(Greek::color) ||
+              (greeks.has(Greek::speed) && speed_available) ||
+              (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)))));
+        // Stream a single price without sample storage; shared completion still decides availability.
+        if (seeded.settings().backend == MonteCarloBackend::cpu && !cache_samples)
+            return detail::price_with_greeks(seeded, option, context, greeks, settings);
         const EuropeanMonteCarloSamples samples{seeded.settings()};
         const auto value = samples.price(option, context);
         if (!value) return std::unexpected(value.error());

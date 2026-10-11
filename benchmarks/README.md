@@ -477,3 +477,12 @@ independent scalar stencils over 2,608 weekday observations in 2025–2035.
 A 2026-10-11 Release MSVC run measured 38.3 us versus 454.1 us (median of five
 repetitions), with identical prices and Greeks. Calendar queries fell from
 33,904 to 2,608; subsequent calls validate again, including after a rejection.
+
+CPU European Monte Carlo requests without feasible Greek stencils stream the
+scalar price without retaining samples. The `european/mc/unavailable_delta`,
+`unavailable_speed` and `unavailable_vanna` cases track these requests.
+A 2026-10-11 Release MSVC allocation probe for a one-year ATM put, noon
+valuation, rate 5%, dividend yield 2%, volatility 20%, one million paths and
+seed 42 reduced unavailable-delta allocation from 12,000,078 bytes to zero.
+Its price remained exactly 6.3236944868234461; both scalar and Greek requests
+took about 20 ms. Requests with feasible stencils retain their shared samples.
