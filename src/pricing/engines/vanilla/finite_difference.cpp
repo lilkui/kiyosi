@@ -101,7 +101,8 @@ Result<PricingResult> price_finite_difference(
         });
     if (!marched) return std::unexpected(marched.error());
 
-    const double value = std::max(coordinate.interpolate(old, coordinate_spot), american ? intrinsic(spot) : 0.0);
+    std::vector<double> curvature;
+    const double value = std::max(coordinate.interpolate(old, coordinate_spot, curvature), american ? intrinsic(spot) : 0.0);
     const double derivative = requested_output.has(Greek::delta) || requested_output.has(Greek::gamma)
                                   ? coordinate.delta(old, coordinate_spot)
                                   : 0.0;
@@ -118,7 +119,7 @@ Result<PricingResult> price_finite_difference(
         if (h > 0.0 && spot > h && spot + h < upper) {
             for (const double shifted_spot : {spot + h, spot - h}) {
                 const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
-                const auto shifted_price = checked_price(std::max(coordinate.interpolate(old, x), american ? intrinsic(shifted_spot) : 0.0));
+                const auto shifted_price = checked_price(std::max(coordinate.interpolate(old, x, curvature), american ? intrinsic(shifted_spot) : 0.0));
                 if (!shifted_price) return std::unexpected(shifted_price.error());
             }
             const auto gamma_at = [&](double shifted_spot) {

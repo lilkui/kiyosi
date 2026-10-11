@@ -216,3 +216,11 @@ wall times fell from 70.35 to 67.62 us for the European matrix case, 0.432 to
 case (five repetitions, 0.15 s minimum). Prices were unchanged. Tests exercise
 time-step/model changes, explicit/implicit transitions, constraints at both ends
 of the interior, repeated solves, paired layers, and recovery after failures.
+
+Vanilla FD speed reuses spline curvature for the base and shifted price checks.
+The `off_node/fine_space/speed` case uses 10,000 asset steps, one time step, and
+spot 100.25 on a grid ending at 400. On the same machine, its median wall time
+fell from 327.4 to 253.7 us (five repetitions, 0.15 s minimum); the default-grid
+speed case stayed within 0.2%. Prices were unchanged. Tests cover repeated spline
+lookups, exact nodes, bounded payoff interpolation, and European/American speed
+with custom shifts in C++ and Python.

@@ -96,21 +96,31 @@ struct SpatialGrid {
 
     [[nodiscard]] double interpolate(std::span<const double> values, double spot) const
     {
+        std::vector<double> curvature;
+        return interpolate(values, spot, curvature);
+    }
+
+    /// Reuse curvature only for the same grid and unchanged values; start with an empty buffer.
+    [[nodiscard]] double interpolate(std::span<const double> values, double spot, std::vector<double>& curvature) const
+    {
         const auto [index, weight] = locate(spot);
         if (weight == 0.0) return values[index];
         if (weight == 1.0) return values[index + 1];
         // A C2 spline preserves curvature when numerical Greek bumps stay inside one cell.
-        std::vector<double> curvature(values.size()), factors(values.size());
-        for (std::size_t node = 1; node + 1 < values.size(); ++node) {
-            const double diagonal = 4.0 - factors[node - 1];
-            factors[node] = 1.0 / diagonal;
-            curvature[node] = (6.0 * ((values[node + 1] - values[node]) -
-                                      (values[node] - values[node - 1])) -
-                               curvature[node - 1]) /
-                              diagonal;
+        if (curvature.empty()) {
+            curvature.resize(values.size());
+            std::vector<double> factors(values.size());
+            for (std::size_t node = 1; node + 1 < values.size(); ++node) {
+                const double diagonal = 4.0 - factors[node - 1];
+                factors[node] = 1.0 / diagonal;
+                curvature[node] = (6.0 * ((values[node + 1] - values[node]) -
+                                          (values[node] - values[node - 1])) -
+                                   curvature[node - 1]) /
+                                  diagonal;
+            }
+            for (std::size_t node = values.size() - 2; node > 0; --node)
+                curvature[node] -= factors[node] * curvature[node + 1];
         }
-        for (std::size_t node = values.size() - 2; node > 0; --node)
-            curvature[node] -= factors[node] * curvature[node + 1];
         const double left = 1.0 - weight;
         const double interpolated = std::lerp(values[index], values[index + 1], weight) +
                                     ((left * left * left - left) * curvature[index] +

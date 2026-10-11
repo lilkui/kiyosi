@@ -47,6 +47,22 @@ TEST_CASE("Finite-difference interpolation returns exact nodes without snapping 
     CHECK(std::abs(grid.interpolate(curved, 1.5) - 25.0 / 56.0) < 1e-15);
 }
 
+TEST_CASE("Finite-difference spline curvature supports repeated lookups", "[fd-performance]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    const std::array curved{0.0, 1.0, 0.0, 1.0, 0.0};
+    std::vector<double> curvature;
+    CHECK(grid.interpolate(curved, 1.0, curvature) == 1.0);
+    CHECK(curvature.empty());
+    for (const double spot : {0.5, 1.5, 3.5, 0.5}) {
+        CAPTURE(spot);
+        const double expected = spot == 1.5 ? 25.0 / 56.0 : 43.0 / 56.0;
+        CHECK(std::abs(grid.interpolate(curved, spot, curvature) - expected) < 1e-15);
+    }
+    for (std::size_t index = 0; index < curved.size(); ++index)
+        CHECK(grid.interpolate(curved, static_cast<double>(index), curvature) == curved[index]);
+}
+
 TEST_CASE("Finite-difference spline interpolation stays within neighboring payoff values", "[audit-fixes]")
 {
     const kiyosi::detail::SpatialGrid grid{8.0, 1.0, 8};
@@ -54,12 +70,14 @@ TEST_CASE("Finite-difference spline interpolation stays within neighboring payof
         std::vector<double> values(grid.size());
         for (std::size_t index = 0; index < values.size(); ++index)
             values[index] = std::max(sign * (static_cast<double>(index) - 4.0), 0.0);
+        std::vector<double> curvature;
         for (int sample = 0; sample <= 32; ++sample) {
             const double spot = static_cast<double>(sample) / 4.0;
             const auto index = std::min(static_cast<std::size_t>(spot), values.size() - 2);
             const double value = grid.interpolate(values, spot);
             CHECK(value >= std::min(values[index], values[index + 1]));
             CHECK(value <= std::max(values[index], values[index + 1]));
+            CHECK(grid.interpolate(values, spot, curvature) == value);
         }
         CHECK(grid.interpolate(values, sign > 0.0 ? 3.75 : 4.25) == 0.0);
     }
