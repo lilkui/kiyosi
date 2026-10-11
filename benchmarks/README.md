@@ -208,3 +208,11 @@ fell from 0.971 to 0.535 ms on the same compiler and CPU (median of five
 repetitions, 0.15 s minimum), with an unchanged price. C++ and Python checks
 preserve price, delta, and gamma in-out parity across all three schemes, both
 barrier directions, rebates, and expiry observations.
+
+FD factor reuse also retains the factored diagonal in place and skips matrix
+assembly after checking the full constraint mask. On the same machine, median
+wall times fell from 70.35 to 67.62 us for the European matrix case, 0.432 to
+0.406 ms for European speed, and 0.530 to 0.522 ms for the scheduled knock-in
+case (five repetitions, 0.15 s minimum). Prices were unchanged. Tests exercise
+time-step/model changes, explicit/implicit transitions, constraints at both ends
+of the interior, repeated solves, paired layers, and recovery after failures.

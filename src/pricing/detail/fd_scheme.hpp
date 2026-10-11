@@ -118,8 +118,6 @@ private:
             reuse = reuse && fixed_[position] == fixed.has_value();
             fixed_[position] = fixed.has_value();
             if (fixed) {
-                lower_[position] = upper_diagonal_[position] = 0.0;
-                diagonal_[position] = 1.0;
                 for (const auto& layer : layers)
                     layer.rhs[position] = *fixed;
                 continue;
@@ -132,10 +130,20 @@ private:
                 if (index == 1) layer.rhs[position] += theta * dt * a * layer.next.front();
                 if (index == asset_step_count - 1) layer.rhs[position] += theta * dt * c * layer.next.back();
             }
-            lower_[position] = -theta * dt * a;
-            diagonal_[position] = 1.0 - theta * dt * b;
-            upper_diagonal_[position] = -theta * dt * c;
         }
+        // A changed constraint near the upper edge also invalidates earlier matrix rows.
+        if (theta != 0.0 && !reuse)
+            for (std::size_t position = 0; position < diagonal_.size(); ++position) {
+                if (fixed_[position]) {
+                    lower_[position] = upper_diagonal_[position] = 0.0;
+                    diagonal_[position] = 1.0;
+                } else {
+                    const auto [a, b, c] = coefficients_[position];
+                    lower_[position] = -theta * dt * a;
+                    diagonal_[position] = 1.0 - theta * dt * b;
+                    upper_diagonal_[position] = -theta * dt * c;
+                }
+            }
         if (theta != 0.0 && !solve(layers, reuse)) return false;
         for (const auto& layer : layers)
             std::ranges::copy(layer.rhs, layer.next.begin() + 1);
@@ -155,7 +163,6 @@ private:
     template <std::size_t count>
     bool solve(const std::array<Layer, count>& layers, bool reuse)
     {
-        if (reuse) std::ranges::copy(factored_diagonal_, diagonal_.begin());
         for (std::size_t index = 1; index < diagonal_.size(); ++index) {
             if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
             const double factor = reuse ? multipliers_[index] : lower_[index] / diagonal_[index - 1];
@@ -168,7 +175,6 @@ private:
         }
         if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
         if (!reuse) {
-            factored_diagonal_ = diagonal_;
             for (std::size_t index = 0; index < diagonal_.size(); ++index)
                 inverse_[index] = 1.0 / diagonal_[index];
         }
@@ -191,7 +197,7 @@ private:
     double factor_dt_{};
     std::optional<DiffusionParameters> factor_parameters_;
     std::vector<bool> fixed_;
-    std::vector<double> factored_diagonal_, multipliers_, inverse_;
+    std::vector<double> multipliers_, inverse_;
     std::optional<DiffusionParameters> cached_parameters_;
     std::vector<std::array<double, 3>> coefficients_;
 };

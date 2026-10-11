@@ -293,7 +293,7 @@ TEST_CASE("Finite-difference factors follow time steps parameters and constraint
                 for (const double dividend : {0.01, 0.02})
                     for (const double volatility : {0.2, 0.4})
                         for (const double dt : {0.1, 0.1, 0.05})
-                            for (const int pin : {0, 2, 2, 3, 0})
+                            for (const int pin : {0, 2, 2, 3, 0, 5, 5, 0})
                                 for (const double value : {7.0, 8.0}) {
                                     CAPTURE(spacing, theta, rate, dividend, volatility, dt, pin, value);
                                     const DiffusionParameters parameters{rate, dividend, volatility, theta, spacing};
