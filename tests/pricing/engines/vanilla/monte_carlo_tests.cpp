@@ -569,6 +569,69 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
     CHECK_FALSE(unseeded.settings().seed);
 }
 
+TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[mc-american-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const auto type : {OptionType::call, OptionType::put})
+        for (const double rate : {-0.02, 0.05})
+            for (const double dividend : {0.0, 0.02})
+                for (const int steps : {3, 7, 50})
+                    for (const int paths : {3, 128})
+                        for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
+                            CAPTURE(type, rate, dividend, steps, paths, seed);
+                            const auto option = *make_american_option(type, 100.0, start, end);
+                            const MonteCarloVanillaEngine engine{paths, steps, seed};
+                            for (const auto valuation : {start_of_day(start) + std::chrono::hours{12}, start_of_day(end)})
+                                for (const auto shifts : {NumericalShiftSettings{}, NumericalShiftSettings{0.125, 0.02, 0.005, 2}}) {
+                                    const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), 100.25, valuation);
+                                    const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
+                                    REQUIRE(expected);
+                                    for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma},
+                                                                        GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna, Greek::zomma}}) {
+                                        const auto actual = engine.price_with_greeks(option, context, request, shifts);
+                                        REQUIRE(actual);
+                                        CHECK(actual->price() == expected->price());
+                                        CHECK(actual->values_view() == expected->selected(request).values_view());
+                                    }
+                                }
+                        }
+}
+
+TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent calls", "[mc-american-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_american_option(OptionType::put, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
+    const MonteCarloVanillaEngine engine{127, 7, 42};
+    for (const auto [volatility, rate_shift] : {std::pair{1000.0, 0.01}, std::pair{0.2, 1000.0}}) {
+        const auto invalid = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, volatility), 100.25, start);
+        const NumericalShiftSettings shifts{.rate_shift = rate_shift};
+        const auto expected = detail::price_with_greeks(engine, option, invalid, true, shifts);
+        const auto actual = engine.price_with_greeks(option, invalid, true, shifts);
+        REQUIRE_FALSE(expected);
+        REQUIRE_FALSE(actual);
+        CHECK(actual.error().category == expected.error().category);
+    }
+    const auto expected = engine.price_with_greeks(option, context, true);
+    REQUIRE(expected);
+    std::array<std::future<Result<PricingResult>>, 2> concurrent;
+    for (auto& task : concurrent)
+        task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+    for (auto& task : concurrent) {
+        const auto actual = task.get();
+        REQUIRE(actual);
+        CHECK(actual->price() == expected->price());
+        CHECK(actual->values_view() == expected->values_view());
+    }
+    const MonteCarloVanillaEngine unseeded{127, 7};
+    const auto random = unseeded.price_with_greeks(option, context, true);
+    REQUIRE(random);
+    CHECK(random->all_finite());
+    CHECK_FALSE(unseeded.settings().seed);
+}
+
 TEST_CASE("American Monte Carlo skips exercise grids only when early exercise has no value", "[mc-terminal]")
 {
     using namespace kiyosi;

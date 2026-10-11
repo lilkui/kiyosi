@@ -32,6 +32,15 @@ struct SimulationParameters {
     double diffusion;
 };
 
+struct AmericanMonteCarloSamples {
+    bool cache_growth;
+    std::vector<double> paths;
+    std::vector<std::array<double, 2>> growth;
+    double drift = std::numeric_limits<double>::quiet_NaN();
+    double diffusion = std::numeric_limits<double>::quiet_NaN();
+    int step_count{};
+};
+
 Result<SimulationParameters> simulation_parameters(
     const PricingContext& context, double time, MonteCarloSettings settings)
 {
@@ -53,7 +62,8 @@ Result<SimulationParameters> simulation_parameters(
 
 template <typename Observe>
 Result<void> simulate_paths(
-    SimulationParameters parameters, MonteCarloSettings settings, const Observe& observe)
+    SimulationParameters parameters, MonteCarloSettings settings, const Observe& observe,
+    AmericanMonteCarloSamples* samples = nullptr)
 {
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
     std::mt19937_64 generator = [&] {
@@ -64,19 +74,38 @@ Result<void> simulate_paths(
     }();
     std::normal_distribution<double> normal;
     const int half_count = path_count / 2;
+    const bool reuse = samples && samples->drift == parameters.drift &&
+                       samples->diffusion == parameters.diffusion && samples->step_count == settings.step_count;
+    if (samples && !reuse) {
+        samples->step_count = 0;
+        samples->growth.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
+    }
     for (int path = 0; path < half_count; ++path) {
         double positive_spot = parameters.spot;
         double negative_spot = parameters.spot;
         for (int step = 1; step < settings.step_count; ++step) {
-            const double normal_draw = normal(generator);
-            positive_spot *= std::exp(parameters.drift + parameters.diffusion * normal_draw);
-            negative_spot *= std::exp(parameters.drift - parameters.diffusion * normal_draw);
+            const auto index = static_cast<std::size_t>(path) * (settings.step_count - 1) + step - 1;
+            const auto growth = [&] {
+                if (reuse) return samples->growth[index];
+                const double normal_draw = normal(generator);
+                const std::array factors{std::exp(parameters.drift + parameters.diffusion * normal_draw),
+                                         std::exp(parameters.drift - parameters.diffusion * normal_draw)};
+                if (samples) samples->growth[index] = factors;
+                return factors;
+            }();
+            positive_spot *= growth[0];
+            negative_spot *= growth[1];
             if (!std::isfinite(positive_spot) || positive_spot <= 0.0 ||
                 !std::isfinite(negative_spot) || negative_spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "Monte Carlo simulation produced a non-finite path"});
             observe(path, path + half_count, step, positive_spot, negative_spot);
         }
+    }
+    if (samples) {
+        samples->drift = parameters.drift;
+        samples->diffusion = parameters.diffusion;
+        samples->step_count = settings.step_count;
     }
     return {};
 }
@@ -249,7 +278,8 @@ namespace {
 
 Result<double> price_american(const AmericanOption& option, const PricingContext& context,
                               MonteCarloSettings settings, bool terminal_only,
-                              [[maybe_unused]] detail::CudaWorkspace* workspace = nullptr)
+                              [[maybe_unused]] detail::CudaWorkspace* workspace = nullptr,
+                              AmericanMonteCarloSamples* samples = nullptr)
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
@@ -265,7 +295,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         context.model_parameters().risk_free_rate() >= 0.0) {
         const auto european = *make_european_option(
             option.option_type(), option.strike(), option.effective_date(), option.expiry_date());
-        const auto value = price_european(european, context, settings, [](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe); }, workspace);
+        const auto value = price_european(european, context, settings, [&](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe, samples && samples->cache_growth ? samples : nullptr); }, workspace);
         if (!value) return std::unexpected(value.error());
         return std::max(*value, payoff(option.option_type(), context.spot_price(), option.strike()));
     }
@@ -289,11 +319,12 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         const auto path_count = static_cast<std::size_t>(settings.path_count) + settings.path_count % 2;
         const auto step_count = static_cast<std::size_t>(settings.step_count);
         // Regression visits every path at one time, so keep each time slice contiguous.
-        std::vector<double> paths(path_count * step_count, parameters->spot);
+        std::vector<double> owned_paths;
+        auto& paths = samples ? samples->paths : owned_paths;
+        paths.resize(path_count * step_count);
         const auto simulated = simulate_paths(*parameters, settings, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
             paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
-            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot;
-        });
+            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot; }, samples && samples->cache_growth ? samples : nullptr);
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         for (std::size_t path = 0; path < path_count; ++path)
@@ -375,9 +406,10 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
     struct AmericanPricer {
         MonteCarloSettings settings;
         detail::CudaWorkspace* workspace{};
+        AmericanMonteCarloSamples* samples{};
         Result<double> price(const AmericanOption& instrument, const PricingContext& shifted) const
         {
-            return price_american(instrument, shifted, settings, true, workspace);
+            return price_american(instrument, shifted, settings, true, workspace, samples);
         }
     };
     return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
@@ -386,7 +418,11 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         detail::CudaWorkspace owned_workspace;
         if (seeded.settings().backend == MonteCarloBackend::cuda) workspace = &owned_workspace;
 #endif
-        const AmericanPricer prices{seeded.settings(), workspace};
+        AmericanMonteCarloSamples samples{.cache_growth =
+            greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed) ||
+            greeks.has(Greek::vanna) || greeks.has(Greek::zomma) || greeks.has(Greek::charm) || greeks.has(Greek::color)};
+        const AmericanPricer prices{seeded.settings(), workspace,
+                                    seeded.settings().backend == MonteCarloBackend::cpu ? &samples : nullptr};
         const auto native = [&]() -> Result<PricingResult> {
         const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
@@ -400,7 +436,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
                 const auto shifted = detail::shifted_context(context, context.spot_price(),
                                                              context.model_parameters().volatility(), shifted_rate, context.valuation_time());
                 if (!shifted) return std::unexpected(shifted.error());
-                return price_american(option, *shifted, seeded.settings(), false, workspace);
+                return price_american(option, *shifted, seeded.settings(), false, workspace, prices.samples);
             };
             const auto high = evaluate(rate + shift);
             if (!high) return std::unexpected(high.error());

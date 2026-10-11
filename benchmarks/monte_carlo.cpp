@@ -146,6 +146,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};
     const MonteCarloVanillaEngine monte_carlo_engine{100'000, 50, 42};
+    const auto american_put = *make_american_option(OptionType::put, 100.0, european.effective_date(), european.expiry_date());
+    register_price("analytics/kiyosi/american/mc/price", american_put, monte_carlo_engine, context)->UseRealTime();
+    register_calculation("analytics/kiyosi/american/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::delta, Greek::gamma}); }, "price");
     register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
     register_calculation("analytics/kiyosi/european/mc/numerical_all", [=] { return calculate_numerical_greeks(monte_carlo_engine, european, context); }, "price");

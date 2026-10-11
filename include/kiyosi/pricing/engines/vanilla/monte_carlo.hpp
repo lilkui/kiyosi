@@ -34,6 +34,8 @@ public:
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     /// CPU European requests reuse per-call samples, with transient storage linear in path count.
+    /// CPU American requests reuse a path buffer; spot stencils also cache growth factors,
+    /// adding about 8 bytes per rounded-even path per time interval. All storage is request-local.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
     [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,

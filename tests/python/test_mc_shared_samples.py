@@ -240,13 +240,24 @@ class SharedSampleTests(unittest.TestCase):
             "lower_strike": 60,
             "knock_in_observation_mode": "every_trading_day",
         }
-        cases += (
+        cases += tuple(
             (
                 AmericanOption(
-                    option_type="put", strike=100, effective_date=start, expiry_date=end
+                    option_type=option_type,
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
                 ),
-                pricing.MonteCarloVanillaEngine(path_count=31, step_count=5, seed=42),
-            ),
+                pricing.MonteCarloVanillaEngine(
+                    path_count=paths, step_count=steps, seed=seed
+                ),
+            )
+            for option_type in ("call", "put")
+            for paths in (3, 128)
+            for steps in (3, 7, 50)
+            for seed in (42, 2**64 - 1)
+        )
+        cases += (
             (
                 BinarySnowballOption(**common, **coupons),
                 pricing.MonteCarloBinarySnowballEngine(path_count=31, seed=42),
@@ -355,9 +366,6 @@ class SharedSampleTests(unittest.TestCase):
 
     def test_failures_and_concurrent_requests_preserve_the_engine(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        option = EuropeanOption(
-            option_type="call", strike=100, effective_date=start, expiry_date=end
-        )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
@@ -365,20 +373,29 @@ class SharedSampleTests(unittest.TestCase):
             spot_price=100.25,
             valuation_time=start,
         )
-        engine = pricing.MonteCarloVanillaEngine(path_count=127, seed=42)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(option, context, ["rho"], rate_shift=1000)
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
-        expected = engine.price_with_greeks(option, context, GREEKS)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            tasks = [
-                executor.submit(engine.price_with_greeks, option, context, GREEKS)
-                for _ in range(2)
-            ]
-            for task in tasks:
-                actual = task.result()
-                self.assertEqual(actual.price, expected.price)
+        engine = pricing.MonteCarloVanillaEngine(path_count=127, step_count=7, seed=42)
+        for option_class in (EuropeanOption, AmericanOption):
+            option = option_class(
+                option_type="put", strike=100, effective_date=start, expiry_date=end
+            )
+            with self.subTest(option=option_class.__name__):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price_with_greeks(option, context, GREEKS, rate_shift=1000)
                 self.assertEqual(
-                    (actual.delta, actual.gamma, actual.rho),
-                    (expected.delta, expected.gamma, expected.rho),
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
                 )
+                expected = engine.price_with_greeks(option, context, GREEKS)
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    tasks = [
+                        executor.submit(
+                            engine.price_with_greeks, option, context, GREEKS
+                        )
+                        for _ in range(2)
+                    ]
+                    for task in tasks:
+                        actual = task.result()
+                        self.assertEqual(actual.price, expected.price)
+                        self.assertEqual(
+                            tuple(getattr(actual, name) for name in GREEKS),
+                            tuple(getattr(expected, name) for name in GREEKS),
+                        )

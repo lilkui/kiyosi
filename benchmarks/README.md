@@ -277,7 +277,7 @@ bit-for-bit identical. The analytics suite includes `european/mc/delta_gamma` an
 `european/mc/all`. C++ and Python checks compare scalar stencils across call/put,
 odd/even path counts, seeds, custom shifts, life boundaries and concurrent calls.
 The per-request cache uses about 12 bytes per requested path (1.2 MB at 100,000
-paths); CUDA and American pricing keep their existing execution paths.
+paths); CUDA retains its existing execution path.
 
 European Monte Carlo implied-volatility solves reuse the same per-request cache
 across trial volatilities, retaining scalar summation and the generic solver's
@@ -326,3 +326,16 @@ across three schemes, both option and barrier directions, knock-in/out,
 continuous/scheduled monitoring, zero/nonzero rebates and valid rebate timings.
 C++ and Python regressions retain put price and spot-Greek references for both
 rebate timings, including the nonzero lower boundary.
+
+CPU American Monte Carlo Greek requests reuse their path buffer and cache growth
+factors across spot bumps while fitting each exercise regression independently.
+A 2026-10-11 Release MSVC probe with a one-year ATM put, rate 5%, dividend yield
+2%, volatility 20%, seed 42 and 50 steps measured delta/gamma falling from
+430.8 to 315.6 ms at 100,000 paths and from 4333.5 to 3174.5 ms at 1,000,000
+paths (median of three runs). Scalar pricing stayed near 145 and 1450 ms.
+The cache adds 8 bytes per rounded-even path per time interval (39.2 MB at
+100,000 paths and 50 steps), only for requests using spot stencils. All storage
+is local to the request; CUDA keeps its existing path. C++ and Python regression
+checks retain exact seeded scalar stencils, including mixed Greeks, odd/even
+path counts, different seeds, failures and concurrent calls. The analytics
+suite includes `american/mc/price` and `american/mc/delta_gamma`.
