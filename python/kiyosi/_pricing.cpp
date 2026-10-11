@@ -61,6 +61,14 @@ void bind_engine_price(nb::module_& module, nb::class_<Engine>& binding)
     binding.def(
         "price",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context) {
+            if constexpr (std::same_as<Engine, AnalyticBarrierEngine> ||
+                          std::same_as<Engine, AnalyticBinaryBarrierEngine>) {
+                // Scheduled monitoring validates calendars across the full observation schedule.
+                if (instrument.observation_mode() == ObservationMode::scheduled) {
+                    nb::gil_scoped_release release;
+                    return unwrap(engine.price(instrument, context));
+                }
+            }
             return unwrap(engine.price(instrument, context));
         },
         "instrument"_a, "context"_a, PriceGuard{},

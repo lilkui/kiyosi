@@ -15,8 +15,11 @@ Valid settings do not guarantee sufficient memory or other resources.
 Pricing, Greeks and implied-value solves are synchronous. Scalar prices from the
 AnalyticVanilla, AnalyticDigital, AnalyticBarrier, AnalyticBinaryBarrier,
 AnalyticGeometricAveragePrice and TurnbullWakemanArithmeticAveragePrice engines
-keep the GIL to avoid thread handoff overhead for short formulas. Other scalar
-prices, Greek requests and implied-value solves release it during core computation.
+keep the GIL to avoid thread handoff overhead for short formulas, except that
+scheduled AnalyticBarrier and AnalyticBinaryBarrier prices release it while
+validating and pricing their observation schedules. Other scalar prices, Greek
+requests (except AnalyticVanilla) and implied-value solves release it during core
+computation.
 These calls provide no cancellation interface or signal polling within the core.
 When they run on the main thread, Python signal handling, including
 Ctrl-C/KeyboardInterrupt, is deferred until control returns to Python. It does not

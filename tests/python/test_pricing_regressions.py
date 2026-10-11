@@ -29,6 +29,83 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_shared_analytic_barriers_preserve_prices_and_errors_across_threads(self):
+        start, end = date(2015, 1, 1), date(2025, 1, 1)
+        dates = [
+            start + timedelta(days=day)
+            for day in range(1, (end - start).days + 1)
+            if (start + timedelta(days=day)).weekday() < 5
+        ]
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+            "barrier_level": 80,
+            "barrier_type": "down_and_out",
+        }
+        for family, continuous, scheduled in (
+            ("barrier", 23.200671753767061, 23.628841998021954),
+            ("binary", 2.0207068648871727, 2.0735108817276178),
+            ("touch", 4.576604119557576, 4.514156543575421),
+        ):
+            engine = (
+                pricing.AnalyticBarrierEngine()
+                if family == "barrier"
+                else pricing.AnalyticBinaryBarrierEngine()
+            )
+            cases = []
+            for mode, observations, expected in (
+                ("continuous", [], continuous),
+                ("scheduled", dates, scheduled),
+                ("scheduled", [date(2015, 1, 3)], None),
+            ):
+                monitoring = {
+                    "observation_mode": mode,
+                    "observation_dates": observations,
+                }
+                if family == "barrier":
+                    option = BarrierOption(**terms, **monitoring)
+                elif family == "binary":
+                    option = cash_binary_barrier_option(
+                        **terms, **monitoring, payout=10
+                    )
+                else:
+                    option = cash_one_touch_down(
+                        effective_date=start,
+                        expiry_date=end,
+                        barrier_level=80,
+                        payout=10,
+                        **monitoring,
+                    )
+                cases.append((option, expected))
+            with self.subTest(family=family):
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    tasks = [
+                        (executor.submit(engine.price, option, context), expected)
+                        for option, expected in cases * 20
+                    ]
+                    for task, expected in tasks:
+                        if expected is None:
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                task.result()
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_DATE,
+                            )
+                        else:
+                            self.assertAlmostEqual(task.result(), expected, places=12)
+                self.assertAlmostEqual(
+                    engine.price(cases[1][0], context), scheduled, places=12
+                )
+
     def test_analytic_delta_and_rho_selections_retain_full_valuation_results(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticVanillaEngine()

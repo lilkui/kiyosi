@@ -355,8 +355,9 @@ checks retain exact seeded scalar stencils, including mixed Greeks, odd/even
 path counts, different seeds, failures and concurrent calls. The analytics
 suite includes `american/mc/price` and `american/mc/delta_gamma`.
 
-Python scalar prices for the six short closed-form engines keep the GIL;
-numerical prices, Greek requests and implied-value solves release it. A
+Python scalar prices for the six short closed-form engines keep the GIL, except
+for scheduled barrier contracts; numerical prices, Greek requests (except
+analytic vanilla) and implied-value solves release it. A
 2026-10-11 CPython 3.14 Release MSVC probe priced a one-year ATM European call
 (rate 5%, dividend yield 2%, volatility 20%) 100,000 times through the public
 `AnalyticVanillaEngine.price` binding. Median elapsed time over three batches
@@ -364,6 +365,20 @@ fell from 18.46 to 15.72 ms with one worker and from 42.27 to 16.18 ms with four
 workers dividing the same total work. The unchanged scalar price was checked
 in every batch. This avoids GIL handoffs costing more than the formula itself;
 the package docstring lists the engines covered by this policy.
+
+Scheduled `AnalyticBarrierEngine` and `AnalyticBinaryBarrierEngine` scalar prices
+release the GIL while validating and pricing their observation schedules. A
+2026-10-11 CPython 3.14 Release MSVC probe on a Ryzen 9 5900X priced a ten-year
+down-and-out call with 2,609 weekday observations, spot/strike 100, barrier 80,
+rate 4%, dividend yield 1% and volatility 20%. For 20,000 total calls, median
+elapsed time over five batches changed from 746.7 to 741.5 ms with one worker
+and from 736.8 to 306.3 ms with four workers. Prices remained identical.
+Continuous scalar prices retain the GIL to avoid handoff overhead for their
+short formulas. Run `python benchmarks/python_barrier_threads.py` with the
+Release Python package installed to repeat both workloads; the script checks
+every price. Python regressions cover shared engine, instrument and context
+access, calendar errors and recovery for vanilla barriers, binary barriers and
+touch options.
 
 American CPU Monte Carlo caches growth only for feasible spot stencils. At
 100,000 paths and 50 steps, requests for delta with a 200-unit spot shift or
