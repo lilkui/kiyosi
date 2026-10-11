@@ -80,14 +80,20 @@ Result<void> simulate_paths(
         samples->step_count = 0;
         samples->growth.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
     }
+    constexpr int batch_size = 256;
+    std::array<double, batch_size> draws;
     for (int path = 0; path < half_count; ++path) {
+        // Separate terminal-only random generation from payoff arithmetic without changing draw order.
+        if (settings.step_count == 2 && !reuse && path % batch_size == 0)
+            for (int index = 0; index < std::min(batch_size, half_count - path); ++index)
+                draws[index] = normal(generator);
         double positive_spot = parameters.spot;
         double negative_spot = parameters.spot;
         for (int step = 1; step < settings.step_count; ++step) {
             const auto index = static_cast<std::size_t>(path) * (settings.step_count - 1) + step - 1;
             const auto growth = [&] {
                 if (reuse) return samples->growth[index];
-                const double normal_draw = normal(generator);
+                const double normal_draw = settings.step_count == 2 ? draws[path % batch_size] : normal(generator);
                 const std::array factors{std::exp(parameters.drift + parameters.diffusion * normal_draw),
                                          std::exp(parameters.drift - parameters.diffusion * normal_draw)};
                 if (samples) samples->growth[index] = factors;

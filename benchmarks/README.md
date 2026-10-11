@@ -400,3 +400,12 @@ regressions preserve exact prices and selected values against full analytic
 results for calls and puts, deep tails, tiny/large volatility and expiry;
 unrequested Greeks remain unavailable. The analytics suite includes
 `european/analytic/delta` and `european/analytic/rho`.
+
+CPU terminal-only Monte Carlo batches 256 normal draws on the stack before
+evaluating their antithetic payoffs, preserving the seeded draw and reduction
+order. A 2026-10-11 Release MSVC probe on a Ryzen 9 5900X, with a one-year call,
+spot 100.25, strike 100, rate 5%, dividend yield 2%, volatility 20% and seed 42,
+measured one million paths falling from 23.86 to 19.60 ms (median of seven
+calls). Call and put prices remained bit-for-bit identical through ten million
+paths; C++ and Python Greek regressions cover partial batches and odd path
+counts. `bm_monte_carlo_european_cpu` measures the million-path scalar case.

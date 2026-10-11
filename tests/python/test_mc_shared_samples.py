@@ -184,7 +184,7 @@ class SharedSampleTests(unittest.TestCase):
             option = EuropeanOption(
                 option_type=direction, strike=100, effective_date=start, expiry_date=end
             )
-            for paths in (1, 127, 128, 1001):
+            for paths in (1, 127, 128, 510, 511, 512, 513, 1001, 1023, 1024, 1025):
                 for seed in (42, 2**64 - 1):
                     engine = pricing.MonteCarloVanillaEngine(
                         path_count=paths, seed=seed

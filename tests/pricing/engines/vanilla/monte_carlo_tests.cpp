@@ -512,7 +512,7 @@ TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto option = *make_european_option(type, 100.0, start, end);
-        for (const int paths : {1, 127, 128, 1001}) {
+        for (const int paths : {1, 127, 128, 510, 511, 512, 513, 1001, 1023, 1024, 1025}) {
             for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
                 const MonteCarloVanillaEngine engine{paths, 50, seed};
                 for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12},
