@@ -13,6 +13,34 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic digital speed retains accuracy at large price scales", "[audit-fixes][digital-speed]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    constexpr double spot = 100000.0;
+    constexpr double payout = 1e8;
+    constexpr double width = 0.2;
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, width), spot, start);
+    const AnalyticDigitalEngine engine;
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const double sign = type == OptionType::call ? 1.0 : -1.0;
+        const auto check = [&](const auto& option, bool asset) {
+            const double d = 0.03 / width + (asset ? 0.5 : -0.5) * width;
+            const double density = std::exp(-0.5 * d * d) / std::sqrt(2.0 * std::numbers::pi);
+            const double expected = asset
+                                        ? sign * std::exp(-0.02) * density / (spot * spot * width) * ((d * d - 1.0) / (width * width) - 1.0)
+                                        : sign * payout * std::exp(-0.05) * density / (spot * spot * spot * width) * (2.0 + 3.0 * d / width + (d * d - 1.0) / (width * width));
+            const auto result = engine.price_with_greeks(option, context, {Greek::speed});
+            REQUIRE(result);
+            CHECK(result->price() == *engine.price(option, context));
+            CHECK(greek_value(*result, Greek::speed) == Catch::Approx(expected).epsilon(1e-7));
+            CHECK_FALSE(result->has(Greek::gamma));
+        };
+        check(*make_cash_or_nothing_option(type, spot, payout, start, end), false);
+        check(*make_asset_or_nothing_option(type, spot, start, end), true);
+    }
+}
+
 TEST_CASE("Analytic scheduled barriers enforce the shifted spot domain", "[audit-fixes][scheduled-barrier-domain]")
 {
     const auto start = day(2025, 1, 1);
