@@ -76,9 +76,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
-    const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in;
+    const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in &&
+                                      program_knock_in_affects_payoff(program);
     std::vector<double> trading_times;
-    // Daily subdivisions can still be required for explicit-Euler stability after knock-in.
+    // Explicit-Euler stability can require daily subdivisions even without a knock-in layer.
     if (monitors_daily && (needs_knock_in_layer || settings_.scheme == FiniteDifferenceScheme::explicit_euler)) {
         const auto future_trading_dates =
             trading_dates(context.calendar(), valuation, note.expiry_date());

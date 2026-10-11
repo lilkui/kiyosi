@@ -274,16 +274,49 @@ class AutocallableRegressionTests(unittest.TestCase):
             ),
             spot_price=100,
             valuation_time=start,
+            calendar=all_days_calendar(),
         )
-        engine = pricing.MonteCarloSnowballEngine(path_count=2_000, seed=42)
-        self.assertEqual(
-            engine.price(
-                SnowballOption(**terms, knock_in_observation_mode="every_trading_day"),
-                context,
-            ),
-            engine.price(
+        for engine in (
+            pricing.MonteCarloSnowballEngine(path_count=2_000, seed=42),
+            pricing.FiniteDifferenceSnowballEngine(scheme="crank_nicolson"),
+            pricing.FiniteDifferenceSnowballEngine(scheme="implicit_euler"),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                self.assertEqual(
+                    engine.price(
+                        SnowballOption(
+                            **terms, knock_in_observation_mode="every_trading_day"
+                        ),
+                        context,
+                    ),
+                    engine.price(
+                        SnowballOption(**terms, knock_in_observation_mode="at_expiry"),
+                        context,
+                    ),
+                )
+        explicit = pricing.FiniteDifferenceSnowballEngine(
+            asset_step_count=80,
+            time_step_count=200,
+            scheme="explicit_euler",
+            asset_upper_boundary=400,
+        )
+        actual = explicit.price(
+            SnowballOption(**terms, knock_in_observation_mode="every_trading_day"),
+            context,
+        )
+        reference = pricing.FiniteDifferenceSnowballEngine(
+            asset_step_count=80,
+            time_step_count=2000,
+            scheme="explicit_euler",
+            asset_upper_boundary=400,
+        ).price(SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context)
+        self.assertAlmostEqual(actual, reference, delta=0.0002)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            explicit.price(
                 SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context
-            ),
+            )
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
 
     def test_fixed_autocallable_prices_skip_numerical_work_after_validation(self):

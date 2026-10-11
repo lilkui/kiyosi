@@ -160,6 +160,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto protected_note = *make_snowball_option(
         {.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {Date{std::chrono::year{2025} / 7 / 1}, european.expiry_date()}, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloSnowballEngine{20'000, 42}, base_context);
+    register_price("analytics/kiyosi/snowball/fd/protected/price", protected_note, snowball_engine, base_context);
     const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
     const auto quote = monte_carlo.price(european, context);
     register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {

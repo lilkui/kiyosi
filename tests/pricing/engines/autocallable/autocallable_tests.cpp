@@ -88,7 +88,7 @@ TEST_CASE("Expiry-only knock-in layers reproduce analytic terminal portfolios", 
     }
 }
 
-TEST_CASE("Autocallables omit daily simulation only when knock-in cannot change settlement", "[monte-carlo-performance]")
+TEST_CASE("Autocallables omit daily monitoring only when knock-in cannot change settlement", "[monte-carlo-performance][fd-performance]")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), middle = day(2025, 7, 1), end = day(2026, 1, 1);
@@ -97,14 +97,18 @@ TEST_CASE("Autocallables omit daily simulation only when knock-in cannot change 
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, calendar);
     const auto check = [&](const auto& daily, const auto& expiry, bool affects_payoff) {
         using Note = std::remove_cvref_t<decltype(daily)>;
-        const MonteCarloAutocallableEngine<Note> engine{2'000, 42};
-        queries->store(0);
-        const auto actual = engine.price(daily, context);
-        REQUIRE(actual);
-        CHECK((queries->load() > 300) == affects_payoff);
-        const auto expected = engine.price(expiry, context);
-        REQUIRE(expected);
-        if (!affects_payoff) CHECK(*actual == *expected);
+        const auto check_engine = [&](const auto& engine) {
+            queries->store(0);
+            const auto actual = engine.price(daily, context);
+            REQUIRE(actual);
+            CHECK((queries->load() > 300) == affects_payoff);
+            const auto expected = engine.price(expiry, context);
+            REQUIRE(expected);
+            if (!affects_payoff) CHECK(*actual == *expected);
+        };
+        check_engine(MonteCarloAutocallableEngine<Note>{2'000, 42});
+        for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler})
+            check_engine(FiniteDifferenceAutocallableEngine<Note>{{200, 200, scheme}});
     };
     for (const double lower : {60.0, 100.0})
         for (const double coupon : {0.0, 0.06}) {
@@ -123,6 +127,26 @@ TEST_CASE("Autocallables omit daily simulation only when knock-in cannot change 
     const auto daily = *make_phoenix_option(terms);
     terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
     check(daily, *make_phoenix_option(terms), false);
+}
+
+TEST_CASE("Protected FD notes retain daily explicit stability subdivisions", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), middle = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, all_days_calendar());
+    SnowballTerms terms{.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {middle, end}, .effective_date = start, .expiry_date = end};
+    const auto daily = *make_snowball_option(terms);
+    terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
+    const auto expiry = *make_snowball_option(terms);
+    const FiniteDifferenceSnowballEngine engine{{80, 200, FiniteDifferenceScheme::explicit_euler, 400.0}};
+    const auto actual = engine.price(daily, context);
+    REQUIRE(actual);
+    const auto reference = FiniteDifferenceSnowballEngine{{80, 2000, FiniteDifferenceScheme::explicit_euler, 400.0}}.price(expiry, context);
+    REQUIRE(reference);
+    CHECK(*actual == Catch::Approx(*reference).margin(0.0002));
+    const auto unstable = engine.price(expiry, context);
+    REQUIRE_FALSE(unstable);
+    CHECK(unstable.error().category == ErrorCategory::invalid_parameter);
 }
 
 TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downside", "[fd-performance]")

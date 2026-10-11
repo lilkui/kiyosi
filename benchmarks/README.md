@@ -70,8 +70,12 @@ backend crossover.
 The analytics cases also include a fixed-cashflow snowball Monte Carlo price and
 European FD vanna/zomma requests. The former measures validation and direct
 settlement; the latter measure reuse of native delta/gamma at shifted volatility.
-The protected snowball case retains stochastic knock-out cashflows but needs no
-daily knock-in simulation because both terminal states pay the same amount.
+The protected snowball MC and FD cases retain stochastic knock-out cashflows but
+need no daily knock-in simulation or FD transition layer because both terminal
+states pay the same amount. Explicit Euler retains daily stability subdivisions.
+On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall time
+falling from 1.590 ms to 0.460 ms for the protected FD case (three repetitions,
+0.15 s minimum). The price changed by 3.7e-8 as redundant time anchors were removed.
 
 European FD charm/color cases measure native delta/gamma differences at shifted
 valuation times, using a noon valuation to allow a symmetric time stencil.
