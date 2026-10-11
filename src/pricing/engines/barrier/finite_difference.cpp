@@ -21,6 +21,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
     const bool knock_in = option.barrier_terms().is_knock_in();
+    const bool paired = knock_in && option.observation_mode() == ObservationMode::scheduled;
     if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
@@ -69,8 +70,10 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (knock_in) {
         // In/out parity must use the same space and time grids before interpolation.
         vanilla = old;
-        const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
-        if (!marched) return std::unexpected(marched.error());
+        if (!paired) {
+            const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
+            if (!marched) return std::unexpected(marched.error());
+        }
     }
     if (active(time_to_expiry))
         for (int index = 0; index <= asset_step_count; ++index)
@@ -88,15 +91,25 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             return rebate_value(tau);
         return std::nullopt;
     };
-    const auto marched = march_backward(
-        grid, DiffusionParameters{rate, dividend, volatility, theta}, old, boundary,
-        [&](std::vector<double>& layer, double tau, double elapsed) {
-            if (!active(elapsed)) return;
+    std::vector<double> next(old.size()), next_vanilla(paired ? old.size() : 0);
+    FiniteDifferenceStep stepper(old.size());
+    const DiffusionParameters parameters{rate, dividend, volatility, theta};
+    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+        const double tau = time_to_expiry - grid.times[step];
+        const Boundaries edges = boundary(tau);
+        const bool advanced = paired
+                                  ? stepper.advance_pair(vanilla, next_vanilla, old, next, grid.time_steps[step], parameters, edges, edges)
+                                  : stepper.advance(old, next, grid.time_steps[step], parameters, edges.lower, edges.upper,
+                                                    [&](int index) { return constraint(index, tau); });
+        if (!advanced)
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "finite-difference system is numerically unstable"});
+        if (active(grid.times[step]))
             for (int index = 0; index <= asset_step_count; ++index)
-                if (knocked(spacing * index)) layer[index] = rebate_value(tau);
-        },
-        constraint);
-    if (!marched) return std::unexpected(marched.error());
+                if (knocked(spacing * index)) next[index] = rebate_value(tau);
+        old.swap(next);
+        if (paired) vanilla.swap(next_vanilla);
+    }
     if (knock_in) {
         const double rebate = scaled_exponential(option.rebate(), -rate * time_to_expiry);
         for (std::size_t index = 0; index < old.size(); ++index)

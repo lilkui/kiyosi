@@ -201,3 +201,10 @@ unchanged. The audit's isolated same-machine comparison measured 468.6 us before
 and 395.7 us after, with identical prices. Tests cover both endpoints, interior
 nodes, extreme finite values, neighboring representable spots, and curved
 off-node values; Python checks preserve prices at and around a node.
+
+Scheduled knock-in barrier FD advances the vanilla and knock-out layers together,
+sharing matrix factors between observations. The scheduled knock-in price case
+fell from 0.971 to 0.535 ms on the same compiler and CPU (median of five
+repetitions, 0.15 s minimum), with an unchanged price. C++ and Python checks
+preserve price, delta, and gamma in-out parity across all three schemes, both
+barrier directions, rebates, and expiry observations.

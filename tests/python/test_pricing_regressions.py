@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
 from kiyosi import pricing
@@ -25,6 +25,87 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_scheduled_fd_knock_in_layers_preserve_rebate_parity(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            settings = {
+                "asset_step_count": 80,
+                "time_step_count": 400,
+                "scheme": scheme,
+                "asset_upper_boundary": 400,
+            }
+            engine = pricing.FiniteDifferenceBarrierEngine(**settings)
+            for option_type in ("call", "put"):
+                terms = {
+                    "option_type": option_type,
+                    "strike": 100,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
+                vanilla = pricing.FiniteDifferenceVanillaEngine(
+                    **settings
+                ).price_with_greeks(
+                    EuropeanOption(**terms), context, ["delta", "gamma"]
+                )
+                for direction, level in (("down", 80), ("up", 120)):
+                    for rebate in (0, 2):
+                        for observes_expiry in (False, True):
+                            with self.subTest(
+                                scheme=scheme,
+                                option_type=option_type,
+                                direction=direction,
+                                rebate=rebate,
+                                observes_expiry=observes_expiry,
+                            ):
+                                dates = [
+                                    start + timedelta(days=73),
+                                    start + timedelta(days=219),
+                                ]
+                                if observes_expiry:
+                                    dates.append(end)
+                                barrier_terms = dict(
+                                    **terms,
+                                    barrier_level=level,
+                                    rebate=rebate,
+                                    observation_mode="scheduled",
+                                    observation_dates=dates,
+                                )
+                                knock_in = BarrierOption(
+                                    **barrier_terms, barrier_type=f"{direction}_and_in"
+                                )
+                                knock_out = BarrierOption(
+                                    **barrier_terms, barrier_type=f"{direction}_and_out"
+                                )
+                                inside = engine.price_with_greeks(
+                                    knock_in, context, ["delta", "gamma"]
+                                )
+                                outside = engine.price_with_greeks(
+                                    knock_out, context, ["delta", "gamma"]
+                                )
+                                self.assertEqual(
+                                    inside.price, engine.price(knock_in, context)
+                                )
+                                self.assertAlmostEqual(
+                                    inside.price + outside.price,
+                                    vanilla.price + rebate * math.exp(-0.04),
+                                    delta=1e-10,
+                                )
+                                for greek in ("delta", "gamma"):
+                                    self.assertAlmostEqual(
+                                        getattr(inside, greek)
+                                        + getattr(outside, greek),
+                                        getattr(vanilla, greek),
+                                        delta=1e-12,
+                                    )
+
     def test_accumulator_daily_leap_year_grid_preserves_settlement_price(self):
         start, end = date(2024, 1, 1), date(2025, 1, 1)
         option = Accumulator(

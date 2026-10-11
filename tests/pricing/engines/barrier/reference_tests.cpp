@@ -2,6 +2,7 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <map>
 #include <string>
@@ -15,6 +16,44 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Scheduled finite-difference knock-in layers preserve rebate parity", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, all_days_calendar());
+    for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
+        const FiniteDifferenceSettings settings{80, 400, scheme, 400.0};
+        const FiniteDifferenceBarrierEngine engine{settings};
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            const auto vanilla = FiniteDifferenceVanillaEngine{settings}.price_with_greeks(
+                *make_european_option(type, 100.0, start, end), context, {Greek::delta, Greek::gamma});
+            REQUIRE(vanilla);
+            for (const bool up : {false, true})
+                for (const double rebate : {0.0, 2.0})
+                    for (const bool observes_expiry : {false, true}) {
+                        CAPTURE(scheme, type, up, rebate, observes_expiry);
+                        std::vector<Date> dates{start + std::chrono::days{73}, start + std::chrono::days{219}};
+                        if (observes_expiry) dates.push_back(end);
+                        BarrierOptionTerms terms{.option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? BarrierType::up_and_in : BarrierType::down_and_in, .rebate = rebate, .observation_mode = ObservationMode::scheduled, .observation_dates = dates};
+                        const auto knock_in = *make_barrier_option(terms);
+                        terms.barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out;
+                        const auto knock_out = *make_barrier_option(terms);
+                        const auto in = engine.price_with_greeks(knock_in, context, {Greek::delta, Greek::gamma});
+                        const auto out = engine.price_with_greeks(knock_out, context, {Greek::delta, Greek::gamma});
+                        REQUIRE(in);
+                        REQUIRE(out);
+                        CHECK(in->price() == *engine.price(knock_in, context));
+                        CHECK_THAT(in->price() + out->price(), Catch::Matchers::WithinAbs(vanilla->price() + rebate * std::exp(-0.04), 1e-10));
+                        for (const auto greek : {Greek::delta, Greek::gamma}) {
+                            REQUIRE(in->has(greek));
+                            REQUIRE(out->has(greek));
+                            CHECK_THAT(*in->require(greek) + *out->require(greek), Catch::Matchers::WithinAbs(*vanilla->require(greek), 1e-12));
+                        }
+                    }
+        }
+    }
+}
 
 TEST_CASE("Finite-difference barrier spot Greeks reuse one solve", "[fd-performance]")
 {
