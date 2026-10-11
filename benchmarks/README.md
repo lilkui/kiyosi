@@ -187,3 +187,9 @@ cover positive and negative values, inactive acceleration, spot Greeks, and
 required validation; nonzero rates or future accrual retain numerical pricing.
 On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall
 times of 36.8 ns for MC and 47.2 ns for FD (three repetitions, 0.15 s minimum).
+
+The accumulator `inactive_accrual` case keeps three units with nonzero rates,
+zero acceleration, and a knock-out below the strike. Surviving paths cannot buy
+more units, so FD advances only the accumulated-unit layer. C++ and Python
+checks compare price, delta, and gamma with an equivalent zero-daily-quantity
+contract for all three schemes, with knock-out equal to or below the strike.

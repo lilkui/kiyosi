@@ -111,6 +111,31 @@ TEST_CASE("Accumulator fixed-quantity finite differences preserve accrual linear
     }
 }
 
+TEST_CASE("Inactive accumulator accrual preserves fixed-position FD values", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0,
+                                               start_of_day(start) + std::chrono::hours{12});
+    for (const double strike : {105.0, 110.0}) {
+        const auto option = [&](double daily) {
+            return *make_accumulator({.strike = strike, .knock_out_level = 105.0, .daily_quantity = daily, .acceleration_factor = 0.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+        };
+        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
+                                  FiniteDifferenceScheme::crank_nicolson}) {
+            CAPTURE(strike, scheme);
+            const FiniteDifferenceAccumulatorEngine engine{{.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}};
+            const auto inactive = engine.price_with_greeks(option(1.0), context, {Greek::delta, Greek::gamma});
+            const auto fixed = engine.price_with_greeks(option(0.0), context, {Greek::delta, Greek::gamma});
+            REQUIRE(inactive);
+            REQUIRE(fixed);
+            CHECK(inactive->price() == fixed->price());
+            for (const auto greek : {Greek::delta, Greek::gamma})
+                CHECK(test::greek_value(*inactive, greek) == test::greek_value(*fixed, greek));
+        }
+    }
+}
+
 double reference_accumulator_price(const kiyosi::Accumulator& option,
                                    const kiyosi::PricingContext& context,
                                    kiyosi::TradingDayMonteCarloSettings settings)

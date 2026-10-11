@@ -140,6 +140,45 @@ class PricingRegressionTests(unittest.TestCase):
                         delta=1e-9 if name == "price" else 1e-10,
                     )
 
+    def test_accumulator_inactive_accrual_preserves_fixed_position_fd_values(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+        )
+        for strike in (105, 110):
+            for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                with self.subTest(strike=strike, scheme=scheme):
+                    engine = pricing.FiniteDifferenceAccumulatorEngine(
+                        asset_step_count=40,
+                        time_step_count=200,
+                        asset_upper_boundary=440,
+                        scheme=scheme,
+                    )
+                    results = [
+                        engine.price_with_greeks(
+                            Accumulator(
+                                strike=strike,
+                                knock_out_level=105,
+                                daily_quantity=daily,
+                                acceleration_factor=0,
+                                accumulated_quantity=3,
+                                effective_date=start,
+                                expiry_date=end,
+                            ),
+                            context,
+                            ["delta", "gamma"],
+                        )
+                        for daily in (0, 1)
+                    ]
+                    for name in ("price", "delta", "gamma"):
+                        self.assertEqual(
+                            getattr(results[0], name), getattr(results[1], name)
+                        )
+
     def test_binary_barrier_branches_preserve_in_out_parity(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

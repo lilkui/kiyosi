@@ -77,7 +77,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const std::size_t size = space->size();
     std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
     seed_expiry_layers(option, *space, slope, intercept);
-    const bool has_future_purchases = option.daily_quantity() != 0.0;
+    const bool has_future_purchases = accumulator_accrues(option);
 
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
