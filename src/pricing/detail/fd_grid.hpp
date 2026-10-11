@@ -79,6 +79,8 @@ struct SpatialGrid {
     [[nodiscard]] double interpolate(std::span<const double> values, double spot) const
     {
         const auto [index, weight] = locate(spot);
+        if (weight == 0.0) return values[index];
+        if (weight == 1.0) return values[index + 1];
         // A C2 spline preserves curvature when numerical Greek bumps stay inside one cell.
         std::vector<double> curvature(values.size()), factors(values.size());
         for (std::size_t node = 1; node + 1 < values.size(); ++node) {

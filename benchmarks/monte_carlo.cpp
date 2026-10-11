@@ -132,6 +132,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out});
     const FiniteDifferenceBarrierEngine barrier_engine{};
     const FiniteDifferenceVanillaEngine vanilla_engine{};
+    register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,
+                   FiniteDifferenceVanillaEngine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}}, base_context);
     const CoxRossRubinsteinVanillaEngine binomial_engine{1'000};
     register_calculation("analytics/kiyosi/european/crr/speed", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/speed", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");

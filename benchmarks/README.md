@@ -193,3 +193,11 @@ zero acceleration, and a knock-out below the strike. Surviving paths cannot buy
 more units, so FD advances only the accumulated-unit layer. C++ and Python
 checks compare price, delta, and gamma with an equivalent zero-daily-quantity
 contract for all three schemes, with knock-out equal to or below the strike.
+
+The European `exact_node/fine_space` case uses 10,000 asset steps and one time
+step, with spot exactly on a grid node. Interpolation returns the stored value
+before allocating or solving spline curvature; off-node interpolation is
+unchanged. The audit's isolated same-machine comparison measured 468.6 us before
+and 395.7 us after, with identical prices. Tests cover both endpoints, interior
+nodes, extreme finite values, neighboring representable spots, and curved
+off-node values; Python checks preserve prices at and around a node.

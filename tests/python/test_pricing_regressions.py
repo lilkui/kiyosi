@@ -21,6 +21,34 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_fd_interpolation_preserves_prices_at_and_around_grid_nodes(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=80, time_step_count=80, asset_upper_boundary=400
+        )
+        # Numerical regression values from the unchanged spline implementation.
+        for spot, expected in (
+            (99.99, 9.252556506551684),
+            (math.nextafter(100, 0), 9.258487593783041),
+            (100, 9.258487593783052),
+            (math.nextafter(100, math.inf), 9.258487593783062),
+            (100.01, 9.264420627312544),
+        ):
+            with self.subTest(spot=spot):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+                    ),
+                    spot_price=spot,
+                    valuation_time=start,
+                )
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=1e-12
+                )
+
     def test_accumulator_fixed_position_uses_exact_zero_carry_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engines = [

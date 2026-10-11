@@ -28,6 +28,24 @@ TEST_CASE("Finite-difference spline interpolation preserves nodes and affine val
     }
 }
 
+TEST_CASE("Finite-difference interpolation returns exact nodes without snapping nearby spots", "[fd-performance]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    const double large = std::numeric_limits<double>::max();
+    const std::array extreme{large, -large, large, -large, large};
+    for (std::size_t index = 0; index < extreme.size(); ++index)
+        CHECK(grid.interpolate(extreme, static_cast<double>(index)) == extreme[index]);
+
+    const std::array affine{-3.0, -1.0, 1.0, 3.0, 5.0};
+    for (const double spot : {std::nextafter(1.0, 0.0), std::nextafter(1.0, 2.0)}) {
+        CHECK(grid.interpolate(affine, spot) == 2.0 * spot - 3.0);
+        CHECK(grid.interpolate(affine, spot) != affine[1]);
+    }
+    const std::array curved{0.0, 1.0, 0.0, 1.0, 0.0};
+    CHECK(std::abs(grid.interpolate(curved, 0.5) - 43.0 / 56.0) < 1e-15);
+    CHECK(std::abs(grid.interpolate(curved, 1.5) - 25.0 / 56.0) < 1e-15);
+}
+
 TEST_CASE("Finite-difference spline interpolation stays within neighboring payoff values", "[audit-fixes]")
 {
     const kiyosi::detail::SpatialGrid grid{8.0, 1.0, 8};
