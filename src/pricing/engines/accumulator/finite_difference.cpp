@@ -39,7 +39,7 @@ void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std
 } // namespace
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
-    const Accumulator& option, const PricingContext& context, GreeksRequest output) const
+    const Accumulator& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -110,10 +110,30 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept.swap(next_intercept);
     }
 
-    return make_pricing_result(space->interpolate(slope, spot) * initial.quantity +
-                                   space->interpolate(intercept, spot),
+    std::vector<double> slope_curvature, intercept_curvature;
+    const auto price_at = [&](double shifted_spot) {
+        return space->interpolate(slope, shifted_spot, slope_curvature) * initial.quantity +
+               space->interpolate(intercept, shifted_spot, intercept_curvature);
+    };
+    const double value = price_at(spot);
+    std::optional<double> speed;
+    if (output.has(Greek::speed)) {
+        const double h = symmetric_shift(spot, spot_shift);
+        if (h > 0.0 && spot > h && spot + h < space->upper) {
+            for (const double shifted_spot : {spot + h, spot - h}) {
+                const auto shifted_price = checked_price(price_at(shifted_spot));
+                if (!shifted_price) return std::unexpected(shifted_price.error());
+            }
+            const auto gamma_at = [&](double shifted_spot) {
+                return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot);
+            };
+            speed = (gamma_at(spot + h) - gamma_at(spot - h)) / (2.0 * h);
+        }
+    }
+    return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(slope, spot) * initial.quantity + space->delta(intercept, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(slope, spot) * initial.quantity + space->gamma(intercept, spot)} : std::nullopt}});
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(slope, spot) * initial.quantity + space->gamma(intercept, spot)} : std::nullopt},
+                                {Greek::speed, speed}});
 }
 
 Result<double> FiniteDifferenceAccumulatorEngine::price(
@@ -128,7 +148,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
                                          const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, output);
+                                         return engine.price_native(option, shifted, output, settings.spot_shift);
                                      });
 }
 

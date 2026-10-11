@@ -27,6 +27,7 @@ public:
     [[nodiscard]] Result<double> price(const AssetOrNothingOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// Delta, gamma, and speed reuse the solved layer.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
     [[nodiscard]] Result<PricingResult> price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
@@ -36,8 +37,8 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const CashOrNothingOption&, const PricingContext&, GreeksRequest) const;
-    [[nodiscard]] Result<PricingResult> price_native(const AssetOrNothingOption&, const PricingContext&, GreeksRequest) const;
+    [[nodiscard]] Result<PricingResult> price_native(const CashOrNothingOption&, const PricingContext&, GreeksRequest, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
+    [[nodiscard]] Result<PricingResult> price_native(const AssetOrNothingOption&, const PricingContext&, GreeksRequest, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
     FiniteDifferenceSettings settings_;
 };
 

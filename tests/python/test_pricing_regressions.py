@@ -9,9 +9,12 @@ from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
+    BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
+    PhoenixOption,
     SnowballOption,
+    TernarySnowballOption,
     asset_binary_barrier_option,
     cash_binary_barrier_option,
     cash_one_touch_down,
@@ -25,6 +28,211 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_product_fd_speed_preserves_shifted_gamma_and_stencil_errors(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        calendar = all_days_calendar()
+        context = PricingContext(
+            model_parameters=parameters,
+            spot_price=100.25,
+            valuation_time=valuation,
+            calendar=calendar,
+        )
+        life = {"effective_date": start, "expiry_date": end}
+        ladder = {"knock_out_levels": [110], "observation_dates": [end], **life}
+        coupons = {"knock_out_coupon_rates": [0.08], "maturity_coupon_rate": 0.06}
+        knock_in = {
+            "knock_in_level": 75,
+            "knock_in_observation_mode": "every_trading_day",
+            "barrier_state": "none",
+        }
+        strikes = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
+        cases = (
+            (
+                CashOrNothingOption(option_type="call", strike=100, payout=10, **life),
+                pricing.FiniteDifferenceDigitalEngine,
+                100.25,
+            ),
+            (
+                AssetOrNothingOption(option_type="put", strike=100, **life),
+                pricing.FiniteDifferenceDigitalEngine,
+                100.25,
+            ),
+            (
+                BarrierOption(
+                    option_type="call",
+                    strike=100,
+                    barrier_level=80,
+                    barrier_type="down_and_in",
+                    rebate=2,
+                    observation_mode="scheduled",
+                    observation_dates=[end],
+                    **life,
+                ),
+                pricing.FiniteDifferenceBarrierEngine,
+                100.25,
+            ),
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=115,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    accumulated_quantity=3,
+                    **life,
+                ),
+                pricing.FiniteDifferenceAccumulatorEngine,
+                115,
+            ),
+            (
+                SnowballOption(**coupons, **strikes, **knock_in, **ladder),
+                pricing.FiniteDifferenceSnowballEngine,
+                110,
+            ),
+            (
+                BinarySnowballOption(**coupons, **ladder),
+                pricing.FiniteDifferenceBinarySnowballEngine,
+                110,
+            ),
+            (
+                TernarySnowballOption(
+                    minimum_coupon_rate=0, **coupons, **knock_in, **ladder
+                ),
+                pricing.FiniteDifferenceTernarySnowballEngine,
+                110,
+            ),
+            (
+                PhoenixOption(
+                    coupon_rate=0.08,
+                    coupon_barrier_levels=[90],
+                    **strikes,
+                    **knock_in,
+                    **ladder,
+                ),
+                pricing.FiniteDifferencePhoenixEngine,
+                110,
+            ),
+        )
+        for option, engine_class, relevant in cases:
+            for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                for upper in (None, 400):
+                    settings = {
+                        "asset_step_count": 40,
+                        "time_step_count": 400,
+                        "scheme": scheme,
+                    }
+                    engine = engine_class(asset_upper_boundary=upper, **settings)
+                    fixed_engine = engine_class(
+                        asset_upper_boundary=upper or 4 * relevant, **settings
+                    )
+                    for shift in (0.01, 0.25):
+                        with self.subTest(
+                            product=type(option).__name__,
+                            scheme=scheme,
+                            upper=upper,
+                            shift=shift,
+                        ):
+                            h = (context.spot_price + shift) - context.spot_price
+                            gammas = [
+                                fixed_engine.price_with_greeks(
+                                    option,
+                                    PricingContext(
+                                        model_parameters=parameters,
+                                        spot_price=context.spot_price + bump,
+                                        valuation_time=valuation,
+                                        calendar=calendar,
+                                    ),
+                                    ["gamma"],
+                                ).gamma
+                                for bump in (h, -h)
+                            ]
+                            result = engine.price_with_greeks(
+                                option, context, ["speed"], spot_shift=shift
+                            )
+                            self.assertEqual(
+                                result.speed, (gammas[0] - gammas[1]) / (2 * h)
+                            )
+                            self.assertEqual(
+                                result.price, engine.price(option, context)
+                            )
+                            self.assertIsNone(result.delta)
+                            self.assertIsNone(result.gamma)
+            engine = engine_class()
+            for shift in (1e-300, 200):
+                self.assertIsNone(
+                    engine.price_with_greeks(
+                        option, context, ["speed"], spot_shift=shift
+                    ).speed
+                )
+            expiry = PricingContext(
+                model_parameters=parameters,
+                spot_price=context.spot_price,
+                valuation_time=end,
+                calendar=calendar,
+            )
+            self.assertIsNone(engine.price_with_greeks(option, expiry, ["speed"]).speed)
+            narrow = engine_class(
+                asset_step_count=40,
+                time_step_count=400,
+                scheme="implicit_euler",
+                asset_upper_boundary=relevant + 0.5,
+            )
+            with self.assertRaises(kiyosi.KiyosiError) as clipped:
+                narrow.price_with_greeks(
+                    option,
+                    context,
+                    ["speed"],
+                    spot_shift=relevant + 0.5 - context.spot_price,
+                )
+            self.assertEqual(
+                clipped.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
+
+    def test_fd_speed_validates_bumped_digital_prices_and_event_boundaries(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=99.75, valuation_time=start
+        )
+        option = CashOrNothingOption(
+            option_type="call",
+            strike=100.5,
+            payout=100,
+            effective_date=start,
+            expiry_date=end,
+        )
+        engine = pricing.FiniteDifferenceDigitalEngine(
+            asset_step_count=10000, time_step_count=1, asset_upper_boundary=400
+        )
+        self.assertTrue(math.isfinite(engine.price(option, context)))
+        with self.assertRaises(kiyosi.KiyosiError) as rejected:
+            engine.price_with_greeks(option, context, ["speed"], spot_shift=0.25)
+        self.assertEqual(
+            rejected.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+        )
+        accumulator = Accumulator(
+            strike=100,
+            knock_out_level=115,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=0,
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=100, valuation_time=start
+        )
+        self.assertIsNone(
+            pricing.FiniteDifferenceAccumulatorEngine()
+            .price_with_greeks(accumulator, context, ["speed"])
+            .speed
+        )
+
     def test_scheduled_fd_knock_in_layers_preserve_rebate_parity(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

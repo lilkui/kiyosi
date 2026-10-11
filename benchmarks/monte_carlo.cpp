@@ -140,6 +140,11 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const CoxRossRubinsteinVanillaEngine binomial_engine{1'000};
     register_calculation("analytics/kiyosi/european/crr/speed", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/speed", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
+    const auto digital = *make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, european.effective_date(), european.expiry_date());
+    register_calculation("analytics/kiyosi/cash_digital/fd/speed", [=] { return FiniteDifferenceDigitalEngine{}.price_with_greeks(digital, context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/speed", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/accumulator/fd/speed", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/fd/speed", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/vanna", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::vanna}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/zomma", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::zomma}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/charm", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");

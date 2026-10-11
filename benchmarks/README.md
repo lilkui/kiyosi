@@ -224,3 +224,11 @@ fell from 327.4 to 253.7 us (five repetitions, 0.15 s minimum); the default-grid
 speed case stayed within 0.2%. Prices were unchanged. Tests cover repeated spline
 lookups, exact nodes, bounded payoff interpolation, and European/American speed
 with custom shifts in C++ and Python.
+
+Digital, barrier, accumulator, and autocallable FD speed requests also reuse the
+solved layers, avoiding two additional grid solves. The analytics suite includes
+speed cases for each family. On 2026-10-11, an isolated 200-by-200 cash-digital
+probe (spot 100.25, strike 100, upper boundary 400) measured 1.201 ms before and
+0.403 ms after on the same compiler and CPU, with identical price and speed.
+C++ and Python checks cover all three schemes, custom shifts, automatic and
+explicit domains, event boundaries, expiry, and shifted digital payoff bounds.

@@ -213,10 +213,11 @@ TEST_CASE("Autocallable finite-difference spot Greeks reuse one solve", "[fd-per
     const auto price = engine.price(note, context);
     REQUIRE(price);
     const int price_queries = queries->exchange(0);
-    const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+    const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma, Greek::speed});
     REQUIRE(result);
     CHECK(queries->load() == price_queries);
     CHECK(result->price() == *price);
+    CHECK(result->has(Greek::speed));
     const auto put = *make_european_option(OptionType::put, 100.0, start, end);
     const auto expected = AnalyticVanillaEngine{}.price_with_greeks(put, context, {Greek::delta, Greek::gamma});
     REQUIRE(expected);

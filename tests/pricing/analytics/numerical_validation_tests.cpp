@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -14,6 +15,87 @@ namespace {
 
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
+
+TEST_CASE("Product finite-difference speed preserves shifted gamma and stencil errors", "[fd-speed]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
+    const auto valuation_time = start_of_day(start) + std::chrono::hours{12};
+    const auto market = *make_pricing_context(parameters, 100.25, valuation_time, all_days_calendar());
+    const auto check = [&](const auto& option, const auto& prototype) {
+        using Engine = std::decay_t<decltype(prototype)>;
+        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
+            for (const auto upper : {std::optional<double>{}, std::optional{400.0}}) {
+                const FiniteDifferenceSettings settings{40, 400, scheme, upper};
+                const Engine engine{settings};
+                auto fixed = settings;
+                fixed.asset_upper_boundary = upper.value_or(detail::default_finite_difference_upper_boundary(option, market));
+                const Engine shifted_engine{fixed};
+                const auto price = engine.price(option, market);
+                REQUIRE(price);
+                for (const double shift : {NumericalShiftSettings{}.spot_shift, 0.25}) {
+                    CAPTURE(scheme, upper.has_value(), shift);
+                    const double h = (market.spot_price() + shift) - market.spot_price();
+                    const auto high = *make_pricing_context(parameters, market.spot_price() + h, valuation_time, market.calendar());
+                    const auto low = *make_pricing_context(parameters, market.spot_price() - h, valuation_time, market.calendar());
+                    const auto up = shifted_engine.price_with_greeks(option, high, {Greek::gamma});
+                    const auto down = shifted_engine.price_with_greeks(option, low, {Greek::gamma});
+                    const auto result = engine.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = shift});
+                    REQUIRE(up);
+                    REQUIRE(down);
+                    REQUIRE(result);
+                    CHECK(greek_value(*result, Greek::speed) == (greek_value(*up, Greek::gamma) - greek_value(*down, Greek::gamma)) / (2.0 * h));
+                    CHECK(result->price() == *price);
+                    CHECK_FALSE(result->has(Greek::gamma));
+                    CHECK_FALSE(result->has(Greek::delta));
+                }
+            }
+        }
+        const Engine engine{};
+        for (const double shift : {1e-300, 200.0}) {
+            const auto unavailable = engine.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = shift});
+            REQUIRE(unavailable);
+            CHECK_FALSE(unavailable->has(Greek::speed));
+        }
+        const auto expiry = *make_pricing_context(parameters, market.spot_price(), end, market.calendar());
+        const auto settled = engine.price_with_greeks(option, expiry, {Greek::speed});
+        REQUIRE(settled);
+        CHECK_FALSE(settled->has(Greek::speed));
+        const double upper = detail::highest_finite_difference_level(option, market) + 0.5;
+        const Engine narrow{FiniteDifferenceSettings{40, 400, FiniteDifferenceScheme::implicit_euler, upper}};
+        const auto clipped = narrow.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = upper - market.spot_price()});
+        REQUIRE_FALSE(clipped);
+        CHECK(clipped.error().category == ErrorCategory::invalid_parameter);
+    };
+    check(*make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, start, end), FiniteDifferenceDigitalEngine{});
+    check(*make_asset_or_nothing_option(OptionType::put, 100.0, start, end), FiniteDifferenceDigitalEngine{});
+    check(*make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}}), FiniteDifferenceBarrierEngine{});
+    check(*make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end}), FiniteDifferenceAccumulatorEngine{});
+    check(*make_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), FiniteDifferenceSnowballEngine{});
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {110.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end}), FiniteDifferenceBinarySnowballEngine{});
+    check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), FiniteDifferenceTernarySnowballEngine{});
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), FiniteDifferencePhoenixEngine{});
+}
+
+TEST_CASE("Finite-difference speed validates bumped digital prices and event boundaries", "[fd-speed]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto market = *make_pricing_context(parameters, 99.75, start);
+    const auto option = *make_cash_or_nothing_option(OptionType::call, 100.5, 100.0, start, end);
+    const FiniteDifferenceDigitalEngine engine{{10'000, 1, FiniteDifferenceScheme::crank_nicolson, 400.0}};
+    REQUIRE(engine.price(option, market));
+    const auto rejected = engine.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = 0.25});
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_result);
+    const auto at_strike = *make_pricing_context(parameters, 100.0, start);
+    const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+    const auto discontinuous = FiniteDifferenceAccumulatorEngine{}.price_with_greeks(accumulator, at_strike, {Greek::speed});
+    REQUIRE(discontinuous);
+    CHECK_FALSE(discontinuous->has(Greek::speed));
+}
 
 constexpr auto valuation = day(2025, 1, 6);
 const auto expiry_date = valuation + std::chrono::days{365};

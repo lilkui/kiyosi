@@ -29,7 +29,7 @@ struct ObservationEvent {
 
 template <typename Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
-    const Note& note, const PricingContext& context, GreeksRequest output) const
+    const Note& note, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -184,9 +184,23 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
     }
 
-    return make_pricing_result(initial.path.coupons + space->interpolate(alive, spot),
+    std::vector<double> curvature;
+    const double value = initial.path.coupons + space->interpolate(alive, spot, curvature);
+    std::optional<double> speed;
+    if (output.has(Greek::speed)) {
+        const double h = symmetric_shift(spot, spot_shift);
+        if (h > 0.0 && spot > h && spot + h < space->upper) {
+            for (const double shifted_spot : {spot + h, spot - h}) {
+                const auto shifted_price = checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature));
+                if (!shifted_price) return std::unexpected(shifted_price.error());
+            }
+            speed = (space->gamma(alive, spot + h) - space->gamma(alive, spot - h)) / (2.0 * h);
+        }
+    }
+    return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt}});
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt},
+                                {Greek::speed, speed}});
 }
 
 template <typename Note>
@@ -203,7 +217,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greek
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
                                          const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, output);
+                                         return engine.price_native(option, shifted, output, settings.spot_shift);
                                      });
 }
 

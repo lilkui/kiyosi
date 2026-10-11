@@ -16,7 +16,7 @@ using namespace detail;
 namespace {
 // Valuation time and observation dates have been validated by price.
 Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingContext& context,
-                                 FiniteDifferenceSettings settings, GreeksRequest output)
+                                 FiniteDifferenceSettings settings, GreeksRequest output, double spot_shift)
 {
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
@@ -115,13 +115,27 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         for (std::size_t index = 0; index < old.size(); ++index)
             old[index] = std::max(vanilla[index] - old[index] + rebate, 0.0);
     }
-    return make_pricing_result(space->interpolate(old, spot),
+    std::vector<double> curvature;
+    const double value = space->interpolate(old, spot, curvature);
+    std::optional<double> speed;
+    if (output.has(Greek::speed)) {
+        const double h = symmetric_shift(spot, spot_shift);
+        if (h > 0.0 && spot > h && spot + h < space->upper) {
+            for (const double shifted_spot : {spot + h, spot - h}) {
+                const auto shifted_price = checked_price(space->interpolate(old, shifted_spot, curvature));
+                if (!shifted_price) return std::unexpected(shifted_price.error());
+            }
+            speed = (space->gamma(old, spot + h) - space->gamma(old, spot - h)) / (2.0 * h);
+        }
+    }
+    return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
+                                {Greek::speed, speed}});
 }
 } // namespace
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(
-    const BarrierOption& option, const PricingContext& context, GreeksRequest output) const
+    const BarrierOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
     auto settings_valid = detail::validate_finite_difference_settings(
         settings_, general_fd_max_asset_steps, general_fd_max_time_steps);
@@ -136,7 +150,7 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(
         if (!*settled) return std::unexpected(settled->error());
         return make_pricing_result(**settled);
     }
-    return barrier_fd(option, context, settings_, output);
+    return barrier_fd(option, context, settings_, output, spot_shift);
 }
 Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
@@ -148,7 +162,7 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const Bar
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
                                          const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, output);
+                                         return engine.price_native(option, shifted, output, settings.spot_shift);
                                      });
 }
 

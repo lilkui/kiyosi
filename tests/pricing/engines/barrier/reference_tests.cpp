@@ -69,7 +69,7 @@ TEST_CASE("Finite-difference barrier spot Greeks reuse one solve", "[fd-performa
     REQUIRE(price);
     const int price_queries = std::exchange(*queries, 0);
     REQUIRE(price_queries > 0);
-    const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+    const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed});
     REQUIRE(result);
     CHECK(*queries == price_queries);
     CHECK(result->price() == *price);
@@ -78,6 +78,7 @@ TEST_CASE("Finite-difference barrier spot Greeks reuse one solve", "[fd-performa
     REQUIRE(expected);
     REQUIRE(result->has(Greek::delta));
     REQUIRE(result->has(Greek::gamma));
+    REQUIRE(result->has(Greek::speed));
     CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(*expected->require(Greek::delta), 0.001));
     CHECK_THAT(*result->require(Greek::gamma), Catch::Matchers::WithinAbs(*expected->require(Greek::gamma), 0.0001));
     CHECK_FALSE(result->has(Greek::vega));

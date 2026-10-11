@@ -18,7 +18,7 @@ using namespace detail;
 namespace {
 template <typename Option>
 Result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
-                                       FiniteDifferenceSettings settings, bool asset, GreeksRequest requested_output)
+                                       FiniteDifferenceSettings settings, bool asset, GreeksRequest requested_output, double spot_shift)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -77,26 +77,44 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
                                         old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
-    const double value = space->interpolate(old, spot);
-    const double upper_bound = asset ? spot * std::exp(-dividend * time) : payout * std::exp(-rate * time);
-    // Allow floating-point roundoff, but reject oscillations that violate the payoff bounds.
-    const double tolerance = 64.0 * std::numeric_limits<double>::epsilon() * upper_bound;
-    if (!std::isfinite(value) || value < -tolerance || value - upper_bound > tolerance)
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "finite-difference digital price violates payoff bounds"});
-    return make_pricing_result(std::clamp(value, 0.0, upper_bound), {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                                                     {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt}});
+    std::vector<double> curvature;
+    const auto price_at = [&](double shifted_spot) -> Result<double> {
+        const double value = space->interpolate(old, shifted_spot, curvature);
+        const double upper_bound = asset ? shifted_spot * std::exp(-dividend * time) : payout * std::exp(-rate * time);
+        // Allow floating-point roundoff, but reject oscillations that violate the payoff bounds.
+        const double tolerance = 64.0 * std::numeric_limits<double>::epsilon() * upper_bound;
+        if (!std::isfinite(value) || value < -tolerance || value - upper_bound > tolerance)
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "finite-difference digital price violates payoff bounds"});
+        return std::clamp(value, 0.0, upper_bound);
+    };
+    const auto value = price_at(spot);
+    if (!value) return std::unexpected(value.error());
+    std::optional<double> speed;
+    if (requested_output.has(Greek::speed)) {
+        const double h = symmetric_shift(spot, spot_shift);
+        if (h > 0.0 && spot > h && spot + h < space->upper) {
+            for (const double shifted_spot : {spot + h, spot - h}) {
+                const auto shifted_price = price_at(shifted_spot);
+                if (!shifted_price) return std::unexpected(shifted_price.error());
+            }
+            speed = (space->gamma(old, spot + h) - space->gamma(old, spot - h)) / (2.0 * h);
+        }
+    }
+    return make_pricing_result(*value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
+                                        {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
+                                        {Greek::speed, speed}});
 }
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
-    return price_digital_fd(option, context, settings_, false, output);
+    return price_digital_fd(option, context, settings_, false, output, spot_shift);
 }
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
-    return price_digital_fd(option, context, settings_, true, output);
+    return price_digital_fd(option, context, settings_, true, output, spot_shift);
 }
 
 Result<double> FiniteDifferenceDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
@@ -112,13 +130,13 @@ Result<double> FiniteDifferenceDigitalEngine::price(const AssetOrNothingOption& 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
 }
 
 } // namespace kiyosi
