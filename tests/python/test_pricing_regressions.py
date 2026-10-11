@@ -1,5 +1,6 @@
 import math
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
@@ -28,6 +29,34 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_shared_analytic_engine_prices_are_consistent_across_threads(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticVanillaEngine()
+        options = [
+            EuropeanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for direction in ("call", "put")
+        ]
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            tasks = [
+                executor.submit(engine.price, option, context)
+                for option in options * 50
+            ]
+            for index, task in enumerate(tasks):
+                self.assertAlmostEqual(
+                    task.result(),
+                    (9.227005508154036, 6.330080627549918)[index % 2],
+                    places=12,
+                )
+
     def test_continuous_up_barriers_preserve_put_boundaries_and_rebate_timing(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

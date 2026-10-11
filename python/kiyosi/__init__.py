@@ -12,9 +12,13 @@ Other native runtime/internal exceptions use the binding's built-in exception
 mappings; for example, entropy-source runtime failures raise RuntimeError.
 Valid settings do not guarantee sufficient memory or other resources.
 
-Pricing, Greeks and implied-value solves are synchronous and release the GIL during
-core computation. They provide no cancellation interface or signal polling within
-the core. When these calls run on the main thread, Python signal handling, including
+Pricing, Greeks and implied-value solves are synchronous. Scalar prices from the
+AnalyticVanilla, AnalyticDigital, AnalyticBarrier, AnalyticBinaryBarrier,
+AnalyticGeometricAveragePrice and TurnbullWakemanArithmeticAveragePrice engines
+keep the GIL to avoid thread handoff overhead for short formulas. Other scalar
+prices, Greek requests and implied-value solves release it during core computation.
+These calls provide no cancellation interface or signal polling within the core.
+When they run on the main thread, Python signal handling, including
 Ctrl-C/KeyboardInterrupt, is deferred until control returns to Python. It does not
 stop an in-progress core computation or become a KiyosiError.
 """

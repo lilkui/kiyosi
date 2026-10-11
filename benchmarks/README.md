@@ -339,3 +339,13 @@ is local to the request; CUDA keeps its existing path. C++ and Python regression
 checks retain exact seeded scalar stencils, including mixed Greeks, odd/even
 path counts, different seeds, failures and concurrent calls. The analytics
 suite includes `american/mc/price` and `american/mc/delta_gamma`.
+
+Python scalar prices for the six short closed-form engines keep the GIL;
+numerical prices, Greek requests and implied-value solves release it. A
+2026-10-11 CPython 3.14 Release MSVC probe priced a one-year ATM European call
+(rate 5%, dividend yield 2%, volatility 20%) 100,000 times through the public
+`AnalyticVanillaEngine.price` binding. Median elapsed time over three batches
+fell from 18.46 to 15.72 ms with one worker and from 42.27 to 16.18 ms with four
+workers dividing the same total work. The unchanged scalar price was checked
+in every batch. This avoids GIL handoffs costing more than the formula itself;
+the package docstring lists the engines covered by this policy.

@@ -45,12 +45,20 @@ template <typename Engine, typename Instrument>
 void bind_engine_price(nb::module_& module, nb::class_<Engine>& binding)
 {
     bind_analytics_pair<Engine, Instrument>(module);
+    // Releasing the GIL costs more than these short scalar formulas.
+    constexpr bool keep_gil = std::same_as<Engine, AnalyticVanillaEngine> ||
+                              std::same_as<Engine, AnalyticDigitalEngine> ||
+                              std::same_as<Engine, AnalyticBarrierEngine> ||
+                              std::same_as<Engine, AnalyticBinaryBarrierEngine> ||
+                              std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
+                              std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>;
+    using PriceGuard = std::conditional_t<keep_gil, nb::call_guard<>, nb::call_guard<nb::gil_scoped_release>>;
     binding.def(
         "price",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context) {
             return unwrap(engine.price(instrument, context));
         },
-        "instrument"_a, "context"_a, nb::call_guard<nb::gil_scoped_release>(),
+        "instrument"_a, "context"_a, PriceGuard{},
         R"doc(Price an instrument under a market context.
 
 Parameters
