@@ -23,6 +23,17 @@ struct FiniteDifferenceTimeGrid {
 /// Exact event times with canonical widths for unsplit uniform intervals.
 inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity, int steps, std::vector<double> events = {})
 {
+    const double uniform_dt = maturity / steps;
+    // Zero or subnormal widths can collapse distinct uniform nodes and still need deduplication.
+    if (events.empty() && maturity > 0.0 && std::isnormal(uniform_dt)) {
+        FiniteDifferenceTimeGrid grid;
+        grid.times.resize(static_cast<std::size_t>(steps) + 1);
+        grid.time_steps.assign(static_cast<std::size_t>(steps), uniform_dt);
+        for (int index = 1; index < steps; ++index)
+            grid.times[static_cast<std::size_t>(index)] = maturity * index / steps;
+        grid.times.back() = maturity;
+        return grid;
+    }
     // Preserve exact endpoints: rounding maturity * steps / steps can add a node
     // beyond expiry_date and cause event-driven engines to apply terminal cashflows twice.
     events.push_back(0.0);
@@ -45,7 +56,6 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity
     events.erase(std::ranges::unique(events).begin(), events.end());
     FiniteDifferenceTimeGrid grid{std::move(events), {}};
     grid.time_steps.reserve(grid.times.size() - 1);
-    const double uniform_dt = maturity / steps;
     int uniform_index = 1;
     double uniform_start = 0.0;
     for (std::size_t index = 0; index + 1 < grid.times.size(); ++index) {

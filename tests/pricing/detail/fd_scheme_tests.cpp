@@ -114,15 +114,29 @@ TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying 
 
 TEST_CASE("Uniform finite-difference intervals share one exact width", "[fd-performance]")
 {
-    for (const double maturity : {91.0 / 365.0, 1.0, 2.75}) {
-        for (const int steps : {1, 3, 80, 200, 1000}) {
+    for (const double maturity : {1.0 / (365.0 * 86400.0 * 1e6), 91.0 / 365.0, 1.0, 2.75}) {
+        for (const int steps : {1, 3, 80, 200, 1000, 100'000}) {
             CAPTURE(maturity, steps);
             const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps);
             REQUIRE(grid.time_steps.size() == static_cast<std::size_t>(steps));
             CHECK(std::ranges::all_of(grid.time_steps, [=](double dt) { return dt == maturity / steps; }));
             CHECK(grid.times.front() == 0.0);
             CHECK(grid.times.back() == maturity);
+            const auto event_grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps, {0.0, maturity});
+            CHECK(grid.times == event_grid.times);
+            CHECK(grid.time_steps == event_grid.time_steps);
         }
+    }
+}
+
+TEST_CASE("Degenerate finite-difference time grids retain unique nodes", "[fd-performance]")
+{
+    for (const double maturity : {0.0, 4.0 * std::numeric_limits<double>::denorm_min()}) {
+        const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, 8);
+        const auto event_grid = kiyosi::detail::make_finite_difference_time_grid(maturity, 8, {0.0, maturity});
+        CHECK(grid.times == event_grid.times);
+        CHECK(grid.time_steps == event_grid.time_steps);
+        CHECK(std::ranges::adjacent_find(grid.times) == grid.times.end());
     }
 }
 

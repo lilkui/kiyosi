@@ -57,6 +57,14 @@ one thread, and 45.088 ms before and 25.811 ms after on four threads (median of
 five repetitions). Each repetition used one shared engine, European call and
 context from the common market below. Numerical engines still release the GIL.
 
+Event-free FD time grids construct their ordered nodes and canonical interval
+widths directly. Release MSVC 19.51 on the same CPU measured 0.332 us versus
+1.631 us through the equivalent event-merging path at 200 steps, and 314.138 us
+versus 1,331.19 us at 100,000 steps. These are grid construction times, not full
+pricing times: maturity 1.37, 100 constructions per sample, median of five samples.
+Both paths produced exactly equal node and width vectors. Event-bearing grids
+retain event merging and deduplication.
+
 The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
 prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
 the interpolated coupon with a separate price. Bounds that require different
