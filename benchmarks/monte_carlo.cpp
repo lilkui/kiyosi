@@ -133,6 +133,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const FiniteDifferenceBarrierEngine barrier_engine{};
     const FiniteDifferenceVanillaEngine vanilla_engine{};
     const CoxRossRubinsteinVanillaEngine binomial_engine{1'000};
+    register_calculation("analytics/kiyosi/european/crr/speed", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/european/fd/speed", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/vanna", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::vanna}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/zomma", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::zomma}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/charm", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");

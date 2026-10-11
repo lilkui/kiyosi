@@ -157,11 +157,30 @@ Result<PricingResult> complete_greeks(
     std::optional<double> spot_up;
     std::optional<double> spot_down;
     if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) || need(Greek::speed))) {
-        const auto p_up = detail::shifted_value(
-            engine, option, context, spot + h, volatility, rate, valuation_time);
+        std::optional<PricingResult> native_up, native_down;
+        if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+            if (need(Greek::speed)) {
+                const auto evaluate = [&](double shifted_spot) -> Result<PricingResult> {
+                    const auto shifted = shifted_context(context, shifted_spot, volatility, rate, valuation_time);
+                    if (!shifted) return std::unexpected(shifted.error());
+                    auto result = evaluate_native(engine, *shifted, GreeksRequest{Greek::gamma});
+                    const auto value = price_value(result);
+                    if (!value) return std::unexpected(value.error());
+                    if (!result->all_finite())
+                        return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+                    return result;
+                };
+                const auto high = evaluate(spot + h);
+                if (!high) return std::unexpected(high.error());
+                const auto low = evaluate(spot - h);
+                if (!low) return std::unexpected(low.error());
+                native_up = *high;
+                native_down = *low;
+            }
+        }
+        const auto p_up = native_up ? Result<double>{native_up->price()} : detail::shifted_value(engine, option, context, spot + h, volatility, rate, valuation_time);
         if (!p_up) return std::unexpected(p_up.error());
-        const auto p_down = detail::shifted_value(
-            engine, option, context, spot - h, volatility, rate, valuation_time);
+        const auto p_down = native_down ? Result<double>{native_down->price()} : detail::shifted_value(engine, option, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
         spot_up = *p_up;
         spot_down = *p_down;
@@ -169,8 +188,12 @@ Result<PricingResult> complete_greeks(
         // Divide separately so powers of the shift cannot overflow or underflow.
         if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
 
+        const bool native_speed = native_up && native_up->has(Greek::gamma) && native_down->has(Greek::gamma);
+        if (need(Greek::speed) && native_speed)
+            speed = (**native_up->get(Greek::gamma) - **native_down->get(Greek::gamma)) / (2.0 * h);
+
         const double two_h = 2.0 * h;
-        if (need(Greek::speed) && std::isfinite(two_h) && spot > two_h && symmetric_shift(spot, two_h) == two_h &&
+        if (need(Greek::speed) && !native_speed && std::isfinite(two_h) && spot > two_h && symmetric_shift(spot, two_h) == two_h &&
             !at_spot_discontinuity(option, context, two_h)) {
             const auto p_up2 = detail::shifted_value(
                 engine, option, context, spot + two_h, volatility, rate, valuation_time);

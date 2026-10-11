@@ -21,6 +21,44 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_binomial_speed_tracks_analytic_sensitivity_with_default_shifts(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.CoxRossRubinsteinVanillaEngine(step_count=1000)
+        for dividend in (0.0, 0.01):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=dividend, volatility=0.2
+                ),
+                spot_price=100,
+                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            )
+            for direction in ("call", "put"):
+                terms = {
+                    "option_type": direction,
+                    "strike": 100,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
+                european = EuropeanOption(**terms)
+                expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+                    european, context, ["speed"]
+                )
+                options = [european]
+                if direction == "call" and dividend == 0:
+                    options.append(AmericanOption(**terms))
+                for option in options:
+                    with self.subTest(
+                        dividend=dividend, direction=direction, option=type(option)
+                    ):
+                        actual = engine.price_with_greeks(option, context, ["speed"])
+                        self.assertEqual(actual.price, engine.price(option, context))
+                        self.assertAlmostEqual(
+                            actual.speed,
+                            expected.speed,
+                            delta=abs(expected.speed) * 0.02,
+                        )
+                        self.assertIsNone(actual.gamma)
+
     def test_accumulator_fixed_quantity_preserves_accrual_linearity(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

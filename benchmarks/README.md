@@ -135,6 +135,14 @@ falling from 2.185 to 1.311 ms for vanna, 3.069 to 1.314 ms for zomma,
 0.15 s minimum). Prices were unchanged; C++ and Python checks compare mixed
 Greeks against analytic values, including American calls without dividends.
 
+CRR speed also differences shifted native gamma, using three tree valuations
+instead of five price valuations; FD speed uses the same completion path. On the
+same compiler and CPU, an isolated one-year ATM call probe measured 2.192 ms
+before and 1.316 ms after (median of five batches of 50 requests). Default-shift
+speed changed from 1.33e-8 to -0.000431050, versus analytic -0.000430993; the base
+price was unchanged. C++ and Python checks cover European calls/puts and American
+calls without dividends, with a separate check for the price-only fallback.
+
 Analytic binary barriers and touches also evaluate only the formula terms needed
 by their payoff branch. On the same machine and compiler, median wall times for
 the cash/asset binary matrix cases fell from 166/157 ns to 121/110 ns, and

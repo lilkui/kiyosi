@@ -217,7 +217,7 @@ TEST_CASE("Finite-difference numerical Greeks keep the automatic asset grid fixe
         REQUIRE(joint);
         check_close(greek_value(*numerical, kiyosi::Greek::gamma), greek_value(*expected, kiyosi::Greek::gamma), 2e-5, 0.01);
         check_close(greek_value(*numerical, kiyosi::Greek::speed), greek_value(*expected, kiyosi::Greek::speed), 2e-5, 0.05);
-        CHECK(greek_value(*joint, kiyosi::Greek::speed) == greek_value(*numerical, kiyosi::Greek::speed));
+        check_close(greek_value(*joint, kiyosi::Greek::speed), greek_value(*expected, kiyosi::Greek::speed), 2e-5, 0.05);
         CHECK(numerical->price() == *finite.price(option, market));
         CHECK_FALSE(finite.settings().asset_upper_boundary);
     }

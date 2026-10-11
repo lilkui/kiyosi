@@ -262,6 +262,50 @@ TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
     }
 }
 
+TEST_CASE("Speed reuses native gamma and retains the price fallback", "[pricing-api][speed-native]")
+{
+    struct CubicEngine {
+        std::size_t* calls;
+        Result<double> price(const EuropeanOption&, const PricingContext& context) const
+        {
+            ++*calls;
+            const double spot = context.spot_price();
+            return spot * spot * spot;
+        }
+    };
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    for (const bool provide_native : {true, false}) {
+        CAPTURE(provide_native);
+        std::size_t calls = 0;
+        const CubicEngine engine{&calls};
+        const auto evaluate = [&](const auto& shifted_engine, const PricingContext& context, GreeksRequest request) {
+            const auto price = shifted_engine.price(option, context);
+            return make_pricing_result(*price, {{Greek::gamma, provide_native && request.has(Greek::gamma)
+                                                                   ? std::optional{6.0 * context.spot_price()}
+                                                                   : std::nullopt}});
+        };
+        const auto result = detail::price_with_greeks(engine, option, market(),
+                                                      {Greek::speed}, {.spot_shift = 1.0}, evaluate);
+        REQUIRE(result);
+        CHECK(greek_value(*result, Greek::speed) == Catch::Approx(6.0));
+        CHECK_FALSE(result->has(Greek::gamma));
+        CHECK(calls == (provide_native ? 3 : 5));
+    }
+
+    std::vector<PricingContext> calls;
+    const RecordingPriceEngine rejecting{&calls, true};
+    const auto evaluate = [&](const auto& engine, const PricingContext& context, GreeksRequest) -> Result<PricingResult> {
+        const auto price = engine.price(option, context);
+        if (!price) return std::unexpected(price.error());
+        return make_pricing_result(*price);
+    };
+    const auto rejected = detail::price_with_greeks(rejecting, option, market(), {Greek::speed}, {}, evaluate);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
+    CHECK(rejected.error().message == "bump rejected");
+    CHECK(calls.size() == 2);
+}
+
 TEST_CASE("Mixed volatility Greeks reuse shifted native derivatives", "[pricing-api][mixed-native]")
 {
     struct PolynomialEngine {
