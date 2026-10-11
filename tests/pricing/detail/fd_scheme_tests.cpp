@@ -280,7 +280,7 @@ TEST_CASE("Paired finite-difference advances match independent layers")
     const auto sinh_spacing = GENERATE(0.0, 0.2);
     constexpr double upper = 240.0;
     const double spacing = upper / static_cast<double>(size - 1);
-    const std::array time_step_count{0.17, 0.17, 0.03, 0.11, 0.11};
+    const std::array time_step_count{0.17, 0.17, 0.03, 0.17, 0.03, 0.11, 0.11, 0.03, 0.17};
 
     for (const double theta : {0.0, 1.0, 0.5}) {
         CAPTURE(theta);
@@ -410,7 +410,7 @@ TEST_CASE("Finite-difference factors follow time steps parameters and constraint
             for (const double rate : {0.03, -0.01})
                 for (const double dividend : {0.01, 0.02})
                     for (const double volatility : {0.2, 0.4})
-                        for (const double dt : {0.1, 0.1, 0.05})
+                        for (const double dt : {0.1, 0.1, 0.05, 0.1, 0.05, 0.025, 0.1, 0.025, 0.05})
                             for (const int pin : {0, 2, 2, 3, 0, 5, 5, 0})
                                 for (const double value : {7.0, 8.0}) {
                                     CAPTURE(spacing, theta, rate, dividend, volatility, dt, pin, value);
@@ -435,15 +435,18 @@ TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-fa
     std::vector<double> actual(5), expected(5);
     const DiffusionParameters valid{0.03, 0.01, 0.2, 0.5};
     REQUIRE(reused.advance(old, actual, 0.1, valid, 0.0, 16.0));
+    REQUIRE(reused.advance(old, actual, 0.05, valid, 0.0, 16.0));
     for (int attempt = 0; attempt < 2; ++attempt) {
         CHECK_FALSE(reused.advance(old, actual, 0.1, {-10.0, -10.0, 0.0, 1.0}, 0.0, 16.0));
         auto invalid_old = old;
         invalid_old[2] = std::numeric_limits<double>::infinity();
         CHECK_FALSE(reused.advance(invalid_old, actual, 0.1, valid, 0.0, 16.0));
-        FiniteDifferenceStep fresh{5};
-        REQUIRE(reused.advance(old, actual, 0.1, valid, 0.0, 16.0));
-        REQUIRE(fresh.advance(old, expected, 0.1, valid, 0.0, 16.0));
-        CHECK(actual == expected);
+        for (const double dt : {0.1, 0.05}) {
+            FiniteDifferenceStep fresh{5};
+            REQUIRE(reused.advance(old, actual, dt, valid, 0.0, 16.0));
+            REQUIRE(fresh.advance(old, expected, dt, valid, 0.0, 16.0));
+            CHECK(actual == expected);
+        }
     }
 }
 

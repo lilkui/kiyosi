@@ -409,3 +409,14 @@ measured one million paths falling from 23.86 to 19.60 ms (median of seven
 calls). Call and put prices remained bit-for-bit identical through ten million
 paths; C++ and Python Greek regressions cover partial batches and odd path
 counts. `bm_monte_carlo_european_cpu` measures the million-path scalar case.
+
+Finite-difference steps retain two matrix factorizations, including their
+constraint masks, so repeated weekday and weekend widths avoid refactoring.
+Entries are allocated lazily and failed solves invalidate the selected entry.
+A 2026-10-11 Release MSVC probe on a Ryzen 9 5900X rolled two layers through
+261 weekday-calendar intervals from 2025-01-06 to 2026-01-06. At 80 asset steps,
+median rollback time fell from 283.1 to 260.3 us; at 200, from 703.4 to 666.8 us
+(five batches of 100 rollbacks, one pinned CPU core). Both complete layers
+remained identical. The second entry costs about 40 bytes per interior node.
+`accumulator/fd/calendar_weekdays/price` covers the calendar pricing workload;
+C++ and Python regressions retain constraint, failure and calendar results.

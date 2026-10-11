@@ -7,6 +7,7 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     all_days_calendar,
+    weekdays_calendar,
 )
 
 start, end = date(2024, 1, 1), date(2025, 1, 1)
@@ -63,6 +64,41 @@ cases = [
 
 
 class CalendarIntervalTests(unittest.TestCase):
+    def test_weekday_and_weekend_intervals_retain_reference_values(self):
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=start,
+            calendar=weekdays_calendar(),
+        )
+        expected = [
+            (-1516.9520290307098, 225.31801492786175, -17.581246143270274),
+            (-1510.5849764710204, 225.62196547938095, -17.633965400395336),
+            (0.9957385444080855, 0.0023303623115970918, -0.00027748516393565737),
+            (0.9958681809310125, 0.002313594209491232, -0.0002763872410173273),
+        ]
+        for index, (cls, option) in enumerate(cases[:2]):
+            for offset, scheme in enumerate(("crank_nicolson", "implicit_euler")):
+                with self.subTest(engine=cls.__name__, scheme=scheme):
+                    engine = cls(
+                        asset_step_count=80,
+                        time_step_count=1,
+                        asset_upper_boundary=400,
+                        scheme=scheme,
+                    )
+                    result = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"]
+                    )
+                    self.assertEqual(engine.price(option, context), result.price)
+                    for name, value in zip(
+                        ("price", "delta", "gamma"),
+                        expected[2 * index + offset],
+                        strict=True,
+                    ):
+                        self.assertAlmostEqual(getattr(result, name), value, delta=1e-9)
+
     def test_daily_prices_and_greeks_retain_reference_values(self):
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
