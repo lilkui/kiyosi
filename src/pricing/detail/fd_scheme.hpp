@@ -105,18 +105,15 @@ private:
             layer.next.back() = layer.boundaries.upper;
         }
         const int asset_step_count = static_cast<int>(layers.front().old.size()) - 1;
-        if (parameters.sinh_spacing != 0.0 && cached_parameters_ != parameters) {
+        if (cached_parameters_ != parameters) {
             coefficients_.resize(diagonal_.size());
             for (int index = 1; index < asset_step_count; ++index)
                 coefficients_[static_cast<std::size_t>(index - 1)] = diffusion_coefficients(index, parameters);
             cached_parameters_ = parameters;
         }
         for (int index = 1; index < asset_step_count; ++index) {
-            const double i = static_cast<double>(index);
             const auto position = static_cast<std::size_t>(index - 1);
-            const auto [a, b, c] = parameters.sinh_spacing == 0.0
-                                       ? diffusion_coefficients(i, parameters)
-                                       : coefficients_[position];
+            const auto [a, b, c] = coefficients_[position];
             const auto fixed = constraint(index);
             reuse = reuse && fixed_[position] == fixed.has_value();
             fixed_[position] = fixed.has_value();

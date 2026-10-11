@@ -155,3 +155,12 @@ purchases. Its FD rollback advances only the accumulated-unit layer. On the same
 machine and compiler, median wall time fell from 1.548 to 1.439 ms (three
 repetitions, 0.15 s minimum), with an unchanged price. C++ and Python checks
 preserve price/delta/gamma accrual linearity across all three FD schemes.
+
+Uniform FD grids cache diffusion coefficients until model or scheme parameters
+change, as stretched grids already do. On the same machine and compiler, median
+wall times fell from 76.94 to 71.12 us for the 80-by-80 European matrix case and
+from 2.266 to 2.155 ms for the fine-time-grid expiry-only snowball (three
+repetitions, 0.15 s minimum). Prices were unchanged in all six measured FD cases;
+the other four improved by 1.3% to 5.5%. An isolated 200-node rollback probe fell
+from 2.241 to 2.042 us per step. Tests cover quadratic evolution, parameter/grid
+changes, constraints, paired layers, and recovery after failed solves.

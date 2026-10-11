@@ -221,6 +221,22 @@ TEST_CASE("Stretched finite-difference coefficients follow parameter changes", "
     }
 }
 
+TEST_CASE("Uniform finite-difference coefficients preserve quadratic evolution", "[fd-factor-cache]")
+{
+    kiyosi::detail::FiniteDifferenceStep reused{5};
+    const std::vector<double> old{0.0, 1.0, 4.0, 9.0, 16.0};
+    for (const double volatility : {0.2, 0.2, 0.4, 0.2}) {
+        CAPTURE(volatility);
+        const kiyosi::detail::DiffusionParameters parameters{0.03, 0.01, volatility, 0.0};
+        // The Black-Scholes operator maps S^2 to (rate - 2 * dividend + volatility^2) * S^2.
+        const double growth = 1.0 + 0.01 * (0.03 - 2.0 * 0.01 + volatility * volatility);
+        std::vector<double> actual(5);
+        REQUIRE(reused.advance(old, actual, 0.01, parameters, 0.0, 16.0 * growth));
+        for (std::size_t index = 0; index < old.size(); ++index)
+            CHECK(std::abs(actual[index] - old[index] * growth) < 1e-12);
+    }
+}
+
 TEST_CASE("Finite-difference factors follow time steps parameters and constraint masks", "[fd-factor-cache]")
 {
     using namespace kiyosi::detail;
