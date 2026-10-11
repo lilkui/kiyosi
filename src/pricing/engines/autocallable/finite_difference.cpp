@@ -153,28 +153,30 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         const auto event = observation_index ? autocallable_event(note, *observation_index) : AutocallableEvent{};
         const bool daily = monitors_daily &&
                            std::ranges::binary_search(trading_times, grid.times[step]);
-        for (std::size_t index = 0; index < size; ++index) {
-            const double value = asset(index);
-            bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
-            if constexpr (monitors_knock_in) transitioned = needs_knock_in_layer && daily && value < note.knock_in_level();
-            if (event.active && value >= event.knock_out_level) {
-                next_alive[index] = note.principal_ratio() +
-                                    program_observation_coupon(event, value);
-                if (needs_knock_in_layer) next_knocked_in[index] = next_alive[index];
-            } else if (event.active) {
-                const double coupon = program.carries_observation_coupon
-                                          ? program_observation_coupon(event, value)
-                                          : 0.0;
-                if (needs_knock_in_layer) {
-                    const double continuation_in = next_knocked_in[index];
-                    const double continuation_out = transitioned ? continuation_in : next_alive[index];
-                    next_knocked_in[index] = continuation_in + coupon;
-                    next_alive[index] = continuation_out + coupon;
-                } else {
-                    next_alive[index] = next_alive[index] + coupon;
+        if (event.active || (needs_knock_in_layer && daily)) {
+            for (std::size_t index = 0; index < size; ++index) {
+                const double value = asset(index);
+                bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
+                if constexpr (monitors_knock_in) transitioned = needs_knock_in_layer && daily && value < note.knock_in_level();
+                if (event.active && value >= event.knock_out_level) {
+                    next_alive[index] = note.principal_ratio() +
+                                        program_observation_coupon(event, value);
+                    if (needs_knock_in_layer) next_knocked_in[index] = next_alive[index];
+                } else if (event.active) {
+                    const double coupon = program.carries_observation_coupon
+                                              ? program_observation_coupon(event, value)
+                                              : 0.0;
+                    if (needs_knock_in_layer) {
+                        const double continuation_in = next_knocked_in[index];
+                        const double continuation_out = transitioned ? continuation_in : next_alive[index];
+                        next_knocked_in[index] = continuation_in + coupon;
+                        next_alive[index] = continuation_out + coupon;
+                    } else {
+                        next_alive[index] = next_alive[index] + coupon;
+                    }
+                } else if (transitioned) {
+                    next_alive[index] = next_knocked_in[index];
                 }
-            } else if (transitioned) {
-                next_alive[index] = next_knocked_in[index];
             }
         }
         alive.swap(next_alive);

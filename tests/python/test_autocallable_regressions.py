@@ -20,6 +20,60 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_fd_event_skipping_preserves_path_dependent_prices_and_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        # Prices and sensitivities recorded before skipping non-event node scans.
+        expected = iter(
+            (
+                (0.9851073493143833, 0.0033442626878479875, -0.0003388868715960558),
+                (0.985121983280094, 0.0033434330011221924, -0.0003390186073992385),
+                (0.985092706060584, 0.003345091076280171, -0.00033875459128074326),
+                (0.9741963514308023, 0.004327134341220007, -0.00039946361635084804),
+                (0.9742415857695996, 0.004324391125183735, -0.00039959520738663823),
+                (0.9741507369014278, 0.004329894964145986, -0.00039933080007825694),
+            )
+        )
+        for mode in ("at_expiry", "every_trading_day"):
+            note = PhoenixOption(
+                coupon_rate=0.08,
+                initial_spot=100,
+                knock_in_level=80,
+                knock_out_levels=[110, 108, 106, 104],
+                coupon_barrier_levels=[90] * 4,
+                upper_strike=100,
+                lower_strike=60,
+                observation_dates=[
+                    date(2025, 4, 1),
+                    date(2025, 7, 1),
+                    date(2025, 10, 1),
+                    end,
+                ],
+                knock_in_observation_mode=mode,
+                effective_date=start,
+                expiry_date=end,
+            )
+            for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
+                with self.subTest(mode=mode, scheme=scheme):
+                    result = pricing.FiniteDifferencePhoenixEngine(
+                        asset_step_count=200,
+                        time_step_count=2000,
+                        scheme=scheme,
+                        asset_upper_boundary=400,
+                    ).price_with_greeks(note, context, ["delta", "gamma"])
+                    for actual, value in zip(
+                        (result.price, result.delta, result.gamma),
+                        next(expected),
+                        strict=True,
+                    ):
+                        self.assertAlmostEqual(actual, value, delta=1e-12)
+
     def test_expiry_only_knock_in_matches_analytic_terminal_portfolios(self):
         import math
 

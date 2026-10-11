@@ -78,3 +78,6 @@ valuation times, using a noon valuation to allow a symmetric time stencil.
 
 The expiry-only snowball FD case measures a single terminal knock-in condition;
 no daily transition layer is needed.
+
+The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
+to expose the cost of processing asset nodes on steps without observations.

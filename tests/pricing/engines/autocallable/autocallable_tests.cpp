@@ -25,6 +25,36 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable FD event skipping preserves coupons knock-out and daily knock-in", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    // Values from the solver before non-event steps skipped the node scan.
+    const std::array<std::array<double, 3>, 6> expected{{
+        {0.9851073493143833, 0.0033442626878479875, -0.0003388868715960558},
+        {0.985121983280094, 0.0033434330011221924, -0.0003390186073992385},
+        {0.985092706060584, 0.003345091076280171, -0.00033875459128074326},
+        {0.9741963514308023, 0.004327134341220007, -0.00039946361635084804},
+        {0.9742415857695996, 0.004324391125183735, -0.00039959520738663823},
+        {0.9741507369014278, 0.004329894964145986, -0.00039933080007825694},
+    }};
+    std::size_t index = 0;
+    for (const auto mode : {KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day}) {
+        const auto note = *make_phoenix_option(
+            {.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 108.0, 106.0, 104.0}, .coupon_barrier_levels = {90.0, 90.0, 90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {day(2025, 4, 1), day(2025, 7, 1), day(2025, 10, 1), end}, .knock_in_observation_mode = mode, .effective_date = start, .expiry_date = end});
+        for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::explicit_euler}) {
+            CAPTURE(mode, scheme);
+            const auto result = FiniteDifferencePhoenixEngine{{200, 2000, scheme, 400.0}}.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+            REQUIRE(result);
+            CHECK(result->price() == Catch::Approx(expected[index][0]).margin(1e-12));
+            CHECK(test::greek_value(*result, Greek::delta) == Catch::Approx(expected[index][1]).margin(1e-12));
+            CHECK(test::greek_value(*result, Greek::gamma) == Catch::Approx(expected[index][2]).margin(1e-12));
+            ++index;
+        }
+    }
+}
+
 TEST_CASE("Expiry-only knock-in layers reproduce analytic terminal portfolios", "[fd-performance]")
 {
     using namespace kiyosi;
