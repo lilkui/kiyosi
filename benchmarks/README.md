@@ -247,3 +247,12 @@ time-split ratio. On the same machine, the American matrix case fell from
 call/put scenarios retained identical prices across eight maturities, three
 spots, three volatilities, and three rate/dividend pairs. C++ and Python retain
 continuation-price references from one day to ten years.
+
+Continuous barrier FD excludes fixed edge rows from matrix factorization and
+back substitution while retaining the full grid for interpolation and validation.
+The `continuous_up_and_out/price` analytics case uses spot/strike 100 and barrier
+110. On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall
+time falling from 461 to 262 us (five batches of 500 prices). Price, delta, and
+gamma were unchanged; off-node C++ and Python regressions cover price and spot
+Greeks across all three schemes. Stepper checks cover changing fixed regions,
+internal constraints, all-fixed and single-live-node systems, and failure recovery.

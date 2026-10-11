@@ -111,6 +111,7 @@ private:
                 coefficients_[static_cast<std::size_t>(index - 1)] = diffusion_coefficients(index, parameters);
             cached_parameters_ = parameters;
         }
+        std::size_t first = diagonal_.size(), last = 0;
         for (int index = 1; index < asset_step_count; ++index) {
             const auto position = static_cast<std::size_t>(index - 1);
             const auto [a, b, c] = coefficients_[position];
@@ -122,6 +123,8 @@ private:
                     layer.rhs[position] = *fixed;
                 continue;
             }
+            first = std::min(first, position);
+            last = position + 1;
             for (const auto& layer : layers) {
                 layer.rhs[position] = layer.old[static_cast<std::size_t>(index)] +
                                       (1.0 - theta) * dt *
@@ -144,7 +147,7 @@ private:
                     upper_diagonal_[position] = -theta * dt * c;
                 }
             }
-        if (theta != 0.0 && !solve(layers, reuse)) return false;
+        if (theta != 0.0 && !solve(layers, reuse, first, last)) return false;
         for (const auto& layer : layers)
             std::ranges::copy(layer.rhs, layer.next.begin() + 1);
         const bool valid = std::ranges::all_of(layers, [theta](const auto& layer) {
@@ -161,9 +164,13 @@ private:
 
     // Factor the matrix once and validate every solved layer before callers copy any interiors.
     template <std::size_t count>
-    bool solve(const std::array<Layer, count>& layers, bool reuse)
+    bool solve(const std::array<Layer, count>& layers, bool reuse, std::size_t first, std::size_t last)
     {
-        for (std::size_t index = 1; index < diagonal_.size(); ++index) {
+        // Fixed edge rows are identity equations; only their adjacent values enter the live solve.
+        if (first < last && first != 0)
+            for (const auto& layer : layers)
+                layer.rhs[first] -= lower_[first] * layer.rhs[first - 1];
+        for (std::size_t index = first + 1; index < last; ++index) {
             if (!std::isfinite(diagonal_[index - 1]) || diagonal_[index - 1] == 0.0) return false;
             const double factor = reuse ? multipliers_[index] : lower_[index] / diagonal_[index - 1];
             if (!reuse) {
@@ -173,20 +180,24 @@ private:
             for (const auto& layer : layers)
                 layer.rhs[index] -= factor * layer.rhs[index - 1];
         }
-        if (!std::isfinite(diagonal_.back()) || diagonal_.back() == 0.0) return false;
-        if (!reuse) {
-            for (std::size_t index = 0; index < diagonal_.size(); ++index)
-                inverse_[index] = 1.0 / diagonal_[index];
-        }
-        for (const auto& layer : layers)
-            layer.rhs.back() = std::isfinite(inverse_.back()) ? layer.rhs.back() * inverse_.back()
-                                                              : layer.rhs.back() / diagonal_.back();
-        for (std::size_t index = diagonal_.size() - 1; index-- > 0;)
-            for (const auto& layer : layers) {
-                const double value = layer.rhs[index] - upper_diagonal_[index] * layer.rhs[index + 1];
-                // A finite pivot can have an overflowing reciprocal.
-                layer.rhs[index] = std::isfinite(inverse_[index]) ? value * inverse_[index] : value / diagonal_[index];
+        if (first < last) {
+            if (!std::isfinite(diagonal_[last - 1]) || diagonal_[last - 1] == 0.0) return false;
+            if (!reuse) {
+                for (std::size_t index = first; index < last; ++index)
+                    inverse_[index] = 1.0 / diagonal_[index];
             }
+            for (const auto& layer : layers) {
+                const double value = layer.rhs[last - 1] - (last < diagonal_.size() ? upper_diagonal_[last - 1] * layer.rhs[last] : 0.0);
+                layer.rhs[last - 1] = std::isfinite(inverse_[last - 1]) ? value * inverse_[last - 1]
+                                                                        : value / diagonal_[last - 1];
+            }
+            for (std::size_t index = last - 1; index-- > first;)
+                for (const auto& layer : layers) {
+                    const double value = layer.rhs[index] - upper_diagonal_[index] * layer.rhs[index + 1];
+                    // A finite pivot can have an overflowing reciprocal.
+                    layer.rhs[index] = std::isfinite(inverse_[index]) ? value * inverse_[index] : value / diagonal_[index];
+                }
+        }
         return std::ranges::all_of(layers, [](const auto& layer) {
             return std::ranges::all_of(layer.rhs, [](double value) { return std::isfinite(value); });
         });

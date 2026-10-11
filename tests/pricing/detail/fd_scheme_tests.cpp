@@ -346,3 +346,45 @@ TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-fa
         CHECK(actual == expected);
     }
 }
+
+TEST_CASE("Finite-difference fixed edges preserve the full system equations", "[fd-factor-cache]")
+{
+    using namespace kiyosi::detail;
+    const std::vector<double> old{0.0, 1.0, 4.0, 9.0, 16.0, 25.0, 36.0};
+    for (const double theta : {0.0, 0.5, 1.0}) {
+        FiniteDifferenceStep step{old.size()};
+        for (const int mask : {0, 3, 3, 24, 27, 31, 30, 15, 21, 0})
+            for (const double pin : {7.0, 8.0}) {
+                CAPTURE(theta, mask, pin);
+                std::vector<double> next(old.size());
+                REQUIRE(step.advance(old, next, 0.1, {0.04, 0.01, 0.2, theta}, 0.0, 50.0,
+                                     [=](int index) -> std::optional<double> {
+                                         return mask & (1 << (index - 1)) ? std::optional{pin} : std::nullopt;
+                                     }));
+                CHECK(next.front() == 0.0);
+                CHECK(next.back() == 50.0);
+                for (std::size_t index = 1; index + 1 < old.size(); ++index) {
+                    if (mask & (1 << (index - 1))) {
+                        CHECK(next[index] == pin);
+                        continue;
+                    }
+                    const double node = static_cast<double>(index);
+                    const double a = 0.02 * node * node - 0.015 * node;
+                    const double b = -0.04 * node * node - 0.04;
+                    const double c = 0.02 * node * node + 0.015 * node;
+                    const double lhs = next[index] - theta * 0.1 *
+                                                         (a * next[index - 1] + b * next[index] + c * next[index + 1]);
+                    const double rhs = old[index] + (1.0 - theta) * 0.1 *
+                                                        (a * old[index - 1] + b * old[index] + c * old[index + 1]);
+                    CHECK(std::abs(lhs - rhs) < 1e-12);
+                }
+            }
+        std::vector<double> next(old.size(), -123.0);
+        CHECK_FALSE(step.advance(old, next, 0.1, {0.04, 0.01, 0.2, theta}, 0.0, 50.0,
+                                 [](int) -> std::optional<double> { return std::numeric_limits<double>::infinity(); }));
+        for (std::size_t index = 1; index + 1 < next.size(); ++index)
+            CHECK(next[index] == (theta == 0.0 ? std::numeric_limits<double>::infinity() : -123.0));
+        REQUIRE(step.advance(old, next, 0.1, {0.04, 0.01, 0.2, theta}, 0.0, 50.0));
+        CHECK(std::ranges::all_of(next, [](double value) { return std::isfinite(value); }));
+    }
+}

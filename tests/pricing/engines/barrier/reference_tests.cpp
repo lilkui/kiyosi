@@ -7,6 +7,7 @@
 #include <memory>
 #include <map>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -17,6 +18,31 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Continuous barrier fixed edges retain off-node prices and Greeks", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0});
+    // Full-grid results before restricting the solve to unconstrained interior rows.
+    for (const auto& [scheme, price, delta, gamma, speed] : {
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, 1.374681875919217, 0.057342386651520846, 7.95571374527515e-6, -9.302439092745403e-5},
+             std::tuple{FiniteDifferenceScheme::implicit_euler, 1.374383050055775, 0.057379104672503844, 6.7888065698046285e-6, -9.315599817910664e-5},
+             std::tuple{FiniteDifferenceScheme::explicit_euler, 1.3747121867706569, 0.057338758234461294, 8.050051664994229e-6, -9.301081278631506e-5}}) {
+        CAPTURE(scheme);
+        const FiniteDifferenceBarrierEngine engine{{200, scheme == FiniteDifferenceScheme::explicit_euler ? 2000 : 200, scheme, 400.0}};
+        const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed});
+        REQUIRE(result);
+        for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed})
+            REQUIRE(result->has(greek));
+        CHECK_THAT(result->price(), Catch::Matchers::WithinAbs(price, 1e-12));
+        CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(delta, 1e-12));
+        CHECK_THAT(*result->require(Greek::gamma), Catch::Matchers::WithinAbs(gamma, 1e-12));
+        CHECK_THAT(*result->require(Greek::speed), Catch::Matchers::WithinAbs(speed, 1e-11));
+        CHECK(*engine.price(option, context) == result->price());
+    }
+}
 
 TEST_CASE("Scheduled finite-difference knock-in layers preserve rebate parity", "[fd-performance]")
 {
