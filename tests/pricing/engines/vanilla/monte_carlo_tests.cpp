@@ -395,6 +395,69 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
     }
 }
 
+TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[mc-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, 100.0, start, end);
+        for (const int paths : {1, 127, 128, 1001}) {
+            for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
+                const MonteCarloVanillaEngine engine{paths, 50, seed};
+                for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12},
+                                             start_of_day(end) - std::chrono::microseconds{1}, start_of_day(end)}) {
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
+                    for (const auto shifts : {NumericalShiftSettings{}, NumericalShiftSettings{0.125, 0.02, 0.005, 2}}) {
+                        const auto actual = engine.price_with_greeks(option, context, true, shifts);
+                        const auto expected = calculate_numerical_greeks(engine, option, context, shifts);
+                        REQUIRE(actual);
+                        REQUIRE(expected);
+                        CHECK(actual->price() == expected->price());
+                        CHECK(actual->values_view() == expected->values_view());
+                        const auto selected = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma}, shifts);
+                        REQUIRE(selected);
+                        CHECK(selected->values_view() == actual->selected({Greek::delta, Greek::gamma}).values_view());
+                    }
+                }
+            }
+        }
+    }
+}
+
+TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent calls", "[mc-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
+    const MonteCarloVanillaEngine engine{127, 50, 42};
+    const auto invalid_context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 1000.0), 100.25, start);
+    const auto invalid = engine.price_with_greeks(option, invalid_context, true);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_result);
+    NumericalShiftSettings shifts;
+    shifts.rate_shift = 1000.0;
+    const auto bumped = engine.price_with_greeks(option, context, {Greek::rho}, shifts);
+    REQUIRE_FALSE(bumped);
+    CHECK(bumped.error().category == ErrorCategory::invalid_result);
+    const auto expected = engine.price_with_greeks(option, context, true);
+    REQUIRE(expected);
+    std::array<std::future<Result<PricingResult>>, 2> concurrent;
+    for (auto& task : concurrent)
+        task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+    for (auto& task : concurrent) {
+        const auto result = task.get();
+        REQUIRE(result);
+        CHECK(result->price() == expected->price());
+        CHECK(result->values_view() == expected->values_view());
+    }
+    const MonteCarloVanillaEngine unseeded{127, 50};
+    const auto result = unseeded.price_with_greeks(option, context, true);
+    REQUIRE(result);
+    CHECK(result->all_finite());
+    CHECK_FALSE(unseeded.settings().seed);
+}
+
 TEST_CASE("American Monte Carlo skips exercise grids only when early exercise has no value", "[mc-terminal]")
 {
     using namespace kiyosi;

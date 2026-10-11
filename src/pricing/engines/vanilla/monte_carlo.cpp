@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdint>
 #include <random>
+#include <limits>
 #include <vector>
 
 #include <kiyosi/core/day_count.hpp>
@@ -125,22 +126,22 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
 }
 #endif
 
-} // namespace
-
-Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
+template <typename Simulate>
+Result<double> price_european(const EuropeanOption& option, const PricingContext& context,
+                              MonteCarloSettings settings, const Simulate& simulate)
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
-    const auto valid = detail::validate_monte_carlo_settings(settings_);
+    const auto valid = detail::validate_monte_carlo_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
         return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
-    auto simulation = settings_;
+    auto simulation = settings;
     simulation.step_count = 2;
     const auto parameters = simulation_parameters(context, *time, simulation);
     if (!parameters) return std::unexpected(parameters.error());
     double mean = 0.0;
-    if (settings_.backend == MonteCarloBackend::cuda) {
+    if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result = cuda_payoff_mean(option, *parameters, simulation);
         if (!cuda_result) return std::unexpected(cuda_result.error());
@@ -151,7 +152,7 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
 #endif
     } else {
         detail::MonteCarloMean payoffs{};
-        const auto simulated = simulate_paths(*parameters, simulation, [&](int, int, int, double positive, double negative) {
+        const auto simulated = simulate(*parameters, simulation, [&](int, int, int, double positive, double negative) {
             payoffs.add(payoff(option.option_type(), positive, option.strike()));
             payoffs.add(payoff(option.option_type(), negative, option.strike()));
         });
@@ -166,6 +167,61 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
     return value;
+}
+
+// Each request owns its samples; consecutive spot bumps reuse exact terminal growth factors.
+class EuropeanMonteCarloSamples {
+public:
+    explicit EuropeanMonteCarloSamples(MonteCarloSettings settings) : settings_(settings) {}
+
+    Result<double> price(const EuropeanOption& option, const PricingContext& context) const
+    {
+        return price_european(option, context, settings_, [&](auto parameters, auto simulation, const auto& observe) {
+            if (normal_draws_.empty()) {
+                std::mt19937_64 generator{*simulation.seed};
+                std::normal_distribution<double> normal;
+                normal_draws_.resize(static_cast<std::size_t>((simulation.path_count + 1) / 2));
+                for (double& draw : normal_draws_)
+                    draw = normal(generator);
+                growth_.resize(normal_draws_.size());
+            }
+            if (drift_ != parameters.drift || diffusion_ != parameters.diffusion) {
+                for (std::size_t path = 0; path < normal_draws_.size(); ++path) {
+                    growth_[path] = {std::exp(parameters.drift + parameters.diffusion * normal_draws_[path]),
+                                     std::exp(parameters.drift - parameters.diffusion * normal_draws_[path])};
+                }
+                drift_ = parameters.drift;
+                diffusion_ = parameters.diffusion;
+            }
+            const int half_count = static_cast<int>(normal_draws_.size());
+            for (int path = 0; path < half_count; ++path) {
+                const auto& growth = growth_[static_cast<std::size_t>(path)];
+                const double positive = parameters.spot * growth[0];
+                const double negative = parameters.spot * growth[1];
+                if (!std::isfinite(positive) || positive <= 0.0 || !std::isfinite(negative) || negative <= 0.0)
+                    return Result<void>{std::unexpected(Error{ErrorCategory::invalid_result,
+                                                              "Monte Carlo simulation produced a non-finite path"})};
+                observe(path, path + half_count, 1, positive, negative);
+            }
+            return Result<void>{};
+        });
+    }
+
+private:
+    MonteCarloSettings settings_;
+    mutable std::vector<double> normal_draws_;
+    mutable std::vector<std::array<double, 2>> growth_;
+    mutable double drift_ = std::numeric_limits<double>::quiet_NaN();
+    mutable double diffusion_ = std::numeric_limits<double>::quiet_NaN();
+};
+
+} // namespace
+
+Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
+{
+    return price_european(option, context, settings_, [](auto parameters, auto simulation, const auto& observe) {
+        return simulate_paths(parameters, simulation, observe);
+    });
 }
 
 namespace {
@@ -284,7 +340,13 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    if (settings_.backend != MonteCarloBackend::cpu)
+        return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+        const EuropeanMonteCarloSamples samples{seeded.settings()};
+        const auto value = samples.price(option, context);
+        if (!value) return std::unexpected(value.error());
+        return detail::complete_greeks(samples, option, context, greeks, settings, *make_pricing_result(*value)); }, true);
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,

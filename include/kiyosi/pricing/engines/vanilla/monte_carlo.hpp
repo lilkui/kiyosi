@@ -33,6 +33,7 @@ public:
     [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// CPU European requests reuse per-call samples, with transient storage linear in path count.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
     [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,

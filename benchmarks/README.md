@@ -266,3 +266,15 @@ accumulator and 436 to 397 us for a snowball on the same machine. Price and spot
 Greeks across all three schemes changed only at rounding scale (largest price
 difference 6e-11). Grid tests cover intraday valuation, mixed uniform/event steps,
 duplicate calendar dates and a one-microsecond final interval.
+
+CPU European Monte Carlo Greek requests generate Gaussian samples once and cache
+terminal growth factors across consecutive spot bumps. They retain the generic
+scalar stencils, payoff summation, validation and seed behavior. At 100,000 paths
+and seed 42, a one-year noon-valuation probe on the same machine measured delta/gamma
+falling from 6.67 to 3.55 ms and all ten Greeks from 41.94 to 20.08 ms (median of
+five batches). Scalar price stayed around 2.2 ms; prices and all Greek values were
+bit-for-bit identical. The analytics suite includes `european/mc/delta_gamma` and
+`european/mc/all`. C++ and Python checks compare scalar stencils across call/put,
+odd/even path counts, seeds, custom shifts, life boundaries and concurrent calls.
+The per-request cache uses about 12 bytes per requested path (1.2 MB at 100,000
+paths); CUDA and American pricing keep their existing execution paths.

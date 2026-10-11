@@ -137,6 +137,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto upper_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out});
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};
+    const MonteCarloVanillaEngine monte_carlo_engine{100'000, 50, 42};
+    register_calculation("analytics/kiyosi/european/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::delta, Greek::gamma}); }, "price");
+    register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
     register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,
                    FiniteDifferenceVanillaEngine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}}, base_context);
     const auto off_node_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), base_context.calendar());
