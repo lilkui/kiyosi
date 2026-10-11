@@ -91,5 +91,15 @@ valuation times, using a noon valuation to allow a symmetric time stencil.
 The expiry-only snowball FD case measures a single terminal knock-in condition;
 no daily transition layer is needed.
 
+The American MC no-dividend analytics case uses a call, a 5% rate, 100,000 paths,
+50 steps and seed 42. Nonpositive dividends and nonnegative rates permit exact
+terminal sampling with an immediate-exercise floor, eliminating the exercise
+grid and regressions. On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured
+wall time falling from 140.7 ms to 2.8 ms, avoiding a 40 MB path matrix. The seeded
+price changes from 10.43075 to 10.45204 because terminal sampling consumes a
+different random sequence; both are consistent with the analytic value 10.45058.
+American settings validation still applies. Rho stencils crossing zero rates
+retain exercise-grid sampling on both sides to avoid an estimator discontinuity.
+
 The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
 to expose the cost of processing asset nodes on steps without observations.

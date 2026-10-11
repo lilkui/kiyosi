@@ -7,6 +7,7 @@
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <tuple>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
@@ -364,6 +365,103 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
                 CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
             }
         }
+    }
+}
+
+TEST_CASE("American Monte Carlo skips exercise grids only when early exercise has no value", "[mc-terminal]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto american = *make_american_option(OptionType::call, 100.0, start, end);
+    const auto european = *make_european_option(OptionType::call, 100.0, start, end);
+    for (const auto backend : {MonteCarloBackend::cpu
+#if KIYOSI_HAS_CUDA
+                               ,
+                               MonteCarloBackend::cuda
+#endif
+         }) {
+        for (const double rate : {0.0, 0.05}) {
+            for (const double dividend : {-0.02, 0.0}) {
+                const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), 100.0, start);
+                const auto expected = MonteCarloVanillaEngine{20'000, 2, 42, backend}.price(european, context);
+                REQUIRE(expected);
+                CHECK_THAT(*expected, Catch::Matchers::WithinAbs(*AnalyticVanillaEngine{}.price(european, context), 0.5));
+                for (const int steps : {3, 50, 10'000}) {
+                    CAPTURE(backend, rate, dividend, steps);
+                    const MonteCarloVanillaEngine engine{19'999, steps, 42, backend};
+                    const auto actual = engine.price(american, context);
+                    REQUIRE(actual);
+                    CHECK(*actual == *expected);
+                    CHECK(engine.settings().step_count == steps);
+                }
+            }
+        }
+        const auto deep = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 2000.0, start);
+        for (const auto seed : {1, 42, 73}) {
+            const MonteCarloVanillaEngine engine{1, 3, seed, backend};
+            const auto continuation = engine.price(european, deep);
+            const auto actual = engine.price(american, deep);
+            REQUIRE(continuation);
+            REQUIRE(actual);
+            CHECK(*actual == std::max(*continuation, 1900.0));
+        }
+    }
+    for (const auto [type, rate, dividend, spot, expected] : {
+             std::tuple{OptionType::call, -0.1, 0.0, 200.0, 100.0},
+             std::tuple{OptionType::call, 0.0, 0.1, 200.0, 100.0},
+             std::tuple{OptionType::put, 0.1, 0.0, 50.0, 50.0}}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 1e-12), spot, start);
+        const auto option = *make_american_option(type, 100.0, start, end);
+        const auto actual = MonteCarloVanillaEngine{64, 7, 42}.price(option, context);
+        REQUIRE(actual);
+        CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, 1e-10));
+    }
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 110.0, start);
+    for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+        for (const auto settings : {MonteCarloSettings{0, 50, 42, backend}, MonteCarloSettings{16, 2, 42, backend}, MonteCarloSettings{16, 10'001, 42, backend}}) {
+            const auto invalid = MonteCarloVanillaEngine{settings}.price(american, context);
+            REQUIRE_FALSE(invalid);
+            CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+        }
+        const auto expired = *make_pricing_context(context.model_parameters(), 110.0, end);
+        CHECK(*MonteCarloVanillaEngine{16, 2, 42, backend}.price(american, expired) == 10.0);
+    }
+}
+
+TEST_CASE("American Monte Carlo rate Greeks retain one estimator across zero", "[mc-terminal]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_american_option(OptionType::call, 100.0, start, end);
+    const MonteCarloVanillaEngine engine{20'000, 7, 42};
+    NumericalShiftSettings shifts;
+    shifts.rate_shift = 1.0 / 8192.0;
+    for (const double rate : {-1.0 / 16384.0, 0.0, 1.0 / 16384.0}) {
+        CAPTURE(rate);
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, 0.2), 100.0, start);
+        const auto rho = engine.price_with_greeks(option, context, {Greek::rho}, shifts);
+        const auto all = calculate_numerical_greeks(engine, option, context, shifts);
+        REQUIRE(rho);
+        REQUIRE(all);
+        CHECK(rho->price() == *engine.price(option, context));
+        CHECK(all->price() == rho->price());
+        REQUIRE(rho->require(Greek::rho));
+        REQUIRE(all->require(Greek::rho));
+        const double shift = shifts.rate_shift;
+        // A subnormal dividend leaves coefficients unchanged while retaining the exercise grid.
+        const auto exercise_value = [&](double bumped_rate) {
+            const auto shifted = *make_pricing_context(*make_bsm_parameters(bumped_rate, std::numeric_limits<double>::denorm_min(), 0.2), 100.0, start);
+            const auto value = engine.price(option, shifted);
+            REQUIRE(value);
+            return *value;
+        };
+        const double expected = (exercise_value(rate + shift) - exercise_value(rate - shift)) / (200.0 * shift);
+        CHECK_THAT(*rho->require(Greek::rho), Catch::Matchers::WithinAbs(expected, 1e-10));
+        CHECK(*all->require(Greek::rho) == *rho->require(Greek::rho));
+        const auto spot = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        REQUIRE(spot);
+        CHECK(all->get(Greek::delta) == spot->get(Greek::delta));
+        CHECK(all->get(Greek::gamma) == spot->get(Greek::gamma));
     }
 }
 

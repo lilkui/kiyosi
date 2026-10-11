@@ -18,6 +18,8 @@
 
 namespace kiyosi {
 
+class MonteCarloVanillaEngine;
+
 namespace detail {
 
 template <typename Engine, typename Option>
@@ -483,7 +485,10 @@ template <typename Engine, typename Option>
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
-    return detail::price_with_greeks(engine, option, context, true, settings);
+    if constexpr (std::same_as<Engine, MonteCarloVanillaEngine> && std::same_as<Option, AmericanOption>)
+        return engine.price_with_greeks(option, context, true, settings);
+    else
+        return detail::price_with_greeks(engine, option, context, true, settings);
 }
 
 } // namespace kiyosi

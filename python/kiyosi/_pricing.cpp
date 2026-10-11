@@ -595,7 +595,10 @@ The setting is validated when price() is called.)doc")
 Settings are stored without domain validation and are validated when price() is called.
 Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
 expiry requires at least 3 steps.
-European prices sample the exact terminal distribution; valid step counts do not affect them.)doc")
+European prices sample the exact terminal distribution; valid step counts do not affect them.
+American calls with nonpositive dividends and nonnegative rates use that distribution
+with an immediate-exercise lower bound. Rate stencils crossing zero retain exercise-grid
+simulations on both sides.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                                                     PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
                                             return MonteCarloVanillaEngine{MonteCarloSettings{

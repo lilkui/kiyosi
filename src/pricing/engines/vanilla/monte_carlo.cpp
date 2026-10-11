@@ -168,27 +168,39 @@ Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, cons
     return value;
 }
 
-Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
+namespace {
+
+Result<double> price_american(const AmericanOption& option, const PricingContext& context,
+                              MonteCarloSettings settings, bool terminal_only)
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
-    const auto valid = detail::validate_monte_carlo_settings(settings_);
+    const auto valid = detail::validate_monte_carlo_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
         return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
-    if (settings_.step_count < 3)
+    if (settings.step_count < 3)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "American Monte Carlo requires at least three grid points"});
-    const auto parameters = simulation_parameters(context, *time, settings_);
+    if (terminal_only && option.option_type() == OptionType::call &&
+        context.model_parameters().dividend_yield() <= 0.0 &&
+        context.model_parameters().risk_free_rate() >= 0.0) {
+        const auto european = *make_european_option(
+            option.option_type(), option.strike(), option.effective_date(), option.expiry_date());
+        const auto value = MonteCarloVanillaEngine{settings}.price(european, context);
+        if (!value) return std::unexpected(value.error());
+        return std::max(*value, payoff(option.option_type(), context.spot_price(), option.strike()));
+    }
+    const auto parameters = simulation_parameters(context, *time, settings);
     if (!parameters) return std::unexpected(parameters.error());
     const double discount = std::exp(-context.model_parameters().risk_free_rate() *
-                                     *time / static_cast<double>(settings_.step_count - 1));
+                                     *time / static_cast<double>(settings.step_count - 1));
     double mean = 0.0;
     std::vector<double> cash_flows;
-    if (settings_.backend == MonteCarloBackend::cuda) {
+    if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto cuda_result =
-            cuda_american_cash_flow_mean(option, *parameters, settings_, discount);
+            cuda_american_cash_flow_mean(option, *parameters, settings, discount);
         if (!cuda_result) return std::unexpected(cuda_result.error());
         mean = *cuda_result;
 #else
@@ -196,11 +208,11 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        const auto path_count = static_cast<std::size_t>(settings_.path_count) + settings_.path_count % 2;
-        const auto step_count = static_cast<std::size_t>(settings_.step_count);
+        const auto path_count = static_cast<std::size_t>(settings.path_count) + settings.path_count % 2;
+        const auto step_count = static_cast<std::size_t>(settings.step_count);
         // Regression visits every path at one time, so keep each time slice contiguous.
         std::vector<double> paths(path_count * step_count, parameters->spot);
-        const auto simulated = simulate_paths(*parameters, settings_, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
+        const auto simulated = simulate_paths(*parameters, settings, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
             paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
             paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot;
         });
@@ -209,7 +221,7 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
         for (std::size_t path = 0; path < path_count; ++path)
             cash_flows[path] = payoff(
                 option.option_type(), paths[(step_count - 1) * path_count + path], option.strike());
-        for (int step = settings_.step_count - 2; step >= 1; --step) {
+        for (int step = settings.step_count - 2; step >= 1; --step) {
             for (double& value : cash_flows)
                 value *= discount;
             detail::QuadraticRegressionMatrix matrix{};
@@ -254,6 +266,13 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
     return value;
 }
 
+} // namespace
+
+Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
+{
+    return price_american(option, context, settings_, true);
+}
+
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
@@ -263,7 +282,29 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+        const auto value = seeded.price(option, context);
+        if (!value) return std::unexpected(value.error());
+        const double rate = context.model_parameters().risk_free_rate();
+        const double shift = detail::symmetric_shift(rate, settings.rate_shift);
+        if (greeks.has(Greek::rho) && std::isfinite(200.0 * shift) && !detail::greeks_unavailable(option, context) &&
+            option.option_type() == OptionType::call && context.model_parameters().dividend_yield() <= 0.0 &&
+            rate - shift < 0.0 && rate + shift >= 0.0) {
+            // Keep one estimator across the rate stencil when the terminal-only shortcut changes branch.
+            const auto evaluate = [&](double shifted_rate) -> Result<double> {
+                const auto shifted = detail::shifted_context(context, context.spot_price(),
+                                                             context.model_parameters().volatility(), shifted_rate, context.valuation_time());
+                if (!shifted) return std::unexpected(shifted.error());
+                return price_american(option, *shifted, seeded.settings(), false);
+            };
+            const auto high = evaluate(rate + shift);
+            if (!high) return std::unexpected(high.error());
+            const auto low = evaluate(rate - shift);
+            if (!low) return std::unexpected(low.error());
+            return make_pricing_result(*value, {{Greek::rho, (*high - *low) / (200.0 * shift)}});
+        }
+        return make_pricing_result(*value);
+    });
 }
 
 } // namespace kiyosi

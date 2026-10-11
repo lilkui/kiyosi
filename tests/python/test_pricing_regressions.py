@@ -15,6 +15,116 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_american_mc_skips_grids_without_early_exercise_value(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        american, european = AmericanOption(**terms), EuropeanOption(**terms)
+        for rate in (0.0, 0.05):
+            for dividend in (-0.02, 0.0):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                expected = pricing.MonteCarloVanillaEngine(
+                    path_count=20000, step_count=2, seed=42
+                ).price(european, context)
+                for steps in (3, 50, 10000):
+                    with self.subTest(rate=rate, dividend=dividend, steps=steps):
+                        engine = pricing.MonteCarloVanillaEngine(
+                            path_count=19999, step_count=steps, seed=42
+                        )
+                        self.assertEqual(engine.price(american, context), expected)
+                        self.assertEqual(engine.step_count, steps)
+        deep = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=2000,
+            valuation_time=start,
+        )
+        for seed in (1, 42, 73):
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=1, step_count=3, seed=seed
+            )
+            self.assertEqual(
+                engine.price(american, deep), max(engine.price(european, deep), 1900)
+            )
+        for backend in ("cpu", "cuda"):
+            for paths, steps in ((0, 50), (16, 2), (16, 10001)):
+                engine = pricing.MonteCarloVanillaEngine(
+                    path_count=paths, step_count=steps, seed=42, backend=backend
+                )
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    engine.price(american, context)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                )
+            expired = PricingContext(
+                model_parameters=context.model_parameters,
+                spot_price=110,
+                valuation_time=end,
+            )
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=16, step_count=2, seed=42, backend=backend
+            )
+            self.assertEqual(engine.price(american, expired), 10)
+
+    def test_american_mc_rate_greeks_retain_one_estimator_across_zero(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = AmericanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=20000, step_count=7, seed=42
+        )
+        shift = 1 / 8192
+        for rate in (-1 / 16384, 0.0, 1 / 16384):
+            with self.subTest(rate=rate):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=0, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                rho = engine.price_with_greeks(option, context, "rho", rate_shift=shift)
+                all_greeks = engine.price_with_greeks(
+                    option, context, all_greeks=True, rate_shift=shift
+                )
+                self.assertEqual(rho.price, engine.price(option, context))
+                self.assertEqual(all_greeks.price, rho.price)
+
+                # A subnormal dividend retains the grid without changing the coefficients.
+                def exercise_value(bumped_rate):
+                    shifted = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=bumped_rate,
+                            dividend_yield=math.nextafter(0.0, 1.0),
+                            volatility=0.2,
+                        ),
+                        spot_price=100,
+                        valuation_time=start,
+                    )
+                    return engine.price(option, shifted)
+
+                expected = (
+                    exercise_value(rate + shift) - exercise_value(rate - shift)
+                ) / (200 * shift)
+                self.assertAlmostEqual(rho.rho, expected, delta=1e-10)
+                self.assertEqual(all_greeks.rho, rho.rho)
+                spot = engine.price_with_greeks(option, context, ["delta", "gamma"])
+                self.assertEqual(
+                    (all_greeks.delta, all_greeks.gamma), (spot.delta, spot.gamma)
+                )
+
     def test_zero_exposure_accumulators_skip_numerical_work_after_validation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = Accumulator(

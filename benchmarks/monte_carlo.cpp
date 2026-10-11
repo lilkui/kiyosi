@@ -167,6 +167,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloSnowballEngine{20'000, 42}, base_context);
     register_price("analytics/kiyosi/snowball/fd/protected/price", protected_note, snowball_engine, base_context);
     const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
+    const auto no_dividend = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 100.0, european.effective_date());
+    const auto american_call = *make_american_option(OptionType::call, 100.0, european.effective_date(), european.expiry_date());
+    register_price("analytics/kiyosi/american/mc/no_dividend/price", american_call, MonteCarloVanillaEngine{100'000, 50, 42}, no_dividend);
     const auto quote = monte_carlo.price(european, context);
     register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {
                              if (!quote) return std::unexpected(quote.error());
