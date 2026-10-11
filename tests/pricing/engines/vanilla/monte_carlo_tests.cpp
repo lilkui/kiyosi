@@ -34,7 +34,7 @@ TEST_CASE("CUDA packed path outputs preserve block boundaries and failure flags"
     }
     for (const int count : {1, 255, 257, 65'537}) {
         const auto result = cuda_autocallable_price(
-            {.path_count = count, .seed = 42, .spot = 100.0, .terminal_discount = 0.9, .program = {.principal_ratio = 2.0, .terminal_kind = AutocallableTerminalKind::fixed}}, {});
+            {.path_count = count, .seed = 42, .spot = 100.0, .terminal_discount = {0.9}, .program = {.principal_ratio = 2.0, .terminal_kind = AutocallableTerminalKind::fixed}}, {});
         REQUIRE(result.status == CudaPricingStatus::success);
         CHECK(result.payoff_mean == 1.8);
     }

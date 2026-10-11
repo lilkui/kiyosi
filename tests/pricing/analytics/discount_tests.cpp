@@ -1,5 +1,6 @@
 #include <cmath>
 #include <numbers>
+#include <vector>
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -28,7 +29,82 @@ void check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend backend)
         }
     }
 }
+
+void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1);
+    const auto middle = test::day(2026, 1, 1);
+    const auto end = test::day(2027, 1, 1);
+    for (const double rate : {740.0, 750.0, -750.0}) {
+        const double amount = rate > 0.0 ? 1e300 : 1e-300;
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 1e-20), 100.0, start);
+        const double discounted = std::exp(std::log(amount) - rate);
+        for (const bool early : {false, true}) {
+            for (const double sign : {-1.0, 0.0, 1.0}) {
+                CAPTURE(backend, rate, early, sign);
+                BinarySnowballTerms terms{
+                    .knock_out_coupon_rates = early ? std::vector{(sign - 1.0) * amount, 0.0} : std::vector{0.0},
+                    .maturity_coupon_rate = early ? 0.0 : (sign - 1.0) * amount,
+                    .knock_out_levels = early ? std::vector{80.0, 80.0} : std::vector{200.0},
+                    .observation_dates = early ? std::vector{middle, end} : std::vector{middle},
+                    .principal_ratio = amount,
+                    .effective_date = start,
+                    .expiry_date = early ? end : middle};
+                const auto lower = make_binary_snowball_option(terms);
+                REQUIRE(lower);
+                if (early) terms.knock_out_coupon_rates.front() += amount;
+                else terms.maturity_coupon_rate += amount;
+                const auto upper = make_binary_snowball_option(terms);
+                REQUIRE(upper);
+                const MonteCarloBinarySnowballEngine engine{10, 42, backend};
+                const auto price = engine.price(*lower, context);
+                REQUIRE(price);
+                CHECK(*price == Catch::Approx(sign * discounted).epsilon(2e-12).margin(0.0));
+                const auto prices = detail::monte_carlo_coupon_prices(*lower, *upper, context, engine.settings());
+                REQUIRE(prices);
+                CHECK((*prices)[0] == *price);
+                CHECK((*prices)[1] == Catch::Approx((sign + 1.0) * discounted).epsilon(2e-12).margin(0.0));
+            }
+        }
+        for (const double strike : {90.0, 110.0}) {
+            const auto option = *make_accumulator({.strike = strike, .knock_out_level = 120.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = amount, .effective_date = start, .expiry_date = middle});
+            const MonteCarloAccumulatorEngine engine{10, 42, backend};
+            const double expected = (100.0 - strike) * discounted;
+            const auto price = engine.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(expected).epsilon(2e-12).margin(0.0));
+            const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+            REQUIRE(result);
+            CHECK(result->price() == *price);
+            CHECK(*result->require(Greek::delta) == Catch::Approx(discounted).epsilon(1e-8).margin(0.0));
+        }
+        if (rate > 0.0) {
+            const auto phoenix = *make_phoenix_option({.coupon_rate = amount, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {200.0, 200.0}, .coupon_barrier_levels = {0.0, 0.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {middle, end}, .principal_ratio = 0.0, .effective_date = start, .expiry_date = end});
+            const auto price = MonteCarloPhoenixEngine{10, 42, backend}.price(phoenix, context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(discounted).epsilon(2e-12).margin(0.0));
+        }
+    }
+    const auto context = *make_pricing_context(*make_bsm_parameters(-750.0, -750.0, 1e-20), 100.0, start);
+    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {200.0}, .observation_dates = {middle}, .effective_date = start, .expiry_date = middle});
+    const auto overflow = MonteCarloBinarySnowballEngine{10, 42, backend}.price(note, context);
+    REQUIRE_FALSE(overflow);
+    CHECK(overflow.error().category == ErrorCategory::invalid_result);
+}
 } // namespace
+
+TEST_CASE("Trading-day Monte Carlo preserves signed payments across extreme discount scales", "[discount-scaling]")
+{
+    check_trading_day_discount_scaling(kiyosi::MonteCarloBackend::cpu);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA trading-day Monte Carlo preserves signed payments across extreme discount scales", "[cuda][discount-scaling]")
+{
+    check_trading_day_discount_scaling(kiyosi::MonteCarloBackend::cuda);
+}
+#endif
 
 TEST_CASE("European Monte Carlo preserves prices across extreme discount scales", "[audit-fixes]")
 {

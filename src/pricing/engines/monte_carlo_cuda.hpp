@@ -6,6 +6,8 @@
 
 #include <kiyosi/pricing/detail/autocallable_program.hpp>
 
+#include "monte_carlo_discount.hpp"
+
 namespace kiyosi::detail {
 
 enum class CudaPricingStatus : unsigned char {
@@ -41,7 +43,7 @@ struct CudaAmericanRequest {
 struct CudaSimulationStep {
     double drift;
     double diffusion;
-    double discount;
+    MonteCarloDiscount discount;
 };
 
 struct CudaAutocallableStep {
@@ -65,7 +67,7 @@ struct CudaAutocallableRequest {
     int path_count;
     std::uint64_t seed;
     double spot;
-    double terminal_discount;
+    MonteCarloDiscount terminal_discount;
     AutocallableProgram program;
     AutocallablePathState initial_state;
     AutocallableProgram alternate_program{};

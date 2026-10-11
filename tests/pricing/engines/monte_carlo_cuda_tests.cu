@@ -44,7 +44,7 @@ TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][m
             cuda_european_price({512, 42, 100.0, 100.0, 0.01, 0.2, 1}),
             cuda_american_price({512, 3, 42, 100.0, 100.0, 0.01, 0.1, 0.99, -1}),
             cuda_accumulator_price({512, 42, 100.0, 90.0, 120.0, 1.0, 2.0, 0.0}, accumulator_steps),
-            cuda_autocallable_price({512, 42, 100.0, 0.99, program, {}}, autocallable_steps)};
+            cuda_autocallable_price({512, 42, 100.0, {0.99}, program, {}}, autocallable_steps)};
     };
     for (const auto result : price())
         REQUIRE(result.status == CudaPricingStatus::success);

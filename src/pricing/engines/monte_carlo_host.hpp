@@ -38,10 +38,11 @@ inline Result<CudaSimulationStep> simulation_step(const PricingContext& context,
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const double dt = actual_365_fixed_year_fraction(previous, current);
+    const double exponent = -rate * actual_365_fixed_year_fraction(context.valuation_time(), current);
     const CudaSimulationStep step{(rate - dividend - 0.5 * sigma * sigma) * dt,
                                   sigma * std::sqrt(dt),
-                                  std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), current))};
-    if (!std::isfinite(step.drift) || !std::isfinite(step.diffusion) || !std::isfinite(step.discount))
+                                  {std::exp(exponent), exponent}};
+    if (!std::isfinite(step.drift) || !std::isfinite(step.diffusion) || !std::isfinite(exponent))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "Monte Carlo simulation parameters are non-finite"});
     return step;

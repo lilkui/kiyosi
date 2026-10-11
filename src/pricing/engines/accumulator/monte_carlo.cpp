@@ -45,7 +45,7 @@ Result<double> path_payoff(const Accumulator& option, const PricingContext& cont
     double value = context.spot_price();
 
     std::normal_distribution<double> normal;
-    double discount = 1.0;
+    MonteCarloDiscount discount;
     for (const auto& step : steps) {
         value *= std::exp(step.drift + step.diffusion * normal(generator));
         if (!std::isfinite(value) || value <= 0.0)
@@ -56,13 +56,13 @@ Result<double> path_payoff(const Accumulator& option, const PricingContext& cont
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
     }
-    return quantity * (value - option.strike()) * discount;
+    return discount.apply(quantity * (value - option.strike()));
 }
 
 struct PathState {
     double spot;
     double quantity;
-    double discount = 1.0;
+    MonteCarloDiscount discount;
     std::optional<double> payoff{};
 };
 
@@ -82,7 +82,7 @@ Result<std::array<double, count>> path_payoffs(
                                              "Monte Carlo simulation produced an invalid asset price"});
             state.discount = step.discount;
             if (state.spot >= option.knock_out_level())
-                state.payoff = state.quantity * (state.spot - option.strike()) * state.discount;
+                state.payoff = state.discount.apply(state.quantity * (state.spot - option.strike()));
             else
                 state.quantity += state.spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                                                : option.daily_quantity();
@@ -91,7 +91,7 @@ Result<std::array<double, count>> path_payoffs(
     }
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i)
-        payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].quantity * (states[i].spot - option.strike()) * states[i].discount;
+        payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].discount.apply(states[i].quantity * (states[i].spot - option.strike()));
     return payoffs;
 }
 
@@ -122,7 +122,7 @@ Result<PricingResult> price_spot_bumps(
             const auto value = checked_price(*state.settlement);
             if (!value) return std::unexpected(value.error());
         }
-        initial[i] = {spot, state.quantity, 1.0, state.settlement};
+        initial[i] = {spot, state.quantity, {}, state.settlement};
     }
     std::array<MonteCarloMean, count> means{};
     if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {

@@ -24,7 +24,7 @@ namespace {
 
 struct SimulationInputs {
     std::vector<CudaAutocallableStep> step_count;
-    double terminal_discount;
+    MonteCarloDiscount terminal_discount;
 };
 
 template <typename Note>
@@ -57,8 +57,8 @@ Result<SimulationInputs> prepare_simulation(
         steps.push_back({*step, event, alternate_coupon});
         previous = current;
     }
-    return SimulationInputs{std::move(steps),
-                            std::exp(-rate * actual_365_fixed_year_fraction(valuation, note.expiry_date()))};
+    const double exponent = -rate * actual_365_fixed_year_fraction(valuation, note.expiry_date());
+    return SimulationInputs{std::move(steps), {std::exp(exponent), exponent}};
 }
 
 template <bool Paired = false>
@@ -85,23 +85,23 @@ Result<std::array<double, 2>> path_payoff(double initial_spot, const Autocallabl
             alternate_coupon = program_observation_coupon(event, value);
         }
         if (value >= step.event.knock_out_level) {
-            const double payoff = (program.principal_ratio + coupon) * step.simulation.discount + state.coupons;
+            const double payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.coupons;
             double alternate_payoff = 0.0;
             if constexpr (Paired)
-                alternate_payoff = (alternate_program.principal_ratio + alternate_coupon) * step.simulation.discount + alternate_state.coupons;
+                alternate_payoff = step.simulation.discount.apply(alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
             return std::array{payoff, alternate_payoff};
         }
         if (program.carries_observation_coupon)
-            state.coupons += coupon * step.simulation.discount;
+            state.coupons += step.simulation.discount.apply(coupon);
         if constexpr (Paired)
             if (alternate_program.carries_observation_coupon)
-                alternate_state.coupons += alternate_coupon * step.simulation.discount;
+                alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
     }
     state.knocked_in = program_knocked_in(program, value, state.knocked_in, true);
-    const double payoff = state.coupons + inputs.terminal_discount * program_terminal_settlement(program, value, state.knocked_in);
+    const double payoff = state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(program, value, state.knocked_in));
     double alternate_payoff = 0.0;
     if constexpr (Paired)
-        alternate_payoff = alternate_state.coupons + inputs.terminal_discount * program_terminal_settlement(alternate_program, value, state.knocked_in);
+        alternate_payoff = alternate_state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(alternate_program, value, state.knocked_in));
     return std::array{payoff, alternate_payoff};
 }
 

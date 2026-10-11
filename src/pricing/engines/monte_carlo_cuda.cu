@@ -290,7 +290,7 @@ __global__ void simulate_accumulator_paths(
     curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
     double spot = request.spot;
     double quantity = request.initial_quantity;
-    double discount = 1.0;
+    MonteCarloDiscount discount;
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
         spot *= exp(step.drift + step.diffusion * curand_normal_double(&generator));
@@ -305,7 +305,7 @@ __global__ void simulate_accumulator_paths(
                         ? request.daily_quantity * request.acceleration
                         : request.daily_quantity;
     }
-    const double payoff = quantity * (spot - request.strike) * discount;
+    const double payoff = discount.apply(quantity * (spot - request.strike));
     if (!isfinite(payoff)) {
         atomicExch(invalid, 1);
         payoffs[path] = 0.0;
@@ -350,23 +350,23 @@ __global__ void simulate_autocallable_paths(
             alternate_coupon = program_observation_coupon(event, spot);
         }
         if (spot >= step.event.knock_out_level) {
-            payoff = (request.program.principal_ratio + coupon) * step.simulation.discount + state.coupons;
+            payoff = step.simulation.discount.apply(request.program.principal_ratio + coupon) + state.coupons;
             if constexpr (Paired)
-                alternate_payoff = (request.alternate_program.principal_ratio + alternate_coupon) * step.simulation.discount + alternate_state.coupons;
+                alternate_payoff = step.simulation.discount.apply(request.alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
             knocked_out = true;
             break;
         }
         if (request.program.carries_observation_coupon)
-            state.coupons += coupon * step.simulation.discount;
+            state.coupons += step.simulation.discount.apply(coupon);
         if constexpr (Paired)
             if (request.alternate_program.carries_observation_coupon)
-                alternate_state.coupons += alternate_coupon * step.simulation.discount;
+                alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
     }
     if (!knocked_out) {
         state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, true);
-        payoff = state.coupons + request.terminal_discount * program_terminal_settlement(request.program, spot, state.knocked_in);
+        payoff = state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.program, spot, state.knocked_in));
         if constexpr (Paired)
-            alternate_payoff = alternate_state.coupons + request.terminal_discount * program_terminal_settlement(request.alternate_program, spot, state.knocked_in);
+            alternate_payoff = alternate_state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.alternate_program, spot, state.knocked_in));
     }
     if (!isfinite(payoff)) atomicExch(invalid, 1);
     payoffs[path] = isfinite(payoff) ? payoff : 0.0;
