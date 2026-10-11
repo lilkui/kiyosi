@@ -423,7 +423,8 @@ float
     Implied annualized coupon rate.
 
 An unseeded Monte Carlo engine uses one random seed throughout this solve.
-Monte Carlo first tries a verified affine solve; other engines use bisection.
+Monte Carlo and finite-difference engines first try interpolation and verify its
+price residual. If the price tolerance is not met, the solver uses bisection.
 
 Raises
 ------

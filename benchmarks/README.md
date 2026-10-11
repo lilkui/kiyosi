@@ -34,6 +34,14 @@ Greek request retains the complete result so its sensitivities cannot be optimiz
 away. Run these cases with `--benchmark_filter=^analytics/`; `compare.py` continues
 to report only the pricing matrix.
 
+The snowball FD implied-coupon case prepares its quote before timing and records
+the solved rate in the `coupon` counter. Built-in MC and FD coupon solvers verify
+an interpolated candidate before falling back to bisection, retaining the price
+tolerance when FD spline limiting makes the price curve nonlinear.
+On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall time
+falling from 43.069 ms to 4.726 ms (three repetitions, 0.15 s minimum), with
+the recovered coupon remaining 0.08.
+
 - Common market: valuation on 2025-01-01, expiry on 2026-01-01, spot and vanilla strike 100, flat risk-free rate 4%, dividend yield 1%, volatility 20%, Actual/365 Fixed.
 - Instruments and engines are constructed before timing. Each iteration calls Kiyosi `price()` or forces a QuantLib `recalculate()` followed by `NPV()`; plain repeated `NPV()` would report a cached lookup. The warmup price is included as a `price` counter for checking that paired cases value similar contracts.
 - CPU cases report CPU time; CUDA cases report wall time, which includes GPU synchronization inside the pricing call.

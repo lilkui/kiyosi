@@ -3,6 +3,7 @@ import unittest
 from datetime import date
 from unittest.mock import patch
 
+import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
     BarrierOption,
@@ -192,7 +193,7 @@ class AuditFixTests(unittest.TestCase):
                     self.assertIsNone(result.delta)
                     self.assertIsNone(result.gamma)
 
-    def test_monte_carlo_implied_coupons_solve_affine_curve_directly(self):
+    def test_builtin_implied_coupons_solve_affine_curve_directly(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -201,32 +202,39 @@ class AuditFixTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        engine = pricing.MonteCarloBinarySnowballEngine(path_count=512, seed=42)
-        for coupon in (0.073, -0.17):
-            note = BinarySnowballOption(
-                knock_out_coupon_rates=[coupon, coupon + 0.01],
-                maturity_coupon_rate=coupon + 0.02,
-                knock_out_levels=[110, 110],
-                observation_dates=[date(2025, 7, 1), end],
-                effective_date=start,
-                expiry_date=end,
-            )
-            quote = engine.price(note, context)
-            for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
-                with self.subTest(coupon=coupon, convention=convention):
-                    solved = pricing.implied_coupon(
-                        engine,
-                        note,
-                        context,
-                        quote,
-                        quote_convention=convention,
-                        lower_bound=-1,
-                        upper_bound=2,
-                        price_tolerance=1e-10,
-                        parameter_tolerance=1e-12,
-                        max_iterations=1,
-                    )
-                    self.assertAlmostEqual(solved, coupon, delta=1e-10)
+        for engine in (
+            pricing.MonteCarloBinarySnowballEngine(path_count=512, seed=42),
+            pricing.FiniteDifferenceBinarySnowballEngine(),
+        ):
+            for coupon in (0.073, -0.17):
+                note = BinarySnowballOption(
+                    knock_out_coupon_rates=[coupon, coupon + 0.01],
+                    maturity_coupon_rate=coupon + 0.02,
+                    knock_out_levels=[110, 110],
+                    observation_dates=[date(2025, 7, 1), end],
+                    effective_date=start,
+                    expiry_date=end,
+                )
+                quote = engine.price(note, context)
+                for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
+                    with self.subTest(
+                        engine=type(engine).__name__,
+                        coupon=coupon,
+                        convention=convention,
+                    ):
+                        solved = pricing.implied_coupon(
+                            engine,
+                            note,
+                            context,
+                            quote,
+                            quote_convention=convention,
+                            lower_bound=-1,
+                            upper_bound=2,
+                            price_tolerance=1e-10,
+                            parameter_tolerance=1e-12,
+                            max_iterations=1,
+                        )
+                        self.assertAlmostEqual(solved, coupon, delta=1e-10)
 
     def test_finite_difference_implied_coupons_retain_nonlinear_interpolation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
@@ -255,6 +263,22 @@ class AuditFixTests(unittest.TestCase):
             asset_step_count=5, time_step_count=10
         )
         quote = engine.price(note, context)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            pricing.implied_coupon(
+                engine,
+                note,
+                context,
+                quote,
+                quote_convention="shift_maturity_coupon",
+                lower_bound=-1,
+                upper_bound=2,
+                price_tolerance=1e-10,
+                parameter_tolerance=1e-12,
+                max_iterations=1,
+            )
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.SOLVER_NON_CONVERGENCE
+        )
         solved = pricing.implied_coupon(
             engine,
             note,

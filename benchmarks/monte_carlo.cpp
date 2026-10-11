@@ -145,6 +145,11 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/accumulator/mc/zero_exposure/price", empty_accumulator, MonteCarloAccumulatorEngine{2'000, 42}, context);
     register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
+    const auto coupon_quote = snowball_engine.price(snowball, context);
+    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon", [=]() -> Result<double> {
+                             if (!coupon_quote) return std::unexpected(coupon_quote.error());
+                             return implied_coupon(snowball_engine, snowball, context, *coupon_quote,
+                                                   CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
     register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
     const auto knocked_in = snowball_scenario(AutocallableBarrierState::knocked_in).first;
     register_price("analytics/kiyosi/snowball/fd/knocked_in/price", knocked_in, snowball_engine, context);

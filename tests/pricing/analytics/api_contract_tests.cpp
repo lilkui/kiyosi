@@ -703,25 +703,28 @@ TEST_CASE("Implied solvers control price and parameter tolerances separately", "
     }
 }
 
-TEST_CASE("Monte Carlo implied coupons solve the sampled affine curve directly", "[pricing-api][audit-fixes]")
+TEST_CASE("Built-in implied coupons solve affine price curves directly", "[pricing-api][audit-fixes]")
 {
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.0, start);
-    const MonteCarloBinarySnowballEngine engine{{512, 42}};
-    for (const double coupon : {0.073, -0.17}) {
-        const auto note = *make_binary_snowball_option(
-            {.knock_out_coupon_rates = {coupon, coupon + 0.01}, .maturity_coupon_rate = coupon + 0.02, .knock_out_levels = {110.0, 110.0}, .observation_dates = {day(2025, 7, 1), end}, .effective_date = start, .expiry_date = end});
-        const auto quote = engine.price(note, context);
-        REQUIRE(quote);
-        for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
-            CAPTURE(coupon, convention);
-            const auto solved = implied_coupon(engine, note, context, *quote, convention,
-                                               {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
-            REQUIRE(solved);
-            CHECK(*solved == Catch::Approx(coupon).epsilon(0.0).margin(1e-10));
-            CHECK(engine.settings().seed == 42);
+    const auto check = [&](const auto& engine) {
+        for (const double coupon : {0.073, -0.17}) {
+            const auto note = *make_binary_snowball_option(
+                {.knock_out_coupon_rates = {coupon, coupon + 0.01}, .maturity_coupon_rate = coupon + 0.02, .knock_out_levels = {110.0, 110.0}, .observation_dates = {day(2025, 7, 1), end}, .effective_date = start, .expiry_date = end});
+            const auto quote = engine.price(note, context);
+            REQUIRE(quote);
+            for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
+                CAPTURE(coupon, convention);
+                const auto solved = implied_coupon(engine, note, context, *quote, convention,
+                                                   {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
+                REQUIRE(solved);
+                CHECK(*solved == Catch::Approx(coupon).epsilon(0.0).margin(1e-10));
+                if constexpr (requires { engine.settings().seed; }) CHECK(engine.settings().seed == 42);
+            }
         }
-    }
+    };
+    check(MonteCarloBinarySnowballEngine{{512, 42}});
+    check(FiniteDifferenceBinarySnowballEngine{});
 }
 
 TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[pricing-api][audit-fixes]")
@@ -733,6 +736,10 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     const FiniteDifferenceSnowballEngine engine{{5, 10}};
     const auto quote = engine.price(note, context);
     REQUIRE(quote);
+    const auto insufficient = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
+                                             {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
+    REQUIRE_FALSE(insufficient);
+    CHECK(insufficient.error().category == ErrorCategory::solver_non_convergence);
     const auto solved = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
                                        {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12});
     REQUIRE(solved);
