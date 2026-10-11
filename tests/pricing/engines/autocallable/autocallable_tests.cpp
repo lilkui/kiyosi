@@ -52,7 +52,7 @@ TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[
                             CHECK(queries->load() < scalar_queries);
                         CHECK(numerical->price() == expected->price());
                         CHECK(numerical->values_view() == expected->values_view());
-                        for (const GreeksRequest request : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}}) {
+                        for (const GreeksRequest request : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma}, GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
                             const auto actual = engine.price_with_greeks(note, context, request, shifts);
                             REQUIRE(actual);
                             CHECK(actual->price() == expected->price());

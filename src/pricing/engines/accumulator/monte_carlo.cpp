@@ -106,11 +106,11 @@ Result<void> validate_pricing(const Accumulator& option, const PricingContext& c
 }
 
 template <std::size_t count>
-Result<PricingResult> price_spot_bumps(
+Result<std::array<double, count>> price_spot_bumps(
     const Accumulator& option, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
-    GreeksRequest greeks, double h)
+    double h)
 {
-    constexpr std::array offsets{0.0, 1.0, -1.0, 2.0, -2.0};
+    constexpr std::array offsets = count == 2 ? std::array{1.0, -1.0, 0.0, 0.0, 0.0} : std::array{0.0, 1.0, -1.0, 2.0, -2.0};
     std::array<PathState, count> initial{};
     for (std::size_t i = 0; i < count; ++i) {
         const double spot = context.spot_price() + offsets[i] * h;
@@ -144,13 +144,7 @@ Result<PricingResult> price_spot_bumps(
         if (!value) return std::unexpected(value.error());
         prices[i] = *value;
     }
-    std::optional<double> speed;
-    if constexpr (count == 5)
-        speed = (prices[3] - 2.0 * prices[1] + 2.0 * prices[2] - prices[4]) / h / h / (2.0 * h);
-    return make_pricing_result(prices[0],
-                               {{Greek::delta, greeks.has(Greek::delta) ? std::optional{(prices[1] - prices[2]) / (2.0 * h)} : std::nullopt},
-                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{(prices[1] - 2.0 * prices[0] + prices[2]) / h / h} : std::nullopt},
-                                {Greek::speed, speed}});
+    return prices;
 }
 
 } // namespace
@@ -188,8 +182,8 @@ Result<double> MonteCarloAccumulatorEngine::price(
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& seeded) -> Result<PricingResult> {
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+                                         const auto native = [&]() -> Result<PricingResult> {
                                          const auto valid = validate_pricing(option, context, seeded.settings());
                                          if (!valid) return std::unexpected(valid.error());
                                          const double spot = context.spot_price();
@@ -204,13 +198,30 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
                                              !at_spot_discontinuity(option, context, h) &&
                                              (!greeks.has(Greek::speed) || speed_available)) {
                                              if (greeks.has(Greek::speed))
-                                                 return price_spot_bumps<5>(option, context, seeded.settings(), greeks, h);
-                                             return price_spot_bumps<3>(option, context, seeded.settings(), greeks, h);
+                                                 return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h), greeks, h);
+                                             return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h), greeks, h);
                                          }
                                          const auto value = seeded.price(option, context);
                                          if (!value) return std::unexpected(value.error());
                                          return make_pricing_result(*value);
-                                     });
+                                         }();
+                                         if (!native) return std::unexpected(native.error());
+                                         const double h = symmetric_shift(context.spot_price(), settings.spot_shift);
+                                         const bool mixed = seeded.settings().backend == MonteCarloBackend::cpu &&
+                                                            (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
+                                                            context.spot_price() > h && !at_spot_discontinuity(option, context, h);
+                                         const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
+                                             const auto valid = validate_pricing(option, shifted, seeded.settings());
+                                             if (!valid) return std::unexpected(valid.error());
+                                             if (center) return price_spot_bumps<3>(option, shifted, seeded.settings(), shift);
+                                             const auto values = price_spot_bumps<2>(option, shifted, seeded.settings(), shift);
+                                             if (!values) return std::unexpected(values.error());
+                                             return std::array{0.0, (*values)[0], (*values)[1]};
+                                         };
+                                         const MonteCarloMixedPricer prices{seeded, context, mixed ? h : 0.0,
+                                                                            symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
+                                                                            greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
+                                         return detail::complete_greeks(prices, option, context, greeks, settings, *native); }, true);
 }
 
 } // namespace kiyosi

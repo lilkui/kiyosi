@@ -230,6 +230,45 @@ class SharedSampleTests(unittest.TestCase):
                     self.assertEqual(result.price, middle)
                     self.assertEqual(result.delta, (high - low) / (2 * h))
                     self.assertEqual(result.gamma, (high - 2 * middle + low) / h / h)
+                    vol_shift = (0.2 + 0.01) - 0.2
+                    stencils = []
+                    for vol in (0.2 + vol_shift, 0.2 - vol_shift):
+                        model = BlackScholesMertonParameters(
+                            risk_free_rate=0.04, dividend_yield=0.01, volatility=vol
+                        )
+                        stencils.append(
+                            [
+                                engine.price(
+                                    option,
+                                    PricingContext(
+                                        model_parameters=model,
+                                        spot_price=value,
+                                        valuation_time=valuation,
+                                    ),
+                                )
+                                for value in (spot, spot + h, spot - h)
+                            ]
+                        )
+                    (center_hi, up_hi, down_hi), (center_lo, up_lo, down_lo) = stencils
+                    vanna = ((up_hi - down_hi) - (up_lo - down_lo)) / (
+                        4 * h * (100 * vol_shift)
+                    )
+                    zomma = (
+                        (up_hi - 2 * center_hi + down_hi) / h / h
+                        - (up_lo - 2 * center_lo + down_lo) / h / h
+                    ) / (2 * (100 * vol_shift))
+                    for names in (["vanna"], ["zomma"], ["vega", "vanna", "zomma"]):
+                        selected = engine.price_with_greeks(
+                            option,
+                            contexts[1],
+                            names,
+                            spot_shift=shift,
+                            volatility_shift=0.01,
+                        )
+                        if "vanna" in names:
+                            self.assertEqual(selected.vanna, vanna)
+                        if "zomma" in names:
+                            self.assertEqual(selected.zomma, zomma)
 
     def test_failures_and_concurrent_requests_preserve_the_engine(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

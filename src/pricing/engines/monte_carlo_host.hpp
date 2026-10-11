@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cmath>
 #include <new>
 #include <random>
@@ -16,6 +17,56 @@
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
+
+template <std::size_t count>
+Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
+{
+    if (!prices) return std::unexpected(prices.error());
+    std::optional<double> speed;
+    if constexpr (count == 5)
+        speed = ((*prices)[3] - 2.0 * (*prices)[1] + 2.0 * (*prices)[2] - (*prices)[4]) / h / h / (2.0 * h);
+    return make_pricing_result((*prices)[0],
+                               {{Greek::delta, greeks.has(Greek::delta) ? std::optional{((*prices)[1] - (*prices)[2]) / (2.0 * h)} : std::nullopt},
+                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{((*prices)[1] - 2.0 * (*prices)[0] + (*prices)[2]) / h / h} : std::nullopt},
+                                {Greek::speed, speed}});
+}
+
+// Cache the two volatility stencils as scalar prices, retaining the shared Greek arithmetic.
+template <typename Engine, typename Sample>
+struct MonteCarloMixedPricer {
+    const Engine& engine;
+    const PricingContext& base;
+    double h;
+    double volatility_shift;
+    bool center;
+    Sample sample;
+    mutable std::array<std::optional<std::array<double, 3>>, 2> prices{};
+
+    template <typename Option>
+    Result<double> price(const Option& option, const PricingContext& context) const
+    {
+        const auto& model = context.model_parameters();
+        const auto& initial = base.model_parameters();
+        const double volatility = initial.volatility();
+        const int index = model.volatility() == volatility + volatility_shift ? 0 : 1;
+        const double spot = base.spot_price();
+        const int node = context.spot_price() == spot ? 0 : context.spot_price() == spot + h ? 1
+                                                                                             : 2;
+        if (h == 0.0 || volatility_shift == 0.0 || model.volatility() != volatility + (index == 0 ? volatility_shift : -volatility_shift) ||
+            model.risk_free_rate() != initial.risk_free_rate() || model.dividend_yield() != initial.dividend_yield() ||
+            context.valuation_time() != base.valuation_time() || (node == 2 && context.spot_price() != spot - h))
+            return engine.price(option, context);
+        auto& cached = prices[static_cast<std::size_t>(index)];
+        if (!cached) {
+            const auto shifted = make_pricing_context(model, spot, context.valuation_time(), context.calendar());
+            if (!shifted) return std::unexpected(shifted.error());
+            const auto values = sample(*shifted, h, center);
+            if (!values) return std::unexpected(values.error());
+            cached = *values;
+        }
+        return (*cached)[static_cast<std::size_t>(node)];
+    }
+};
 
 template <typename PathPayoff>
 Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
