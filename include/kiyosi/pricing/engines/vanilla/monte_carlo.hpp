@@ -39,7 +39,23 @@ public:
     [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
     [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,
-                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
+                                                          GreeksRequest greeks, NumericalShiftSettings settings) const;
+
+    /// American exercise decisions amplify small-bump sampling noise. The default spot bump
+    /// is 8% of spot; other shifts retain NumericalShiftSettings defaults. Explicit shifts are absolute.
+    /// Estimates still have sampling error and bump-size bias; check convergence for the valuation.
+    [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,
+                                                          GreeksRequest greeks) const
+    {
+        return price_with_greeks(option, context, greeks,
+                                 {.spot_shift = default_american_spot_shift(context)});
+    }
+
+    /// Core-owned default shared by C++ and language bindings.
+    [[nodiscard]] static double default_american_spot_shift(const PricingContext& context) noexcept
+    {
+        return 0.08 * context.spot_price();
+    }
 
     /// Returns the engine settings.
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }

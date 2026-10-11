@@ -10,7 +10,7 @@ namespace {
 static_assert(EnumNames<Greek>::values.size() == greek_count);
 
 NumericalShiftSettings numerical_settings(
-    nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
+    double spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days);
 
 GreeksRequest requested_greeks(nb::handle value)
@@ -45,6 +45,11 @@ template <typename Engine, typename Instrument>
 void bind_engine_price(nb::module_& module, nb::class_<Engine>& binding)
 {
     bind_analytics_pair<Engine, Instrument>(module);
+    constexpr bool american_mc = std::same_as<Engine, MonteCarloVanillaEngine> && std::same_as<Instrument, AmericanOption>;
+    using SpotShift = std::conditional_t<american_mc, nb::typed<nb::handle, std::optional<double>>, PythonReal>;
+    nb::object default_spot_shift;
+    if constexpr (american_mc) default_spot_shift = nb::none();
+    else default_spot_shift = nb::float_(NumericalShiftSettings{}.spot_shift);
     // Releasing the GIL costs more than these short scalar formulas.
     constexpr bool keep_gil = std::same_as<Engine, AnalyticVanillaEngine> ||
                               std::same_as<Engine, AnalyticDigitalEngine> ||
@@ -87,21 +92,27 @@ is deferred until the synchronous core computation returns.)doc");
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonGreekRequest greeks, nb::typed<nb::handle, bool> all_greeks, PythonReal spot_shift, PythonReal volatility_shift,
+           PythonGreekRequest greeks, nb::typed<nb::handle, bool> all_greeks, SpotShift spot_shift, PythonReal volatility_shift,
            PythonReal rate_shift, PythonInteger time_shift_days) {
             if (!PyBool_Check(all_greeks.ptr())) type_error("all_greeks", "a bool");
             const bool all = all_greeks.ptr() == Py_True;
             if (all && !greeks.is_none()) type_error("greeks", "omitted when all_greeks is True");
             if (!all && greeks.is_none()) type_error("greeks", "provided unless all_greeks is True");
             const GreeksRequest request = all ? GreeksRequest{true} : requested_greeks(greeks);
+            const double spot = [&] {
+                if constexpr (american_mc) {
+                    if (spot_shift.is_none()) return Engine::default_american_spot_shift(context);
+                }
+                return real_number(spot_shift, "spot_shift");
+            }();
             const auto settings = numerical_settings(
-                spot_shift, volatility_shift, rate_shift, time_shift_days);
+                spot, volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
             return unwrap(engine.price_with_greeks(instrument, context, request, settings));
         },
         "instrument"_a, "context"_a, "greeks"_a = nb::none(), nb::kw_only(),
         "all_greeks"_a = false,
-        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
+        "spot_shift"_a.none() = default_spot_shift,
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
@@ -119,6 +130,9 @@ sensitivities remain None while feasible rate and volatility sensitivities survi
 Shift keyword arguments are absolute, use core-owned defaults, and follow
 calculate_numerical_greeks. Monte Carlo valuations share one seed per
 request without changing the engine. Concurrent calls are safe.
+For American Monte Carlo, omitted or None spot_shift uses 8% of spot to reduce
+exercise-decision sampling noise. Explicit shifts remain absolute. Sampling error
+and bump-size bias remain; check convergence for the valuation.
 
 Returns
 -------
@@ -270,10 +284,10 @@ OverflowError
 }
 
 NumericalShiftSettings numerical_settings(
-    nb::handle spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
+    double spot_shift, nb::handle volatility_shift, nb::handle rate_shift,
     nb::handle time_shift_days)
 {
-    return {real_number(spot_shift, "spot_shift"),
+    return {spot_shift,
             real_number(volatility_shift, "volatility_shift"),
             real_number(rate_shift, "rate_shift"), integer(time_shift_days, "time_shift_days")};
 }
@@ -298,7 +312,7 @@ void bind_analytics_pair(nb::module_& module)
            PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
            PythonInteger time_shift_days) {
             const auto settings = numerical_settings(
-                spot_shift, volatility_shift, rate_shift, time_shift_days);
+                real_number(spot_shift, "spot_shift"), volatility_shift, rate_shift, time_shift_days);
             nb::gil_scoped_release release;
             return unwrap(kiyosi::calculate_numerical_greeks(engine, instrument, context, settings));
         },

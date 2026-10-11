@@ -26,13 +26,13 @@ TEST_CASE("CUDA Greek workspaces preserve scalar stencils and concurrent request
         const auto scalar = detail::price_with_greeks(engine, option, context, true, {});
         REQUIRE(scalar);
         for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma}}) {
-            const auto result = engine.price_with_greeks(option, context, request);
+            const auto result = engine.price_with_greeks(option, context, request, {});
             REQUIRE(result);
             CHECK(result->price() == scalar->price());
             CHECK(result->values_view() == scalar->selected(request).values_view());
         }
-        auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
-        auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+        auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true, {}); });
+        auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true, {}); });
         for (auto* future : {&first, &second}) {
             const auto result = future->get();
             REQUIRE(result);
@@ -744,10 +744,38 @@ TEST_CASE("American Monte Carlo rate Greeks retain one estimator across zero", "
         const double expected = (exercise_value(rate + shift) - exercise_value(rate - shift)) / (200.0 * shift);
         CHECK_THAT(*rho->require(Greek::rho), Catch::Matchers::WithinAbs(expected, 1e-10));
         CHECK(*all->require(Greek::rho) == *rho->require(Greek::rho));
-        const auto spot = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        const auto spot = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma}, shifts);
         REQUIRE(spot);
         CHECK(all->get(Greek::delta) == spot->get(Greek::delta));
         CHECK(all->get(Greek::gamma) == spot->get(Greek::gamma));
+    }
+}
+
+TEST_CASE("American Monte Carlo default spot Greeks converge across seeds and price scales", "[mc-regression]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto model = *make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto reference_option = *make_american_option(OptionType::put, 100.0, start, end);
+    const auto reference_context = *make_pricing_context(model, 100.0, start);
+    const auto reference = FiniteDifferenceVanillaEngine{1200, 1200}.price_with_greeks(
+        reference_option, reference_context, {Greek::delta, Greek::gamma});
+    REQUIRE(reference);
+    for (const double scale : {0.01, 1.0, 100.0}) {
+        const auto option = *make_american_option(OptionType::put, 100.0 * scale, start, end);
+        const auto context = *make_pricing_context(model, 100.0 * scale, start);
+        for (const std::uint64_t seed : {1, 7, 42}) {
+            CAPTURE(scale, seed);
+            const MonteCarloVanillaEngine engine{100'000, 50, seed};
+            const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+            REQUIRE(result);
+            CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(*reference->require(Greek::delta), 0.02));
+            CHECK_THAT(*result->require(Greek::gamma) * scale, Catch::Matchers::WithinAbs(*reference->require(Greek::gamma), 0.004));
+            const auto explicit_result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma},
+                                                                  {.spot_shift = 8.0 * scale});
+            REQUIRE(explicit_result);
+            CHECK(result->values_view() == explicit_result->values_view());
+        }
     }
 }
 

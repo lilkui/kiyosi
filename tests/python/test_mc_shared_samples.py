@@ -35,6 +35,49 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    def test_american_default_spot_greeks_converge_across_seeds_and_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        for scale in (0.01, 1.0, 100.0):
+            option = AmericanOption(
+                option_type="put",
+                strike=100 * scale,
+                effective_date=start,
+                expiry_date=end,
+            )
+            context = PricingContext(
+                model_parameters=model, spot_price=100 * scale, valuation_time=start
+            )
+            reference = pricing.FiniteDifferenceVanillaEngine(
+                asset_step_count=1200, time_step_count=1200
+            ).price_with_greeks(option, context, ["delta", "gamma"])
+            for seed in (1, 7, 42):
+                with self.subTest(scale=scale, seed=seed):
+                    engine = pricing.MonteCarloVanillaEngine(
+                        path_count=100000, step_count=50, seed=seed
+                    )
+                    result = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"]
+                    )
+                    self.assertAlmostEqual(result.delta, reference.delta, delta=0.02)
+                    self.assertAlmostEqual(
+                        result.gamma * scale, reference.gamma * scale, delta=0.004
+                    )
+                    explicit = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"], spot_shift=8 * scale
+                    )
+                    automatic = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"], spot_shift=None
+                    )
+                    self.assertEqual(
+                        (result.delta, result.gamma), (explicit.delta, explicit.gamma)
+                    )
+                    self.assertEqual(
+                        (result.delta, result.gamma), (automatic.delta, automatic.gamma)
+                    )
+
     def test_implied_volatility_recovers_seeded_quotes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction in ("call", "put"):
