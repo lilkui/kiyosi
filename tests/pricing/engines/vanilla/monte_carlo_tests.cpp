@@ -16,6 +16,37 @@
 #include "pricing/engines/monte_carlo_mean.hpp"
 
 #if KIYOSI_HAS_CUDA
+#include <cuda_runtime.h>
+
+TEST_CASE("Unavailable European CUDA Greeks retain the scalar memory footprint", "[cuda][mc-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::put, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const MonteCarloVanillaEngine engine{100'001, 50, 42, MonteCarloBackend::cuda};
+    REQUIRE(engine.price(option, context));
+    int device = 0;
+    cudaMemPool_t pool{};
+    REQUIRE(cudaGetDevice(&device) == cudaSuccess);
+    REQUIRE(cudaDeviceGetDefaultMemPool(&pool, device) == cudaSuccess);
+    const auto measure = [&](const auto& evaluate) {
+        std::uint64_t peak = 0;
+        REQUIRE(cudaMemPoolSetAttribute(pool, cudaMemPoolAttrUsedMemHigh, &peak) == cudaSuccess);
+        const auto result = evaluate();
+        REQUIRE(result);
+        REQUIRE(cudaMemPoolGetAttribute(pool, cudaMemPoolAttrUsedMemHigh, &peak) == cudaSuccess);
+        return std::pair{*result, peak};
+    };
+    const auto scalar = measure([&] { return engine.price(option, context); });
+    const auto unavailable = measure([&] {
+        return engine.price_with_greeks(option, context, {Greek::delta}, {.spot_shift = 200.0});
+    });
+    CHECK(unavailable.first.price() == scalar.first);
+    CHECK_FALSE(unavailable.first.has(Greek::delta));
+    CHECK(unavailable.second == scalar.second);
+}
+
 TEST_CASE("CUDA Greek workspaces preserve scalar stencils and concurrent requests", "[cuda][cuda-workspace]")
 {
     using namespace kiyosi;

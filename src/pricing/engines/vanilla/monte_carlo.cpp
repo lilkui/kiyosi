@@ -453,7 +453,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
               (greeks.has(Greek::speed) && speed_available) ||
               (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)))));
         // Stream a single price without sample storage; shared completion still decides availability.
-        if (seeded.settings().backend == MonteCarloBackend::cpu && !cache_samples)
+        if (!cache_samples)
             return detail::price_with_greeks(seeded, option, context, greeks, settings);
         const EuropeanMonteCarloSamples samples{seeded.settings()};
         const auto value = samples.price(option, context);

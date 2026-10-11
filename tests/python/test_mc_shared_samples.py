@@ -44,46 +44,57 @@ class SharedSampleTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        engine = pricing.MonteCarloVanillaEngine(path_count=513, step_count=50, seed=42)
-        names = tuple(name for name in GREEKS if name != "theta")
-        for direction in ("call", "put"):
-            option = EuropeanOption(
-                option_type=direction, strike=100, effective_date=start, expiry_date=end
+        backends = (
+            ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        )
+        for backend in backends:
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=513, step_count=50, seed=42, backend=backend
             )
-            scalar = engine.price(option, context)
-            for name in names:
-                shifts = (
-                    {"rate_shift": 1e307}
-                    if name == "rho"
-                    else {"volatility_shift": 0.3}
-                    if name in ("vega", "vanna", "zomma")
-                    else {"spot_shift": 60}
-                    if name == "speed"
-                    else {"spot_shift": 200}
+            names = tuple(name for name in GREEKS if name != "theta")
+            for direction in ("call", "put"):
+                option = EuropeanOption(
+                    option_type=direction,
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
                 )
-                with self.subTest(direction=direction, greek=name):
-                    result = engine.price_with_greeks(option, context, name, **shifts)
-                    self.assertEqual(result.price, scalar)
+                scalar = engine.price(option, context)
+                for name in names:
+                    shifts = (
+                        {"rate_shift": 1e307}
+                        if name == "rho"
+                        else {"volatility_shift": 0.3}
+                        if name in ("vega", "vanna", "zomma")
+                        else {"spot_shift": 60}
+                        if name == "speed"
+                        else {"spot_shift": 200}
+                    )
+                    with self.subTest(backend=backend, direction=direction, greek=name):
+                        result = engine.price_with_greeks(
+                            option, context, name, **shifts
+                        )
+                        self.assertEqual(result.price, scalar)
+                        self.assertIsNone(getattr(result, name))
+                result = engine.price_with_greeks(
+                    option,
+                    context,
+                    names,
+                    spot_shift=200,
+                    volatility_shift=0.3,
+                    rate_shift=1e307,
+                )
+                self.assertEqual(result.price, scalar)
+                for name in names:
                     self.assertIsNone(getattr(result, name))
-            result = engine.price_with_greeks(
-                option,
-                context,
-                names,
-                spot_shift=200,
-                volatility_shift=0.3,
-                rate_shift=1e307,
-            )
-            self.assertEqual(result.price, scalar)
-            for name in names:
-                self.assertIsNone(getattr(result, name))
-            mixed = engine.price_with_greeks(
-                option, context, ["delta", "vega"], spot_shift=200
-            )
-            expected = pricing.calculate_numerical_greeks(
-                engine, option, context, spot_shift=200
-            )
-            self.assertEqual(mixed.vega, expected.vega)
-            self.assertIsNone(mixed.delta)
+                mixed = engine.price_with_greeks(
+                    option, context, ["delta", "vega"], spot_shift=200
+                )
+                expected = pricing.calculate_numerical_greeks(
+                    engine, option, context, spot_shift=200
+                )
+                self.assertEqual(mixed.vega, expected.vega)
+                self.assertIsNone(mixed.delta)
 
     def test_unavailable_speed_preserves_finite_price(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
