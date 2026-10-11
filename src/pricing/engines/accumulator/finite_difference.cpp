@@ -77,13 +77,17 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const std::size_t size = space->size();
     std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
     seed_expiry_layers(option, *space, slope, intercept);
+    const bool has_future_purchases = option.daily_quantity() != 0.0;
 
     LinearBoundaryStepper stepper(
         size, space->upper, space->spacing,
         DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double dt = grid.time_steps[step];
-        if (!stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt))
+        const bool advanced = has_future_purchases
+                                  ? stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt)
+                                  : stepper.advance(slope, next_slope, dt);
+        if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         if (std::ranges::binary_search(trading_times, grid.times[step])) {

@@ -141,3 +141,9 @@ the cash/asset binary matrix cases fell from 166/157 ns to 121/110 ns, and
 cash/asset touches from 174/166 ns to 119/113 ns (three repetitions, 0.15 s
 minimum). Prices were unchanged; QuantLib references and C++/Python in-out
 parity checks cover the formula branches and strikes at the barrier.
+
+The fixed-quantity accumulator case keeps three accumulated units and no future
+purchases. Its FD rollback advances only the accumulated-unit layer. On the same
+machine and compiler, median wall time fell from 1.548 to 1.439 ms (three
+repetitions, 0.15 s minimum), with an unchanged price. C++ and Python checks
+preserve price/delta/gamma accrual linearity across all three FD schemes.

@@ -144,6 +144,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/barrier/fd/price", barrier, barrier_engine, base_context);
     register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);
+    const auto fixed_accumulator = *make_accumulator(
+        {.strike = 50.0, .knock_out_level = 200.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 3.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+    register_price("analytics/kiyosi/accumulator/fd/fixed_quantity/price", fixed_accumulator, accumulator_engine, context);
     const auto empty_accumulator = *make_accumulator(
         {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 0.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/zero_exposure/price", empty_accumulator, accumulator_engine, context);

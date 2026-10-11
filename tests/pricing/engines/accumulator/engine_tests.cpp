@@ -82,6 +82,32 @@ TEST_CASE("Accumulator finite-difference spot Greeks reuse one solve", "[fd-perf
     CHECK_FALSE(result->has(Greek::vega));
 }
 
+TEST_CASE("Accumulator fixed-quantity finite differences preserve accrual linearity", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0,
+                                               start_of_day(start) + std::chrono::hours{12});
+    const auto option = [&](double daily, double accumulated) {
+        return *make_accumulator({.strike = 90.0, .knock_out_level = 110.0, .daily_quantity = daily, .acceleration_factor = 2.0, .accumulated_quantity = accumulated, .effective_date = start, .expiry_date = end});
+    };
+    for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
+                              FiniteDifferenceScheme::crank_nicolson}) {
+        CAPTURE(scheme);
+        const FiniteDifferenceAccumulatorEngine engine{{.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}};
+        const auto fixed = engine.price_with_greeks(option(0.0, 3.0), context, {Greek::delta, Greek::gamma});
+        const auto with_purchases = engine.price_with_greeks(option(1.0, 3.0), context, {Greek::delta, Greek::gamma});
+        const auto purchases_only = engine.price_with_greeks(option(1.0, 0.0), context, {Greek::delta, Greek::gamma});
+        REQUIRE(fixed);
+        REQUIRE(with_purchases);
+        REQUIRE(purchases_only);
+        CHECK(fixed->price() == Catch::Approx(with_purchases->price() - purchases_only->price()).margin(1e-9));
+        for (const auto greek : {Greek::delta, Greek::gamma})
+            CHECK(test::greek_value(*fixed, greek) ==
+                  Catch::Approx(test::greek_value(*with_purchases, greek) - test::greek_value(*purchases_only, greek)).margin(1e-10));
+    }
+}
+
 double reference_accumulator_price(const kiyosi::Accumulator& option,
                                    const kiyosi::PricingContext& context,
                                    kiyosi::TradingDayMonteCarloSettings settings)

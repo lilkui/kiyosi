@@ -21,6 +21,47 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_accumulator_fixed_quantity_preserves_accrual_linearity(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+        )
+        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            with self.subTest(scheme=scheme):
+                engine = pricing.FiniteDifferenceAccumulatorEngine(
+                    asset_step_count=40,
+                    time_step_count=200,
+                    asset_upper_boundary=440,
+                    scheme=scheme,
+                )
+                results = [
+                    engine.price_with_greeks(
+                        Accumulator(
+                            strike=90,
+                            knock_out_level=110,
+                            daily_quantity=daily,
+                            acceleration_factor=2,
+                            accumulated_quantity=accumulated,
+                            effective_date=start,
+                            expiry_date=end,
+                        ),
+                        context,
+                        ["delta", "gamma"],
+                    )
+                    for daily, accumulated in ((0, 3), (1, 3), (1, 0))
+                ]
+                fixed, with_purchases, purchases_only = results
+                for name in ("price", "delta", "gamma"):
+                    self.assertAlmostEqual(
+                        getattr(fixed, name),
+                        getattr(with_purchases, name) - getattr(purchases_only, name),
+                        delta=1e-9 if name == "price" else 1e-10,
+                    )
+
     def test_binary_barrier_branches_preserve_in_out_parity(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
