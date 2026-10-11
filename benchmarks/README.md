@@ -50,6 +50,13 @@ On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall time
 falling from 43.069 ms to 4.726 ms (three repetitions, 0.15 s minimum), with
 the recovered coupon remaining 0.08.
 
+Python analytic vanilla `price_with_greeks` retains the GIL for its short native
+formulas. On 2026-10-11, CPython 3.14 with Release MSVC 19.51 on a Ryzen 9 5900X,
+20,000 selected-delta calls per thread took 7.212 ms before and 6.446 ms after on
+one thread, and 45.088 ms before and 25.811 ms after on four threads (median of
+five repetitions). Each repetition used one shared engine, European call and
+context from the common market below. Numerical engines still release the GIL.
+
 The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
 prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
 the interpolated coupon with a separate price. Bounds that require different

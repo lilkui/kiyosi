@@ -111,6 +111,35 @@ class PricingRegressionTests(unittest.TestCase):
                     (9.227005508154036, 6.330080627549918)[index % 2],
                     places=12,
                 )
+            names = (
+                "delta",
+                "gamma",
+                "speed",
+                "theta",
+                "charm",
+                "color",
+                "vega",
+                "vanna",
+                "zomma",
+                "rho",
+            )
+            expected = [
+                engine.price_with_greeks(option, context, all_greeks=True)
+                for option in options
+            ]
+            tasks = [
+                executor.submit(
+                    engine.price_with_greeks, option, context, all_greeks=True
+                )
+                for option in options * 50
+            ]
+            for index, task in enumerate(tasks):
+                actual, reference = task.result(), expected[index % 2]
+                self.assertEqual(actual.price, reference.price)
+                self.assertEqual(
+                    tuple(getattr(actual, name) for name in names),
+                    tuple(getattr(reference, name) for name in names),
+                )
 
     def test_continuous_up_barriers_preserve_put_boundaries_and_rebate_timing(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

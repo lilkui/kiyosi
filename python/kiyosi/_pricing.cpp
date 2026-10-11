@@ -107,8 +107,12 @@ is deferred until the synchronous core computation returns.)doc");
             }();
             const auto settings = numerical_settings(
                 spot, volatility_shift, rate_shift, time_shift_days);
-            nb::gil_scoped_release release;
-            return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+            if constexpr (std::same_as<Engine, AnalyticVanillaEngine>) {
+                return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+            } else {
+                nb::gil_scoped_release release;
+                return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+            }
         },
         "instrument"_a, "context"_a, "greeks"_a = nb::none(), nb::kw_only(),
         "all_greeks"_a = false,
