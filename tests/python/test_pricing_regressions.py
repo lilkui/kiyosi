@@ -28,6 +28,97 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_continuous_up_barriers_preserve_put_boundaries_and_rebate_timing(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04,
+                dividend_yield=0.01,
+                volatility=0.2,
+            ),
+            spot_price=100.25,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        # References before skipping the discarded vanilla upper-boundary formula.
+        cases = (
+            (
+                "crank_nicolson",
+                "at_hit",
+                6.001295273660669,
+                -0.46100327414769354,
+                0.012094195366788239,
+                -0.000720165080800371,
+            ),
+            (
+                "crank_nicolson",
+                "at_expiry",
+                5.965452933440826,
+                -0.46428370491099064,
+                0.01188517039188602,
+                -0.0007257293326437646,
+            ),
+            (
+                "implicit_euler",
+                "at_hit",
+                6.000291212030822,
+                -0.46094055012576535,
+                0.012105234989577161,
+                -0.0007214011673570921,
+            ),
+            (
+                "implicit_euler",
+                "at_expiry",
+                5.964442597640509,
+                -0.46422044616223535,
+                0.011896243851421412,
+                -0.0007269705471180208,
+            ),
+            (
+                "explicit_euler",
+                "at_hit",
+                6.002297864958332,
+                -0.4610659998773655,
+                0.012083194022974213,
+                -0.0007189321115608181,
+            ),
+            (
+                "explicit_euler",
+                "at_expiry",
+                5.966461797161821,
+                -0.46434696546546267,
+                0.011874135281227763,
+                -0.0007244912412884592,
+            ),
+        )
+        for scheme, timing, price, delta, gamma, speed in cases:
+            with self.subTest(scheme=scheme, timing=timing):
+                option = BarrierOption(
+                    option_type="put",
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                    barrier_level=110,
+                    barrier_type="up_and_out",
+                    rebate=2,
+                    rebate_timing=timing,
+                )
+                engine = pricing.FiniteDifferenceBarrierEngine(
+                    asset_step_count=80,
+                    time_step_count=1000,
+                    scheme=scheme,
+                    asset_upper_boundary=400,
+                )
+                result = engine.price_with_greeks(
+                    option, context, ["delta", "gamma", "speed"]
+                )
+                for name, expected in zip(
+                    ("price", "delta", "gamma", "speed"), (price, delta, gamma, speed)
+                ):
+                    self.assertIsNotNone(getattr(result, name))
+                    self.assertAlmostEqual(getattr(result, name), expected, delta=1e-11)
+                self.assertEqual(result.price, engine.price(option, context))
+
     def test_accumulator_mc_joint_spot_greeks_preserve_scalar_seeded_valuations(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         option = Accumulator(

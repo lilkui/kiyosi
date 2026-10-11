@@ -19,6 +19,35 @@ using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
 
+TEST_CASE("Continuous up barriers preserve put boundaries and rebate timing", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start, all_days_calendar());
+    const GreeksRequest request{Greek::delta, Greek::gamma, Greek::speed};
+    // References before skipping the upper boundary's discarded vanilla formula.
+    for (const auto& [scheme, timing, price, delta, gamma, speed] : {
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_hit, 6.001295273660669, -0.46100327414769354, 0.012094195366788239, -0.000720165080800371},
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_expiry, 5.965452933440826, -0.46428370491099064, 0.01188517039188602, -0.0007257293326437646},
+             std::tuple{FiniteDifferenceScheme::implicit_euler, RebateTiming::at_hit, 6.000291212030822, -0.46094055012576535, 0.012105234989577161, -0.0007214011673570921},
+             std::tuple{FiniteDifferenceScheme::implicit_euler, RebateTiming::at_expiry, 5.964442597640509, -0.46422044616223535, 0.011896243851421412, -0.0007269705471180208},
+             std::tuple{FiniteDifferenceScheme::explicit_euler, RebateTiming::at_hit, 6.002297864958332, -0.4610659998773655, 0.012083194022974213, -0.0007189321115608181},
+             std::tuple{FiniteDifferenceScheme::explicit_euler, RebateTiming::at_expiry, 5.966461797161821, -0.46434696546546267, 0.011874135281227763, -0.0007244912412884592}}) {
+        CAPTURE(scheme, timing);
+        const auto option = *make_barrier_option({.option_type = OptionType::put, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0, .rebate_timing = timing});
+        const FiniteDifferenceBarrierEngine engine{{80, 1000, scheme, 400.0}};
+        const auto result = engine.price_with_greeks(option, context, request);
+        REQUIRE(result);
+        for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed})
+            REQUIRE(result->has(greek));
+        CHECK_THAT(result->price(), Catch::Matchers::WithinAbs(price, 1e-11));
+        CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(delta, 1e-12));
+        CHECK_THAT(*result->require(Greek::gamma), Catch::Matchers::WithinAbs(gamma, 1e-12));
+        CHECK_THAT(*result->require(Greek::speed), Catch::Matchers::WithinAbs(speed, 1e-11));
+        CHECK(*engine.price(option, context) == result->price());
+    }
+}
+
 TEST_CASE("Continuous barrier fixed edges retain off-node prices and Greeks", "[fd-performance]")
 {
     using namespace kiyosi;

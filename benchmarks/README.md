@@ -292,3 +292,14 @@ analytics suite includes `accumulator/mc/price` and `accumulator/mc/delta_gamma`
 C++ and Python checks cover odd/even path counts, seeds, early knock-out,
 different accrual branches, unavailable event-boundary Greeks and expiry;
 C++ also checks failures, concurrent calls and unseeded settings.
+
+Continuous up-barrier FD boundaries return the rebate directly instead of
+computing a vanilla upper-boundary value that is immediately replaced. A
+2026-10-11 Release MSVC comparison using spot 100.25, strike 100 and barrier 110
+measured 114.6 to 104.9 us for an 80-by-200 grid, 265.0 to 252.7 us for 200-by-200,
+and 553.4 to 510.4 us for 80-by-1000 (median of seven batches of 300 prices).
+All 144 checked scenarios retained identical price, delta, gamma and speed
+across three schemes, both option and barrier directions, knock-in/out,
+continuous/scheduled monitoring, zero/nonzero rebates and valid rebate timings.
+C++ and Python regressions retain put price and spot-Greek references for both
+rebate timings, including the nonzero lower boundary.

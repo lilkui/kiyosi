@@ -83,6 +83,9 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         for (int index = 0; index <= asset_step_count; ++index)
             if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
+        if (option.observation_mode() == ObservationMode::continuous && upper_barrier)
+            return Boundaries{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
+                              rebate_value(tau)};
         Boundaries edges = vanilla_boundary(tau);
         if (option.observation_mode() == ObservationMode::continuous) {
             if (knocked(0.0)) edges.lower = rebate_value(tau);
