@@ -25,7 +25,7 @@ public:
     [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    /// Delta and gamma reuse the solved layers; vanna and zomma difference shifted native delta and gamma.
+    /// Delta and gamma reuse the solved layers; vanna/zomma and charm/color difference native delta/gamma shifted in volatility and time.
     /// Other measures use numerical price differences.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;

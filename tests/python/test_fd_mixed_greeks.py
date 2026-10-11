@@ -7,7 +7,32 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class FiniteDifferenceMixedGreekTests(unittest.TestCase):
-    def test_mixed_volatility_greeks_track_analytic_sensitivities(self):
+    def test_charm_at_effective_date_remains_selective(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+            option, context, ["charm"]
+        )
+        actual = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=400, time_step_count=400
+        ).price_with_greeks(option, context, ["charm"])
+        self.assertAlmostEqual(
+            actual.charm, expected.charm, delta=abs(expected.charm) * 0.02 + 1e-7
+        )
+        self.assertIsNone(actual.delta)
+        self.assertIsNone(actual.gamma)
+        self.assertIsNone(actual.color)
+
+    def test_mixed_greeks_track_analytic_sensitivities(self):
         option = EuropeanOption(
             option_type="call",
             strike=100,
@@ -21,7 +46,7 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
             spot_price=100,
             valuation_time=date(2025, 7, 1),
         )
-        request = ["vanna", "zomma"]
+        request = ["vanna", "zomma", "charm", "color"]
         expected = pricing.AnalyticVanillaEngine().price_with_greeks(
             option, context, request
         )

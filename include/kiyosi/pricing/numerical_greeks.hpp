@@ -323,21 +323,50 @@ Result<PricingResult> complete_greeks(
                     }
         }
         if (!spot_discontinuity && time_stencil_available && before != after) {
-            const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color));
-            const auto t_before = !need_time_prices || before == valuation_time
-                                      ? p0
-                                      : detail::shifted_value(
-                                            engine, option, context, spot, volatility, rate, before);
+            std::optional<PricingResult> native_before, native_after;
+            if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+                const bool native_time_stencil_available = (before != valuation_time && after != valuation_time) ||
+                                                           ((!need(Greek::charm) || native.has(Greek::delta)) && (!need(Greek::color) || native.has(Greek::gamma)));
+                if (spot_stencil_available && native_time_stencil_available && (need(Greek::charm) || need(Greek::color))) {
+                    const auto evaluate = [&](Timestamp time) -> Result<PricingResult> {
+                        if (time == valuation_time) return native;
+                        const auto shifted = shifted_context(context, spot, volatility, rate, time);
+                        if (!shifted) return std::unexpected(shifted.error());
+                        const GreeksRequest derivatives = need(Greek::charm)
+                                                              ? (need(Greek::color) ? GreeksRequest{Greek::delta, Greek::gamma} : GreeksRequest{Greek::delta})
+                                                              : GreeksRequest{Greek::gamma};
+                        auto result = evaluate_native(engine, *shifted, derivatives);
+                        const auto value = price_value(result);
+                        if (!value) return std::unexpected(value.error());
+                        if (!result->all_finite())
+                            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+                        return result;
+                    };
+                    const auto first = evaluate(before);
+                    if (!first) return std::unexpected(first.error());
+                    const auto last = evaluate(after);
+                    if (!last) return std::unexpected(last.error());
+                    native_before = *first;
+                    native_after = *last;
+                }
+            }
+            const bool native_charm = native_before && native_before->has(Greek::delta) && native_after->has(Greek::delta);
+            const bool native_color = native_before && native_before->has(Greek::gamma) && native_after->has(Greek::gamma);
+            const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
+            const auto t_before = native_before ? Result<double>{native_before->price()} : !need_time_prices || before == valuation_time ? p0
+                                                                                                                                         : detail::shifted_value(engine, option, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
-            const auto t_after = !need_time_prices || after == valuation_time
-                                     ? p0
-                                     : detail::shifted_value(
-                                           engine, option, context, spot, volatility, rate, after);
+            const auto t_after = native_after ? Result<double>{native_after->price()} : !need_time_prices || after == valuation_time ? p0
+                                                                                                                                     : detail::shifted_value(engine, option, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
             const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
+            if (need(Greek::charm) && native_charm)
+                charm = (**native_after->get(Greek::delta) - **native_before->get(Greek::delta)) / day_scale;
+            if (need(Greek::color) && native_color)
+                color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
 
-            if (spot_stencil_available && (need(Greek::charm) || need(Greek::color))) {
+            if (spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color))) {
                 const auto d_before = before == valuation_time && spot_up
                                           ? Result<double>{*spot_up}
                                           : detail::shifted_value(
@@ -358,11 +387,11 @@ Result<PricingResult> complete_greeks(
                                              : detail::shifted_value(
                                                    engine, option, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
-                if (need(Greek::charm)) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
-                                                (2.0 * h * day_scale);
-                if (need(Greek::color)) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
-                                                  (*d_before - 2.0 * *t_before + *d_before_low)) /
-                                                 h / h / day_scale);
+                if (need(Greek::charm) && !native_charm) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
+                                                                 (2.0 * h * day_scale);
+                if (need(Greek::color) && !native_color) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
+                                                                   (*d_before - 2.0 * *t_before + *d_before_low)) /
+                                                                  h / h / day_scale);
             }
         }
     }

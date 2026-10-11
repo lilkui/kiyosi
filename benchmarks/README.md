@@ -72,3 +72,6 @@ European FD vanna/zomma requests. The former measures validation and direct
 settlement; the latter measure reuse of native delta/gamma at shifted volatility.
 The protected snowball case retains stochastic knock-out cashflows but needs no
 daily knock-in simulation because both terminal states pay the same amount.
+
+European FD charm/color cases measure native delta/gamma differences at shifted
+valuation times, using a noon valuation to allow a symmetric time stencil.
