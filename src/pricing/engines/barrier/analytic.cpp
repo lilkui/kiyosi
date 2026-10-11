@@ -3,7 +3,6 @@
 #include <kiyosi/pricing/numerical_greeks.hpp>
 
 #include <algorithm>
-#include <array>
 #include <cmath>
 #include <limits>
 
@@ -71,29 +70,34 @@ Result<double> AnalyticBarrierEngine::price(
     const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;
     const double y2 = log_ratio / root_time + (1.0 + mu) * root_time;
-    const auto factors = [&](double eta, double phi) {
-        return std::array<double, 6>{
-            vanilla->price(),
-            phi * scaled_normal_cdf(spot, -dividend * t, phi * x2) - phi * scaled_normal_cdf(x, -rate * t, phi * x2 - phi * root_time),
-            phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
-                phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y1 - eta * root_time),
-            phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
-                phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
-            scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
-                scaled_normal_cdf(option.rebate(), -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time),
-            hit_rebate ? option.rebate() * hit_discount : discounted_rebate};
-    };
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;
-    const auto f = factors(eta, call ? 1.0 : -1.0);
-    const auto rebate = [&](const std::array<double, 6>& values) { return option.rebate_timing() == RebateTiming::at_hit ? values[5] : discounted_rebate - values[4]; };
+    const double phi = call ? 1.0 : -1.0;
+    const double a = vanilla->price();
+    // Evaluate only the Reiner-Rubinstein terms needed by this contract.
+    const auto b = [&] {
+        return phi * scaled_normal_cdf(spot, -dividend * t, phi * x2) - phi * scaled_normal_cdf(x, -rate * t, phi * x2 - phi * root_time);
+    };
+    const auto c = [&] {
+        return phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
+               phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y1 - eta * root_time);
+    };
+    const auto d = [&] {
+        return phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
+               phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time);
+    };
+    const auto e = [&] {
+        return scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
+               scaled_normal_cdf(option.rebate(), -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time);
+    };
+    const auto rebate = [&] { return option.rebate_timing() == RebateTiming::at_hit ? (hit_rebate ? option.rebate() * hit_discount : discounted_rebate) : discounted_rebate - e(); };
     double value = 0.0;
     if (call) {
-        if (knock_in) value = upper ? (x > barrier ? f[0] + f[4] : f[1] - f[2] + f[3] + f[4]) : (x > barrier ? f[2] + f[4] : f[0] - f[1] + f[3] + f[4]);
-        else value = upper ? (x > barrier ? rebate(f) : f[0] - f[1] + f[2] - f[3] + rebate(f)) : (x > barrier ? f[0] - f[2] + rebate(f) : f[1] - f[3] + rebate(f));
+        if (knock_in) value = upper ? (x > barrier ? a + e() : b() - c() + d() + e()) : (x > barrier ? c() + e() : a - b() + d() + e());
+        else value = upper ? (x > barrier ? rebate() : a - b() + c() - d() + rebate()) : (x > barrier ? a - c() + rebate() : b() - d() + rebate());
     } else {
-        if (knock_in) value = upper ? (x > barrier ? f[0] - f[1] + f[3] + f[4] : f[2] + f[4]) : (x > barrier ? f[1] - f[2] + f[3] + f[4] : f[0] + f[4]);
-        else value = upper ? (x > barrier ? f[1] - f[3] + rebate(f) : f[0] - f[2] + rebate(f)) : (x > barrier ? f[0] - f[1] + f[2] - f[3] + rebate(f) : rebate(f));
+        if (knock_in) value = upper ? (x > barrier ? a - b() + d() + e() : c() + e()) : (x > barrier ? b() - c() + d() + e() : a + e());
+        else value = upper ? (x > barrier ? b() - d() + rebate() : a - c() + rebate()) : (x > barrier ? a - b() + c() - d() + rebate() : rebate());
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});

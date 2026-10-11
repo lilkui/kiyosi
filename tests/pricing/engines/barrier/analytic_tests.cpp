@@ -14,6 +14,45 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barrier branches preserve in-out parity and rebate timing", "[barrier-factors]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const AnalyticBarrierEngine engine;
+    for (const bool up : {false, true}) {
+        for (const auto direction : {OptionType::call, OptionType::put}) {
+            for (const double strike : {70.0, 80.0, 100.0, 120.0, 130.0}) {
+                const auto vanilla = AnalyticVanillaEngine{}.price(*make_european_option(direction, strike, start, end), context);
+                REQUIRE(vanilla);
+                for (const double rebate : {0.0, 5.0}) {
+                    for (const auto timing : {RebateTiming::at_hit, RebateTiming::at_expiry}) {
+                        CAPTURE(up, direction, strike, rebate, timing);
+                        BarrierOptionTerms terms{.option_type = direction, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out, .rebate = rebate, .rebate_timing = timing};
+                        const auto out = engine.price(*make_barrier_option(terms), context);
+                        terms.barrier_type = up ? BarrierType::up_and_in : BarrierType::down_and_in;
+                        terms.rebate_timing = RebateTiming::at_expiry;
+                        terms.rebate = timing == RebateTiming::at_hit ? 0.0 : rebate;
+                        const auto in = engine.price(*make_barrier_option(terms), context);
+                        REQUIRE(out);
+                        REQUIRE(in);
+                        double extra = rebate * std::exp(-0.04);
+                        if (timing == RebateTiming::at_hit) {
+                            const auto touch = (up ? make_cash_one_touch_up : make_cash_one_touch_down)(
+                                start, end, terms.barrier_level, 1.0, SettlementTiming::at_hit, ObservationMode::continuous, {}, std::nullopt);
+                            REQUIRE(touch);
+                            const auto hit_rebate = AnalyticBinaryBarrierEngine{}.price(*touch, context);
+                            REQUIRE(hit_rebate);
+                            extra = rebate * *hit_rebate;
+                        }
+                        CHECK_THAT(*in + *out, Catch::Matchers::WithinAbs(*vanilla + extra, 1e-10));
+                    }
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic barriers retain tiny positive volatility time value", "[audit-fixes]")
 {
     using namespace kiyosi;

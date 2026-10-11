@@ -10,11 +10,83 @@ from kiyosi.instruments import (
     BarrierOption,
     EuropeanOption,
     SnowballOption,
+    cash_one_touch_down,
+    cash_one_touch_up,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_analytic_barrier_branches_preserve_in_out_parity_and_rebate_timing(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticBarrierEngine()
+        for up in (False, True):
+            for direction in ("call", "put"):
+                for strike in (70, 80, 100, 120, 130):
+                    common = {
+                        "option_type": direction,
+                        "strike": strike,
+                        "effective_date": start,
+                        "expiry_date": end,
+                    }
+                    vanilla = pricing.AnalyticVanillaEngine().price(
+                        EuropeanOption(**common), context
+                    )
+                    for rebate in (0, 5):
+                        for timing in ("at_hit", "at_expiry"):
+                            with self.subTest(
+                                up=up,
+                                direction=direction,
+                                strike=strike,
+                                rebate=rebate,
+                                timing=timing,
+                            ):
+                                level = 120 if up else 80
+                                prefix = "up" if up else "down"
+                                out = BarrierOption(
+                                    **common,
+                                    barrier_level=level,
+                                    barrier_type=f"{prefix}_and_out",
+                                    rebate=rebate,
+                                    rebate_timing=timing,
+                                )
+                                knock_in = BarrierOption(
+                                    **common,
+                                    barrier_level=level,
+                                    barrier_type=f"{prefix}_and_in",
+                                    rebate=0 if timing == "at_hit" else rebate,
+                                )
+                                extra = rebate * math.exp(-0.04)
+                                if timing == "at_hit":
+                                    touch = (
+                                        cash_one_touch_up if up else cash_one_touch_down
+                                    )(
+                                        effective_date=start,
+                                        expiry_date=end,
+                                        barrier_level=level,
+                                        payout=1,
+                                        settlement_timing="at_hit",
+                                    )
+                                    extra = (
+                                        rebate
+                                        * pricing.AnalyticBinaryBarrierEngine().price(
+                                            touch, context
+                                        )
+                                    )
+                                self.assertAlmostEqual(
+                                    engine.price(knock_in, context)
+                                    + engine.price(out, context),
+                                    vanilla + extra,
+                                    delta=1e-10,
+                                )
+
     def test_american_mc_skips_grids_without_early_exercise_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         terms = {

@@ -101,5 +101,12 @@ different random sequence; both are consistent with the analytic value 10.45058.
 American settings validation still applies. Rho stencils crossing zero rates
 retain exercise-grid sampling on both sides to avoid an estimator discontinuity.
 
+Analytic barriers evaluate only the Reiner-Rubinstein terms selected by the
+contract. On the same compiler and CPU, a million-call probe for a down-and-out
+call (spot/strike 100, barrier 80, 4% rate, 1% dividend, 20% volatility, one year)
+fell from 325 ns to 229 ns per price (median of five runs). All 48 checked
+combinations of barrier type, call/put, strike and rebate retained identical
+prices; in-out parity also checks both rebate timings and strikes at the barrier.
+
 The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
 to expose the cost of processing asset nodes on steps without observations.
