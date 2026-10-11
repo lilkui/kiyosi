@@ -13,6 +13,38 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(self):
+        start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        terms = {
+            "knock_out_coupon_rates": [0.08, 0.08],
+            "maturity_coupon_rate": 0,
+            "initial_spot": 100,
+            "knock_in_level": 75,
+            "knock_out_levels": [110, 104],
+            "upper_strike": 100,
+            "lower_strike": 100,
+            "observation_dates": [middle, end],
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.MonteCarloSnowballEngine(path_count=2_000, seed=42)
+        self.assertEqual(
+            engine.price(
+                SnowballOption(**terms, knock_in_observation_mode="every_trading_day"),
+                context,
+            ),
+            engine.price(
+                SnowballOption(**terms, knock_in_observation_mode="at_expiry"), context
+            ),
+        )
+
     def test_fixed_autocallable_prices_skip_numerical_work_after_validation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = SnowballOption(

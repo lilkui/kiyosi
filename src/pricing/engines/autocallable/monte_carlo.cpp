@@ -120,7 +120,7 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(
         return checked_price(*fixed);
 
     const auto inputs = prepare_simulation(note, context, initial.next_observation,
-                                           program.has_knock_in && program.daily_knock_in && !initial.path.knocked_in);
+                                           program_knock_in_affects_payoff(program) && program.daily_knock_in && !initial.path.knocked_in);
     if (!inputs) return std::unexpected(inputs.error());
     if (settings_.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA

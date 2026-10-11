@@ -40,6 +40,14 @@ struct AutocallablePathState {
     bool knocked_in;
 };
 
+inline bool program_knock_in_affects_payoff(const AutocallableProgram& program)
+{
+    if (!program.has_knock_in) return false;
+    if (program.terminal_kind == AutocallableTerminalKind::downside_if_knocked_in)
+        return program.lower_strike != program.upper_strike || program.intact_terminal_coupon != 0.0;
+    return program.intact_terminal_coupon != program.knocked_in_terminal_coupon;
+}
+
 KIYOSI_HOST_DEVICE inline bool program_knocked_in(
     const AutocallableProgram& program, double spot, bool knocked_in, bool expiry_date)
 {

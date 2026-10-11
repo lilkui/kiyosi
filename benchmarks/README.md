@@ -70,3 +70,5 @@ backend crossover.
 The analytics cases also include a fixed-cashflow snowball Monte Carlo price and
 European FD vanna/zomma requests. The former measures validation and direct
 settlement; the latter measure reuse of native delta/gamma at shifted volatility.
+The protected snowball case retains stochastic knock-out cashflows but needs no
+daily knock-in simulation because both terminal states pay the same amount.

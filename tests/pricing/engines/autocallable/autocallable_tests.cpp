@@ -25,6 +25,43 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Autocallables omit daily simulation only when knock-in cannot change settlement", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), middle = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, calendar);
+    const auto check = [&](const auto& daily, const auto& expiry, bool affects_payoff) {
+        using Note = std::remove_cvref_t<decltype(daily)>;
+        const MonteCarloAutocallableEngine<Note> engine{2'000, 42};
+        queries->store(0);
+        const auto actual = engine.price(daily, context);
+        REQUIRE(actual);
+        CHECK((queries->load() > 300) == affects_payoff);
+        const auto expected = engine.price(expiry, context);
+        REQUIRE(expected);
+        if (!affects_payoff) CHECK(*actual == *expected);
+    };
+    for (const double lower : {60.0, 100.0})
+        for (const double coupon : {0.0, 0.06}) {
+            SnowballTerms terms{.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .upper_strike = 100.0, .lower_strike = lower, .observation_dates = {middle, end}, .effective_date = start, .expiry_date = end};
+            const auto daily = *make_snowball_option(terms);
+            terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
+            check(daily, *make_snowball_option(terms), lower != 100.0 || coupon != 0.0);
+        }
+    for (const double minimum : {0.02, 0.06}) {
+        TernarySnowballTerms terms{.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = minimum, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .observation_dates = {middle, end}, .effective_date = start, .expiry_date = end};
+        const auto daily = *make_ternary_snowball_option(terms);
+        terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
+        check(daily, *make_ternary_snowball_option(terms), minimum != 0.06);
+    }
+    PhoenixTerms terms{.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .coupon_barrier_levels = {90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {middle, end}, .effective_date = start, .expiry_date = end};
+    const auto daily = *make_phoenix_option(terms);
+    terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
+    check(daily, *make_phoenix_option(terms), false);
+}
+
 TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downside", "[fd-performance]")
 {
     using namespace kiyosi;
