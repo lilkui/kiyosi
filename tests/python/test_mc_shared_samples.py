@@ -364,6 +364,32 @@ class SharedSampleTests(unittest.TestCase):
                         if "zomma" in names:
                             self.assertEqual(selected.zomma, zomma)
 
+    def test_american_unavailable_stencils_retain_scalar_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        engine = pricing.MonteCarloVanillaEngine(path_count=127, step_count=7, seed=42)
+        for direction in ("call", "put"):
+            option = AmericanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            scalar = engine.price(option, context)
+            for greek in ("delta", "gamma", "speed", "vanna", "zomma"):
+                shifts = (
+                    {"volatility_shift": 0.3}
+                    if greek in ("vanna", "zomma")
+                    else {"spot_shift": 200}
+                )
+                with self.subTest(direction=direction, greek=greek):
+                    result = engine.price_with_greeks(option, context, greek, **shifts)
+                    self.assertEqual(result.price, scalar)
+                    self.assertIsNone(getattr(result, greek))
+
     def test_failures_and_concurrent_requests_preserve_the_engine(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

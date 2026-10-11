@@ -349,3 +349,13 @@ fell from 18.46 to 15.72 ms with one worker and from 42.27 to 16.18 ms with four
 workers dividing the same total work. The unchanged scalar price was checked
 in every batch. This avoids GIL handoffs costing more than the formula itself;
 the package docstring lists the engines covered by this policy.
+
+American CPU Monte Carlo caches growth only for feasible spot stencils. At
+100,000 paths and 50 steps, requests for delta with a 200-unit spot shift or
+vanna with a 0.3 volatility shift return an unavailable Greek. A 2026-10-11
+Release MSVC allocation probe measured their total allocations falling from
+80.0 MB to 40.8 MB, matching scalar pricing, with identical prices. At one
+million paths this avoids 392 MB of unused growth storage. The analytics suite
+includes `american/mc/unavailable_delta` and `american/mc/unavailable_vanna`;
+C++ and Python regressions preserve prices and unavailable results for calls
+and puts.

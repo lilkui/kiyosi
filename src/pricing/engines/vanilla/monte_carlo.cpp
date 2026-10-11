@@ -418,9 +418,16 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         detail::CudaWorkspace owned_workspace;
         if (seeded.settings().backend == MonteCarloBackend::cuda) workspace = &owned_workspace;
 #endif
+        const double spot_shift = detail::symmetric_shift(context.spot_price(), settings.spot_shift);
+        const double volatility_shift = detail::symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift);
+        const bool volatility_available = volatility_shift > 0.0 &&
+                                          context.model_parameters().volatility() > volatility_shift &&
+                                          std::isfinite(100.0 * volatility_shift);
         AmericanMonteCarloSamples samples{.cache_growth =
-            greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed) ||
-            greeks.has(Greek::vanna) || greeks.has(Greek::zomma) || greeks.has(Greek::charm) || greeks.has(Greek::color)};
+            spot_shift > 0.0 && context.spot_price() > spot_shift &&
+            (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed) ||
+             (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
+             greeks.has(Greek::charm) || greeks.has(Greek::color))};
         const AmericanPricer prices{seeded.settings(), workspace,
                                     seeded.settings().backend == MonteCarloBackend::cpu ? &samples : nullptr};
         const auto native = [&]() -> Result<PricingResult> {

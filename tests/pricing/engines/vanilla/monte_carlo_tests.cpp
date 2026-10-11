@@ -569,6 +569,28 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
     CHECK_FALSE(unseeded.settings().seed);
 }
 
+TEST_CASE("American Monte Carlo unavailable stencils retain scalar prices", "[mc-american-samples]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const MonteCarloVanillaEngine engine{127, 7, 42};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_american_option(type, 100.0, start, end);
+        const auto scalar = engine.price(option, context);
+        REQUIRE(scalar);
+        for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed, Greek::vanna, Greek::zomma}) {
+            const auto shifts = greek == Greek::vanna || greek == Greek::zomma
+                                    ? NumericalShiftSettings{.volatility_shift = 0.3}
+                                    : NumericalShiftSettings{.spot_shift = 200.0};
+            const auto result = engine.price_with_greeks(option, context, {greek}, shifts);
+            REQUIRE(result);
+            CHECK(result->price() == *scalar);
+            CHECK_FALSE(result->has(greek));
+        }
+    }
+}
+
 TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[mc-american-samples]")
 {
     using namespace kiyosi;
