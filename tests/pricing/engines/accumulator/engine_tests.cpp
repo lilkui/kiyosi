@@ -20,6 +20,27 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+    const MonteCarloAccumulatorEngine engine{31, 42};
+    queries->store(0);
+    const auto scalar = detail::price_with_greeks(engine, option, context, true, {});
+    REQUIRE(scalar);
+    const int scalar_queries = queries->exchange(0);
+    const auto result = calculate_numerical_greeks(engine, option, context);
+    REQUIRE(result);
+    CHECK(queries->load() < scalar_queries);
+    CHECK(result->price() == scalar->price());
+    CHECK(result->values_view() == scalar->values_view());
+}
+
 TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valuations", "[monte-carlo-performance]")
 {
     using namespace kiyosi;
@@ -33,8 +54,12 @@ TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valu
                     CAPTURE(seed, paths, spot, valuation.time_since_epoch().count());
                     const MonteCarloAccumulatorEngine engine{paths, seed};
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, valuation, all_days_calendar());
-                    const auto expected = calculate_numerical_greeks(engine, option, context, shifts);
+                    const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                     REQUIRE(expected);
+                    const auto numerical = calculate_numerical_greeks(engine, option, context, shifts);
+                    REQUIRE(numerical);
+                    CHECK(numerical->price() == expected->price());
+                    CHECK(numerical->values_view() == expected->values_view());
                     for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}}) {
                         const auto actual = engine.price_with_greeks(option, context, request, shifts);
                         REQUIRE(actual);

@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import EuropeanOption
+from kiyosi.instruments import Accumulator, EuropeanOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 GREEKS = (
@@ -22,7 +22,7 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
-    def test_greeks_equal_scalar_stencils(self):
+    def test_numerical_and_selected_greeks_match_the_engine_api(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         names = GREEKS
         for direction in ("call", "put"):
@@ -82,6 +82,55 @@ class SharedSampleTests(unittest.TestCase):
                                     (actual.delta, actual.gamma),
                                 )
                                 self.assertIsNone(selected.vega)
+
+    def test_numerical_spot_greeks_equal_scalar_seeded_prices(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        spot = 100.25
+        valuation = datetime(2025, 1, 1, 12, tzinfo=UTC)
+        cases = (
+            (
+                EuropeanOption(
+                    option_type="call",
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloVanillaEngine(path_count=127, seed=42),
+            ),
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=115,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloAccumulatorEngine(path_count=31, seed=42),
+            ),
+        )
+        for option, engine in cases:
+            for shift in (0.01, 0.2):
+                with self.subTest(engine=type(engine).__name__, shift=shift):
+                    h = (spot + shift) - spot
+                    contexts = [
+                        PricingContext(
+                            model_parameters=parameters,
+                            spot_price=value,
+                            valuation_time=valuation,
+                        )
+                        for value in (spot - h, spot, spot + h)
+                    ]
+                    low, middle, high = [engine.price(option, ctx) for ctx in contexts]
+                    result = pricing.calculate_numerical_greeks(
+                        engine, option, contexts[1], spot_shift=shift
+                    )
+                    self.assertEqual(result.price, middle)
+                    self.assertEqual(result.delta, (high - low) / (2 * h))
+                    self.assertEqual(result.gamma, (high - 2 * middle + low) / h / h)
 
     def test_failures_and_concurrent_requests_preserve_the_engine(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

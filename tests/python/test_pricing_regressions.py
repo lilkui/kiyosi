@@ -119,7 +119,7 @@ class PricingRegressionTests(unittest.TestCase):
                     self.assertAlmostEqual(getattr(result, name), expected, delta=1e-11)
                 self.assertEqual(result.price, engine.price(option, context))
 
-    def test_accumulator_mc_joint_spot_greeks_preserve_scalar_seeded_valuations(self):
+    def test_accumulator_mc_numerical_and_selected_greeks_match_the_engine_api(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         option = Accumulator(
             strike=100,

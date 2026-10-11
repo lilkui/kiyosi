@@ -131,6 +131,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const MonteCarloAccumulatorEngine accumulator_monte_carlo{20'000, 42};
     register_price("analytics/kiyosi/accumulator/mc/price", accumulator, accumulator_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/accumulator/mc/all", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, true); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/accumulator/mc/numerical_all", [=] { return calculate_numerical_greeks(accumulator_monte_carlo, accumulator, context); }, "price")->UseRealTime();
     const auto daily_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), all_days_calendar());
     register_price("analytics/kiyosi/accumulator/fd/calendar_daily/price", accumulator,
                    FiniteDifferenceAccumulatorEngine{{.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}}, daily_context);
@@ -143,6 +145,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const MonteCarloVanillaEngine monte_carlo_engine{100'000, 50, 42};
     register_calculation("analytics/kiyosi/european/mc/delta_gamma", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::delta, Greek::gamma}); }, "price");
     register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
+    register_calculation("analytics/kiyosi/european/mc/numerical_all", [=] { return calculate_numerical_greeks(monte_carlo_engine, european, context); }, "price");
     register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,
                    FiniteDifferenceVanillaEngine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}}, base_context);
     const auto off_node_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), base_context.calendar());

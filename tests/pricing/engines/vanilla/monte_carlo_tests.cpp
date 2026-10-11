@@ -408,8 +408,8 @@ TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[
                                              start_of_day(end) - std::chrono::microseconds{1}, start_of_day(end)}) {
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
                     for (const auto shifts : {NumericalShiftSettings{}, NumericalShiftSettings{0.125, 0.02, 0.005, 2}}) {
-                        const auto actual = engine.price_with_greeks(option, context, true, shifts);
-                        const auto expected = calculate_numerical_greeks(engine, option, context, shifts);
+                        const auto actual = calculate_numerical_greeks(engine, option, context, shifts);
+                        const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                         REQUIRE(actual);
                         REQUIRE(expected);
                         CHECK(actual->price() == expected->price());
