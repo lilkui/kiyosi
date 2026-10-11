@@ -125,3 +125,12 @@ scales and cancellation, and exercise CUDA reduction across block boundaries.
 
 The fine-time-grid expiry-only case increases FD time steps from 200 to 1,000
 to expose the cost of processing asset nodes on steps without observations.
+
+CRR vanna/zomma/charm/color cases use 1,000 tree steps and a noon valuation.
+Shifted native delta/gamma estimates avoid differencing the piecewise-linear
+spot-price curve and reduce five or seven tree valuations to three.
+On 2026-10-11, Release MSVC 19.51 on a Ryzen 9 5900X measured median wall time
+falling from 2.185 to 1.311 ms for vanna, 3.069 to 1.314 ms for zomma,
+2.191 to 1.312 ms for charm, and 3.067 to 1.316 ms for color (three repetitions,
+0.15 s minimum). Prices were unchanged; C++ and Python checks compare mixed
+Greeks against analytic values, including American calls without dividends.

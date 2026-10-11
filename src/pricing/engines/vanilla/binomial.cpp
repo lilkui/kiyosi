@@ -140,13 +140,13 @@ Result<double> CoxRossRubinsteinVanillaEngine::price(const AmericanOption& optio
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
 }
 
 } // namespace kiyosi

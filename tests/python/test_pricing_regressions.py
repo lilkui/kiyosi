@@ -1,6 +1,6 @@
 import math
 import unittest
-from datetime import date
+from datetime import UTC, date, datetime
 
 import kiyosi
 from kiyosi import pricing
@@ -17,6 +17,50 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_binomial_mixed_greeks_track_analytic_sensitivities(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        request = ["vanna", "zomma", "charm", "color"]
+        engine = pricing.CoxRossRubinsteinVanillaEngine(1000)
+        for dividend in (0, 0.01):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=dividend, volatility=0.2
+                ),
+                spot_price=100,
+                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            )
+            for direction in ("call", "put"):
+                terms = {
+                    "option_type": direction,
+                    "strike": 100,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
+                european = EuropeanOption(**terms)
+                expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+                    european, context, request
+                )
+                options = [european]
+                if direction == "call" and dividend == 0:
+                    options.append(AmericanOption(**terms))
+                for option in options:
+                    with self.subTest(
+                        dividend=dividend,
+                        option=type(option).__name__,
+                        direction=direction,
+                    ):
+                        actual = engine.price_with_greeks(option, context, request)
+                        self.assertEqual(actual.price, engine.price(option, context))
+                        for name in request:
+                            reference = getattr(expected, name)
+                            self.assertAlmostEqual(
+                                getattr(actual, name),
+                                reference,
+                                delta=abs(reference) * 0.02 + 1e-7,
+                            )
+                        self.assertIsNone(actual.delta)
+                        self.assertIsNone(actual.gamma)
+
     def test_analytic_barrier_branches_preserve_in_out_parity_and_rebate_timing(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

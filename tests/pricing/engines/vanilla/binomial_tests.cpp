@@ -14,6 +14,42 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Binomial mixed Greeks track analytic sensitivities", "[binomial-mixed-greeks]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const GreeksRequest request{Greek::vanna, Greek::zomma, Greek::charm, Greek::color};
+    const CoxRossRubinsteinVanillaEngine engine{1000};
+    for (const double dividend : {0.0, 0.01}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, dividend, 0.2), 100.0,
+                                                   start_of_day(start) + std::chrono::hours{12});
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(dividend, type);
+            const auto european = *make_european_option(type, 100.0, start, end);
+            const auto expected = AnalyticVanillaEngine{}.price_with_greeks(european, context, request);
+            REQUIRE(expected);
+            const auto check = [&](const auto& option) {
+                const auto actual = engine.price_with_greeks(option, context, request);
+                const auto price = engine.price(option, context);
+                REQUIRE(actual);
+                REQUIRE(price);
+                CHECK(actual->price() == *price);
+                for (const auto greek : {Greek::vanna, Greek::zomma, Greek::charm, Greek::color}) {
+                    CAPTURE(greek);
+                    const double reference = greek_value(*expected, greek);
+                    CHECK_THAT(greek_value(*actual, greek),
+                               Catch::Matchers::WithinAbs(reference, std::abs(reference) * 0.02 + 1e-7));
+                }
+                CHECK_FALSE(actual->has(Greek::delta));
+                CHECK_FALSE(actual->has(Greek::gamma));
+            };
+            check(european);
+            if (type == OptionType::call && dividend == 0.0)
+                check(*make_american_option(type, 100.0, start, end));
+        }
+    }
+}
+
 TEST_CASE("Binomial rejects underflowed asset trees")
 {
     const auto start = day(2025, 1, 1);
