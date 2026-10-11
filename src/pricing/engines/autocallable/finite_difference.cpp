@@ -62,7 +62,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const Timestamp valuation = context.valuation_time();
     const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
 
-    std::vector<double> anchors;
+    std::vector<Date> anchors;
     std::vector<ObservationEvent> observation_events;
     observation_events.reserve(note.observation_dates().size());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
@@ -70,7 +70,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         if (value <= valuation) continue;
         const double time = actual_365_fixed_year_fraction(valuation, value);
         observation_events.push_back({time, index});
-        anchors.push_back(time);
+        anchors.push_back(value);
     }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
@@ -87,14 +87,14 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         for (const Date value : future_trading_dates) {
             const double time = actual_365_fixed_year_fraction(valuation, value);
             trading_times.push_back(time);
-            anchors.push_back(time);
+            anchors.push_back(value);
         }
     }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, std::move(anchors));
+    const auto grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings_.time_step_count, std::move(anchors));
     if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());

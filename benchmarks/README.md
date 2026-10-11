@@ -256,3 +256,13 @@ time falling from 461 to 262 us (five batches of 500 prices). Price, delta, and
 gamma were unchanged; off-node C++ and Python regressions cover price and spot
 Greeks across all three schemes. Stepper checks cover changing fixed regions,
 internal constraints, all-fixed and single-live-node systems, and failure recovery.
+
+Calendar-driven FD intervals compute widths from timestamp durations when both
+endpoints are calendar events. This preserves event times and tiny intervals while
+allowing equal day counts to reuse the same matrix factors. The analytics suite
+includes `accumulator/fd/calendar_daily/price`. An isolated 366-day, 80-node,
+all-days-calendar probe with one uniform time step measured 430 to 386 us for an
+accumulator and 436 to 397 us for a snowball on the same machine. Price and spot
+Greeks across all three schemes changed only at rounding scale (largest price
+difference 6e-11). Grid tests cover intraday valuation, mixed uniform/event steps,
+duplicate calendar dates and a one-microsecond final interval.

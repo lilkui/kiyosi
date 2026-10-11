@@ -10,6 +10,7 @@
 #include <vector>
 
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi::detail {
@@ -61,6 +62,33 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity
             uniform_start = uniform_end;
             ++uniform_index;
         }
+    }
+    return grid;
+}
+
+/// Calendar anchors retain their exact durations instead of subtracting rounded year fractions.
+inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(
+    Timestamp valuation, Date expiry, int steps, std::vector<Date> events)
+{
+    events.push_back(expiry);
+    std::ranges::sort(events);
+    events.erase(std::ranges::unique(events).begin(), events.end());
+    std::vector<double> times{0.0};
+    std::vector<Timestamp> anchors{valuation};
+    for (const Date event : events) {
+        if (event <= valuation) continue;
+        times.push_back(actual_365_fixed_year_fraction(valuation, event));
+        anchors.push_back(start_of_day(event));
+    }
+    auto grid = make_finite_difference_time_grid(
+        actual_365_fixed_year_fraction(valuation, expiry), steps, times);
+    std::size_t event = 0;
+    for (std::size_t index = 0; index < grid.time_steps.size(); ++index) {
+        while (event + 1 < times.size() && times[event] < grid.times[index])
+            ++event;
+        if (event + 1 < times.size() && times[event] == grid.times[index] &&
+            times[event + 1] == grid.times[index + 1])
+            grid.time_steps[index] = actual_365_fixed_year_fraction(anchors[event], anchors[event + 1]);
     }
     return grid;
 }

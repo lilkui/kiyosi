@@ -33,14 +33,18 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const double theta = scheme_theta(settings.scheme);
     const bool upper_barrier = option.barrier_terms().is_up();
     std::vector<double> observation_times;
+    std::vector<Date> observation_dates;
     if (option.observation_mode() == ObservationMode::scheduled) {
         for (auto value : option.observation_dates()) {
             if (value < context.valuation_time()) continue;
             const double event_time = actual_365_fixed_year_fraction(context.valuation_time(), value);
             observation_times.push_back(event_time);
+            observation_dates.push_back(value);
         }
     }
-    const auto grid = make_finite_difference_time_grid(time_to_expiry, time_step_count, observation_times);
+    const auto grid = option.observation_mode() == ObservationMode::continuous
+                          ? make_finite_difference_time_grid(time_to_expiry, time_step_count)
+                          : make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), time_step_count, std::move(observation_dates));
     if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, asset_step_count);
         !stable)
         return std::unexpected(stable.error());

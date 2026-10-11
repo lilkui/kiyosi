@@ -53,7 +53,6 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     if (initial.settlement) return make_pricing_result(*initial.settlement);
 
     const double spot = context.spot_price();
-    const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
 
     const double relevant = highest_finite_difference_level(option, context);
     const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
@@ -69,7 +68,8 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(time_to_expiry, settings_.time_step_count, trading_times);
+    const auto grid = make_finite_difference_time_grid(
+        context.valuation_time(), option.expiry_date(), settings_.time_step_count, future_trading_dates);
     if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
         !stable)
         return std::unexpected(stable.error());

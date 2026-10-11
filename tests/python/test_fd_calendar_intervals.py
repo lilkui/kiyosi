@@ -1,0 +1,106 @@
+import unittest
+from datetime import date, timedelta
+
+from kiyosi import pricing
+from kiyosi.instruments import Accumulator, BarrierOption, SnowballOption
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+)
+
+start, end = date(2024, 1, 1), date(2025, 1, 1)
+observations = [start + timedelta(days=i) for i in range(1, 367)]
+cases = [
+    (
+        pricing.FiniteDifferenceAccumulatorEngine,
+        Accumulator(
+            strike=100,
+            knock_out_level=115,
+            daily_quantity=1,
+            acceleration_factor=2,
+            effective_date=start,
+            expiry_date=end,
+        ),
+    ),
+    (
+        pricing.FiniteDifferenceSnowballEngine,
+        SnowballOption(
+            knock_out_coupon_rates=[0.08] * 4,
+            maturity_coupon_rate=0.06,
+            initial_spot=100,
+            knock_in_level=75,
+            knock_out_levels=[110] * 4,
+            upper_strike=100,
+            lower_strike=60,
+            observation_dates=[
+                date(2024, 4, 1),
+                date(2024, 7, 1),
+                date(2024, 10, 1),
+                end,
+            ],
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="none",
+            effective_date=start,
+            expiry_date=end,
+        ),
+    ),
+    (
+        pricing.FiniteDifferenceBarrierEngine,
+        BarrierOption(
+            option_type="call",
+            strike=100,
+            barrier_level=110,
+            barrier_type="up_and_out",
+            observation_mode="scheduled",
+            observation_dates=observations,
+            rebate=2,
+            effective_date=start,
+            expiry_date=end,
+        ),
+    ),
+]
+
+
+class CalendarIntervalTests(unittest.TestCase):
+    def test_daily_prices_and_greeks_retain_reference_values(self):
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        expected = [
+            (-2125.177940477314, 314.25537377676187, -24.53113696074924),
+            (-2120.221666260853, 314.4815991820858, -24.573439894742528),
+            (-2130.1933395583947, 314.0331999420339, -24.487720823425548),
+            (0.9956959342110923, 0.002334647538852612, -0.00027779493631300466),
+            (0.9957679329994007, 0.002325382664906021, -0.00027718976198143775),
+            (0.9956225895060031, 0.0023440665260287138, -0.0002784043202963022),
+            (1.349334949897279, 0.05874014816127894, 0.00011939130239541559),
+            (1.3468904122711003, 0.058637636418814774, 0.00012654044204111787),
+            (1.3518636988741737, 0.0588457671037437, 0.00011178373357470883),
+        ]
+        for index, (cls, option) in enumerate(cases):
+            for offset, scheme in enumerate(
+                ("crank_nicolson", "implicit_euler", "explicit_euler")
+            ):
+                with self.subTest(engine=cls.__name__, scheme=scheme):
+                    engine = cls(
+                        asset_step_count=80,
+                        time_step_count=1,
+                        asset_upper_boundary=400,
+                        scheme=scheme,
+                    )
+                    result = engine.price_with_greeks(
+                        option, context, ["delta", "gamma"]
+                    )
+                    self.assertEqual(engine.price(option, context), result.price)
+                    for name, value in zip(
+                        ("price", "delta", "gamma"),
+                        expected[3 * index + offset],
+                        strict=True,
+                    ):
+                        self.assertAlmostEqual(getattr(result, name), value, delta=1e-9)
