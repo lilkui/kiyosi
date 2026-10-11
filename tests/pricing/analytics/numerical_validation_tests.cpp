@@ -16,6 +16,40 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Unavailable scalar speed skips spot valuations", "[scalar-speed]")
+{
+    using namespace kiyosi;
+    struct RecordingEngine {
+        mutable int calls{};
+        Result<double> price(const EuropeanOption&, const PricingContext& context) const
+        {
+            ++calls;
+            return context.spot_price();
+        }
+    };
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::put, 100.0, start, end);
+    const auto market = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start);
+    const RecordingEngine engine;
+    const auto speed = detail::price_with_greeks(engine, option, market, {Greek::speed}, {.spot_shift = 60.0});
+    REQUIRE(speed);
+    CHECK(speed->price() == 100.0);
+    CHECK_FALSE(speed->has(Greek::speed));
+    CHECK(engine.calls == 1);
+    const auto mixed = detail::price_with_greeks(engine, option, market, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0});
+    REQUIRE(mixed);
+    CHECK(greek_value(*mixed, Greek::delta) == 1.0);
+    CHECK(greek_value(*mixed, Greek::gamma) == 0.0);
+    CHECK_FALSE(mixed->has(Greek::speed));
+    CHECK(engine.calls == 4);
+    const auto native = detail::price_with_greeks(engine, option, market, {Greek::speed}, {.spot_shift = 60.0},
+                                                  [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
+                                                      return make_pricing_result(shifted.spot_price(), {{Greek::gamma, request.has(Greek::gamma) ? std::optional{shifted.spot_price()} : std::nullopt}});
+                                                  });
+    REQUIRE(native);
+    CHECK(greek_value(*native, Greek::speed) == 1.0);
+}
+
 TEST_CASE("Numerical Greeks keep model and time spot stencils contiguous", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

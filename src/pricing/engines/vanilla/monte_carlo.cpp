@@ -430,9 +430,12 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         const bool volatility_available = volatility_shift > 0.0 &&
                                           context.model_parameters().volatility() > volatility_shift &&
                                           std::isfinite(100.0 * volatility_shift);
+        const double two_h = 2.0 * spot_shift;
+        const bool speed_available = std::isfinite(two_h) && context.spot_price() > two_h &&
+                                     detail::symmetric_shift(context.spot_price(), two_h) == two_h;
         AmericanMonteCarloSamples samples{.cache_growth =
             spot_shift > 0.0 && context.spot_price() > spot_shift &&
-            (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed) ||
+            (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available) ||
              (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
              greeks.has(Greek::charm) || greeks.has(Greek::color))};
         const AmericanPricer prices{seeded.settings(), workspace, &samples};

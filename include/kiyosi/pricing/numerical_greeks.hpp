@@ -155,12 +155,18 @@ Result<PricingResult> complete_greeks(
     const bool spot_discontinuity = at_spot_discontinuity(option, context);
     const bool spot_stencil_available = h > 0.0 && !at_spot_discontinuity(option, context, h) && spot > h &&
                                         std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
+    const double two_h = 2.0 * h;
+    const bool scalar_speed_available = need(Greek::speed) && spot_stencil_available && std::isfinite(two_h) && spot > two_h &&
+                                        symmetric_shift(spot, two_h) == two_h &&
+                                        !at_spot_discontinuity(option, context, two_h);
+    constexpr bool native_stencil = requires { evaluate_native(engine, context, GreeksRequest{}); };
     auto delta = *native.get(Greek::delta);
     auto gamma = *native.get(Greek::gamma);
     auto speed = *native.get(Greek::speed);
     std::optional<double> spot_up;
     std::optional<double> spot_down;
-    if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) || need(Greek::speed))) {
+    if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) ||
+                                   (need(Greek::speed) && (scalar_speed_available || native_stencil)))) {
         std::optional<PricingResult> native_up, native_down;
         if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
             if (need(Greek::speed)) {
@@ -196,9 +202,7 @@ Result<PricingResult> complete_greeks(
         if (need(Greek::speed) && native_speed)
             speed = (**native_up->get(Greek::gamma) - **native_down->get(Greek::gamma)) / (2.0 * h);
 
-        const double two_h = 2.0 * h;
-        if (need(Greek::speed) && !native_speed && std::isfinite(two_h) && spot > two_h && symmetric_shift(spot, two_h) == two_h &&
-            !at_spot_discontinuity(option, context, two_h)) {
+        if (need(Greek::speed) && !native_speed && scalar_speed_available) {
             const auto p_up2 = detail::shifted_value(
                 engine, option, context, spot + two_h, volatility, rate, valuation_time);
             if (!p_up2) return std::unexpected(p_up2.error());

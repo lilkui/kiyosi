@@ -35,6 +35,32 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    def test_unavailable_speed_preserves_finite_price(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="put", strike=1e308, effective_date=start, expiry_date=end
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=1e308,
+            valuation_time=start,
+        )
+        backends = (
+            ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        )
+        for backend in backends:
+            with self.subTest(backend=backend):
+                engine = pricing.MonteCarloVanillaEngine(
+                    path_count=2, step_count=50, seed=42, backend=backend
+                )
+                result = engine.price_with_greeks(
+                    option, context, ["speed"], spot_shift=6e307
+                )
+                self.assertEqual(result.price, engine.price(option, context))
+                self.assertIsNone(result.speed)
+
     def test_american_default_spot_greeks_converge_across_seeds_and_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         model = BlackScholesMertonParameters(

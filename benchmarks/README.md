@@ -451,3 +451,11 @@ smaller request. C++ and Python checks cover cache keys, CUDA block boundaries,
 mixed Greeks, unavailable stencils, failures and concurrent calls. Analytics
 cases include `american/mc_cuda/price`, `delta_gamma`, `speed`, `all` and
 `unavailable_delta` at 100,000 paths.
+
+Unavailable scalar speed requests check the complete four-point spot stencil
+before evaluating bumps. American requests also omit the growth cache in this
+case. `american/mc/unavailable_speed` and its CUDA counterpart use a 60-unit
+shift at spot 100. A 2026-10-11 Release run at 100,000 paths and 50 steps measured
+148.1 ms versus 147.9 ms for CPU scalar pricing, and 6.22 ms versus 6.27 ms on
+CUDA (median of three benchmark repetitions). Native gamma-derived speed keeps
+its smaller stencil; unavailable speed does not suppress feasible delta/gamma.
