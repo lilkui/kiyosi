@@ -19,7 +19,7 @@ namespace {
 template <typename Option>
 Result<PricingResult> price_finite_difference(
     const Option& option, const PricingContext& context,
-    FiniteDifferenceSettings settings, bool american, GreeksRequest requested_output)
+    FiniteDifferenceSettings settings, bool american, GreeksRequest requested_output, double spot_shift)
 {
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
@@ -111,19 +111,40 @@ Result<PricingResult> price_finite_difference(
                                 (american ? derivative * std::tanh(coordinate_spot) : 0.0)) /
                                    jacobian / jacobian
                              : 0.0;
+    std::optional<double> speed;
+    if (requested_output.has(Greek::speed)) {
+        const double h = symmetric_shift(spot, spot_shift);
+        // Leave unavailable stencils and clipped bumps to the shared completion path.
+        if (h > 0.0 && spot > h && spot + h < upper) {
+            for (const double shifted_spot : {spot + h, spot - h}) {
+                const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
+                const auto shifted_price = checked_price(std::max(coordinate.interpolate(old, x), american ? intrinsic(shifted_spot) : 0.0));
+                if (!shifted_price) return std::unexpected(shifted_price.error());
+            }
+            const auto gamma_at = [&](double shifted_spot) {
+                const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
+                const double scale = american ? std::hypot(strike, shifted_spot) : 1.0;
+                return (coordinate.gamma(old, x) -
+                        (american ? coordinate.delta(old, x) * std::tanh(x) : 0.0)) /
+                       scale / scale;
+            };
+            speed = (gamma_at(spot + h) - gamma_at(spot - h)) / (2.0 * h);
+        }
+    }
     return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{derivative / jacobian} : std::nullopt},
-                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{gamma} : std::nullopt}});
+                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{gamma} : std::nullopt},
+                                       {Greek::speed, speed}});
 }
 } // namespace
 
-Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
-    return price_finite_difference(option, context, settings_, false, output);
+    return price_finite_difference(option, context, settings_, false, output, spot_shift);
 }
 
-Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
+Result<PricingResult> FiniteDifferenceVanillaEngine::price_native(const AmericanOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
 {
-    return price_finite_difference(option, context, settings_, true, output);
+    return price_finite_difference(option, context, settings_, true, output, spot_shift);
 }
 
 Result<double> FiniteDifferenceVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
@@ -139,13 +160,13 @@ Result<double> FiniteDifferenceVanillaEngine::price(const AmericanOption& option
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
 }
 
 Result<PricingResult> FiniteDifferenceVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
 }
 
 } // namespace kiyosi

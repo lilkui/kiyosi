@@ -14,6 +14,70 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Vanilla finite-difference speed reuses fixed-grid gamma with custom shifts", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
+    for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
+                              FiniteDifferenceScheme::crank_nicolson}) {
+        for (const auto upper : {std::optional<double>{}, std::optional{410.0}}) {
+            const FiniteDifferenceVanillaEngine engine{{80, 500, scheme, upper}};
+            for (const auto type : {OptionType::call, OptionType::put}) {
+                const auto check = [&](const auto& option) {
+                    auto fixed = engine.settings();
+                    fixed.asset_upper_boundary = upper.value_or(detail::default_finite_difference_upper_boundary(option, context));
+                    const FiniteDifferenceVanillaEngine shifted_engine{fixed};
+                    for (const double shift : {NumericalShiftSettings{}.spot_shift, 0.25}) {
+                        CAPTURE(scheme, upper, type, shift);
+                        const double h = detail::symmetric_shift(context.spot_price(), shift);
+                        const auto high = *make_pricing_context(context.model_parameters(), context.spot_price() + h, start);
+                        const auto low = *make_pricing_context(context.model_parameters(), context.spot_price() - h, start);
+                        const auto up = shifted_engine.price_with_greeks(option, high, {Greek::gamma});
+                        const auto down = shifted_engine.price_with_greeks(option, low, {Greek::gamma});
+                        const auto result = engine.price_with_greeks(option, context, {Greek::speed}, {.spot_shift = shift});
+                        REQUIRE(up);
+                        REQUIRE(down);
+                        REQUIRE(result);
+                        REQUIRE(result->require(Greek::speed));
+                        CHECK(*result->require(Greek::speed) == (*up->require(Greek::gamma) - *down->require(Greek::gamma)) / (2.0 * h));
+                        CHECK(result->price() == *engine.price(option, context));
+                        CHECK_FALSE(result->has(Greek::delta));
+                        CHECK_FALSE(result->has(Greek::gamma));
+                    }
+                };
+                check(*make_european_option(type, 100.0, start, end));
+                check(*make_american_option(type, 100.0, start, end));
+            }
+        }
+    }
+}
+
+TEST_CASE("Vanilla finite-difference speed preserves unavailable and clipped stencils", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const FiniteDifferenceVanillaEngine engine{{.asset_upper_boundary = 100.5}};
+    const auto check = [&](const auto& option) {
+        for (const double shift : {1e-300, 100.0}) {
+            const auto unavailable = engine.price_with_greeks(option, context, {Greek::speed}, {.spot_shift = shift});
+            REQUIRE(unavailable);
+            CHECK_FALSE(unavailable->has(Greek::speed));
+        }
+        const auto clipped = engine.price_with_greeks(option, context, {Greek::speed}, {.spot_shift = 0.5});
+        REQUIRE_FALSE(clipped);
+        CHECK(clipped.error().category == ErrorCategory::invalid_parameter);
+        const auto expiry = *make_pricing_context(context.model_parameters(), 100.0, end);
+        const auto settled = engine.price_with_greeks(option, expiry, {Greek::speed});
+        REQUIRE(settled);
+        CHECK(settled->price() == 0.0);
+        CHECK_FALSE(settled->has(Greek::speed));
+    };
+    check(*make_european_option(OptionType::call, 100.0, start, end));
+    check(*make_american_option(OptionType::put, 100.0, start, end));
+}
+
 TEST_CASE("Finite-difference European engines track analytic prices")
 {
     using Catch::Matchers::WithinAbs;

@@ -21,6 +21,53 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_vanilla_fd_speed_reuses_fixed_grid_gamma_with_custom_shifts(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=100.25, valuation_time=start
+        )
+        engine = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=80, time_step_count=200, asset_upper_boundary=410
+        )
+        for option_class in (EuropeanOption, AmericanOption):
+            option = option_class(
+                option_type="put", strike=100, effective_date=start, expiry_date=end
+            )
+            for shift in (0.01, 0.25):
+                with self.subTest(option=option_class.__name__, shift=shift):
+                    h = (context.spot_price + shift) - context.spot_price
+                    gammas = [
+                        engine.price_with_greeks(
+                            option,
+                            PricingContext(
+                                model_parameters=parameters,
+                                spot_price=context.spot_price + bump,
+                                valuation_time=start,
+                            ),
+                            ["gamma"],
+                        ).gamma
+                        for bump in (h, -h)
+                    ]
+                    result = engine.price_with_greeks(
+                        option, context, ["speed"], spot_shift=shift
+                    )
+                    self.assertEqual(result.speed, (gammas[0] - gammas[1]) / (2 * h))
+                    self.assertEqual(result.price, engine.price(option, context))
+                    self.assertIsNone(result.gamma)
+            unavailable = engine.price_with_greeks(
+                option, context, ["speed"], spot_shift=1e-300
+            )
+            self.assertIsNone(unavailable.speed)
+            narrow = pricing.FiniteDifferenceVanillaEngine(asset_upper_boundary=100.5)
+            with self.assertRaises(kiyosi.KiyosiError) as clipped:
+                narrow.price_with_greeks(option, context, ["speed"], spot_shift=0.25)
+            self.assertEqual(
+                clipped.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
+
     def test_fd_interpolation_preserves_prices_at_and_around_grid_nodes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(
