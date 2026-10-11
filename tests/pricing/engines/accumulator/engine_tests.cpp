@@ -20,6 +20,64 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valuations", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+    const NumericalShiftSettings shifts{.spot_shift = 0.2};
+    for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+        for (const int paths : {1, 31, 32})
+            for (const double spot : {95.0, 100.0, 114.9, 116.0})
+                for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
+                    CAPTURE(seed, paths, spot, valuation.time_since_epoch().count());
+                    const MonteCarloAccumulatorEngine engine{paths, seed};
+                    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, valuation, all_days_calendar());
+                    const auto expected = calculate_numerical_greeks(engine, option, context, shifts);
+                    REQUIRE(expected);
+                    for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}}) {
+                        const auto actual = engine.price_with_greeks(option, context, request, shifts);
+                        REQUIRE(actual);
+                        CHECK(actual->price() == expected->price());
+                        CHECK(actual->values_view() == expected->selected(request).values_view());
+                    }
+                }
+}
+
+TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concurrent calls", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
+    const MonteCarloAccumulatorEngine engine{127, 42};
+    auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+    auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+    const auto a = first.get(), b = second.get();
+    REQUIRE(a);
+    REQUIRE(b);
+    CHECK(a->price() == b->price());
+    CHECK(a->values_view() == b->values_view());
+    const auto bad_paths = MonteCarloAccumulatorEngine{0, 42}.price_with_greeks(option, context, true);
+    REQUIRE_FALSE(bad_paths);
+    CHECK(bad_paths.error().category == ErrorCategory::invalid_parameter);
+    const auto bad_shifts = engine.price_with_greeks(option, context, true, {.spot_shift = 0.0});
+    REQUIRE_FALSE(bad_shifts);
+    CHECK(bad_shifts.error().category == ErrorCategory::invalid_parameter);
+    const auto expired = *make_pricing_context(context.model_parameters(), 100.25, end + std::chrono::days{1});
+    const auto bad_time = engine.price_with_greeks(option, expired, true);
+    REQUIRE_FALSE(bad_time);
+    CHECK(bad_time.error().category == ErrorCategory::invalid_time_range);
+    const MonteCarloAccumulatorEngine unseeded{31, std::nullopt};
+    const auto random = unseeded.price_with_greeks(option, context, true);
+    REQUIRE(random);
+    CHECK(random->all_finite());
+    CHECK_FALSE(unseeded.settings().seed);
+    const auto again = engine.price_with_greeks(option, context, true);
+    REQUIRE(again);
+    CHECK(again->values_view() == a->values_view());
+}
+
 TEST_CASE("Accumulator daily leap-year grids preserve settlement prices", "[fd-performance]")
 {
     using namespace kiyosi;

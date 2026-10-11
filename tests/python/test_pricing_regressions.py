@@ -28,6 +28,66 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_accumulator_mc_joint_spot_greeks_preserve_scalar_seeded_valuations(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        option = Accumulator(
+            strike=100,
+            knock_out_level=115,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            effective_date=start,
+            expiry_date=end,
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04,
+            dividend_yield=0.01,
+            volatility=0.2,
+        )
+        names = (
+            "delta",
+            "gamma",
+            "speed",
+            "theta",
+            "charm",
+            "color",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
+        )
+        for seed in (42, 2**64 - 1):
+            for paths in (1, 31, 32):
+                engine = pricing.MonteCarloAccumulatorEngine(
+                    path_count=paths, seed=seed
+                )
+                for spot in (95, 100, 114.9, 116):
+                    for valuation in (start, datetime(2025, 1, 1, 12, tzinfo=UTC), end):
+                        with self.subTest(
+                            seed=seed, paths=paths, spot=spot, valuation=valuation
+                        ):
+                            context = PricingContext(
+                                model_parameters=parameters,
+                                spot_price=spot,
+                                valuation_time=valuation,
+                                calendar=all_days_calendar(),
+                            )
+                            expected = pricing.calculate_numerical_greeks(
+                                engine, option, context, spot_shift=0.2
+                            )
+                            for request in (names, ["delta", "gamma"], ["speed"]):
+                                actual = engine.price_with_greeks(
+                                    option, context, request, spot_shift=0.2
+                                )
+                                self.assertEqual(actual.price, expected.price)
+                                for name in names:
+                                    self.assertEqual(
+                                        getattr(actual, name),
+                                        getattr(expected, name)
+                                        if name in request
+                                        else None,
+                                    )
+
     def test_bjerksund_quadrature_preserves_continuation_across_maturities(self):
         start = date(2025, 1, 1)
         context = PricingContext(

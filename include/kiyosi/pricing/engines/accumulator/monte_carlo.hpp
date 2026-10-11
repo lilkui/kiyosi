@@ -28,6 +28,7 @@ public:
     [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
+    /// CPU spot bumps share per-call random draws and growth factors with storage independent of path count.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 

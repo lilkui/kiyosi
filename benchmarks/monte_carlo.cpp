@@ -128,6 +128,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto accumulator = accumulator_scenario().first;
     const auto snowball = snowball_scenario().first;
     const FiniteDifferenceAccumulatorEngine accumulator_engine{};
+    const MonteCarloAccumulatorEngine accumulator_monte_carlo{20'000, 42};
+    register_price("analytics/kiyosi/accumulator/mc/price", accumulator, accumulator_monte_carlo, context)->UseRealTime();
+    register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     const auto daily_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), all_days_calendar());
     register_price("analytics/kiyosi/accumulator/fd/calendar_daily/price", accumulator,
                    FiniteDifferenceAccumulatorEngine{{.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}}, daily_context);

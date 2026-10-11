@@ -278,3 +278,17 @@ bit-for-bit identical. The analytics suite includes `european/mc/delta_gamma` an
 odd/even path counts, seeds, custom shifts, life boundaries and concurrent calls.
 The per-request cache uses about 12 bytes per requested path (1.2 MB at 100,000
 paths); CUDA and American pricing keep their existing execution paths.
+
+CPU accumulator Monte Carlo evaluates spot bumps together, sharing each Gaussian
+draw and growth factor while retaining separate accrual and knock-out states.
+On 2026-10-11, a one-year, all-days-calendar, noon-valuation probe with spot 100.25,
+strike 100, knock-out 115 and seed 42 measured delta/gamma falling from 329.6 to
+142.6 ms at 20,000 paths and from 1659.0 to 713.8 ms at 100,000 paths (median of
+five runs, same Release MSVC compiler and CPU). Scalar prices stayed at about
+110 and 550 ms, respectively. Price and Greeks were bit-for-bit identical to
+separate seeded scalar valuations. Additional storage is independent of path
+count; scalar pricing and CUDA retain their existing simulation paths. The
+analytics suite includes `accumulator/mc/price` and `accumulator/mc/delta_gamma`.
+C++ and Python checks cover odd/even path counts, seeds, early knock-out,
+different accrual branches, unavailable event-boundary Greeks and expiry;
+C++ also checks failures, concurrent calls and unseeded settings.
