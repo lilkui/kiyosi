@@ -134,21 +134,15 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (old.size() < space->size()) old.resize(space->size(), rebate_value(time_to_expiry));
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
-    std::optional<double> speed;
-    if (output.has(Greek::speed)) {
-        const double h = symmetric_shift(spot, spot_shift);
-        if (h > 0.0 && spot > h && spot + h < space->upper) {
-            for (const double shifted_spot : {spot + h, spot - h}) {
-                const auto shifted_price = checked_price(space->interpolate(old, shifted_spot, curvature));
-                if (!shifted_price) return std::unexpected(shifted_price.error());
-            }
-            speed = (space->gamma(old, spot + h) - space->gamma(old, spot - h)) / (2.0 * h);
-        }
-    }
+    const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
+    const auto speed = finite_difference_speed(spot, h, space->upper,
+        [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); },
+        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
                                 {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
-                                {Greek::speed, speed}});
+                                {Greek::speed, *speed}});
 }
 } // namespace
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(

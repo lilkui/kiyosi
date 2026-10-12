@@ -4,6 +4,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <limits>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <utility>
@@ -14,6 +15,19 @@
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 
 namespace kiyosi::detail {
+
+template <typename Price, typename Gamma>
+Result<std::optional<double>> finite_difference_speed(
+    double spot, double h, double upper, const Price& price_at, const Gamma& gamma_at)
+{
+    // Unavailable stencils are left to the shared Greek completion path.
+    if (!(h > 0.0 && spot > h && spot + h < upper)) return std::nullopt;
+    for (const double shifted_spot : {spot + h, spot - h}) {
+        const auto price = price_at(shifted_spot);
+        if (!price) return std::unexpected(price.error());
+    }
+    return std::optional{(gamma_at(spot + h) - gamma_at(spot - h)) / (2.0 * h)};
+}
 
 struct FiniteDifferenceTimeGrid {
     std::vector<double> times;

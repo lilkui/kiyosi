@@ -220,21 +220,15 @@ Result<PricingResult> price_autocallable(
     auto& curvature = workspace.curvature;
     curvature.clear();
     const double value = initial.path.coupons + space->interpolate(alive, spot, curvature);
-    std::optional<double> speed;
-    if (output.has(Greek::speed)) {
-        const double h = symmetric_shift(spot, spot_shift);
-        if (h > 0.0 && spot > h && spot + h < space->upper) {
-            for (const double shifted_spot : {spot + h, spot - h}) {
-                const auto shifted_price = checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature));
-                if (!shifted_price) return std::unexpected(shifted_price.error());
-            }
-            speed = (space->gamma(alive, spot + h) - space->gamma(alive, spot - h)) / (2.0 * h);
-        }
-    }
+    const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
+    const auto speed = finite_difference_speed(spot, h, space->upper,
+        [&](double shifted_spot) { return checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature)); },
+        [&](double shifted_spot) { return space->gamma(alive, shifted_spot); });
+    if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
                                 {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt},
-                                {Greek::speed, speed}});
+                                {Greek::speed, *speed}});
 }
 
 template <typename Note, typename ReplaceCoupon>

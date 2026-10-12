@@ -112,29 +112,23 @@ Result<PricingResult> price_finite_difference(
                                 (american ? derivative * std::tanh(coordinate_spot) : 0.0)) /
                                    jacobian / jacobian
                              : 0.0;
-    std::optional<double> speed;
-    if (requested_output.has(Greek::speed)) {
-        const double h = symmetric_shift(spot, spot_shift);
-        // Leave unavailable stencils and clipped bumps to the shared completion path.
-        if (h > 0.0 && spot > h && spot + h < upper) {
-            for (const double shifted_spot : {spot + h, spot - h}) {
-                const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
-                const auto shifted_price = checked_price(std::max(coordinate.interpolate(old, x, curvature), american ? intrinsic(shifted_spot) : 0.0));
-                if (!shifted_price) return std::unexpected(shifted_price.error());
-            }
-            const auto gamma_at = [&](double shifted_spot) {
-                const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
-                const double scale = american ? std::hypot(strike, shifted_spot) : 1.0;
-                return (coordinate.gamma(old, x) -
-                        (american ? coordinate.delta(old, x) * std::tanh(x) : 0.0)) /
-                       scale / scale;
-            };
-            speed = (gamma_at(spot + h) - gamma_at(spot - h)) / (2.0 * h);
-        }
-    }
+    const double h = requested_output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
+    const auto speed = finite_difference_speed(spot, h, upper,
+        [&](double shifted_spot) {
+            const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
+            return checked_price(std::max(coordinate.interpolate(old, x, curvature), american ? intrinsic(shifted_spot) : 0.0));
+        },
+        [&](double shifted_spot) {
+            const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
+            const double scale = american ? std::hypot(strike, shifted_spot) : 1.0;
+            return (coordinate.gamma(old, x) -
+                    (american ? coordinate.delta(old, x) * std::tanh(x) : 0.0)) /
+                   scale / scale;
+        });
+    if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{derivative / jacobian} : std::nullopt},
                                        {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{gamma} : std::nullopt},
-                                       {Greek::speed, speed}});
+                                       {Greek::speed, *speed}});
 }
 } // namespace
 

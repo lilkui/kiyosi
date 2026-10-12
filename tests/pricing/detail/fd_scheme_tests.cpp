@@ -14,6 +14,54 @@
 #include "pricing/detail/fd_scheme.hpp"
 #include "pricing/detail/fd_grid.hpp"
 
+TEST_CASE("Finite-difference speed validates shifted prices before using gamma", "[fd-speed]")
+{
+    using namespace kiyosi;
+    std::vector<double> prices;
+    std::vector<double> gammas;
+    bool reject_low = false;
+    const auto price_at = [&](double spot) -> Result<double> {
+        prices.push_back(spot);
+        if (reject_low && spot < 100.0)
+            return std::unexpected(Error{ErrorCategory::invalid_result, "shifted price rejected"});
+        return spot;
+    };
+    const auto gamma_at = [&](double spot) {
+        gammas.push_back(spot);
+        return 3.0 * spot;
+    };
+    SECTION("Available stencil uses both shifted gammas")
+    {
+        const auto speed = detail::finite_difference_speed(100.0, 1.0, 200.0, price_at, gamma_at);
+        REQUIRE(speed);
+        CHECK(*speed == std::optional{3.0});
+        CHECK(prices == std::vector<double>{101.0, 99.0});
+        CHECK(gammas.size() == 2);
+    }
+    SECTION("Unavailable stencils perform no shifted valuations")
+    {
+        for (const auto [spot, h, upper] : {std::array{100.0, 0.0, 200.0},
+                                          std::array{1.0, 1.0, 200.0},
+                                          std::array{100.0, 1.0, 101.0},
+                                          std::array{100.0, std::numeric_limits<double>::quiet_NaN(), 200.0}}) {
+            const auto speed = detail::finite_difference_speed(spot, h, upper, price_at, gamma_at);
+            REQUIRE(speed);
+            CHECK_FALSE(speed->has_value());
+        }
+        CHECK(prices.empty());
+        CHECK(gammas.empty());
+    }
+    SECTION("A failed feasible price prevents gamma evaluation")
+    {
+        reject_low = true;
+        const auto speed = detail::finite_difference_speed(100.0, 1.0, 200.0, price_at, gamma_at);
+        REQUIRE_FALSE(speed);
+        CHECK(speed.error().category == ErrorCategory::invalid_result);
+        CHECK(prices == std::vector<double>{101.0, 99.0});
+        CHECK(gammas.empty());
+    }
+}
+
 TEST_CASE("Finite-difference spline interpolation preserves nodes and affine values")
 {
     for (const int steps : {3, 8}) {
