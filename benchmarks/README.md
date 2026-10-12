@@ -545,3 +545,12 @@ probe on an RTX 3090 used a reused workspace, one simulation step, 250,000 paths
 seed 42 and five spots. Median wall time fell from 497–498 us to 475–478 us
 (seven batches of 50 calls per run, two runs), with every price bit-for-bit
 equal to its scalar valuation. These timings depend on hardware and workload.
+
+Structured Monte Carlo delta/gamma requests keep their three-spot batch when
+speed's five-spot stencil is unavailable. The `accumulator/mc` and `snowball/mc`
+`delta_gamma_unavailable_speed` cases track this combination. A 2026-10-12
+Release MSVC probe on a Ryzen 7 3700X used a one-year daily schedule, noon
+valuation, spot 100, spot shift 60, knock-out level 1,000, 20,000 paths and
+seed 42. Median wall time over seven runs fell from 614 to 324 ms for the
+accumulator and 606 to 404 ms for the snowball, with identical prices and
+available Greeks. Timing depends on path termination and workload.

@@ -309,11 +309,10 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
                     const bool speed_available = std::isfinite(two_h) && spot > two_h &&
                                                  symmetric_shift(spot, two_h) == two_h &&
                                                  !at_spot_discontinuity(option, context, two_h);
-                    if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::speed)) &&
+                    if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available)) &&
                         h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
-                        !at_spot_discontinuity(option, context, h) &&
-                        (!greeks.has(Greek::speed) || speed_available)) {
-                        if (greeks.has(Greek::speed))
+                        !at_spot_discontinuity(option, context, h)) {
+                        if (greeks.has(Greek::speed) && speed_available)
                             return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h, workspace), greeks, h);
                         return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h, workspace), greeks, h);
                     }

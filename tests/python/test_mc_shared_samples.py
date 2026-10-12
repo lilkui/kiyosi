@@ -704,6 +704,33 @@ class SharedSampleTests(unittest.TestCase):
                 for option, engine in cases
             )
         for option, engine in cases:
+            with self.subTest(engine=type(engine).__name__, unavailable="speed"):
+                context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=spot,
+                    valuation_time=valuation,
+                    calendar=calendar,
+                )
+                selected = engine.price_with_greeks(
+                    option, context, ["delta", "gamma", "speed"], spot_shift=60
+                )
+                prices = [
+                    engine.price(
+                        option,
+                        PricingContext(
+                            model_parameters=parameters,
+                            spot_price=value,
+                            valuation_time=valuation,
+                            calendar=calendar,
+                        ),
+                    )
+                    for value in (spot - 60, spot, spot + 60)
+                ]
+                low, middle, high = prices
+                self.assertEqual(selected.price, middle)
+                self.assertEqual(selected.delta, (high - low) / 120)
+                self.assertEqual(selected.gamma, (high - 2 * middle + low) / 60 / 60)
+                self.assertIsNone(selected.speed)
             for shift in (0.01, 0.2):
                 with self.subTest(engine=type(engine).__name__, shift=shift):
                     h = (spot + shift) - spot

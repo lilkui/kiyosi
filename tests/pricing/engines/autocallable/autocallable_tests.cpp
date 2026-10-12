@@ -25,6 +25,39 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Unavailable speed retains structured Monte Carlo spot batching", "[autocallable-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    int queries = 0;
+    const auto calendar = *make_trading_calendar([&](Date) { ++queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), 100.0,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const NumericalShiftSettings shifts{.spot_shift = 60.0};
+    const auto check = [&](const auto& option, const auto& engine) {
+        const auto expected = detail::price_with_greeks(engine, option, context, {Greek::delta, Greek::gamma, Greek::speed}, shifts);
+        REQUIRE(expected);
+        queries = 0;
+        const auto spot = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma}, shifts);
+        REQUIRE(spot);
+        const int spot_queries = std::exchange(queries, 0);
+        const auto mixed = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed}, shifts);
+        REQUIRE(mixed);
+        CHECK(queries == spot_queries);
+        CHECK(mixed->price() == expected->price());
+        CHECK(mixed->values_view() == expected->values_view());
+        CHECK(mixed->values_view() == spot->values_view());
+        CHECK(mixed->has(Greek::delta));
+        CHECK(mixed->has(Greek::gamma));
+        CHECK_FALSE(mixed->has(Greek::speed));
+    };
+    check(*make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}), MonteCarloAccumulatorEngine{31, 42});
+    check(*make_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), MonteCarloSnowballEngine{31, 42});
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {110.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end}), MonteCarloBinarySnowballEngine{31, 42});
+    check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), MonteCarloTernarySnowballEngine{31, 42});
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), MonteCarloPhoenixEngine{31, 42});
+}
+
 TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated workspaces", "[implied-workspace]")
 {
     using namespace kiyosi;
