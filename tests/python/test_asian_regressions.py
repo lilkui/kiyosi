@@ -10,6 +10,30 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AsianRegressionTests(unittest.TestCase):
+    def test_vanna_survives_underflow_of_combined_stencil_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=1e-200
+            ),
+            spot_price=1e-200, valuation_time=start,
+        )
+        for kind, engine in (
+            (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine()),
+            (ArithmeticAveragePriceOption, pricing.TurnbullWakemanArithmeticAveragePriceEngine()),
+        ):
+            with self.subTest(kind=kind):
+                option = kind(
+                    option_type="call", strike=5e-201, effective_date=start,
+                    averaging_start_date=start, expiry_date=end,
+                )
+                result = engine.price_with_greeks(
+                    option, context, greeks="vanna", spot_shift=1e-201,
+                    volatility_shift=1e-201,
+                )
+                self.assertAlmostEqual(result.price, 5e-201, delta=5e-213)
+                self.assertEqual(result.vanna, 0)
+
     def test_concurrent_asian_delta_requests_preserve_results_and_errors(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

@@ -546,6 +546,23 @@ TEST_CASE("Geometric Asians retain small positive variance across averaging wind
     }
 }
 
+TEST_CASE("Scalar vanna retains finite values when stencil scales multiply to zero", "[audit-fixes][vanna-scale]")
+{
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-200), 1e-200, start);
+    const auto check = [&](const auto& engine, const auto& option) {
+        const auto result = engine.price_with_greeks(option, context, {Greek::vanna},
+                                                   {.spot_shift = 1e-201, .volatility_shift = 1e-201});
+        REQUIRE(result);
+        CHECK(result->price() == Catch::Approx(5e-201).epsilon(1e-12).margin(0.0));
+        CHECK(greek_value(*result, Greek::vanna) == 0.0);
+    };
+    check(AnalyticGeometricAveragePriceEngine{},
+          *make_geometric_average_option(OptionType::call, 5e-201, start, start, end));
+    check(TurnbullWakemanArithmeticAveragePriceEngine{},
+          *make_arithmetic_average_option(OptionType::call, 5e-201, start, start, end));
+}
+
 TEST_CASE("Single-fixing geometric Asians retain European time value", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

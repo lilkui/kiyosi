@@ -283,7 +283,7 @@ Result<PricingResult> complete_greeks(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
-                                                             (4.0 * h * vol_scale);
+                                                             h / vol_scale / 4.0;
 
             if (need(Greek::zomma) && !native_zomma) {
                 const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;

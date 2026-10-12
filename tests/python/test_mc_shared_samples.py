@@ -821,9 +821,7 @@ class SharedSampleTests(unittest.TestCase):
                             ]
                         )
                     (center_hi, up_hi, down_hi), (center_lo, up_lo, down_lo) = stencils
-                    vanna = ((up_hi - down_hi) - (up_lo - down_lo)) / (
-                        4 * h * (100 * vol_shift)
-                    )
+                    vanna = ((up_hi - down_hi) - (up_lo - down_lo)) / h / (100 * vol_shift) / 4
                     zomma = (
                         (up_hi - 2 * center_hi + down_hi) / h / h
                         - (up_lo - 2 * center_lo + down_lo) / h / h
@@ -879,9 +877,7 @@ class SharedSampleTests(unittest.TestCase):
                     low, middle, high = rows[1]
                     delta = (high - low) / (2 * shift)
                     gamma = (high - 2 * middle + low) / shift / shift
-                    vanna = ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0])) / (
-                        4 * shift * (100 * vol_shift)
-                    )
+                    vanna = ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0])) / shift / (100 * vol_shift) / 4
                     zomma = (
                         (rows[2][2] - 2 * rows[2][1] + rows[2][0]) / shift / shift
                         - (rows[0][2] - 2 * rows[0][1] + rows[0][0]) / shift / shift
