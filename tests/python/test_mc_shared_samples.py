@@ -72,6 +72,9 @@ class SharedSampleTests(unittest.TestCase):
                                 )
 
                             base = context(rate)
+                            spot_greeks = engine.price_with_greeks(
+                                option, base, ["delta", "gamma"]
+                            )
                             h = (rate + 0.25) - rate
                             expected = (
                                 engine.price(option, context(rate + h))
@@ -99,6 +102,9 @@ class SharedSampleTests(unittest.TestCase):
                                     if request == ["rho"]:
                                         self.assertIsNone(actual.delta)
                                         self.assertIsNone(actual.gamma)
+                                    else:
+                                        self.assertEqual(actual.delta, spot_greeks.delta)
+                                        self.assertEqual(actual.gamma, spot_greeks.gamma)
 
         option = Accumulator(
             strike=100,

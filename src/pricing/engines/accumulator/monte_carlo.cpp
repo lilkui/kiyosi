@@ -191,11 +191,12 @@ Result<std::array<double, count>> price_spot_bumps(
 
 Result<std::array<double, 3>> price_rate_bumps(
     const Accumulator& option, const PricingContext& context,
-    const TradingDayMonteCarloSettings& settings, double h)
+    const TradingDayMonteCarloSettings& settings, double h, std::optional<double> base_price = std::nullopt)
 {
     std::array<std::vector<SimulationStep>, 3> steps;
     std::array<PathState, 3> initial{};
-    for (std::size_t i = 0; i < initial.size(); ++i) {
+    initial[0].payoff = base_price;
+    for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
         const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
         const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
                                              rate, context.valuation_time());
@@ -296,12 +297,8 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
                 if (!valid) return std::unexpected(valid.error());
                 const double rate_shift = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
                 std::optional<std::array<double, 3>> rate_prices;
-                if (seeded.settings().backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
-                    rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context)) {
-                    const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift);
-                    if (!values) return std::unexpected(values.error());
-                    rate_prices = *values;
-                }
+                const bool batch_rates = seeded.settings().backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
+                                         rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context);
                 auto native = [&]() -> Result<PricingResult> {
                     const double spot = context.spot_price();
                     const double h = symmetric_shift(spot, settings.spot_shift);
@@ -316,11 +313,21 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
                             return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h, workspace), greeks, h);
                         return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h, workspace), greeks, h);
                     }
+                    if (batch_rates) {
+                        const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift);
+                        if (!values) return std::unexpected(values.error());
+                        rate_prices = *values;
+                    }
                     const auto value = rate_prices ? Result<double>{(*rate_prices)[0]} : scalar.price(option, context);
                     if (!value) return std::unexpected(value.error());
                     return make_pricing_result(*value);
                 }();
                 if (!native) return std::unexpected(native.error());
+                if (batch_rates && !rate_prices) {
+                    const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift, native->price());
+                    if (!values) return std::unexpected(values.error());
+                    rate_prices = *values;
+                }
                 if (rate_prices)
                     native = make_pricing_result(native->price(), {{Greek::delta, *native->get(Greek::delta)},
                                                                    {Greek::gamma, *native->get(Greek::gamma)},

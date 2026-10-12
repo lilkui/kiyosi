@@ -11,6 +11,7 @@
 #include <optional>
 #include <random>
 #include <tuple>
+#include <utility>
 
 #include <kiyosi/kiyosi.hpp>
 
@@ -39,6 +40,37 @@ TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-c
     CHECK(queries->load() < scalar_queries);
     CHECK(result->price() == scalar->price());
     CHECK(result->values_view() == scalar->values_view());
+}
+
+TEST_CASE("Accumulator spot and rate Greeks prepare the base trajectory once", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    int queries = 0;
+    const auto calendar = *make_trading_calendar([&](Date) { ++queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), 100.0,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+    const MonteCarloAccumulatorEngine engine{31, 42};
+    for (const double shift : {0.2, 60.0, 200.0}) {
+        CAPTURE(shift);
+        const NumericalShiftSettings shifts{.spot_shift = shift, .rate_shift = 0.25};
+        const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
+        REQUIRE(expected);
+        queries = 0;
+        const auto rho = engine.price_with_greeks(option, context, {Greek::rho}, shifts);
+        REQUIRE(rho);
+        const int rate_queries = std::exchange(queries, 0);
+        for (const auto request : {GreeksRequest{Greek::delta, Greek::gamma, Greek::rho},
+                                   GreeksRequest{Greek::delta, Greek::gamma, Greek::speed, Greek::rho}}) {
+            queries = 0;
+            const auto actual = engine.price_with_greeks(option, context, request, shifts);
+            REQUIRE(actual);
+            CHECK(queries == rate_queries);
+            CHECK(actual->price() == expected->price());
+            CHECK(actual->values_view() == expected->selected(request).values_view());
+        }
+    }
 }
 
 TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valuations", "[monte-carlo-performance]")

@@ -554,3 +554,11 @@ valuation, spot 100, spot shift 60, knock-out level 1,000, 20,000 paths and
 seed 42. Median wall time over seven runs fell from 614 to 324 ms for the
 accumulator and 606 to 404 ms for the snowball, with identical prices and
 available Greeks. Timing depends on path termination and workload.
+
+Accumulator CPU spot-plus-rho requests reuse the completed spot batch's base
+price; the rate batch then simulates only the two shifted trajectories. The
+`accumulator/mc/delta_gamma_rho` case tracks this request. With the same
+2026-10-12 daily-schedule probe and default spot/rate shifts, median time fell
+from 697 to 576 ms. Regression checks compare all results against independent
+seeded prices, including early knock-outs, unavailable spot stencils and a
+fixed base position whose rate bumps still require simulation.
