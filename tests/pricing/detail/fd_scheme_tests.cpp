@@ -436,12 +436,13 @@ TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-fa
     const DiffusionParameters valid{0.03, 0.01, 0.2, 0.5};
     REQUIRE(reused.advance(old, actual, 0.1, valid, 0.0, 16.0));
     REQUIRE(reused.advance(old, actual, 0.05, valid, 0.0, 16.0));
-    for (int attempt = 0; attempt < 2; ++attempt) {
+    REQUIRE(reused.advance(old, actual, 0.025, valid, 0.0, 16.0));
+    for (int attempt = 0; attempt < 3; ++attempt) {
         CHECK_FALSE(reused.advance(old, actual, 0.1, {-10.0, -10.0, 0.0, 1.0}, 0.0, 16.0));
         auto invalid_old = old;
         invalid_old[2] = std::numeric_limits<double>::infinity();
         CHECK_FALSE(reused.advance(invalid_old, actual, 0.1, valid, 0.0, 16.0));
-        for (const double dt : {0.1, 0.05}) {
+        for (const double dt : {0.1, 0.05, 0.025, 0.05, 0.1, 0.025}) {
             FiniteDifferenceStep fresh{5};
             REQUIRE(reused.advance(old, actual, dt, valid, 0.0, 16.0));
             REQUIRE(fresh.advance(old, expected, dt, valid, 0.0, 16.0));

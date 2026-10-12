@@ -51,7 +51,7 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
 }
 
 /// One theta-weighted Black-Scholes time step solved with the Thomas algorithm.
-/// Reuses buffers and two factorizations for recurring time steps and constraint masks.
+/// Reuses buffers and three factorizations for recurring time steps and constraint masks.
 class FiniteDifferenceStep {
     struct Layer {
         std::span<const double> old;
@@ -108,9 +108,15 @@ private:
                         const DiffusionParameters& parameters, Constraint constraint)
     {
         const double theta = parameters.theta;
-        // Calendar grids repeatedly alternate weekday and weekend interval widths.
-        if (theta != 0.0 && (factors_[active_].dt != dt || factors_[active_].parameters != parameters))
-            active_ = 1 - active_;
+        // Calendar anchors and uniform nodes introduce recurring split widths.
+        if (theta != 0.0 && (factors_[active_].dt != dt || factors_[active_].parameters != parameters)) {
+            active_ = (active_ + 1) % factors_.size();
+            for (std::size_t index = 0; index < factors_.size(); ++index)
+                if (factors_[index].dt == dt && factors_[index].parameters == parameters) {
+                    active_ = index;
+                    break;
+                }
+        }
         auto& factors = factors_[active_];
         if (theta != 0.0 && factors.diagonal.empty()) factors = Factorization{rhs_.size()};
         bool reuse = factors.dt == dt && factors.parameters == parameters;
@@ -220,7 +226,7 @@ private:
 
     std::vector<double> rhs_;
     std::vector<double> paired_rhs_;
-    std::array<Factorization, 2> factors_;
+    std::array<Factorization, 3> factors_;
     std::size_t active_{};
     std::optional<DiffusionParameters> cached_parameters_;
     std::vector<std::array<double, 3>> coefficients_;

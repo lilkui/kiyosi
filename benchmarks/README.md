@@ -73,6 +73,17 @@ pricing times: maturity 1.37, 100 constructions per sample, median of five sampl
 Both paths produced exactly equal node and width vectors. Event-bearing grids
 retain event merging and deduplication.
 
+FD factor caching retains three exact step-width/parameter combinations so
+calendar splits can reuse a matrix beyond the immediately previous slot. The
+`accumulator/fd/calendar_daily/split_grid/price` and `calendar_weekdays/split_grid/price`
+analytics cases use the default 200-by-200 grid, spot 100.25, and the common market
+below. On 2026-10-12, Release MSVC 19.51 on a Ryzen 7 3700X measured median wall
+time falling from 2.462 ms to 2.269 ms for all days and from 2.071 ms to 1.912 ms
+for weekdays (five repetitions, 0.15 s minimum). Prices were exactly unchanged
+across these and eight existing FD cases, including accumulator delta/gamma,
+snowball and scheduled knock-in barriers. Constraint masks still invalidate
+changed matrices; the extra factor storage is allocated only when needed.
+
 The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
 prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
 the interpolated coupon with a separate price. Bounds that require different
