@@ -11,6 +11,24 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
+TEST_CASE("Finite-difference digital prices preserve scaled discount factors", "[audit-fixes]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    constexpr double payout = 1e-308;
+    const auto context = *make_pricing_context(*make_bsm_parameters(-710.0, -710.0, 0.2), 100.0, start);
+    const FiniteDifferenceDigitalEngine engine{100, 100'000};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        CAPTURE(type);
+        const auto option = *make_cash_or_nothing_option(type, 100.0, payout, start, end);
+        const double sign = type == OptionType::call ? 1.0 : -1.0;
+        const double expected = std::exp(std::log(payout) + 710.0) * 0.5 * std::erfc(sign * 0.1 / std::numbers::sqrt2);
+        const auto result = engine.price(option, context);
+        REQUIRE(result);
+        CHECK(*result == Catch::Approx(expected).epsilon(0.006));
+    }
+}
+
 TEST_CASE("Deep in-the-money digital prices survive overflowing discount factors", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

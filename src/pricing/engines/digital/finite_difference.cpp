@@ -64,9 +64,14 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     auto boundary = [&](double tau) {
         const bool call = option.option_type() == OptionType::call;
         const auto probabilities = black_scholes_probabilities(sign, space->upper, strike, rate, dividend, volatility, tau);
-        if (asset) return Boundaries{0.0, space->upper * std::exp(-dividend * tau) * probabilities.asset};
-        const double discounted = payout * std::exp(-rate * tau);
-        return Boundaries{call ? 0.0 : discounted, discounted * probabilities.cash};
+        const double amount = asset ? space->upper : payout;
+        const double exponent = -(asset ? dividend : rate) * tau;
+        const double discounted = scaled_exponential(amount, exponent);
+        const double probability = asset ? probabilities.asset : probabilities.cash;
+        const double upper = tau > 0.0 && volatility > 0.0 && (probability == 0.0 || !std::isfinite(discounted))
+                                 ? scaled_normal_cdf(amount, exponent, sign * (asset ? probabilities.d1 : probabilities.d2))
+                                 : discounted * probability;
+        return Boundaries{asset || call ? 0.0 : discounted, upper};
     };
 
     std::vector<double> old(space->size());
@@ -80,7 +85,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     std::vector<double> curvature;
     const auto price_at = [&](double shifted_spot) -> Result<double> {
         const double value = space->interpolate(old, shifted_spot, curvature);
-        const double upper_bound = asset ? shifted_spot * std::exp(-dividend * time) : payout * std::exp(-rate * time);
+        const double upper_bound = scaled_exponential(asset ? shifted_spot : payout, -(asset ? dividend : rate) * time);
         // Allow floating-point roundoff, but reject oscillations that violate the payoff bounds.
         const double tolerance = 64.0 * std::numeric_limits<double>::epsilon() * upper_bound;
         if (!std::isfinite(value) || value < -tolerance || value - upper_bound > tolerance)
@@ -92,7 +97,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     if (!value) return std::unexpected(value.error());
     const double h = requested_output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
     const auto speed = finite_difference_speed(spot, h, space->upper, price_at,
-        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+                                               [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
     if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(*value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
                                         {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
