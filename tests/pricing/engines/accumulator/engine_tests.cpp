@@ -69,6 +69,44 @@ TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valu
                 }
 }
 
+TEST_CASE("Accumulator Monte Carlo rate Greeks preserve independent seeded valuations", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    for (const bool fixed : {false, true}) {
+        const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = fixed ? 0.0 : 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
+        const auto parameters = *make_bsm_parameters(fixed ? 0.0 : 0.04, fixed ? 0.0 : 0.01, 0.2);
+        for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
+            for (const int paths : {1, 31, 32})
+                for (const double spot : {95.0, 114.9, 116.0})
+                    for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
+                        CAPTURE(fixed, seed, paths, spot, valuation.time_since_epoch().count());
+                        const MonteCarloAccumulatorEngine engine{paths, seed};
+                        const auto context = *make_pricing_context(parameters, spot, valuation, all_days_calendar());
+                        for (const auto request : {GreeksRequest{Greek::rho}, GreeksRequest{Greek::delta, Greek::gamma, Greek::rho}}) {
+                            const NumericalShiftSettings shifts{.rate_shift = 0.25};
+                            const auto expected = detail::price_with_greeks(engine, option, context, request, shifts);
+                            const auto actual = engine.price_with_greeks(option, context, request, shifts);
+                            REQUIRE(expected);
+                            REQUIRE(actual);
+                            CHECK(actual->price() == expected->price());
+                            CHECK(actual->values_view() == expected->values_view());
+                        }
+                    }
+    }
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start_of_day(start) + std::chrono::hours{12});
+    const MonteCarloAccumulatorEngine engine{31, 42};
+    const auto unavailable = engine.price_with_greeks(option, context, {Greek::rho}, {.rate_shift = 1e307});
+    REQUIRE(unavailable);
+    CHECK(unavailable->price() == *engine.price(option, context));
+    CHECK_FALSE(unavailable->has(Greek::rho));
+    const auto failed = engine.price_with_greeks(option, context, {Greek::rho}, {.rate_shift = 1e6});
+    REQUIRE_FALSE(failed);
+    CHECK(failed.error().category == ErrorCategory::invalid_result);
+    CHECK(engine.price_with_greeks(option, context, {Greek::rho}));
+}
+
 TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concurrent calls", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

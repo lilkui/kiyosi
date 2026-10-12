@@ -35,6 +35,97 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    def test_accumulator_rate_greeks_equal_independent_seeded_prices(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        for fixed in (False, True):
+            rate, dividend = (0.0, 0.0) if fixed else (0.04, 0.01)
+            option = Accumulator(
+                strike=100,
+                knock_out_level=115,
+                daily_quantity=0 if fixed else 1,
+                acceleration_factor=2,
+                accumulated_quantity=3,
+                effective_date=start,
+                expiry_date=end,
+            )
+            for seed in (42, 2**64 - 1):
+                for paths in (1, 31, 32):
+                    engine = pricing.MonteCarloAccumulatorEngine(
+                        path_count=paths, seed=seed
+                    )
+                    for spot in (95, 114.9, 116):
+                        for valuation in (
+                            start,
+                            datetime(2025, 1, 1, 12, tzinfo=UTC),
+                            end,
+                        ):
+                            def context(shifted_rate):
+                                return PricingContext(
+                                    model_parameters=BlackScholesMertonParameters(
+                                        risk_free_rate=shifted_rate,
+                                        dividend_yield=dividend,
+                                        volatility=0.2,
+                                    ),
+                                    spot_price=spot,
+                                    valuation_time=valuation,
+                                    calendar=all_days_calendar(),
+                                )
+
+                            base = context(rate)
+                            h = (rate + 0.25) - rate
+                            expected = (
+                                engine.price(option, context(rate + h))
+                                - engine.price(option, context(rate - h))
+                            ) / (200 * h)
+                            with self.subTest(
+                                fixed=fixed,
+                                seed=seed,
+                                paths=paths,
+                                spot=spot,
+                                valuation=valuation,
+                            ):
+                                for request in (["rho"], ["delta", "gamma", "rho"]):
+                                    actual = engine.price_with_greeks(
+                                        option, base, request, rate_shift=0.25
+                                    )
+                                    self.assertEqual(
+                                        actual.price, engine.price(option, base)
+                                    )
+                                    if valuation == end:
+                                        self.assertIsNone(actual.rho)
+                                    else:
+                                        self.assertEqual(actual.rho, expected)
+                                    self.assertIsNone(actual.vega)
+                                    if request == ["rho"]:
+                                        self.assertIsNone(actual.delta)
+                                        self.assertIsNone(actual.gamma)
+
+        option = Accumulator(
+            strike=100,
+            knock_out_level=115,
+            daily_quantity=1,
+            acceleration_factor=2,
+            effective_date=start,
+            expiry_date=end,
+        )
+        base = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+        )
+        engine = pricing.MonteCarloAccumulatorEngine(path_count=31, seed=42)
+        unavailable = engine.price_with_greeks(option, base, "rho", rate_shift=1e307)
+        self.assertEqual(unavailable.price, engine.price(option, base))
+        self.assertIsNone(unavailable.rho)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price_with_greeks(option, base, "rho", rate_shift=1e6)
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+        recovered = engine.price_with_greeks(option, base, "rho")
+        self.assertEqual(recovered.price, engine.price(option, base))
+        self.assertIsNotNone(recovered.rho)
+
     def test_european_unavailable_stencils_retain_scalar_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

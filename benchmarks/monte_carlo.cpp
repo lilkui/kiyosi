@@ -136,6 +136,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const MonteCarloAccumulatorEngine accumulator_monte_carlo{20'000, 42};
     register_price("analytics/kiyosi/accumulator/mc/price", accumulator, accumulator_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/accumulator/mc/rho", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::rho}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/all", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, true); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/numerical_all", [=] { return calculate_numerical_greeks(accumulator_monte_carlo, accumulator, context); }, "price")->UseRealTime();
 #if KIYOSI_HAS_CUDA

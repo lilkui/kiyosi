@@ -499,6 +499,15 @@ default FD charm falling from 2.40 to 0.97 ms and color from 2.89 to 0.95 ms;
 color/gamma request at 0.00001897446, close to analytic 0.00001892253, rather
 than the scalar-stencil value 0.00027356906. Returned fields remain selective.
 
+CPU accumulator rho batches base/up/down rate paths with shared random draws
+and independent drift, discount and knock-out state. The `accumulator/mc/rho`
+analytics case tracks this workload. A 2026-10-12 Release MSVC probe with
+20,000 paths, seed 42, one-year maturity, noon valuation, spot/strike 100,
+knock-out 115, rate 4%, dividend yield 1% and volatility 20% measured 352.8 ms
+before and 182.8 ms after (median of seven requests). Prices and rho remain
+bit-for-bit equal to independent scalar valuations, including zero-carry fixed
+positions whose base value settles immediately while rate bumps still simulate.
+
 Scheduled analytic barrier, binary barrier and touch Greeks validate the
 calendar once per request, while each shifted price retains its other domain
 checks. The `barrier/analytic/scheduled_dense` cases compare the request with
