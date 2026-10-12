@@ -10,11 +10,37 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "pricing/engines/monte_carlo_host.hpp"
 
 namespace {
 
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
+
+TEST_CASE("Monte Carlo spot stencils preserve node meaning and cubic derivatives", "[monte-carlo-stencil]")
+{
+    using namespace kiyosi;
+    using namespace kiyosi::detail;
+    STATIC_REQUIRE(SpotStencil<2>::offsets[SpotStencil<2>::up] == 1.0);
+    STATIC_REQUIRE(SpotStencil<2>::offsets[SpotStencil<2>::down] == -1.0);
+    const auto check = []<std::size_t count>() {
+        using Stencil = SpotStencil<count>;
+        std::array<double, count> prices{};
+        for (std::size_t i = 0; i < count; ++i) {
+            const double spot = 10.0 + 2.0 * Stencil::offsets[i];
+            prices[i] = spot * spot * spot;
+        }
+        const auto result = spot_bump_result<count>(prices, true, 2.0);
+        REQUIRE(result);
+        CHECK(result->price() == 1000.0);
+        CHECK(greek_value(*result, Greek::delta) == 304.0);
+        CHECK(greek_value(*result, Greek::gamma) == 60.0);
+        if constexpr (count == 5) CHECK(greek_value(*result, Greek::speed) == 6.0);
+        else CHECK_FALSE(result->has(Greek::speed));
+    };
+    check.template operator()<3>();
+    check.template operator()<5>();
+}
 
 TEST_CASE("Autocallable discontinuities use only the current observation", "[autocallable-boundaries]")
 {
@@ -22,11 +48,7 @@ TEST_CASE("Autocallable discontinuities use only the current observation", "[aut
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
     const std::vector<Date> dates{day(2025, 1, 3), day(2025, 1, 8), end};
     for (const auto state : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in, AutocallableBarrierState::knocked_out}) {
-        const auto note = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0,
-                                                .knock_in_level = 70.0, .knock_out_levels = {110.0, 120.0, 130.0},
-                                                .coupon_barrier_levels = {90.0, 95.0, 100.0}, .upper_strike = 100.0,
-                                                .lower_strike = 60.0, .observation_dates = dates, .barrier_state = state,
-                                                .effective_date = start, .expiry_date = end});
+        const auto note = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {110.0, 120.0, 130.0}, .coupon_barrier_levels = {90.0, 95.0, 100.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dates, .barrier_state = state, .effective_date = start, .expiry_date = end});
         const auto crosses = [&](Date date, double spot, bool intraday = false) {
             const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot,
                                                        start_of_day(date) + std::chrono::hours{intraday ? 12 : 0}, all_days_calendar());

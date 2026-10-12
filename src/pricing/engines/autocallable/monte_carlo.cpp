@@ -161,7 +161,7 @@ Result<std::array<double, count>> price_spot_bumps(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
     double h, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
-    constexpr std::array offsets = count == 2 ? std::array{1.0, -1.0, 0.0, 0.0, 0.0} : std::array{0.0, 1.0, -1.0, 2.0, -2.0};
+    constexpr auto offsets = SpotStencil<count>::offsets;
     const auto program = autocallable_program(note);
     const auto base = autocallable_initial_state(note, context, program);
     std::array<PathState, count> initial{};

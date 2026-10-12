@@ -15,6 +15,7 @@
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
 #include "monte_carlo_random.hpp"
+#include "monte_carlo_stencil.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
@@ -36,19 +37,21 @@ struct CudaMonteCarloPricer {
 template <std::size_t count>
 Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
 {
+    using Stencil = SpotStencil<count>;
     if (!prices) return std::unexpected(prices.error());
     std::optional<double> speed;
     if constexpr (count == 5)
-        speed = ((*prices)[3] - 2.0 * (*prices)[1] + 2.0 * (*prices)[2] - (*prices)[4]) / h / h / (2.0 * h);
-    return make_pricing_result((*prices)[0],
-                               {{Greek::delta, greeks.has(Greek::delta) ? std::optional{((*prices)[1] - (*prices)[2]) / (2.0 * h)} : std::nullopt},
-                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{((*prices)[1] - 2.0 * (*prices)[0] + (*prices)[2]) / h / h} : std::nullopt},
+        speed = ((*prices)[Stencil::up_twice] - 2.0 * (*prices)[Stencil::up] + 2.0 * (*prices)[Stencil::down] - (*prices)[Stencil::down_twice]) / h / h / (2.0 * h);
+    return make_pricing_result((*prices)[Stencil::center],
+                               {{Greek::delta, greeks.has(Greek::delta) ? std::optional{((*prices)[Stencil::up] - (*prices)[Stencil::down]) / (2.0 * h)} : std::nullopt},
+                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{((*prices)[Stencil::up] - 2.0 * (*prices)[Stencil::center] + (*prices)[Stencil::down]) / h / h} : std::nullopt},
                                 {Greek::speed, speed}});
 }
 
 // Cache the two volatility stencils as scalar prices, retaining the shared Greek arithmetic.
 template <typename Engine, typename Sample>
 struct MonteCarloMixedPricer {
+    using Stencil = SpotStencil<3>;
     const Engine& engine;
     const PricingContext& base;
     double h;
@@ -65,11 +68,11 @@ struct MonteCarloMixedPricer {
         const double volatility = initial.volatility();
         const int index = model.volatility() == volatility + volatility_shift ? 0 : 1;
         const double spot = base.spot_price();
-        const int node = context.spot_price() == spot ? 0 : context.spot_price() == spot + h ? 1
-                                                                                             : 2;
+        const auto node = context.spot_price() == spot ? Stencil::center : context.spot_price() == spot + h ? Stencil::up
+                                                                                                            : Stencil::down;
         if (h == 0.0 || volatility_shift == 0.0 || model.volatility() != volatility + (index == 0 ? volatility_shift : -volatility_shift) ||
             model.risk_free_rate() != initial.risk_free_rate() || model.dividend_yield() != initial.dividend_yield() ||
-            context.valuation_time() != base.valuation_time() || (node == 2 && context.spot_price() != spot - h))
+            context.valuation_time() != base.valuation_time() || (node == Stencil::down && context.spot_price() != spot - h))
             return engine.price(option, context);
         auto& cached = prices[static_cast<std::size_t>(index)];
         if (!cached) {
@@ -79,7 +82,7 @@ struct MonteCarloMixedPricer {
             if (!values) return std::unexpected(values.error());
             cached = *values;
         }
-        return (*cached)[static_cast<std::size_t>(node)];
+        return (*cached)[node];
     }
 };
 
@@ -140,7 +143,7 @@ Result<PricingResult> complete_monte_carlo_greeks(
         if (center) return spot_prices.template operator()<3>(shifted, shift);
         const auto values = spot_prices.template operator()<2>(shifted, shift);
         if (!values) return std::unexpected(values.error());
-        return std::array{0.0, (*values)[0], (*values)[1]};
+        return std::array{0.0, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
     };
     const MonteCarloMixedPricer prices{scalar, context, mixed ? h : 0.0,
                                        symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
