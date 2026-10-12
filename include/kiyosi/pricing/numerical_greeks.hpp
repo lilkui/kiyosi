@@ -177,6 +177,14 @@ Result<PricingResult> complete_greeks(
                                         symmetric_shift(spot, two_h) == two_h &&
                                         !at_spot_discontinuity(option, context, two_h);
     constexpr bool native_stencil = requires { evaluate_native(engine, context, GreeksRequest{}); };
+    const auto checked_native = [&](const auto& shifted, GreeksRequest derivatives) -> Result<PricingResult> {
+        auto result = evaluate_native(engine, shifted, derivatives);
+        const auto value = price_value(result);
+        if (!value) return std::unexpected(value.error());
+        if (!result->all_finite())
+            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+        return result;
+    };
     auto delta = *native.get(Greek::delta);
     auto gamma = *native.get(Greek::gamma);
     auto speed = *native.get(Greek::speed);
@@ -190,12 +198,7 @@ Result<PricingResult> complete_greeks(
                 const auto evaluate = [&](double shifted_spot) -> Result<PricingResult> {
                     const auto shifted = shifted_context(context, shifted_spot, volatility, rate, valuation_time);
                     if (!shifted) return std::unexpected(shifted.error());
-                    auto result = evaluate_native(engine, *shifted, GreeksRequest{Greek::gamma});
-                    const auto value = price_value(result);
-                    if (!value) return std::unexpected(value.error());
-                    if (!result->all_finite())
-                        return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-                    return result;
+                    return checked_native(*shifted, GreeksRequest{Greek::gamma});
                 };
                 const auto high = evaluate(spot + h);
                 if (!high) return std::unexpected(high.error());
@@ -251,12 +254,7 @@ Result<PricingResult> complete_greeks(
                     const GreeksRequest derivatives = need(Greek::vanna)
                                                           ? (need(Greek::zomma) ? GreeksRequest{Greek::delta, Greek::gamma} : GreeksRequest{Greek::delta})
                                                           : GreeksRequest{Greek::gamma};
-                    auto result = evaluate_native(engine, *shifted, derivatives);
-                    const auto value = price_value(result);
-                    if (!value) return std::unexpected(value.error());
-                    if (!result->all_finite())
-                        return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-                    return result;
+                    return checked_native(*shifted, derivatives);
                 };
                 const auto high = evaluate(volatility_high);
                 if (!high) return std::unexpected(high.error());
@@ -397,12 +395,7 @@ Result<PricingResult> complete_greeks(
                         const GreeksRequest derivatives = need(Greek::charm)
                                                               ? (need(Greek::color) ? GreeksRequest{Greek::delta, Greek::gamma} : GreeksRequest{Greek::delta})
                                                               : GreeksRequest{Greek::gamma};
-                        auto result = evaluate_native(engine, *shifted, derivatives);
-                        const auto value = price_value(result);
-                        if (!value) return std::unexpected(value.error());
-                        if (!result->all_finite())
-                            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-                        return result;
+                        return checked_native(*shifted, derivatives);
                     };
                     const auto first = evaluate(before);
                     if (!first) return std::unexpected(first.error());
