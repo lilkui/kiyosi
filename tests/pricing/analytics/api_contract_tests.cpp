@@ -61,10 +61,7 @@ TEST_CASE("Generic analytics preserve custom engine state", "[pricing-api][custo
     const auto context = market();
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto note = *make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.0,
-         .knock_out_levels = {120.0}, .observation_dates = {expiry},
-         .barrier_state = AutocallableBarrierState::none,
-         .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.0, .knock_out_levels = {120.0}, .observation_dates = {expiry}, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry});
     const auto analytic = AnalyticVanillaEngine{}.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
     REQUIRE(analytic);
     const auto check = [&](const auto& engine) {
@@ -173,28 +170,20 @@ TEST_CASE("Resolved scheduled barriers retain time Greeks across inactive observ
             CHECK(greek_value(*result, greek) == Catch::Approx(greek_value(*expected, greek)).margin(1e-10));
     };
     for (const auto state : {BarrierTouchState::untouched, BarrierTouchState::touched}) {
-        const BarrierOptionTerms terms{.option_type = OptionType::call, .strike = 100.0,
-                                       .effective_date = effective, .expiry_date = expiry,
-                                       .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in,
-                                       .observation_mode = ObservationMode::scheduled,
-                                       .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry},
-                                       .touch_state = state};
+        const BarrierOptionTerms terms{.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .observation_mode = ObservationMode::scheduled, .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry}, .touch_state = state};
         const auto option = *make_barrier_option(terms);
         if (state == BarrierTouchState::touched) {
             const auto vanilla = *make_european_option(OptionType::call, 100.0, effective, expiry);
             check(AnalyticBarrierEngine{}, option, vanilla, AnalyticVanillaEngine{});
             check(FiniteDifferenceBarrierEngine{}, option, vanilla, AnalyticVanillaEngine{});
-            const BinaryBarrierTerms binary{.option_type = terms.option_type, .strike = terms.strike,
-                                             .effective_date = effective, .expiry_date = expiry,
-                                             .barrier_level = terms.barrier_level, .barrier_type = terms.barrier_type,
-                                             .observation_mode = terms.observation_mode,
-                                             .observation_dates = terms.observation_dates, .touch_state = state};
+            const BinaryBarrierTerms binary{.option_type = terms.option_type, .strike = terms.strike, .effective_date = effective, .expiry_date = expiry, .barrier_level = terms.barrier_level, .barrier_type = terms.barrier_type, .observation_mode = terms.observation_mode, .observation_dates = terms.observation_dates, .touch_state = state};
             check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(binary, 7.0),
                   *make_cash_or_nothing_option(OptionType::call, 100.0, 7.0, effective, expiry), AnalyticDigitalEngine{});
         } else {
             const auto result = AnalyticBarrierEngine{}.price_with_greeks(option, context, {Greek::theta, Greek::charm, Greek::color});
             REQUIRE(result);
-            for (const Greek greek : {Greek::theta, Greek::charm, Greek::color}) CHECK_FALSE(result->has(greek));
+            for (const Greek greek : {Greek::theta, Greek::charm, Greek::color})
+                CHECK_FALSE(result->has(greek));
         }
     }
 }
@@ -213,14 +202,9 @@ TEST_CASE("Knocked-out autocallables retain zero time Greeks after valid history
         }
     };
     const auto binary = *make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06,
-         .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry},
-         .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry}, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
     const auto snowball = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06,
-         .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = binary.knock_out_levels(),
-         .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = binary.observation_dates(),
-         .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = binary.knock_out_levels(), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = binary.observation_dates(), .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
     check(binary, FiniteDifferenceBinarySnowballEngine{});
     check(binary, MonteCarloBinarySnowballEngine{32, 42});
     check(snowball, FiniteDifferenceSnowballEngine{});
@@ -669,7 +653,7 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
     const RecordingPriceEngine engine{&calls};
     const auto gamma = detail::price_with_greeks(
         engine, option, market(), GreeksRequest{Greek::gamma}, {},
-        [&](const auto&) -> Result<PricingResult> {
+        [&](const auto&, const PricingContext&, GreeksRequest) -> Result<PricingResult> {
             return make_pricing_result(10000.0);
         });
     REQUIRE(gamma);
@@ -682,7 +666,7 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
     calls.clear();
     const auto rho = detail::price_with_greeks(
         engine, option, market(), GreeksRequest{Greek::rho}, {},
-        [&](const auto&) -> Result<PricingResult> {
+        [&](const auto&, const PricingContext&, GreeksRequest) -> Result<PricingResult> {
             return make_pricing_result(10000.0);
         });
     REQUIRE(rho);
@@ -785,10 +769,12 @@ TEST_CASE("Expiry suppresses all requested Greeks", "[pricing-api]")
     REQUIRE(completed);
     CHECK(completed->price() == 10.0);
     CHECK_FALSE(completed->has(Greek::delta));
-    for (const bool native_complete : {false, true}) {
-        const auto result = detail::price_with_greeks(
-            engine, option, market(110.0, expiry), true, {},
-            [&](const auto&) -> Result<PricingResult> { return native; }, native_complete);
+    const std::array results{
+        detail::price_with_greeks(engine, option, market(110.0, expiry), true, {},
+                                  [&](const auto&, const PricingContext&, GreeksRequest) -> Result<PricingResult> { return native; }),
+        detail::evaluate_greeks(engine, option, market(110.0, expiry), true, {},
+                                [&](const auto&) -> Result<PricingResult> { return native; })};
+    for (const auto& result : results) {
         REQUIRE(result);
         CHECK(result->price() == 10.0);
         CHECK_FALSE(result->has(Greek::delta));
@@ -886,8 +872,8 @@ TEST_CASE("Joint pricing leaves custom engine seeding under its control", "[pric
     std::vector<std::optional<unsigned>> calls;
     const SeedRecordingEngine engine{{std::nullopt, &calls}};
     const auto result = kiyosi::detail::price_with_greeks(engine, option, market(),
-                                                          kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma}, {}, [&](const auto& seeded) -> kiyosi::Result<kiyosi::PricingResult> {
-                                                              const auto value = seeded.price(option, market());
+                                                          kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma}, {}, [&](const auto& seeded, const kiyosi::PricingContext& shifted, kiyosi::GreeksRequest) -> kiyosi::Result<kiyosi::PricingResult> {
+                                                              const auto value = seeded.price(option, shifted);
                                                               if (!value) return std::unexpected(value.error());
                                                               return kiyosi::make_pricing_result(*value);
                                                           });

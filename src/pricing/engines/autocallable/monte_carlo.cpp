@@ -420,7 +420,7 @@ template <AutocallableProduct Note>
 Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(
+    return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {
             bool contract_validated = false;
@@ -439,8 +439,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
                 return price_autocallable(instrument, shifted, seeded.settings(), contract_validated);
             }};
             return calculate(prices, nullptr);
-        },
-        true);
+        });
 }
 
 template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(

@@ -259,18 +259,11 @@ Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
 Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(
+    return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {
             const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
-                return complete_monte_carlo_greeks(scalar, option, context, greeks, settings, seeded.settings().backend,
-                    [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); },
-                    [&]<std::size_t count>(const PricingContext& shifted, double shift) {
-                        return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace);
-                    },
-                    [&](double shift, std::optional<double> base_price) {
-                        return price_rate_bumps(option, context, seeded.settings(), shift, base_price);
-                    });
+                return complete_monte_carlo_greeks(scalar, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
             };
 #if KIYOSI_HAS_CUDA
             if (seeded.settings().backend == MonteCarloBackend::cuda) {
@@ -281,8 +274,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
             }
 #endif
             return calculate(seeded, nullptr);
-        },
-        true);
+        });
 }
 
 } // namespace kiyosi

@@ -271,10 +271,10 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
 {
     std::optional<EuropeanMonteCarloSamples> samples;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
-        [&](const auto& seeded, const auto& instrument, const auto& shifted) {
-            if (!samples) samples.emplace(seeded.settings());
-            return samples->price(instrument, shifted);
-        });
+                                            [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+                                                if (!samples) samples.emplace(seeded.settings());
+                                                return samples->price(instrument, shifted);
+                                            });
 }
 
 Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
@@ -426,10 +426,10 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
 {
     std::optional<AmericanMonteCarloPricer> prices;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
-        [&](const auto& seeded, const auto& instrument, const auto& shifted) {
-            if (!prices) prices.emplace(seeded.settings());
-            return prices->price(instrument, shifted);
-        });
+                                            [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+                                                if (!prices) prices.emplace(seeded.settings());
+                                                return prices->price(instrument, shifted);
+                                            });
 }
 
 Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const
@@ -440,7 +440,7 @@ Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, cons
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
         const double spot = context.spot_price();
         const double h = detail::symmetric_shift(spot, settings.spot_shift);
         const double two_h = 2.0 * h;
@@ -464,13 +464,13 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
         const EuropeanMonteCarloSamples samples{seeded.settings()};
         const auto value = samples.price(option, context);
         if (!value) return std::unexpected(value.error());
-        return detail::complete_greeks(samples, option, context, greeks, settings, *make_pricing_result(*value)); }, true);
+        return detail::complete_greeks(samples, option, context, greeks, settings, *make_pricing_result(*value)); });
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
+    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
         const double spot_shift = detail::symmetric_shift(context.spot_price(), settings.spot_shift);
         const double volatility_shift = detail::symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift);
         const bool volatility_available = volatility_shift > 0.0 &&
@@ -509,7 +509,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         return make_pricing_result(*value);
         }();
         if (!native) return std::unexpected(native.error());
-        return detail::complete_greeks(prices, option, context, greeks, settings, *native); }, true);
+        return detail::complete_greeks(prices, option, context, greeks, settings, *native); });
 }
 
 } // namespace kiyosi

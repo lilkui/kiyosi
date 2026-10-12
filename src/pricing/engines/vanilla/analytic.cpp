@@ -23,7 +23,7 @@ Result<PricingResult> AnalyticVanillaEngine::price_with_greeks(
     const EuropeanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); }, /* native_complete: missing values are unsupported analytic limits */ true);
+    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
 }
 
 } // namespace kiyosi

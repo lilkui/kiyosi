@@ -361,67 +361,76 @@ Result<PricingResult> complete_greeks(
     return output;
 }
 
-// Stabilize simulation seeds and finite-difference domains without mutating stored settings.
-template <typename Engine, typename Option, typename Native>
-Result<PricingResult> price_with_greeks(
+// Validate and stabilize a request whose evaluator owns Greek calculation and completion.
+template <typename Engine, typename Option, typename Evaluate>
+Result<PricingResult> evaluate_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
-    GreeksRequest greeks, NumericalShiftSettings settings, const Native& evaluate_native,
-    bool native_complete = false)
+    GreeksRequest greeks, NumericalShiftSettings settings, const Evaluate& evaluate)
 {
     const auto request_valid = greeks.validate();
     if (!request_valid) return std::unexpected(request_valid.error());
     const auto valid = validate_greeks_settings(settings);
     if (!valid) return std::unexpected(valid.error());
-    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
-        auto simulation = engine.settings();
-        if (!simulation.seed) {
-            simulation.seed = std::random_device{}();
-            return price_with_greeks(Engine{simulation}, option, context, greeks, settings,
-                                     evaluate_native, native_complete);
-        }
-    }
-    auto native_request = greeks;
-    if constexpr (requires { option.effective_date(); evaluate_native(engine, context, greeks); }) {
-        if (context.valuation_time() == start_of_day(option.effective_date()) &&
-            (greeks.has(Greek::charm) || greeks.has(Greek::color))) {
-            // One-sided time differences need the central spot derivatives too.
-            std::array<Greek, greek_count> measures{};
-            std::size_t count = 0;
-            for (std::size_t index = 0; index < greek_count; ++index) {
-                const auto greek = static_cast<Greek>(index);
-                if (greeks.has(greek) || (greek == Greek::delta && greeks.has(Greek::charm)) ||
-                    (greek == Greek::gamma && greeks.has(Greek::color)))
-                    measures[count++] = greek;
+    auto result = [&] {
+        if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
+            auto simulation = engine.settings();
+            if (!simulation.seed) {
+                simulation.seed = std::random_device{}();
+                return evaluate(Engine{simulation});
             }
-            native_request = GreeksRequest{std::span{measures}.first(count)};
         }
-    }
-    auto native = [&] {
-        if constexpr (requires { evaluate_native(engine, context, greeks); })
-            return evaluate_native(engine, context, native_request);
-        else
-            return evaluate_native(engine);
+        if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
+            auto grid = engine.settings();
+            if (!grid.asset_upper_boundary) {
+                // Spot bumps share one mesh; settlements may never construct a grid.
+                const double upper = default_finite_difference_upper_boundary(option, context);
+                if (std::isfinite(upper)) {
+                    grid.asset_upper_boundary = upper;
+                    return evaluate(Engine{grid});
+                }
+            }
+        }
+        return evaluate(engine);
     }();
-    const auto value = price_value(native);
+    const auto value = price_value(result);
     if (!value) return std::unexpected(value.error());
-    *native = native->selected(native_request);
-    if (!native->all_finite())
+    *result = result->selected(greeks);
+    if (!result->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-    if (native_complete) {
-        if (greeks_unavailable(option, context))
-            return make_pricing_result(*value);
-        return native->selected(greeks);
-    }
-    if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
-        auto grid = engine.settings();
-        if (!grid.asset_upper_boundary) {
-            // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
-            const double upper = default_finite_difference_upper_boundary(option, context);
-            // Preserve settlements that never construct an asset grid.
-            if (std::isfinite(upper)) grid.asset_upper_boundary = upper;
+    if (greeks_unavailable(option, context)) return make_pricing_result(*value);
+    return result;
+}
+
+// Native callbacks have one protocol: engine, shifted context, requested derivatives.
+template <typename Engine, typename Option, typename Native>
+Result<PricingResult> price_with_greeks(
+    const Engine& engine, const Option& option, const PricingContext& context,
+    GreeksRequest greeks, NumericalShiftSettings settings, const Native& evaluate_native)
+{
+    return evaluate_greeks(engine, option, context, greeks, settings, [&](const Engine& fixed) -> Result<PricingResult> {
+        auto native_request = greeks;
+        if constexpr (requires { option.effective_date(); }) {
+            if (context.valuation_time() == start_of_day(option.effective_date()) &&
+                (greeks.has(Greek::charm) || greeks.has(Greek::color))) {
+                // One-sided time differences need the central spot derivatives too.
+                std::array<Greek, greek_count> measures{};
+                std::size_t count = 0;
+                for (std::size_t index = 0; index < greek_count; ++index) {
+                    const auto greek = static_cast<Greek>(index);
+                    if (greeks.has(greek) || (greek == Greek::delta && greeks.has(Greek::charm)) ||
+                        (greek == Greek::gamma && greeks.has(Greek::color)))
+                        measures[count++] = greek;
+                }
+                native_request = GreeksRequest{std::span{measures}.first(count)};
+            }
         }
-        const Engine fixed{grid};
-        if constexpr (requires { evaluate_native(fixed, context, greeks); }) {
+        auto native = evaluate_native(fixed, context, native_request);
+        const auto value = price_value(native);
+        if (!value) return std::unexpected(value.error());
+        *native = native->selected(native_request);
+        if (!native->all_finite())
+            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+        if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
             // Scalar stencils share the native callback's request-local validation.
             struct NativePricer {
                 const Engine& engine;
@@ -439,8 +448,7 @@ Result<PricingResult> price_with_greeks(
         } else {
             return complete_greeks(fixed, option, context, greeks, settings, *native, evaluate_native);
         }
-    }
-    return complete_greeks(engine, option, context, greeks, settings, *native, evaluate_native);
+    });
 }
 
 template <typename Engine, typename Option>
@@ -448,12 +456,12 @@ Result<PricingResult> price_with_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings)
 {
-    return price_with_greeks(engine, option, context, greeks, settings,
-                             [&](const auto& seeded_engine) -> Result<PricingResult> {
-                                 const auto value = numerical_value(seeded_engine, option, context);
-                                 if (!value) return std::unexpected(value.error());
-                                 return make_pricing_result(*value);
-                             });
+    return evaluate_greeks(engine, option, context, greeks, settings,
+                           [&](const Engine& fixed) -> Result<PricingResult> {
+                               const auto value = numerical_value(fixed, option, context);
+                               if (!value) return std::unexpected(value.error());
+                               return complete_greeks(fixed, option, context, greeks, settings, *make_pricing_result(*value));
+                           });
 }
 
 } // namespace detail
