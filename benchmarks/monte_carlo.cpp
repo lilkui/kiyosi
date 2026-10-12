@@ -183,6 +183,11 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
     const auto dense_snowball = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08), .maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dense_dates.size(), 1'000.0), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dense_dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry});
     const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
+    const auto dense_barrier_context = *make_pricing_context(base_context.model_parameters(), 100.25, dense_context.valuation_time(), weekdays_calendar());
+    const FiniteDifferenceBarrierEngine dense_barrier_engine{80, 1};
+    register_price("analytics/kiyosi/barrier/fd/scheduled_dense/price", dense_barrier, dense_barrier_engine, dense_barrier_context);
+    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/vega_rho", [=] { return dense_barrier_engine.price_with_greeks(dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/scalar_stencils", [=] { return detail::price_with_greeks(dense_barrier_engine, dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price");
     const MonteCarloSnowballEngine dense_monte_carlo{1, 42};
     const FiniteDifferenceSnowballEngine dense_finite_difference{80, 1};
     register_price("analytics/kiyosi/snowball/mc/scheduled_dense/price", dense_snowball, dense_monte_carlo, dense_context);

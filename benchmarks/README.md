@@ -539,6 +539,17 @@ A 2026-10-11 Release MSVC run measured 38.3 us versus 454.1 us (median of five
 repetitions), with identical prices and Greeks. Calendar queries fell from
 33,904 to 2,608; subsequent calls validate again, including after a rejection.
 
+Scheduled finite-difference barrier Greeks also validate the calendar once per
+request, including scalar and native Greek shifts. The
+`barrier/fd/scheduled_dense/{price,vega_rho,scalar_stencils}` cases use 2,608
+weekday observations in 2025–2035, valuation twelve hours before expiry and an
+80-by-1 grid. On 2026-10-12, Release MSVC 19.51 on a Ryzen 7 3700X measured
+vega/rho at 76.7 us versus 288.7 us for independent scalar stencils (median wall
+time, seven repetitions, 0.2 s minimum), with identical prices and Greeks.
+Calendar queries fell from 13,040 to 2,608. Each shifted solve retains its
+other validation; concurrent requests and calls after rejection validate
+independently.
+
 CPU European Monte Carlo requests without feasible Greek stencils stream the
 scalar price without retaining samples. The `european/mc/unavailable_delta`,
 `unavailable_speed` and `unavailable_vanna` cases track these requests.

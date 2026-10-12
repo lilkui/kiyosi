@@ -26,6 +26,7 @@ public:
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     /// Delta, gamma, and speed reuse the solved layer; vanna/zomma and charm/color difference native delta/gamma shifted in volatility and time.
     /// Other measures use numerical price differences.
+    /// Scheduled observation dates are validated once per request; shifted valuations retain their other checks.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
@@ -33,9 +34,6 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(
-        const BarrierOption& option, const PricingContext& context, GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
-
     FiniteDifferenceSettings settings_;
 };
 

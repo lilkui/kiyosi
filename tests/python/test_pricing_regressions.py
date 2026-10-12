@@ -29,6 +29,116 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_scheduled_fd_greeks_preserve_scalar_stencils_and_failures(self):
+        start, end = date(2025, 1, 1), date(2035, 1, 1)
+        dates = [
+            start + timedelta(days=offset)
+            for offset in range((end - start).days + 1)
+            if (start + timedelta(days=offset)).weekday() < 5
+        ]
+        valuation = datetime(2034, 12, 31, 12, tzinfo=UTC)
+
+        def context(volatility=0.2, rate=0.04):
+            return PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=0.01, volatility=volatility
+                ),
+                spot_price=100.25,
+                valuation_time=valuation,
+            )
+
+        market = context()
+        vol_shift = (0.2 + 0.002) - 0.2
+        rate_shift = (0.04 + 0.001) - 0.04
+        for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+            engine = pricing.FiniteDifferenceBarrierEngine(
+                asset_step_count=80, time_step_count=1, scheme=scheme
+            )
+            for kind in ("down_and_out", "down_and_in", "up_and_out", "up_and_in"):
+                with self.subTest(scheme=scheme, kind=kind):
+                    terms = {
+                        "option_type": "call",
+                        "strike": 100,
+                        "effective_date": start,
+                        "expiry_date": end,
+                        "barrier_level": 120 if kind.startswith("up") else 80,
+                        "barrier_type": kind,
+                        "observation_mode": "scheduled",
+                        "observation_dates": dates,
+                        "touch_state": "untouched",
+                    }
+                    option = BarrierOption(**terms)
+                    result = engine.price_with_greeks(
+                        option,
+                        market,
+                        ["vega", "rho"],
+                        volatility_shift=0.002,
+                        rate_shift=0.001,
+                    )
+                    self.assertEqual(result.price, engine.price(option, market))
+                    self.assertEqual(
+                        result.vega,
+                        (
+                            engine.price(option, context(0.2 + vol_shift))
+                            - engine.price(option, context(0.2 - vol_shift))
+                        )
+                        / (200 * vol_shift),
+                    )
+                    self.assertEqual(
+                        result.rho,
+                        (
+                            engine.price(option, context(rate=0.04 + rate_shift))
+                            - engine.price(option, context(rate=0.04 - rate_shift))
+                        )
+                        / (200 * rate_shift),
+                    )
+                    self.assertIsNone(result.delta)
+                    if scheme == "explicit_euler":
+                        with self.assertRaises(kiyosi.KiyosiError) as unstable:
+                            engine.price_with_greeks(
+                                option, market, ["vega"], volatility_shift=0.19
+                            )
+                        self.assertEqual(
+                            unstable.exception.category,
+                            kiyosi.ErrorCategory.INVALID_PARAMETER,
+                        )
+                    invalid = BarrierOption(
+                        **dict(terms, observation_dates=[date(2025, 1, 4), end])
+                    )
+                    with self.assertRaises(kiyosi.KiyosiError) as rejected:
+                        engine.price_with_greeks(invalid, market, ["vega", "rho"])
+                    self.assertEqual(
+                        rejected.exception.category, kiyosi.ErrorCategory.INVALID_DATE
+                    )
+                    recovered = engine.price_with_greeks(
+                        option,
+                        market,
+                        ["vega", "rho"],
+                        volatility_shift=0.002,
+                        rate_shift=0.001,
+                    )
+                    self.assertEqual(
+                        (recovered.price, recovered.vega, recovered.rho),
+                        (result.price, result.vega, result.rho),
+                    )
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(
+                pool.map(
+                    lambda _: engine.price_with_greeks(
+                        option,
+                        market,
+                        ["vega", "rho"],
+                        volatility_shift=0.002,
+                        rate_shift=0.001,
+                    ),
+                    range(8),
+                )
+            )
+        self.assertEqual(
+            [(value.price, value.vega, value.rho) for value in results],
+            [(result.price, result.vega, result.rho)] * 8,
+        )
+
     def test_shared_analytic_barriers_preserve_prices_and_errors_across_threads(self):
         start, end = date(2015, 1, 1), date(2025, 1, 1)
         dates = [

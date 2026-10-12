@@ -144,39 +144,69 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
                                 {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
                                 {Greek::speed, *speed}});
 }
-} // namespace
-Result<PricingResult> FiniteDifferenceBarrierEngine::price_native(
-    const BarrierOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
+Result<PricingResult> price_barrier(
+    const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings,
+    bool& schedule_validated, GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift)
 {
     auto settings_valid = detail::validate_finite_difference_settings(
-        settings_, general_fd_max_asset_steps, general_fd_max_time_steps);
+        settings, general_fd_max_asset_steps, general_fd_max_time_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    if (option.observation_mode() == ObservationMode::scheduled) {
+    if (!schedule_validated && option.observation_mode() == ObservationMode::scheduled) {
         auto schedule = validate_observation_dates(option.observation_dates(), option.effective_date(), option.expiry_date(), context.calendar());
         if (!schedule) return std::unexpected(schedule.error());
+        schedule_validated = true;
     }
     if (const auto settled = resolved_barrier_price(option, context)) {
         if (!*settled) return std::unexpected(settled->error());
         return make_pricing_result(**settled);
     }
     return option.observation_mode() == ObservationMode::scheduled
-               ? barrier_fd<true>(option, context, settings_, output, spot_shift)
-               : barrier_fd<false>(option, context, settings_, output, spot_shift);
+               ? barrier_fd<true>(option, context, settings, output, spot_shift)
+               : barrier_fd<false>(option, context, settings, output, spot_shift);
 }
+
+struct BarrierPricer {
+    FiniteDifferenceSettings settings;
+    bool& schedule_validated;
+
+    Result<double> price(const BarrierOption& option, const PricingContext& context) const
+    {
+        return detail::price_value(price_barrier(option, context, settings, schedule_validated, GreeksRequest{}));
+    }
+};
+} // namespace
+
 Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
-    return detail::price_value(price_native(option, context, GreeksRequest{}));
+    bool schedule_validated = false;
+    return BarrierPricer{settings_, schedule_validated}.price(option, context);
 }
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    bool schedule_validated = false;
     return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
-                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, output, settings.spot_shift);
-                                     });
+                                     [&](const auto& engine, const PricingContext& base, GreeksRequest request) -> Result<PricingResult> {
+                                         const auto evaluate = [&](FiniteDifferenceSettings grid, const PricingContext& shifted, GreeksRequest measures) {
+                                             const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : measures;
+                                             return price_barrier(option, shifted, grid, schedule_validated, output, settings.spot_shift);
+                                         };
+                                         const auto native = evaluate(engine.settings(), base, request);
+                                         if (!native) return std::unexpected(native.error());
+                                         // Shifted solves must retain the base asset domain.
+                                         auto grid = engine.settings();
+                                         if (!grid.asset_upper_boundary) {
+                                             const double upper = default_finite_difference_upper_boundary(option, base);
+                                             if (std::isfinite(upper)) grid.asset_upper_boundary = upper;
+                                         }
+                                         const BarrierPricer prices{grid, schedule_validated};
+                                         return detail::complete_greeks(prices, option, base, greeks, settings, *native,
+                                                                        [&](const auto&, const PricingContext& shifted, GreeksRequest measures) {
+                                                                            return evaluate(grid, shifted, measures);
+                                                                        });
+                                     }, true);
 }
 
 } // namespace kiyosi

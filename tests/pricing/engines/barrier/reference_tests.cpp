@@ -3,7 +3,9 @@
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <chrono>
+#include <atomic>
 #include <cmath>
+#include <future>
 #include <memory>
 #include <map>
 #include <string>
@@ -18,6 +20,105 @@ using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
 using kiyosi::test::fixture_number;
 using kiyosi::test::measures;
+
+TEST_CASE("Scheduled finite-difference Greeks share calendar validation", "[fd-schedule]")
+{
+    using namespace kiyosi;
+    const auto scheme = GENERATE(FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson);
+    const auto kind = GENERATE(BarrierType::down_and_out, BarrierType::down_and_in, BarrierType::up_and_out, BarrierType::up_and_in);
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2035} / 1 / 1};
+    std::vector<Date> dates;
+    for (auto date = start; date <= end; date += std::chrono::days{1})
+        if (weekdays_calendar().is_trading_day(date)) dates.push_back(date);
+    const auto queries = std::make_shared<std::atomic<std::size_t>>(0);
+    const auto allowed = std::make_shared<std::atomic<bool>>(true);
+    const auto calendar = *make_trading_calendar([=](Date date) {
+        ++*queries;
+        return *allowed && weekdays_calendar().is_trading_day(date);
+    }, 252);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(end) - std::chrono::hours{12}, calendar);
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
+                                              .barrier_level = is_up_barrier(kind) ? 120.0 : 80.0, .barrier_type = kind,
+                                              .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched});
+    const FiniteDifferenceBarrierEngine engine{80, 1, scheme};
+    const GreeksRequest request{Greek::vega, Greek::rho, Greek::vanna, Greek::zomma};
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    CHECK(queries->exchange(0) == dates.size());
+    const auto result = engine.price_with_greeks(option, context, request);
+    REQUIRE(result);
+    CHECK(result->price() == *price);
+    CHECK(queries->exchange(0) == dates.size());
+    for (const auto greek : {Greek::vega, Greek::rho, Greek::vanna, Greek::zomma})
+        REQUIRE(result->has(greek));
+
+    const NumericalShiftSettings shifts{};
+    const double vol_shift = (0.2 + shifts.volatility_shift) - 0.2;
+    const double rate_shift = (0.04 + shifts.rate_shift) - 0.04;
+    const auto shifted = [&](double volatility, double rate) {
+        return *make_pricing_context(*make_bsm_parameters(rate, 0.01, volatility), context.spot_price(), context.valuation_time(), calendar);
+    };
+    const FiniteDifferenceBarrierEngine fixed{{80, 1, scheme, 4.0 * context.spot_price()}};
+    const auto high = fixed.price_with_greeks(option, shifted(0.2 + vol_shift, 0.04), {Greek::delta, Greek::gamma});
+    const auto low = fixed.price_with_greeks(option, shifted(0.2 - vol_shift, 0.04), {Greek::delta, Greek::gamma});
+    REQUIRE(high);
+    REQUIRE(low);
+    const auto rate_high = fixed.price(option, shifted(0.2, 0.04 + rate_shift));
+    const auto rate_low = fixed.price(option, shifted(0.2, 0.04 - rate_shift));
+    REQUIRE(rate_high);
+    REQUIRE(rate_low);
+    CHECK(*result->require(Greek::vega) == (high->price() - low->price()) / (200.0 * vol_shift));
+    CHECK(*result->require(Greek::rho) == (*rate_high - *rate_low) / (200.0 * rate_shift));
+    CHECK(*result->require(Greek::vanna) == (*high->require(Greek::delta) - *low->require(Greek::delta)) / (200.0 * vol_shift));
+    CHECK(*result->require(Greek::zomma) == (*high->require(Greek::gamma) - *low->require(Greek::gamma)) / (200.0 * vol_shift));
+    CHECK_FALSE(result->has(Greek::delta));
+
+    *queries = 0;
+    auto task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, request); });
+    const auto concurrent = engine.price_with_greeks(option, context, request);
+    const auto first = task.get();
+    REQUIRE(concurrent);
+    REQUIRE(first);
+    CHECK(concurrent->price() == result->price());
+    CHECK(first->price() == result->price());
+    CHECK(concurrent->values_view() == result->values_view());
+    CHECK(first->values_view() == result->values_view());
+    CHECK(queries->exchange(0) == 2 * dates.size());
+
+    *allowed = false;
+    const auto rejected = engine.price_with_greeks(option, context, request);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_date);
+    *allowed = true;
+    *queries = 0;
+    const auto recovered = engine.price_with_greeks(option, context, request);
+    REQUIRE(recovered);
+    CHECK(recovered->price() == result->price());
+    CHECK(recovered->values_view() == result->values_view());
+    CHECK(queries->exchange(0) == dates.size());
+}
+
+TEST_CASE("Scheduled finite-difference Greeks retain shifted validation", "[fd-schedule]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
+                                              .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out,
+                                              .observation_mode = ObservationMode::scheduled, .observation_dates = {start, end}, .touch_state = BarrierTouchState::untouched});
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(end) - std::chrono::hours{12}, all_days_calendar());
+    const FiniteDifferenceBarrierEngine engine{80, 1, FiniteDifferenceScheme::explicit_euler};
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    const auto rejected = engine.price_with_greeks(option, context, {Greek::vega}, {.volatility_shift = 0.19});
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_parameter);
+    const auto recovered = engine.price_with_greeks(option, context, {Greek::vega});
+    REQUIRE(recovered);
+    CHECK(recovered->price() == *price);
+    CHECK(recovered->has(Greek::vega));
+}
 
 TEST_CASE("Continuous up barriers preserve put boundaries and rebate timing", "[fd-performance]")
 {
