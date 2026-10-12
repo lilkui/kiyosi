@@ -188,25 +188,10 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const Bar
 {
     bool schedule_validated = false;
     return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine, const PricingContext& base, GreeksRequest request) -> Result<PricingResult> {
-                                         const auto evaluate = [&](FiniteDifferenceSettings grid, const PricingContext& shifted, GreeksRequest measures) {
-                                             const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : measures;
-                                             return price_barrier(option, shifted, grid, schedule_validated, output, settings.spot_shift);
-                                         };
-                                         const auto native = evaluate(engine.settings(), base, request);
-                                         if (!native) return std::unexpected(native.error());
-                                         // Shifted solves must retain the base asset domain.
-                                         auto grid = engine.settings();
-                                         if (!grid.asset_upper_boundary) {
-                                             const double upper = default_finite_difference_upper_boundary(option, base);
-                                             if (std::isfinite(upper)) grid.asset_upper_boundary = upper;
-                                         }
-                                         const BarrierPricer prices{grid, schedule_validated};
-                                         return detail::complete_greeks(prices, option, base, greeks, settings, *native,
-                                                                        [&](const auto&, const PricingContext& shifted, GreeksRequest measures) {
-                                                                            return evaluate(grid, shifted, measures);
-                                                                        });
-                                     }, true);
+                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
+                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
+                                         return price_barrier(option, shifted, engine.settings(), schedule_validated, output, settings.spot_shift);
+                                     });
 }
 
 } // namespace kiyosi

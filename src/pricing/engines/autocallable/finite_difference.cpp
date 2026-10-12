@@ -12,7 +12,6 @@
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
 #include "../../detail/calendar_dates.hpp"
-#include "../../detail/autocallable_pricer.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -308,28 +307,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greek
 {
     bool contract_validated = false;
     return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine, const PricingContext& base, GreeksRequest request) -> Result<PricingResult> {
-                                         const auto evaluate = [&](const auto& scalar, const PricingContext& shifted, GreeksRequest measures) {
-                                             const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : measures;
-                                             return scalar.price_native(option, shifted, contract_validated, output, settings.spot_shift);
-                                         };
-                                         const auto native = evaluate(engine, base, request);
-                                         if (!native) return std::unexpected(native.error());
-                                         // Shifted solves must retain the base asset domain.
-                                         auto grid = engine.settings();
-                                         if (!grid.asset_upper_boundary) {
-                                             const double upper = default_finite_difference_upper_boundary(option, base);
-                                             if (std::isfinite(upper)) grid.asset_upper_boundary = upper;
-                                         }
-                                         const FiniteDifferenceAutocallableEngine fixed{grid};
-                                         const AutocallablePricer prices{[&](const Note& instrument, const PricingContext& shifted) {
-                                             return detail::price_value(fixed.price_native(instrument, shifted, contract_validated, GreeksRequest{}));
-                                         }};
-                                         return detail::complete_greeks(prices, option, base, greeks, settings, *native,
-                                                                        [&](const auto&, const PricingContext& shifted, GreeksRequest measures) {
-                                                                            return evaluate(fixed, shifted, measures);
-                                                                        });
-                                     }, true);
+                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
+                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
+                                         return engine.price_native(option, shifted, contract_validated, output, settings.spot_shift);
+                                     });
 }
 
 template KIYOSI_EXPORT Result<double> implied_volatility(

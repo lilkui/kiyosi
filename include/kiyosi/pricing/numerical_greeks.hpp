@@ -515,10 +515,28 @@ Result<PricingResult> price_with_greeks(
         auto grid = engine.settings();
         if (!grid.asset_upper_boundary) {
             // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
-            grid.asset_upper_boundary = default_finite_difference_upper_boundary(option, context);
+            const double upper = default_finite_difference_upper_boundary(option, context);
             // Preserve settlements that never construct an asset grid.
-            if (std::isfinite(*grid.asset_upper_boundary))
-                return complete_greeks(Engine{grid}, option, context, greeks, settings, *native, evaluate_native);
+            if (std::isfinite(upper)) grid.asset_upper_boundary = upper;
+        }
+        const Engine fixed{grid};
+        if constexpr (requires { evaluate_native(fixed, context, greeks); }) {
+            // Scalar stencils share the native callback's request-local validation.
+            struct NativePricer {
+                const Engine& engine;
+                const Native& evaluate;
+
+                Result<double> price(const Option&, const PricingContext& shifted) const
+                {
+                    return price_value(evaluate(engine, shifted, GreeksRequest{}));
+                }
+            };
+            return complete_greeks(NativePricer{fixed, evaluate_native}, option, context, greeks, settings, *native,
+                                    [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
+                                        return evaluate_native(fixed, shifted, request);
+                                    });
+        } else {
+            return complete_greeks(fixed, option, context, greeks, settings, *native, evaluate_native);
         }
     }
     return complete_greeks(engine, option, context, greeks, settings, *native, evaluate_native);
