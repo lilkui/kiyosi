@@ -64,11 +64,11 @@ Result<SimulationInputs> prepare_simulation(
     return SimulationInputs{std::move(steps), {std::exp(exponent), exponent}};
 }
 
-template <bool Paired = false>
-Result<std::array<double, 2>> path_payoff(double initial_spot, const AutocallableProgram& program,
-                                          const SimulationInputs& inputs, AutocallablePathState state,
-                                          Pcg32& generator, const AutocallableProgram& alternate_program = {},
-                                          AutocallablePathState alternate_state = {})
+Result<std::array<double, 2>> coupon_path_payoffs(
+    double initial_spot, const AutocallableProgram& program,
+    const SimulationInputs& inputs, AutocallablePathState state,
+    Pcg32& generator, const AutocallableProgram& alternate_program,
+    AutocallablePathState alternate_state)
 {
     double value = initial_spot;
     std::normal_distribution<double> normal;
@@ -81,30 +81,22 @@ Result<std::array<double, 2>> path_payoff(double initial_spot, const Autocallabl
         state.knocked_in = program_knocked_in(program, value, state.knocked_in, false);
         if (!step.event.active) continue;
         const double coupon = program_observation_coupon(step.event, value);
-        double alternate_coupon = 0.0;
-        if constexpr (Paired) {
-            auto event = step.event;
-            event.coupon = step.alternate_coupon;
-            alternate_coupon = program_observation_coupon(event, value);
-        }
+        auto event = step.event;
+        event.coupon = step.alternate_coupon;
+        const double alternate_coupon = program_observation_coupon(event, value);
         if (value >= step.event.knock_out_level) {
             const double payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.coupons;
-            double alternate_payoff = 0.0;
-            if constexpr (Paired)
-                alternate_payoff = step.simulation.discount.apply(alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
+            const double alternate_payoff = step.simulation.discount.apply(alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
             return std::array{payoff, alternate_payoff};
         }
         if (program.carries_observation_coupon)
             state.coupons += step.simulation.discount.apply(coupon);
-        if constexpr (Paired)
-            if (alternate_program.carries_observation_coupon)
-                alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
+        if (alternate_program.carries_observation_coupon)
+            alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
     }
     state.knocked_in = program_knocked_in(program, value, state.knocked_in, true);
     const double payoff = state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(program, value, state.knocked_in));
-    double alternate_payoff = 0.0;
-    if constexpr (Paired)
-        alternate_payoff = alternate_state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(alternate_program, value, state.knocked_in));
+    const double alternate_payoff = alternate_state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(alternate_program, value, state.knocked_in));
     return std::array{payoff, alternate_payoff};
 }
 
@@ -117,24 +109,27 @@ struct PathState {
 template <std::size_t count, typename Inputs>
 Result<std::array<double, count>> path_payoffs(
     const AutocallableProgram& program, const Inputs& inputs,
-    std::array<PathState, count> states, Pcg32& generator)
+    const std::array<PathState, count>& initial_states, Pcg32& generator)
 {
+    auto states = initial_states;
     constexpr bool shared_inputs = std::same_as<Inputs, SimulationInputs>;
     const auto& common = [&]() -> const SimulationInputs& {
         if constexpr (shared_inputs) return inputs;
         else return *std::ranges::max_element(inputs, {}, [](const auto& value) { return value.step_count.size(); });
     }();
     std::normal_distribution<double> normal;
-    for (std::size_t index = 0; index < common.step_count.size(); ++index) {
+    std::size_t index = 0;
+    for (const auto& common_step : common.step_count) {
         const double draw = normal(generator);
         double shared_growth = 0.0;
         if constexpr (shared_inputs)
-            shared_growth = std::exp(common.step_count[index].simulation.drift + common.step_count[index].simulation.diffusion * draw);
+            shared_growth = std::exp(common_step.simulation.drift + common_step.simulation.diffusion * draw);
         for (std::size_t i = 0; i < count; ++i) {
             auto& state = states[i];
-            if (state.payoff) continue;
+            if constexpr (count > 1)
+                if (state.payoff) continue;
             const auto& step = [&]() -> const CudaAutocallableStep& {
-                if constexpr (shared_inputs) return common.step_count[index];
+                if constexpr (shared_inputs) return common_step;
                 else return inputs[i].step_count[index];
             }();
             const double growth = [&] {
@@ -148,12 +143,17 @@ Result<std::array<double, count>> path_payoffs(
             state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, false);
             if (!step.event.active) continue;
             const double coupon = program_observation_coupon(step.event, state.spot);
-            if (state.spot >= step.event.knock_out_level)
-                state.payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.path.coupons;
+            if (state.spot >= step.event.knock_out_level) {
+                const double payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.path.coupons;
+                if constexpr (count == 1) return std::array{payoff};
+                else state.payoff = payoff;
+            }
             else if (program.carries_observation_coupon)
                 state.path.coupons += step.simulation.discount.apply(coupon);
         }
-        if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
+        if constexpr (count > 1)
+            if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
+        ++index;
     }
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i) {
@@ -163,7 +163,10 @@ Result<std::array<double, count>> path_payoffs(
             if constexpr (shared_inputs) return common.terminal_discount;
             else return inputs[i].terminal_discount;
         }();
-        payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+        if constexpr (count == 1)
+            payoffs[i] = state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+        else
+            payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
     }
     return payoffs;
 }
@@ -343,7 +346,7 @@ Result<double> price_autocallable(
     }
 
     return cpu_path_mean(settings, [&](auto& generator) -> Result<double> {
-        const auto payoff = path_payoff(context.spot_price(), program, *inputs, initial.path, generator);
+        const auto payoff = path_payoffs(program, *inputs, std::array{PathState{context.spot_price(), initial.path, {}}}, generator);
         if (!payoff) return std::unexpected(payoff.error());
         return (*payoff)[0];
     });
@@ -429,8 +432,8 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     std::array<MonteCarloMean, 2> means{};
     for (int path = 0; path < settings.path_count; ++path) {
         Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-        const auto payoff = path_payoff<true>(context.spot_price(), program, *inputs, initial.path,
-                                              path_generator, alternate_program, alternate_initial.path);
+        const auto payoff = coupon_path_payoffs(context.spot_price(), program, *inputs, initial.path,
+                                               path_generator, alternate_program, alternate_initial.path);
         if (!payoff) return std::unexpected(payoff.error());
         for (std::size_t i = 0; i < means.size(); ++i)
             means[i].add((*payoff)[i]);
