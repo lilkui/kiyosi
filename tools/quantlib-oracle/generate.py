@@ -162,10 +162,6 @@ def validate_manifest(text):
                 inputs.get(f"unit_{name}") == g.UNITS[name], f"invalid {name} unit"
             )
             if name in unavailable:
-                g.require(
-                    inputs[f"unavailable_{name}"] == unavailable[name],
-                    "invalid unavailable reason",
-                )
                 continue
             uncertainty = float(inputs[f"uncertainty_{name}"])
             g.require(

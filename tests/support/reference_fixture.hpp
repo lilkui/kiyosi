@@ -263,15 +263,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                 if (required_input("unit_" + name) != unit ||
                     value.inputs.contains("unavailable_" + name) != unavailable ||
                     value.outputs.contains(name) == unavailable) throw invalid();
-                if (unavailable) {
-                    if (required_input("unavailable_" + name) != (asian_expiry ? "terminal average payoff: no smooth sensitivities" : asian_start   ? "averaging-start boundary: price only, no smooth time stencil"
-                                                                                                                                  : binary_expiry   ? "terminal payoff: no smooth sensitivities"
-                                                                                                                                  : binary_boundary ? "spot equals barrier: hit-state boundary"
-                                                                                                                                  : expiry_boundary ? "whole-day stability stencil touches expiry_date"
-                                                                                                                                                    : "whole-day stability stencil precedes exercise window"))
-                        throw invalid();
-                    continue;
-                }
+                if (unavailable) continue;
                 ++available;
                 const auto read = [&](const std::string& prefix) {
                     const double result = number(required_input(prefix + name), row, prefix + name);

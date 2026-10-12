@@ -6,12 +6,50 @@
 #include <set>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
 #include "support/reference_harness.hpp"
 
 using kiyosi::test::fixture_text;
+
+namespace {
+std::string declaration(const std::string& row, std::string_view key)
+{
+    const auto start = row.find(std::string{key} + '=');
+    REQUIRE(start != std::string::npos);
+    const auto end = row.find_first_of(";\t", start);
+    REQUIRE(end != std::string::npos);
+    return row.substr(start, end - start);
+}
+} // namespace
+
+TEST_CASE("Reference fixture explanations may change without changing numerical declarations")
+{
+    const auto original = fixture_text();
+    auto text = original;
+    constexpr std::string_view explanation = "revised boundary explanation";
+    std::size_t position = 0, replacements = 0;
+    while ((position = text.find("unavailable_", position)) != std::string::npos) {
+        const auto start = text.find('=', position) + 1;
+        const auto end = text.find_first_of(";\t\n", start);
+        REQUIRE(end != std::string::npos);
+        text.replace(start, end - start, explanation);
+        position = start + explanation.size();
+        ++replacements;
+    }
+    REQUIRE(replacements > 0);
+    std::istringstream before{original}, after{text};
+    const auto expected = kiyosi::test::parse_reference_cases(before);
+    const auto actual = kiyosi::test::parse_reference_cases(after);
+    REQUIRE(actual.size() == expected.size());
+    for (std::size_t i = 0; i < actual.size(); ++i) {
+        CHECK(actual[i].case_id == expected[i].case_id);
+        CHECK(actual[i].outputs == expected[i].outputs);
+        CHECK(actual[i].tolerances == expected[i].tolerances);
+    }
+}
 
 TEST_CASE("Reference fixture dates reject invalid calendar components", "[audit-fixes]")
 {
@@ -44,9 +82,10 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
         const auto row = original.substr(start, end - start);
+        const auto unavailable = declaration(row, "unavailable_theta");
         for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
-                 {"unavailable_theta=whole-day stability stencil touches expiry_date;", ""},
-                 {"unavailable_theta=whole-day stability stencil touches expiry_date", "unavailable_theta=unknown"},
+                 {unavailable + ";", ""},
+                 {unavailable, "unavailable_theta="},
                  {"unit_vega=price/volatility-pp", "unit_vega=price/volatility"},
                  {"uncertainty_price=0", "uncertainty_price=nan"},
                  {"uncertainty_price=0", "uncertainty_price=10"},
@@ -70,9 +109,10 @@ TEST_CASE("American reference fixtures reject unknown measures and exercise boun
     REQUIRE(start != std::string::npos);
     const auto end = original.find('\n', start);
     const auto row = original.substr(start, end - start);
+    const auto unavailable = declaration(row, "unavailable_theta");
     for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
-             {"unavailable_theta=whole-day stability stencil precedes exercise window;", ""},
-             {"unavailable_theta=whole-day stability stencil precedes exercise window", "unavailable_theta=unknown"},
+             {unavailable + ";", ""},
+             {unavailable, "unavailable_theta="},
              {"unit_price=price", "unit_price=price;unavailable_typo=unknown"},
              {"\tdelta=", "\ttypo="}}) {
         auto changed = row;
@@ -115,16 +155,16 @@ TEST_CASE("Asian fixtures reject missing boundary declarations and unknown measu
 TEST_CASE("Binary boundary declarations reject missing or invented sensitivities")
 {
     const auto original = fixture_text();
-    for (const auto& [identifier, reason] : std::array{
-             std::pair{"ql-binary-cash-none-up-and-in-at-expiry-130-100-365d\t", "spot equals barrier: hit-state boundary"},
-             std::pair{"ql-binary-cash-call-up-and-in-at-expiry-100-100-0d\t", "terminal payoff: no smooth sensitivities"}}) {
+    for (const auto identifier : {"ql-binary-cash-none-up-and-in-at-expiry-130-100-365d\t",
+                                  "ql-binary-cash-call-up-and-in-at-expiry-100-100-0d\t"}) {
         const auto start = original.find(identifier);
         REQUIRE(start != std::string::npos);
         const auto end = original.find('\n', start);
         const auto row = original.substr(start, end - start);
+        const auto unavailable = declaration(row, "unavailable_delta");
         for (const auto& [from, to] : std::vector<std::pair<std::string, std::string>>{
-                 {"unavailable_delta=" + std::string{reason} + ";", ""},
-                 {"unavailable_delta=" + std::string{reason}, "unavailable_delta=unknown"},
+                 {unavailable + ";", ""},
+                 {unavailable, "unavailable_delta="},
                  {"unit_price=price", "unit_price=price;unavailable_typo=unknown"}}) {
             auto changed = row;
             const auto position = changed.find(from);

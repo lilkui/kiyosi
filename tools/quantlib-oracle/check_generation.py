@@ -1,6 +1,7 @@
 """Runnable checks for regeneration and failure atomicity; standard library only."""
 
 import json
+import re
 import tempfile
 from copy import deepcopy
 from pathlib import Path
@@ -15,7 +16,23 @@ import generate
 import oracle as g
 
 
+def check_manifest_explanations():
+    text = generate.FIXTURE.read_text()
+    declaration = r"(unavailable_[^=;\t\n]+)=([^;\t\n]+)"
+    revised, count = re.subn(declaration, r"\1=revised boundary explanation", text)
+    assert count > 0
+    generate.validate_manifest(revised)
+    empty = re.sub(declaration, r"\1=", text, count=1)
+    try:
+        generate.validate_manifest(empty)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("empty boundary explanation accepted")
+
+
 def check_generation():
+    check_manifest_explanations()
     barrier.check_bindings()
     binary.check_bindings()
     asian.check_bindings()
