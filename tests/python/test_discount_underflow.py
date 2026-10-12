@@ -14,10 +14,86 @@ from kiyosi.instruments import (
     PhoenixOption,
     cash_one_touch_up,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from kiyosi.market import BlackScholesMertonParameters, PricingContext, all_days_calendar
 
 
 class DiscountUnderflowTests(unittest.TestCase):
+    def test_accumulator_monte_carlo_preserves_discounted_quantity_products(self):
+        start = date(2025, 1, 1)
+        backends = ["cpu"] + (
+            ["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else []
+        )
+        for backend in backends:
+            for spot, quantity, rate in (
+                (100, 1e308, 2000),
+                (1e-200, 1e-200, -335800),
+                (1e-160, 1e-160, -255500),
+            ):
+                for early in (False, True):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate,
+                            dividend_yield=rate - (365 if early else 0),
+                            volatility=1e-20,
+                        ),
+                        spot_price=spot, valuation_time=start,
+                        calendar=all_days_calendar(),
+                    )
+                    terminal_spot = spot * math.exp(1 if early else 0)
+                    engine = pricing.MonteCarloAccumulatorEngine(
+                        path_count=10, seed=42, backend=backend
+                    )
+                    for strike_ratio in (0.5, 1, 4):
+                        strike = spot * strike_ratio
+                        option = Accumulator(
+                            strike=strike,
+                            knock_out_level=spot * (2 if early else 10),
+                            daily_quantity=0, acceleration_factor=1,
+                            accumulated_quantity=quantity, effective_date=start,
+                            expiry_date=date(2025, 1, 3 if early else 2),
+                        )
+                        difference = terminal_spot - strike
+                        expected = math.copysign(math.exp(
+                            math.log(quantity) + math.log(abs(difference)) - rate / 365
+                        ), difference) if difference else 0
+                        with self.subTest(
+                            backend=backend, spot=spot, rate=rate,
+                            early=early, strike_ratio=strike_ratio,
+                        ):
+                            price = engine.price(option, context)
+                            self.assertTrue(math.isclose(price, expected, rel_tol=2e-12))
+                            for greek in ("delta", "rho"):
+                                result = engine.price_with_greeks(
+                                    option, context, greek,
+                                    spot_shift=spot / 16, rate_shift=0.1,
+                                )
+                                self.assertEqual(result.price, price)
+                                expected_greek = (
+                                    math.exp(math.log(quantity) + (1 if early else 0) - rate / 365)
+                                    if greek == "delta" else
+                                    math.exp(math.log(quantity) + math.log(strike) - rate / 365) / 36500
+                                )
+                                self.assertTrue(math.isclose(
+                                    getattr(result, greek), expected_greek, rel_tol=2e-6
+                                ))
+
+    def test_accumulator_monte_carlo_rejects_unrepresentable_discounted_products(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 2)
+        option = Accumulator(
+            strike=1, knock_out_level=1000, daily_quantity=0,
+            acceleration_factor=1, accumulated_quantity=1e308,
+            effective_date=start, expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=365, dividend_yield=365, volatility=1e-20
+            ),
+            spot_price=100, valuation_time=start, calendar=all_days_calendar(),
+        )
+        with self.assertRaises(KiyosiError) as error:
+            pricing.MonteCarloAccumulatorEngine(path_count=10, seed=42).price(option, context)
+        self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)
+
     def test_analytic_delta_and_charm_retain_scaled_normal_tails(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         # Independent high-precision normal-tail references at r = q = -710.

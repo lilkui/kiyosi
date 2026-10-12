@@ -9,6 +9,58 @@
 #include "support/common.hpp"
 
 namespace {
+void check_accumulator_discounted_products(kiyosi::MonteCarloBackend backend)
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1);
+    struct Scenario { double spot, quantity, rate; };
+    for (const auto [spot, quantity, rate] : {Scenario{100.0, 1e308, 2000.0},
+                                            Scenario{1e-200, 1e-200, -335800.0},
+                                            Scenario{1e-160, 1e-160, -255500.0}}) {
+        for (const bool early : {false, true}) {
+            const auto context = *make_pricing_context(
+                *make_bsm_parameters(rate, rate - (early ? 365.0 : 0.0), 1e-20),
+                spot, start, all_days_calendar());
+            const double terminal_spot = spot * std::exp(early ? 1.0 : 0.0);
+            const MonteCarloAccumulatorEngine engine{10, 42, backend};
+            for (const double strike_ratio : {0.5, 1.0, 4.0}) {
+                CAPTURE(backend, spot, quantity, rate, early, strike_ratio);
+                const double strike = spot * strike_ratio;
+                const auto option = *make_accumulator({.strike = strike,
+                    .knock_out_level = spot * (early ? 2.0 : 10.0),
+                    .daily_quantity = 0.0, .acceleration_factor = 1.0,
+                    .accumulated_quantity = quantity, .effective_date = start,
+                    .expiry_date = test::day(2025, 1, early ? 3 : 2)});
+                const double difference = terminal_spot - strike;
+                const double expected = difference == 0.0 ? 0.0 : std::copysign(
+                    std::exp(std::log(quantity) + std::log(std::abs(difference)) - rate / 365.0), difference);
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == Catch::Approx(expected).epsilon(2e-12).margin(0.0));
+                const NumericalShiftSettings shifts{.spot_shift = spot / 16.0, .rate_shift = 0.1};
+                for (const auto greek : {Greek::delta, Greek::rho}) {
+                    const auto result = engine.price_with_greeks(option, context, {greek}, shifts);
+                    REQUIRE(result);
+                    CHECK(result->price() == *price);
+                    const auto value = result->require(greek);
+                    REQUIRE(value);
+                    const double expected_greek = greek == Greek::delta
+                        ? std::exp(std::log(quantity) + (early ? 1.0 : 0.0) - rate / 365.0)
+                        : std::exp(std::log(quantity) + std::log(strike) - rate / 365.0) / 36500.0;
+                    CHECK(*value == Catch::Approx(expected_greek).epsilon(2e-6).margin(0.0));
+                }
+            }
+        }
+    }
+    const auto option = *make_accumulator({.strike = 1.0, .knock_out_level = 1000.0,
+        .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 1e308,
+        .effective_date = start, .expiry_date = test::day(2025, 1, 2)});
+    const auto context = *make_pricing_context(*make_bsm_parameters(365.0, 365.0, 1e-20), 100.0, start, all_days_calendar());
+    const auto overflow = MonteCarloAccumulatorEngine{10, 42, backend}.price(option, context);
+    REQUIRE_FALSE(overflow);
+    CHECK(overflow.error().category == ErrorCategory::invalid_result);
+}
+
 void check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend backend)
 {
     using namespace kiyosi;
@@ -93,6 +145,18 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
 }
 } // namespace
+
+TEST_CASE("Accumulator Monte Carlo preserves discounted quantity products", "[discount-products]")
+{
+    check_accumulator_discounted_products(kiyosi::MonteCarloBackend::cpu);
+}
+
+#if KIYOSI_HAS_CUDA
+TEST_CASE("CUDA accumulator Monte Carlo preserves discounted quantity products", "[cuda][discount-products]")
+{
+    check_accumulator_discounted_products(kiyosi::MonteCarloBackend::cuda);
+}
+#endif
 
 TEST_CASE("Trading-day Monte Carlo preserves signed payments across extreme discount scales", "[discount-scaling]")
 {

@@ -59,7 +59,7 @@ Result<double> path_payoff(const Accumulator& option, const PricingContext& cont
         quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                             : option.daily_quantity();
     }
-    return discount.apply(quantity * (value - option.strike()));
+    return discount.apply(quantity, value - option.strike());
 }
 
 struct PathState {
@@ -100,7 +100,7 @@ Result<std::array<double, count>> path_payoffs(
                                              "Monte Carlo simulation produced an invalid asset price"});
             state.discount = step.discount;
             if (state.spot >= option.knock_out_level())
-                state.payoff = state.discount.apply(state.quantity * (state.spot - option.strike()));
+                state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
             else
                 state.quantity += state.spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
                                                                : option.daily_quantity();
@@ -109,7 +109,7 @@ Result<std::array<double, count>> path_payoffs(
     }
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i)
-        payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].discount.apply(states[i].quantity * (states[i].spot - option.strike()));
+        payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].discount.apply(states[i].quantity, states[i].spot - option.strike());
     return payoffs;
 }
 

@@ -359,7 +359,7 @@ __global__ void simulate_accumulator_paths(
                         ? request.daily_quantity * request.acceleration
                         : request.daily_quantity;
     }
-    const double payoff = discount.apply(quantity * (spot - request.strike));
+    const double payoff = discount.apply(quantity, spot - request.strike);
     if (!isfinite(payoff)) {
         atomicExch(invalid, 1);
         payoffs[path] = 0.0;
@@ -476,7 +476,7 @@ __global__ void simulate_accumulator_spot_paths(
                 return;
             }
             if (spots[bump] >= request.knock_out) {
-                write_spot_payoff(requests, bump, path, discount.apply(quantities[bump] * (spots[bump] - request.strike)));
+                write_spot_payoff(requests, bump, path, discount.apply(quantities[bump], spots[bump] - request.strike));
                 done[bump] = true;
                 --remaining;
             } else {
@@ -489,7 +489,7 @@ __global__ void simulate_accumulator_spot_paths(
     }
     for (int bump = 0; bump < requests.count; ++bump)
         if (!done[bump])
-            write_spot_payoff(requests, bump, path, discount.apply(quantities[bump] * (spots[bump] - requests.values[bump].strike)));
+            write_spot_payoff(requests, bump, path, discount.apply(quantities[bump], spots[bump] - requests.values[bump].strike));
 }
 
 __global__ void simulate_autocallable_spot_paths(
