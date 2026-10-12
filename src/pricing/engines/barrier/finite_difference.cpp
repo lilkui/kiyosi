@@ -135,9 +135,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
     const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, space->upper,
-        [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); },
-        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    const auto speed = finite_difference_speed(spot, h, space->upper, [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
     if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
@@ -167,21 +165,12 @@ Result<PricingResult> price_barrier(
                : barrier_fd<false>(option, context, settings, output, spot_shift);
 }
 
-struct BarrierPricer {
-    FiniteDifferenceSettings settings;
-    bool& schedule_validated;
-
-    Result<double> price(const BarrierOption& option, const PricingContext& context) const
-    {
-        return detail::price_value(price_barrier(option, context, settings, schedule_validated, GreeksRequest{}));
-    }
-};
 } // namespace
 
 Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option, const PricingContext& context) const
 {
     bool schedule_validated = false;
-    return BarrierPricer{settings_, schedule_validated}.price(option, context);
+    return detail::price_value(price_barrier(option, context, settings_, schedule_validated, GreeksRequest{}));
 }
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const

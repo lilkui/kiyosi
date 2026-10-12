@@ -9,7 +9,7 @@ namespace kiyosi::detail {
 // PCG-XSH-RR, derived from pcg-cpp (https://www.pcg-random.org); MIT notice in LICENSE.txt.
 class Pcg32 {
 public:
-    using result_type = std::uint32_t;
+    using result_type = std::uint32_t; // NOLINT(readability-identifier-naming): required by the standard random engine interface.
 
     Pcg32(std::uint64_t seed, std::uint64_t stream) noexcept
         : increment_((stream << 1U) | 1U)

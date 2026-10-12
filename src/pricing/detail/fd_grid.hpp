@@ -21,7 +21,8 @@ Result<std::optional<double>> finite_difference_speed(
     double spot, double h, double upper, const Price& price_at, const Gamma& gamma_at)
 {
     // Unavailable stencils are left to the shared Greek completion path.
-    if (!(h > 0.0 && spot > h && spot + h < upper)) return std::nullopt;
+    const bool stencil_available = h > 0.0 && spot > h && spot + h < upper;
+    if (!stencil_available) return std::nullopt;
     for (const double shifted_spot : {spot + h, spot - h}) {
         const auto price = price_at(shifted_spot);
         if (!price) return std::unexpected(price.error());

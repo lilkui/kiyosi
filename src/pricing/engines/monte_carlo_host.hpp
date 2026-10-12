@@ -52,11 +52,11 @@ Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& 
 template <typename Engine, typename Sample>
 struct MonteCarloMixedPricer {
     using Stencil = SpotStencil<3>;
-    const Engine& engine;
-    const PricingContext& base;
-    double h;
-    double volatility_shift;
-    bool center;
+    const Engine* engine{};
+    const PricingContext* base{};
+    double h{};
+    double volatility_shift{};
+    bool center{};
     Sample sample;
     mutable std::array<std::optional<std::array<double, 3>>, 2> prices{};
 
@@ -64,16 +64,16 @@ struct MonteCarloMixedPricer {
     Result<double> price(const Option& option, const PricingContext& context) const
     {
         const auto& model = context.model_parameters();
-        const auto& initial = base.model_parameters();
+        const auto& initial = base->model_parameters();
         const double volatility = initial.volatility();
         const int index = model.volatility() == volatility + volatility_shift ? 0 : 1;
-        const double spot = base.spot_price();
+        const double spot = base->spot_price();
         const auto node = context.spot_price() == spot ? Stencil::center : context.spot_price() == spot + h ? Stencil::up
                                                                                                             : Stencil::down;
         if (h == 0.0 || volatility_shift == 0.0 || model.volatility() != volatility + (index == 0 ? volatility_shift : -volatility_shift) ||
             model.risk_free_rate() != initial.risk_free_rate() || model.dividend_yield() != initial.dividend_yield() ||
-            context.valuation_time() != base.valuation_time() || (node == Stencil::down && context.spot_price() != spot - h))
-            return engine.price(option, context);
+            context.valuation_time() != base->valuation_time() || (node == Stencil::down && context.spot_price() != spot - h))
+            return engine->price(option, context);
         auto& cached = prices[static_cast<std::size_t>(index)];
         if (!cached) {
             const auto shifted = make_pricing_context(model, spot, context.valuation_time(), context.calendar());
@@ -145,7 +145,7 @@ Result<PricingResult> complete_monte_carlo_greeks(
         if (!values) return std::unexpected(values.error());
         return std::array{0.0, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
     };
-    const MonteCarloMixedPricer prices{scalar, context, mixed ? h : 0.0,
+    const MonteCarloMixedPricer prices{&scalar, &context, mixed ? h : 0.0,
                                        symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
                                        greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
     return complete_greeks(prices, option, context, greeks, settings, *native);

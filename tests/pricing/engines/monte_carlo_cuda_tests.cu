@@ -193,7 +193,7 @@ TEST_CASE("CUDA shared spot paths preserve independent settlements and recover f
                 std::array<CudaSimulationStep, 3> steps{{{0.1, diffusion, {0.99}}, {0.1, diffusion, {0.98}}, {0.1, diffusion, {0.97}}}};
                 std::array<CudaAutocallableStep, 3> events{};
                 for (std::size_t index = 0; index < events.size(); ++index)
-                    events[index] = {steps[index], {115.0, 0.01 * (index + 1), 105.0, true, true}};
+                    events[index] = {steps[index], {115.0, 0.01 * static_cast<double>(index + 1), 105.0, true, true}};
                 const AutocallableProgram program{1.0, 100.0, 100.0, 60.0, 100.0, 0.08, 0.0,
                                                   AutocallableTerminalKind::downside_if_knocked_in, true, true, true};
                 std::array<CudaAccumulatorRequest, 5> accumulators{};

@@ -57,14 +57,14 @@ struct BinarySnowballTerms {
 
 /// Creates a validated knock-in snowball.
 /// @return The option, or an input-validation error with a stable category.
-[[nodiscard]] Result<SnowballOption> make_snowball_option(SnowballTerms);
+[[nodiscard]] Result<SnowballOption> make_snowball_option(const SnowballTerms&);
 /// Creates a validated ternary snowball.
 /// @return The option, or an input-validation error with a stable category.
-[[nodiscard]] Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
+[[nodiscard]] Result<TernarySnowballOption> make_ternary_snowball_option(const TernarySnowballTerms&);
 
 /// Creates a validated binary snowball.
 /// @return The option, or an input-validation error with a stable category.
-[[nodiscard]] Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
+[[nodiscard]] Result<BinarySnowballOption> make_binary_snowball_option(const BinarySnowballTerms&);
 
 /// Knock-in autocallable accruing a coupon until knock-out, with downside participation.
 class SnowballOption : public KnockInAutocallableNote {
@@ -84,7 +84,7 @@ public:
     friend bool operator==(const SnowballOption&, const SnowballOption&) = default;
 
 private:
-    explicit SnowballOption(SnowballTerms terms)
+    explicit SnowballOption(const SnowballTerms& terms)
         : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
@@ -96,7 +96,7 @@ private:
     double lower_strike_;
     double maturity_coupon_rate_;
 
-    friend Result<SnowballOption> make_snowball_option(SnowballTerms);
+    friend Result<SnowballOption> make_snowball_option(const SnowballTerms&);
 };
 
 /// Snowball variant settling a flat coupon at maturity regardless of the terminal spot.
@@ -110,14 +110,14 @@ public:
     friend bool operator==(const BinarySnowballOption&, const BinarySnowballOption&) = default;
 
 private:
-    explicit BinarySnowballOption(BinarySnowballTerms terms)
+    explicit BinarySnowballOption(const BinarySnowballTerms& terms)
         : AutocallableNote(detail::autocallable_observations(terms), terms.principal_ratio, terms.barrier_state,
                            terms.effective_date, terms.expiry_date),
           maturity_coupon_rate_(terms.maturity_coupon_rate) {}
 
     double maturity_coupon_rate_;
 
-    friend Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
+    friend Result<BinarySnowballOption> make_binary_snowball_option(const BinarySnowballTerms&);
 };
 
 /// Snowball variant whose maturity coupon steps down to a floor once knocked in.
@@ -133,7 +133,7 @@ public:
     friend bool operator==(const TernarySnowballOption&, const TernarySnowballOption&) = default;
 
 private:
-    explicit TernarySnowballOption(TernarySnowballTerms terms)
+    explicit TernarySnowballOption(const TernarySnowballTerms& terms)
         : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms), terms.knock_in_observation_mode,
                                   terms.barrier_state, terms.principal_ratio, terms.effective_date, terms.expiry_date),
           maturity_coupon_rate_(terms.maturity_coupon_rate), minimum_coupon_rate_(terms.minimum_coupon_rate) {}
@@ -141,28 +141,28 @@ private:
     double maturity_coupon_rate_;
     double minimum_coupon_rate_;
 
-    friend Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms);
+    friend Result<TernarySnowballOption> make_ternary_snowball_option(const TernarySnowballTerms&);
 };
 
-[[nodiscard]] inline Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms terms)
+[[nodiscard]] inline Result<BinarySnowballOption> make_binary_snowball_option(const BinarySnowballTerms& terms)
 {
     const auto valid = detail::validate_autocallable_terms(terms);
     if (!valid) return std::unexpected(valid.error());
-    return BinarySnowballOption{std::move(terms)};
+    return BinarySnowballOption{terms};
 }
 
-[[nodiscard]] inline Result<SnowballOption> make_snowball_option(SnowballTerms terms)
+[[nodiscard]] inline Result<SnowballOption> make_snowball_option(const SnowballTerms& terms)
 {
     const auto valid = detail::validate_autocallable_terms(terms);
     if (!valid) return std::unexpected(valid.error());
-    return SnowballOption{std::move(terms)};
+    return SnowballOption{terms};
 }
 
-[[nodiscard]] inline Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms terms)
+[[nodiscard]] inline Result<TernarySnowballOption> make_ternary_snowball_option(const TernarySnowballTerms& terms)
 {
     const auto valid = detail::validate_autocallable_terms(terms);
     if (!valid) return std::unexpected(valid.error());
-    return TernarySnowballOption{std::move(terms)};
+    return TernarySnowballOption{terms};
 }
 
 } // namespace kiyosi

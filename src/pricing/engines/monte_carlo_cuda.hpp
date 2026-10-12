@@ -21,70 +21,70 @@ enum class CudaPricingStatus : unsigned char {
 };
 
 struct CudaEuropeanRequest {
-    int path_count;
-    std::uint64_t seed;
-    double spot;
-    double strike;
-    double drift;
-    double diffusion;
-    int payoff_sign;
+    int path_count{};
+    std::uint64_t seed{};
+    double spot{};
+    double strike{};
+    double drift{};
+    double diffusion{};
+    int payoff_sign{};
 };
 
 struct CudaAmericanRequest {
-    int path_count;
-    int step_count;
-    std::uint64_t seed;
-    double spot;
-    double strike;
-    double drift;
-    double diffusion;
-    double discount;
-    int payoff_sign;
+    int path_count{};
+    int step_count{};
+    std::uint64_t seed{};
+    double spot{};
+    double strike{};
+    double drift{};
+    double diffusion{};
+    double discount{};
+    int payoff_sign{};
 };
 
 struct CudaSimulationStep {
-    double drift;
-    double diffusion;
-    MonteCarloDiscount discount;
+    double drift{};
+    double diffusion{};
+    MonteCarloDiscount discount{};
 };
 
 struct CudaAutocallableStep {
-    CudaSimulationStep simulation;
-    AutocallableEvent event;
+    CudaSimulationStep simulation{};
+    AutocallableEvent event{};
     double alternate_coupon{};
 };
 
 struct CudaAccumulatorRequest {
-    int path_count;
-    std::uint64_t seed;
-    double spot;
-    double strike;
-    double knock_out;
-    double daily_quantity;
-    double acceleration;
-    double initial_quantity;
+    int path_count{};
+    std::uint64_t seed{};
+    double spot{};
+    double strike{};
+    double knock_out{};
+    double daily_quantity{};
+    double acceleration{};
+    double initial_quantity{};
 };
 
 struct CudaAutocallableRequest {
-    int path_count;
-    std::uint64_t seed;
-    double spot;
-    MonteCarloDiscount terminal_discount;
-    AutocallableProgram program;
-    AutocallablePathState initial_state;
+    int path_count{};
+    std::uint64_t seed{};
+    double spot{};
+    MonteCarloDiscount terminal_discount{};
+    AutocallableProgram program{};
+    AutocallablePathState initial_state{};
     AutocallableProgram alternate_program{};
     AutocallablePathState alternate_initial_state{};
 };
 
 struct CudaPricingResult {
-    CudaPricingStatus status;
-    double payoff_mean;
-    const char* message;
+    CudaPricingStatus status{};
+    double payoff_mean{};
+    const char* message{};
     double alternate_payoff_mean{};
 };
 
 struct CudaSpotPricingResult {
-    CudaPricingResult result;
+    CudaPricingResult result{};
     std::array<double, 5> payoff_means{};
 };
 

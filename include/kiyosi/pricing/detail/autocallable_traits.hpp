@@ -203,7 +203,7 @@ Result<bool> time_stencil_available(const Note& option, const PricingContext& co
         if (!shifted) return std::unexpected(shifted.error());
         available = validate_autocallable_history(option, *shifted).has_value();
     } else {
-        available = std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
+        available = std::ranges::none_of(option.observation_dates(), crosses_event);
     }
     if constexpr (!std::same_as<Note, BinarySnowballOption>) {
         const bool daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&

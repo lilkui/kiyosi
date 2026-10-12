@@ -123,7 +123,7 @@ private:
         }
         auto& factors = factors_[active_];
         if (theta != 0.0 && factors.diagonal.empty()) factors = Factorization{rhs_.size()};
-        bool reuse = factors.dt == dt && factors.parameters == parameters && factors.constrained == constrained;
+        bool reuse = factors.dt == dt && factors.parameters == parameters && factors.constrained == constrained; // NOLINT(misc-const-correctness): updated for constrained template instantiations.
         if (theta != 0.0) factors.parameters.reset();
         for (const auto& layer : layers) {
             layer.next.front() = layer.boundaries.lower;

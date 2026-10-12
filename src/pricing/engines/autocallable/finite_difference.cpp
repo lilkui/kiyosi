@@ -256,12 +256,12 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
 
 template <AutocallableProduct Note>
 Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
     AutocallableFiniteDifferenceWorkspace workspace;
     bool contract_validated = false;
-    return detail::solve_implied_volatility(engine, note, context, observed_price, settings,
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
                                                 return detail::price_value(price_autocallable(
                                                     instrument, market, scalar.settings(), contract_validated, GreeksRequest{},

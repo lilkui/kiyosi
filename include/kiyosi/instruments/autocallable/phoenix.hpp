@@ -28,7 +28,7 @@ struct PhoenixTerms {
 
 /// Creates a validated Phoenix autocallable.
 /// @return The option, or an input-validation error with a stable category.
-[[nodiscard]] Result<PhoenixOption> make_phoenix_option(PhoenixTerms);
+[[nodiscard]] Result<PhoenixOption> make_phoenix_option(const PhoenixTerms&);
 
 /// Knock-in autocallable paying a conditional coupon whenever spot clears the coupon barrier.
 /// Prices use normalized principal units; the annual coupon accrues over each observation period.
@@ -49,7 +49,7 @@ public:
     friend bool operator==(const PhoenixOption&, const PhoenixOption&) = default;
 
 private:
-    explicit PhoenixOption(PhoenixTerms terms)
+    explicit PhoenixOption(const PhoenixTerms& terms)
         : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
@@ -61,14 +61,14 @@ private:
     double lower_strike_;
     double coupon_rate_;
 
-    friend Result<PhoenixOption> make_phoenix_option(PhoenixTerms);
+    friend Result<PhoenixOption> make_phoenix_option(const PhoenixTerms&);
 };
 
-[[nodiscard]] inline Result<PhoenixOption> make_phoenix_option(PhoenixTerms terms)
+[[nodiscard]] inline Result<PhoenixOption> make_phoenix_option(const PhoenixTerms& terms)
 {
     const auto valid = detail::validate_autocallable_terms(terms);
     if (!valid) return std::unexpected(valid.error());
-    return PhoenixOption{std::move(terms)};
+    return PhoenixOption{terms};
 }
 
 } // namespace kiyosi

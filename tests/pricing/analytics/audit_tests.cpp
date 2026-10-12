@@ -552,7 +552,7 @@ TEST_CASE("Scalar vanna retains finite values when stencil scales multiply to ze
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-200), 1e-200, start);
     const auto check = [&](const auto& engine, const auto& option) {
         const auto result = engine.price_with_greeks(option, context, {Greek::vanna},
-                                                   {.spot_shift = 1e-201, .volatility_shift = 1e-201});
+                                                     {.spot_shift = 1e-201, .volatility_shift = 1e-201});
         REQUIRE(result);
         CHECK(result->price() == Catch::Approx(5e-201).epsilon(1e-12).margin(0.0));
         CHECK(greek_value(*result, Greek::vanna) == 0.0);

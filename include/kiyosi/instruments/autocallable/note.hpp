@@ -56,62 +56,62 @@ namespace detail {
 // Adapts sequence inputs to the same validator used by immutable notes, without copies.
 template <typename Terms>
 struct AutocallableInput {
-    const Terms& terms;
-    double principal_ratio() const { return terms.principal_ratio; }
-    Date effective_date() const { return terms.effective_date; }
-    Date expiry_date() const { return terms.expiry_date; }
-    auto barrier_state() const { return terms.barrier_state; }
-    const auto& observation_dates() const { return terms.observation_dates; }
-    const auto& knock_out_levels() const { return terms.knock_out_levels; }
+    const Terms* terms{};
+    double principal_ratio() const { return terms->principal_ratio; }
+    Date effective_date() const { return terms->effective_date; }
+    Date expiry_date() const { return terms->expiry_date; }
+    auto barrier_state() const { return terms->barrier_state; }
+    const auto& observation_dates() const { return terms->observation_dates; }
+    const auto& knock_out_levels() const { return terms->knock_out_levels; }
     double initial_spot() const
-        requires requires { terms.initial_spot; }
+        requires requires { terms->initial_spot; }
     {
-        return terms.initial_spot;
+        return terms->initial_spot;
     }
     double upper_strike() const
-        requires requires { terms.upper_strike; }
+        requires requires { terms->upper_strike; }
     {
-        return terms.upper_strike;
+        return terms->upper_strike;
     }
     double lower_strike() const
-        requires requires { terms.lower_strike; }
+        requires requires { terms->lower_strike; }
     {
-        return terms.lower_strike;
+        return terms->lower_strike;
     }
     double knock_in_level() const
-        requires requires { terms.knock_in_level; }
+        requires requires { terms->knock_in_level; }
     {
-        return terms.knock_in_level;
+        return terms->knock_in_level;
     }
     auto knock_in_observation_mode() const
-        requires requires { terms.knock_in_observation_mode; }
+        requires requires { terms->knock_in_observation_mode; }
     {
-        return terms.knock_in_observation_mode;
+        return terms->knock_in_observation_mode;
     }
     double coupon_rate() const
-        requires requires { terms.coupon_rate; }
+        requires requires { terms->coupon_rate; }
     {
-        return terms.coupon_rate;
+        return terms->coupon_rate;
     }
     const auto& coupon_barrier_levels() const
-        requires requires { terms.coupon_barrier_levels; }
+        requires requires { terms->coupon_barrier_levels; }
     {
-        return terms.coupon_barrier_levels;
+        return terms->coupon_barrier_levels;
     }
     const auto& knock_out_coupon_rates() const
-        requires requires { terms.knock_out_coupon_rates; }
+        requires requires { terms->knock_out_coupon_rates; }
     {
-        return terms.knock_out_coupon_rates;
+        return terms->knock_out_coupon_rates;
     }
     double maturity_coupon_rate() const
-        requires requires { terms.maturity_coupon_rate; }
+        requires requires { terms->maturity_coupon_rate; }
     {
-        return terms.maturity_coupon_rate;
+        return terms->maturity_coupon_rate;
     }
     double minimum_coupon_rate() const
-        requires requires { terms.minimum_coupon_rate; }
+        requires requires { terms->minimum_coupon_rate; }
     {
-        return terms.minimum_coupon_rate;
+        return terms->minimum_coupon_rate;
     }
 };
 
@@ -326,7 +326,7 @@ namespace detail {
 template <typename Terms>
 [[nodiscard]] inline Result<void> validate_autocallable_terms(const Terms& terms)
 {
-    return validate_autocallable_note(AutocallableInput{terms});
+    return validate_autocallable_note(AutocallableInput{&terms});
 }
 
 } // namespace detail

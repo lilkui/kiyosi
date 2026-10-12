@@ -42,7 +42,7 @@
 namespace {
 
 struct UnrecognizedOptionTag {
-    friend bool operator==(const UnrecognizedOptionTag&, const UnrecognizedOptionTag&) = default;
+    [[maybe_unused]] friend bool operator==(const UnrecognizedOptionTag&, const UnrecognizedOptionTag&) = default;
 };
 
 template <typename Payoff, typename Exercise>

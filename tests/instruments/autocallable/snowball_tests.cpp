@@ -35,13 +35,13 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
     CHECK(phoenix->observations_view()[1] == AutocallableObservation{end, 105.0, 0.0, 102.0});
     CHECK(detail::autocallable_event(*phoenix, 1).coupon == Catch::Approx(0.02));
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 106.0, end, all_days_calendar());
-    for (const auto price : {FiniteDifferenceBinarySnowballEngine{}.price(*snowball, context),
-                             MonteCarloBinarySnowballEngine{8, 7}.price(*snowball, context)}) {
+    for (const auto& price : {FiniteDifferenceBinarySnowballEngine{}.price(*snowball, context),
+                              MonteCarloBinarySnowballEngine{8, 7}.price(*snowball, context)}) {
         REQUIRE(price);
         CHECK(*price == Catch::Approx(1.06));
     }
-    for (const auto price : {FiniteDifferencePhoenixEngine{}.price(*phoenix, context),
-                             MonteCarloPhoenixEngine{8, 7}.price(*phoenix, context)}) {
+    for (const auto& price : {FiniteDifferencePhoenixEngine{}.price(*phoenix, context),
+                              MonteCarloPhoenixEngine{8, 7}.price(*phoenix, context)}) {
         REQUIRE(price);
         CHECK(*price == Catch::Approx(1.02));
     }
@@ -229,7 +229,7 @@ TEST_CASE("Autocallable factories preserve validation error categories")
     CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
     auto knocked_out_binary = binary_terms;
     knocked_out_binary.barrier_state = kiyosi::AutocallableBarrierState::knocked_out;
-    const auto knocked_out = kiyosi::make_binary_snowball_option(std::move(knocked_out_binary));
+    const auto knocked_out = kiyosi::make_binary_snowball_option(knocked_out_binary);
     CHECK(knocked_out.has_value());
     check(kiyosi::make_snowball_option,
           kiyosi::SnowballTerms{.knock_out_coupon_rates = {0.05},

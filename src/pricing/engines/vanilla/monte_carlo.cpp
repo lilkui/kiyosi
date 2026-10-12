@@ -34,9 +34,9 @@ struct SimulationParameters {
 
 struct AmericanMonteCarloSamples {
     bool cache_growth;
-    std::vector<double> paths;
-    std::vector<double> cash_flows;
-    std::vector<std::array<double, 2>> growth;
+    std::vector<double> paths{};
+    std::vector<double> cash_flows{};
+    std::vector<std::array<double, 2>> growth{};
     double drift = std::numeric_limits<double>::quiet_NaN();
     double diffusion = std::numeric_limits<double>::quiet_NaN();
     int step_count{};
@@ -82,7 +82,7 @@ Result<void> simulate_paths(
         samples->growth.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
     }
     constexpr int batch_size = 256;
-    std::array<double, batch_size> draws;
+    std::array<double, batch_size> draws{};
     for (int path = 0; path < half_count; ++path) {
         // Separate terminal-only random generation from payoff arithmetic without changing draw order.
         if (settings.step_count == 2 && !reuse && path % batch_size == 0)

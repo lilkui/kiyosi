@@ -41,9 +41,9 @@ TEST_CASE("Finite-difference speed validates shifted prices before using gamma",
     SECTION("Unavailable stencils perform no shifted valuations")
     {
         for (const auto [spot, h, upper] : {std::array{100.0, 0.0, 200.0},
-                                          std::array{1.0, 1.0, 200.0},
-                                          std::array{100.0, 1.0, 101.0},
-                                          std::array{100.0, std::numeric_limits<double>::quiet_NaN(), 200.0}}) {
+                                            std::array{1.0, 1.0, 200.0},
+                                            std::array{100.0, 1.0, 101.0},
+                                            std::array{100.0, std::numeric_limits<double>::quiet_NaN(), 200.0}}) {
             const auto speed = detail::finite_difference_speed(spot, h, upper, price_at, gamma_at);
             REQUIRE(speed);
             CHECK_FALSE(speed->has_value());

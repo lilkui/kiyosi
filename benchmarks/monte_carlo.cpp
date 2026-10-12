@@ -131,8 +131,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto snowball = snowball_scenario().first;
     const MonteCarloSnowballEngine snowball_monte_carlo{20'000, 42};
     register_price("analytics/kiyosi/snowball/mc/price", snowball, snowball_monte_carlo, context)->UseRealTime();
-    register_calculation("analytics/kiyosi/snowball/mc/delta_gamma", [=] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
-    register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_unavailable_speed", [=] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/snowball/mc/delta_gamma", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_unavailable_speed", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
     const FiniteDifferenceAccumulatorEngine accumulator_engine{};
     const MonteCarloAccumulatorEngine accumulator_monte_carlo{20'000, 42};
     register_price("analytics/kiyosi/accumulator/mc/price", accumulator, accumulator_monte_carlo, context)->UseRealTime();
@@ -148,13 +148,13 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/accumulator/mc_cuda/price", accumulator, cuda_accumulator, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc_cuda/delta_gamma", [=] { return cuda_accumulator.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_price("analytics/kiyosi/snowball/mc_cuda/price", snowball, cuda_snowball, context)->UseRealTime();
-    register_calculation("analytics/kiyosi/snowball/mc_cuda/delta_gamma", [=] { return cuda_snowball.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/snowball/mc_cuda/delta_gamma", [=, snowball = snowball] { return cuda_snowball.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     const auto accumulator_quote = cuda_accumulator.price(accumulator, context);
-    register_calculation("analytics/kiyosi/accumulator/mc_cuda/implied_volatility", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/accumulator/mc_cuda/implied_volatility", [=, accumulator_quote = accumulator_quote]() -> Result<double> {
         if (!accumulator_quote) return std::unexpected(accumulator_quote.error());
         return implied_volatility(cuda_accumulator, accumulator, context, *accumulator_quote); }, "volatility")->UseRealTime();
     const auto snowball_quote = cuda_snowball.price(snowball, context);
-    register_calculation("analytics/kiyosi/snowball/mc_cuda/implied_volatility", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/mc_cuda/implied_volatility", [=, snowball = snowball, snowball_quote = snowball_quote]() -> Result<double> {
         if (!snowball_quote) return std::unexpected(snowball_quote.error());
         return implied_volatility(cuda_snowball, snowball, context, *snowball_quote); }, "volatility")->UseRealTime();
 #endif
@@ -179,27 +179,27 @@ void kiyosi::benchmark_support::register_analytics_cases()
     for (auto date = european.effective_date() + std::chrono::days{1}; date <= dense_expiry; date += std::chrono::days{1})
         if (weekdays_calendar().is_trading_day(date)) dense_dates.push_back(date);
     const auto dense_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dense_dates, .touch_state = BarrierTouchState::untouched});
-    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
-    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
+    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=, dense_barrier = dense_barrier] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
+    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
     const auto dense_snowball = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08), .maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dense_dates.size(), 1'000.0), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dense_dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry});
     const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const auto dense_barrier_context = *make_pricing_context(base_context.model_parameters(), 100.25, dense_context.valuation_time(), weekdays_calendar());
     const FiniteDifferenceBarrierEngine dense_barrier_engine{80, 1};
     register_price("analytics/kiyosi/barrier/fd/scheduled_dense/price", dense_barrier, dense_barrier_engine, dense_barrier_context);
-    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/vega_rho", [=] { return dense_barrier_engine.price_with_greeks(dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}); }, "price");
-    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/scalar_stencils", [=] { return detail::price_with_greeks(dense_barrier_engine, dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/vega_rho", [=, dense_barrier = dense_barrier] { return dense_barrier_engine.price_with_greeks(dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return detail::price_with_greeks(dense_barrier_engine, dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price");
     const MonteCarloSnowballEngine dense_monte_carlo{1, 42};
     const FiniteDifferenceSnowballEngine dense_finite_difference{80, 1};
     register_price("analytics/kiyosi/snowball/mc/scheduled_dense/price", dense_snowball, dense_monte_carlo, dense_context);
-    register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
-    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/vega_rho", [=] { return dense_finite_difference.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_finite_difference.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     const auto dense_coupon_quote = dense_finite_difference.price(dense_snowball, dense_context);
-    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon", [=, dense_snowball = dense_snowball, dense_coupon_quote = dense_coupon_quote]() -> Result<double> {
                              if (!dense_coupon_quote) return std::unexpected(dense_coupon_quote.error());
                              return implied_coupon(dense_finite_difference, dense_snowball, dense_context, *dense_coupon_quote,
                                                    CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
-    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon/independent_trials", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon/independent_trials", [=, dense_snowball = dense_snowball, dense_coupon_quote = dense_coupon_quote]() -> Result<double> {
                              if (!dense_coupon_quote) return std::unexpected(dense_coupon_quote.error());
                              return detail::solve_implied_coupon(dense_finite_difference, dense_snowball, dense_context, *dense_coupon_quote, ImpliedCouponSettings{},
                                                                  [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
@@ -244,9 +244,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/fd/speed", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     const auto digital = *make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, european.effective_date(), european.expiry_date());
     register_calculation("analytics/kiyosi/cash_digital/fd/speed", [=] { return FiniteDifferenceDigitalEngine{}.price_with_greeks(digital, context, {Greek::speed}); }, "price");
-    register_calculation("analytics/kiyosi/barrier/fd/speed", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/speed", [=, barrier = barrier] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/accumulator/fd/speed", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::speed}); }, "price");
-    register_calculation("analytics/kiyosi/snowball/fd/speed", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/fd/speed", [=, snowball = snowball] { return snowball_engine.price_with_greeks(snowball, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/vanna", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::vanna}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/zomma", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::zomma}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/charm", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");
@@ -261,7 +261,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/fd/effective_date/charm", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::charm}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/effective_date/color", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::color}); }, "price");
     register_price("analytics/kiyosi/barrier/fd/price", barrier, barrier_engine, base_context);
-    register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
+    register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=, barrier = barrier] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
     const auto scheduled_knock_in = *make_barrier_option(
         {.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = make_monthly_schedule(european.effective_date(), european.expiry_date(), 1, base_context.calendar())->dates()});
     register_price("analytics/kiyosi/barrier/fd/scheduled_knock_in/price", scheduled_knock_in, barrier_engine, base_context);
@@ -293,21 +293,21 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/fd/delta_gamma", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/price", snowball, snowball_engine, context);
     const auto coupon_quote = snowball_engine.price(snowball, context);
-    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon", [=, snowball = snowball, coupon_quote = coupon_quote]() -> Result<double> {
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return implied_coupon(snowball_engine, snowball, context, *coupon_quote,
                                                    CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
-    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon/independent_trials", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon/independent_trials", [=, snowball = snowball, coupon_quote = coupon_quote]() -> Result<double> {
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return detail::solve_implied_coupon(snowball_engine, snowball, context, *coupon_quote, ImpliedCouponSettings{},
                                                                  [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
     const MonteCarloSnowballEngine coupon_engine{20'000, 42};
     const auto monte_carlo_quote = coupon_engine.price(snowball, context);
-    register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=, snowball = snowball, monte_carlo_quote = monte_carlo_quote]() -> Result<double> {
                              if (!monte_carlo_quote) return std::unexpected(monte_carlo_quote.error());
                              return implied_coupon(coupon_engine, snowball, context, *monte_carlo_quote,
                                                    CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
-    register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/fd/delta_gamma", [=, snowball = snowball] { return snowball_engine.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
     const auto knocked_in = snowball_scenario(AutocallableBarrierState::knocked_in).first;
     register_price("analytics/kiyosi/snowball/fd/knocked_in/price", knocked_in, snowball_engine, context);
     const auto expiry_note = *make_snowball_option(
@@ -328,11 +328,11 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto american_call = *make_american_option(OptionType::call, 100.0, european.effective_date(), european.expiry_date());
     register_price("analytics/kiyosi/american/mc/no_dividend/price", american_call, MonteCarloVanillaEngine{100'000, 50, 42}, no_dividend);
     const auto fd_quote = vanilla_engine.price(european, context);
-    register_calculation("analytics/kiyosi/european/fd/implied_volatility", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/european/fd/implied_volatility", [=, fd_quote = fd_quote]() -> Result<double> {
                              if (!fd_quote) return std::unexpected(fd_quote.error());
                              return implied_volatility(vanilla_engine, european, context, *fd_quote); }, "volatility");
     const auto quote = monte_carlo.price(european, context);
-    register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=]() -> Result<double> {
+    register_calculation("analytics/kiyosi/european/mc/implied_volatility", [=, quote = quote]() -> Result<double> {
                              if (!quote) return std::unexpected(quote.error());
                              return implied_volatility(monte_carlo, european, context, *quote); }, "volatility");
 }

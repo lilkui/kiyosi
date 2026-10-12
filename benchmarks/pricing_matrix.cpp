@@ -67,8 +67,7 @@ void register_matrix()
                                                                  .expiry_date = expiry});
 
     register_kiyosi("european/analytic", european, AnalyticVanillaEngine{}, context);
-    const auto up_and_out = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
-                                                 .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
+    const auto up_and_out = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
     register_kiyosi("up_and_out/fd_200", up_and_out, FiniteDifferenceBarrierEngine{200, 200}, context);
     register_kiyosi("up_and_out/fd_2000", up_and_out, FiniteDifferenceBarrierEngine{2'000, 200}, context);
     const Date dense_expiry{std::chrono::year{2035} / 1 / 1};
@@ -76,23 +75,24 @@ void register_matrix()
     for (auto date = start + std::chrono::days{1}; date <= dense_expiry; date += std::chrono::days{1})
         dense_dates.push_back(date);
     const auto dense_note = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08),
-                                                  .maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0,
-                                                  .knock_out_levels = std::vector<double>(dense_dates.size(), 110.0),
-                                                  .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dense_dates,
-                                                  .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-                                                  .barrier_state = AutocallableBarrierState::none,
-                                                  .effective_date = start, .expiry_date = dense_expiry});
+                                                   .maturity_coupon_rate = 0.08,
+                                                   .initial_spot = 100.0,
+                                                   .knock_in_level = 80.0,
+                                                   .knock_out_levels = std::vector<double>(dense_dates.size(), 110.0),
+                                                   .upper_strike = 100.0,
+                                                   .lower_strike = 60.0,
+                                                   .observation_dates = dense_dates,
+                                                   .knock_in_observation_mode = KnockInObservationMode::at_expiry,
+                                                   .barrier_state = AutocallableBarrierState::none,
+                                                   .effective_date = start,
+                                                   .expiry_date = dense_expiry});
     const auto dense_context = *make_pricing_context(context.model_parameters(), 80.25,
                                                      start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const FiniteDifferenceSnowballEngine dense_engine{80, 1};
     const double dense_quote = *dense_engine.price(dense_note, dense_context);
-    kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense", [=] {
-        return implied_volatility(dense_engine, dense_note, dense_context, dense_quote);
-    }, "volatility");
-    kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense/independent_trials", [=] {
-        return detail::solve_implied_volatility(dense_engine, dense_note, dense_context, dense_quote, {},
-                                                [](const auto& engine, const auto& note, const auto& market) { return engine.price(note, market); });
-    }, "volatility");
+    kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense", [=, dense_note = dense_note] { return implied_volatility(dense_engine, dense_note, dense_context, dense_quote); }, "volatility");
+    kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense/independent_trials", [=, dense_note = dense_note] { return detail::solve_implied_volatility(dense_engine, dense_note, dense_context, dense_quote, {},
+                                                                                                                                                                                                [](const auto& engine, const auto& note, const auto& market) { return engine.price(note, market); }); }, "volatility");
     register_kiyosi("european/crr", european, CoxRossRubinsteinVanillaEngine{128}, context);
     register_kiyosi("european/fd", european, FiniteDifferenceVanillaEngine{80, 80}, context);
     register_kiyosi("european/quadrature", european, QuadratureVanillaEngine{}, context);

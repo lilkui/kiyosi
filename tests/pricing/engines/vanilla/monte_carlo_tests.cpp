@@ -134,7 +134,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         prefixes.reserve(count);
         double squares = 0.0, products = 0.0;
         const auto first = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
-            std::normal_distribution<double> normal;
+            std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             const double next = normal(generator);
             prefixes.push_back(value);
@@ -148,7 +148,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         CHECK_THAT(products / count, Catch::Matchers::WithinAbs(0.0, 0.02));
         std::size_t path = 0;
         const auto shortened = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
-            std::normal_distribution<double> normal;
+            std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             REQUIRE(value == prefixes[path++]);
             return value;
@@ -207,7 +207,7 @@ TEST_CASE("Monte Carlo sample accumulation matches partial merging across scales
     const double minimum = std::numeric_limits<double>::denorm_min();
     for (const double sample : {0.0, maximum, maximum, -maximum, -maximum, minimum, minimum, -minimum, -0.0, 10.0, -10.0})
         check(sample);
-    std::mt19937_64 generator{42};
+    std::mt19937_64 generator{42}; // NOLINT(bugprone-random-generator-seed): regression samples must be reproducible.
     std::uniform_real_distribution<double> fraction{-1.0, 1.0};
     std::uniform_int_distribution<int> exponent{-1073, 1024};
     for (int sample = 0; sample < 2048; ++sample)
@@ -841,7 +841,7 @@ TEST_CASE("American Monte Carlo skips exercise grids only when early exercise ha
             CHECK(*actual == std::max(*continuation, 1900.0));
         }
     }
-    for (const auto [type, rate, dividend, spot, expected] : {
+    for (const auto& [type, rate, dividend, spot, expected] : {
              std::tuple{OptionType::call, -0.1, 0.0, 200.0, 100.0},
              std::tuple{OptionType::call, 0.0, 0.1, 200.0, 100.0},
              std::tuple{OptionType::put, 0.1, 0.0, 50.0, 50.0}}) {

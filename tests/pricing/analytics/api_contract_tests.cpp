@@ -439,7 +439,7 @@ TEST_CASE("Speed reuses native gamma and retains the price fallback", "[pricing-
         REQUIRE(result);
         CHECK(greek_value(*result, Greek::speed) == Catch::Approx(6.0));
         CHECK_FALSE(result->has(Greek::gamma));
-        CHECK(calls == (provide_native ? 3 : 5));
+        CHECK(calls == (provide_native ? 3U : 5U));
     }
 
     std::vector<PricingContext> calls;
@@ -527,7 +527,7 @@ TEST_CASE("Mixed time Greeks reuse shifted native derivatives and retain fallbac
                 CHECK(result->has(Greek::delta) == request.has(Greek::delta));
                 CHECK(result->has(Greek::gamma) == request.has(Greek::gamma));
                 const bool complete = supplied.has(Greek::delta) && supplied.has(Greek::gamma);
-                CHECK(calls == (date == effective ? (complete ? 2 : 6) : (complete ? 3 : (request.has(Greek::delta) ? 9 : 7))));
+                CHECK(calls == (date == effective ? (complete ? 2U : 6U) : (complete ? 3U : (request.has(Greek::delta) ? 9U : 7U))));
             }
 }
 
@@ -853,7 +853,7 @@ TEST_CASE("Scalar and basic analytic pricing avoid overflowing higher Greeks", "
 }
 struct SeedRecordingSettings {
     std::optional<unsigned> seed;
-    std::vector<std::optional<unsigned>>* calls;
+    std::vector<std::optional<unsigned>>* calls{};
 };
 struct SeedRecordingEngine {
     SeedRecordingSettings configuration;

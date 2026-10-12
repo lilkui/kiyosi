@@ -276,6 +276,7 @@ TEST_CASE("Autocallable FD volatility workspaces preserve independent trials", "
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
     const std::vector<Date> observations{day(2025, 1, 3), day(2025, 1, 8), end};
     const auto context = [&](double volatility) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext owns its calendar and is returned by value.
         return *make_pricing_context(*make_bsm_parameters(0.04, 0.01, volatility), 100.25,
                                      start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
     };
@@ -835,18 +836,18 @@ double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
         const double dividend = context.model_parameters().dividend_yield();
         const double sigma = context.model_parameters().volatility();
         const auto valuation = context.valuation_time();
-        const auto& dates = note.observation_dates();
+        const auto observations = note.observations_view();
         std::vector<std::size_t> schedule;
-        for (std::size_t index = 0; index < dates.size(); ++index)
-            if (dates[index] >= valuation) schedule.push_back(index);
+        for (std::size_t index = 0; index < observations.size(); ++index)
+            if (observations[index].date >= valuation) schedule.push_back(index);
 
         double value = context.spot_price();
         std::size_t index = 0;
-        if (!schedule.empty() && dates[schedule.front()] == valuation) {
+        if (!schedule.empty() && observations[schedule.front()].date == valuation) {
             const auto event = schedule.front();
-            const double coupon = note.knock_out_coupon_rates()[event] *
-                                  *kiyosi::year_fraction(note.effective_date(), dates[event]);
-            if (value >= note.knock_out_levels()[event]) return note.principal_ratio() + coupon;
+            const double coupon = observations[event].coupon_rate *
+                                  *kiyosi::year_fraction(note.effective_date(), observations[event].date);
+            if (value >= observations[event].knock_out_level) return note.principal_ratio() + coupon;
             index = 1;
         }
         const double terminal = note.principal_ratio() +
@@ -857,15 +858,15 @@ double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
         std::normal_distribution<double> normal;
         auto previous = valuation;
         for (; index < schedule.size(); ++index) {
-            const auto current = dates[schedule[index]];
+            const auto current = observations[schedule[index]].date;
             const double dt = *kiyosi::year_fraction(previous, kiyosi::start_of_day(current));
             value *= std::exp((rate - dividend - 0.5 * sigma * sigma) * dt +
                               sigma * std::sqrt(dt) * normal(generator));
             previous = kiyosi::start_of_day(current);
             const auto event = schedule[index];
-            const double coupon = note.knock_out_coupon_rates()[event] *
-                                  *kiyosi::year_fraction(note.effective_date(), dates[event]);
-            if (value >= note.knock_out_levels()[event])
+            const double coupon = observations[event].coupon_rate *
+                                  *kiyosi::year_fraction(note.effective_date(), observations[event].date);
+            if (value >= observations[event].knock_out_level)
                 return (note.principal_ratio() + coupon) *
                        std::exp(-rate * *kiyosi::year_fraction(valuation, previous));
         }

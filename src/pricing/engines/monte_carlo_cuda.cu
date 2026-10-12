@@ -50,6 +50,9 @@ using CudaStream = std::unique_ptr<std::remove_pointer_t<cudaStream_t>, StreamDe
 
 struct RequestCompletion {
     cudaStream_t stream;
+    explicit RequestCompletion(cudaStream_t value) : stream(value) {}
+    RequestCompletion(const RequestCompletion&) = delete;
+    RequestCompletion& operator=(const RequestCompletion&) = delete;
     // Caller-owned step arrays must remain alive even when a queued operation fails.
     ~RequestCompletion()
     {
@@ -168,7 +171,7 @@ __global__ void simulate_payoff_pairs(CudaEuropeanRequest request, int pair_coun
     if (pair >= pair_count) return;
     double2 factors;
     if (!normals || rebuild) {
-        double normal;
+        double normal = 0.0;
         if (normals) normal = normals[pair];
         else {
             curandStatePhilox4_32_10_t generator;
@@ -308,8 +311,8 @@ __global__ void reduce_statistics(const RegressionStatistics* partials,
         solution->valid = false;
         if (statistics.sample_count == 0) return;
         const double sample_count = static_cast<double>(statistics.sample_count);
+        // NOLINTNEXTLINE(modernize-avoid-c-arrays): device code cannot call host std::array methods.
         const double matrix[3][4] = {
-            // NOLINT(modernize-avoid-c-arrays): device code cannot call host std::array methods.
             {sample_count, statistics.sum_x, statistics.sum_x2, statistics.sum_y},
             {statistics.sum_x, statistics.sum_x2, statistics.sum_x3, statistics.sum_xy},
             {statistics.sum_x2, statistics.sum_x3, statistics.sum_x4, statistics.sum_x2y},
@@ -370,7 +373,7 @@ __global__ void simulate_accumulator_paths(
     payoffs[path] = payoff;
 }
 
-template <bool Paired>
+template <bool paired>
 __global__ void simulate_autocallable_paths(
     CudaAutocallableRequest request, const CudaAutocallableStep* steps, std::size_t step_count,
     double* payoffs, double* alternate_payoffs, int* invalid)
@@ -384,7 +387,7 @@ __global__ void simulate_autocallable_paths(
     auto state = request.initial_state;
     auto alternate_state = request.alternate_initial_state;
     double payoff = 0.0;
-    double alternate_payoff = 0.0;
+    double alternate_payoff = 0.0; // NOLINT(misc-const-correctness): updated for paired coupon simulations.
     bool knocked_out = false;
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
@@ -393,11 +396,11 @@ __global__ void simulate_autocallable_paths(
         if (!isfinite(spot) || spot <= 0.0) {
             atomicExch(invalid, 1);
             payoffs[path] = 0.0;
-            if constexpr (Paired) alternate_payoffs[path] = 0.0;
+            if constexpr (paired) alternate_payoffs[path] = 0.0;
             return;
         }
         knocked_out = observe_autocallable_path(request.program, step.event, step.simulation.discount, spot, state, payoff);
-        if constexpr (Paired) {
+        if constexpr (paired) {
             auto event = step.event;
             event.coupon = step.alternate_coupon;
             observe_autocallable_path(request.alternate_program, event, step.simulation.discount, spot, alternate_state, alternate_payoff);
@@ -406,12 +409,12 @@ __global__ void simulate_autocallable_paths(
     }
     if (!knocked_out) {
         payoff = settle_autocallable_path(request.program, request.terminal_discount, spot, state);
-        if constexpr (Paired)
+        if constexpr (paired)
             alternate_payoff = settle_autocallable_path(request.alternate_program, request.terminal_discount, spot, alternate_state);
     }
     if (!isfinite(payoff)) atomicExch(invalid, 1);
     payoffs[path] = isfinite(payoff) ? payoff : 0.0;
-    if constexpr (Paired) {
+    if constexpr (paired) {
         if (!isfinite(alternate_payoff)) atomicExch(invalid, 1);
         alternate_payoffs[path] = isfinite(alternate_payoff) ? alternate_payoff : 0.0;
     }
@@ -584,9 +587,9 @@ CudaPricingResult allocate_path_outputs(int path_count, PathOutputs& outputs, cu
     const auto result = allocate(outputs.memory, payoff_bytes + partial_bytes + sizeof(PathSimulationResult), stream);
     if (result.status != CudaPricingStatus::success) return result;
     auto* storage = static_cast<std::byte*>(outputs.memory.get());
-    outputs.payoffs = reinterpret_cast<double*>(storage);
-    outputs.partials = reinterpret_cast<MonteCarloMean*>(storage + payoff_bytes);
-    outputs.result = reinterpret_cast<PathSimulationResult*>(storage + payoff_bytes + partial_bytes);
+    outputs.payoffs = static_cast<double*>(outputs.memory.get());
+    outputs.partials = reinterpret_cast<MonteCarloMean*>(storage + payoff_bytes);                     // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast): aligned CUDA storage holds typed output buffers.
+    outputs.result = reinterpret_cast<PathSimulationResult*>(storage + payoff_bytes + partial_bytes); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast): aligned CUDA storage holds typed output buffers.
     const cudaError_t status = cudaMemsetAsync(outputs.result, 0, sizeof(PathSimulationResult), stream);
     return status == cudaSuccess ? CudaPricingResult{CudaPricingStatus::success, 0.0, nullptr}
                                  : error_result(status);
@@ -781,7 +784,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     simulate_american_pairs<<<pair_block_count, threads_per_block, 0, stream>>>(
         request, pair_count, static_cast<double*>(paths.get()),
         static_cast<int*>(invalid.get()),
-        cache_growth ? reinterpret_cast<double2*>(static_cast<char*>(paths.get()) + path_bytes) : nullptr, reuse);
+        cache_growth ? reinterpret_cast<double2*>(static_cast<char*>(paths.get()) + path_bytes) : nullptr, reuse); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast): the aligned tail stores cached growth pairs.
     status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
     int invalid_result = 0;
@@ -858,8 +861,8 @@ CudaPricingResult cuda_accumulator_price(
     return finish_path_simulation(outputs, request.path_count, stream);
 }
 
-template <bool Paired>
-CudaPricingResult autocallable_prices(
+template <bool paired>
+static CudaPricingResult autocallable_prices(
     CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
 {
     CudaWorkspace local;
@@ -877,20 +880,20 @@ CudaPricingResult autocallable_prices(
     if (result.status != CudaPricingStatus::success) return result;
 
     auto& alternate_outputs = storage.outputs[1];
-    if constexpr (Paired) {
+    if constexpr (paired) {
         result = allocate_path_outputs(request.path_count, alternate_outputs, stream);
         if (result.status != CudaPricingStatus::success) return result;
     }
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_autocallable_paths<Paired><<<block_count, threads_per_block, 0, stream>>>(
+    simulate_autocallable_paths<paired><<<block_count, threads_per_block, 0, stream>>>(
         request, static_cast<const CudaAutocallableStep*>(device_steps.get()), steps.size(),
         outputs.payoffs, alternate_outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
     result = finish_path_simulation(outputs, request.path_count, stream);
     if (result.status != CudaPricingStatus::success) return result;
-    if constexpr (Paired) {
+    if constexpr (paired) {
         const auto alternate = finish_path_simulation(alternate_outputs, request.path_count, stream);
         if (alternate.status != CudaPricingStatus::success) return alternate;
         result.alternate_payoff_mean = alternate.payoff_mean;

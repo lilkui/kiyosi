@@ -40,7 +40,8 @@ Result<SimulationInputs> prepare_simulation(
     const Timestamp valuation = context.valuation_time();
     const auto dates = [&] {
         if (daily_knock_in) return trading_dates(context.calendar(), valuation, note.expiry_date());
-        std::vector<Date> events(note.observation_dates().begin() + next_observation, note.observation_dates().end());
+        const auto observations = note.observation_dates();
+        std::vector<Date> events(observations.begin() + static_cast<std::ptrdiff_t>(next_observation), observations.end());
         if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
         return events;
     }();
@@ -112,7 +113,7 @@ Result<std::array<double, count>> path_payoffs(
     std::size_t index = 0;
     for (const auto& common_step : common.step_count) {
         const double draw = normal(generator);
-        double shared_growth = 0.0;
+        double shared_growth = 0.0; // NOLINT(misc-const-correctness): assigned when all paths share simulation inputs.
         if constexpr (shared_inputs)
             shared_growth = std::exp(common_step.simulation.drift + common_step.simulation.diffusion * draw);
         for (std::size_t i = 0; i < count; ++i) {
@@ -330,7 +331,7 @@ Result<double> price_autocallable(
 
 namespace detail {
 template <AutocallableProduct Note>
-Result<void> validate_monte_carlo_autocallable(
+static Result<void> validate_monte_carlo_autocallable(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
 {
     bool contract_validated = false;

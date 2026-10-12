@@ -434,15 +434,15 @@ Result<PricingResult> price_with_greeks(
         if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
             // Scalar stencils share the native callback's request-local validation.
             struct NativePricer {
-                const Engine& engine;
-                const Native& evaluate;
+                const Engine* engine{};
+                const Native* evaluate{};
 
                 Result<double> price(const Option&, const PricingContext& shifted) const
                 {
-                    return price_value(evaluate(engine, shifted, GreeksRequest{}));
+                    return price_value((*evaluate)(*engine, shifted, GreeksRequest{}));
                 }
             };
-            return complete_greeks(NativePricer{fixed, evaluate_native}, option, context, greeks, settings, *native,
+            return complete_greeks(NativePricer{&fixed, &evaluate_native}, option, context, greeks, settings, *native,
                                    [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
                                        return evaluate_native(fixed, shifted, request);
                                    });

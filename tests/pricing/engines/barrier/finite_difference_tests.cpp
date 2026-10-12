@@ -25,17 +25,14 @@ TEST_CASE("Continuous up-and-out rollback preserves full-grid prices and Greeks"
     const double barrier = GENERATE(120.0, 121.1);
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 119.25, start);
-    const auto option = *make_barrier_option({.option_type = type, .strike = 100.0,
-                                             .effective_date = start, .expiry_date = end,
-                                             .barrier_level = barrier, .barrier_type = BarrierType::up_and_out,
-                                             .rebate = 1.5, .rebate_timing = timing});
+    const auto option = *make_barrier_option({.option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = BarrierType::up_and_out, .rebate = 1.5, .rebate_timing = timing});
     const FiniteDifferenceSettings settings{steps, 2'000, scheme, 480.0};
     const auto space = *make_spatial_grid(settings, 480.0, {119.25, 100.0, barrier});
     std::vector<double> full(space.size());
     for (int index = 0; index <= steps; ++index) {
         const double asset = space.spacing * index;
         full[index] = asset >= barrier ? option.rebate()
-                                      : std::max(type == OptionType::call ? asset - 100.0 : 100.0 - asset, 0.0);
+                                       : std::max(type == OptionType::call ? asset - 100.0 : 100.0 - asset, 0.0);
     }
     const auto rebate = [&](double tau) {
         return timing == RebateTiming::at_hit ? option.rebate() : scaled_exponential(option.rebate(), -0.04 * tau);
@@ -66,9 +63,7 @@ TEST_CASE("Continuous up-and-out trimming retains explicit stability validation"
     using namespace kiyosi;
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.1), 100.0, start);
-    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
-                                             .effective_date = start, .expiry_date = end,
-                                             .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
     const auto result = FiniteDifferenceBarrierEngine{200, 50, FiniteDifferenceScheme::explicit_euler}.price(option, context);
     REQUIRE_FALSE(result);
     CHECK(result.error().category == ErrorCategory::invalid_parameter);

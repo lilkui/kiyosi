@@ -35,12 +35,11 @@ TEST_CASE("Scheduled finite-difference Greeks share calendar validation", "[fd-s
     const auto calendar = *make_trading_calendar([=](Date date) {
         ++*queries;
         return *allowed && weekdays_calendar().is_trading_day(date);
-    }, 252);
+    },
+                                                 252);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, calendar);
-    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
-                                              .barrier_level = is_up_barrier(kind) ? 120.0 : 80.0, .barrier_type = kind,
-                                              .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched});
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = is_up_barrier(kind) ? 120.0 : 80.0, .barrier_type = kind, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched});
     const FiniteDifferenceBarrierEngine engine{80, 1, scheme};
     const GreeksRequest request{Greek::vega, Greek::rho, Greek::vanna, Greek::zomma};
     const auto price = engine.price(option, context);
@@ -57,6 +56,7 @@ TEST_CASE("Scheduled finite-difference Greeks share calendar validation", "[fd-s
     const double vol_shift = (0.2 + shifts.volatility_shift) - 0.2;
     const double rate_shift = (0.04 + shifts.rate_shift) - 0.04;
     const auto shifted = [&](double volatility, double rate) {
+        // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext owns its calendar and is returned by value.
         return *make_pricing_context(*make_bsm_parameters(rate, 0.01, volatility), context.spot_price(), context.valuation_time(), calendar);
     };
     const FiniteDifferenceBarrierEngine fixed{{80, 1, scheme, 4.0 * context.spot_price()}};
@@ -103,9 +103,7 @@ TEST_CASE("Scheduled finite-difference Greeks retain shifted validation", "[fd-s
 {
     using namespace kiyosi;
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
-    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end,
-                                              .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out,
-                                              .observation_mode = ObservationMode::scheduled, .observation_dates = {start, end}, .touch_state = BarrierTouchState::untouched});
+    const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {start, end}, .touch_state = BarrierTouchState::untouched});
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, all_days_calendar());
     const FiniteDifferenceBarrierEngine engine{80, 1, FiniteDifferenceScheme::explicit_euler};
