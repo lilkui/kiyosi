@@ -246,8 +246,19 @@ Result<double> solve_coupon(
                                          });
 }
 
+} // namespace
+
 template <typename Note>
-Result<double> solve_volatility(
+Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
+    const Note& note, const PricingContext& context, bool& contract_validated,
+    GreeksRequest output, double spot_shift) const
+{
+    AutocallableFiniteDifferenceWorkspace workspace;
+    return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
+}
+
+template <typename Note>
+Result<double> implied_volatility(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
@@ -261,81 +272,20 @@ Result<double> solve_volatility(
                                             });
 }
 
-} // namespace
-
 template <typename Note>
-Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
-    const Note& note, const PricingContext& context, bool& contract_validated,
-    GreeksRequest output, double spot_shift) const
-{
-    AutocallableFiniteDifferenceWorkspace workspace;
-    return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
-}
-
-template <>
-Result<double> implied_volatility<FiniteDifferenceSnowballEngine, SnowballOption>(
-    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings)
-{
-    return solve_volatility(engine, option, context, observed_price, settings);
-}
-
-template <>
-Result<double> implied_volatility<FiniteDifferencePhoenixEngine, PhoenixOption>(
-    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings)
-{
-    return solve_volatility(engine, option, context, observed_price, settings);
-}
-
-template <>
-Result<double> implied_volatility<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
-    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings)
-{
-    return solve_volatility(engine, option, context, observed_price, settings);
-}
-
-template <>
-Result<double> implied_volatility<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
-    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings)
-{
-    return solve_volatility(engine, option, context, observed_price, settings);
-}
-
-template <>
-Result<double> implied_coupon<FiniteDifferenceSnowballEngine, SnowballOption>(
-    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+Result<double> implied_coupon(
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
+    requires requires(const Note& value, double coupon) {
+        detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
+    }
 {
     return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
         return detail::replace_coupon(note, coupon, convention);
     });
 }
 
-template <>
-Result<double> implied_coupon<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
-    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
-    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
-{
-    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
-        return detail::replace_coupon(note, coupon, convention);
-    });
-}
-
-template <>
-Result<double> implied_coupon<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
-    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
-    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
-{
-    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
-        return detail::replace_coupon(note, coupon, convention);
-    });
-}
-
-template <>
-Result<double> implied_coupon<FiniteDifferencePhoenixEngine, PhoenixOption>(
+Result<double> implied_coupon(
     const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings)
 {
@@ -381,6 +331,28 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greek
                                                                         });
                                      }, true);
 }
+
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const FiniteDifferenceAutocallableEngine<PhoenixOption>&, const PhoenixOption&,
+    const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const FiniteDifferenceAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const FiniteDifferenceAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const FiniteDifferenceAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const FiniteDifferenceAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const FiniteDifferenceAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const FiniteDifferenceAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
 
 template class FiniteDifferenceAutocallableEngine<PhoenixOption>;
 template class FiniteDifferenceAutocallableEngine<SnowballOption>;

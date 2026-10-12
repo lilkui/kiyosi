@@ -286,25 +286,10 @@ template <>
     double observed_price, ImpliedVolatilitySettings settings);
 
 /// Finite-difference autocallables validate immutable contracts and calendars once per solve.
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceSnowballEngine, SnowballOption>(
-    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferencePhoenixEngine, PhoenixOption>(
-    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
-    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
-    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings = {});
 
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
 template <>
@@ -312,25 +297,11 @@ template <>
     const MonteCarloAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings);
 
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloSnowballEngine, SnowballOption>(
-    const MonteCarloSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloPhoenixEngine, PhoenixOption>(
-    const MonteCarloPhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloBinarySnowballEngine, BinarySnowballOption>(
-    const MonteCarloBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloTernarySnowballEngine, TernarySnowballOption>(
-    const MonteCarloTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
-    double observed_price, ImpliedVolatilitySettings settings);
+/// Reuses CUDA buffers within one solve without sharing storage between requests.
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
+    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings = {});
 
 namespace detail {
 
@@ -579,24 +550,16 @@ template <typename Engine, typename Option>
 }
 
 /// Reuse grids, buffers and compatible factors within one solve; requests share no storage.
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceSnowballEngine, SnowballOption>(
-    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
-    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
+template <typename Note>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings = {})
+    requires requires(const Note& value, double coupon) {
+        detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
+    };
 
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
-    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
-    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
-    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
-    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
-
-template <>
-[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferencePhoenixEngine, PhoenixOption>(
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
     const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
-    double observed_price, ImpliedCouponSettings settings);
+    double observed_price, ImpliedCouponSettings settings = {});
 
 } // namespace kiyosi
