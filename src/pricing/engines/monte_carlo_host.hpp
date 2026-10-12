@@ -8,6 +8,7 @@
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
@@ -81,6 +82,71 @@ struct MonteCarloMixedPricer {
         return (*cached)[static_cast<std::size_t>(node)];
     }
 };
+
+template <typename Engine, typename Option, typename Validate, typename SpotPrices, typename RatePrices>
+Result<PricingResult> complete_monte_carlo_greeks(
+    const Engine& scalar, const Option& option, const PricingContext& context,
+    GreeksRequest greeks, NumericalShiftSettings settings, MonteCarloBackend backend,
+    const Validate& validate, const SpotPrices& spot_prices, const RatePrices& price_rates)
+{
+    const auto valid = validate(context);
+    if (!valid) return std::unexpected(valid.error());
+    const double spot = context.spot_price();
+    const double h = symmetric_shift(spot, settings.spot_shift);
+    const double rate_shift = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+    std::optional<std::array<double, 3>> rate_prices;
+    const bool batch_rates = backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
+                             rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context);
+    auto native = [&]() -> Result<PricingResult> {
+        const double two_h = 2.0 * h;
+        const bool speed_available = std::isfinite(two_h) && spot > two_h &&
+                                     symmetric_shift(spot, two_h) == two_h &&
+                                     !at_spot_discontinuity(option, context, two_h);
+        if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available)) &&
+            h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
+            !at_spot_discontinuity(option, context, h)) {
+            if (greeks.has(Greek::speed) && speed_available)
+                return spot_bump_result(spot_prices.template operator()<5>(context, h), greeks, h);
+            return spot_bump_result(spot_prices.template operator()<3>(context, h), greeks, h);
+        }
+        if (batch_rates) {
+            const auto values = price_rates(rate_shift, std::nullopt);
+            if (!values) return std::unexpected(values.error());
+            rate_prices = *values;
+            return make_pricing_result((*values)[0]);
+        }
+        const auto value = scalar.price(option, context);
+        if (!value) return std::unexpected(value.error());
+        return make_pricing_result(*value);
+    }();
+    if (!native) return std::unexpected(native.error());
+    if (batch_rates && !rate_prices) {
+        const auto values = price_rates(rate_shift, native->price());
+        if (!values) return std::unexpected(values.error());
+        rate_prices = *values;
+    }
+    if (rate_prices) {
+        native = make_pricing_result(native->price(), {{Greek::delta, *native->get(Greek::delta)},
+                                                       {Greek::gamma, *native->get(Greek::gamma)},
+                                                       {Greek::speed, *native->get(Greek::speed)},
+                                                       {Greek::rho, ((*rate_prices)[1] - (*rate_prices)[2]) / (200.0 * rate_shift)}});
+        if (!native) return std::unexpected(native.error());
+    }
+    const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
+                       spot > h && !at_spot_discontinuity(option, context, h);
+    const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
+        const auto valid = validate(shifted);
+        if (!valid) return std::unexpected(valid.error());
+        if (center) return spot_prices.template operator()<3>(shifted, shift);
+        const auto values = spot_prices.template operator()<2>(shifted, shift);
+        if (!values) return std::unexpected(values.error());
+        return std::array{0.0, (*values)[0], (*values)[1]};
+    };
+    const MonteCarloMixedPricer prices{scalar, context, mixed ? h : 0.0,
+                                       symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
+                                       greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
+    return complete_greeks(prices, option, context, greeks, settings, *native);
+}
 
 template <typename PathPayoff>
 Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)

@@ -484,62 +484,14 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
         [&](const auto& seeded) -> Result<PricingResult> {
             bool contract_validated = false;
             const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
-                const auto valid = validate_pricing(option, context, seeded.settings(), contract_validated);
-                if (!valid) return std::unexpected(valid.error());
-                const double rate_shift = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
-                std::optional<std::array<double, 3>> rate_prices;
-                const bool batch_rates = seeded.settings().backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
-                                         rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context);
-                auto native = [&]() -> Result<PricingResult> {
-                    const double spot = context.spot_price();
-                    const double h = symmetric_shift(spot, settings.spot_shift);
-                    const double two_h = 2.0 * h;
-                    const bool speed_available = std::isfinite(two_h) && spot > two_h &&
-                                                 symmetric_shift(spot, two_h) == two_h &&
-                                                 !at_spot_discontinuity(option, context, two_h);
-                    if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available)) &&
-                        h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
-                        !at_spot_discontinuity(option, context, h)) {
-                        if (greeks.has(Greek::speed) && speed_available)
-                            return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h, workspace), greeks, h);
-                        return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h, workspace), greeks, h);
-                    }
-                    if (batch_rates) {
-                        const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift);
-                        if (!values) return std::unexpected(values.error());
-                        rate_prices = *values;
-                        return make_pricing_result((*values)[0]);
-                    }
-                    const auto value = scalar.price(option, context);
-                    if (!value) return std::unexpected(value.error());
-                    return make_pricing_result(*value);
-                }();
-                if (!native) return std::unexpected(native.error());
-                if (batch_rates && !rate_prices) {
-                    const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift, native->price());
-                    if (!values) return std::unexpected(values.error());
-                    rate_prices = *values;
-                }
-                if (rate_prices)
-                    native = make_pricing_result(native->price(), {{Greek::delta, *native->get(Greek::delta)},
-                                                                   {Greek::gamma, *native->get(Greek::gamma)},
-                                                                   {Greek::speed, *native->get(Greek::speed)},
-                                                                   {Greek::rho, ((*rate_prices)[1] - (*rate_prices)[2]) / (200.0 * rate_shift)}});
-                const double h = symmetric_shift(context.spot_price(), settings.spot_shift);
-                const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
-                                   context.spot_price() > h && !at_spot_discontinuity(option, context, h);
-                const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
-                    const auto valid = validate_pricing(option, shifted, seeded.settings(), contract_validated);
-                    if (!valid) return std::unexpected(valid.error());
-                    if (center) return price_spot_bumps<3>(option, shifted, seeded.settings(), shift, workspace);
-                    const auto values = price_spot_bumps<2>(option, shifted, seeded.settings(), shift, workspace);
-                    if (!values) return std::unexpected(values.error());
-                    return std::array{0.0, (*values)[0], (*values)[1]};
-                };
-                const MonteCarloMixedPricer prices{scalar, context, mixed ? h : 0.0,
-                                                   symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
-                                                   greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
-                return detail::complete_greeks(prices, option, context, greeks, settings, *native);
+                return complete_monte_carlo_greeks(scalar, option, context, greeks, settings, seeded.settings().backend,
+                    [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings(), contract_validated); },
+                    [&]<std::size_t count>(const PricingContext& shifted, double shift) {
+                        return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace);
+                    },
+                    [&](double shift, std::optional<double> base_price) {
+                        return price_rate_bumps(option, context, seeded.settings(), shift, base_price);
+                    });
             };
 #if KIYOSI_HAS_CUDA
             if (seeded.settings().backend == MonteCarloBackend::cuda) {

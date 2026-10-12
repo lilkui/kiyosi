@@ -17,9 +17,28 @@
 
 #include "support/common.hpp"
 #include "pricing/engines/monte_carlo_random.hpp"
+#include "pricing/engines/monte_carlo_host.hpp"
 
 namespace {
 using kiyosi::test::day;
+
+TEST_CASE("Shared Monte Carlo Greeks propagate invalid batched sensitivities", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto result = detail::complete_monte_carlo_greeks(
+        AnalyticVanillaEngine{}, option, context, {Greek::rho}, {}, MonteCarloBackend::cpu,
+        [](const PricingContext&) -> Result<void> { return {}; },
+        []<std::size_t count>(const PricingContext&, double) -> Result<std::array<double, count>> { return std::array<double, count>{}; },
+        [](double, std::optional<double>) -> Result<std::array<double, 3>> {
+            const double large = std::numeric_limits<double>::max();
+            return std::array{1.0, large, -large};
+        });
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == ErrorCategory::invalid_result);
+}
 
 TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-carlo-performance]")
 {
