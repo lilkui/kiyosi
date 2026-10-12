@@ -251,6 +251,22 @@ Result<double> solve_coupon(
                                          });
 }
 
+template <typename Note>
+Result<double> solve_volatility(
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    bool contract_validated = false;
+    return detail::solve_implied_volatility(engine, note, context, observed_price, settings,
+                                            [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+                                                // Volatility changes require fresh numerical operators for each trial.
+                                                AutocallableFiniteDifferenceWorkspace workspace;
+                                                return detail::price_value(price_autocallable(
+                                                    instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
+                                                    NumericalShiftSettings{}.spot_shift, workspace));
+                                            });
+}
+
 } // namespace
 
 template <typename Note>
@@ -260,6 +276,38 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
 {
     AutocallableFiniteDifferenceWorkspace workspace;
     return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
+}
+
+template <>
+Result<double> implied_volatility<FiniteDifferenceSnowballEngine, SnowballOption>(
+    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return solve_volatility(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<FiniteDifferencePhoenixEngine, PhoenixOption>(
+    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return solve_volatility(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
+    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return solve_volatility(engine, option, context, observed_price, settings);
+}
+
+template <>
+Result<double> implied_volatility<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
+    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    return solve_volatility(engine, option, context, observed_price, settings);
 }
 
 template <>

@@ -117,23 +117,52 @@ TEST_CASE("Autocallable requests validate immutable schedules once", "[autocalla
         const MonteCarloAutocallableEngine<Note> engine{31, 42};
         check_engine(engine);
         check_engine(FiniteDifferenceAutocallableEngine<Note>{80, 1});
-        const auto quote = engine.price(note, context);
-        REQUIRE(quote);
-        const auto expected = detail::solve_implied_volatility(engine, note, context, *quote, {},
-                                                               [](const auto& scalar, const auto& option, const auto& shifted) {
-                                                                   return scalar.price(option, shifted);
-                                                               });
-        queries = 0;
-        const auto solved = implied_volatility(engine, note, context, *quote);
-        REQUIRE(solved.has_value() == expected.has_value());
-        if (expected) CHECK(*solved == *expected);
-        else CHECK(solved.error().category == expected.error().category);
-        CHECK(queries == 1);
-        allowed = false;
-        const auto rejected = implied_volatility(engine, note, context, *quote);
-        REQUIRE_FALSE(rejected);
-        CHECK(rejected.error().category == ErrorCategory::invalid_date);
-        allowed = true;
+        const auto check_solver = [&](const auto& scalar) {
+            const auto quote = scalar.price(note, context);
+            REQUIRE(quote);
+            const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4};
+            const auto compare = [&](double price, ImpliedVolatilitySettings settings) {
+                const auto expected = detail::solve_implied_volatility(scalar, note, context, price, settings,
+                                                                       [](const auto& engine, const auto& option, const auto& shifted) {
+                                                                           return engine.price(option, shifted);
+                                                                       });
+                queries = 0;
+                const auto solved = implied_volatility(scalar, note, context, price, settings);
+                REQUIRE(solved.has_value() == expected.has_value());
+                if (expected) CHECK(*solved == *expected);
+                else CHECK(solved.error().category == expected.error().category);
+                CHECK(queries == 1);
+                return solved;
+            };
+            const auto solved = compare(*quote, bounds);
+            REQUIRE(solved);
+            (void)compare(1e10, bounds);
+            (void)compare(*quote, {.lower_bound = 0.1, .upper_bound = 0.4, .max_iterations = 1});
+            queries = 0;
+            auto task = std::async(std::launch::async, [&] { return implied_volatility(scalar, note, context, *quote, bounds); });
+            const auto concurrent = implied_volatility(scalar, note, context, *quote, bounds);
+            const auto first = task.get();
+            REQUIRE(first);
+            REQUIRE(concurrent);
+            CHECK(*first == *solved);
+            CHECK(*concurrent == *solved);
+            CHECK(queries == 2);
+            allowed = false;
+            const auto rejected = implied_volatility(scalar, note, context, *quote, bounds);
+            REQUIRE_FALSE(rejected);
+            CHECK(rejected.error().category == ErrorCategory::invalid_date);
+            allowed = true;
+            queries = 0;
+            const auto recovered = implied_volatility(scalar, note, context, *quote, bounds);
+            REQUIRE(recovered);
+            CHECK(*recovered == *solved);
+            CHECK(queries == 1);
+            queries = 0;
+            REQUIRE_FALSE(implied_volatility(scalar, note, context, *quote, {.lower_bound = 0.0}));
+            CHECK(queries == 0);
+        };
+        check_solver(engine);
+        check_solver(FiniteDifferenceAutocallableEngine<Note>{80, 1});
     };
     const std::vector<double> coupons(dates.size(), 0.08), levels(dates.size(), 110.0);
     check(*make_snowball_option({.knock_out_coupon_rates = coupons, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = levels, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dates, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));

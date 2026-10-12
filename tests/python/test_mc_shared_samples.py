@@ -434,13 +434,27 @@ class SharedSampleTests(unittest.TestCase):
                 pricing.MonteCarloTernarySnowballEngine,
             ),
         )
+        cases += tuple(
+            (
+                option,
+                getattr(pricing, engine_type.__name__.replace("MonteCarlo", "FiniteDifference")),
+            )
+            for option, engine_type in cases[1:]
+        )
         backends = (
             ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
         )
         for option, engine_type in cases:
-            for backend in backends:
-                with self.subTest(option=type(option).__name__, backend=backend):
-                    engine = engine_type(path_count=128, seed=42, backend=backend)
+            finite_difference = engine_type.__name__.startswith("FiniteDifference")
+            for backend in ("cpu",) if finite_difference else backends:
+                with self.subTest(
+                    option=type(option).__name__, engine=engine_type.__name__, backend=backend
+                ):
+                    engine = (
+                        engine_type(asset_step_count=80, time_step_count=12)
+                        if finite_difference
+                        else engine_type(path_count=128, seed=42, backend=backend)
+                    )
                     quote = engine.price(option, context)
                     bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
                     expected = pricing.implied_volatility(

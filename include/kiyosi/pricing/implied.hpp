@@ -285,6 +285,27 @@ template <>
     const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings);
 
+/// Finite-difference autocallables validate immutable contracts and calendars once per solve.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceSnowballEngine, SnowballOption>(
+    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferencePhoenixEngine, PhoenixOption>(
+    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
+    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
+    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
+
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
 template <>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<MonteCarloAccumulatorEngine, Accumulator>(
