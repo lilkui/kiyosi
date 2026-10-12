@@ -3,6 +3,7 @@
 #include <cstdint>
 
 #include <cmath>
+#include <concepts>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -27,7 +28,7 @@ enum class AutocallableBarrierState : std::uint8_t {
     knocked_in   ///< The downside barrier has already been breached.
 };
 
-/// Principal, knock-out ladder, and settlement strikes shared by every autocallable structure.
+/// Principal, knock-out ladder, and contract life shared by every autocallable structure.
 /// Valuation excludes cashflows settled before the valuation time.
 /// For example, principal_ratio 2 plus a 0.1 coupon pays 2.1 normalized units;
 /// principal_ratio 2 plus a -0.2 downside component pays 1.8.
@@ -37,14 +38,8 @@ public:
     AutocallableNote(AutocallableNote&&) = default;
     ~AutocallableNote() = default;
 
-    /// Returns the reference spot used to normalize contract levels.
-    double initial_spot() const noexcept { return terms_.initial_spot; }
     /// Returns one positive knock-out level per observation date.
     const std::vector<double>& knock_out_levels() const noexcept { return terms_.knock_out_levels; }
-    /// Returns the upper settlement strike.
-    double upper_strike() const noexcept { return terms_.upper_strike; }
-    /// Returns the lower settlement strike.
-    double lower_strike() const noexcept { return terms_.lower_strike; }
     /// Returns the strictly ordered knock-out observation dates.
     const std::vector<Date>& observation_dates() const noexcept { return terms_.observation_dates; }
     /// Returns the non-negative normalized principal repayment component.
@@ -64,17 +59,13 @@ protected:
     AutocallableNote& operator=(AutocallableNote&&) = default;
 
 private:
-    AutocallableNote(double initial_spot, std::vector<double> knock_out_levels, double upper_strike,
-                     double lower_strike, std::vector<Date> observation_dates, double principal_ratio,
+    AutocallableNote(std::vector<double> knock_out_levels, std::vector<Date> observation_dates, double principal_ratio,
                      std::optional<AutocallableBarrierState> barrier_state, Date effective_date, Date expiry_date)
-        : terms_{initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
-                 std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date} {}
+        : terms_{std::move(knock_out_levels), std::move(observation_dates), principal_ratio,
+                 barrier_state, effective_date, expiry_date} {}
 
     struct Terms {
-        double initial_spot;
         std::vector<double> knock_out_levels;
-        double upper_strike;
-        double lower_strike;
         std::vector<Date> observation_dates;
         double principal_ratio;
         std::optional<AutocallableBarrierState> barrier_state;
@@ -107,12 +98,12 @@ protected:
     KnockInAutocallableNote& operator=(KnockInAutocallableNote&&) = default;
 
 private:
-    KnockInAutocallableNote(double initial_spot, double knock_in_level, std::vector<double> knock_out_levels,
-                            double upper_strike, double lower_strike, std::vector<Date> observation_dates,
+    KnockInAutocallableNote(double knock_in_level, std::vector<double> knock_out_levels,
+                            std::vector<Date> observation_dates,
                             KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                             double principal_ratio, Date effective_date, Date expiry_date)
-        : AutocallableNote(initial_spot, std::move(knock_out_levels), upper_strike, lower_strike,
-                           std::move(observation_dates), principal_ratio, barrier_state, effective_date, expiry_date),
+        : AutocallableNote(std::move(knock_out_levels), std::move(observation_dates),
+                           principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}
 
     double knock_in_level_;
@@ -125,6 +116,7 @@ private:
 
 /// Authoritative domain validation for every autocallable product; optional features are
 /// detected structurally so each product only pays for the checks it needs.
+/// Pass the concrete product for complete validation; base references validate only shared terms.
 /// @tparam Note Autocallable note exposing the required term accessors.
 /// @return Success, or an input-validation error with a stable category.
 template <typename Note>
@@ -159,9 +151,10 @@ template <typename Note>
             (note.knock_in_observation_mode() != KnockInObservationMode::every_trading_day &&
              note.knock_in_observation_mode() != KnockInObservationMode::at_expiry))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-in terms are invalid"});
-    } else if (note.barrier_state() == AutocallableBarrierState::knocked_in) {
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "knock-in state requires a knock-in barrier"});
+    } else if constexpr (!std::same_as<Note, AutocallableNote>) {
+        if (note.barrier_state() == AutocallableBarrierState::knocked_in)
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                         "knock-in state requires a knock-in barrier"});
     }
     if constexpr (requires { note.coupon_rate(); }) {
         if (!std::isfinite(note.coupon_rate()))

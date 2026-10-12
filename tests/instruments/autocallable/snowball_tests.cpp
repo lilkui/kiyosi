@@ -93,6 +93,51 @@ static_assert(std::is_copy_assignable_v<kiyosi::PhoenixOption>);
 static_assert(std::is_move_constructible_v<kiyosi::PhoenixOption>);
 static_assert(std::is_move_assignable_v<kiyosi::PhoenixOption>);
 
+template <typename Note>
+concept HasParticipationTerms = requires(const Note& note) {
+    note.initial_spot();
+    note.upper_strike();
+    note.lower_strike();
+};
+static_assert(!HasParticipationTerms<kiyosi::AutocallableNote>);
+static_assert(!HasParticipationTerms<kiyosi::KnockInAutocallableNote>);
+static_assert(!HasParticipationTerms<kiyosi::BinarySnowballOption>);
+static_assert(!HasParticipationTerms<kiyosi::TernarySnowballOption>);
+static_assert(HasParticipationTerms<kiyosi::SnowballOption>);
+static_assert(HasParticipationTerms<kiyosi::PhoenixOption>);
+
+TEST_CASE("Autocallable base validation accepts shared terms without participation", "[autocallable-terms]")
+{
+    const auto effective = day(2025, 1, 1);
+    const auto expiry = day(2026, 1, 1);
+    const auto binary = kiyosi::make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
+         .knock_out_levels = {110.0}, .observation_dates = {expiry},
+         .effective_date = effective, .expiry_date = expiry});
+    REQUIRE(binary);
+    CHECK(kiyosi::validate_autocallable_note(*binary));
+    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*binary)));
+
+    const auto ternary = kiyosi::make_ternary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
+         .minimum_coupon_rate = 0.0, .knock_in_level = 70.0,
+         .knock_out_levels = {110.0}, .observation_dates = {expiry},
+         .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
+         .effective_date = effective, .expiry_date = expiry});
+    REQUIRE(ternary);
+    CHECK(kiyosi::validate_autocallable_note(*ternary));
+    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::KnockInAutocallableNote&>(*ternary)));
+    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*ternary)));
+
+    const auto invalid_binary = kiyosi::make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
+         .knock_out_levels = {110.0}, .observation_dates = {expiry},
+         .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
+         .effective_date = effective, .expiry_date = expiry});
+    REQUIRE_FALSE(invalid_binary);
+    CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
+}
+
 TEST_CASE("Autocallable validation does not copy its input")
 {
     int copies = 0;

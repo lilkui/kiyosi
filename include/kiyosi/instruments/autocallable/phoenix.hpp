@@ -34,6 +34,12 @@ struct PhoenixTerms {
 /// Prices use normalized principal units; the annual coupon accrues over each observation period.
 class PhoenixOption : public KnockInAutocallableNote {
 public:
+    /// Returns the reference spot used to normalize contract levels.
+    double initial_spot() const noexcept { return initial_spot_; }
+    /// Returns the upper settlement strike.
+    double upper_strike() const noexcept { return upper_strike_; }
+    /// Returns the lower settlement strike.
+    double lower_strike() const noexcept { return lower_strike_; }
     /// Returns the finite annualized conditional coupon rate per observation period.
     double coupon_rate() const noexcept { return coupon_rate_; }
     /// Returns one non-negative coupon barrier per observation date.
@@ -44,12 +50,16 @@ public:
 
 private:
     explicit PhoenixOption(PhoenixTerms terms)
-        : KnockInAutocallableNote(terms.initial_spot, terms.knock_in_level, std::move(terms.knock_out_levels),
-                                  terms.upper_strike, terms.lower_strike, std::move(terms.observation_dates),
+        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
+                                  std::move(terms.observation_dates),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
+          initial_spot_(terms.initial_spot), upper_strike_(terms.upper_strike), lower_strike_(terms.lower_strike),
           coupon_rate_(terms.coupon_rate), coupon_barriers_(std::move(terms.coupon_barrier_levels)) {}
 
+    double initial_spot_;
+    double upper_strike_;
+    double lower_strike_;
     double coupon_rate_;
     std::vector<double> coupon_barriers_;
 

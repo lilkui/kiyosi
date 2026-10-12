@@ -69,6 +69,12 @@ struct BinarySnowballTerms {
 /// Knock-in autocallable accruing a coupon until knock-out, with downside participation.
 class SnowballOption : public KnockInAutocallableNote {
 public:
+    /// Returns the reference spot used to normalize contract levels.
+    double initial_spot() const noexcept { return initial_spot_; }
+    /// Returns the upper settlement strike.
+    double upper_strike() const noexcept { return upper_strike_; }
+    /// Returns the lower settlement strike.
+    double lower_strike() const noexcept { return lower_strike_; }
     /// Returns one finite knock-out coupon rate per observation date.
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     /// Returns the finite maturity coupon rate.
@@ -79,13 +85,17 @@ public:
 
 private:
     explicit SnowballOption(SnowballTerms terms)
-        : KnockInAutocallableNote(terms.initial_spot, terms.knock_in_level, std::move(terms.knock_out_levels),
-                                  terms.upper_strike, terms.lower_strike, std::move(terms.observation_dates),
+        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
+                                  std::move(terms.observation_dates),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
+          initial_spot_(terms.initial_spot), upper_strike_(terms.upper_strike), lower_strike_(terms.lower_strike),
           knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
           maturity_coupon_rate_(terms.maturity_coupon_rate) {}
 
+    double initial_spot_;
+    double upper_strike_;
+    double lower_strike_;
     std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 
@@ -95,7 +105,6 @@ private:
 /// Snowball variant settling a flat coupon at maturity regardless of the terminal spot.
 class BinarySnowballOption : public AutocallableNote {
 public:
-    // Fixed terminal payoffs have no reference spot or participation strikes.
     /// Returns one finite knock-out coupon rate per observation date.
     const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
     /// Returns the finite flat maturity coupon rate.
@@ -104,11 +113,8 @@ public:
     friend bool operator==(const BinarySnowballOption&, const BinarySnowballOption&) = default;
 
 private:
-    using AutocallableNote::initial_spot;
-    using AutocallableNote::lower_strike;
-    using AutocallableNote::upper_strike;
     explicit BinarySnowballOption(BinarySnowballTerms terms)
-        : AutocallableNote(0.0, std::move(terms.knock_out_levels), 0.0, 0.0,
+        : AutocallableNote(std::move(terms.knock_out_levels),
                            std::move(terms.observation_dates), terms.principal_ratio, terms.barrier_state,
                            terms.effective_date, terms.expiry_date),
           knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
@@ -133,12 +139,9 @@ public:
     friend bool operator==(const TernarySnowballOption&, const TernarySnowballOption&) = default;
 
 private:
-    using KnockInAutocallableNote::initial_spot;
-    using KnockInAutocallableNote::lower_strike;
-    using KnockInAutocallableNote::upper_strike;
     explicit TernarySnowballOption(TernarySnowballTerms terms)
-        : KnockInAutocallableNote(0.0, terms.knock_in_level, std::move(terms.knock_out_levels), 0.0,
-                                  0.0, std::move(terms.observation_dates), terms.knock_in_observation_mode,
+        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
+                                  std::move(terms.observation_dates), terms.knock_in_observation_mode,
                                   terms.barrier_state, terms.principal_ratio, terms.effective_date, terms.expiry_date),
           knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
           maturity_coupon_rate_(terms.maturity_coupon_rate), minimum_coupon_rate_(terms.minimum_coupon_rate) {}
