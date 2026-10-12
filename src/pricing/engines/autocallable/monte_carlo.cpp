@@ -328,12 +328,30 @@ Result<double> price_autocallable(
 
 } // namespace
 
+namespace detail {
 template <AutocallableProduct Note>
-Result<void> detail::validate_monte_carlo_autocallable(
+Result<void> validate_monte_carlo_autocallable(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
 {
     bool contract_validated = false;
     return validate_pricing(note, context, settings, contract_validated);
+}
+
+} // namespace detail
+
+template <AutocallableProduct Note>
+Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    ImpliedVolatilitySettings settings)
+{
+    const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
+    if (!valid) return std::unexpected(valid.error());
+    const auto program = detail::autocallable_program(option);
+    const auto initial = detail::autocallable_initial_state(option, context, program);
+    if (!initial.settlement && detail::autocallable_fixed_value(option, context, program, initial))
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "volatility does not affect the remaining cashflows"});
+    return settings;
 }
 
 template <AutocallableProduct Note>
@@ -442,14 +460,18 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
         });
 }
 
-template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
-    const PhoenixOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
-template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
-    const SnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
-template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
-    const BinarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
-template KIYOSI_EXPORT Result<void> detail::validate_monte_carlo_autocallable(
-    const TernarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<PhoenixOption>&, const PhoenixOption&,
+    const PricingContext&, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const PricingContext&, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const PricingContext&, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const PricingContext&, ImpliedVolatilitySettings);
 
 template KIYOSI_EXPORT Result<double> implied_volatility(
     const MonteCarloAutocallableEngine<PhoenixOption>&, const PhoenixOption&,

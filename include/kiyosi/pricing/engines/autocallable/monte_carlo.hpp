@@ -10,18 +10,12 @@
 #include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
 
 namespace detail {
-// Shared by pricing and the implied-volatility preflight; does not execute a backend.
-template <AutocallableProduct Note>
-[[nodiscard]] KIYOSI_EXPORT Result<void> validate_monte_carlo_autocallable(
-    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings);
-
 // Coupon variants share asset paths; the implied solver supplies otherwise identical notes.
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<std::array<double, 2>> monte_carlo_coupon_prices(
@@ -73,19 +67,9 @@ inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAutocallableEngine
 template <AutocallableProduct Note>
 inline constexpr bool has_affine_coupon_price<MonteCarloAutocallableEngine<Note>, Note> = true;
 template <AutocallableProduct Note>
-Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+[[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
     const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
-    ImpliedVolatilitySettings settings)
-{
-    const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
-    if (!valid) return std::unexpected(valid.error());
-    const auto program = detail::autocallable_program(option);
-    const auto initial = detail::autocallable_initial_state(option, context, program);
-    if (!initial.settlement && detail::autocallable_fixed_value(option, context, program, initial))
-        return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                     "volatility does not affect the remaining cashflows"});
-    return settings;
-}
+    ImpliedVolatilitySettings settings);
 
 template <AutocallableProduct Note>
 Result<std::array<double, 2>> coupon_endpoint_prices(

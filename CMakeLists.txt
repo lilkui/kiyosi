@@ -169,6 +169,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/detail/accumulator_traits.hpp
             include/kiyosi/pricing/detail/asian_traits.hpp
             include/kiyosi/pricing/detail/barrier_traits.hpp
+            include/kiyosi/pricing/detail/finite_difference_domain.hpp
             include/kiyosi/pricing/settings/binomial.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp

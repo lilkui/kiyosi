@@ -14,6 +14,7 @@
 #include <kiyosi/pricing/detail/asian_traits.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/detail/barrier_traits.hpp>
+#include <kiyosi/pricing/detail/finite_difference_domain.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>

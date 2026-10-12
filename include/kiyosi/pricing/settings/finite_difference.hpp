@@ -1,13 +1,9 @@
 #pragma once
 
-#include <algorithm>
 #include <cmath>
-#include <concepts>
 #include <optional>
 
-#include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
-#include <kiyosi/instruments/vanilla.hpp>
 
 namespace kiyosi {
 
@@ -42,40 +38,6 @@ inline constexpr int general_fd_max_asset_steps = 10'000;
 inline constexpr int general_fd_max_time_steps = 100'000;
 inline constexpr int trading_fd_max_steps = 2'000;
 
-template <typename Option, typename Context>
-double highest_finite_difference_level(const Option& option, const Context& context)
-{
-    double relevant = context.spot_price();
-    if constexpr (requires { option.strike(); }) relevant = std::max(relevant, option.strike());
-    if constexpr (requires { option.initial_spot(); option.upper_strike(); option.lower_strike(); })
-        relevant = std::max({relevant, option.initial_spot(), option.upper_strike(), option.lower_strike()});
-    if constexpr (requires { option.knock_out_level(); }) relevant = std::max(relevant, option.knock_out_level());
-    if constexpr (requires { option.knock_out_levels(); })
-        for (const double level : option.knock_out_levels())
-            relevant = std::max(relevant, level);
-    if constexpr (requires { option.knock_in_level(); }) relevant = std::max(relevant, option.knock_in_level());
-    if constexpr (requires { option.coupon_barrier_levels(); })
-        for (const double level : option.coupon_barrier_levels())
-            relevant = std::max(relevant, level);
-    return relevant;
-}
-
-template <typename Option, typename Context>
-double default_finite_difference_upper_boundary(const Option& option, const Context& context)
-{
-    const double relevant = highest_finite_difference_level(option, context);
-    if constexpr (std::same_as<Option, AmericanOption>) {
-        const auto& parameters = context.model_parameters();
-        const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
-        const double sigma = parameters.volatility();
-        const double drift = parameters.risk_free_rate() - parameters.dividend_yield() - 0.5 * sigma * sigma;
-        const double width = std::max(std::log(4.0), 4.0 * sigma * std::sqrt(time) + std::abs(drift) * time);
-        return std::exp(std::log(relevant) + width);
-    }
-    if constexpr (requires { option.barrier_level(); })
-        return std::max(4.0 * relevant, option.barrier_level() + relevant);
-    return 4.0 * relevant;
-}
 } // namespace detail
 
 /// Validates shared finite-difference grid settings; engine-specific limits are checked by price().
