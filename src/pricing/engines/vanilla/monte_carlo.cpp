@@ -215,8 +215,6 @@ class EuropeanMonteCarloSamples {
 public:
     explicit EuropeanMonteCarloSamples(MonteCarloSettings settings) : settings_(settings) {}
 
-    MonteCarloSettings settings() const noexcept { return settings_; }
-
     Result<double> price(const EuropeanOption& option, const PricingContext& context) const
     {
         detail::CudaWorkspace* workspace = nullptr;
@@ -271,7 +269,12 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, EuropeanOption>(
     const MonteCarloVanillaEngine& engine, const EuropeanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
-    return implied_volatility(EuropeanMonteCarloSamples{engine.settings()}, option, context, observed_price, settings);
+    std::optional<EuropeanMonteCarloSamples> samples;
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+        [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+            if (!samples) samples.emplace(seeded.settings());
+            return samples->price(instrument, shifted);
+        });
 }
 
 Result<double> MonteCarloVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
@@ -397,8 +400,6 @@ public:
     explicit AmericanMonteCarloPricer(MonteCarloSettings settings, bool cache_growth = false)
         : settings_(settings), samples_{.cache_growth = cache_growth} {}
 
-    MonteCarloSettings settings() const noexcept { return settings_; }
-
     Result<double> price(const AmericanOption& option, const PricingContext& context, bool terminal_only = true) const
     {
         detail::CudaWorkspace* workspace = nullptr;
@@ -423,7 +424,12 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
     const MonteCarloVanillaEngine& engine, const AmericanOption& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
-    return implied_volatility(AmericanMonteCarloPricer{engine.settings()}, option, context, observed_price, settings);
+    std::optional<AmericanMonteCarloPricer> prices;
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+        [&](const auto& seeded, const auto& instrument, const auto& shifted) {
+            if (!prices) prices.emplace(seeded.settings());
+            return prices->price(instrument, shifted);
+        });
 }
 
 Result<double> MonteCarloVanillaEngine::price(const AmericanOption& option, const PricingContext& context) const

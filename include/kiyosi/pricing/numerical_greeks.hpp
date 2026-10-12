@@ -24,9 +24,22 @@ class MonteCarloVanillaEngine;
 class MonteCarloAccumulatorEngine;
 template <typename Note>
 class MonteCarloAutocallableEngine;
+class FiniteDifferenceVanillaEngine;
+class FiniteDifferenceDigitalEngine;
+class FiniteDifferenceBarrierEngine;
+class FiniteDifferenceAccumulatorEngine;
+template <typename Note>
+class FiniteDifferenceAutocallableEngine;
 class Accumulator;
 
 namespace detail {
+
+// Only these built-in engines store their complete configuration in settings().
+template <typename Engine, typename Option>
+inline constexpr bool is_builtin_monte_carlo_engine =
+    std::same_as<Engine, MonteCarloVanillaEngine> ||
+    std::same_as<Engine, MonteCarloAccumulatorEngine> ||
+    std::same_as<Engine, MonteCarloAutocallableEngine<Option>>;
 
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> numerical_value(
@@ -453,7 +466,7 @@ Result<PricingResult> price_with_greeks(
     if (!request_valid) return std::unexpected(request_valid.error());
     const auto valid = validate_greeks_settings(settings);
     if (!valid) return std::unexpected(valid.error());
-    if constexpr (requires { engine.settings().seed; }) {
+    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
@@ -493,7 +506,11 @@ Result<PricingResult> price_with_greeks(
             return make_pricing_result(*value);
         return native->selected(greeks);
     }
-    if constexpr (requires { { engine.settings() } -> std::same_as<FiniteDifferenceSettings>; }) {
+    if constexpr (std::same_as<Engine, FiniteDifferenceVanillaEngine> ||
+                  std::same_as<Engine, FiniteDifferenceDigitalEngine> ||
+                  std::same_as<Engine, FiniteDifferenceBarrierEngine> ||
+                  std::same_as<Engine, FiniteDifferenceAccumulatorEngine> ||
+                  std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>) {
         auto grid = engine.settings();
         if (!grid.asset_upper_boundary) {
             // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
@@ -524,9 +541,10 @@ Result<PricingResult> price_with_greeks(
 /// Computes price and all feasible Greeks using only numerical price differences.
 /// At expiry or a monitored barrier hit-state boundary, only price is available.
 /// Missing legal stencils leave individual measures empty; a failed feasible valuation
-/// fails the operation. Monte Carlo valuations share one seed per request.
+/// fails the operation. Built-in Monte Carlo valuations share one seed per request.
 /// Spot stencils crossing a currently monitored event threshold are unavailable.
-/// Finite-difference valuations share the unshifted context's asset domain.
+/// Built-in finite-difference valuations share the unshifted context's asset domain.
+/// Custom engines are used as supplied and control their own sampling and asset domain.
 /// Shifts and units follow NumericalShiftSettings and Greek, respectively.
 template <typename Engine, typename Option>
 [[nodiscard]] Result<PricingResult> calculate_numerical_greeks(

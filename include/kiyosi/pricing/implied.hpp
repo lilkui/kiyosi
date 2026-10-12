@@ -118,7 +118,7 @@ template <typename Engine, typename Option, typename Price>
         settings.parameter_tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-volatility settings are invalid"});
-    if constexpr (requires { engine.settings().seed; }) {
+    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
@@ -238,7 +238,7 @@ template <typename Engine, typename Option, typename Price>
 /// @param context Market state whose volatility is replaced for each trial.
 /// @param observed_price Finite market price to match.
 /// @param settings Positive bounds and convergence controls.
-/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// Built-in Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
 /// CPU European Monte Carlo trials reuse per-solve samples with storage linear in path count.
 /// CUDA accumulator and autocallable trials reuse a workspace local to each solve.
@@ -448,7 +448,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
                                      "implied-coupon settings are invalid"});
     const auto valid = validate_autocallable_note(option);
     if (!valid) return std::unexpected(valid.error());
-    if constexpr (requires { engine.settings().seed; }) {
+    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
@@ -540,7 +540,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
 /// @param observed_price Finite market price to match.
 /// @param convention Whether the maturity coupon shifts with the quoted coupon.
 /// @param settings Finite coupon bounds and convergence controls.
-/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// Built-in Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
 /// Built-in Monte Carlo engines share paths between coupon bounds. Built-in Monte Carlo and FD
 /// engines try interpolation, verify its price residual, then bisect if needed.
@@ -561,7 +561,7 @@ template <typename Engine, typename Option>
 }
 
 /// Solves the engine's price curve in an unambiguous product coupon, such as a Phoenix coupon.
-/// Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
+/// Built-in Monte Carlo trials share one seed per solve when the engine has no explicit seed; tolerance
 /// applies to that sampled price curve and does not bound sampling error.
 /// Built-in Monte Carlo engines share paths between coupon bounds. Built-in Monte Carlo and FD
 /// engines try interpolation, verify its price residual, then bisect if needed.

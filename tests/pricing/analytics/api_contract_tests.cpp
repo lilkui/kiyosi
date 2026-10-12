@@ -38,6 +38,65 @@ struct RecordingPriceEngine {
     }
 };
 
+template <typename Settings>
+struct StatefulPriceEngine {
+    Settings configuration{};
+    double multiplier = 1.0;
+
+    Settings settings() const { return configuration; }
+    Result<double> price(const EuropeanOption& option, const PricingContext& context) const
+    {
+        const auto value = AnalyticVanillaEngine{}.price(option, context);
+        if (!value) return std::unexpected(value.error());
+        return multiplier * *value;
+    }
+    Result<double> price(const BinarySnowballOption& option, const PricingContext&) const
+    {
+        return multiplier * option.knock_out_coupon_rates().front();
+    }
+};
+
+TEST_CASE("Generic analytics preserve custom engine state", "[pricing-api][custom-engine]")
+{
+    const auto context = market();
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto note = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.0,
+         .knock_out_levels = {120.0}, .observation_dates = {expiry},
+         .barrier_state = AutocallableBarrierState::none,
+         .effective_date = effective, .expiry_date = expiry});
+    const auto analytic = AnalyticVanillaEngine{}.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+    REQUIRE(analytic);
+    const auto check = [&](const auto& engine) {
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        const auto numerical = calculate_numerical_greeks(engine, option, context);
+        REQUIRE(numerical);
+        CHECK(numerical->price() == *price);
+        CHECK(greek_value(*numerical, Greek::delta) == Catch::Approx(2.0 * greek_value(*analytic, Greek::delta)).margin(1e-6));
+        CHECK(greek_value(*numerical, Greek::gamma) == Catch::Approx(2.0 * greek_value(*analytic, Greek::gamma)).margin(1e-6));
+        const auto volatility = implied_volatility(engine, option, context, *price);
+        REQUIRE(volatility);
+        CHECK(*volatility == Catch::Approx(context.model_parameters().volatility()).margin(1e-7));
+        const auto coupon = implied_coupon(engine, note, context, *engine.price(note, context),
+                                           CouponQuoteConvention::preserve_maturity_coupon);
+        REQUIRE(coupon);
+        CHECK(*coupon == Catch::Approx(0.08).margin(1e-7));
+    };
+    SECTION("Monte Carlo settings do not imply that settings are the whole engine")
+    {
+        const StatefulPriceEngine<MonteCarloSettings> engine{{}, 2.0};
+        check(engine);
+        CHECK_FALSE(engine.settings().seed);
+    }
+    SECTION("Finite-difference settings do not imply that settings are the whole engine")
+    {
+        const StatefulPriceEngine<FiniteDifferenceSettings> engine{{}, 2.0};
+        check(engine);
+        CHECK_FALSE(engine.settings().asset_upper_boundary);
+    }
+}
+
 template <typename Engine>
 concept ImplicitGreeksRequest = requires(const Engine& engine, const EuropeanOption& option,
                                          const PricingContext& context) {
@@ -754,7 +813,7 @@ struct SeedRecordingEngine {
     }
 };
 
-TEST_CASE("Unseeded joint pricing selects one seed without changing the engine", "[pricing-api]")
+TEST_CASE("Joint pricing leaves custom engine seeding under its control", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
     std::vector<std::optional<unsigned>> calls;
@@ -767,7 +826,7 @@ TEST_CASE("Unseeded joint pricing selects one seed without changing the engine",
                                                           });
     REQUIRE(result);
     REQUIRE(calls.size() == 3);
-    REQUIRE(calls.front().has_value());
+    REQUIRE_FALSE(calls.front().has_value());
     for (const auto seed : calls)
         CHECK(seed == calls.front());
     CHECK_FALSE(engine.settings().seed.has_value());
@@ -1062,7 +1121,7 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(1e-10));
 }
 
-TEST_CASE("Implied solvers keep one seed for every trial without changing the engine", "[pricing-api]")
+TEST_CASE("Implied solvers preserve custom engine seeds for every trial", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, effective, expiry);
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
@@ -1070,7 +1129,7 @@ TEST_CASE("Implied solvers keep one seed for every trial without changing the en
     const SolverSeedRecordingEngine engine{{std::nullopt, &calls}};
     const auto check_calls = [&] {
         REQUIRE(calls.size() > 2);
-        REQUIRE(calls.front().has_value());
+        REQUIRE_FALSE(calls.front().has_value());
         for (const auto seed : calls)
             CHECK(seed == calls.front());
         calls.clear();
