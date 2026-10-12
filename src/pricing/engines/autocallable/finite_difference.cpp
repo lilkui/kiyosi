@@ -37,7 +37,7 @@ struct AutocallableFiniteDifferenceWorkspace {
     std::vector<double> alive, next_alive, knocked_in, next_knocked_in, curvature;
 };
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<PricingResult> price_autocallable(
     const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
     bool& contract_validated, GreeksRequest output, double spot_shift,
@@ -220,9 +220,7 @@ Result<PricingResult> price_autocallable(
     curvature.clear();
     const double value = initial.path.coupons + space->interpolate(alive, spot, curvature);
     const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, space->upper,
-        [&](double shifted_spot) { return checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature)); },
-        [&](double shifted_spot) { return space->gamma(alive, shifted_spot); });
+    const auto speed = finite_difference_speed(spot, h, space->upper, [&](double shifted_spot) { return checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->gamma(alive, shifted_spot); });
     if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value,
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
@@ -238,16 +236,16 @@ Result<double> solve_coupon(
     AutocallableFiniteDifferenceWorkspace workspace;
     bool contract_validated = false;
     return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
-                                         [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
-                                             return detail::price_value(price_autocallable(
-                                                 instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
-                                                 NumericalShiftSettings{}.spot_shift, workspace));
-                                         });
+                                        [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+                                            return detail::price_value(price_autocallable(
+                                                instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
+                                                NumericalShiftSettings{}.spot_shift, workspace));
+                                        });
 }
 
 } // namespace
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     const Note& note, const PricingContext& context, bool& contract_validated,
     GreeksRequest output, double spot_shift) const
@@ -256,7 +254,7 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
     return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
 }
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<double> implied_volatility(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
@@ -271,7 +269,7 @@ Result<double> implied_volatility(
                                             });
 }
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<double> implied_coupon(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
@@ -293,7 +291,7 @@ Result<double> implied_coupon(
     });
 }
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     const Note& note, const PricingContext& context) const
 {
@@ -301,7 +299,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     return detail::price_value(price_native(note, context, contract_validated, GreeksRequest{}));
 }
 
-template <typename Note>
+template <AutocallableProduct Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                                   GreeksRequest greeks, NumericalShiftSettings settings) const
 {

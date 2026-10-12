@@ -15,6 +15,18 @@
 
 namespace kiyosi {
 
+class PhoenixOption;
+class SnowballOption;
+class BinarySnowballOption;
+class TernarySnowballOption;
+
+/// Complete products supported by the autocallable pricing engines.
+template <typename Note>
+concept AutocallableProduct = std::same_as<Note, PhoenixOption> ||
+                              std::same_as<Note, SnowballOption> ||
+                              std::same_as<Note, BinarySnowballOption> ||
+                              std::same_as<Note, TernarySnowballOption>;
+
 /// Monitoring frequency for an autocallable knock-in barrier.
 enum class KnockInObservationMode : std::uint8_t {
     every_trading_day, ///< Observe on every trading day in the contract life.

@@ -55,7 +55,24 @@ concept CanPriceWithSettings = requires(
     engine.price(option, context, Settings{});
 };
 
+template <template <typename> class Engine, typename Note>
+concept AcceptsNote = requires { typename Engine<Note>; };
+
+template <template <typename> class Engine>
+constexpr bool autocallable_product_constraints =
+    AcceptsNote<Engine, kiyosi::PhoenixOption> &&
+    AcceptsNote<Engine, kiyosi::SnowballOption> &&
+    AcceptsNote<Engine, kiyosi::BinarySnowballOption> &&
+    AcceptsNote<Engine, kiyosi::TernarySnowballOption> &&
+    !AcceptsNote<Engine, kiyosi::AutocallableNote> &&
+    !AcceptsNote<Engine, kiyosi::KnockInAutocallableNote> &&
+    !AcceptsNote<Engine, kiyosi::EuropeanOption> &&
+    !AcceptsNote<Engine, const kiyosi::SnowballOption>;
+
 } // namespace
+
+static_assert(autocallable_product_constraints<kiyosi::MonteCarloAutocallableEngine>);
+static_assert(autocallable_product_constraints<kiyosi::FiniteDifferenceAutocallableEngine>);
 
 static_assert(kiyosi::default_realized_average == 0.0);
 static_assert(kiyosi::BarrierOptionTerms{}.rebate == 0.0);

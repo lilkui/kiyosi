@@ -22,13 +22,13 @@ namespace kiyosi {
 
 class MonteCarloVanillaEngine;
 class MonteCarloAccumulatorEngine;
-template <typename Note>
+template <AutocallableProduct Note>
 class MonteCarloAutocallableEngine;
 class FiniteDifferenceVanillaEngine;
 class FiniteDifferenceDigitalEngine;
 class FiniteDifferenceBarrierEngine;
 class FiniteDifferenceAccumulatorEngine;
-template <typename Note>
+template <AutocallableProduct Note>
 class FiniteDifferenceAutocallableEngine;
 class Accumulator;
 
@@ -39,7 +39,7 @@ template <typename Engine, typename Option>
 inline constexpr bool is_builtin_monte_carlo_engine =
     std::same_as<Engine, MonteCarloVanillaEngine> ||
     std::same_as<Engine, MonteCarloAccumulatorEngine> ||
-    std::same_as<Engine, MonteCarloAutocallableEngine<Option>>;
+    requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; };
 
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> numerical_value(
@@ -511,7 +511,7 @@ Result<PricingResult> price_with_greeks(
                   std::same_as<Engine, FiniteDifferenceDigitalEngine> ||
                   std::same_as<Engine, FiniteDifferenceBarrierEngine> ||
                   std::same_as<Engine, FiniteDifferenceAccumulatorEngine> ||
-                  std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>) {
+                  requires { requires std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>; }) {
         auto grid = engine.settings();
         if (!grid.asset_upper_boundary) {
             // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
@@ -532,9 +532,9 @@ Result<PricingResult> price_with_greeks(
                 }
             };
             return complete_greeks(NativePricer{fixed, evaluate_native}, option, context, greeks, settings, *native,
-                                    [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
-                                        return evaluate_native(fixed, shifted, request);
-                                    });
+                                   [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
+                                       return evaluate_native(fixed, shifted, request);
+                                   });
         } else {
             return complete_greeks(fixed, option, context, greeks, settings, *native, evaluate_native);
         }
@@ -573,7 +573,7 @@ template <typename Engine, typename Option>
     if constexpr ((std::same_as<Engine, MonteCarloVanillaEngine> &&
                    (std::same_as<Option, AmericanOption> || std::same_as<Option, EuropeanOption>)) ||
                   (std::same_as<Engine, MonteCarloAccumulatorEngine> && std::same_as<Option, Accumulator>) ||
-                  std::same_as<Engine, MonteCarloAutocallableEngine<Option>>)
+                  requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; })
         return engine.price_with_greeks(option, context, true, settings);
     else
         return detail::price_with_greeks(engine, option, context, true, settings);

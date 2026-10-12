@@ -142,7 +142,7 @@ template <typename Engine, typename Option, typename Price>
         }
     }
 
-    if constexpr (std::same_as<Engine, MonteCarloAutocallableEngine<Option>>) {
+    if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; }) {
         const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
         if (!valid) return std::unexpected(valid.error());
         const auto program = detail::autocallable_program(option);
@@ -286,7 +286,7 @@ template <>
     double observed_price, ImpliedVolatilitySettings settings);
 
 /// Finite-difference autocallables validate immutable contracts and calendars once per solve.
-template <typename Note>
+template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings = {});
@@ -298,7 +298,7 @@ template <>
     double observed_price, ImpliedVolatilitySettings settings);
 
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
-template <typename Note>
+template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
     const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings = {});
@@ -441,7 +441,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
     const double lo = settings.lower_bound;
     const double hi = settings.upper_bound;
     const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
-        if constexpr (std::same_as<Engine, MonteCarloAutocallableEngine<Option>>) {
+        if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; }) {
             const auto lower = replace_coupon(option, lo);
             if (!lower) return std::unexpected(lower.error());
             const auto upper = replace_coupon(option, hi);
@@ -474,8 +474,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
         if (!priced) return std::unexpected(priced.error());
         return *priced - observed_price;
     };
-    if constexpr (std::is_same_v<Engine, MonteCarloAutocallableEngine<Option>> ||
-                  std::is_same_v<Engine, FiniteDifferenceAutocallableEngine<Option>>) {
+    if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; } || requires { requires std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>; }) {
         // Coupon payoffs are affine; halve prices only if their span overflows.
         const double span = upper_price - lower_price;
         const double fraction = std::isfinite(span)
@@ -550,7 +549,7 @@ template <typename Engine, typename Option>
 }
 
 /// Reuse grids, buffers and compatible factors within one solve; requests share no storage.
-template <typename Note>
+template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings = {})

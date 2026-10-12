@@ -15,12 +15,12 @@ namespace kiyosi {
 
 namespace detail {
 // Shared by pricing and the implied-volatility preflight; does not execute a backend.
-template <typename Note>
+template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<void> validate_monte_carlo_autocallable(
     const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings);
 
 // Coupon variants share asset paths; the implied solver supplies otherwise identical notes.
-template <typename Note>
+template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<std::array<double, 2>> monte_carlo_coupon_prices(
     const Note& lower, const Note& upper, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings);
@@ -28,7 +28,7 @@ template <typename Note>
 
 /// Simulates observation dates and expiry, adding trading days for daily knock-in monitoring.
 /// Accepts 1..10,000,000 paths.
-template <typename Note>
+template <AutocallableProduct Note>
 class KIYOSI_EXPORT MonteCarloAutocallableEngine {
 public:
     /// Creates an engine with aggregate trading-day simulation settings.
