@@ -1,5 +1,6 @@
 import math
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 import kiyosi
@@ -9,6 +10,46 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AsianRegressionTests(unittest.TestCase):
+    def test_concurrent_asian_delta_requests_preserve_results_and_errors(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for kind, engine, expected_price, expected_delta in (
+            (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine(),
+             5.035867546515384, 0.5473455532045122),
+            (ArithmeticAveragePriceOption, pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+             5.246501860362777, 0.5602339572242674),
+        ):
+            option = kind(
+                option_type="call", strike=100, effective_date=start,
+                averaging_start_date=start, expiry_date=end,
+            )
+
+            def calculate(selection):
+                return engine.price_with_greeks(option, context, **selection)
+
+            selections = [{"greeks": "delta"}, {"greeks": ["delta", "delta"]},
+                          {"all_greeks": True}] * 4
+            with self.subTest(kind=kind), ThreadPoolExecutor(max_workers=4) as pool:
+                for selection, result in zip(selections, pool.map(calculate, selections)):
+                    self.assertAlmostEqual(result.price, expected_price, delta=1e-12)
+                    self.assertAlmostEqual(result.delta, expected_delta, delta=1e-12)
+                    if "greeks" in selection:
+                        self.assertIsNone(result.gamma)
+                        self.assertIsNone(result.vega)
+                    else:
+                        self.assertGreater(result.gamma, 0)
+                        self.assertGreater(result.vega, 0)
+                for selection in selections[:3]:
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine.price_with_greeks(option, context, **selection, spot_shift=0)
+                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+
     def test_accrued_arithmetic_calls_retain_representable_discounted_prices(self):
         start = date(2025, 1, 1)
         # Independent 80-digit discounted expected arithmetic payoffs.

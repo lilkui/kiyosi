@@ -115,6 +115,15 @@ is deferred until the synchronous core computation returns.)doc");
             }();
             const auto settings = numerical_settings(
                 spot, volatility_shift, rate_shift, time_shift_days);
+            if constexpr (std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
+                          std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>) {
+                // Three short prices cost less than releasing and reacquiring the GIL.
+                if (request.has(Greek::delta) && std::ranges::none_of(
+                        std::array{Greek::gamma, Greek::speed, Greek::theta, Greek::charm, Greek::color,
+                                   Greek::vega, Greek::vanna, Greek::zomma, Greek::rho},
+                        [&](Greek greek) { return request.has(greek); }))
+                    return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+            }
             if constexpr (std::same_as<Engine, AnalyticVanillaEngine> ||
                           std::same_as<Engine, AnalyticDigitalEngine>) {
                 return unwrap(engine.price_with_greeks(instrument, context, request, settings));

@@ -65,6 +65,16 @@ median of five repetitions). Workers shared a cash-or-nothing call with payout
 10 and the common market below. These short requests benefit from avoiding
 GIL transitions; the result does not imply parallel native execution.
 
+Asian analytic delta-only requests also retain the GIL; larger Greek requests
+release it. Run `python benchmarks/python_asian_threads.py` against a Release
+Python build to compare fixed workloads. On 2026-10-12, CPython 3.13 and Release
+MSVC 19.51 on a Ryzen 7 3700X measured 80,000 delta requests falling from
+108.75 to 93.11 ms with one worker and 281.12 to 93.74 ms with four workers
+for geometric averaging; arithmetic averaging fell from 118.83 to 109.69 ms
+and 285.75 to 113.38 ms respectively (median of five repetitions). All-Greeks
+requests still benefited from four workers: 221.03 versus 97.83 ms for geometric
+and 298.43 versus 127.68 ms for arithmetic averaging. Results were identical.
+
 Event-free FD time grids construct their ordered nodes and canonical interval
 widths directly. Release MSVC 19.51 on the same CPU measured 0.332 us versus
 1.631 us through the equivalent event-merging path at 200 steps, and 314.138 us
