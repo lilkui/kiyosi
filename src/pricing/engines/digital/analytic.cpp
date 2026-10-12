@@ -56,7 +56,12 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     std::optional<double> gamma;
     if (asset_settlement) {
         const double log_discount = -context.model_parameters().dividend_yield() * t;
-        if (output.has(Greek::delta)) delta = div_df * nd + sign * weighted_density(log_discount - log_volatility_time);
+        if (output.has(Greek::delta)) {
+            const double discounted_probability = sign * d < -10.0 || !std::isnormal(div_df)
+                                                      ? exponential_normal_cdf(log_discount, sign * d)
+                                                      : div_df * nd;
+            delta = discounted_probability + sign * weighted_density(log_discount - log_volatility_time);
+        }
         if (output.has(Greek::gamma)) {
             // At zero forward, cancel half the width before it can underflow.
             if (forward == 0.0) {

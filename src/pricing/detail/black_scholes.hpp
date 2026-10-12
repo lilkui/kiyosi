@@ -127,8 +127,14 @@ inline Result<PricingResult> price_at_volatility(
     if (requested_output.empty()) return make_pricing_result(value);
 
     const auto want = [&](Greek greek) { return requested_output.has(greek); };
+    const auto discounted_probability = [&](double factor) {
+        const double weighted_discount = factor * dividend_discount_factor;
+        return sign * d1 < -10.0 || !std::isnormal(dividend_discount_factor) || !std::isfinite(weighted_discount)
+                   ? std::copysign(scaled_normal_cdf(std::abs(factor), -dividend * year_fraction, sign * d1), factor)
+                   : weighted_discount * cumulative_d1;
+    };
     if (!(want(Greek::gamma) || want(Greek::speed) || want(Greek::theta) || want(Greek::charm) || want(Greek::color) || want(Greek::vega) || want(Greek::vanna) || want(Greek::zomma)))
-        return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::rho, want(Greek::rho) ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit} : std::nullopt}});
+        return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * discounted_probability(1.0)} : std::nullopt}, {Greek::rho, want(Greek::rho) ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit} : std::nullopt}});
     const double log_density = -0.5 * d1 * d1 + std::log(inverse_sqrt_two_pi);
     const bool regular = std::isfinite(log_density) && std::isfinite(d2) && std::isfinite(d1 * d2);
     // Apply all scale factors before exponentiating so representable derivatives survive tail underflow.
@@ -154,7 +160,7 @@ inline Result<PricingResult> price_at_volatility(
         if (want(Greek::speed)) speed = -weighted_density(log_gamma_weight - log_spot, 1.0 + d1 / volatility_time);
         if (want(Greek::theta)) theta = (-weighted_density(log_spot + log_discount + log_volatility - std::numbers::ln2 - log_root_time) + carry) / 365.0;
         if (want(Greek::charm)) charm = (-weighted_density(log_discount, (rate - dividend) / volatility_time - 0.5 * d2 / year_fraction) +
-                                         sign * dividend * dividend_discount_factor * cumulative_d1) /
+                                         sign * discounted_probability(dividend)) /
                                         365.0;
         if (want(Greek::color)) color =
                                     (weighted_density(log_gamma_weight, dividend) +
@@ -167,7 +173,7 @@ inline Result<PricingResult> price_at_volatility(
     } else {
         if (want(Greek::speed)) speed = 0.0;
         if (want(Greek::theta)) theta = carry / 365.0;
-        if (want(Greek::charm)) charm = sign * dividend * dividend_discount_factor * cumulative_d1 / 365.0;
+        if (want(Greek::charm)) charm = sign * discounted_probability(dividend) / 365.0;
         if (want(Greek::color)) color = 0.0;
         if (want(Greek::vega)) vega = 0.0;
         if (want(Greek::vanna)) vanna = 0.0;
@@ -176,7 +182,7 @@ inline Result<PricingResult> price_at_volatility(
     const std::optional<double> rho = want(Greek::rho)
                                           ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit}
                                           : std::nullopt;
-    return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * dividend_discount_factor * cumulative_d1} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
+    return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * discounted_probability(1.0)} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
 }
 
 } // namespace kiyosi::detail

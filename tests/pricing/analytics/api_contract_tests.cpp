@@ -142,6 +142,43 @@ TEST_CASE("Exponential normal tails stay finite when separate factors overflow",
     }
 }
 
+TEST_CASE("Analytic delta and charm retain scaled normal tails", "[analytic-tail-greeks]")
+{
+    // Independent high-precision normal-tail references at r = q = -710, sigma = 0.2.
+    const std::array deltas{4.448031813551352e-40, -1.4847155549977004e-43};
+    const std::array charms{-1.8407501816330744e-39, 6.144248777637284e-43};
+    const std::array digital_deltas{8.923870780328184e-38, -2.9638565030696756e-41};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto index = type == OptionType::call ? 0U : 1U;
+        for (const double rate : {-710.0, -700.0}) {
+            for (const double spot : {1.0, 1e-200}) {
+                CAPTURE(type, rate, spot);
+                const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 0.2), spot, effective);
+                const double strike = spot * std::exp(type == OptionType::call ? 8.0 : -8.0);
+                const double scale = std::exp(-rate - 710.0);
+                const auto vanilla = *make_european_option(type, strike, effective, expiry);
+                const AnalyticVanillaEngine engine;
+                for (const auto request : {GreeksRequest{Greek::delta}, GreeksRequest{Greek::delta, Greek::charm}}) {
+                    const auto result = engine.price_with_greeks(vanilla, context, request);
+                    REQUIRE(result);
+                    CHECK(greek_value(*result, Greek::delta) == Catch::Approx(deltas[index] * scale).epsilon(1e-10).margin(0.0));
+                    CHECK(result->price() == *engine.price(vanilla, context));
+                    if (request.has(Greek::charm)) {
+                        const double expected = (charms[index] + (rate + 710.0) * deltas[index] / 365.0) * scale;
+                        CHECK(greek_value(*result, Greek::charm) == Catch::Approx(expected).epsilon(1e-10).margin(0.0));
+                    }
+                }
+                const auto digital = *make_asset_or_nothing_option(type, strike, effective, expiry);
+                const AnalyticDigitalEngine digital_engine;
+                const auto result = digital_engine.price_with_greeks(digital, context, {Greek::delta});
+                REQUIRE(result);
+                CHECK(greek_value(*result, Greek::delta) == Catch::Approx(digital_deltas[index] * scale).epsilon(1e-10).margin(0.0));
+                CHECK(result->price() == *digital_engine.price(digital, context));
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic engines retain low-volatility prices and default implied volatility", "[audit-fixes]")
 {
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective);

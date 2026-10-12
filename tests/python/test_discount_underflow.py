@@ -18,6 +18,58 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class DiscountUnderflowTests(unittest.TestCase):
+    def test_analytic_delta_and_charm_retain_scaled_normal_tails(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        # Independent high-precision normal-tail references at r = q = -710.
+        references = (
+            (
+                "call", 8, 4.448031813551352e-40,
+                -1.8407501816330744e-39, 8.923870780328184e-38,
+            ),
+            (
+                "put", -8, -1.4847155549977004e-43,
+                6.144248777637284e-43, -2.9638565030696756e-41,
+            ),
+        )
+        for direction, log_strike, delta, charm, digital_delta in references:
+            for rate in (-710, -700):
+                for spot in (1, 1e-200):
+                    with self.subTest(direction=direction, rate=rate, spot=spot):
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=rate, dividend_yield=rate, volatility=0.2
+                            ),
+                            spot_price=spot,
+                            valuation_time=start,
+                        )
+                        terms = dict(
+                            option_type=direction,
+                            strike=spot * math.exp(log_strike),
+                            effective_date=start,
+                            expiry_date=end,
+                        )
+                        scale = math.exp(-rate - 710)
+                        option = EuropeanOption(**terms)
+                        engine = pricing.AnalyticVanillaEngine()
+                        for request in ("delta", ["delta", "charm"]):
+                            result = engine.price_with_greeks(option, context, request)
+                            self.assertTrue(
+                                math.isclose(result.delta, delta * scale, rel_tol=1e-10)
+                            )
+                            self.assertEqual(result.price, engine.price(option, context))
+                            if "charm" in request:
+                                expected = (charm + (rate + 710) * delta / 365) * scale
+                                self.assertTrue(
+                                    math.isclose(result.charm, expected, rel_tol=1e-10)
+                                )
+                        option = AssetOrNothingOption(**terms)
+                        engine = pricing.AnalyticDigitalEngine()
+                        result = engine.price_with_greeks(option, context, "delta")
+                        self.assertTrue(
+                            math.isclose(result.delta, digital_delta * scale, rel_tol=1e-10)
+                        )
+                        self.assertEqual(result.price, engine.price(option, context))
+
     def test_trading_day_monte_carlo_preserves_signed_discounted_payments(self):
         start, middle, end = date(2025, 1, 1), date(2026, 1, 1), date(2027, 1, 1)
         backends = ["cpu"] + (
