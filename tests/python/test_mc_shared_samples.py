@@ -710,6 +710,36 @@ class SharedSampleTests(unittest.TestCase):
                 for option, engine in cases
             )
         for option, engine in cases:
+            context = PricingContext(
+                model_parameters=parameters,
+                spot_price=spot,
+                valuation_time=valuation,
+                calendar=calendar,
+            )
+            h = (0.04 + 0.25) - 0.04
+            rate_prices = [
+                engine.price(
+                    option,
+                    PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate, dividend_yield=0.01, volatility=0.2
+                        ),
+                        spot_price=spot,
+                        valuation_time=valuation,
+                        calendar=calendar,
+                    ),
+                )
+                for rate in (0.04 + h, 0.04 - h)
+            ]
+            for names in (["rho"], ["delta", "gamma", "rho"]):
+                with self.subTest(engine=type(engine).__name__, greeks=names):
+                    actual = engine.price_with_greeks(
+                        option, context, names, rate_shift=0.25
+                    )
+                    self.assertEqual(actual.price, engine.price(option, context))
+                    self.assertEqual(
+                        actual.rho, (rate_prices[0] - rate_prices[1]) / (200 * h)
+                    )
             with self.subTest(engine=type(engine).__name__, unavailable="speed"):
                 context = PricingContext(
                     model_parameters=parameters,

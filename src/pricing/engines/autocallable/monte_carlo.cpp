@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <optional>
 #include <random>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -113,16 +114,33 @@ struct PathState {
     std::optional<double> payoff;
 };
 
-template <std::size_t count>
+template <std::size_t count, typename Inputs>
 Result<std::array<double, count>> path_payoffs(
-    const AutocallableProgram& program, const SimulationInputs& inputs,
+    const AutocallableProgram& program, const Inputs& inputs,
     std::array<PathState, count> states, Pcg32& generator)
 {
+    constexpr bool shared_inputs = std::same_as<Inputs, SimulationInputs>;
+    const auto& common = [&]() -> const SimulationInputs& {
+        if constexpr (shared_inputs) return inputs;
+        else return *std::ranges::max_element(inputs, {}, [](const auto& value) { return value.step_count.size(); });
+    }();
     std::normal_distribution<double> normal;
-    for (const auto& step : inputs.step_count) {
-        const double growth = std::exp(step.simulation.drift + step.simulation.diffusion * normal(generator));
-        for (auto& state : states) {
+    for (std::size_t index = 0; index < common.step_count.size(); ++index) {
+        const double draw = normal(generator);
+        double shared_growth = 0.0;
+        if constexpr (shared_inputs)
+            shared_growth = std::exp(common.step_count[index].simulation.drift + common.step_count[index].simulation.diffusion * draw);
+        for (std::size_t i = 0; i < count; ++i) {
+            auto& state = states[i];
             if (state.payoff) continue;
+            const auto& step = [&]() -> const CudaAutocallableStep& {
+                if constexpr (shared_inputs) return common.step_count[index];
+                else return inputs[i].step_count[index];
+            }();
+            const double growth = [&] {
+                if constexpr (shared_inputs) return shared_growth;
+                else return std::exp(step.simulation.drift + step.simulation.diffusion * draw);
+            }();
             state.spot *= growth;
             if (!std::isfinite(state.spot) || state.spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,
@@ -141,7 +159,11 @@ Result<std::array<double, count>> path_payoffs(
     for (std::size_t i = 0; i < count; ++i) {
         auto& state = states[i];
         state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, true);
-        payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + inputs.terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+        const auto& terminal_discount = [&]() -> const MonteCarloDiscount& {
+            if constexpr (shared_inputs) return common.terminal_discount;
+            else return inputs[i].terminal_discount;
+        }();
+        payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
     }
     return payoffs;
 }
@@ -209,6 +231,53 @@ Result<std::array<double, count>> price_spot_bumps(
     }
     for (std::size_t i = 0; i < count; ++i) {
         const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
+        if (!value) return std::unexpected(value.error());
+        prices[i] = *value;
+    }
+    return prices;
+}
+
+template <typename Note>
+Result<std::array<double, 3>> price_rate_bumps(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    double h, std::optional<double> base_price = std::nullopt)
+{
+    const auto program = autocallable_program(note);
+    std::array<SimulationInputs, 3> inputs{};
+    std::array<PathState, 3> initial{};
+    initial[0].payoff = base_price;
+    for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
+        const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
+        const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
+                                             rate, context.valuation_time());
+        if (!shifted) return std::unexpected(shifted.error());
+        const auto state = autocallable_initial_state(note, *shifted, program);
+        const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, *shifted, program, state);
+        if (fixed) {
+            const auto value = checked_price(*fixed);
+            if (!value) return std::unexpected(value.error());
+        } else {
+            auto prepared = prepare_simulation(note, *shifted, state.next_observation,
+                                               program_knock_in_affects_payoff(program) && program.daily_knock_in && !state.path.knocked_in);
+            if (!prepared) return std::unexpected(prepared.error());
+            inputs[i] = std::move(*prepared);
+        }
+        initial[i] = {shifted->spot_price(), state.path, fixed};
+    }
+    std::array<MonteCarloMean, 3> means{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        std::mt19937_64 generator{*settings.seed};
+        for (int path = 0; path < settings.path_count; ++path) {
+            Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
+            const auto payoffs = path_payoffs(program, inputs, initial, path_generator);
+            if (!payoffs) return std::unexpected(payoffs.error());
+            for (std::size_t i = 0; i < means.size(); ++i)
+                if (!initial[i].payoff) means[i].add((*payoffs)[i]);
+        }
+    }
+    std::array<double, 3> prices{};
+    for (std::size_t i = 0; i < prices.size(); ++i) {
+        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : means[i].value());
         if (!value) return std::unexpected(value.error());
         prices[i] = *value;
     }
@@ -415,9 +484,13 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
         [&](const auto& seeded) -> Result<PricingResult> {
             bool contract_validated = false;
             const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
-                const auto native = [&]() -> Result<PricingResult> {
-                    const auto valid = validate_pricing(option, context, seeded.settings(), contract_validated);
-                    if (!valid) return std::unexpected(valid.error());
+                const auto valid = validate_pricing(option, context, seeded.settings(), contract_validated);
+                if (!valid) return std::unexpected(valid.error());
+                const double rate_shift = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+                std::optional<std::array<double, 3>> rate_prices;
+                const bool batch_rates = seeded.settings().backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
+                                         rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context);
+                auto native = [&]() -> Result<PricingResult> {
                     const double spot = context.spot_price();
                     const double h = symmetric_shift(spot, settings.spot_shift);
                     const double two_h = 2.0 * h;
@@ -431,11 +504,27 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
                             return spot_bump_result(price_spot_bumps<5>(option, context, seeded.settings(), h, workspace), greeks, h);
                         return spot_bump_result(price_spot_bumps<3>(option, context, seeded.settings(), h, workspace), greeks, h);
                     }
+                    if (batch_rates) {
+                        const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift);
+                        if (!values) return std::unexpected(values.error());
+                        rate_prices = *values;
+                        return make_pricing_result((*values)[0]);
+                    }
                     const auto value = scalar.price(option, context);
                     if (!value) return std::unexpected(value.error());
                     return make_pricing_result(*value);
                 }();
                 if (!native) return std::unexpected(native.error());
+                if (batch_rates && !rate_prices) {
+                    const auto values = price_rate_bumps(option, context, seeded.settings(), rate_shift, native->price());
+                    if (!values) return std::unexpected(values.error());
+                    rate_prices = *values;
+                }
+                if (rate_prices)
+                    native = make_pricing_result(native->price(), {{Greek::delta, *native->get(Greek::delta)},
+                                                                   {Greek::gamma, *native->get(Greek::gamma)},
+                                                                   {Greek::speed, *native->get(Greek::speed)},
+                                                                   {Greek::rho, ((*rate_prices)[1] - (*rate_prices)[2]) / (200.0 * rate_shift)}});
                 const double h = symmetric_shift(context.spot_price(), settings.spot_shift);
                 const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
                                    context.spot_price() > h && !at_spot_discontinuity(option, context, h);

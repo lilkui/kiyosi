@@ -206,14 +206,14 @@ TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated w
           [](auto settings) { return MonteCarloBinarySnowballEngine{settings}; });
 }
 
-TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[autocallable-shared-samples]")
+TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autocallable-shared-samples]")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
     const std::vector<Date> observations{day(2025, 1, 3), day(2025, 1, 8), end};
     const auto queries = std::make_shared<std::atomic<int>>(0);
     const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
-    const NumericalShiftSettings shifts{.spot_shift = 0.2};
+    const NumericalShiftSettings shifts{.spot_shift = 0.2, .rate_shift = 0.25};
     const auto check = [&](const auto& note) {
         using Note = std::remove_cvref_t<decltype(note)>;
         for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
@@ -233,7 +233,7 @@ TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[
                             CHECK(queries->load() < scalar_queries);
                         CHECK(numerical->price() == expected->price());
                         CHECK(numerical->values_view() == expected->values_view());
-                        for (const GreeksRequest request : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma}, GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
+                        for (const GreeksRequest request : {GreeksRequest{Greek::rho}, GreeksRequest{Greek::delta, Greek::gamma, Greek::rho}, GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma}, GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
                             const auto actual = engine.price_with_greeks(note, context, request, shifts);
                             REQUIRE(actual);
                             CHECK(actual->price() == expected->price());
@@ -269,6 +269,39 @@ TEST_CASE("Autocallable joint spot Greeks preserve scalar seeded valuations", "[
         check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
     }
     check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.05, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+}
+
+TEST_CASE("Autocallable rate batches preserve fixed prices and unavailable stencils", "[autocallable-shared-samples]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.0, 0.0},
+                                                    .maturity_coupon_rate = 0.0, .knock_out_levels = {101.0, 101.0},
+                                                    .observation_dates = {day(2025, 7, 1), end},
+                                                    .barrier_state = AutocallableBarrierState::none,
+                                                    .effective_date = start, .expiry_date = end});
+    const MonteCarloBinarySnowballEngine engine{31, 42};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+    const NumericalShiftSettings shifts{.rate_shift = 0.25};
+    const auto expected = detail::price_with_greeks(engine, note, context, true, shifts);
+    REQUIRE(expected);
+    for (const GreeksRequest request : {GreeksRequest{Greek::rho}, GreeksRequest{Greek::delta, Greek::gamma, Greek::rho}}) {
+        const auto actual = engine.price_with_greeks(note, context, request, shifts);
+        REQUIRE(actual);
+        CHECK(actual->price() == 1.0);
+        CHECK(actual->values_view() == expected->selected(request).values_view());
+    }
+    const auto unavailable = engine.price_with_greeks(note, context, {Greek::rho}, {.rate_shift = 1e307});
+    REQUIRE(unavailable);
+    CHECK(unavailable->price() == 1.0);
+    CHECK_FALSE(unavailable->has(Greek::rho));
+    const auto rejected = engine.price_with_greeks(note, context, {Greek::rho}, {.rate_shift = 1e6});
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_result);
+    const auto recovered = engine.price_with_greeks(note, context, {Greek::rho}, shifts);
+    REQUIRE(recovered);
+    CHECK(recovered->values_view() == expected->selected({Greek::rho}).values_view());
 }
 
 TEST_CASE("Autocallable FD event skipping preserves coupons knock-out and daily knock-in", "[fd-performance]")
