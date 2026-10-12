@@ -594,3 +594,22 @@ Ryzen 7 3700X measured median wall time for the down-and-in call falling from
 still needs vanilla pricing measured 363 versus 349 ns. Prices were unchanged
 at 0.094640762981700322 and 9.2250976922158294. Branch parity, rebate timing,
 tiny volatility, extreme scales, expiry, history and reference-price tests pass.
+
+Autocallable FD coupon calibration reuses the validated schedule, spatial/time
+grids, layer buffers, interpolation buffer and compatible stepper factors within
+one solve. Coupon shifts that change daily knock-in exposure rebuild the time
+grid; every trial reseeds its payoffs and checks its price. Interpolation still
+verifies the candidate before falling back to bisection. Each request owns its
+workspace, including concurrent solves on one engine.
+
+The `snowball/fd/implied_coupon` analytics cases include `independent_trials`
+comparisons using the same solver with separate scalar pricing calls. On
+2026-10-12, Release MSVC 19.51 on a Ryzen 7 3700X measured the default case at
+5.415 versus 5.456 ms and `scheduled_dense/implied_coupon` at 181.5 versus
+290.9 us (median wall time, seven repetitions, 0.3 s minimum). Both recovered
+coupon 0.08. A C++ allocation probe for the default contract counted 104
+allocations / 82,691 bytes with reuse versus 288 / 237,945 bytes for independent
+trials; a counting weekday calendar recorded 375 versus 1,113 queries. Setup
+reuse has a modest effect when PDE marching dominates. C++ and Python checks
+cover all four note families, both monitoring modes, all FD schemes, changing
+layer requirements, concurrent quotes, rejection/recovery and nonlinear solves.

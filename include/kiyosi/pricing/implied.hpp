@@ -413,10 +413,10 @@ inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double 
                                 .expiry_date = option.expiry_date()});
 }
 
-template <typename Engine, typename Option, typename ReplaceCoupon>
+template <typename Engine, typename Option, typename ReplaceCoupon, typename Price>
 [[nodiscard]] Result<double> solve_implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon)
+    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon, const Price& price)
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
         !std::isfinite(settings.upper_bound) ||
@@ -431,14 +431,14 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
-            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon);
+            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon, price);
         }
     }
 
     const auto price_at_coupon = [&](double coupon) -> Result<double> {
         auto replaced = replace_coupon(option, coupon);
         if (!replaced) return std::unexpected(replaced.error());
-        auto priced = engine.price(*replaced, context);
+        auto priced = price(engine, *replaced, context);
         if (!priced) return std::unexpected(priced.error());
         if (!std::isfinite(*priced))
             return std::unexpected(Error{ErrorCategory::solver_non_finite,
@@ -499,6 +499,17 @@ template <typename Engine, typename Option, typename ReplaceCoupon>
                                   "implied-coupon solver did not converge");
 }
 
+template <typename Engine, typename Option, typename ReplaceCoupon>
+[[nodiscard]] Result<double> solve_implied_coupon(
+    const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
+    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon)
+{
+    return solve_implied_coupon(engine, option, context, observed_price, settings, replace_coupon,
+                                [](const auto& pricing_engine, const auto& instrument, const auto& market) {
+                                    return pricing_engine.price(instrument, market);
+                                });
+}
+
 } // namespace detail
 
 /// Solves a Snowball engine's price curve in its knock-out coupon.
@@ -545,5 +556,26 @@ template <typename Engine, typename Option>
         engine, option, context, observed_price, settings,
         [](const Option& value, double coupon) { return detail::replace_coupon(value, coupon); });
 }
+
+/// Reuse grids, buffers and compatible factors within one solve; requests share no storage.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceSnowballEngine, SnowballOption>(
+    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
+    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
+    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings);
+
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon<FiniteDifferencePhoenixEngine, PhoenixOption>(
+    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings);
 
 } // namespace kiyosi

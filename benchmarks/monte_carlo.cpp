@@ -189,6 +189,15 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
     register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/vega_rho", [=] { return dense_finite_difference.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
+    const auto dense_coupon_quote = dense_finite_difference.price(dense_snowball, dense_context);
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon", [=]() -> Result<double> {
+                             if (!dense_coupon_quote) return std::unexpected(dense_coupon_quote.error());
+                             return implied_coupon(dense_finite_difference, dense_snowball, dense_context, *dense_coupon_quote,
+                                                   CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon/independent_trials", [=]() -> Result<double> {
+                             if (!dense_coupon_quote) return std::unexpected(dense_coupon_quote.error());
+                             return detail::solve_implied_coupon(dense_finite_difference, dense_snowball, dense_context, *dense_coupon_quote, ImpliedCouponSettings{},
+                                                                 [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
     const auto upper_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out});
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};
@@ -283,6 +292,10 @@ void kiyosi::benchmark_support::register_analytics_cases()
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return implied_coupon(snowball_engine, snowball, context, *coupon_quote,
                                                    CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
+    register_calculation("analytics/kiyosi/snowball/fd/implied_coupon/independent_trials", [=]() -> Result<double> {
+                             if (!coupon_quote) return std::unexpected(coupon_quote.error());
+                             return detail::solve_implied_coupon(snowball_engine, snowball, context, *coupon_quote, ImpliedCouponSettings{},
+                                                                 [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
     const MonteCarloSnowballEngine coupon_engine{20'000, 42};
     const auto monte_carlo_quote = coupon_engine.price(snowball, context);
     register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=]() -> Result<double> {

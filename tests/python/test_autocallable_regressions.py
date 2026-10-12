@@ -21,6 +21,72 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_finite_difference_coupon_requests_preserve_layer_changes_and_isolation(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        common = dict(
+            knock_out_levels=[110, 110], observation_dates=[date(2025, 1, 7), end],
+            effective_date=start, expiry_date=end, barrier_state="none",
+        )
+        coupons = dict(knock_out_coupon_rates=[0.073, 0.083], maturity_coupon_rate=0.073)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0, volatility=0.3
+            ),
+            spot_price=100.25, valuation_time=start, calendar=all_days_calendar(),
+        )
+        for mode in ("at_expiry", "every_trading_day"):
+            knock_in = dict(knock_in_level=99, knock_in_observation_mode=mode)
+            cases = (
+                (PhoenixOption, dict(
+                    **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
+                    coupon_rate=0.073, coupon_barrier_levels=[90, 90],
+                ), pricing.FiniteDifferencePhoenixEngine),
+                (SnowballOption, dict(
+                    **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=100,
+                ), pricing.FiniteDifferenceSnowballEngine),
+                (BinarySnowballOption, coupons, pricing.FiniteDifferenceBinarySnowballEngine),
+                (TernarySnowballOption, dict(
+                    **knock_in, **coupons, minimum_coupon_rate=0,
+                ), pricing.FiniteDifferenceTernarySnowballEngine),
+            )
+            for kind, terms, engine_type in cases:
+                note = kind(**common, **terms)
+                for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                    engine = engine_type(asset_step_count=16, time_step_count=8, scheme=scheme)
+                    quote = engine.price(note, context)
+                    conventions = ({},) if kind is PhoenixOption else (
+                        {"quote_convention": "shift_maturity_coupon"},
+                        {"quote_convention": "preserve_maturity_coupon"},
+                    )
+                    for convention in conventions:
+                        alternate_terms = dict(terms)
+                        if kind is PhoenixOption:
+                            alternate_terms["coupon_rate"] = 0.12
+                        else:
+                            alternate_terms["knock_out_coupon_rates"] = [0.12, 0.13]
+                            if convention["quote_convention"] == "shift_maturity_coupon":
+                                alternate_terms["maturity_coupon_rate"] = 0.12
+                        alternate_quote = engine.price(kind(**common, **alternate_terms), context)
+
+                        def solve(observed_price):
+                            return pricing.implied_coupon(
+                                engine, note, context, observed_price, lower_bound=0, upper_bound=0.2,
+                                price_tolerance=1e-12, parameter_tolerance=1e-12, **convention,
+                            )
+
+                        with self.subTest(kind=kind, mode=mode, scheme=scheme, convention=convention):
+                            with ThreadPoolExecutor(max_workers=2) as pool:
+                                results = list(pool.map(solve, (quote, alternate_quote)))
+                            self.assertAlmostEqual(results[0], 0.073, delta=1e-9)
+                            self.assertAlmostEqual(results[1], 0.12, delta=1e-9)
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                pricing.implied_coupon(
+                                    engine, note, context, quote, lower_bound=0.2,
+                                    upper_bound=0, **convention,
+                                )
+                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                            self.assertEqual(solve(quote), results[0])
+
     def test_autocallable_requests_revalidate_contracts_and_calendars(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         dates = [start + timedelta(days=index) for index in range(1, 13)]

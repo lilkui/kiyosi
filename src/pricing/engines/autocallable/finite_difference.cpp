@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
 
 #include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -26,19 +27,29 @@ struct ObservationEvent {
     std::size_t index;
 };
 
-} // namespace
+// Reuse only across coupon changes to the same contract, context and settings.
+struct AutocallableFiniteDifferenceWorkspace {
+    std::optional<SpatialGrid> space;
+    std::optional<LinearBoundaryStepper> stepper;
+    std::optional<bool> daily_grid;
+    FiniteDifferenceTimeGrid grid;
+    std::vector<ObservationEvent> observation_events;
+    std::vector<double> trading_times;
+    std::vector<double> alive, next_alive, knocked_in, next_knocked_in, curvature;
+};
 
 template <typename Note>
-Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
-    const Note& note, const PricingContext& context, bool& contract_validated,
-    GreeksRequest output, double spot_shift) const
+Result<PricingResult> price_autocallable(
+    const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
+    bool& contract_validated, GreeksRequest output, double spot_shift,
+    AutocallableFiniteDifferenceWorkspace& workspace)
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
     if (!expiry_valid) return std::unexpected(expiry_valid.error());
     auto settings_valid = detail::validate_finite_difference_settings(
-        settings_, trading_fd_max_steps, trading_fd_max_steps);
+        settings, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
     if (!contract_validated) {
         const auto note_validation = validate_autocallable_note(note);
@@ -60,47 +71,58 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
                                     {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
 
     const double spot = context.spot_price();
-    const double relevant = highest_finite_difference_level(note, context);
-    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(note, context), {relevant});
-    if (!space) return std::unexpected(space.error());
+    if (!workspace.space) {
+        const double relevant = highest_finite_difference_level(note, context);
+        const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(note, context), {relevant});
+        if (!space) return std::unexpected(space.error());
+        workspace.space = *space;
+    }
+    const auto& space = workspace.space;
 
     const Timestamp valuation = context.valuation_time();
     const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
 
-    std::vector<Date> anchors;
-    std::vector<ObservationEvent> observation_events;
-    observation_events.reserve(note.observation_dates().size());
-    for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-        const Date value = note.observation_dates()[index];
-        if (value <= valuation) continue;
-        const double time = actual_365_fixed_year_fraction(valuation, value);
-        observation_events.push_back({time, index});
-        anchors.push_back(value);
-    }
     constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
     bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
     if constexpr (monitors_knock_in)
         monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
     const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in &&
                                       program_knock_in_affects_payoff(program);
-    std::vector<double> trading_times;
     // Explicit-Euler stability can require daily subdivisions even without a knock-in layer.
-    if (monitors_daily && (needs_knock_in_layer || settings_.scheme == FiniteDifferenceScheme::explicit_euler)) {
-        const auto future_trading_dates =
-            trading_dates(context.calendar(), valuation, note.expiry_date());
-        trading_times.reserve(future_trading_dates.size());
-        for (const Date value : future_trading_dates) {
+    const bool daily_grid = monitors_daily && (needs_knock_in_layer || settings.scheme == FiniteDifferenceScheme::explicit_euler);
+    auto& observation_events = workspace.observation_events;
+    auto& trading_times = workspace.trading_times;
+    auto& grid = workspace.grid;
+    // Coupon shifts can remove knock-in exposure and change the required time grid.
+    if (workspace.daily_grid != daily_grid) {
+        std::vector<Date> anchors;
+        observation_events.clear();
+        observation_events.reserve(note.observation_dates().size());
+        for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
+            const Date value = note.observation_dates()[index];
+            if (value <= valuation) continue;
             const double time = actual_365_fixed_year_fraction(valuation, value);
-            trading_times.push_back(time);
+            observation_events.push_back({time, index});
             anchors.push_back(value);
         }
+        trading_times.clear();
+        if (daily_grid) {
+            const auto future_trading_dates = trading_dates(context.calendar(), valuation, note.expiry_date());
+            trading_times.reserve(future_trading_dates.size());
+            for (const Date value : future_trading_dates) {
+                const double time = actual_365_fixed_year_fraction(valuation, value);
+                trading_times.push_back(time);
+                anchors.push_back(value);
+            }
+        }
+        grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings.time_step_count, std::move(anchors));
+        workspace.daily_grid = daily_grid;
     }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings_.time_step_count, std::move(anchors));
-    if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, dividend, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 
@@ -115,8 +137,12 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
 
     const std::size_t size = space->size();
     const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
-    std::vector<double> alive(size), next_alive(size);
-    std::vector<double> knocked_in, next_knocked_in; // NOLINT(misc-const-correctness): used for knock-in note types.
+    auto& alive = workspace.alive;
+    auto& next_alive = workspace.next_alive;
+    auto& knocked_in = workspace.knocked_in;
+    auto& next_knocked_in = workspace.next_knocked_in;
+    alive.resize(size);
+    next_alive.resize(size);
     if (needs_knock_in_layer) {
         knocked_in.resize(size);
         next_knocked_in.resize(size);
@@ -141,9 +167,10 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         }
     }
 
-    LinearBoundaryStepper stepper(
-        size, space->upper, space->spacing,
-        DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
+    if (!workspace.stepper)
+        workspace.stepper.emplace(size, space->upper, space->spacing,
+                                  DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
+    auto& stepper = *workspace.stepper;
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double dt = grid.time_steps[step];
         const bool advanced = [&] {
@@ -189,7 +216,8 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
         if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
     }
 
-    std::vector<double> curvature;
+    auto& curvature = workspace.curvature;
+    curvature.clear();
     const double value = initial.path.coupons + space->interpolate(alive, spot, curvature);
     std::optional<double> speed;
     if (output.has(Greek::speed)) {
@@ -206,6 +234,72 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
                                 {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt},
                                 {Greek::speed, speed}});
+}
+
+template <typename Note, typename ReplaceCoupon>
+Result<double> solve_coupon(
+    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
+{
+    AutocallableFiniteDifferenceWorkspace workspace;
+    bool contract_validated = false;
+    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
+                                         [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+                                             return detail::price_value(price_autocallable(
+                                                 instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
+                                                 NumericalShiftSettings{}.spot_shift, workspace));
+                                         });
+}
+
+} // namespace
+
+template <typename Note>
+Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
+    const Note& note, const PricingContext& context, bool& contract_validated,
+    GreeksRequest output, double spot_shift) const
+{
+    AutocallableFiniteDifferenceWorkspace workspace;
+    return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
+}
+
+template <>
+Result<double> implied_coupon<FiniteDifferenceSnowballEngine, SnowballOption>(
+    const FiniteDifferenceSnowballEngine& engine, const SnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
+        return detail::replace_coupon(note, coupon, convention);
+    });
+}
+
+template <>
+Result<double> implied_coupon<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(
+    const FiniteDifferenceBinarySnowballEngine& engine, const BinarySnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
+        return detail::replace_coupon(note, coupon, convention);
+    });
+}
+
+template <>
+Result<double> implied_coupon<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(
+    const FiniteDifferenceTernarySnowballEngine& engine, const TernarySnowballOption& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& note, double coupon) {
+        return detail::replace_coupon(note, coupon, convention);
+    });
+}
+
+template <>
+Result<double> implied_coupon<FiniteDifferencePhoenixEngine, PhoenixOption>(
+    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings)
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [](const auto& note, double coupon) {
+        return detail::replace_coupon(note, coupon);
+    });
 }
 
 template <typename Note>
