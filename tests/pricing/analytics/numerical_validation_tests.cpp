@@ -16,6 +16,37 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Autocallable discontinuities use only the current observation", "[autocallable-boundaries]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const std::vector<Date> dates{day(2025, 1, 3), day(2025, 1, 8), end};
+    for (const auto state : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in, AutocallableBarrierState::knocked_out}) {
+        const auto note = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0,
+                                                .knock_in_level = 70.0, .knock_out_levels = {110.0, 120.0, 130.0},
+                                                .coupon_barrier_levels = {90.0, 95.0, 100.0}, .upper_strike = 100.0,
+                                                .lower_strike = 60.0, .observation_dates = dates, .barrier_state = state,
+                                                .effective_date = start, .expiry_date = end});
+        const auto crosses = [&](Date date, double spot, bool intraday = false) {
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot,
+                                                       start_of_day(date) + std::chrono::hours{intraday ? 12 : 0}, all_days_calendar());
+            return detail::at_spot_discontinuity(note, context, 0.01);
+        };
+        const bool active = state != AutocallableBarrierState::knocked_out;
+        for (std::size_t i = 0; i < dates.size(); ++i) {
+            CHECK(crosses(dates[i], note.knock_out_levels()[i]) == active);
+            CHECK(crosses(dates[i], note.coupon_barrier_levels()[i]) == active);
+            CHECK_FALSE(crosses(dates[i], note.knock_out_levels()[i], true));
+            CHECK_FALSE(crosses(dates[i], note.knock_out_levels()[i] + 1.0));
+        }
+        for (const auto date : {start, dates[0] + std::chrono::days{1}, dates[1] + std::chrono::days{1}}) {
+            CHECK_FALSE(crosses(date, 110.0));
+            CHECK_FALSE(crosses(date, 90.0));
+            CHECK(crosses(date, 70.0) == (state == AutocallableBarrierState::none));
+        }
+    }
+}
+
 TEST_CASE("Unavailable scalar speed skips spot valuations", "[scalar-speed]")
 {
     using namespace kiyosi;

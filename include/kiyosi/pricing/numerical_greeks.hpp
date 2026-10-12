@@ -115,8 +115,10 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context, 
     }
     if constexpr (requires { option.knock_out_levels(); option.barrier_state(); }) {
         if (option.barrier_state() == AutocallableBarrierState::knocked_out) return false;
-        for (std::size_t index = 0; index < option.observation_dates().size(); ++index) {
-            if (option.observation_dates()[index] != context.valuation_date()) continue;
+        const auto& dates = option.observation_dates();
+        const auto found = std::lower_bound(dates.begin(), dates.end(), context.valuation_date());
+        if (found != dates.end() && *found == context.valuation_date()) {
+            const auto index = static_cast<std::size_t>(found - dates.begin());
             if (crosses(option.knock_out_levels()[index])) return true;
             if (spot > option.knock_out_levels()[index]) return false;
             if constexpr (requires { option.coupon_barrier_levels(); })
