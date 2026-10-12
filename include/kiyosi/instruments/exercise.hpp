@@ -5,11 +5,6 @@
 
 namespace kiyosi {
 
-/// Requirement for a value type used as an option exercise-style tag.
-template <typename Value>
-concept OptionExercise = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                         std::equality_comparable<std::remove_cvref_t<Value>>;
-
 /// Tag for exercise only at expiry.
 struct EuropeanExercise {
     /// All European-exercise tags compare equal.
@@ -21,5 +16,10 @@ struct AmericanExercise {
     /// All American-exercise tags compare equal.
     friend bool operator==(const AmericanExercise&, const AmericanExercise&) = default;
 };
+
+/// Exercise styles whose semantics are defined by the core.
+template <typename Value>
+concept OptionExercise = std::same_as<std::remove_cvref_t<Value>, EuropeanExercise> ||
+                         std::same_as<std::remove_cvref_t<Value>, AmericanExercise>;
 
 } // namespace kiyosi

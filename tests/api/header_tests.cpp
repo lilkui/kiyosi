@@ -41,6 +41,26 @@
 
 namespace {
 
+struct UnrecognizedOptionTag {
+    friend bool operator==(const UnrecognizedOptionTag&, const UnrecognizedOptionTag&) = default;
+};
+
+template <typename Payoff, typename Exercise>
+concept CanFormOption = requires { typename kiyosi::ExerciseBasedOption<Payoff, Exercise>; };
+
+static_assert(kiyosi::OptionPayoff<kiyosi::VanillaPayoff>);
+static_assert(kiyosi::OptionPayoff<const kiyosi::CashOrNothingPayoff&>);
+static_assert(kiyosi::OptionPayoff<kiyosi::AssetOrNothingPayoff>);
+static_assert(kiyosi::OptionExercise<const kiyosi::EuropeanExercise&>);
+static_assert(kiyosi::OptionExercise<kiyosi::AmericanExercise>);
+static_assert(!kiyosi::OptionPayoff<int>);
+static_assert(!kiyosi::OptionExercise<int>);
+static_assert(!kiyosi::OptionPayoff<UnrecognizedOptionTag>);
+static_assert(!kiyosi::OptionExercise<UnrecognizedOptionTag>);
+static_assert(CanFormOption<kiyosi::VanillaPayoff, kiyosi::EuropeanExercise>);
+static_assert(!CanFormOption<int, kiyosi::EuropeanExercise>);
+static_assert(!CanFormOption<kiyosi::VanillaPayoff, UnrecognizedOptionTag>);
+
 template <typename Engine, typename Option>
 concept CanPrice = requires(
     const Engine& engine, const Option& option, const kiyosi::PricingContext& context) {

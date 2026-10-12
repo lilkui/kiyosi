@@ -11,11 +11,6 @@
 
 namespace kiyosi {
 
-/// Requirement for a value type used as an option payoff tag.
-template <typename Value>
-concept OptionPayoff = std::copy_constructible<std::remove_cvref_t<Value>> &&
-                       std::equality_comparable<std::remove_cvref_t<Value>>;
-
 /// Tag for a standard call or put payoff.
 struct VanillaPayoff {
     /// All vanilla-payoff tags compare equal.
@@ -53,6 +48,12 @@ private:
     double payout_;
     friend Result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double);
 };
+
+/// Payoff tags whose semantics are defined by the core.
+template <typename Value>
+concept OptionPayoff = std::same_as<std::remove_cvref_t<Value>, VanillaPayoff> ||
+                       std::same_as<std::remove_cvref_t<Value>, CashOrNothingPayoff> ||
+                       std::same_as<std::remove_cvref_t<Value>, AssetOrNothingPayoff>;
 
 [[nodiscard]] inline Result<CashOrNothingPayoff> detail::make_cash_or_nothing_payoff(double payout)
 {
