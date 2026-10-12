@@ -21,6 +21,61 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        common = dict(
+            knock_out_levels=[101, 100, 99],
+            observation_dates=[date(2025, 1, 3), date(2025, 1, 8), end],
+            effective_date=start, expiry_date=end, barrier_state="none",
+        )
+        coupons = dict(knock_out_coupon_rates=[0.08] * 3, maturity_coupon_rate=0.06)
+
+        def context(volatility):
+            return PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.04, dividend_yield=0.01, volatility=volatility
+                ),
+                spot_price=100.25, valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+                calendar=all_days_calendar(),
+            )
+
+        base = context(0.27)
+        bounds = dict(lower_bound=0.1, upper_bound=0.4, price_tolerance=1e-12)
+        for mode in ("at_expiry", "every_trading_day"):
+            knock_in = dict(knock_in_level=99, knock_in_observation_mode=mode)
+            cases = (
+                (PhoenixOption, dict(
+                    **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
+                    coupon_rate=0.08, coupon_barrier_levels=[100, 99, 98],
+                ), pricing.FiniteDifferencePhoenixEngine),
+                (SnowballOption, dict(
+                    **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=60,
+                ), pricing.FiniteDifferenceSnowballEngine),
+                (BinarySnowballOption, coupons, pricing.FiniteDifferenceBinarySnowballEngine),
+                (TernarySnowballOption, dict(
+                    **knock_in, **coupons, minimum_coupon_rate=0.02,
+                ), pricing.FiniteDifferenceTernarySnowballEngine),
+            )
+            for kind, terms, engine_type in cases:
+                note = kind(**common, **terms)
+                for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
+                    with self.subTest(kind=kind, mode=mode, scheme=scheme):
+                        engine = engine_type(asset_step_count=32, time_step_count=64, scheme=scheme)
+                        quotes = [engine.price(note, context(volatility)) for volatility in (0.17, 0.33)]
+
+                        def solve(quote):
+                            return pricing.implied_volatility(engine, note, base, quote, **bounds)
+
+                        expected = [solve(quote) for quote in quotes]
+                        for quote, volatility in zip(quotes, expected):
+                            self.assertAlmostEqual(engine.price(note, context(volatility)), quote, delta=1e-10)
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            solve(1e10)
+                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY)
+                        with ThreadPoolExecutor(max_workers=2) as pool:
+                            recovered = list(pool.map(solve, quotes))
+                        self.assertEqual(recovered, expected)
+
     def test_finite_difference_coupon_requests_preserve_layer_changes_and_isolation(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         common = dict(

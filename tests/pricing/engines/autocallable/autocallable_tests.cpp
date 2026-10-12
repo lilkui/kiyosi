@@ -235,6 +235,62 @@ TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated w
           [](auto settings) { return MonteCarloBinarySnowballEngine{settings}; });
 }
 
+TEST_CASE("Autocallable FD volatility workspaces preserve independent trials", "[fd-implied-workspace]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const std::vector<Date> observations{day(2025, 1, 3), day(2025, 1, 8), end};
+    const auto context = [&](double volatility) {
+        return *make_pricing_context(*make_bsm_parameters(0.04, 0.01, volatility), 100.25,
+                                     start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+    };
+    const auto base = context(0.27);
+    const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4, .price_tolerance = 1e-12};
+    const auto check = [&](const auto& note) {
+        using Note = std::remove_cvref_t<decltype(note)>;
+        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
+            CAPTURE(scheme);
+            const FiniteDifferenceAutocallableEngine<Note> engine{32, 64, scheme};
+            std::array<double, 2> quotes{}, solutions{};
+            for (std::size_t index = 0; index < quotes.size(); ++index) {
+                const double volatility = index == 0 ? 0.17 : 0.33;
+                const auto quote = engine.price(note, context(volatility));
+                REQUIRE(quote);
+                quotes[index] = *quote;
+                const auto expected = detail::solve_implied_volatility(
+                    engine, note, base, *quote, bounds,
+                    [](const auto& scalar, const auto& instrument, const auto& shifted) {
+                        return scalar.price(instrument, shifted);
+                    });
+                const auto actual = implied_volatility(engine, note, base, *quote, bounds);
+                REQUIRE(expected);
+                REQUIRE(actual);
+                CHECK(*actual == *expected);
+                solutions[index] = *actual;
+                const auto repriced = engine.price(note, context(*actual));
+                REQUIRE(repriced);
+                CHECK(*repriced == Catch::Approx(*quote).margin(1e-10));
+            }
+            const auto rejected = implied_volatility(engine, note, base, 1e10, bounds);
+            REQUIRE_FALSE(rejected);
+            CHECK(rejected.error().category == ErrorCategory::unbracketed_volatility);
+            auto first = std::async(std::launch::async, [&] { return implied_volatility(engine, note, base, quotes[0], bounds); });
+            const auto second = implied_volatility(engine, note, base, quotes[1], bounds);
+            const auto recovered = first.get();
+            REQUIRE(recovered);
+            REQUIRE(second);
+            CHECK(*recovered == solutions[0]);
+            CHECK(*second == solutions[1]);
+        }
+    };
+    for (const auto mode : {KnockInObservationMode::every_trading_day, KnockInObservationMode::at_expiry}) {
+        check(*make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+        check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .coupon_barrier_levels = {100.0, 99.0, 98.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+        check(*make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+    }
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {101.0, 100.0, 99.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+}
+
 TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autocallable-shared-samples]")
 {
     using namespace kiyosi;

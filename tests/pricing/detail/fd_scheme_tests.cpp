@@ -85,6 +85,25 @@ TEST_CASE("Finite-difference spline interpolation stays within neighboring payof
     }
 }
 
+TEST_CASE("Linear boundary steppers refresh parameters without retaining old operators", "[fd-implied-workspace]")
+{
+    using namespace kiyosi::detail;
+    const std::vector<double> first{1.0, 1.2, 1.5, 2.1, 3.0}, second{2.0, 1.5, 1.0, 0.5, 0.0};
+    std::vector<double> actual(first.size()), expected(first.size()), actual_second(first.size()), expected_second(first.size());
+    LinearBoundaryStepper reused(first.size(), 4.0, 1.0, {0.04, 0.01, 0.2, 0.5});
+    for (const auto parameters : {DiffusionParameters{0.04, 0.01, 0.2, 0.5}, {0.1, -0.02, 0.7, 1.0}, {0.04, 0.01, 0.2, 0.5}}) {
+        reused.set_parameters(parameters);
+        LinearBoundaryStepper fresh(first.size(), 4.0, 1.0, parameters);
+        REQUIRE(reused.advance(first, actual, 0.01));
+        REQUIRE(fresh.advance(first, expected, 0.01));
+        CHECK(actual == expected);
+        REQUIRE(reused.advance_pair(first, actual, second, actual_second, 0.01));
+        REQUIRE(fresh.advance_pair(first, expected, second, expected_second, 0.01));
+        CHECK(actual == expected);
+        CHECK(actual_second == expected_second);
+    }
+}
+
 TEST_CASE("Finite-difference grids reject zero spacing while preserving small positive spacing", "[audit-fixes]")
 {
     const double tiny = std::numeric_limits<double>::denorm_min();

@@ -27,7 +27,7 @@ struct ObservationEvent {
     std::size_t index;
 };
 
-// Reuse only across coupon changes to the same contract, context and settings.
+// Reuse only across coupon or volatility changes; all other inputs must stay fixed.
 struct AutocallableFiniteDifferenceWorkspace {
     std::optional<SpatialGrid> space;
     std::optional<LinearBoundaryStepper> stepper;
@@ -171,6 +171,7 @@ Result<PricingResult> price_autocallable(
         workspace.stepper.emplace(size, space->upper, space->spacing,
                                   DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
     auto& stepper = *workspace.stepper;
+    stepper.set_parameters({rate, dividend, sigma, scheme_theta(settings.scheme)});
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double dt = grid.time_steps[step];
         const bool advanced = [&] {
@@ -256,11 +257,10 @@ Result<double> solve_volatility(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
+    AutocallableFiniteDifferenceWorkspace workspace;
     bool contract_validated = false;
     return detail::solve_implied_volatility(engine, note, context, observed_price, settings,
                                             [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
-                                                // Volatility changes require fresh numerical operators for each trial.
-                                                AutocallableFiniteDifferenceWorkspace workspace;
                                                 return detail::price_value(price_autocallable(
                                                     instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
                                                     NumericalShiftSettings{}.spot_shift, workspace));

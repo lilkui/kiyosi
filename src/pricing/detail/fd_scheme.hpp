@@ -250,6 +250,8 @@ public:
     LinearBoundaryStepper(std::size_t size, double upper, double spacing, DiffusionParameters parameters)
         : step_(size), upper_(upper), spacing_(spacing), parameters_(parameters) {}
 
+    void set_parameters(DiffusionParameters parameters) { parameters_ = parameters; }
+
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt)
     {
         const Boundaries edges = boundary_values(old, dt);
