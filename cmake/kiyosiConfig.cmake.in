@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-if(@KIYOSI_ENABLE_CUDA@)
+if(@KIYOSI_ENABLE_CUDA@ AND NOT "@BUILD_SHARED_LIBS@")
     include(CMakeFindDependencyMacro)
     find_dependency(CUDAToolkit)
 endif()
