@@ -218,18 +218,11 @@ Result<std::array<double, count>> price_spot_bumps(
             return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
         } else {
-            std::array<MonteCarloMean, count> means{};
-            std::mt19937_64 generator{*settings.seed};
-            for (int path = 0; path < settings.path_count; ++path) {
-                // Each path keeps its scalar stream even when spot bumps knock out on different dates.
-                Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-                const auto payoffs = path_payoffs(program, *inputs, initial, path_generator);
-                if (!payoffs) return std::unexpected(payoffs.error());
-                for (std::size_t i = 0; i < count; ++i)
-                    if (!initial[i].payoff) means[i].add((*payoffs)[i]);
-            }
-            for (std::size_t i = 0; i < count; ++i)
-                prices[i] = means[i].value();
+            const auto values = cpu_path_means<count>(settings, [&](auto& generator) {
+                return path_payoffs(program, *inputs, initial, generator);
+            });
+            if (!values) return std::unexpected(values.error());
+            prices = *values;
         }
     }
     for (std::size_t i = 0; i < count; ++i) {
@@ -267,20 +260,16 @@ Result<std::array<double, 3>> price_rate_bumps(
         }
         initial[i] = {shifted->spot_price(), state.path, fixed};
     }
-    std::array<MonteCarloMean, 3> means{};
-    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
-        std::mt19937_64 generator{*settings.seed};
-        for (int path = 0; path < settings.path_count; ++path) {
-            Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-            const auto payoffs = path_payoffs(program, inputs, initial, path_generator);
-            if (!payoffs) return std::unexpected(payoffs.error());
-            for (std::size_t i = 0; i < means.size(); ++i)
-                if (!initial[i].payoff) means[i].add((*payoffs)[i]);
-        }
-    }
     std::array<double, 3> prices{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        const auto values = cpu_path_means<3>(settings, [&](auto& generator) {
+            return path_payoffs(program, inputs, initial, generator);
+        });
+        if (!values) return std::unexpected(values.error());
+        prices = *values;
+    }
     for (std::size_t i = 0; i < prices.size(); ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : means[i].value());
+        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
         if (!value) return std::unexpected(value.error());
         prices[i] = *value;
     }
@@ -428,19 +417,14 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
         return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
     }
-    std::mt19937_64 generator(settings.seed ? *settings.seed : std::random_device{}());
-    std::array<MonteCarloMean, 2> means{};
-    for (int path = 0; path < settings.path_count; ++path) {
-        Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-        const auto payoff = coupon_path_payoffs(context.spot_price(), program, *inputs, initial.path,
-                                               path_generator, alternate_program, alternate_initial.path);
-        if (!payoff) return std::unexpected(payoff.error());
-        for (std::size_t i = 0; i < means.size(); ++i)
-            means[i].add((*payoff)[i]);
-    }
+    const auto values = cpu_path_means<2>(settings, [&](auto& generator) {
+        return coupon_path_payoffs(context.spot_price(), program, *inputs, initial.path,
+                                   generator, alternate_program, alternate_initial.path);
+    });
+    if (!values) return std::unexpected(values.error());
     std::array<double, 2> prices{};
     for (std::size_t i = 0; i < prices.size(); ++i) {
-        const auto price = checked_price(means[i].value());
+        const auto price = checked_price((*values)[i]);
         if (!price) return std::unexpected(price.error());
         prices[i] = *price;
     }

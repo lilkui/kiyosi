@@ -148,19 +148,35 @@ Result<PricingResult> complete_monte_carlo_greeks(
     return complete_greeks(prices, option, context, greeks, settings, *native);
 }
 
-template <typename PathPayoff>
-Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
+template <std::size_t count, typename PathPayoffs>
+Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs)
 {
     std::mt19937_64 generator(settings.seed ? *settings.seed : std::random_device{}());
-    MonteCarloMean mean{};
+    std::array<MonteCarloMean, count> means{};
     for (int path = 0; path < settings.path_count; ++path) {
         // Early termination must not change the random draws of later paths.
         Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-        const auto payoff = path_payoff(path_generator);
-        if (!payoff) return std::unexpected(payoff.error());
-        mean.add(*payoff);
+        const auto payoffs = path_payoffs(path_generator);
+        if (!payoffs) return std::unexpected(payoffs.error());
+        for (std::size_t i = 0; i < count; ++i)
+            means[i].add((*payoffs)[i]);
     }
-    return checked_price(mean.value());
+    std::array<double, count> prices{};
+    for (std::size_t i = 0; i < count; ++i)
+        prices[i] = means[i].value();
+    return prices;
+}
+
+template <typename PathPayoff>
+Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
+{
+    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) -> Result<std::array<double, 1>> {
+        const auto payoff = path_payoff(generator);
+        if (!payoff) return std::unexpected(payoff.error());
+        return std::array{*payoff};
+    });
+    if (!prices) return std::unexpected(prices.error());
+    return checked_price((*prices)[0]);
 }
 
 inline Result<CudaSimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)

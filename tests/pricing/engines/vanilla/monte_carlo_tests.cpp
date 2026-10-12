@@ -158,6 +158,36 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
     }
 }
 
+TEST_CASE("CPU path batches preserve scalar streams and propagate payoff failures", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const TradingDayMonteCarloSettings settings{16, 42};
+    const auto scalar = detail::cpu_path_mean(settings, [](auto& generator) -> Result<double> {
+        return static_cast<double>(generator());
+    });
+    const auto batch = detail::cpu_path_means<2>(settings, [](auto& generator) -> Result<std::array<double, 2>> {
+        const auto first = generator();
+        for (std::uint32_t draw = 0; draw < first % 7; ++draw)
+            static_cast<void>(generator());
+        return std::array{static_cast<double>(first), 10.0};
+    });
+    REQUIRE(scalar);
+    REQUIRE(batch);
+    CHECK((*batch)[0] == *scalar);
+    CHECK((*batch)[1] == 10.0);
+
+    int calls = 0;
+    const auto failed = detail::cpu_path_means<2>(settings, [&](auto&) -> Result<std::array<double, 2>> {
+        if (++calls == 3)
+            return std::unexpected(Error{ErrorCategory::invalid_schedule, "payoff failed"});
+        return std::array{1.0, 2.0};
+    });
+    REQUIRE_FALSE(failed);
+    CHECK(failed.error().category == ErrorCategory::invalid_schedule);
+    CHECK(failed.error().message == "payoff failed");
+    CHECK(calls == 3);
+}
+
 TEST_CASE("Monte Carlo sample accumulation matches partial merging across scales", "[mc-mean]")
 {
     using kiyosi::detail::MonteCarloMean;
