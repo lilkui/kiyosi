@@ -290,6 +290,24 @@ TEST_CASE("Finite-difference gamma preserves monetary scaling", "[audit-fixes]")
     }
 }
 
+TEST_CASE("Numerical charm preserves large monetary scaling", "[audit-fixes]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
+    const auto evaluate = [&](double scale) {
+        const auto option = *make_european_option(OptionType::call, 100.0 * scale, start, end);
+        const auto market = *make_pricing_context(parameters, 100.0 * scale, day(2025, 6, 1));
+        return calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market, {.spot_shift = 70.0 * scale});
+    };
+    const auto baseline = evaluate(1.0);
+    const auto scaled = evaluate(1e306);
+    REQUIRE(baseline);
+    REQUIRE(scaled);
+    REQUIRE(std::abs(greek_value(*baseline, Greek::charm)) > 1e-5);
+    check_close(greek_value(*scaled, Greek::charm), greek_value(*baseline, Greek::charm), 0.0, 1e-9);
+}
+
 TEST_CASE("Numerical spot-shift powers preserve representable Greeks", "[audit-fixes]")
 {
     using namespace kiyosi;

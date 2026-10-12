@@ -440,7 +440,7 @@ Result<PricingResult> complete_greeks(
                                                    engine, option, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
                 if (need(Greek::charm) && !native_charm) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
-                                                                 (2.0 * h * day_scale);
+                                                                 h / day_scale / 2.0;
                 if (need(Greek::color) && !native_color) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
                                                                    (*d_before - 2.0 * *t_before + *d_before_low)) /
                                                                   h / h / day_scale);

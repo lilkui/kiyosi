@@ -29,6 +29,29 @@ from kiyosi.market import (
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_numerical_charm_preserves_large_monetary_scaling(self):
+        def charm(scale):
+            option = EuropeanOption(
+                option_type="call",
+                strike=100 * scale,
+                effective_date=date(2025, 1, 1),
+                expiry_date=date(2026, 1, 1),
+            )
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+                ),
+                spot_price=100 * scale,
+                valuation_time=date(2025, 6, 1),
+            )
+            return pricing.calculate_numerical_greeks(
+                pricing.AnalyticVanillaEngine(), option, context, spot_shift=70 * scale
+            ).charm
+
+        baseline = charm(1.0)
+        self.assertGreater(abs(baseline), 1e-5)
+        self.assertTrue(math.isclose(charm(1e306), baseline, rel_tol=1e-9))
+
     def test_scheduled_fd_greeks_preserve_scalar_stencils_and_failures(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         dates = [
