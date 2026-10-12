@@ -178,6 +178,14 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto dense_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dense_dates, .touch_state = BarrierTouchState::untouched});
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
+    const auto dense_snowball = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08), .maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dense_dates.size(), 1'000.0), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dense_dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry});
+    const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
+    const MonteCarloSnowballEngine dense_monte_carlo{1, 42};
+    const FiniteDifferenceSnowballEngine dense_finite_difference{80, 1};
+    register_price("analytics/kiyosi/snowball/mc/scheduled_dense/price", dense_snowball, dense_monte_carlo, dense_context);
+    register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
+    register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
+    register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/vega_rho", [=] { return dense_finite_difference.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     const auto upper_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out});
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};

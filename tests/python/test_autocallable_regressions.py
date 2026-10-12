@@ -1,5 +1,6 @@
 import unittest
-from datetime import UTC, date, datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, date, datetime, timedelta
 
 import kiyosi
 from kiyosi import pricing
@@ -20,6 +21,97 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_autocallable_requests_revalidate_contracts_and_calendars(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        dates = [start + timedelta(days=index) for index in range(1, 13)]
+        common = dict(
+            knock_out_levels=[110] * len(dates),
+            observation_dates=dates,
+            effective_date=start,
+            expiry_date=end,
+        )
+        coupons = dict(
+            knock_out_coupon_rates=[0.08] * len(dates), maturity_coupon_rate=0.06
+        )
+        downside = dict(
+            initial_spot=100, knock_in_level=99, upper_strike=100, lower_strike=60,
+            knock_in_observation_mode="every_trading_day",
+        )
+        cases = (
+            (BinarySnowballOption, coupons, "BinarySnowball"),
+            (SnowballOption, {**coupons, **downside}, "Snowball"),
+            (
+                TernarySnowballOption,
+                {**coupons, "knock_in_level": 99, "minimum_coupon_rate": 0.02,
+                 "knock_in_observation_mode": "every_trading_day"},
+                "TernarySnowball",
+            ),
+            (
+                PhoenixOption,
+                {**downside, "coupon_rate": 0.08, "coupon_barrier_levels": [100] * len(dates)},
+                "Phoenix",
+            ),
+        )
+
+        def context(rate=0.04, volatility=0.2, calendar=None):
+            return PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=0.01, volatility=volatility
+                ),
+                spot_price=100.25,
+                valuation_time=datetime(2025, 1, 12, 12, tzinfo=UTC),
+                calendar=calendar or all_days_calendar(),
+            )
+
+        base = context()
+        for option_type, terms, name in cases:
+            note = option_type(**common, **terms, barrier_state="none")
+            missing_history = option_type(**common, **terms)
+            engines = (
+                getattr(pricing, f"MonteCarlo{name}Engine")(path_count=31, seed=42),
+                getattr(pricing, f"FiniteDifference{name}Engine")(
+                    asset_step_count=80, time_step_count=1
+                ),
+            )
+            for engine in engines:
+                with self.subTest(engine=type(engine).__name__):
+                    shifts = dict(volatility_shift=0.01, rate_shift=0.01)
+                    result = engine.price_with_greeks(note, base, ["vega", "rho"], **shifts)
+                    self.assertEqual(result.price, engine.price(note, base))
+                    vol_shift = (0.2 + 0.01) - 0.2
+                    self.assertEqual(
+                        result.vega,
+                        (
+                            engine.price(note, context(volatility=0.2 + vol_shift))
+                            - engine.price(note, context(volatility=0.2 - vol_shift))
+                        ) / (200 * vol_shift),
+                    )
+                    rate_shift = (0.04 + 0.01) - 0.04
+                    self.assertEqual(
+                        result.rho,
+                        (
+                            engine.price(note, context(rate=0.04 + rate_shift))
+                            - engine.price(note, context(rate=0.04 - rate_shift))
+                        ) / (200 * rate_shift),
+                    )
+                    for option, shifted, category in (
+                        (note, context(calendar=weekdays_calendar()), kiyosi.ErrorCategory.INVALID_DATE),
+                        (missing_history, base, kiyosi.ErrorCategory.INVALID_PARAMETER),
+                    ):
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            engine.price_with_greeks(option, shifted, ["vega", "rho"])
+                        self.assertEqual(error.exception.category, category)
+                    with ThreadPoolExecutor(max_workers=2) as pool:
+                        results = list(pool.map(
+                            lambda _: engine.price_with_greeks(note, base, ["vega", "rho"], **shifts),
+                            range(2),
+                        ))
+                    for recovered in results:
+                        self.assertEqual(
+                            (recovered.price, recovered.vega, recovered.rho),
+                            (result.price, result.vega, result.rho),
+                        )
+
     def test_shared_spot_simulations_match_separate_seeded_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         terms = {

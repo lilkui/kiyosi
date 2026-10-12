@@ -15,6 +15,7 @@
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
 #include "../../detail/calendar_dates.hpp"
+#include "../../detail/autocallable_pricer.hpp"
 #include "../../detail/math.hpp"
 #include "../monte_carlo_host.hpp"
 
@@ -214,18 +215,22 @@ Result<std::array<double, count>> price_spot_bumps(
     return prices;
 }
 
-} // namespace
-
 template <typename Note>
-Result<void> detail::validate_monte_carlo_autocallable(
-    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
+Result<void> validate_pricing(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    bool& contract_validated)
 {
-    auto note_validation = validate_autocallable_note(note);
-    if (!note_validation) return std::unexpected(note_validation.error());
+    if (!contract_validated) {
+        const auto note_validation = validate_autocallable_note(note);
+        if (!note_validation) return std::unexpected(note_validation.error());
+    }
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
-    if (!schedule) return std::unexpected(schedule.error());
+    if (!contract_validated) {
+        const auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
+        if (!schedule) return std::unexpected(schedule.error());
+        contract_validated = true;
+    }
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
     const auto settings_valid = validate_monte_carlo_settings(settings);
@@ -236,13 +241,13 @@ Result<void> detail::validate_monte_carlo_autocallable(
     return {};
 }
 
-namespace {
 template <typename Note>
 Result<double> price_autocallable(
     const Note& note, const PricingContext& context,
-    const TradingDayMonteCarloSettings& settings, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
+    const TradingDayMonteCarloSettings& settings, bool& contract_validated,
+    [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
-    const auto valid = validate_monte_carlo_autocallable(note, context, settings);
+    const auto valid = validate_pricing(note, context, settings, contract_validated);
     if (!valid) return std::unexpected(valid.error());
 
     const auto program = autocallable_program(note);
@@ -284,18 +289,29 @@ Result<double> implied_volatility_autocallable(
     CudaWorkspace storage;
     workspace = &storage;
 #endif
+    // The solver validates the contract and calendar before invoking any trial.
+    bool contract_validated = true;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& seeded, const auto& instrument, const auto& shifted) {
-                                                return price_autocallable(instrument, shifted, seeded.settings(), workspace);
+                                                return price_autocallable(instrument, shifted, seeded.settings(), contract_validated, workspace);
                                             });
 }
 
 } // namespace
 
 template <typename Note>
+Result<void> detail::validate_monte_carlo_autocallable(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
+{
+    bool contract_validated = false;
+    return validate_pricing(note, context, settings, contract_validated);
+}
+
+template <typename Note>
 Result<double> MonteCarloAutocallableEngine<Note>::price(const Note& note, const PricingContext& context) const
 {
-    return price_autocallable(note, context, settings_);
+    bool contract_validated = false;
+    return price_autocallable(note, context, settings_, contract_validated);
 }
 
 template <>
@@ -397,9 +413,10 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
     return detail::price_with_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {
+            bool contract_validated = false;
             const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
                 const auto native = [&]() -> Result<PricingResult> {
-                    const auto valid = validate_monte_carlo_autocallable(option, context, seeded.settings());
+                    const auto valid = validate_pricing(option, context, seeded.settings(), contract_validated);
                     if (!valid) return std::unexpected(valid.error());
                     const double spot = context.spot_price();
                     const double h = symmetric_shift(spot, settings.spot_shift);
@@ -423,7 +440,7 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
                 const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
                                    context.spot_price() > h && !at_spot_discontinuity(option, context, h);
                 const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
-                    const auto valid = validate_monte_carlo_autocallable(option, shifted, seeded.settings());
+                    const auto valid = validate_pricing(option, shifted, seeded.settings(), contract_validated);
                     if (!valid) return std::unexpected(valid.error());
                     if (center) return price_spot_bumps<3>(option, shifted, seeded.settings(), shift, workspace);
                     const auto values = price_spot_bumps<2>(option, shifted, seeded.settings(), shift, workspace);
@@ -438,12 +455,15 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
 #if KIYOSI_HAS_CUDA
             if (seeded.settings().backend == MonteCarloBackend::cuda) {
                 const CudaMonteCarloPricer prices{[&](const Note& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
-                    return price_autocallable(instrument, shifted, seeded.settings(), workspace);
+                    return price_autocallable(instrument, shifted, seeded.settings(), contract_validated, workspace);
                 }};
                 return calculate(prices, &prices.workspace);
             }
 #endif
-            return calculate(seeded, nullptr);
+            const AutocallablePricer prices{[&](const Note& instrument, const PricingContext& shifted) {
+                return price_autocallable(instrument, shifted, seeded.settings(), contract_validated);
+            }};
+            return calculate(prices, nullptr);
         },
         true);
 }

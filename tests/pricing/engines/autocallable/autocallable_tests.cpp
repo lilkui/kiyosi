@@ -58,6 +58,90 @@ TEST_CASE("Unavailable speed retains structured Monte Carlo spot batching", "[au
     check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}), MonteCarloPhoenixEngine{31, 42});
 }
 
+TEST_CASE("Autocallable requests validate immutable schedules once", "[autocallable-schedule]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    std::vector<Date> dates;
+    for (auto date = start + std::chrono::days{1}; date <= end; date += std::chrono::days{1})
+        dates.push_back(date);
+    std::atomic<int> queries{};
+    std::atomic<bool> allowed{true};
+    const auto calendar = *make_trading_calendar([&](Date date) {
+        if (date != dates.front()) return true;
+        ++queries;
+        return allowed.load();
+    }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(end) - std::chrono::hours{12}, calendar);
+    const auto check = [&](const auto& note) {
+        using Note = std::remove_cvref_t<decltype(note)>;
+        const auto check_engine = [&](const auto& engine) {
+            const auto expected = [&] {
+                if constexpr (std::same_as<decltype(engine.settings()), FiniteDifferenceSettings>)
+                    return detail::price_with_greeks(engine, note, context, true, {},
+                                                     [&](const auto& scalar, const PricingContext& shifted, GreeksRequest) {
+                                                         return scalar.price_with_greeks(note, shifted, {Greek::delta, Greek::gamma, Greek::speed});
+                                                     });
+                else
+                    return detail::price_with_greeks(engine, note, context, true, {});
+            }();
+            REQUIRE(expected);
+            queries = 0;
+            const auto actual = engine.price_with_greeks(note, context, true);
+            REQUIRE(actual);
+            CHECK(actual->price() == expected->price());
+            CHECK(actual->values_view() == expected->values_view());
+            CHECK(queries == 1);
+            queries = 0;
+            auto task = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true); });
+            const auto concurrent = engine.price_with_greeks(note, context, true);
+            const auto first = task.get();
+            REQUIRE(first);
+            REQUIRE(concurrent);
+            CHECK(first->values_view() == actual->values_view());
+            CHECK(concurrent->values_view() == actual->values_view());
+            CHECK(queries == 2);
+            allowed = false;
+            const auto rejected = engine.price_with_greeks(note, context, true);
+            REQUIRE_FALSE(rejected);
+            CHECK(rejected.error().category == ErrorCategory::invalid_date);
+            allowed = true;
+            queries = 0;
+            REQUIRE(engine.price_with_greeks(note, context, true));
+            CHECK(queries == 1);
+            queries = 0;
+            REQUIRE_FALSE(engine.price_with_greeks(note, context, true, {.spot_shift = 0.0}));
+            CHECK(queries == 0);
+        };
+        const MonteCarloAutocallableEngine<Note> engine{31, 42};
+        check_engine(engine);
+        check_engine(FiniteDifferenceAutocallableEngine<Note>{80, 1});
+        const auto quote = engine.price(note, context);
+        REQUIRE(quote);
+        const auto expected = detail::solve_implied_volatility(engine, note, context, *quote, {},
+                                                               [](const auto& scalar, const auto& option, const auto& shifted) {
+                                                                   return scalar.price(option, shifted);
+                                                               });
+        queries = 0;
+        const auto solved = implied_volatility(engine, note, context, *quote);
+        REQUIRE(solved.has_value() == expected.has_value());
+        if (expected) CHECK(*solved == *expected);
+        else CHECK(solved.error().category == expected.error().category);
+        CHECK(queries == 1);
+        allowed = false;
+        const auto rejected = implied_volatility(engine, note, context, *quote);
+        REQUIRE_FALSE(rejected);
+        CHECK(rejected.error().category == ErrorCategory::invalid_date);
+        allowed = true;
+    };
+    const std::vector<double> coupons(dates.size(), 0.08), levels(dates.size(), 110.0);
+    check(*make_snowball_option({.knock_out_coupon_rates = coupons, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = levels, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dates, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+    check(*make_binary_snowball_option({.knock_out_coupon_rates = coupons, .maturity_coupon_rate = 0.06, .knock_out_levels = levels, .observation_dates = dates, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+    check(*make_ternary_snowball_option({.knock_out_coupon_rates = coupons, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_out_levels = levels, .observation_dates = dates, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 99.0, .knock_out_levels = levels, .coupon_barrier_levels = std::vector<double>(dates.size(), 100.0), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dates, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+}
+
 TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated workspaces", "[implied-workspace]")
 {
     using namespace kiyosi;

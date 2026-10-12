@@ -562,3 +562,16 @@ price; the rate batch then simulates only the two shifted trajectories. The
 from 697 to 576 ms. Regression checks compare all results against independent
 seeded prices, including early knock-outs, unavailable spot stencils and a
 fixed base position whose rate bumps still require simulation.
+
+Autocallable Monte Carlo and FD Greek requests validate immutable contract
+terms and the full observation calendar once per request. MC implied-volatility
+trials reuse the solver's contract preflight. Each shifted valuation still
+checks its time, history, settings and trading expiry; later requests validate
+afresh. The `snowball/{mc,fd}/scheduled_dense` cases track price and vega/rho
+on a ten-year schedule near expiry. A 2026-10-12 Release MSVC probe with 3,653
+daily observations, valuation twelve hours before expiry, one MC path (seed 42)
+or an 80-by-1 FD grid reduced calendar queries for vega/rho from 21,924 to
+3,659 (MC) and 18,270 to 3,658 (FD). Median time over seven batches of 50
+requests fell from 528 to 73 us and 486 to 130 us respectively. Independent
+valuations, concurrent calls and calendar rejection/recovery checks preserve
+prices, Greeks and error categories.
