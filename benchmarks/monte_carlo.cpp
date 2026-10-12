@@ -170,6 +170,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
                    FiniteDifferenceAccumulatorEngine{}, weekday_context);
     const FiniteDifferenceSnowballEngine snowball_engine{};
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out});
+    const auto knock_in_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in});
+    register_price("analytics/kiyosi/barrier/analytic/down_and_in/price", knock_in_barrier, AnalyticBarrierEngine{}, base_context);
+    register_price("analytics/kiyosi/barrier/analytic/down_and_out/price", barrier, AnalyticBarrierEngine{}, base_context);
     const FiniteDifferenceBarrierEngine barrier_engine{};
     const Date dense_expiry{std::chrono::year{2035} / 1 / 1};
     std::vector<Date> dense_dates;

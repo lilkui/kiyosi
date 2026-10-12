@@ -42,12 +42,18 @@ Result<double> price_barrier(
     }
     const auto monitoring_valid = validate_analytic_barrier_monitoring(terms, spot, barrier);
     if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
-    const auto vanilla = price_at_volatility(
-        *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
-        sigma, GreeksRequest{});
-    if (!vanilla) return std::unexpected(vanilla.error());
+    const bool strike_above_barrier = option.strike() > barrier;
+    const bool needs_vanilla = knock_in ? upper == strike_above_barrier : upper != strike_above_barrier;
+    double a = 0.0;
+    if (t == 0.0 || needs_vanilla) {
+        const auto vanilla = price_at_volatility(
+            *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()), context,
+            sigma, GreeksRequest{});
+        if (!vanilla) return std::unexpected(vanilla.error());
+        a = vanilla->price();
+    }
     if (t == 0.0) {
-        return checked_price(knock_in ? option.rebate() : vanilla->price());
+        return checked_price(knock_in ? option.rebate() : a);
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = log_price_ratio(barrier, spot);
@@ -76,7 +82,6 @@ Result<double> price_barrier(
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;
     const double phi = call ? 1.0 : -1.0;
-    const double a = vanilla->price();
     // Evaluate only the Reiner-Rubinstein terms needed by this contract.
     const auto b = [&] {
         return phi * scaled_normal_cdf(spot, -dividend * t, phi * x2) - phi * scaled_normal_cdf(x, -rate * t, phi * x2 - phi * root_time);

@@ -585,3 +585,12 @@ or an 80-by-1 FD grid reduced calendar queries for vega/rho from 21,924 to
 requests fell from 528 to 73 us and 486 to 130 us respectively. Independent
 valuations, concurrent calls and calendar rejection/recovery checks preserve
 prices, Greeks and error categories.
+
+Analytic barriers compute the vanilla term only for formula branches that use
+it (and expiry settlement). The `barrier/analytic/down_and_{in,out}/price`
+analytics cases track both paths. On 2026-10-12, Release MSVC 19.51 on a
+Ryzen 7 3700X measured median wall time for the down-and-in call falling from
+357 to 216 ns (seven repetitions, 0.15 s minimum); the down-and-out call that
+still needs vanilla pricing measured 363 versus 349 ns. Prices were unchanged
+at 0.094640762981700322 and 9.2250976922158294. Branch parity, rebate timing,
+tiny volatility, extreme scales, expiry, history and reference-price tests pass.
