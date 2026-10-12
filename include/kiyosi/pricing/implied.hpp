@@ -1,17 +1,12 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
-#include <limits>
 #include <numeric>
 #include <random>
-#include <type_traits>
 #include <utility>
 
-#include <kiyosi/instruments/asian.hpp>
-#include <kiyosi/instruments/accumulator.hpp>
-#include <kiyosi/instruments/autocallable/phoenix.hpp>
-#include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
@@ -19,6 +14,8 @@
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
 #include <kiyosi/pricing/engines/vanilla/binomial.hpp>
+#include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
+#include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
@@ -104,6 +101,13 @@ Result<double> bisect_implied(const Settings& settings, double lower_residual,
     return std::unexpected(Error{ErrorCategory::solver_non_convergence, failure_message});
 }
 
+template <typename Engine, typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const Engine&, const Option&, const PricingContext&, ImpliedVolatilitySettings settings) { return settings; }
+
+template <typename Option>
+bool volatility_affects_price(const Option&, const PricingContext&) { return true; }
+
 // Keep validation and seeding identical when a solver supplies request-local pricing storage.
 template <typename Engine, typename Option, typename Price>
 [[nodiscard]] Result<double> solve_implied_volatility(
@@ -126,31 +130,9 @@ template <typename Engine, typename Option, typename Price>
         }
     }
 
-    if constexpr (std::same_as<Engine, CoxRossRubinsteinVanillaEngine>) {
-        const auto step = detail::binomial_time_step(context, option.effective_date(), option.expiry_date(), engine.settings());
-        if (!step) return std::unexpected(step.error());
-        if (*step > 0.0) {
-            const auto& parameters = context.model_parameters();
-            const double drift = (parameters.risk_free_rate() - parameters.dividend_yield()) * *step;
-            // Round into the valid tree domain so the endpoint probability stays in [0, 1].
-            const double minimum = std::nextafter(std::abs(drift) / std::sqrt(*step),
-                                                  std::numeric_limits<double>::infinity());
-            if (std::isfinite(minimum)) settings.lower_bound = std::max(settings.lower_bound, minimum);
-            if (settings.lower_bound >= settings.upper_bound)
-                return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
-                                             "volatility bounds exclude the binomial tree domain"});
-        }
-    }
-
-    if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; }) {
-        const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
-        if (!valid) return std::unexpected(valid.error());
-        const auto program = detail::autocallable_program(option);
-        const auto initial = detail::autocallable_initial_state(option, context, program);
-        if (!initial.settlement && detail::autocallable_fixed_value(option, context, program, initial))
-            return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                         "volatility does not affect the remaining cashflows"});
-    }
+    const auto prepared = prepare_implied_volatility(engine, option, context, settings);
+    if (!prepared) return std::unexpected(prepared.error());
+    settings = *prepared;
 
     const auto evaluate = [&](double volatility) -> Result<double> {
         auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
@@ -171,52 +153,7 @@ template <typename Engine, typename Option, typename Price>
     const double elo = *flo;
     const double ehi = *fhi;
     // Pricing above validates the contract and history before these state checks.
-    bool identifiable = context.valuation_time() != start_of_day(option.expiry_date()); // NOLINT(misc-const-correctness): later state checks depend on the option type.
-    if constexpr (std::same_as<Option, ArithmeticAveragePriceOption>)
-        identifiable = identifiable && detail::arithmetic_average_adjusted_strike(option, context.valuation_time()) > 0.0;
-    if constexpr (std::same_as<Option, BinarySnowballOption> || std::same_as<Option, TernarySnowballOption> ||
-                  std::same_as<Option, SnowballOption> || std::same_as<Option, PhoenixOption>) {
-        const auto program = detail::autocallable_program(option);
-        const auto initial = detail::autocallable_initial_state(option, context, program);
-        identifiable = identifiable && !initial.settlement &&
-                       !detail::autocallable_fixed_value(option, context, program, initial);
-    }
-    if constexpr (requires { option.accumulated_quantity(); option.daily_quantity(); }) {
-        const bool knocked_out_now = context.valuation_time() == start_of_day(context.valuation_date()) &&
-                                     context.calendar().is_trading_day(context.valuation_date()) &&
-                                     context.spot_price() >= option.knock_out_level();
-        const bool accrues = detail::accumulator_accrues(option);
-        // With zero rates and no new accrual, stopping an accumulated forward preserves its expectation.
-        const bool exposed_quantity = option.accumulated_quantity() != 0.0 &&
-                                      (context.model_parameters().risk_free_rate() != 0.0 ||
-                                       context.model_parameters().dividend_yield() != 0.0);
-        identifiable = identifiable && !knocked_out_now && (accrues || exposed_quantity);
-    }
-    if constexpr (requires { option.barrier_terms(); }) {
-        const auto& terms = option.barrier_terms();
-        const bool touched = *terms.was_touched_before(context.valuation_time()) ||
-                             (terms.is_monitored_at(context.valuation_time()) &&
-                              terms.is_breached_by(context.spot_price()));
-        const bool monitoring_finished = !terms.is_continuous() &&
-                                         start_of_day(terms.observation_dates().back()) <= context.valuation_time();
-        if constexpr (requires { option.is_one_touch(); })
-            identifiable = identifiable && !touched && !monitoring_finished;
-        else {
-            identifiable = identifiable && !(touched && !terms.is_knock_in()) &&
-                           !(!touched && monitoring_finished && terms.is_knock_in());
-            const bool monitors_expiry = terms.is_continuous() ||
-                                         terms.observation_dates().back() == option.expiry_date();
-            const bool payoff_excluded = !terms.is_knock_in() && monitors_expiry &&
-                                         (terms.is_up() ? option.option_type() == OptionType::call && option.strike() >= terms.barrier_level()
-                                                        : option.option_type() == OptionType::put && option.strike() <= terms.barrier_level());
-            const bool has_rebate = [&] {
-                if constexpr (requires { option.rebate(); }) return option.rebate() != 0.0;
-                else return false;
-            }();
-            identifiable = identifiable && (!payoff_excluded || has_rebate);
-        }
-    }
-    if (!identifiable)
+    if (context.valuation_time() == start_of_day(option.expiry_date()) || !volatility_affects_price(option, context))
         return std::unexpected(Error{ErrorCategory::unsupported_operation,
                                      "volatility does not affect the remaining cashflows"});
     if (std::abs(elo) <= settings.price_tolerance) return lo;
@@ -305,106 +242,6 @@ template <AutocallableProduct Note>
 
 namespace detail {
 
-inline Result<double> shifted_maturity_coupon(
-    double maturity_coupon_rate, double shift, CouponQuoteConvention convention)
-{
-    switch (convention) {
-    case CouponQuoteConvention::shift_maturity_coupon:
-        return maturity_coupon_rate + shift;
-    case CouponQuoteConvention::preserve_maturity_coupon:
-        return maturity_coupon_rate;
-    }
-    return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                 "coupon quote convention is invalid"});
-}
-
-inline std::vector<double> shifted_coupon_rates(
-    const std::vector<double>& coupon_rates, double coupon)
-{
-    auto result = coupon_rates;
-    const double shift = coupon - result.front();
-    for (double& rate : result)
-        rate += shift;
-    return result;
-}
-
-inline Result<SnowballOption> replace_coupon(
-    const SnowballOption& option, double coupon, CouponQuoteConvention convention)
-{
-    const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon_rate = shifted_maturity_coupon(
-        option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(
-                                     option.knock_out_coupon_rates(), coupon),
-                                 .maturity_coupon_rate = *maturity_coupon_rate,
-                                 .initial_spot = option.initial_spot(),
-                                 .knock_in_level = option.knock_in_level(),
-                                 .knock_out_levels = option.knock_out_levels(),
-                                 .upper_strike = option.upper_strike(),
-                                 .lower_strike = option.lower_strike(),
-                                 .observation_dates = option.observation_dates(),
-                                 .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                 .barrier_state = option.barrier_state(),
-                                 .principal_ratio = option.principal_ratio(),
-                                 .effective_date = option.effective_date(),
-                                 .expiry_date = option.expiry_date()});
-}
-
-inline Result<BinarySnowballOption> replace_coupon(
-    const BinarySnowballOption& option, double coupon, CouponQuoteConvention convention)
-{
-    const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon_rate = shifted_maturity_coupon(
-        option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_binary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-                                        .maturity_coupon_rate = *maturity_coupon_rate,
-                                        .knock_out_levels = option.knock_out_levels(),
-                                        .observation_dates = option.observation_dates(),
-                                        .barrier_state = option.barrier_state(),
-                                        .principal_ratio = option.principal_ratio(),
-                                        .effective_date = option.effective_date(),
-                                        .expiry_date = option.expiry_date()});
-}
-
-inline Result<TernarySnowballOption> replace_coupon(
-    const TernarySnowballOption& option, double coupon, CouponQuoteConvention convention)
-{
-    const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon_rate = shifted_maturity_coupon(
-        option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_ternary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-                                         .maturity_coupon_rate = *maturity_coupon_rate,
-                                         .minimum_coupon_rate = option.minimum_coupon_rate(),
-                                         .knock_in_level = option.knock_in_level(),
-                                         .knock_out_levels = option.knock_out_levels(),
-                                         .observation_dates = option.observation_dates(),
-                                         .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                         .barrier_state = option.barrier_state(),
-                                         .principal_ratio = option.principal_ratio(),
-                                         .effective_date = option.effective_date(),
-                                         .expiry_date = option.expiry_date()});
-}
-
-inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)
-{
-    return make_phoenix_option({.coupon_rate = coupon,
-                                .initial_spot = option.initial_spot(),
-                                .knock_in_level = option.knock_in_level(),
-                                .knock_out_levels = option.knock_out_levels(),
-                                .coupon_barrier_levels = option.coupon_barrier_levels(),
-                                .upper_strike = option.upper_strike(),
-                                .lower_strike = option.lower_strike(),
-                                .observation_dates = option.observation_dates(),
-                                .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                .barrier_state = option.barrier_state(),
-                                .principal_ratio = option.principal_ratio(),
-                                .effective_date = option.effective_date(),
-                                .expiry_date = option.expiry_date()});
-}
-
 template <typename Engine, typename Option, typename ReplaceCoupon, typename Price>
 [[nodiscard]] Result<double> solve_implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
@@ -441,12 +278,12 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
     const double lo = settings.lower_bound;
     const double hi = settings.upper_bound;
     const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
-        if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; }) {
+        if constexpr (requires { coupon_endpoint_prices(engine, option, option, context); }) {
             const auto lower = replace_coupon(option, lo);
             if (!lower) return std::unexpected(lower.error());
             const auto upper = replace_coupon(option, hi);
             if (!upper) return std::unexpected(upper.error());
-            return monte_carlo_coupon_prices(*lower, *upper, context, engine.settings());
+            return coupon_endpoint_prices(engine, *lower, *upper, context);
         } else {
             const auto lower = price_at_coupon(lo);
             if (!lower) return std::unexpected(lower.error());
@@ -474,7 +311,7 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
         if (!priced) return std::unexpected(priced.error());
         return *priced - observed_price;
     };
-    if constexpr (requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; } || requires { requires std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>; }) {
+    if constexpr (has_affine_coupon_price<Engine, Option>) {
         // Coupon payoffs are affine; halve prices only if their span overflows.
         const double span = upper_price - lower_price;
         const double fraction = std::isfinite(span)

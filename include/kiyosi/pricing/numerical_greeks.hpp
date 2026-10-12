@@ -4,42 +4,24 @@
 #include <array>
 #include <chrono>
 #include <cmath>
-#include <concepts>
 #include <optional>
 #include <ratio>
 #include <random>
 #include <span>
 
-#include <kiyosi/instruments/barrier/terms.hpp>
-#include <kiyosi/instruments/autocallable/note.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/detail/accumulator_traits.hpp>
+#include <kiyosi/pricing/detail/asian_traits.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
+#include <kiyosi/pricing/detail/barrier_traits.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
+#include <kiyosi/pricing/settings/monte_carlo.hpp>
 
 namespace kiyosi {
 
-class MonteCarloVanillaEngine;
-class MonteCarloAccumulatorEngine;
-template <AutocallableProduct Note>
-class MonteCarloAutocallableEngine;
-class FiniteDifferenceVanillaEngine;
-class FiniteDifferenceDigitalEngine;
-class FiniteDifferenceBarrierEngine;
-class FiniteDifferenceAccumulatorEngine;
-template <AutocallableProduct Note>
-class FiniteDifferenceAutocallableEngine;
-class Accumulator;
-
 namespace detail {
-
-// Only these built-in engines store their complete configuration in settings().
-template <typename Engine, typename Option>
-inline constexpr bool is_builtin_monte_carlo_engine =
-    std::same_as<Engine, MonteCarloVanillaEngine> ||
-    std::same_as<Engine, MonteCarloAccumulatorEngine> ||
-    requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; };
 
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> numerical_value(
@@ -98,57 +80,21 @@ inline double symmetric_shift(double value, double requested)
 }
 
 template <typename Option>
+bool all_greeks_unavailable(const Option&, const PricingContext&) { return false; }
+
+template <typename Option>
 bool greeks_unavailable(const Option& option, const PricingContext& context)
 {
     if constexpr (requires { option.expiry_date(); })
         if (context.valuation_time() == start_of_day(option.expiry_date())) return true;
-    if constexpr (requires { option.barrier_terms(); })
-        if (option.barrier_terms().touch_state() != BarrierTouchState::touched &&
-            option.barrier_terms().is_monitored_at(context.valuation_time()) &&
-            context.spot_price() == option.barrier_level()) return true;
-    return false;
+    return all_greeks_unavailable(option, context);
 }
 
-// Current observation events can make spot derivatives undefined while rate and
-// volatility derivatives (with the event branch held fixed) remain meaningful.
 template <typename Option>
-bool at_spot_discontinuity(const Option& option, const PricingContext& context, double radius = 0.0)
-{
-    const double spot = context.spot_price();
-    const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
-    if constexpr (requires { option.barrier_terms(); })
-        return option.barrier_terms().touch_state() != BarrierTouchState::touched &&
-               option.barrier_terms().is_monitored_at(context.valuation_time()) && crosses(option.barrier_level());
-    if (context.valuation_time() != start_of_day(context.valuation_date())) return false;
-    if constexpr (requires { option.accumulated_quantity(); }) {
-        if (context.calendar().is_trading_day(context.valuation_date()))
-            return crosses(option.knock_out_level()) ||
-                   (spot < option.knock_out_level() && crosses(option.strike()) &&
-                    option.acceleration_factor() != 1.0);
-    }
-    if constexpr (requires { option.knock_out_levels(); option.barrier_state(); }) {
-        if (option.barrier_state() == AutocallableBarrierState::knocked_out) return false;
-        const auto& dates = option.observation_dates();
-        const auto found = std::lower_bound(dates.begin(), dates.end(), context.valuation_date());
-        if (found != dates.end() && *found == context.valuation_date()) {
-            const auto index = static_cast<std::size_t>(found - dates.begin());
-            if (crosses(option.knock_out_levels()[index])) return true;
-            if (spot > option.knock_out_levels()[index]) return false;
-            if constexpr (requires { option.coupon_barrier_levels(); })
-                if (option.coupon_rate() != 0.0 && crosses(option.coupon_barrier_levels()[index]))
-                    return true;
-        }
-        if constexpr (requires { option.knock_in_level(); })
-            // Native pricing has already validated history; absent initial history
-            // therefore means not knocked in, just as in the pricing engines.
-            return option.barrier_state() != AutocallableBarrierState::knocked_in &&
-                   program_knock_in_affects_payoff(autocallable_program(option)) &&
-                   option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
-                   context.calendar().is_trading_day(context.valuation_date()) &&
-                   crosses(option.knock_in_level());
-    }
-    return false;
-}
+bool at_spot_discontinuity(const Option&, const PricingContext&, double = 0.0) { return false; }
+
+template <typename Option>
+Result<bool> time_stencil_available(const Option&, const PricingContext&, Timestamp, Timestamp) { return true; }
 
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
@@ -339,50 +285,9 @@ Result<PricingResult> complete_greeks(
                                : requested_shift;
         const Timestamp before = valuation_time - std::min(shift, available_before);
         const Timestamp after = valuation_time + std::min(shift, available_after);
-        bool time_stencil_available = true; // NOLINT(misc-const-correctness): later checks depend on the option type.
-        if constexpr (requires { option.averaging_start_date(); option.realized_average(); }) {
-            const Timestamp averaging_start = start_of_day(option.averaging_start_date());
-            time_stencil_available = option.realized_average() == 0.0
-                                         ? after <= averaging_start
-                                         : before > averaging_start;
-        }
-        const auto crosses_event = [&](Date date) {
-            const Timestamp event = start_of_day(date);
-            return before <= event && event <= after;
-        };
-        if constexpr (requires { option.barrier_terms(); }) {
-            const auto& terms = option.barrier_terms();
-            time_stencil_available = time_stencil_available && terms.was_touched_before(before).has_value() &&
-                                     terms.was_touched_before(after).has_value();
-            if (!terms.is_continuous() && terms.touch_state() != BarrierTouchState::touched)
-                time_stencil_available = time_stencil_available &&
-                                         std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), crosses_event);
-        }
-        if constexpr (requires { option.observation_dates(); option.barrier_state(); }) {
-            if (option.barrier_state() == AutocallableBarrierState::knocked_out) {
-                const auto shifted = shifted_context(context, spot, volatility, rate, before);
-                if (!shifted) return std::unexpected(shifted.error());
-                time_stencil_available = time_stencil_available && validate_autocallable_history(option, *shifted).has_value();
-            } else {
-                time_stencil_available = time_stencil_available &&
-                                         std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
-            }
-        }
-        if constexpr (requires { option.accumulated_quantity(); } || requires { option.knock_in_observation_mode(); }) {
-            bool daily_events = true; // NOLINT(misc-const-correctness): daily monitoring depends on the option type.
-            if constexpr (requires { option.knock_in_observation_mode(); })
-                daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
-                               option.barrier_state() != AutocallableBarrierState::knocked_in &&
-                               option.barrier_state() != AutocallableBarrierState::knocked_out &&
-                               program_knock_in_affects_payoff(autocallable_program(option));
-            if (daily_events)
-                for (Date date = date_of(before); date <= date_of(after); date += std::chrono::days{1})
-                    if (crosses_event(date) && context.calendar().is_trading_day(date)) {
-                        time_stencil_available = false;
-                        break;
-                    }
-        }
-        if (!spot_discontinuity && time_stencil_available && before != after) {
+        const auto time_available = time_stencil_available(option, context, before, after);
+        if (!time_available) return std::unexpected(time_available.error());
+        if (!spot_discontinuity && *time_available && before != after) {
             std::optional<PricingResult> native_before, native_after;
             if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
                 const bool native_time_stencil_available = (before != valuation_time && after != valuation_time) ||
@@ -507,11 +412,7 @@ Result<PricingResult> price_with_greeks(
             return make_pricing_result(*value);
         return native->selected(greeks);
     }
-    if constexpr (std::same_as<Engine, FiniteDifferenceVanillaEngine> ||
-                  std::same_as<Engine, FiniteDifferenceDigitalEngine> ||
-                  std::same_as<Engine, FiniteDifferenceBarrierEngine> ||
-                  std::same_as<Engine, FiniteDifferenceAccumulatorEngine> ||
-                  requires { requires std::same_as<Engine, FiniteDifferenceAutocallableEngine<Option>>; }) {
+    if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
         auto grid = engine.settings();
         if (!grid.asset_upper_boundary) {
             // Spot bumps must move through one fixed mesh, rather than moving the mesh with spot.
@@ -570,10 +471,7 @@ template <typename Engine, typename Option>
     const Engine& engine, const Option& option, const PricingContext& context,
     NumericalShiftSettings settings = {})
 {
-    if constexpr ((std::same_as<Engine, MonteCarloVanillaEngine> &&
-                   (std::same_as<Option, AmericanOption> || std::same_as<Option, EuropeanOption>)) ||
-                  (std::same_as<Engine, MonteCarloAccumulatorEngine> && std::same_as<Option, Accumulator>) ||
-                  requires { requires std::same_as<Engine, MonteCarloAutocallableEngine<Option>>; })
+    if constexpr (detail::is_builtin_monte_carlo_engine<Engine, Option>)
         return engine.price_with_greeks(option, context, true, settings);
     else
         return detail::price_with_greeks(engine, option, context, true, settings);

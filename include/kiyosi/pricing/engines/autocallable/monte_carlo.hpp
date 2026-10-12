@@ -1,6 +1,8 @@
 #pragma once
 
 #include <array>
+
+#include <kiyosi/pricing/settings/implied.hpp>
 #include <cstdint>
 #include <optional>
 
@@ -8,6 +10,7 @@
 #include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
@@ -63,5 +66,34 @@ using MonteCarloSnowballEngine = MonteCarloAutocallableEngine<SnowballOption>;
 using MonteCarloBinarySnowballEngine = MonteCarloAutocallableEngine<BinarySnowballOption>;
 /// Monte Carlo engine for ternary snowball options.
 using MonteCarloTernarySnowballEngine = MonteCarloAutocallableEngine<TernarySnowballOption>;
+
+namespace detail {
+template <AutocallableProduct Note>
+inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAutocallableEngine<Note>, Note> = true;
+template <AutocallableProduct Note>
+inline constexpr bool has_affine_coupon_price<MonteCarloAutocallableEngine<Note>, Note> = true;
+template <AutocallableProduct Note>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    ImpliedVolatilitySettings settings)
+{
+    const auto valid = detail::validate_monte_carlo_autocallable(option, context, engine.settings());
+    if (!valid) return std::unexpected(valid.error());
+    const auto program = detail::autocallable_program(option);
+    const auto initial = detail::autocallable_initial_state(option, context, program);
+    if (!initial.settlement && detail::autocallable_fixed_value(option, context, program, initial))
+        return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                     "volatility does not affect the remaining cashflows"});
+    return settings;
+}
+
+template <AutocallableProduct Note>
+Result<std::array<double, 2>> coupon_endpoint_prices(
+    const MonteCarloAutocallableEngine<Note>& engine, const Note& lower, const Note& upper, const PricingContext& context)
+{
+    return monte_carlo_coupon_prices(lower, upper, context, engine.settings());
+}
+
+} // namespace detail
 
 } // namespace kiyosi

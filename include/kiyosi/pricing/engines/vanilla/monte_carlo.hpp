@@ -67,4 +67,9 @@ private:
     MonteCarloSettings settings_;
 };
 
+namespace detail {
+template <typename Option>
+inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloVanillaEngine, Option> = true;
+} // namespace detail
+
 } // namespace kiyosi

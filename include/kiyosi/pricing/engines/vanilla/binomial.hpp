@@ -1,5 +1,10 @@
 #pragma once
 
+#include <cmath>
+#include <limits>
+
+#include <kiyosi/pricing/settings/implied.hpp>
+
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
@@ -51,5 +56,28 @@ private:
     [[nodiscard]] Result<PricingResult> price_native(const AmericanOption&, const PricingContext&, GreeksRequest) const;
     BinomialSettings settings_;
 };
+
+namespace detail {
+template <typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const CoxRossRubinsteinVanillaEngine& engine, const Option& option, const PricingContext& context,
+    ImpliedVolatilitySettings settings)
+{
+    const auto step = detail::binomial_time_step(context, option.effective_date(), option.expiry_date(), engine.settings());
+    if (!step) return std::unexpected(step.error());
+    if (*step > 0.0) {
+        const auto& parameters = context.model_parameters();
+        const double drift = (parameters.risk_free_rate() - parameters.dividend_yield()) * *step;
+        // Round into the valid tree domain so the endpoint probability stays in [0, 1].
+        const double minimum = std::nextafter(std::abs(drift) / std::sqrt(*step),
+                                              std::numeric_limits<double>::infinity());
+        if (std::isfinite(minimum)) settings.lower_bound = std::max(settings.lower_bound, minimum);
+        if (settings.lower_bound >= settings.upper_bound)
+            return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
+                                         "volatility bounds exclude the binomial tree domain"});
+    }
+    return settings;
+}
+} // namespace detail
 
 } // namespace kiyosi

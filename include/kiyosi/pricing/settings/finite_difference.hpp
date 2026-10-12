@@ -33,6 +33,11 @@ struct FiniteDifferenceSettings {
 };
 
 namespace detail {
+
+// Only built-in engines can be reconstructed from their settings.
+template <typename Engine, typename Option>
+inline constexpr bool is_builtin_finite_difference_engine = false;
+
 inline constexpr int general_fd_max_asset_steps = 10'000;
 inline constexpr int general_fd_max_time_steps = 100'000;
 inline constexpr int trading_fd_max_steps = 2'000;

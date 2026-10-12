@@ -40,4 +40,9 @@ private:
     FiniteDifferenceSettings settings_;
 };
 
+namespace detail {
+template <typename Option>
+inline constexpr bool is_builtin_finite_difference_engine<FiniteDifferenceAccumulatorEngine, Option> = true;
+} // namespace detail
+
 } // namespace kiyosi

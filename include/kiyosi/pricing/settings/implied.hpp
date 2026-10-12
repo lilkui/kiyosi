@@ -30,4 +30,9 @@ struct ImpliedCouponSettings {
     int max_iterations = 100;          ///< Positive maximum bisection iteration count.
 };
 
+namespace detail {
+template <typename Engine, typename Option>
+inline constexpr bool has_affine_coupon_price = false;
+} // namespace detail
+
 } // namespace kiyosi

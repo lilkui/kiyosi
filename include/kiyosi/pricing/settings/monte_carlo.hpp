@@ -40,6 +40,11 @@ struct TradingDayMonteCarloSettings {
 };
 
 namespace detail {
+
+// Only built-in engines can be reconstructed from their settings.
+template <typename Engine, typename Option>
+inline constexpr bool is_builtin_monte_carlo_engine = false;
+
 inline constexpr int maximum_monte_carlo_path_count = 10'000'000;
 inline constexpr int maximum_vanilla_monte_carlo_step_count = 10'000;
 

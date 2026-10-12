@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kiyosi/pricing/settings/implied.hpp>
+
 #include <kiyosi/instruments/autocallable/phoenix.hpp>
 #include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
@@ -51,5 +53,12 @@ using FiniteDifferenceSnowballEngine = FiniteDifferenceAutocallableEngine<Snowba
 using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceAutocallableEngine<BinarySnowballOption>;
 /// Finite-difference engine for ternary snowball options.
 using FiniteDifferenceTernarySnowballEngine = FiniteDifferenceAutocallableEngine<TernarySnowballOption>;
+
+namespace detail {
+template <AutocallableProduct Note>
+inline constexpr bool is_builtin_finite_difference_engine<FiniteDifferenceAutocallableEngine<Note>, Note> = true;
+template <AutocallableProduct Note>
+inline constexpr bool has_affine_coupon_price<FiniteDifferenceAutocallableEngine<Note>, Note> = true;
+} // namespace detail
 
 } // namespace kiyosi

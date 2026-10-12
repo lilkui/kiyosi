@@ -39,4 +39,9 @@ private:
     TradingDayMonteCarloSettings settings_;
 };
 
+namespace detail {
+template <typename Option>
+inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAccumulatorEngine, Option> = true;
+} // namespace detail
+
 } // namespace kiyosi
