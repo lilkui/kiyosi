@@ -1,3 +1,5 @@
+#include "monte_carlo_autocallable.hpp"
+
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
 #include "monte_carlo_cuda_reduction.hpp"
@@ -394,33 +396,18 @@ __global__ void simulate_autocallable_paths(
             if constexpr (Paired) alternate_payoffs[path] = 0.0;
             return;
         }
-        state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, false);
-        if (!step.event.active) continue;
-        const double coupon = program_observation_coupon(step.event, spot);
-        double alternate_coupon = 0.0;
+        knocked_out = observe_autocallable_path(request.program, step.event, step.simulation.discount, spot, state, payoff);
         if constexpr (Paired) {
             auto event = step.event;
             event.coupon = step.alternate_coupon;
-            alternate_coupon = program_observation_coupon(event, spot);
+            observe_autocallable_path(request.alternate_program, event, step.simulation.discount, spot, alternate_state, alternate_payoff);
         }
-        if (spot >= step.event.knock_out_level) {
-            payoff = step.simulation.discount.apply(request.program.principal_ratio + coupon) + state.coupons;
-            if constexpr (Paired)
-                alternate_payoff = step.simulation.discount.apply(request.alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
-            knocked_out = true;
-            break;
-        }
-        if (request.program.carries_observation_coupon)
-            state.coupons += step.simulation.discount.apply(coupon);
-        if constexpr (Paired)
-            if (request.alternate_program.carries_observation_coupon)
-                alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
+        if (knocked_out) break;
     }
     if (!knocked_out) {
-        state.knocked_in = program_knocked_in(request.program, spot, state.knocked_in, true);
-        payoff = state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.program, spot, state.knocked_in));
+        payoff = settle_autocallable_path(request.program, request.terminal_discount, spot, state);
         if constexpr (Paired)
-            alternate_payoff = alternate_state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.alternate_program, spot, state.knocked_in));
+            alternate_payoff = settle_autocallable_path(request.alternate_program, request.terminal_discount, spot, alternate_state);
     }
     if (!isfinite(payoff)) atomicExch(invalid, 1);
     payoffs[path] = isfinite(payoff) ? payoff : 0.0;
@@ -521,15 +508,11 @@ __global__ void simulate_autocallable_spot_paths(
                     requests.payoffs[output][path] = 0.0;
                 return;
             }
-            state.knocked_in = program_knocked_in(program, spots[bump], state.knocked_in, false);
-            if (!step.event.active) continue;
-            const double coupon = program_observation_coupon(step.event, spots[bump]);
-            if (spots[bump] >= step.event.knock_out_level) {
-                write_spot_payoff(requests, bump, path, step.simulation.discount.apply(program.principal_ratio + coupon) + state.coupons);
+            double payoff = 0.0;
+            if (observe_autocallable_path(program, step.event, step.simulation.discount, spots[bump], state, payoff)) {
+                write_spot_payoff(requests, bump, path, payoff);
                 done[bump] = true;
                 --remaining;
-            } else if (program.carries_observation_coupon) {
-                state.coupons += step.simulation.discount.apply(coupon);
             }
         }
         if (remaining == 0) break;
@@ -538,8 +521,7 @@ __global__ void simulate_autocallable_spot_paths(
         if (done[bump]) continue;
         const auto request = requests.values[bump];
         auto state = states[bump];
-        state.knocked_in = program_knocked_in(request.program, spots[bump], state.knocked_in, true);
-        write_spot_payoff(requests, bump, path, state.coupons + request.terminal_discount.apply(program_terminal_settlement(request.program, spots[bump], state.knocked_in)));
+        write_spot_payoff(requests, bump, path, settle_autocallable_path(request.program, request.terminal_discount, spots[bump], state));
     }
 }
 

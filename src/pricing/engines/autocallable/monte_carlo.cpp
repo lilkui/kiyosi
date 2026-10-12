@@ -19,6 +19,7 @@
 #include "../../detail/autocallable_pricer.hpp"
 #include "../../detail/math.hpp"
 #include "../monte_carlo_host.hpp"
+#include "../monte_carlo_autocallable.hpp"
 
 namespace kiyosi {
 using namespace detail;
@@ -78,25 +79,15 @@ Result<std::array<double, 2>> coupon_path_payoffs(
         if (!std::isfinite(value) || value <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "Monte Carlo simulation produced an invalid asset price"});
-        state.knocked_in = program_knocked_in(program, value, state.knocked_in, false);
-        if (!step.event.active) continue;
-        const double coupon = program_observation_coupon(step.event, value);
+        double payoff = 0.0, alternate_payoff = 0.0;
+        const bool knocked_out = observe_autocallable_path(program, step.event, step.simulation.discount, value, state, payoff);
         auto event = step.event;
         event.coupon = step.alternate_coupon;
-        const double alternate_coupon = program_observation_coupon(event, value);
-        if (value >= step.event.knock_out_level) {
-            const double payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.coupons;
-            const double alternate_payoff = step.simulation.discount.apply(alternate_program.principal_ratio + alternate_coupon) + alternate_state.coupons;
-            return std::array{payoff, alternate_payoff};
-        }
-        if (program.carries_observation_coupon)
-            state.coupons += step.simulation.discount.apply(coupon);
-        if (alternate_program.carries_observation_coupon)
-            alternate_state.coupons += step.simulation.discount.apply(alternate_coupon);
+        observe_autocallable_path(alternate_program, event, step.simulation.discount, value, alternate_state, alternate_payoff);
+        if (knocked_out) return std::array{payoff, alternate_payoff};
     }
-    state.knocked_in = program_knocked_in(program, value, state.knocked_in, true);
-    const double payoff = state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(program, value, state.knocked_in));
-    const double alternate_payoff = alternate_state.coupons + inputs.terminal_discount.apply(program_terminal_settlement(alternate_program, value, state.knocked_in));
+    const double payoff = settle_autocallable_path(program, inputs.terminal_discount, value, state);
+    const double alternate_payoff = settle_autocallable_path(alternate_program, inputs.terminal_discount, value, alternate_state);
     return std::array{payoff, alternate_payoff};
 }
 
@@ -140,15 +131,11 @@ Result<std::array<double, count>> path_payoffs(
             if (!std::isfinite(state.spot) || state.spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "Monte Carlo simulation produced an invalid asset price"});
-            state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, false);
-            if (!step.event.active) continue;
-            const double coupon = program_observation_coupon(step.event, state.spot);
-            if (state.spot >= step.event.knock_out_level) {
-                const double payoff = step.simulation.discount.apply(program.principal_ratio + coupon) + state.path.coupons;
+            double payoff = 0.0;
+            if (observe_autocallable_path(program, step.event, step.simulation.discount, state.spot, state.path, payoff)) {
                 if constexpr (count == 1) return std::array{payoff};
                 else state.payoff = payoff;
-            } else if (program.carries_observation_coupon)
-                state.path.coupons += step.simulation.discount.apply(coupon);
+            }
         }
         if constexpr (count > 1)
             if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
@@ -157,15 +144,14 @@ Result<std::array<double, count>> path_payoffs(
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i) {
         auto& state = states[i];
-        state.path.knocked_in = program_knocked_in(program, state.spot, state.path.knocked_in, true);
         const auto& terminal_discount = [&]() -> const MonteCarloDiscount& {
             if constexpr (shared_inputs) return common.terminal_discount;
             else return inputs[i].terminal_discount;
         }();
         if constexpr (count == 1)
-            payoffs[i] = state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+            payoffs[i] = settle_autocallable_path(program, terminal_discount, state.spot, state.path);
         else
-            payoffs[i] = state.payoff ? *state.payoff : state.path.coupons + terminal_discount.apply(program_terminal_settlement(program, state.spot, state.path.knocked_in));
+            payoffs[i] = state.payoff ? *state.payoff : settle_autocallable_path(program, terminal_discount, state.spot, state.path);
     }
     return payoffs;
 }

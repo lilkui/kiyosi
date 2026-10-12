@@ -20,10 +20,44 @@
 
 #include "support/common.hpp"
 #include "pricing/engines/monte_carlo_random.hpp"
+#include "pricing/engines/monte_carlo_autocallable.hpp"
 
 namespace {
 
 using kiyosi::test::day;
+
+TEST_CASE("Autocallable path observations preserve event boundaries and coupon ordering", "[autocallable-path]")
+{
+    using namespace kiyosi::detail;
+    AutocallableProgram program{1.0, 100.0, 100.0, 60.0, 80.0, 0.06, 0.0,
+                                AutocallableTerminalKind::downside_if_knocked_in, true, true, true};
+    const MonteCarloDiscount discount{0.5, std::log(0.5)};
+    AutocallablePathState state{0.1, false};
+    AutocallableEvent event{110.0, 0.08, 90.0, true, false};
+    double payoff = -1.0;
+    CHECK_FALSE(observe_autocallable_path(program, event, discount, 79.0, state, payoff));
+    CHECK(state.knocked_in);
+    CHECK(state.coupons == 0.1);
+    CHECK(payoff == -1.0);
+    event.active = true;
+    CHECK_FALSE(observe_autocallable_path(program, event, discount, 89.0, state, payoff));
+    CHECK(state.coupons == 0.1);
+    CHECK_FALSE(observe_autocallable_path(program, event, discount, 90.0, state, payoff));
+    CHECK(state.coupons == Catch::Approx(0.14));
+    CHECK(observe_autocallable_path(program, event, discount, 110.0, state, payoff));
+    CHECK(payoff == Catch::Approx(0.68));
+    CHECK(state.coupons == Catch::Approx(0.14));
+
+    program.daily_knock_in = false;
+    program.carries_observation_coupon = false;
+    state = {0.0, false};
+    CHECK_FALSE(observe_autocallable_path(program, event, discount, 79.0, state, payoff));
+    CHECK_FALSE(state.knocked_in);
+    CHECK_FALSE(observe_autocallable_path(program, event, discount, 90.0, state, payoff));
+    CHECK(state.coupons == 0.0);
+    CHECK(settle_autocallable_path(program, discount, 80.0, state) == Catch::Approx(0.53));
+    CHECK(settle_autocallable_path(program, discount, 79.0, state) == Catch::Approx(0.395));
+}
 
 TEST_CASE("Unavailable speed retains structured Monte Carlo spot batching", "[autocallable-shared-samples]")
 {
@@ -71,7 +105,8 @@ TEST_CASE("Autocallable requests validate immutable schedules once", "[autocalla
         if (date != dates.front()) return true;
         ++queries;
         return allowed.load();
-    }, 365);
+    },
+                                                 365);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, calendar);
     const auto check = [&](const auto& note) {
@@ -361,10 +396,12 @@ TEST_CASE("Autocallable rate batches preserve fixed prices and unavailable stenc
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.0, 0.0},
-                                                    .maturity_coupon_rate = 0.0, .knock_out_levels = {101.0, 101.0},
+                                                    .maturity_coupon_rate = 0.0,
+                                                    .knock_out_levels = {101.0, 101.0},
                                                     .observation_dates = {day(2025, 7, 1), end},
                                                     .barrier_state = AutocallableBarrierState::none,
-                                                    .effective_date = start, .expiry_date = end});
+                                                    .effective_date = start,
+                                                    .expiry_date = end});
     const MonteCarloBinarySnowballEngine engine{31, 42};
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
