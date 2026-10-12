@@ -115,7 +115,8 @@ is deferred until the synchronous core computation returns.)doc");
             }();
             const auto settings = numerical_settings(
                 spot, volatility_shift, rate_shift, time_shift_days);
-            if constexpr (std::same_as<Engine, AnalyticVanillaEngine>) {
+            if constexpr (std::same_as<Engine, AnalyticVanillaEngine> ||
+                          std::same_as<Engine, AnalyticDigitalEngine>) {
                 return unwrap(engine.price_with_greeks(instrument, context, request, settings));
             } else {
                 nb::gil_scoped_release release;

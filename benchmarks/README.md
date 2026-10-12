@@ -57,6 +57,14 @@ one thread, and 45.088 ms before and 25.811 ms after on four threads (median of
 five repetitions). Each repetition used one shared engine, European call and
 context from the common market below. Numerical engines still release the GIL.
 
+Analytic digital `price_with_greeks` also retains the GIL. On 2026-10-12,
+CPython 3.13 with Release MSVC 19.51 on a Ryzen 7 3700X measured 80,000
+selected-delta calls taking 56.67 ms before and 49.62 ms after with one worker,
+and 111.08 ms before and 50.49 ms after with four workers (fixed total work,
+median of five repetitions). Workers shared a cash-or-nothing call with payout
+10 and the common market below. These short requests benefit from avoiding
+GIL transitions; the result does not imply parallel native execution.
+
 Event-free FD time grids construct their ordered nodes and canonical interval
 widths directly. Release MSVC 19.51 on the same CPU measured 0.332 us versus
 1.631 us through the equivalent event-merging path at 200 steps, and 314.138 us
