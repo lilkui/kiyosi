@@ -26,7 +26,6 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
-    const int asset_step_count = settings.asset_step_count;
     const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike, barrier});
     if (!space) return std::unexpected(space.error());
     const double upper = space->upper, spacing = space->spacing;
@@ -46,9 +45,15 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const auto grid = !scheduled
                           ? make_finite_difference_time_grid(time_to_expiry, time_step_count)
                           : make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), time_step_count, std::move(observation_dates));
-    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, asset_step_count);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
+    const int asset_step_count = [&] {
+        if (scheduled || knock_in || !upper_barrier) return settings.asset_step_count;
+        int first_fixed = std::clamp(static_cast<int>(std::ceil(barrier / spacing)), 3, settings.asset_step_count);
+        if (first_fixed < settings.asset_step_count && spacing * first_fixed < barrier) ++first_fixed;
+        return first_fixed;
+    }();
     auto active = [&](double time) { return !scheduled || std::ranges::binary_search(observation_times, time); };
     auto payoff = [&](double asset) { return std::max((option.option_type() == OptionType::call ? asset - strike : strike - asset), 0.0); };
     auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
@@ -61,7 +66,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         }
         return cached_rebate;
     };
-    std::vector<double> old(space->size());
+    std::vector<double> old(static_cast<std::size_t>(asset_step_count) + 1);
     for (int index = 0; index <= asset_step_count; ++index)
         old[index] = payoff(spacing * index);
     const auto vanilla_boundary = [&](double tau) {
@@ -125,6 +130,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         for (std::size_t index = 0; index < old.size(); ++index)
             old[index] = std::max(vanilla[index] - old[index] + rebate, 0.0);
     }
+    // Preserve full-grid spline curvature and Greeks after solving only the live region.
+    if (old.size() < space->size()) old.resize(space->size(), rebate_value(time_to_expiry));
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
     std::optional<double> speed;

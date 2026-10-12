@@ -24,6 +24,7 @@ add_executable(kiyosi_tests
     pricing/engines/accumulator/engine_tests.cpp
     pricing/engines/asian/reference_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
+    pricing/engines/barrier/finite_difference_tests.cpp
     pricing/engines/barrier/reference_tests.cpp
     pricing/engines/binary_barrier/analytic_tests.cpp
     pricing/engines/binary_barrier/reference_tests.cpp

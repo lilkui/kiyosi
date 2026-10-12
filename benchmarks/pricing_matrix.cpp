@@ -66,6 +66,10 @@ void register_matrix()
                                                                  .expiry_date = expiry});
 
     register_kiyosi("european/analytic", european, AnalyticVanillaEngine{}, context);
+    const auto up_and_out = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start,
+                                                 .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
+    register_kiyosi("up_and_out/fd_200", up_and_out, FiniteDifferenceBarrierEngine{200, 200}, context);
+    register_kiyosi("up_and_out/fd_2000", up_and_out, FiniteDifferenceBarrierEngine{2'000, 200}, context);
     register_kiyosi("european/crr", european, CoxRossRubinsteinVanillaEngine{128}, context);
     register_kiyosi("european/fd", european, FiniteDifferenceVanillaEngine{80, 80}, context);
     register_kiyosi("european/quadrature", european, QuadratureVanillaEngine{}, context);
