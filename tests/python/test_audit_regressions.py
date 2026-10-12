@@ -9,6 +9,8 @@ from kiyosi.instruments import (
     BarrierOption,
     CashOrNothingOption,
     EuropeanOption,
+    BinarySnowballOption,
+    SnowballOption,
     asset_binary_barrier_option,
     cash_binary_barrier_option,
 )
@@ -16,6 +18,111 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AuditRegressionTests(unittest.TestCase):
+    def test_resolved_barriers_retain_time_greeks_across_inactive_observations(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+            ),
+            spot_price=100,
+            valuation_time=date(2025, 7, 1),
+        )
+        terms = dict(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        expected = pricing.calculate_numerical_greeks(
+            pricing.AnalyticVanillaEngine(), EuropeanOption(**terms), context
+        )
+        for state in ("touched", "untouched"):
+            option = BarrierOption(
+                **terms,
+                barrier_level=80,
+                barrier_type="down_and_in",
+                observation_mode="scheduled",
+                observation_dates=[date(2025, 3, 3), date(2025, 7, 2), end],
+                touch_state=state,
+            )
+            for engine in (
+                pricing.AnalyticBarrierEngine(),
+                pricing.FiniteDifferenceBarrierEngine(),
+            ):
+                with self.subTest(state=state, engine=type(engine).__name__):
+                    result = engine.price_with_greeks(
+                        option, context, ["theta", "charm", "color"]
+                    )
+                    for name in ("theta", "charm", "color"):
+                        if state == "touched":
+                            self.assertEqual(result.price, expected.price)
+                            self.assertAlmostEqual(
+                                getattr(result, name),
+                                getattr(expected, name),
+                                delta=1e-10,
+                            )
+                        else:
+                            self.assertIsNone(getattr(result, name))
+
+    def test_knocked_out_autocallables_retain_zero_time_greeks_after_valid_history(
+        self,
+    ):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        terms = dict(
+            knock_out_coupon_rates=[0.08] * 3,
+            maturity_coupon_rate=0.06,
+            knock_out_levels=[110] * 3,
+            observation_dates=[date(2025, 3, 3), date(2025, 7, 2), end],
+            barrier_state="knocked_out",
+            effective_date=start,
+            expiry_date=end,
+        )
+        binary = BinarySnowballOption(**terms)
+        snowball = SnowballOption(
+            **terms,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=60,
+            knock_in_observation_mode="every_trading_day",
+        )
+        for option, engines in (
+            (
+                binary,
+                (
+                    pricing.FiniteDifferenceBinarySnowballEngine(),
+                    pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=42),
+                ),
+            ),
+            (
+                snowball,
+                (
+                    pricing.FiniteDifferenceSnowballEngine(),
+                    pricing.MonteCarloSnowballEngine(path_count=32, seed=42),
+                ),
+            ),
+        ):
+            for valuation in (date(2025, 3, 4), date(2025, 7, 1)):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+                    ),
+                    spot_price=100,
+                    valuation_time=valuation,
+                )
+                for engine in engines:
+                    with self.subTest(
+                        option=type(option).__name__,
+                        engine=type(engine).__name__,
+                        valuation=valuation,
+                    ):
+                        result = engine.price_with_greeks(
+                            option, context, ["theta", "charm", "color"]
+                        )
+                        self.assertEqual(result.price, 0)
+                        for name in ("theta", "charm", "color"):
+                            if valuation == date(2025, 7, 1):
+                                self.assertEqual(getattr(result, name), 0)
+                            else:
+                                self.assertIsNone(getattr(result, name))
+
     def test_binomial_implied_volatility_respects_the_tree_domain(self):
         start, end = date(2025, 1, 6), date(2026, 1, 6)
         for rate in (-0.01, 0.02, 0.05):

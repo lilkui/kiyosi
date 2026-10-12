@@ -356,18 +356,26 @@ Result<PricingResult> complete_greeks(
             const auto& terms = option.barrier_terms();
             time_stencil_available = time_stencil_available && terms.was_touched_before(before).has_value() &&
                                      terms.was_touched_before(after).has_value();
-            if (!terms.is_continuous())
+            if (!terms.is_continuous() && terms.touch_state() != BarrierTouchState::touched)
                 time_stencil_available = time_stencil_available &&
                                          std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), crosses_event);
         }
-        if constexpr (requires { option.observation_dates(); option.barrier_state(); })
-            time_stencil_available = time_stencil_available &&
-                                     std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
+        if constexpr (requires { option.observation_dates(); option.barrier_state(); }) {
+            if (option.barrier_state() == AutocallableBarrierState::knocked_out) {
+                const auto shifted = shifted_context(context, spot, volatility, rate, before);
+                if (!shifted) return std::unexpected(shifted.error());
+                time_stencil_available = time_stencil_available && validate_autocallable_history(option, *shifted).has_value();
+            } else {
+                time_stencil_available = time_stencil_available &&
+                                         std::none_of(option.observation_dates().begin(), option.observation_dates().end(), crosses_event);
+            }
+        }
         if constexpr (requires { option.accumulated_quantity(); } || requires { option.knock_in_observation_mode(); }) {
             bool daily_events = true; // NOLINT(misc-const-correctness): daily monitoring depends on the option type.
             if constexpr (requires { option.knock_in_observation_mode(); })
                 daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
                                option.barrier_state() != AutocallableBarrierState::knocked_in &&
+                               option.barrier_state() != AutocallableBarrierState::knocked_out &&
                                program_knock_in_affects_payoff(autocallable_program(option));
             if (daily_events)
                 for (Date date = date_of(before); date <= date_of(after); date += std::chrono::days{1})

@@ -160,6 +160,73 @@ TEST_CASE("Completed knock-in preserves time Greeks without hiding live events",
     check(MonteCarloSnowballEngine{{64, 42}});
 }
 
+TEST_CASE("Resolved scheduled barriers retain time Greeks across inactive observations", "[pricing-api][resolved-events]")
+{
+    const auto context = market();
+    const auto check = [&](const auto& engine, const auto& option, const auto& vanilla, const auto& vanilla_engine) {
+        const auto expected = calculate_numerical_greeks(vanilla_engine, vanilla, context);
+        const auto result = engine.price_with_greeks(option, context, {Greek::theta, Greek::charm, Greek::color});
+        REQUIRE(expected);
+        REQUIRE(result);
+        CHECK(result->price() == expected->price());
+        for (const Greek greek : {Greek::theta, Greek::charm, Greek::color})
+            CHECK(greek_value(*result, greek) == Catch::Approx(greek_value(*expected, greek)).margin(1e-10));
+    };
+    for (const auto state : {BarrierTouchState::untouched, BarrierTouchState::touched}) {
+        const BarrierOptionTerms terms{.option_type = OptionType::call, .strike = 100.0,
+                                       .effective_date = effective, .expiry_date = expiry,
+                                       .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in,
+                                       .observation_mode = ObservationMode::scheduled,
+                                       .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry},
+                                       .touch_state = state};
+        const auto option = *make_barrier_option(terms);
+        if (state == BarrierTouchState::touched) {
+            const auto vanilla = *make_european_option(OptionType::call, 100.0, effective, expiry);
+            check(AnalyticBarrierEngine{}, option, vanilla, AnalyticVanillaEngine{});
+            check(FiniteDifferenceBarrierEngine{}, option, vanilla, AnalyticVanillaEngine{});
+            const BinaryBarrierTerms binary{.option_type = terms.option_type, .strike = terms.strike,
+                                             .effective_date = effective, .expiry_date = expiry,
+                                             .barrier_level = terms.barrier_level, .barrier_type = terms.barrier_type,
+                                             .observation_mode = terms.observation_mode,
+                                             .observation_dates = terms.observation_dates, .touch_state = state};
+            check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(binary, 7.0),
+                  *make_cash_or_nothing_option(OptionType::call, 100.0, 7.0, effective, expiry), AnalyticDigitalEngine{});
+        } else {
+            const auto result = AnalyticBarrierEngine{}.price_with_greeks(option, context, {Greek::theta, Greek::charm, Greek::color});
+            REQUIRE(result);
+            for (const Greek greek : {Greek::theta, Greek::charm, Greek::color}) CHECK_FALSE(result->has(greek));
+        }
+    }
+}
+
+TEST_CASE("Knocked-out autocallables retain zero time Greeks after valid history", "[pricing-api][resolved-events]")
+{
+    const auto check = [&](const auto& note, const auto& engine) {
+        for (const Date date : {day(2025, 3, 4), valuation}) {
+            const auto result = engine.price_with_greeks(note, market(100.0, date), {Greek::theta, Greek::charm, Greek::color});
+            REQUIRE(result);
+            CHECK(result->price() == 0.0);
+            for (const Greek greek : {Greek::theta, Greek::charm, Greek::color}) {
+                if (date == valuation) CHECK(greek_value(*result, greek) == 0.0);
+                else CHECK_FALSE(result->has(greek));
+            }
+        }
+    };
+    const auto binary = *make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06,
+         .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry},
+         .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+    const auto snowball = *make_snowball_option(
+        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06,
+         .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = binary.knock_out_levels(),
+         .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = binary.observation_dates(),
+         .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+    check(binary, FiniteDifferenceBinarySnowballEngine{});
+    check(binary, MonteCarloBinarySnowballEngine{32, 42});
+    check(snowball, FiniteDifferenceSnowballEngine{});
+    check(snowball, MonteCarloSnowballEngine{32, 42});
+}
+
 TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observations", "[pricing-api][audit-fixes]")
 {
     const auto context = market(100.0, effective);
