@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <concepts>
 #include <optional>
 #include <vector>
 
@@ -16,8 +17,9 @@ using namespace detail;
 namespace {
 template <typename Option>
 Result<PricingResult> price_binomial(
-    const Option& option, const PricingContext& context, BinomialSettings settings, bool american, GreeksRequest requested_output)
+    const Option& option, const PricingContext& context, BinomialSettings settings, GreeksRequest requested_output)
 {
+    constexpr bool american = std::same_as<Option, AmericanOption>;
     // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
     const auto step = binomial_time_step(context, option.effective_date(), option.expiry_date(), settings);
     if (!step) return std::unexpected(step.error());
@@ -119,12 +121,12 @@ Result<PricingResult> price_binomial(
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
 {
-    return price_binomial(option, context, settings_, false, output);
+    return price_binomial(option, context, settings_, output);
 }
 
 Result<PricingResult> CoxRossRubinsteinVanillaEngine::price_native(const AmericanOption& option, const PricingContext& context, GreeksRequest output) const
 {
-    return price_binomial(option, context, settings_, true, output);
+    return price_binomial(option, context, settings_, output);
 }
 
 Result<double> CoxRossRubinsteinVanillaEngine::price(const EuropeanOption& option, const PricingContext& context) const
