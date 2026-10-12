@@ -41,27 +41,6 @@ Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option
     return steps;
 }
 
-Result<double> path_payoff(const Accumulator& option, const PricingContext& context,
-                           const std::vector<SimulationStep>& steps, double quantity,
-                           Pcg32& generator)
-{
-    double value = context.spot_price();
-
-    std::normal_distribution<double> normal;
-    MonteCarloDiscount discount;
-    for (const auto& step : steps) {
-        value *= std::exp(step.drift + step.diffusion * normal(generator));
-        if (!std::isfinite(value) || value <= 0.0)
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "Monte Carlo simulation produced an invalid asset price"});
-        discount = step.discount;
-        if (value >= option.knock_out_level()) break;
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                            : option.daily_quantity();
-    }
-    return discount.apply(quantity, value - option.strike());
-}
-
 struct PathState {
     double spot;
     double quantity;
@@ -258,8 +237,10 @@ Result<double> price_accumulator(
                                      "CUDA support is not enabled in this build"});
 #endif
     }
-    return cpu_path_mean(settings, [&](auto& generator) {
-        return path_payoff(option, context, *steps, initial.quantity, generator);
+    return cpu_path_mean(settings, [&](auto& generator) -> Result<double> {
+        const auto payoffs = path_payoffs(option, *steps, std::array{PathState{context.spot_price(), initial.quantity, {}}}, generator);
+        if (!payoffs) return std::unexpected(payoffs.error());
+        return (*payoffs)[0];
     });
 }
 
