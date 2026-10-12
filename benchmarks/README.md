@@ -508,6 +508,19 @@ before and 182.8 ms after (median of seven requests). Prices and rho remain
 bit-for-bit equal to independent scalar valuations, including zero-carry fixed
 positions whose base value settles immediately while rate bumps still simulate.
 
+Unconstrained FD steps omit per-node constraint-mask comparisons and writes;
+cached factors distinguish constrained and unconstrained solves. Barrier
+observation mode is selected before marching, and scheduled steps use the
+unconstrained path. The `european/fd/price` analytics case tracks the default
+grid alongside existing accumulator, snowball and barrier cases. A 2026-10-12
+Release MSVC probe over 200 time steps measured 200-node unconstrained solves
+falling from 467.5 to 442.6 us and 2,000-node solves from 4,646.7 to 4,228.2 us
+(median of seven batches of 100 solves), with bit-for-bit identical prices.
+Seven-repetition benchmark medians measured accumulator FD at 1.846 versus
+1.729 ms, snowball FD at 1.885 versus 1.777 ms, scheduled knock-in at 636 versus
+624 us, and continuous barrier at 494 versus 493 us. Their prices were unchanged;
+tests also check transitions between pinned, unconstrained and paired layers.
+
 Scheduled analytic barrier, binary barrier and touch Greeks validate the
 calendar once per request, while each shifted price retains its other domain
 checks. The `barrier/analytic/scheduled_dense` cases compare the request with

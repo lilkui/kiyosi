@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <concepts>
+#include <cstddef>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -69,6 +71,7 @@ class FiniteDifferenceStep {
         std::vector<double> multipliers, inverse;
         double dt{};
         std::optional<DiffusionParameters> parameters;
+        bool constrained{};
     };
 
 public:
@@ -78,7 +81,7 @@ public:
 
     /// `constraint` pins a node to a fixed value, which barrier and autocallable engines use to
     /// overwrite knocked-out regions in place.
-    template <typename Constraint = decltype([](int) { return std::optional<double>{}; })>
+    template <typename Constraint = std::nullptr_t>
     bool advance(const std::vector<double>& old, std::vector<double>& next, double dt,
                  const DiffusionParameters& parameters, double lower_boundary,
                  double upper_boundary, Constraint constraint = {})
@@ -99,7 +102,7 @@ public:
         return advance_layers(
             std::array{Layer{first_old, first_next, rhs_, first_boundaries},
                        Layer{second_old, second_next, paired_rhs_, second_boundaries}},
-            dt, parameters, [](int) -> std::optional<double> { return std::nullopt; });
+            dt, parameters, nullptr);
     }
 
 private:
@@ -107,6 +110,7 @@ private:
     bool advance_layers(const std::array<Layer, count>& layers, double dt,
                         const DiffusionParameters& parameters, Constraint constraint)
     {
+        constexpr bool constrained = !std::same_as<Constraint, std::nullptr_t>;
         const double theta = parameters.theta;
         // Calendar anchors and uniform nodes introduce recurring split widths.
         if (theta != 0.0 && (factors_[active_].dt != dt || factors_[active_].parameters != parameters)) {
@@ -119,7 +123,7 @@ private:
         }
         auto& factors = factors_[active_];
         if (theta != 0.0 && factors.diagonal.empty()) factors = Factorization{rhs_.size()};
-        bool reuse = factors.dt == dt && factors.parameters == parameters;
+        bool reuse = factors.dt == dt && factors.parameters == parameters && factors.constrained == constrained;
         if (theta != 0.0) factors.parameters.reset();
         for (const auto& layer : layers) {
             layer.next.front() = layer.boundaries.lower;
@@ -136,10 +140,15 @@ private:
         for (int index = 1; index < asset_step_count; ++index) {
             const auto position = static_cast<std::size_t>(index - 1);
             const auto [a, b, c] = coefficients_[position];
-            const auto fixed = constraint(index);
-            if (theta != 0.0) {
-                reuse = reuse && factors.fixed[position] == fixed.has_value();
-                factors.fixed[position] = fixed.has_value();
+            const auto fixed = [&]() -> std::optional<double> {
+                if constexpr (constrained) return constraint(index);
+                else return std::nullopt;
+            }();
+            if constexpr (constrained) {
+                if (theta != 0.0) {
+                    reuse = reuse && factors.fixed[position] == fixed.has_value();
+                    factors.fixed[position] = fixed.has_value();
+                }
             }
             if (fixed) {
                 for (const auto& layer : layers)
@@ -158,7 +167,7 @@ private:
         // A changed constraint near the upper edge also invalidates earlier matrix rows.
         if (theta != 0.0 && !reuse)
             for (std::size_t position = 0; position < rhs_.size(); ++position) {
-                if (factors.fixed[position]) {
+                if (constrained && factors.fixed[position]) {
                     factors.lower[position] = factors.upper_diagonal[position] = 0.0;
                     factors.diagonal[position] = 1.0;
                 } else {
@@ -179,6 +188,7 @@ private:
         if (valid && theta != 0.0) {
             factors.dt = dt;
             factors.parameters = parameters;
+            factors.constrained = constrained;
         }
         return valid;
     }
@@ -274,7 +284,7 @@ private:
 /// Marches one value layer from expiry_date back to valuation; `tau` is the time remaining to expiry_date.
 template <typename BoundaryValues,
           typename Event = decltype([](std::vector<double>&, double, double) {}),
-          typename Constraint = decltype([](int, double) { return std::optional<double>{}; })>
+          typename Constraint = std::nullptr_t>
 [[nodiscard]] inline Result<void> march_backward(
     const FiniteDifferenceTimeGrid& grid, const DiffusionParameters& parameters, std::vector<double>& layer,
     BoundaryValues boundaries, Event event = {}, Constraint constraint = {})
@@ -286,8 +296,14 @@ template <typename BoundaryValues,
         const double dt = grid.time_steps[step];
         const double tau = maturity - grid.times[step];
         const Boundaries edges = boundaries(tau);
-        if (!stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper,
-                             [&](int index) { return constraint(index, tau); }))
+        const bool advanced = [&] {
+            if constexpr (std::same_as<Constraint, std::nullptr_t>)
+                return stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper);
+            else
+                return stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper,
+                                       [&](int index) { return constraint(index, tau); });
+        }();
+        if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         event(next, tau, grid.times[step]);

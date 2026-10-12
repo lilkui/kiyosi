@@ -224,6 +224,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/crr/charm", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");
     register_calculation("analytics/kiyosi/european/crr/color", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::color}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/vanna", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::vanna}); }, "price");
+    register_price("analytics/kiyosi/european/fd/price", european, vanilla_engine, base_context);
     register_calculation("analytics/kiyosi/european/fd/zomma", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::zomma}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/charm", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/color", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::color}); }, "price");

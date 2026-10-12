@@ -427,6 +427,48 @@ TEST_CASE("Finite-difference factors follow time steps parameters and constraint
                                 }
 }
 
+TEST_CASE("Finite-difference factors follow constrained and unconstrained solve transitions", "[fd-factor-cache]")
+{
+    using namespace kiyosi::detail;
+    const std::vector<double> first{0.0, 1.0, 4.0, 9.0, 16.0, 25.0, 36.0};
+    const std::vector<double> second{7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0};
+    for (const double spacing : {0.0, 0.1})
+        for (const double theta : {0.0, 0.5, 1.0}) {
+            FiniteDifferenceStep reused{first.size()};
+            const DiffusionParameters parameters{0.04, 0.01, 0.2, theta, spacing};
+            for (const double dt : {0.1, 0.05, 0.025, 0.1, 0.05, 0.025})
+                for (const bool constrained : {true, false, false, true}) {
+                    CAPTURE(spacing, theta, dt, constrained);
+                    const auto constraint = [=](int index) -> std::optional<double> {
+                        return constrained && index >= 4 ? std::optional{8.0} : std::nullopt;
+                    };
+                    std::vector<double> actual(first.size()), expected(first.size());
+                    FiniteDifferenceStep reference{first.size()};
+                    REQUIRE(reference.advance(first, expected, dt, parameters, 0.0, 36.0, constraint));
+                    if (constrained)
+                        REQUIRE(reused.advance(first, actual, dt, parameters, 0.0, 36.0, constraint));
+                    else
+                        REQUIRE(reused.advance(first, actual, dt, parameters, 0.0, 36.0));
+                    CHECK(actual == expected);
+
+                    // Pairing must discard a previously pinned region in either layer.
+                    std::vector<double> actual_second(second.size()), expected_second(second.size());
+                    FiniteDifferenceStep first_reference{first.size()}, second_reference{second.size()};
+                    const auto free_node = [](int) -> std::optional<double> { return std::nullopt; };
+                    REQUIRE(first_reference.advance(first, expected, dt, parameters, 0.0, 36.0, free_node));
+                    REQUIRE(second_reference.advance(second, expected_second, dt, parameters, 7.0, 1.0, free_node));
+                    REQUIRE(reused.advance_pair(first, actual, second, actual_second, dt, parameters, {0.0, 36.0}, {7.0, 1.0}));
+                    CHECK(actual == expected);
+                    CHECK(actual_second == expected_second);
+                    if (constrained) {
+                        REQUIRE(reused.advance(first, actual, dt, parameters, 0.0, 36.0, constraint));
+                        REQUIRE(reused.advance(first, actual, dt, parameters, 0.0, 36.0));
+                        CHECK(actual == expected);
+                    }
+                }
+        }
+}
+
 TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-factor-cache]")
 {
     using namespace kiyosi::detail;
