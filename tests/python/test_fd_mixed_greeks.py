@@ -7,6 +7,43 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class FiniteDifferenceMixedGreekTests(unittest.TestCase):
+    def test_one_sided_native_time_greeks_remain_selective_and_accurate(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for option_type in ("call", "put"):
+            option = EuropeanOption(
+                option_type=option_type, strike=100, effective_date=start, expiry_date=end
+            )
+            for engine in (
+                pricing.CoxRossRubinsteinVanillaEngine(step_count=1000),
+                pricing.FiniteDifferenceVanillaEngine(),
+            ):
+                for greek, dependency in (("charm", "delta"), ("color", "gamma")):
+                    with self.subTest(
+                        option_type=option_type, engine=type(engine), greek=greek
+                    ):
+                        single = engine.price_with_greeks(option, context, [greek])
+                        joint = engine.price_with_greeks(option, context, [greek, dependency])
+                        expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+                            option, context, [greek]
+                        )
+                        self.assertEqual(single.price, joint.price)
+                        self.assertEqual(getattr(single, greek), getattr(joint, greek))
+                        self.assertIsNone(single.delta)
+                        self.assertIsNone(single.gamma)
+                        reference = getattr(expected, greek)
+                        self.assertAlmostEqual(
+                            getattr(single, greek),
+                            reference,
+                            delta=abs(reference) * 0.02 + 1e-7,
+                        )
+
     def test_charm_at_effective_date_remains_selective(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(

@@ -489,6 +489,16 @@ volatility was bit-for-bit identical at 0.2000129745263024.
 `american/mc/implied_volatility` tracks the solve workload; caches are never
 shared between requests or stored in the public engine.
 
+Effective-date charm and color requests retain their private native delta/gamma
+dependencies until time differences are complete. The `european/{crr,fd}/effective_date`
+analytics cases cover this one-sided stencil. A 2026-10-12 Release MSVC probe
+with a one-year ATM call, rate 4%, dividend yield 1% and volatility 30% measured
+default FD charm falling from 2.40 to 0.97 ms and color from 2.89 to 0.95 ms;
+1,000-step CRR charm fell from 2.71 to 1.07 ms and color from 3.26 to 1.08 ms
+(median of seven batches of 100 requests). CRR color now matches the joint
+color/gamma request at 0.00001897446, close to analytic 0.00001892253, rather
+than the scalar-stencil value 0.00027356906. Returned fields remain selective.
+
 Scheduled analytic barrier, binary barrier and touch Greeks validate the
 calendar once per request, while each shifted price retains its other domain
 checks. The `barrier/analytic/scheduled_dense` cases compare the request with

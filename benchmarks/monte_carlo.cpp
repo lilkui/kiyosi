@@ -226,6 +226,10 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/fd/zomma", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::zomma}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/charm", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::charm}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/color", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::color}); }, "price");
+    register_calculation("analytics/kiyosi/european/crr/effective_date/charm", [=] { return binomial_engine.price_with_greeks(european, base_context, {Greek::charm}); }, "price");
+    register_calculation("analytics/kiyosi/european/crr/effective_date/color", [=] { return binomial_engine.price_with_greeks(european, base_context, {Greek::color}); }, "price");
+    register_calculation("analytics/kiyosi/european/fd/effective_date/charm", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::charm}); }, "price");
+    register_calculation("analytics/kiyosi/european/fd/effective_date/color", [=] { return vanilla_engine.price_with_greeks(european, base_context, {Greek::color}); }, "price");
     register_price("analytics/kiyosi/barrier/fd/price", barrier, barrier_engine, base_context);
     register_calculation("analytics/kiyosi/barrier/fd/delta_gamma", [=] { return barrier_engine.price_with_greeks(barrier, base_context, {Greek::delta, Greek::gamma}); }, "price");
     const auto scheduled_knock_in = *make_barrier_option(

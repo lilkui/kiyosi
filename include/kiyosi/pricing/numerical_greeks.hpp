@@ -1,12 +1,14 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <concepts>
 #include <optional>
 #include <ratio>
 #include <random>
+#include <span>
 
 #include <kiyosi/instruments/barrier/terms.hpp>
 #include <kiyosi/instruments/autocallable/note.hpp>
@@ -457,21 +459,37 @@ Result<PricingResult> price_with_greeks(
                                      evaluate_native, native_complete);
         }
     }
+    auto native_request = greeks;
+    if constexpr (requires { option.effective_date(); evaluate_native(engine, context, greeks); }) {
+        if (context.valuation_time() == start_of_day(option.effective_date()) &&
+            (greeks.has(Greek::charm) || greeks.has(Greek::color))) {
+            // One-sided time differences need the central spot derivatives too.
+            std::array<Greek, greek_count> measures{};
+            std::size_t count = 0;
+            for (std::size_t index = 0; index < greek_count; ++index) {
+                const auto greek = static_cast<Greek>(index);
+                if (greeks.has(greek) || (greek == Greek::delta && greeks.has(Greek::charm)) ||
+                    (greek == Greek::gamma && greeks.has(Greek::color)))
+                    measures[count++] = greek;
+            }
+            native_request = GreeksRequest{std::span{measures}.first(count)};
+        }
+    }
     auto native = [&] {
         if constexpr (requires { evaluate_native(engine, context, greeks); })
-            return evaluate_native(engine, context, greeks);
+            return evaluate_native(engine, context, native_request);
         else
             return evaluate_native(engine);
     }();
     const auto value = price_value(native);
     if (!value) return std::unexpected(value.error());
-    *native = native->selected(greeks);
+    *native = native->selected(native_request);
     if (!native->all_finite())
         return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
     if (native_complete) {
         if (greeks_unavailable(option, context))
             return make_pricing_result(*value);
-        return native;
+        return native->selected(greeks);
     }
     if constexpr (requires { { engine.settings() } -> std::same_as<FiniteDifferenceSettings>; }) {
         auto grid = engine.settings();
