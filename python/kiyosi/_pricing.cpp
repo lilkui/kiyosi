@@ -42,36 +42,71 @@ template <typename Engine, typename Instrument>
 void bind_analytics_pair(nb::module_& module);
 
 template <typename Engine, typename Instrument>
+struct SpotShiftArgument {
+    using Type = PythonReal;
+    static nb::object default_value() { return nb::float_(NumericalShiftSettings{}.spot_shift); }
+    static double convert(Type value, const PricingContext&) { return real_number(value, "spot_shift"); }
+};
+
+template <>
+struct SpotShiftArgument<MonteCarloVanillaEngine, AmericanOption> {
+    using Type = nb::typed<nb::handle, std::optional<double>>;
+    static nb::object default_value() { return nb::none(); }
+    static double convert(Type value, const PricingContext& context)
+    {
+        return value.is_none() ? MonteCarloVanillaEngine::default_american_spot_shift(context)
+                               : real_number(value, "spot_shift");
+    }
+};
+
+template <typename Engine, typename Instrument>
+double price_for_python(const Engine& engine, const Instrument& instrument, const PricingContext& context)
+{
+    // Releasing the GIL costs more than these short scalar formulas.
+    if constexpr (std::same_as<Engine, AnalyticVanillaEngine> ||
+                  std::same_as<Engine, AnalyticDigitalEngine> ||
+                  std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
+                  std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>) {
+        return unwrap(engine.price(instrument, context));
+    } else if constexpr (std::same_as<Engine, AnalyticBarrierEngine> ||
+                         std::same_as<Engine, AnalyticBinaryBarrierEngine>) {
+        // Scheduled monitoring validates calendars across the full observation schedule.
+        if (instrument.observation_mode() != ObservationMode::scheduled)
+            return unwrap(engine.price(instrument, context));
+    }
+    nb::gil_scoped_release release;
+    return unwrap(engine.price(instrument, context));
+}
+
+template <typename Engine, typename Instrument>
+PricingResult greeks_for_python(const Engine& engine, const Instrument& instrument, const PricingContext& context,
+                                GreeksRequest request, const NumericalShiftSettings& settings)
+{
+    if constexpr (std::same_as<Engine, AnalyticVanillaEngine> ||
+                  std::same_as<Engine, AnalyticDigitalEngine>) {
+        return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+    } else if constexpr (std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
+                         std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>) {
+        // Three short prices cost less than releasing and reacquiring the GIL.
+        if (request.has(Greek::delta) && std::ranges::none_of(
+                                             std::array{Greek::gamma, Greek::speed, Greek::theta, Greek::charm, Greek::color,
+                                                        Greek::vega, Greek::vanna, Greek::zomma, Greek::rho},
+                                             [&](Greek greek) { return request.has(greek); }))
+            return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+    }
+    nb::gil_scoped_release release;
+    return unwrap(engine.price_with_greeks(instrument, context, request, settings));
+}
+
+template <typename Engine, typename Instrument>
 void bind_engine_price(nb::module_& module, nb::class_<Engine>& binding)
 {
     bind_analytics_pair<Engine, Instrument>(module);
-    constexpr bool american_mc = std::same_as<Engine, MonteCarloVanillaEngine> && std::same_as<Instrument, AmericanOption>;
-    using SpotShift = std::conditional_t<american_mc, nb::typed<nb::handle, std::optional<double>>, PythonReal>;
-    nb::object default_spot_shift;
-    if constexpr (american_mc) default_spot_shift = nb::none();
-    else default_spot_shift = nb::float_(NumericalShiftSettings{}.spot_shift);
-    // Releasing the GIL costs more than these short scalar formulas.
-    constexpr bool keep_gil = std::same_as<Engine, AnalyticVanillaEngine> ||
-                              std::same_as<Engine, AnalyticDigitalEngine> ||
-                              std::same_as<Engine, AnalyticBarrierEngine> ||
-                              std::same_as<Engine, AnalyticBinaryBarrierEngine> ||
-                              std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
-                              std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>;
-    using PriceGuard = std::conditional_t<keep_gil, nb::call_guard<>, nb::call_guard<nb::gil_scoped_release>>;
+    using SpotShift = SpotShiftArgument<Engine, Instrument>;
     binding.def(
         "price",
-        [](const Engine& engine, const Instrument& instrument, const PricingContext& context) {
-            if constexpr (std::same_as<Engine, AnalyticBarrierEngine> ||
-                          std::same_as<Engine, AnalyticBinaryBarrierEngine>) {
-                // Scheduled monitoring validates calendars across the full observation schedule.
-                if (instrument.observation_mode() == ObservationMode::scheduled) {
-                    nb::gil_scoped_release release;
-                    return unwrap(engine.price(instrument, context));
-                }
-            }
-            return unwrap(engine.price(instrument, context));
-        },
-        "instrument"_a, "context"_a, PriceGuard{},
+        &price_for_python<Engine, Instrument>,
+        "instrument"_a, "context"_a,
         R"doc(Price an instrument under a market context.
 
 Parameters
@@ -100,41 +135,20 @@ is deferred until the synchronous core computation returns.)doc");
     binding.def(
         "price_with_greeks",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonGreekRequest greeks, nb::typed<nb::handle, bool> all_greeks, SpotShift spot_shift, PythonReal volatility_shift,
+           PythonGreekRequest greeks, nb::typed<nb::handle, bool> all_greeks, typename SpotShift::Type spot_shift, PythonReal volatility_shift,
            PythonReal rate_shift, PythonInteger time_shift_days) {
             if (!PyBool_Check(all_greeks.ptr())) type_error("all_greeks", "a bool");
             const bool all = all_greeks.ptr() == Py_True;
             if (all && !greeks.is_none()) type_error("greeks", "omitted when all_greeks is True");
             if (!all && greeks.is_none()) type_error("greeks", "provided unless all_greeks is True");
             const GreeksRequest request = all ? GreeksRequest{true} : requested_greeks(greeks);
-            const double spot = [&] {
-                if constexpr (american_mc) {
-                    if (spot_shift.is_none()) return Engine::default_american_spot_shift(context);
-                }
-                return real_number(spot_shift, "spot_shift");
-            }();
             const auto settings = numerical_settings(
-                spot, volatility_shift, rate_shift, time_shift_days);
-            if constexpr (std::same_as<Engine, AnalyticGeometricAveragePriceEngine> ||
-                          std::same_as<Engine, TurnbullWakemanArithmeticAveragePriceEngine>) {
-                // Three short prices cost less than releasing and reacquiring the GIL.
-                if (request.has(Greek::delta) && std::ranges::none_of(
-                        std::array{Greek::gamma, Greek::speed, Greek::theta, Greek::charm, Greek::color,
-                                   Greek::vega, Greek::vanna, Greek::zomma, Greek::rho},
-                        [&](Greek greek) { return request.has(greek); }))
-                    return unwrap(engine.price_with_greeks(instrument, context, request, settings));
-            }
-            if constexpr (std::same_as<Engine, AnalyticVanillaEngine> ||
-                          std::same_as<Engine, AnalyticDigitalEngine>) {
-                return unwrap(engine.price_with_greeks(instrument, context, request, settings));
-            } else {
-                nb::gil_scoped_release release;
-                return unwrap(engine.price_with_greeks(instrument, context, request, settings));
-            }
+                SpotShift::convert(spot_shift, context), volatility_shift, rate_shift, time_shift_days);
+            return greeks_for_python(engine, instrument, context, request, settings);
         },
         "instrument"_a, "context"_a, "greeks"_a = nb::none(), nb::kw_only(),
         "all_greeks"_a = false,
-        "spot_shift"_a.none() = default_spot_shift,
+        "spot_shift"_a.none() = SpotShift::default_value(),
         "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
         "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
         "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
