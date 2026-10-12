@@ -29,7 +29,8 @@ struct MonteCarloDiscount {
         const double amount = quantity * difference;
         if (std::abs(amount) >= DBL_MIN && std::abs(amount) <= DBL_MAX)
             return apply(amount);
-        if (quantity == 0.0 || difference == 0.0 || !std::isfinite(quantity) || !std::isfinite(difference))
+        // Ordered comparisons reject NaNs and infinities in both host and device code.
+        if (quantity == 0.0 || difference == 0.0 || !(std::abs(quantity) <= DBL_MAX) || !(std::abs(difference) <= DBL_MAX))
             return apply(amount);
         // Discount the factors together before their product loses range or precision.
         return std::copysign(std::exp(std::log(std::abs(quantity)) + std::log(std::abs(difference)) + exponent), amount);
