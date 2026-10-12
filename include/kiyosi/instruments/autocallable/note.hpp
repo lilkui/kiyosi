@@ -5,6 +5,8 @@
 #include <cmath>
 #include <concepts>
 #include <optional>
+#include <ranges>
+#include <span>
 #include <utility>
 #include <vector>
 
@@ -40,10 +42,103 @@ enum class AutocallableBarrierState : std::uint8_t {
     knocked_in   ///< The downside barrier has already been breached.
 };
 
+/// One contractual observation; its date, knock-out level, and coupon terms travel together.
+struct AutocallableObservation {
+    Date date;
+    double knock_out_level;
+    double coupon_rate{};          ///< Snowball knock-out annual coupon; zero for Phoenix.
+    double coupon_barrier_level{}; ///< Phoenix coupon threshold; zero for snowballs.
+    friend bool operator==(const AutocallableObservation&, const AutocallableObservation&) = default;
+};
+
+namespace detail {
+
+// Adapts sequence inputs to the same validator used by immutable notes, without copies.
+template <typename Terms>
+struct AutocallableInput {
+    const Terms& terms;
+    double principal_ratio() const { return terms.principal_ratio; }
+    Date effective_date() const { return terms.effective_date; }
+    Date expiry_date() const { return terms.expiry_date; }
+    auto barrier_state() const { return terms.barrier_state; }
+    const auto& observation_dates() const { return terms.observation_dates; }
+    const auto& knock_out_levels() const { return terms.knock_out_levels; }
+    double initial_spot() const
+        requires requires { terms.initial_spot; }
+    {
+        return terms.initial_spot;
+    }
+    double upper_strike() const
+        requires requires { terms.upper_strike; }
+    {
+        return terms.upper_strike;
+    }
+    double lower_strike() const
+        requires requires { terms.lower_strike; }
+    {
+        return terms.lower_strike;
+    }
+    double knock_in_level() const
+        requires requires { terms.knock_in_level; }
+    {
+        return terms.knock_in_level;
+    }
+    auto knock_in_observation_mode() const
+        requires requires { terms.knock_in_observation_mode; }
+    {
+        return terms.knock_in_observation_mode;
+    }
+    double coupon_rate() const
+        requires requires { terms.coupon_rate; }
+    {
+        return terms.coupon_rate;
+    }
+    const auto& coupon_barrier_levels() const
+        requires requires { terms.coupon_barrier_levels; }
+    {
+        return terms.coupon_barrier_levels;
+    }
+    const auto& knock_out_coupon_rates() const
+        requires requires { terms.knock_out_coupon_rates; }
+    {
+        return terms.knock_out_coupon_rates;
+    }
+    double maturity_coupon_rate() const
+        requires requires { terms.maturity_coupon_rate; }
+    {
+        return terms.maturity_coupon_rate;
+    }
+    double minimum_coupon_rate() const
+        requires requires { terms.minimum_coupon_rate; }
+    {
+        return terms.minimum_coupon_rate;
+    }
+};
+
+// Input validation establishes equal sequence lengths before records are constructed.
+template <typename Terms>
+std::vector<AutocallableObservation> autocallable_observations(const Terms& terms)
+{
+    std::vector<AutocallableObservation> observations;
+    observations.reserve(terms.observation_dates.size());
+    for (std::size_t i = 0; i < terms.observation_dates.size(); ++i) {
+        AutocallableObservation observation{terms.observation_dates[i], terms.knock_out_levels[i]};
+        if constexpr (requires { terms.knock_out_coupon_rates; }) observation.coupon_rate = terms.knock_out_coupon_rates[i];
+        if constexpr (requires { terms.coupon_barrier_levels; }) observation.coupon_barrier_level = terms.coupon_barrier_levels[i];
+        observations.push_back(observation);
+    }
+    return observations;
+}
+
+} // namespace detail
+
 /// Principal, knock-out ladder, and contract life shared by every autocallable structure.
 /// Valuation excludes cashflows settled before the valuation time.
 /// For example, principal_ratio 2 plus a 0.1 coupon pays 2.1 normalized units;
 /// principal_ratio 2 plus a -0.2 downside component pays 1.8.
+/// Observation views are read-only and borrow this note. Destruction, moving from, or assignment
+/// invalidates them; projection iterators also require their view object to remain alive.
+/// Concurrent const access follows the library default; assignment must not overlap any access.
 class AutocallableNote {
 public:
     AutocallableNote(const AutocallableNote&) = default;
@@ -51,9 +146,11 @@ public:
     ~AutocallableNote() = default;
 
     /// Returns one positive knock-out level per observation date.
-    const std::vector<double>& knock_out_levels() const noexcept { return terms_.knock_out_levels; }
+    auto knock_out_levels() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::knock_out_level); }
     /// Returns the strictly ordered knock-out observation dates.
-    const std::vector<Date>& observation_dates() const noexcept { return terms_.observation_dates; }
+    auto observation_dates() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::date); }
+    /// Borrows the complete immutable observation records, with the lifetime documented above.
+    std::span<const AutocallableObservation> observations_view() const noexcept { return terms_.observations; }
     /// Returns the non-negative normalized principal repayment component.
     double principal_ratio() const noexcept { return terms_.principal_ratio; }
     /// Returns the first date of the note life.
@@ -66,19 +163,18 @@ public:
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
 
 protected:
-    // Only complete products may replace shared terms and their matching coupon arrays.
+    // Only complete products may replace shared terms and their observations.
     AutocallableNote& operator=(const AutocallableNote&) = default;
     AutocallableNote& operator=(AutocallableNote&&) = default;
 
 private:
-    AutocallableNote(std::vector<double> knock_out_levels, std::vector<Date> observation_dates, double principal_ratio,
+    AutocallableNote(std::vector<AutocallableObservation> observations, double principal_ratio,
                      std::optional<AutocallableBarrierState> barrier_state, Date effective_date, Date expiry_date)
-        : terms_{std::move(knock_out_levels), std::move(observation_dates), principal_ratio,
+        : terms_{std::move(observations), principal_ratio,
                  barrier_state, effective_date, expiry_date} {}
 
     struct Terms {
-        std::vector<double> knock_out_levels;
-        std::vector<Date> observation_dates;
+        std::vector<AutocallableObservation> observations;
         double principal_ratio;
         std::optional<AutocallableBarrierState> barrier_state;
         Date effective_date;
@@ -105,16 +201,15 @@ public:
     friend bool operator==(const KnockInAutocallableNote&, const KnockInAutocallableNote&) = default;
 
 protected:
-    // Only complete products may replace shared terms and their matching coupon arrays.
+    // Only complete products may replace shared terms and their observations.
     KnockInAutocallableNote& operator=(const KnockInAutocallableNote&) = default;
     KnockInAutocallableNote& operator=(KnockInAutocallableNote&&) = default;
 
 private:
-    KnockInAutocallableNote(double knock_in_level, std::vector<double> knock_out_levels,
-                            std::vector<Date> observation_dates,
+    KnockInAutocallableNote(double knock_in_level, std::vector<AutocallableObservation> observations,
                             KnockInObservationMode knock_in_observation_mode, std::optional<AutocallableBarrierState> barrier_state,
                             double principal_ratio, Date effective_date, Date expiry_date)
-        : AutocallableNote(std::move(knock_out_levels), std::move(observation_dates),
+        : AutocallableNote(std::move(observations),
                            principal_ratio, barrier_state, effective_date, expiry_date),
           knock_in_level_(knock_in_level), knock_in_observation_mode_(knock_in_observation_mode) {}
 
@@ -147,7 +242,7 @@ template <typename Note>
     if (note.observation_dates().empty() ||
         note.knock_out_levels().size() != note.observation_dates().size())
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable schedule is invalid"});
-    auto schedule = validate_date_schedule(note.observation_dates(), note.effective_date(), note.expiry_date());
+    auto schedule = detail::validate_date_schedule(note.observation_dates(), note.effective_date(), note.expiry_date());
     if (!schedule) return std::unexpected(schedule.error());
     for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
         if (!std::isfinite(note.knock_out_levels()[index]) || note.knock_out_levels()[index] <= 0.0)
@@ -228,12 +323,10 @@ template <typename Note>
 
 namespace detail {
 
-template <typename Note>
-[[nodiscard]] inline Result<Note> validate_and_return_autocallable_note(Note note)
+template <typename Terms>
+[[nodiscard]] inline Result<void> validate_autocallable_terms(const Terms& terms)
 {
-    auto valid = validate_autocallable_note(note);
-    if (!valid) return std::unexpected(valid.error());
-    return std::move(note);
+    return validate_autocallable_note(AutocallableInput{terms});
 }
 
 } // namespace detail

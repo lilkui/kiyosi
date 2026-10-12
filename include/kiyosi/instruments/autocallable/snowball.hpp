@@ -76,7 +76,7 @@ public:
     /// Returns the lower settlement strike.
     double lower_strike() const noexcept { return lower_strike_; }
     /// Returns one finite knock-out coupon rate per observation date.
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    auto knock_out_coupon_rates() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate); }
     /// Returns the finite maturity coupon rate.
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
 
@@ -85,18 +85,15 @@ public:
 
 private:
     explicit SnowballOption(SnowballTerms terms)
-        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
-                                  std::move(terms.observation_dates),
+        : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
           initial_spot_(terms.initial_spot), upper_strike_(terms.upper_strike), lower_strike_(terms.lower_strike),
-          knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
           maturity_coupon_rate_(terms.maturity_coupon_rate) {}
 
     double initial_spot_;
     double upper_strike_;
     double lower_strike_;
-    std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 
     friend Result<SnowballOption> make_snowball_option(SnowballTerms);
@@ -106,7 +103,7 @@ private:
 class BinarySnowballOption : public AutocallableNote {
 public:
     /// Returns one finite knock-out coupon rate per observation date.
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    auto knock_out_coupon_rates() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate); }
     /// Returns the finite flat maturity coupon rate.
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
     /// Compares all autocallable and coupon terms.
@@ -114,13 +111,10 @@ public:
 
 private:
     explicit BinarySnowballOption(BinarySnowballTerms terms)
-        : AutocallableNote(std::move(terms.knock_out_levels),
-                           std::move(terms.observation_dates), terms.principal_ratio, terms.barrier_state,
+        : AutocallableNote(detail::autocallable_observations(terms), terms.principal_ratio, terms.barrier_state,
                            terms.effective_date, terms.expiry_date),
-          knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
           maturity_coupon_rate_(terms.maturity_coupon_rate) {}
 
-    std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
 
     friend Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms);
@@ -130,7 +124,7 @@ private:
 class TernarySnowballOption : public KnockInAutocallableNote {
 public:
     /// Returns one finite knock-out coupon rate per observation date.
-    const std::vector<double>& knock_out_coupon_rates() const noexcept { return knock_out_coupon_rates_; }
+    auto knock_out_coupon_rates() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate); }
     /// Returns the finite pre-adjustment maturity coupon rate.
     double maturity_coupon_rate() const noexcept { return maturity_coupon_rate_; }
     /// Returns the finite maturity-coupon floor after knock-in.
@@ -140,13 +134,10 @@ public:
 
 private:
     explicit TernarySnowballOption(TernarySnowballTerms terms)
-        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
-                                  std::move(terms.observation_dates), terms.knock_in_observation_mode,
+        : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms), terms.knock_in_observation_mode,
                                   terms.barrier_state, terms.principal_ratio, terms.effective_date, terms.expiry_date),
-          knock_out_coupon_rates_(std::move(terms.knock_out_coupon_rates)),
           maturity_coupon_rate_(terms.maturity_coupon_rate), minimum_coupon_rate_(terms.minimum_coupon_rate) {}
 
-    std::vector<double> knock_out_coupon_rates_;
     double maturity_coupon_rate_;
     double minimum_coupon_rate_;
 
@@ -155,17 +146,23 @@ private:
 
 [[nodiscard]] inline Result<BinarySnowballOption> make_binary_snowball_option(BinarySnowballTerms terms)
 {
-    return detail::validate_and_return_autocallable_note(BinarySnowballOption{std::move(terms)});
+    const auto valid = detail::validate_autocallable_terms(terms);
+    if (!valid) return std::unexpected(valid.error());
+    return BinarySnowballOption{std::move(terms)};
 }
 
 [[nodiscard]] inline Result<SnowballOption> make_snowball_option(SnowballTerms terms)
 {
-    return detail::validate_and_return_autocallable_note(SnowballOption{std::move(terms)});
+    const auto valid = detail::validate_autocallable_terms(terms);
+    if (!valid) return std::unexpected(valid.error());
+    return SnowballOption{std::move(terms)};
 }
 
 [[nodiscard]] inline Result<TernarySnowballOption> make_ternary_snowball_option(TernarySnowballTerms terms)
 {
-    return detail::validate_and_return_autocallable_note(TernarySnowballOption{std::move(terms)});
+    const auto valid = detail::validate_autocallable_terms(terms);
+    if (!valid) return std::unexpected(valid.error());
+    return TernarySnowballOption{std::move(terms)};
 }
 
 } // namespace kiyosi

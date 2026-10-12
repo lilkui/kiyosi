@@ -382,7 +382,8 @@ inline PythonDateObject python_date(Date value, const PyDateTime_CAPI* api = dat
 }
 
 /// Returns a fresh Python list of date values; requires the GIL.
-inline PythonDateList python_dates(std::span<const Date> values)
+template <std::ranges::input_range Dates>
+inline PythonDateList python_dates(const Dates& values)
 {
     PythonDateList output;
     const auto* api = datetime_api();

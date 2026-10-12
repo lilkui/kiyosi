@@ -11,13 +11,7 @@ namespace {
 template <typename Note>
 void bind_note_properties(nb::class_<Note>& binding)
 {
-    binding.def_prop_ro("knock_out_levels", &Note::knock_out_levels,
-                        "Knock-out level for each observation date.")
-        .def_prop_ro("observation_dates", [](const Note& note) { return python_dates(note.observation_dates()); }, "Copy of the ordered observation dates.")
-        .def_prop_ro("principal_ratio", &Note::principal_ratio, "Normalized principal repayment component; coupons and downside are separate.")
-        .def_prop_ro("barrier_state", &Note::barrier_state, "State before valuation, or None when not supplied.")
-        .def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); }, "First date on which the note is effective.")
-        .def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); }, "Note expiry date.");
+    binding.def_prop_ro("knock_out_levels", [](const Note& note) { return note.knock_out_levels() | std::ranges::to<std::vector<double>>(); }, "Knock-out level for each observation date.").def_prop_ro("observation_dates", [](const Note& note) { return python_dates(note.observation_dates()); }, "Copy of the ordered observation dates.").def_prop_ro("principal_ratio", &Note::principal_ratio, "Normalized principal repayment component; coupons and downside are separate.").def_prop_ro("barrier_state", &Note::barrier_state, "State before valuation, or None when not supplied.").def_prop_ro("effective_date", [](const Note& note) { return python_date(note.effective_date()); }, "First date on which the note is effective.").def_prop_ro("expiry_date", [](const Note& note) { return python_date(note.expiry_date()); }, "Note expiry date.");
     if constexpr (requires { &Note::initial_spot; &Note::upper_strike; &Note::lower_strike; })
         binding.def_prop_ro("initial_spot", &Note::initial_spot,
                             "Reference spot used to define relative terms.")
@@ -403,10 +397,8 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-                        .def_prop_ro("knock_out_coupon_rates", &SnowballOption::knock_out_coupon_rates,
-                                     "Annualized coupon rate for each observation date.")
-                        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate,
-                                     "Annualized coupon rate used at maturity when applicable.");
+                        .def_prop_ro("knock_out_coupon_rates", [](const SnowballOption& note) { return note.knock_out_coupon_rates() | std::ranges::to<std::vector<double>>(); }, "Annualized coupon rate for each observation date.")
+                        .def_prop_ro("maturity_coupon_rate", &SnowballOption::maturity_coupon_rate, "Annualized coupon rate used at maturity when applicable.");
     bind_knock_in_properties(snowball);
     bind_value_equality(snowball);
     bind_repr(snowball, "SnowballOption",
@@ -468,10 +460,8 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-                      .def_prop_ro("knock_out_coupon_rates", &BinarySnowballOption::knock_out_coupon_rates,
-                                   "Annualized coupon rate for each observation date.")
-                      .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate,
-                                   "Annualized coupon rate used at maturity when applicable.");
+                      .def_prop_ro("knock_out_coupon_rates", [](const BinarySnowballOption& note) { return note.knock_out_coupon_rates() | std::ranges::to<std::vector<double>>(); }, "Annualized coupon rate for each observation date.")
+                      .def_prop_ro("maturity_coupon_rate", &BinarySnowballOption::maturity_coupon_rate, "Annualized coupon rate used at maturity when applicable.");
     bind_note_properties(binary);
     bind_value_equality(binary);
     bind_repr(binary, "BinarySnowballOption",
@@ -539,12 +529,9 @@ TypeError
     If an argument or sequence element has an incompatible representation.
 KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
-                       .def_prop_ro("knock_out_coupon_rates", &TernarySnowballOption::knock_out_coupon_rates,
-                                    "Annualized coupon rate for each observation date.")
-                       .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate,
-                                    "Annualized coupon rate used at maturity when applicable.")
-                       .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate,
-                                    "Minimum annualized coupon rate for the third payoff region.");
+                       .def_prop_ro("knock_out_coupon_rates", [](const TernarySnowballOption& note) { return note.knock_out_coupon_rates() | std::ranges::to<std::vector<double>>(); }, "Annualized coupon rate for each observation date.")
+                       .def_prop_ro("maturity_coupon_rate", &TernarySnowballOption::maturity_coupon_rate, "Annualized coupon rate used at maturity when applicable.")
+                       .def_prop_ro("minimum_coupon_rate", &TernarySnowballOption::minimum_coupon_rate, "Minimum annualized coupon rate for the third payoff region.");
     bind_knock_in_properties(ternary);
     bind_value_equality(ternary);
     bind_repr(ternary, "TernarySnowballOption",
@@ -620,8 +607,7 @@ KiyosiError
     If the core rejects the rates, levels, schedule, state, or dates.)doc")
                        .def_prop_ro("coupon_rate", &PhoenixOption::coupon_rate,
                                     "Annualized coupon rate per observation period (Actual/365 Fixed).")
-                       .def_prop_ro("coupon_barrier_levels", &PhoenixOption::coupon_barrier_levels,
-                                    "Coupon barrier level for each observation date.");
+                       .def_prop_ro("coupon_barrier_levels", [](const PhoenixOption& note) { return note.coupon_barrier_levels() | std::ranges::to<std::vector<double>>(); }, "Coupon barrier level for each observation date.");
     bind_knock_in_properties(phoenix);
     bind_value_equality(phoenix);
     bind_repr(phoenix, "PhoenixOption",

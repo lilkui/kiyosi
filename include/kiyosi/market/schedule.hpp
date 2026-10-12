@@ -1,6 +1,7 @@
 #pragma once
 
 #include <span>
+#include <ranges>
 #include <utility>
 #include <vector>
 
@@ -17,8 +18,10 @@ namespace detail {
     std::vector<Date>, Date, Date, const TradingCalendar&);
 
 // Requires dates whose range and ordering have already been validated.
+template <std::ranges::input_range Dates>
+    requires std::same_as<std::ranges::range_value_t<Dates>, Date>
 [[nodiscard]] inline Result<void> validate_observation_trading_days(
-    std::span<const Date> observation_dates, const TradingCalendar& calendar)
+    const Dates& observation_dates, const TradingCalendar& calendar)
 {
     for (const Date observation_date : observation_dates)
         if (!calendar.is_trading_day(observation_date))
@@ -26,12 +29,10 @@ namespace detail {
                                          "observation Date is not a trading day"});
     return {};
 }
-} // namespace detail
-
-/// Validates ordering and instrument-life bounds for a date schedule.
-/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
+template <std::ranges::random_access_range Dates>
+    requires std::same_as<std::ranges::range_value_t<Dates>, Date>
 [[nodiscard]] inline Result<void> validate_date_schedule(
-    std::span<const Date> observation_dates, Date instrument_start, Date instrument_end)
+    const Dates& observation_dates, Date instrument_start, Date instrument_end)
 {
     auto life = validate_instrument_life(instrument_start, instrument_end);
     if (!life) return life;
@@ -46,6 +47,15 @@ namespace detail {
                                          "observation Date must be within the instrument life"});
     }
     return {};
+}
+} // namespace detail
+
+/// Validates ordering and instrument-life bounds for a date schedule.
+/// @return Success, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
+[[nodiscard]] inline Result<void> validate_date_schedule(
+    std::span<const Date> observation_dates, Date instrument_start, Date instrument_end)
+{
+    return detail::validate_date_schedule(observation_dates, instrument_start, instrument_end);
 }
 
 /// Validates ordering, life bounds, and trading-day status for observation dates.

@@ -14,6 +14,48 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable records retain each date level and coupon association", "[autocallable-records]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), first = day(2025, 1, 11), end = day(2025, 1, 31);
+    const auto snowball = make_binary_snowball_option(
+        {.knock_out_coupon_rates = {0.365, 0.73}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0, 105.0}, .observation_dates = {first, end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+    REQUIRE(snowball);
+    const auto observations = snowball->observations_view();
+    REQUIRE(observations.size() == 2);
+    CHECK(observations[0] == AutocallableObservation{first, 110.0, 0.365, 0.0});
+    CHECK(observations[1] == AutocallableObservation{end, 105.0, 0.73, 0.0});
+    CHECK(detail::autocallable_event(*snowball, 0).coupon == Catch::Approx(0.01));
+    CHECK(detail::autocallable_event(*snowball, 1).coupon == Catch::Approx(0.06));
+
+    const auto phoenix = make_phoenix_option(
+        {.coupon_rate = 0.365, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {110.0, 105.0}, .coupon_barrier_levels = {108.0, 102.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {first, end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+    REQUIRE(phoenix);
+    CHECK(phoenix->observations_view()[0] == AutocallableObservation{first, 110.0, 0.0, 108.0});
+    CHECK(phoenix->observations_view()[1] == AutocallableObservation{end, 105.0, 0.0, 102.0});
+    CHECK(detail::autocallable_event(*phoenix, 1).coupon == Catch::Approx(0.02));
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 106.0, end, all_days_calendar());
+    for (const auto price : {FiniteDifferenceBinarySnowballEngine{}.price(*snowball, context),
+                             MonteCarloBinarySnowballEngine{8, 7}.price(*snowball, context)}) {
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(1.06));
+    }
+    for (const auto price : {FiniteDifferencePhoenixEngine{}.price(*phoenix, context),
+                             MonteCarloPhoenixEngine{8, 7}.price(*phoenix, context)}) {
+        REQUIRE(price);
+        CHECK(*price == Catch::Approx(1.02));
+    }
+
+    BinarySnowballTerms mismatched{.knock_out_coupon_rates = {0.365}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0, 105.0}, .observation_dates = {first, end}, .principal_ratio = -1.0, .effective_date = start, .expiry_date = end};
+    const auto invalid_principal = make_binary_snowball_option(mismatched);
+    REQUIRE_FALSE(invalid_principal);
+    CHECK(invalid_principal.error().category == ErrorCategory::invalid_parameter);
+    mismatched.principal_ratio = 1.0;
+    const auto invalid_schedule = make_binary_snowball_option(mismatched);
+    REQUIRE_FALSE(invalid_schedule);
+    CHECK(invalid_schedule.error().category == ErrorCategory::invalid_schedule);
+}
+
 struct CouponSumEngine {
     mutable std::vector<double> coupon_rates;
     mutable double maturity_coupon_rate{};
@@ -23,7 +65,7 @@ struct CouponSumEngine {
     kiyosi::Result<double> price(
         const Option& option, const kiyosi::PricingContext&) const
     {
-        coupon_rates = option.knock_out_coupon_rates();
+        coupon_rates = option.knock_out_coupon_rates() | std::ranges::to<std::vector<double>>();
         maturity_coupon_rate = option.maturity_coupon_rate();
         if constexpr (requires { option.minimum_coupon_rate(); })
             minimal_coupon = option.minimum_coupon_rate();
@@ -111,29 +153,20 @@ TEST_CASE("Autocallable base validation accepts shared terms without participati
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
     const auto binary = kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
-         .knock_out_levels = {110.0}, .observation_dates = {expiry},
-         .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
     REQUIRE(binary);
     CHECK(kiyosi::validate_autocallable_note(*binary));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*binary)));
 
     const auto ternary = kiyosi::make_ternary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
-         .minimum_coupon_rate = 0.0, .knock_in_level = 70.0,
-         .knock_out_levels = {110.0}, .observation_dates = {expiry},
-         .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
-         .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry});
     REQUIRE(ternary);
     CHECK(kiyosi::validate_autocallable_note(*ternary));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::KnockInAutocallableNote&>(*ternary)));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*ternary)));
 
     const auto invalid_binary = kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05,
-         .knock_out_levels = {110.0}, .observation_dates = {expiry},
-         .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
-         .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry});
     REQUIRE_FALSE(invalid_binary);
     CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }

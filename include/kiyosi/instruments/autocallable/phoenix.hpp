@@ -43,32 +43,32 @@ public:
     /// Returns the finite annualized conditional coupon rate per observation period.
     double coupon_rate() const noexcept { return coupon_rate_; }
     /// Returns one non-negative coupon barrier per observation date.
-    const std::vector<double>& coupon_barrier_levels() const noexcept { return coupon_barriers_; }
+    auto coupon_barrier_levels() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::coupon_barrier_level); }
 
     /// Compares all autocallable and coupon terms.
     friend bool operator==(const PhoenixOption&, const PhoenixOption&) = default;
 
 private:
     explicit PhoenixOption(PhoenixTerms terms)
-        : KnockInAutocallableNote(terms.knock_in_level, std::move(terms.knock_out_levels),
-                                  std::move(terms.observation_dates),
+        : KnockInAutocallableNote(terms.knock_in_level, detail::autocallable_observations(terms),
                                   terms.knock_in_observation_mode, terms.barrier_state,
                                   terms.principal_ratio, terms.effective_date, terms.expiry_date),
           initial_spot_(terms.initial_spot), upper_strike_(terms.upper_strike), lower_strike_(terms.lower_strike),
-          coupon_rate_(terms.coupon_rate), coupon_barriers_(std::move(terms.coupon_barrier_levels)) {}
+          coupon_rate_(terms.coupon_rate) {}
 
     double initial_spot_;
     double upper_strike_;
     double lower_strike_;
     double coupon_rate_;
-    std::vector<double> coupon_barriers_;
 
     friend Result<PhoenixOption> make_phoenix_option(PhoenixTerms);
 };
 
 [[nodiscard]] inline Result<PhoenixOption> make_phoenix_option(PhoenixTerms terms)
 {
-    return detail::validate_and_return_autocallable_note(PhoenixOption{std::move(terms)});
+    const auto valid = detail::validate_autocallable_terms(terms);
+    if (!valid) return std::unexpected(valid.error());
+    return PhoenixOption{std::move(terms)};
 }
 
 } // namespace kiyosi

@@ -204,7 +204,7 @@ TEST_CASE("Knocked-out autocallables retain zero time Greeks after valid history
     const auto binary = *make_binary_snowball_option(
         {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = {day(2025, 3, 3), day(2025, 7, 2), expiry}, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
     const auto snowball = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = binary.knock_out_levels(), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = binary.observation_dates(), .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
+        {.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = binary.knock_out_levels() | std::ranges::to<std::vector<double>>(), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = binary.observation_dates() | std::ranges::to<std::vector<Date>>(), .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry});
     check(binary, FiniteDifferenceBinarySnowballEngine{});
     check(binary, MonteCarloBinarySnowballEngine{32, 42});
     check(snowball, FiniteDifferenceSnowballEngine{});

@@ -57,18 +57,21 @@ inline AutocallableProgram autocallable_program(const BinarySnowballOption& note
 
 inline AutocallableEvent autocallable_event(const PhoenixOption& note, std::size_t index)
 {
-    const Date period_start = index == 0 ? note.effective_date() : note.observation_dates()[index - 1];
-    return {note.knock_out_levels()[index],
-            note.coupon_rate() * actual_365_fixed_year_fraction(period_start, note.observation_dates()[index]),
-            note.coupon_barrier_levels()[index], true, true};
+    const auto observations = note.observations_view();
+    const auto& observation = observations[index];
+    const Date period_start = index == 0 ? note.effective_date() : observations[index - 1].date;
+    return {observation.knock_out_level,
+            note.coupon_rate() * actual_365_fixed_year_fraction(period_start, observation.date),
+            observation.coupon_barrier_level, true, true};
 }
 
 template <typename Note>
 AutocallableEvent autocallable_event(const Note& note, std::size_t index)
 {
-    return {note.knock_out_levels()[index],
-            note.knock_out_coupon_rates()[index] *
-                actual_365_fixed_year_fraction(note.effective_date(), note.observation_dates()[index]),
+    const auto& observation = note.observations_view()[index];
+    return {observation.knock_out_level,
+            observation.coupon_rate *
+                actual_365_fixed_year_fraction(note.effective_date(), observation.date),
             0.0, false, true};
 }
 
@@ -235,10 +238,11 @@ inline Result<double> shifted_maturity_coupon(
                                  "coupon quote convention is invalid"});
 }
 
-inline std::vector<double> shifted_coupon_rates(
-    const std::vector<double>& coupon_rates, double coupon)
+template <std::ranges::input_range Rates>
+std::vector<double> shifted_coupon_rates(
+    const Rates& coupon_rates, double coupon)
 {
-    auto result = coupon_rates;
+    auto result = coupon_rates | std::ranges::to<std::vector<double>>();
     const double shift = coupon - result.front();
     for (double& rate : result)
         rate += shift;
@@ -257,10 +261,10 @@ inline Result<SnowballOption> replace_coupon(
                                  .maturity_coupon_rate = *maturity_coupon_rate,
                                  .initial_spot = option.initial_spot(),
                                  .knock_in_level = option.knock_in_level(),
-                                 .knock_out_levels = option.knock_out_levels(),
+                                 .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
                                  .upper_strike = option.upper_strike(),
                                  .lower_strike = option.lower_strike(),
-                                 .observation_dates = option.observation_dates(),
+                                 .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
                                  .knock_in_observation_mode = option.knock_in_observation_mode(),
                                  .barrier_state = option.barrier_state(),
                                  .principal_ratio = option.principal_ratio(),
@@ -277,8 +281,8 @@ inline Result<BinarySnowballOption> replace_coupon(
     if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
     return make_binary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
                                         .maturity_coupon_rate = *maturity_coupon_rate,
-                                        .knock_out_levels = option.knock_out_levels(),
-                                        .observation_dates = option.observation_dates(),
+                                        .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
+                                        .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
                                         .barrier_state = option.barrier_state(),
                                         .principal_ratio = option.principal_ratio(),
                                         .effective_date = option.effective_date(),
@@ -296,8 +300,8 @@ inline Result<TernarySnowballOption> replace_coupon(
                                          .maturity_coupon_rate = *maturity_coupon_rate,
                                          .minimum_coupon_rate = option.minimum_coupon_rate(),
                                          .knock_in_level = option.knock_in_level(),
-                                         .knock_out_levels = option.knock_out_levels(),
-                                         .observation_dates = option.observation_dates(),
+                                         .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
+                                         .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
                                          .knock_in_observation_mode = option.knock_in_observation_mode(),
                                          .barrier_state = option.barrier_state(),
                                          .principal_ratio = option.principal_ratio(),
@@ -310,11 +314,11 @@ inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double 
     return make_phoenix_option({.coupon_rate = coupon,
                                 .initial_spot = option.initial_spot(),
                                 .knock_in_level = option.knock_in_level(),
-                                .knock_out_levels = option.knock_out_levels(),
-                                .coupon_barrier_levels = option.coupon_barrier_levels(),
+                                .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
+                                .coupon_barrier_levels = option.coupon_barrier_levels() | std::ranges::to<std::vector<double>>(),
                                 .upper_strike = option.upper_strike(),
                                 .lower_strike = option.lower_strike(),
-                                .observation_dates = option.observation_dates(),
+                                .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
                                 .knock_in_observation_mode = option.knock_in_observation_mode(),
                                 .barrier_state = option.barrier_state(),
                                 .principal_ratio = option.principal_ratio(),
