@@ -34,13 +34,6 @@ using Timestamp = std::chrono::sys_time<std::chrono::microseconds>;
     return Date{std::chrono::floor<std::chrono::days>(value.time_since_epoch())};
 }
 
-/// Validates that a date valuation does not follow an expiry date.
-/// @return Success, or an `invalid_date` or `invalid_time_range` error.
-[[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Date valuation_date, Date expiry_date);
-/// Validates that a timestamp valuation does not follow 00:00 UTC on the expiry date.
-/// @return Success, or an `invalid_date` or `invalid_time_range` error.
-[[nodiscard]] KIYOSI_EXPORT Result<void> validate_valuation_not_after_expiry(Timestamp valuation_time, Date expiry_date);
-
 /// Validates the inclusive dates of an instrument's life.
 /// @return Success, `invalid_date` for unsupported dates, or `invalid_time_range` for reversed dates.
 [[nodiscard]] inline Result<void> validate_instrument_life(Date effective_date, Date expiry_date)

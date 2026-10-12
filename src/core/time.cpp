@@ -10,22 +10,4 @@ bool is_supported_date(Date value) noexcept
     return std::chrono::year_month_day{value}.ok();
 }
 
-Result<void> validate_valuation_not_after_expiry(Date valuation_date, Date expiry_date)
-{
-    if (!is_supported_date(valuation_date) || !is_supported_date(expiry_date))
-        return std::unexpected(Error{ErrorCategory::invalid_date, "valuation date and expiry date must be valid calendar dates"});
-    if (expiry_date < valuation_date)
-        return std::unexpected(Error{ErrorCategory::invalid_time_range, "expiry date must not precede the valuation date"});
-    return {};
-}
-
-Result<void> validate_valuation_not_after_expiry(Timestamp valuation_time, Date expiry_date)
-{
-    if (!is_supported_date(date_of(valuation_time)) || !is_supported_date(expiry_date))
-        return std::unexpected(Error{ErrorCategory::invalid_date, "valuation time and expiry date must contain valid calendar dates"});
-    if (valuation_time > start_of_day(expiry_date))
-        return std::unexpected(Error{ErrorCategory::invalid_time_range, "expiry date must not precede the valuation time"});
-    return {};
-}
-
 } // namespace kiyosi
