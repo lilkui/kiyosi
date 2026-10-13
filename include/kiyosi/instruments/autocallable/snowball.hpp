@@ -26,6 +26,8 @@ struct SnowballTerms {
     double principal_ratio{1.0};                             ///< Normalized principal repayment component.
     Date effective_date{};                                   ///< First date of the note life.
     Date expiry_date{};                                      ///< Final date of the note life.
+    /// Complete observations; mutually exclusive with the parallel observation sequences.
+    std::vector<AutocallableObservation> observations{};
 };
 
 /// Input terms used to construct a TernarySnowballOption.
@@ -41,6 +43,8 @@ struct TernarySnowballTerms {
     double principal_ratio{1.0};                             ///< Normalized principal repayment component.
     Date effective_date{};                                   ///< First date of the note life.
     Date expiry_date{};                                      ///< Final date of the note life.
+    /// Complete observations; mutually exclusive with the parallel observation sequences.
+    std::vector<AutocallableObservation> observations{};
 };
 
 /// Input terms used to construct a BinarySnowballOption.
@@ -53,6 +57,8 @@ struct BinarySnowballTerms {
     double principal_ratio{1.0};                             ///< Normalized principal repayment component.
     Date effective_date{};                                   ///< First date of the note life.
     Date expiry_date{};                                      ///< Final date of the note life.
+    /// Complete observations; mutually exclusive with the parallel observation sequences.
+    std::vector<AutocallableObservation> observations{};
 };
 
 /// Creates a validated knock-in snowball.

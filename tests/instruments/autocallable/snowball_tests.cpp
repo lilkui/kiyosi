@@ -15,6 +15,56 @@
 namespace {
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable factories accept associated observation records", "[observation-record-input]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), first = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto check = [&](auto factory, auto terms) {
+        terms.observation_dates = {first, end};
+        terms.knock_out_levels = {115.0, 110.0};
+        if constexpr (requires { terms.knock_out_coupon_rates; }) terms.knock_out_coupon_rates = {0.08, 0.12};
+        if constexpr (requires { terms.coupon_barrier_levels; }) terms.coupon_barrier_levels = {85.0, 80.0};
+        const auto sequence_note = factory(terms);
+        REQUIRE(sequence_note);
+        terms.observations = detail::autocallable_observations(terms);
+        const auto mixed = factory(terms);
+        REQUIRE_FALSE(mixed);
+        CHECK(mixed.error().category == ErrorCategory::invalid_schedule);
+        terms.observation_dates.clear();
+        terms.knock_out_levels.clear();
+        if constexpr (requires { terms.knock_out_coupon_rates; }) terms.knock_out_coupon_rates.clear();
+        if constexpr (requires { terms.coupon_barrier_levels; }) terms.coupon_barrier_levels.clear();
+        const auto record_note = factory(terms);
+        REQUIRE(record_note);
+        CHECK(*record_note == *sequence_note);
+        std::ranges::reverse(terms.observations);
+        const auto unordered = factory(terms);
+        REQUIRE_FALSE(unordered);
+        CHECK(unordered.error().category == ErrorCategory::invalid_schedule);
+        std::ranges::sort(terms.observations, {}, &AutocallableObservation::date);
+        CHECK(*factory(terms) == *record_note);
+        CHECK(terms.observations.front().knock_out_level == 115.0);
+        terms.observations.front().knock_out_level = -1.0;
+        const auto invalid_level = factory(terms);
+        REQUIRE_FALSE(invalid_level);
+        CHECK(invalid_level.error().category == ErrorCategory::invalid_parameter);
+        CHECK(*record_note == *sequence_note);
+        terms.observations.front().knock_out_level = 115.0;
+        if constexpr (requires { terms.coupon_rate; }) terms.observations.front().coupon_rate = 0.1;
+        else terms.observations.front().coupon_barrier_level = 1.0;
+        const auto unused_field = factory(terms);
+        REQUIRE_FALSE(unused_field);
+        CHECK(unused_field.error().category == ErrorCategory::invalid_parameter);
+    };
+    check(make_binary_snowball_option, BinarySnowballTerms{.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = end});
+    check(make_ternary_snowball_option, TernarySnowballTerms{.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.01,
+        .knock_in_level = 75.0, .effective_date = start, .expiry_date = end});
+    check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 75.0,
+        .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
+    check(make_phoenix_option, PhoenixTerms{.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0,
+        .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
+}
+
 TEST_CASE("Coupon replacement preserves owning notes and validates changed terms", "[coupon-replacement]")
 {
     using namespace kiyosi;

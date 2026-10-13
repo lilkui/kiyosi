@@ -6,6 +6,7 @@ from ._native import (
     ArithmeticAveragePriceOption,
     AssetOrNothingOption,
     AutocallableBarrierState,
+    AutocallableObservation,
     BarrierOption,
     BarrierTouchState,
     BarrierType,

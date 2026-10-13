@@ -24,6 +24,8 @@ struct PhoenixTerms {
     double principal_ratio{1.0};                             ///< Non-negative principal component in normalized payoff units.
     Date effective_date{};                                   ///< First date of the note life.
     Date expiry_date{};                                      ///< Final date of the note life.
+    /// Complete observations; mutually exclusive with the parallel observation sequences.
+    std::vector<AutocallableObservation> observations{};
 };
 
 /// Creates a validated Phoenix autocallable.
