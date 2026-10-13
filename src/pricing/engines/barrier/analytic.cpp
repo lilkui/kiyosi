@@ -7,6 +7,7 @@
 #include <cmath>
 #include <limits>
 
+#include "../../detail/analytic_barrier.hpp"
 #include "../../detail/barrier_settlement.hpp"
 #include "../../detail/math.hpp"
 
@@ -33,15 +34,11 @@ Result<double> price_barrier(
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const auto& terms = option.barrier_terms();
-    double barrier = terms.barrier_level();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    if (option.observation_mode() == ObservationMode::scheduled) {
-        barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * sigma *
-                            std::sqrt(terms.mean_observation_year_fraction()));
-    }
-    const auto monitoring_valid = validate_analytic_barrier_monitoring(terms, spot, barrier);
-    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
+    const auto shifted_barrier = analytic_barrier_level(terms, spot, sigma);
+    if (!shifted_barrier) return std::unexpected(shifted_barrier.error());
+    const double barrier = *shifted_barrier;
     const bool strike_above_barrier = option.strike() > barrier;
     const bool needs_vanilla = knock_in ? upper == strike_above_barrier : upper != strike_above_barrier;
     double a = 0.0;

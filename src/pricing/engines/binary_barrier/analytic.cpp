@@ -9,6 +9,7 @@
 #include <optional>
 #include <variant>
 
+#include "../../detail/analytic_barrier.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
@@ -94,11 +95,9 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         return knock_in ? 0.0 : vanilla_digital(option, context, time);
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
-    double barrier = terms.barrier_level();
-    if (terms.observation_mode() == ObservationMode::scheduled)
-        barrier *= std::exp((upper ? 1.0 : -1.0) * bgk_beta * volatility * std::sqrt(terms.mean_observation_year_fraction()));
-    const auto monitoring_valid = validate_analytic_barrier_monitoring(terms, spot, barrier);
-    if (!monitoring_valid) return std::unexpected(monitoring_valid.error());
+    const auto shifted_barrier = analytic_barrier_level(terms, spot, volatility);
+    if (!shifted_barrier) return std::unexpected(shifted_barrier.error());
+    const double barrier = *shifted_barrier;
     const double log_ratio = log_price_ratio(barrier, spot);
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
