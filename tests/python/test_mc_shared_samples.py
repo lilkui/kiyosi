@@ -35,6 +35,49 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    def test_time_mixed_greeks_equal_seeded_scalar_prices(self):
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        option = BinarySnowballOption(
+            maturity_coupon_rate=0.06,
+            knock_out_coupon_rates=[0.08],
+            knock_out_levels=[110],
+            observation_dates=[end],
+            effective_date=start,
+            expiry_date=end,
+            barrier_state="none",
+        )
+        backends = ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        for backend in backends:
+            engine = pricing.MonteCarloAutocallableEngine(path_count=31, seed=42, backend=backend)
+            for valuation in (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 1, 6, 12, tzinfo=UTC)):
+                def context(spot, instant):
+                    return PricingContext(
+                        model_parameters=parameters, spot_price=spot,
+                        valuation_time=instant, calendar=all_days_calendar(),
+                    )
+
+                spot, h = 100.25, 0.25
+                before = max(datetime(2025, 1, 1, tzinfo=UTC), valuation - timedelta(days=1))
+                after = valuation + timedelta(days=1)
+                first, last = [
+                    [engine.price(option, context(value, instant)) for value in (spot, spot + h, spot - h)]
+                    for instant in (before, after)
+                ]
+                days = (after - before).total_seconds() / 86400
+                charm = ((last[1] - last[2]) - (first[1] - first[2])) / h / days / 2
+                color = ((last[1] - 2 * last[0] + last[2]) - (first[1] - 2 * first[0] + first[2])) / h / h / days
+                for names in (["charm"], ["color"], ["theta", "charm", "color"]):
+                    with self.subTest(backend=backend, valuation=valuation, greeks=names):
+                        actual = engine.price_with_greeks(option, context(spot, valuation), names, spot_shift=h)
+                        self.assertEqual(actual.price, engine.price(option, context(spot, valuation)))
+                        if "charm" in names:
+                            self.assertEqual(actual.charm, charm)
+                        if "color" in names:
+                            self.assertEqual(actual.color, color)
+
     def test_accumulator_rate_greeks_equal_independent_seeded_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         for fixed in (False, True):

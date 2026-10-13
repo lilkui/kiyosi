@@ -146,6 +146,39 @@ struct NumericalSpotPrices {
     double down;
 };
 
+template <typename Price, typename SpotBatch>
+Result<NumericalSpotPrices> sample_spot_prices(
+    const Price& price, const SpotBatch& batch, const PricingContext& context, double h, bool center,
+    std::optional<double> known_center = std::nullopt)
+{
+    const auto sampled = [&]() -> Result<NumericalSpotPrices> {
+        if constexpr (requires { batch(context, h, center); }) {
+            auto values = batch(context, h, center && !known_center);
+            if (values && known_center) values->center = known_center;
+            return values;
+        } else {
+            std::optional<double> middle = known_center;
+            if (center && !middle) {
+                const auto value = price(context);
+                if (!value) return std::unexpected(value.error());
+                middle = *value;
+            }
+            const double volatility = context.model_parameters().volatility();
+            const double rate = context.model_parameters().risk_free_rate();
+            const auto up = shifted_value(price, context, context.spot_price() + h, volatility, rate, context.valuation_time());
+            if (!up) return std::unexpected(up.error());
+            const auto down = shifted_value(price, context, context.spot_price() - h, volatility, rate, context.valuation_time());
+            if (!down) return std::unexpected(down.error());
+            return NumericalSpotPrices{middle, *up, *down};
+        }
+    }();
+    if (!sampled) return std::unexpected(sampled.error());
+    if ((center && !sampled->center) || !std::isfinite(sampled->up) ||
+        !std::isfinite(sampled->down) || (sampled->center && !std::isfinite(*sampled->center)))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "numerical spot batch is incomplete or non-finite"});
+    return sampled;
+}
+
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
 template <typename Price, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
@@ -266,34 +299,31 @@ Result<PricingResult> complete_greeks(
         const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
         std::optional<std::array<NumericalSpotPrices, 2>> batches;
-        if constexpr (requires { evaluate_spot_batch(context, h, need_volatility_prices); }) {
-            if (scalar_mixed) {
-                const auto sample = [&](double shifted_volatility) -> Result<NumericalSpotPrices> {
-                    const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
-                    if (!shifted) return std::unexpected(shifted.error());
-                    const auto prices = evaluate_spot_batch(*shifted, h, need_volatility_prices);
-                    if (!prices) return std::unexpected(prices.error());
-                    if ((need_volatility_prices && !prices->center) || !std::isfinite(prices->up) ||
-                        !std::isfinite(prices->down) || (prices->center && !std::isfinite(*prices->center)))
-                        return std::unexpected(Error{ErrorCategory::invalid_result, "numerical spot batch is incomplete or non-finite"});
-                    return prices;
-                };
-                const auto high = sample(volatility_high);
-                if (!high) return std::unexpected(high.error());
-                const auto low = sample(volatility_low);
-                if (!low) return std::unexpected(low.error());
-                batches = std::array{*high, *low};
-            }
+        if (scalar_mixed) {
+            const auto sample = [&](double shifted_volatility, bool center) -> Result<NumericalSpotPrices> {
+                const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
+                if (!shifted) return std::unexpected(shifted.error());
+                return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center);
+            };
+            const auto high = sample(volatility_high, need_volatility_prices && !native_high);
+            if (!high) return std::unexpected(high.error());
+            const auto low = sample(volatility_low, need_volatility_prices && !native_low);
+            if (!low) return std::unexpected(low.error());
+            batches = std::array{*high, *low};
         }
-        const auto v_up = native_high ? Result<double>{native_high->price()} : batches ? Result<double>{(*batches)[0].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_high, rate, valuation_time)
-                                                                                                      : p0;
+        const auto v_up = native_high ? Result<double>{native_high->price()} : batches              ? Result<double>{(*batches)[0].center.value_or(*p0)}
+                                                                           : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_high, rate, valuation_time)
+                                                                                                    : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(price, context, spot + h, volatility_high, rate, valuation_time) : p0;
+        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(price, context, spot + h, volatility_high, rate, valuation_time)
+                                                                                    : p0;
         if (!d_up) return std::unexpected(d_up.error());
-        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(price, context, spot - h, volatility_high, rate, valuation_time) : p0;
+        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(price, context, spot - h, volatility_high, rate, valuation_time)
+                                                                                        : p0;
         if (!d_down) return std::unexpected(d_down.error());
-        const auto v_down = native_low ? Result<double>{native_low->price()} : batches ? Result<double>{(*batches)[1].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_low, rate, valuation_time)
-                                                                                                      : p0;
+        const auto v_down = native_low ? Result<double>{native_low->price()} : batches              ? Result<double>{(*batches)[1].center.value_or(*p0)}
+                                                                           : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_low, rate, valuation_time)
+                                                                                                    : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
 
@@ -303,11 +333,9 @@ Result<PricingResult> complete_greeks(
             zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
 
         if (scalar_mixed) {
-            const auto d_up_low = batches ? Result<double>{(*batches)[1].up} : detail::shifted_value(
-                price, context, spot + h, volatility_low, rate, valuation_time);
+            const auto d_up_low = batches ? Result<double>{(*batches)[1].up} : detail::shifted_value(price, context, spot + h, volatility_low, rate, valuation_time);
             if (!d_up_low) return std::unexpected(d_up_low.error());
-            const auto d_down_low = batches ? Result<double>{(*batches)[1].down} : detail::shifted_value(
-                price, context, spot - h, volatility_low, rate, valuation_time);
+            const auto d_down_low = batches ? Result<double>{(*batches)[1].down} : detail::shifted_value(price, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                                                              h / vol_scale / 4.0;
@@ -384,17 +412,37 @@ Result<PricingResult> complete_greeks(
             const bool native_color = native_before && native_before->has(Greek::gamma) && native_after->has(Greek::gamma);
             const bool scalar_mixed = spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color));
             const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
-            const auto t_before = native_before ? Result<double>{native_before->price()} : !need_time_prices || before == valuation_time ? p0
-                                                                                                                                         : detail::shifted_value(price, context, spot, volatility, rate, before);
+            std::optional<std::array<NumericalSpotPrices, 2>> batches;
+            if (scalar_mixed) {
+                const auto sample = [&](Timestamp time, bool center) -> Result<NumericalSpotPrices> {
+                    if (time == valuation_time && spot_up && spot_down)
+                        return NumericalSpotPrices{*p0, *spot_up, *spot_down};
+                    const auto shifted = shifted_context(context, spot, volatility, rate, time);
+                    if (!shifted) return std::unexpected(shifted.error());
+                    return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center,
+                                              time == valuation_time ? std::optional{*p0} : std::nullopt);
+                };
+                const auto first = sample(before, need_time_prices && !native_before);
+                if (!first) return std::unexpected(first.error());
+                const auto last = sample(after, need_time_prices && !native_after);
+                if (!last) return std::unexpected(last.error());
+                batches = std::array{*first, *last};
+            }
+            const auto t_before = native_before ? Result<double>{native_before->price()} : batches                                     ? Result<double>{(*batches)[0].center.value_or(*p0)}
+                                                                                       : !need_time_prices || before == valuation_time ? p0
+                                                                                                                                       : detail::shifted_value(price, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
-            const auto d_before = !scalar_mixed ? p0 : before == valuation_time && spot_up ? Result<double>{*spot_up}
-                                                                                           : detail::shifted_value(price, context, spot + h, volatility, rate, before);
+            const auto d_before = batches ? Result<double>{(*batches)[0].up} : !scalar_mixed                     ? p0
+                                                                           : before == valuation_time && spot_up ? Result<double>{*spot_up}
+                                                                                                                 : detail::shifted_value(price, context, spot + h, volatility, rate, before);
             if (!d_before) return std::unexpected(d_before.error());
-            const auto d_before_low = !scalar_mixed ? p0 : before == valuation_time && spot_down ? Result<double>{*spot_down}
-                                                                                                 : detail::shifted_value(price, context, spot - h, volatility, rate, before);
+            const auto d_before_low = batches ? Result<double>{(*batches)[0].down} : !scalar_mixed                       ? p0
+                                                                                 : before == valuation_time && spot_down ? Result<double>{*spot_down}
+                                                                                                                         : detail::shifted_value(price, context, spot - h, volatility, rate, before);
             if (!d_before_low) return std::unexpected(d_before_low.error());
-            const auto t_after = native_after ? Result<double>{native_after->price()} : !need_time_prices || after == valuation_time ? p0
-                                                                                                                                     : detail::shifted_value(price, context, spot, volatility, rate, after);
+            const auto t_after = native_after ? Result<double>{native_after->price()} : batches                                    ? Result<double>{(*batches)[1].center.value_or(*p0)}
+                                                                                    : !need_time_prices || after == valuation_time ? p0
+                                                                                                                                   : detail::shifted_value(price, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
             const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
@@ -404,15 +452,11 @@ Result<PricingResult> complete_greeks(
                 color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
 
             if (scalar_mixed) {
-                const auto d_after = after == valuation_time && spot_up
-                                         ? Result<double>{*spot_up}
-                                         : detail::shifted_value(
-                                               price, context, spot + h, volatility, rate, after);
+                const auto d_after = batches ? Result<double>{(*batches)[1].up} : after == valuation_time && spot_up ? Result<double>{*spot_up}
+                                                                                                                     : detail::shifted_value(price, context, spot + h, volatility, rate, after);
                 if (!d_after) return std::unexpected(d_after.error());
-                const auto d_after_low = after == valuation_time && spot_down
-                                             ? Result<double>{*spot_down}
-                                             : detail::shifted_value(
-                                                   price, context, spot - h, volatility, rate, after);
+                const auto d_after_low = batches ? Result<double>{(*batches)[1].down} : after == valuation_time && spot_down ? Result<double>{*spot_down}
+                                                                                                                             : detail::shifted_value(price, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
                 if (need(Greek::charm) && !native_charm) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
                                                                  h / day_scale / 2.0;

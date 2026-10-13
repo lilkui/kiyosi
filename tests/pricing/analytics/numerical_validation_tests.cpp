@@ -17,6 +17,52 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Mixed Greeks share shifted spot sampling", "[numerical-stencils][monte-carlo-batch]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 10);
+    const auto option = *make_european_option(OptionType::call, 10.0, start, end);
+    for (const auto valuation : {start_of_day(start), start_of_day(day(2025, 1, 3))}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 10.0, valuation);
+        const auto value = [&](const PricingContext& shifted) {
+            const double days = std::chrono::duration<double, std::ratio<86400>>{shifted.valuation_time() - valuation}.count();
+            return shifted.spot_price() * shifted.spot_price() * (1.0 + days + shifted.model_parameters().volatility());
+        };
+        for (const auto greek : {Greek::vanna, Greek::zomma, Greek::charm, Greek::color}) {
+            CAPTURE(valuation.time_since_epoch().count(), greek);
+            int scalar_calls = 0, batch_calls = 0;
+            const auto scalar = [&](const PricingContext& shifted) -> Result<double> { ++scalar_calls; return value(shifted); };
+            const auto batch = [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
+                ++batch_calls;
+                CHECK(center == (greek == Greek::zomma || (greek == Greek::color && shifted.valuation_time() != valuation)));
+                const auto high = detail::shifted_context(shifted, 10.0 + h, shifted.model_parameters().volatility(), 0.04, shifted.valuation_time());
+                const auto low = detail::shifted_context(shifted, 10.0 - h, shifted.model_parameters().volatility(), 0.04, shifted.valuation_time());
+                REQUIRE(high);
+                REQUIRE(low);
+                return detail::NumericalSpotPrices{center ? std::optional{value(shifted)} : std::nullopt, value(*high), value(*low)};
+            };
+            const auto result = detail::complete_greeks(scalar, option, context, {greek}, {.spot_shift = 1.0, .volatility_shift = 0.01},
+                                                        *make_pricing_result(value(context)), nullptr, batch);
+            REQUIRE(result);
+            const double expected = greek == Greek::vanna ? 0.2 : greek == Greek::zomma ? 0.02
+                                                              : greek == Greek::charm   ? 20.0
+                                                                                        : 2.0;
+            CHECK(std::abs(greek_value(*result, greek) - expected) < 1e-8);
+            CHECK(result->price() == value(context));
+            CHECK(batch_calls == 2);
+            CHECK(scalar_calls == 0);
+        }
+        const auto failed = detail::complete_greeks(
+            [&](const PricingContext&) -> Result<double> { FAIL("Batch failures must propagate"); return 0.0; },
+            option, context, {Greek::color}, {}, *make_pricing_result(value(context)), nullptr,
+            [](const PricingContext&, double, bool) -> Result<detail::NumericalSpotPrices> {
+                return std::unexpected(Error{ErrorCategory::backend_failure, "batch failed"});
+            });
+        REQUIRE_FALSE(failed);
+        CHECK(failed.error().category == ErrorCategory::backend_failure);
+    }
+}
+
 TEST_CASE("Trading-day path batches share draws and skip settled states", "[monte-carlo-batch]")
 {
     using namespace kiyosi;
@@ -45,7 +91,7 @@ TEST_CASE("Trading-day path batches share draws and skip settled states", "[mont
     Pcg32 independent_generator{42, 7};
     observations = 0;
     const auto independent = simulate_path_batch<false>(sequences, states, independent_generator,
-        [&](auto& state, const auto&) { ++observations; state.payoff = state.spot; });
+                                                        [&](auto& state, const auto&) { ++observations; state.payoff = state.spot; });
     REQUIRE(independent);
     CHECK(states[0].spot == 100.0 * first_growth);
     CHECK(states[1].spot == 200.0);
@@ -55,7 +101,7 @@ TEST_CASE("Trading-day path batches share draws and skip settled states", "[mont
     const std::vector<CudaSimulationStep> overflowing{{1000.0, 0.0, {}}};
     std::array invalid_states{State{100.0, {}}};
     const auto invalid = simulate_path_batch<true>(overflowing, invalid_states, independent_generator,
-        [](auto&, const auto&) { FAIL("Invalid spots must fail before observation"); });
+                                                   [](auto&, const auto&) { FAIL("Invalid spots must fail before observation"); });
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_result);
 }
@@ -80,8 +126,7 @@ TEST_CASE("Numerical stencils share rounded shifts and boundary eligibility", "[
     CHECK_FALSE(collapsed.spot_available);
     CHECK_FALSE(collapsed.speed_available);
     CHECK_FALSE(collapsed.rate_available);
-    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
-        .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
+    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
     const auto event = detail::numerical_stencils(barrier, market, {});
     CHECK(event.spot_discontinuity);
     CHECK_FALSE(event.spot_available);
