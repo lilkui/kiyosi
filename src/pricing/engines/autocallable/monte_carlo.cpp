@@ -115,7 +115,8 @@ Result<std::array<double, count>> path_payoffs(
             return simulate_path_batch<true>(inputs.step_count, states, generator, observe);
         else {
             std::array<std::span<const CudaAutocallableStep>, count> sequences{};
-            for (std::size_t i = 0; i < count; ++i) sequences[i] = inputs[i].step_count;
+            for (std::size_t i = 0; i < count; ++i)
+                sequences[i] = inputs[i].step_count;
             return simulate_path_batch<false>(sequences, states, generator, observe);
         }
     }();
@@ -161,12 +162,8 @@ Result<std::array<double, count>> price_spot_bumps(
         if (!inputs) return std::unexpected(inputs.error());
         if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-            const auto values = cuda_active_prices<CudaAutocallableRequest>(initial,
-                [&](const auto& state) {
-                    return CudaAutocallableRequest{settings.path_count, *settings.seed, state.spot,
-                        inputs->terminal_discount, program, state.path};
-                },
-                [&](auto requests) { return cuda_autocallable_spot_prices(requests, inputs->step_count, workspace); });
+            const auto values = cuda_active_prices<CudaAutocallableRequest>(initial, [&](const auto& state) { return CudaAutocallableRequest{settings.path_count, *settings.seed, state.spot,
+                                                                                                                                             inputs->terminal_discount, program, state.path}; }, [&](auto requests) { return cuda_autocallable_spot_prices(requests, inputs->step_count, workspace); });
             if (!values) return std::unexpected(values.error());
             prices = *values;
 #else
@@ -189,8 +186,7 @@ Result<std::array<double, 3>> price_rate_bumps(
     double h, std::optional<double> base_price = std::nullopt)
 {
     const auto program = autocallable_program(note);
-    return cpu_rate_prices<SimulationInputs, PathState>(context, settings, h, base_price,
-        [&](const PricingContext& shifted) -> Result<std::pair<SimulationInputs, PathState>> {
+    return cpu_rate_prices<SimulationInputs, PathState>(context, settings, h, base_price, [&](const PricingContext& shifted) -> Result<std::pair<SimulationInputs, PathState>> {
             const auto state = autocallable_initial_state(note, shifted, program);
             const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, shifted, program, state);
             SimulationInputs inputs{};
@@ -203,9 +199,7 @@ Result<std::array<double, 3>> price_rate_bumps(
                 if (!prepared) return std::unexpected(prepared.error());
                 inputs = std::move(*prepared);
             }
-            return std::pair{std::move(inputs), PathState{shifted.spot_price(), state.path, fixed}};
-        },
-        [&](const auto& inputs, const auto& initial, auto& generator) { return path_payoffs(program, inputs, initial, generator); });
+            return std::pair{std::move(inputs), PathState{shifted.spot_price(), state.path, fixed}}; }, [&](const auto& inputs, const auto& initial, auto& generator) { return path_payoffs(program, inputs, initial, generator); });
 }
 
 template <AutocallableProduct Note>
@@ -230,18 +224,9 @@ Result<void> validate_pricing(
     AutocallableMonteCarloRequest<Note>& request, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings)
 {
-    const auto& note = request.contract.note();
-    const auto terms = request.contract.validate_terms();
-    if (!terms) return std::unexpected(terms.error());
-    const auto life = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
-    if (!life) return std::unexpected(life.error());
-    const auto schedule = request.contract.validate_schedule();
-    if (!schedule) return std::unexpected(schedule.error());
-    const auto history = validate_autocallable_history(note, context);
-    if (!history) return std::unexpected(history.error());
-    const auto settings_valid = validate_monte_carlo_settings(settings);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
-    return validate_trading_expiry(context.calendar(), note.expiry_date());
+    const auto valid = request.contract.validate(context);
+    if (!valid) return valid;
+    return validate_monte_carlo_settings(settings);
 }
 
 template <AutocallableProduct Note>
@@ -334,13 +319,7 @@ Result<double> implied_volatility(
     double observed_price, ImpliedVolatilitySettings settings)
 {
     AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
-    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
-        [&](const auto& seeded, const Note&, const PricingContext& shifted) {
-            return price_autocallable(shifted, seeded.settings(), request);
-        },
-        [&](const auto& seeded, ImpliedVolatilitySettings bounds) {
-            return prepare_volatility_request(request, context, seeded.settings(), bounds);
-        });
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings, [&](const auto& seeded, const Note&, const PricingContext& shifted) { return price_autocallable(shifted, seeded.settings(), request); }, [&](const auto& seeded, ImpliedVolatilitySettings bounds) { return prepare_volatility_request(request, context, seeded.settings(), bounds); });
 }
 
 template <AutocallableProduct Note>
@@ -400,7 +379,7 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
 
 template <AutocallableProduct Note>
 Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note& option, const PricingContext& context,
-                                                                            GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                      GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
@@ -409,14 +388,7 @@ Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note
             const auto prices = [&](const PricingContext& shifted) {
                 return price_autocallable(shifted, seeded.settings(), request);
             };
-            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend,
-                [&](const PricingContext& shifted) { return validate_pricing(request, shifted, seeded.settings()); },
-                [&]<std::size_t count>(const PricingContext& shifted, double shift) {
-                    return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, request.workspace());
-                },
-                [&](double shift, std::optional<double> base_price) {
-                    return price_rate_bumps(option, context, seeded.settings(), shift, base_price);
-                });
+            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(request, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, request.workspace()); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
         });
 }
 
@@ -445,7 +417,6 @@ template KIYOSI_EXPORT Result<double> implied_volatility(
 template KIYOSI_EXPORT Result<double> implied_volatility(
     const MonteCarloAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
-
 
 template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     const PhoenixOption&, const PhoenixOption&, const PricingContext&, const TradingDayMonteCarloSettings&);

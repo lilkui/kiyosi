@@ -32,6 +32,7 @@ add_executable(kiyosi_tests
     pricing/engines/digital/settlement_tests.cpp
     pricing/engines/digital/overflow_tests.cpp
     pricing/engines/autocallable/autocallable_tests.cpp
+    pricing/engines/autocallable/validation_tests.cpp
     pricing/engines/vanilla/analytic_tests.cpp
     pricing/engines/vanilla/binomial_tests.cpp
     pricing/engines/vanilla/finite_difference_tests.cpp

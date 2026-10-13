@@ -4,6 +4,8 @@
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/instruments/autocallable/note.hpp>
 
+#include "calendar_dates.hpp"
+
 namespace kiyosi::detail {
 
 // One request binds the immutable contract and calendar whose validation it reuses.
@@ -15,6 +17,21 @@ public:
 
     const Note& note() const noexcept { return note_; }
 
+    Result<void> validate(const PricingContext& context)
+    {
+        const auto terms = validate_terms();
+        if (!terms) return terms;
+        const auto life = validate_valuation_within_instrument_life(
+            context.valuation_time(), note_.effective_date(), note_.expiry_date());
+        if (!life) return life;
+        const auto schedule = validate_schedule();
+        if (!schedule) return schedule;
+        const auto history = validate_autocallable_history(note_, context);
+        if (!history) return history;
+        return validate_trading_expiry(calendar_, note_.expiry_date());
+    }
+
+private:
     Result<void> validate_terms()
     {
         if (terms_validated_) return {};
@@ -35,7 +52,6 @@ public:
         return {};
     }
 
-private:
     const Note& note_;
     const TradingCalendar& calendar_;
     bool terms_validated_{};

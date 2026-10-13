@@ -157,10 +157,7 @@ Result<PricingResult> rollback_autocallable(
     auto& curvature = workspace.curvature;
     curvature.clear();
     const double value = initial.path.coupons + space->interpolate(alive, spot, curvature);
-    return finite_difference_result(value, spot, space->upper, output, spot_shift,
-        [&](double shifted_spot) { return checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature)); },
-        [&](double shifted_spot) { return space->delta(alive, shifted_spot); },
-        [&](double shifted_spot) { return space->gamma(alive, shifted_spot); });
+    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(initial.path.coupons + space->interpolate(alive, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->delta(alive, shifted_spot); }, [&](double shifted_spot) { return space->gamma(alive, shifted_spot); });
 }
 
 template <AutocallableProduct Note>
@@ -168,17 +165,11 @@ Result<PricingResult> price_autocallable(
     const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
     AutocallableFiniteDifferenceRequest<Note>& request, GreeksRequest output, double spot_shift)
 {
-    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
+    const auto valid = request.contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
-    auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
-    if (!expiry_valid) return std::unexpected(expiry_valid.error());
     auto settings_valid = detail::validate_finite_difference_settings(
         settings, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    const auto contract = request.contract.validate_schedule();
-    if (!contract) return std::unexpected(contract.error());
-    auto history = validate_autocallable_history(note, context);
-    if (!history) return std::unexpected(history.error());
 
     auto& workspace = request.workspace;
     const auto program = autocallable_program(note);
@@ -300,7 +291,7 @@ Result<double> FiniteDifferenceAutocallableEngine::price(
 
 template <AutocallableProduct Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const Note& option, const PricingContext& context,
-                                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
+                                                                            GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
     return detail::price_with_greeks(*this, option, context, greeks, settings,
@@ -332,7 +323,6 @@ template KIYOSI_EXPORT Result<double> implied_coupon(
 template KIYOSI_EXPORT Result<double> implied_coupon(
     const FiniteDifferenceAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
-
 
 template KIYOSI_EXPORT Result<double> FiniteDifferenceAutocallableEngine::price(const PhoenixOption&, const PricingContext&) const;
 template KIYOSI_EXPORT Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const PhoenixOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;

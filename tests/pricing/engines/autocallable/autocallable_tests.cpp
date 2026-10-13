@@ -31,18 +31,14 @@ TEST_CASE("Autocallable engines reuse one instance across every product", "[auto
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto market = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 120.0, end, all_days_calendar());
-    const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0,
-        .upper_strike = 100.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end,
-        .observations = {{end, 110.0, 0.08}}});
+    const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}});
     const auto binary = *make_binary_snowball_option({.maturity_coupon_rate = 0.05,
-        .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end,
-        .observations = {{end, 110.0, 0.08}}});
-    const auto ternary = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .knock_in_level = 80.0,
-        .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end,
-        .observations = {{end, 110.0, 0.08}}});
-    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0,
-        .upper_strike = 100.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end,
-        .observations = {{end, 110.0, 0.0, 90.0}}});
+                                                      .barrier_state = AutocallableBarrierState::none,
+                                                      .effective_date = start,
+                                                      .expiry_date = end,
+                                                      .observations = {{end, 110.0, 0.08}}});
+    const auto ternary = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}});
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}});
     const FiniteDifferenceAutocallableEngine finite_difference{32, 2};
     const MonteCarloAutocallableEngine monte_carlo{32, 7};
     const auto check = [&](const auto& note) {
@@ -85,7 +81,7 @@ TEST_CASE("Implied volatility request preparation runs once before seeded trials
         return settings;
     };
     const auto invalid = detail::solve_implied_volatility(engine, option, context, 0.3,
-        {.lower_bound = 0.0}, price, prepare);
+                                                          {.lower_bound = 0.0}, price, prepare);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
     CHECK(preparations == 0);
@@ -97,9 +93,9 @@ TEST_CASE("Implied volatility request preparation runs once before seeded trials
     CHECK(trials >= 3);
     trials = 0;
     const auto rejected = detail::solve_implied_volatility(engine, option, context, 0.3, {}, price,
-        [](const auto&, ImpliedVolatilitySettings) -> Result<ImpliedVolatilitySettings> {
-            return std::unexpected(Error{ErrorCategory::unsupported_operation, "request preparation rejected"});
-        });
+                                                           [](const auto&, ImpliedVolatilitySettings) -> Result<ImpliedVolatilitySettings> {
+                                                               return std::unexpected(Error{ErrorCategory::unsupported_operation, "request preparation rejected"});
+                                                           });
     REQUIRE_FALSE(rejected);
     CHECK(rejected.error().category == ErrorCategory::unsupported_operation);
     CHECK(trials == 0);
@@ -1148,7 +1144,7 @@ TEST_CASE("Autocallable Monte Carlo settles deterministic states before simulati
         make_note(kiyosi::AutocallableBarrierState::none, 1.0), context);
     REQUIRE_FALSE(invalid_settings);
     CHECK(invalid_settings.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK(calls->load() == 2);
+    CHECK(calls->load() == 3);
 
     const auto non_finite = kiyosi::MonteCarloAutocallableEngine{{128, 7}}.price(
         make_note(kiyosi::AutocallableBarrierState::none, std::numeric_limits<double>::max(),
@@ -1447,7 +1443,7 @@ TEST_CASE("Autocallable engines enumerate dates only for daily monitoring")
     const auto invalid = price(binary, invalid_context);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
-    CHECK(calls->load() == (monte_carlo ? 2 : 1));
+    CHECK(calls->load() == 2);
 }
 
 TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit grids")
