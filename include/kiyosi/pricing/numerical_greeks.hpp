@@ -312,12 +312,6 @@ Result<PricingResult> complete_greeks(
                                                                            : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_high, rate, valuation_time)
                                                                                                     : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(price, context, spot + h, volatility_high, rate, valuation_time)
-                                                                                    : p0;
-        if (!d_up) return std::unexpected(d_up.error());
-        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(price, context, spot - h, volatility_high, rate, valuation_time)
-                                                                                        : p0;
-        if (!d_down) return std::unexpected(d_down.error());
         const auto v_down = native_low ? Result<double>{native_low->price()} : batches              ? Result<double>{(*batches)[1].center.value_or(*p0)}
                                                                            : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_low, rate, valuation_time)
                                                                                                     : p0;
@@ -330,16 +324,14 @@ Result<PricingResult> complete_greeks(
             zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
 
         if (scalar_mixed) {
-            const auto d_up_low = batches ? Result<double>{(*batches)[1].up} : detail::shifted_value(price, context, spot + h, volatility_low, rate, valuation_time);
-            if (!d_up_low) return std::unexpected(d_up_low.error());
-            const auto d_down_low = batches ? Result<double>{(*batches)[1].down} : detail::shifted_value(price, context, spot - h, volatility_low, rate, valuation_time);
-            if (!d_down_low) return std::unexpected(d_down_low.error());
-            if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
+            const auto& high = (*batches)[0];
+            const auto& low = (*batches)[1];
+            if (need(Greek::vanna) && !native_vanna) vanna = ((high.up - high.down) - (low.up - low.down)) /
                                                              h / vol_scale / 4.0;
 
             if (need(Greek::zomma) && !native_zomma) {
-                const double gamma_high = (*d_up - 2.0 * *v_up + *d_down) / h / h;
-                const double gamma_low = (*d_up_low - 2.0 * *v_down + *d_down_low) / h / h;
+                const double gamma_high = (high.up - 2.0 * *v_up + high.down) / h / h;
+                const double gamma_low = (low.up - 2.0 * *v_down + low.down) / h / h;
                 zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
             }
         }
@@ -429,14 +421,6 @@ Result<PricingResult> complete_greeks(
                                                                                        : !need_time_prices || before == valuation_time ? p0
                                                                                                                                        : detail::shifted_value(price, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
-            const auto d_before = batches ? Result<double>{(*batches)[0].up} : !scalar_mixed                     ? p0
-                                                                           : before == valuation_time && spot_up ? Result<double>{*spot_up}
-                                                                                                                 : detail::shifted_value(price, context, spot + h, volatility, rate, before);
-            if (!d_before) return std::unexpected(d_before.error());
-            const auto d_before_low = batches ? Result<double>{(*batches)[0].down} : !scalar_mixed                       ? p0
-                                                                                 : before == valuation_time && spot_down ? Result<double>{*spot_down}
-                                                                                                                         : detail::shifted_value(price, context, spot - h, volatility, rate, before);
-            if (!d_before_low) return std::unexpected(d_before_low.error());
             const auto t_after = native_after ? Result<double>{native_after->price()} : batches                                    ? Result<double>{(*batches)[1].center.value_or(*p0)}
                                                                                     : !need_time_prices || after == valuation_time ? p0
                                                                                                                                    : detail::shifted_value(price, context, spot, volatility, rate, after);
@@ -449,16 +433,12 @@ Result<PricingResult> complete_greeks(
                 color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
 
             if (scalar_mixed) {
-                const auto d_after = batches ? Result<double>{(*batches)[1].up} : after == valuation_time && spot_up ? Result<double>{*spot_up}
-                                                                                                                     : detail::shifted_value(price, context, spot + h, volatility, rate, after);
-                if (!d_after) return std::unexpected(d_after.error());
-                const auto d_after_low = batches ? Result<double>{(*batches)[1].down} : after == valuation_time && spot_down ? Result<double>{*spot_down}
-                                                                                                                             : detail::shifted_value(price, context, spot - h, volatility, rate, after);
-                if (!d_after_low) return std::unexpected(d_after_low.error());
-                if (need(Greek::charm) && !native_charm) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
+                const auto& first = (*batches)[0];
+                const auto& last = (*batches)[1];
+                if (need(Greek::charm) && !native_charm) charm = ((last.up - last.down) - (first.up - first.down)) /
                                                                  h / day_scale / 2.0;
-                if (need(Greek::color) && !native_color) color = (((*d_after - 2.0 * *t_after + *d_after_low) -
-                                                                   (*d_before - 2.0 * *t_before + *d_before_low)) /
+                if (need(Greek::color) && !native_color) color = (((last.up - 2.0 * *t_after + last.down) -
+                                                                   (first.up - 2.0 * *t_before + first.down)) /
                                                                   h / h / day_scale);
             }
         }
