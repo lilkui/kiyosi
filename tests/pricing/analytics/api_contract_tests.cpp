@@ -429,6 +429,72 @@ TEST_CASE("Native Greek requests are filtered before event-sensitive evaluation"
     CHECK(greek_value(*result, Greek::rho) == 9.0);
 }
 
+TEST_CASE("Explicit volatility spot batches preserve mixed Greeks without scalar prices", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.5), 100.0, valuation);
+    const auto native = *make_pricing_result(12500.0);
+    const NumericalShiftSettings shifts{.spot_shift = 0.25, .volatility_shift = 0.125};
+    for (const auto request : {GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma},
+                               GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
+        std::vector<PricingContext> scalar_calls;
+        std::vector<double> batch_volatilities;
+        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+            request, shifts, native, nullptr,
+            [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
+                const double vol = shifted.model_parameters().volatility();
+                batch_volatilities.push_back(vol);
+                CHECK(h == 0.25);
+                CHECK(center == (request.has(Greek::vega) || request.has(Greek::zomma)));
+                const auto price = [&](double spot) { return spot * spot * (1.0 + vol * vol); };
+                return detail::NumericalSpotPrices{center ? std::optional{price(100.0)} : std::nullopt,
+                    price(100.0 + h), price(100.0 - h)};
+            });
+        REQUIRE(result);
+        CHECK(scalar_calls.empty());
+        CHECK(batch_volatilities == std::vector<double>{0.625, 0.375});
+        CHECK(result->price() == 12500.0);
+        CHECK_FALSE(result->has(Greek::delta));
+        CHECK_FALSE(result->has(Greek::gamma));
+        for (const auto [greek, expected] : {std::pair{Greek::vega, 100.0},
+                                            std::pair{Greek::vanna, 2.0}, std::pair{Greek::zomma, 0.02}}) {
+            if (request.has(greek)) CHECK(greek_value(*result, greek) == Catch::Approx(expected).epsilon(1e-12));
+            else CHECK_FALSE(result->has(greek));
+        }
+    }
+}
+
+TEST_CASE("Explicit spot batches reject incomplete values and propagate failures", "[pricing-api]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto context = market();
+    const auto native = *make_pricing_result(10000.0);
+    std::vector<PricingContext> scalar_calls;
+    for (const auto prices : {detail::NumericalSpotPrices{std::nullopt, 1.0, 2.0},
+                              detail::NumericalSpotPrices{1.0, std::numeric_limits<double>::infinity(), 2.0},
+                              detail::NumericalSpotPrices{1.0, 2.0, std::numeric_limits<double>::quiet_NaN()},
+                              detail::NumericalSpotPrices{std::numeric_limits<double>::infinity(), 1.0, 2.0}}) {
+        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+            {Greek::zomma}, {}, native, nullptr,
+            [&](const PricingContext&, double, bool) -> Result<detail::NumericalSpotPrices> { return prices; });
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_result);
+    }
+    for (const bool fail_high : {false, true}) {
+        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+            {Greek::vanna}, {}, native, nullptr,
+            [&](const PricingContext& shifted, double, bool) -> Result<detail::NumericalSpotPrices> {
+                if ((shifted.model_parameters().volatility() > context.model_parameters().volatility()) == fail_high)
+                    return std::unexpected(Error{ErrorCategory::invalid_schedule, "batch rejected"});
+                return detail::NumericalSpotPrices{std::nullopt, 1.0, 2.0};
+            });
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_schedule);
+        CHECK(result.error().message == "batch rejected");
+    }
+    CHECK(scalar_calls.empty());
+}
+
 TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);

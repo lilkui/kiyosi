@@ -139,13 +139,19 @@ GreeksRequest native_greeks_request(const Option& option, const PricingContext& 
     return GreeksRequest{std::span{available}.first(count)};
 }
 
+struct NumericalSpotPrices {
+    std::optional<double> center;
+    double up;
+    double down;
+};
+
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
-template <typename Engine, typename Option, typename Native = decltype(nullptr)>
+template <typename Engine, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
 Result<PricingResult> complete_greeks(
     const Engine& engine, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings, const PricingResult& native,
-    const Native& evaluate_native = nullptr)
+    const Native& evaluate_native = nullptr, const SpotBatch& evaluate_spot_batch = nullptr)
 {
     const double spot = context.spot_price();
     const double volatility = context.model_parameters().volatility();
@@ -258,15 +264,34 @@ Result<PricingResult> complete_greeks(
         const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
         const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
-        const auto v_up = native_high ? Result<double>{native_high->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_high, rate, valuation_time)
+        std::optional<std::array<NumericalSpotPrices, 2>> batches;
+        if constexpr (requires { evaluate_spot_batch(context, h, need_volatility_prices); }) {
+            if (scalar_mixed) {
+                const auto sample = [&](double shifted_volatility) -> Result<NumericalSpotPrices> {
+                    const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
+                    if (!shifted) return std::unexpected(shifted.error());
+                    const auto prices = evaluate_spot_batch(*shifted, h, need_volatility_prices);
+                    if (!prices) return std::unexpected(prices.error());
+                    if ((need_volatility_prices && !prices->center) || !std::isfinite(prices->up) ||
+                        !std::isfinite(prices->down) || (prices->center && !std::isfinite(*prices->center)))
+                        return std::unexpected(Error{ErrorCategory::invalid_result, "numerical spot batch is incomplete or non-finite"});
+                    return prices;
+                };
+                const auto high = sample(volatility_high);
+                if (!high) return std::unexpected(high.error());
+                const auto low = sample(volatility_low);
+                if (!low) return std::unexpected(low.error());
+                batches = std::array{*high, *low};
+            }
+        }
+        const auto v_up = native_high ? Result<double>{native_high->price()} : batches ? Result<double>{(*batches)[0].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_high, rate, valuation_time)
                                                                                                       : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        // Keep each model's spot stencil together so simulation caches survive the whole stencil.
-        const auto d_up = scalar_mixed ? detail::shifted_value(engine, option, context, spot + h, volatility_high, rate, valuation_time) : p0;
+        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(engine, option, context, spot + h, volatility_high, rate, valuation_time) : p0;
         if (!d_up) return std::unexpected(d_up.error());
-        const auto d_down = scalar_mixed ? detail::shifted_value(engine, option, context, spot - h, volatility_high, rate, valuation_time) : p0;
+        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(engine, option, context, spot - h, volatility_high, rate, valuation_time) : p0;
         if (!d_down) return std::unexpected(d_down.error());
-        const auto v_down = native_low ? Result<double>{native_low->price()} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_low, rate, valuation_time)
+        const auto v_down = native_low ? Result<double>{native_low->price()} : batches ? Result<double>{(*batches)[1].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_low, rate, valuation_time)
                                                                                                       : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
@@ -277,10 +302,10 @@ Result<PricingResult> complete_greeks(
             zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
 
         if (scalar_mixed) {
-            const auto d_up_low = detail::shifted_value(
+            const auto d_up_low = batches ? Result<double>{(*batches)[1].up} : detail::shifted_value(
                 engine, option, context, spot + h, volatility_low, rate, valuation_time);
             if (!d_up_low) return std::unexpected(d_up_low.error());
-            const auto d_down_low = detail::shifted_value(
+            const auto d_down_low = batches ? Result<double>{(*batches)[1].down} : detail::shifted_value(
                 engine, option, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /

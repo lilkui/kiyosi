@@ -48,44 +48,6 @@ Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& 
                                 {Greek::speed, speed}});
 }
 
-// Cache the two volatility stencils as scalar prices, retaining the shared Greek arithmetic.
-template <typename Engine, typename Sample>
-struct MonteCarloMixedPricer {
-    using Stencil = SpotStencil<3>;
-    const Engine* engine{};
-    const PricingContext* base{};
-    double h{};
-    double volatility_shift{};
-    bool center{};
-    Sample sample;
-    mutable std::array<std::optional<std::array<double, 3>>, 2> prices{};
-
-    template <typename Option>
-    Result<double> price(const Option& option, const PricingContext& context) const
-    {
-        const auto& model = context.model_parameters();
-        const auto& initial = base->model_parameters();
-        const double volatility = initial.volatility();
-        const int index = model.volatility() == volatility + volatility_shift ? 0 : 1;
-        const double spot = base->spot_price();
-        const auto node = context.spot_price() == spot ? Stencil::center : context.spot_price() == spot + h ? Stencil::up
-                                                                                                            : Stencil::down;
-        if (h == 0.0 || volatility_shift == 0.0 || model.volatility() != volatility + (index == 0 ? volatility_shift : -volatility_shift) ||
-            model.risk_free_rate() != initial.risk_free_rate() || model.dividend_yield() != initial.dividend_yield() ||
-            context.valuation_time() != base->valuation_time() || (node == Stencil::down && context.spot_price() != spot - h))
-            return engine->price(option, context);
-        auto& cached = prices[static_cast<std::size_t>(index)];
-        if (!cached) {
-            const auto shifted = make_pricing_context(model, spot, context.valuation_time(), context.calendar());
-            if (!shifted) return std::unexpected(shifted.error());
-            const auto values = sample(*shifted, h, center);
-            if (!values) return std::unexpected(values.error());
-            cached = *values;
-        }
-        return (*cached)[node];
-    }
-};
-
 template <typename Engine, typename Option, typename Validate, typename SpotPrices, typename RatePrices>
 Result<PricingResult> complete_monte_carlo_greeks(
     const Engine& scalar, const Option& option, const PricingContext& context,
@@ -130,20 +92,19 @@ Result<PricingResult> complete_monte_carlo_greeks(
                                                        {Greek::rho, ((*rate_prices)[1] - (*rate_prices)[2]) / (200.0 * rate_shift)}});
         if (!native) return std::unexpected(native.error());
     }
-    const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
-                       stencils.spot_available && stencils.volatility_available;
-    const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
+    const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<NumericalSpotPrices> {
         const auto valid = validate(shifted);
         if (!valid) return std::unexpected(valid.error());
-        if (center) return spot_prices.template operator()<3>(shifted, shift);
+        if (center) {
+            const auto values = spot_prices.template operator()<3>(shifted, shift);
+            if (!values) return std::unexpected(values.error());
+            return NumericalSpotPrices{(*values)[SpotStencil<3>::center], (*values)[SpotStencil<3>::up], (*values)[SpotStencil<3>::down]};
+        }
         const auto values = spot_prices.template operator()<2>(shifted, shift);
         if (!values) return std::unexpected(values.error());
-        return std::array{0.0, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
+        return NumericalSpotPrices{std::nullopt, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
     };
-    const MonteCarloMixedPricer prices{&scalar, &context, mixed ? h : 0.0,
-                                       stencils.volatility_shift,
-                                       greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
-    return complete_greeks(prices, option, context, greeks, settings, *native);
+    return complete_greeks(scalar, option, context, greeks, settings, *native, nullptr, sample);
 }
 
 template <std::size_t count, typename PathPayoffs>
