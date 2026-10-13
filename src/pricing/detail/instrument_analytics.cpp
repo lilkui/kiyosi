@@ -87,14 +87,12 @@ template <BarrierProduct Option>
 bool volatility_affects_price(const Option& option, const PricingContext& context)
 {
     const auto& terms = option.barrier_terms();
-    const bool touched = *terms.was_touched_before(context.valuation_time()) ||
-                         (terms.is_monitored_at(context.valuation_time()) && terms.is_breached_by(context.spot_price()));
-    const bool monitoring_finished = !terms.is_continuous() &&
-                                     start_of_day(terms.observation_dates().back()) <= context.valuation_time();
+    // Pricing has already validated history before checking volatility exposure.
+    const auto state = *barrier_monitoring_state(terms, context.valuation_time(), context.spot_price());
     if constexpr (std::same_as<Option, TouchOption>) {
-        return !touched && !monitoring_finished;
+        return !state.touched && !state.finished;
     } else {
-        if ((touched && !terms.is_knock_in()) || (!touched && monitoring_finished && terms.is_knock_in())) return false;
+        if ((state.touched && !terms.is_knock_in()) || (!state.touched && state.finished && terms.is_knock_in())) return false;
         const bool monitors_expiry = terms.is_continuous() || terms.observation_dates().back() == option.expiry_date();
         const bool payoff_excluded = !terms.is_knock_in() && monitors_expiry &&
                                      (terms.is_up() ? option.option_type() == OptionType::call && option.strike() >= terms.barrier_level()

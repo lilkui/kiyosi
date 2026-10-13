@@ -204,6 +204,24 @@ private:
 }
 
 namespace detail {
+struct BarrierMonitoringState {
+    bool touched_before;
+    bool touched;
+    bool finished;
+};
+
+// Callers validate valuation life and calendar compatibility before resolving monitoring.
+[[nodiscard]] inline Result<BarrierMonitoringState> barrier_monitoring_state(
+    const BarrierTerms& terms, Timestamp valuation_time, double spot)
+{
+    const auto prior_touch = terms.was_touched_before(valuation_time);
+    if (!prior_touch) return std::unexpected(prior_touch.error());
+    return BarrierMonitoringState{
+        *prior_touch,
+        *prior_touch || (terms.is_monitored_at(valuation_time) && terms.is_breached_by(spot)),
+        !terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= valuation_time};
+}
+
 // Analytic formulas monitor through expiry; callers resolve touched and completed states first.
 [[nodiscard]] inline Result<void> validate_analytic_barrier_monitoring(
     const BarrierTerms& terms, double spot, double shifted_barrier)

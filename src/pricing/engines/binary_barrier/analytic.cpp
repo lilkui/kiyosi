@@ -74,26 +74,23 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         if (!schedule) return std::unexpected(schedule.error());
         schedule_validated = true;
     }
-    const auto prior_touch = terms.was_touched_before(context.valuation_time());
-    if (!prior_touch) return std::unexpected(prior_touch.error());
+    const auto state = barrier_monitoring_state(terms, context.valuation_time(), context.spot_price());
+    if (!state) return std::unexpected(state.error());
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), terms.expiry_date());
     const double spot = context.spot_price();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const bool observed_now = terms.is_monitored_at(context.valuation_time());
-    const bool touched_now = observed_now && terms.is_breached_by(spot);
-    const bool touched = *prior_touch || touched_now;
-    if (*prior_touch && option.settlement_timing == SettlementTiming::at_hit)
+    if (state->touched_before && option.settlement_timing == SettlementTiming::at_hit)
         return 0.0;
     if (time == 0.0)
-        return checked_price(terminal_payoff(option, spot, touched));
-    if (touched) {
+        return checked_price(terminal_payoff(option, spot, state->touched));
+    if (state->touched) {
         if (!knock_in) return 0.0;
         if (option.settlement_timing == SettlementTiming::at_hit)
             return checked_price(option.asset_settlement ? spot : option.payout);
         return vanilla_digital(option, context, time);
     }
-    if (!terms.is_continuous() && start_of_day(terms.observation_dates().back()) <= context.valuation_time())
+    if (state->finished)
         return knock_in ? 0.0 : vanilla_digital(option, context, time);
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);

@@ -63,3 +63,56 @@ TEST_CASE("Barrier terms expose shared monitoring and knock predicates")
     REQUIRE_FALSE(impossible_result);
     CHECK(impossible_result.error().category == kiyosi::ErrorCategory::invalid_option);
 }
+
+TEST_CASE("Barrier monitoring state preserves observation boundaries and history", "[barrier-state]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), first = test::day(2025, 2, 3);
+    const auto last = test::day(2025, 3, 3), expiry = test::day(2025, 4, 1);
+    const auto make_option = [&](ObservationMode mode, std::optional<BarrierTouchState> history) {
+        return *make_cash_no_touch_down(start, expiry, 90.0, 10.0, mode,
+            mode == ObservationMode::scheduled ? std::vector{first, last} : std::vector<Date>{}, history);
+    };
+    SECTION("Only the exact final observation can add a current touch")
+    {
+        const auto option = make_option(ObservationMode::scheduled, BarrierTouchState::untouched);
+        for (const int offset : {-1, 0, 1}) {
+            const auto state = detail::barrier_monitoring_state(
+                option.barrier_terms(), start_of_day(last) + std::chrono::microseconds{offset}, 89.0);
+            REQUIRE(state);
+            CHECK_FALSE(state->touched_before);
+            CHECK(state->touched == (offset == 0));
+            CHECK(state->finished == (offset >= 0));
+        }
+    }
+    SECTION("Prior touches survive a currently unbreached spot")
+    {
+        const auto option = make_option(ObservationMode::scheduled, BarrierTouchState::touched);
+        const auto state = detail::barrier_monitoring_state(option.barrier_terms(), start_of_day(last), 100.0);
+        REQUIRE(state);
+        CHECK(state->touched_before);
+        CHECK(state->touched);
+        CHECK(state->finished);
+    }
+    SECTION("Continuous monitoring includes intraday spot and is not schedule-finished")
+    {
+        const auto option = make_option(ObservationMode::continuous, BarrierTouchState::untouched);
+        const auto state = detail::barrier_monitoring_state(
+            option.barrier_terms(), start_of_day(last) + std::chrono::hours{12}, 90.0);
+        REQUIRE(state);
+        CHECK_FALSE(state->touched_before);
+        CHECK(state->touched);
+        CHECK_FALSE(state->finished);
+    }
+    SECTION("Missing and impossible history retain their error categories")
+    {
+        const auto missing = make_option(ObservationMode::scheduled, std::nullopt);
+        const auto state = detail::barrier_monitoring_state(missing.barrier_terms(), start_of_day(last), 89.0);
+        REQUIRE_FALSE(state);
+        CHECK(state.error().category == ErrorCategory::invalid_parameter);
+        const auto impossible = make_option(ObservationMode::scheduled, BarrierTouchState::touched);
+        const auto early = detail::barrier_monitoring_state(impossible.barrier_terms(), start_of_day(first), 89.0);
+        REQUIRE_FALSE(early);
+        CHECK(early.error().category == ErrorCategory::invalid_option);
+    }
+}
