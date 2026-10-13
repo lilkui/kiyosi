@@ -303,12 +303,21 @@ if(KIYOSI_BUILD_PYTHON)
         )
     endif()
 
+    add_custom_command(
+        OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/choice_aliases.stubgen"
+        COMMAND "${Python_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_choice_stubs.py"
+            $<TARGET_FILE_DIR:_native> "${CMAKE_CURRENT_BINARY_DIR}/choice_aliases.stubgen"
+        DEPENDS _native "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_choice_stubs.py"
+        VERBATIM
+    )
     nanobind_add_stub(kiyosi_python_stubs
         MODULE _native
         OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/_native.pyi"
         PYTHON_PATH $<TARGET_FILE_DIR:_native>
         DEPENDS _native
-        PATTERN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/python/kiyosi/_native.stubgen"
+        PATTERN_FILE
+            "${CMAKE_CURRENT_SOURCE_DIR}/python/kiyosi/_native.stubgen"
+            "${CMAKE_CURRENT_BINARY_DIR}/choice_aliases.stubgen"
     )
 
     include(CheckIPOSupported)

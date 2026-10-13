@@ -38,6 +38,21 @@ raise :class:`KiyosiError` with a stable :attr:`KiyosiError.category`.)doc";
                                 std::to_string(version_patch);
     module.attr("__version__") = nb::str(version.c_str());
 
+    bind_choice<OptionType>(module, "OptionType");
+    bind_choice<BarrierType>(module, "BarrierType");
+    bind_choice<ObservationMode>(module, "ObservationMode");
+    bind_choice<BarrierTouchState>(module, "BarrierTouchState");
+    bind_choice<RebateTiming>(module, "RebateTiming");
+    bind_choice<SettlementTiming>(module, "SettlementTiming");
+    bind_choice<PayoffType>(module, "PayoffType");
+    bind_choice<KnockInObservationMode>(module, "KnockInObservationMode");
+    bind_choice<AutocallableBarrierState>(module, "AutocallableBarrierState");
+    bind_choice<FiniteDifferenceScheme>(module, "FiniteDifferenceScheme");
+    bind_choice<MonteCarloBackend>(module, "MonteCarloBackend");
+    bind_choice<CouponQuoteConvention>(module, "CouponQuoteConvention");
+    bind_choice<BusinessDayConvention>(module, "BusinessDayConvention");
+    bind_choice<Greek>(module, "Greek");
+
     bind_error_category(module);
     nb::dict exception_attributes;
     exception_attributes["__doc__"] = R"doc(Core domain validation or pricing error.

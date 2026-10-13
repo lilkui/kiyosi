@@ -27,22 +27,7 @@ Ctrl-C/KeyboardInterrupt, is deferred until control returns to Python. It does n
 stop an in-progress core computation or become a KiyosiError.
 """
 
-from typing import Literal
-
-from ._native import ErrorCategory, KiyosiError, PricingResult, __version__
-
-Greek = Literal[
-    "delta",
-    "gamma",
-    "speed",
-    "theta",
-    "charm",
-    "color",
-    "vega",
-    "vanna",
-    "zomma",
-    "rho",
-]
+from ._native import ErrorCategory, Greek, KiyosiError, PricingResult, __version__
 
 __all__ = [
     "ErrorCategory",

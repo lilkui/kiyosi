@@ -1,9 +1,8 @@
 """Market snapshots, calendars, and observation schedules."""
 
-from typing import Literal as _Literal
-
 from ._native import (
     BlackScholesMertonParameters,
+    BusinessDayConvention,
     ObservationSchedule,
     PricingContext,
     TradingCalendar,
@@ -13,5 +12,3 @@ from ._native import (
     sse_calendar,
     weekdays_calendar,
 )
-
-BusinessDayConvention = _Literal["following", "preceding"]

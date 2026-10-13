@@ -44,50 +44,42 @@ template <>
 struct EnumNames<OptionType> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, OptionType>>(
         {{"call", OptionType::call}, {"put", OptionType::put}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['call', 'put']");
 };
 
 template <>
 struct EnumNames<BarrierType> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, BarrierType>>(
         {{"up_and_in", BarrierType::up_and_in}, {"up_and_out", BarrierType::up_and_out}, {"down_and_in", BarrierType::down_and_in}, {"down_and_out", BarrierType::down_and_out}});
-    static constexpr auto Name = nb::detail::const_name(
-        "typing.Literal['up_and_in', 'up_and_out', 'down_and_in', 'down_and_out']");
 };
 
 template <>
 struct EnumNames<ObservationMode> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, ObservationMode>>(
         {{"continuous", ObservationMode::continuous}, {"scheduled", ObservationMode::scheduled}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['continuous', 'scheduled']");
 };
 
 template <>
 struct EnumNames<BarrierTouchState> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, BarrierTouchState>>(
         {{"untouched", BarrierTouchState::untouched}, {"touched", BarrierTouchState::touched}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['untouched', 'touched']");
 };
 
 template <>
 struct EnumNames<RebateTiming> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, RebateTiming>>(
         {{"at_hit", RebateTiming::at_hit}, {"at_expiry", RebateTiming::at_expiry}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['at_hit', 'at_expiry']");
 };
 
 template <>
 struct EnumNames<SettlementTiming> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, SettlementTiming>>(
         {{"at_hit", SettlementTiming::at_hit}, {"at_expiry", SettlementTiming::at_expiry}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['at_hit', 'at_expiry']");
 };
 
 template <>
 struct EnumNames<PayoffType> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, PayoffType>>(
         {{"cash", PayoffType::cash}, {"asset", PayoffType::asset}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['cash', 'asset']");
 };
 
 template <>
@@ -95,14 +87,12 @@ struct EnumNames<KnockInObservationMode> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, KnockInObservationMode>>(
         {{"every_trading_day", KnockInObservationMode::every_trading_day},
          {"at_expiry", KnockInObservationMode::at_expiry}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['every_trading_day', 'at_expiry']");
 };
 
 template <>
 struct EnumNames<AutocallableBarrierState> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, AutocallableBarrierState>>(
         {{"none", AutocallableBarrierState::none}, {"knocked_out", AutocallableBarrierState::knocked_out}, {"knocked_in", AutocallableBarrierState::knocked_in}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['none', 'knocked_out', 'knocked_in']");
 };
 
 template <>
@@ -111,15 +101,12 @@ struct EnumNames<FiniteDifferenceScheme> {
         {{"explicit_euler", FiniteDifferenceScheme::explicit_euler},
          {"implicit_euler", FiniteDifferenceScheme::implicit_euler},
          {"crank_nicolson", FiniteDifferenceScheme::crank_nicolson}});
-    static constexpr auto Name = nb::detail::const_name(
-        "typing.Literal['explicit_euler', 'implicit_euler', 'crank_nicolson']");
 };
 
 template <>
 struct EnumNames<MonteCarloBackend> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, MonteCarloBackend>>(
         {{"cpu", MonteCarloBackend::cpu}, {"cuda", MonteCarloBackend::cuda}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['cpu', 'cuda']");
 };
 
 template <>
@@ -127,24 +114,46 @@ struct EnumNames<CouponQuoteConvention> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, CouponQuoteConvention>>(
         {{"shift_maturity_coupon", CouponQuoteConvention::shift_maturity_coupon},
          {"preserve_maturity_coupon", CouponQuoteConvention::preserve_maturity_coupon}});
-    static constexpr auto Name = nb::detail::const_name(
-        "typing.Literal['shift_maturity_coupon', 'preserve_maturity_coupon']");
 };
 
 template <>
 struct EnumNames<BusinessDayConvention> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, BusinessDayConvention>>(
         {{"following", BusinessDayConvention::following}, {"preceding", BusinessDayConvention::preceding}});
-    static constexpr auto Name = nb::detail::const_name("typing.Literal['following', 'preceding']");
 };
 
 template <>
 struct EnumNames<Greek> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, Greek>>(
         {{"delta", Greek::delta}, {"gamma", Greek::gamma}, {"speed", Greek::speed}, {"theta", Greek::theta}, {"charm", Greek::charm}, {"color", Greek::color}, {"vega", Greek::vega}, {"vanna", Greek::vanna}, {"zomma", Greek::zomma}, {"rho", Greek::rho}});
-    static constexpr auto Name = nb::detail::const_name(
-        "typing.Literal['delta', 'gamma', 'speed', 'theta', 'charm', 'color', 'vega', 'vanna', 'zomma', 'rho']");
 };
+
+template <typename Enum, std::size_t index = 0>
+constexpr auto choice_names()
+{
+    constexpr auto name = EnumNames<Enum>::values[index].first;
+    nb::detail::descr<name.size()> text;
+    for (std::size_t i = 0; i < name.size(); ++i)
+        text.text[i] = name[i];
+    const auto quoted = nb::detail::const_name("'") + text + nb::detail::const_name("'");
+    if constexpr (index + 1 == EnumNames<Enum>::values.size()) return quoted;
+    else return quoted + nb::detail::const_name(", ") + choice_names<Enum, index + 1>();
+}
+
+template <typename Enum>
+constexpr auto choice_annotation()
+{
+    return nb::detail::const_name("typing.Literal[") + choice_names<Enum>() + nb::detail::const_name("]");
+}
+
+template <typename Enum>
+void bind_choice(nb::module_& module, const char* name)
+{
+    nb::list choices;
+    for (const auto& [choice, member] : EnumNames<Enum>::values)
+        choices.append(nb::str(choice.data(), choice.size()));
+    module.attr(name) = nb::module_::import_("typing").attr("Literal").attr("__getitem__")(nb::tuple(choices));
+}
 
 } // namespace kiyosi::python_binding
 
@@ -171,16 +180,16 @@ struct type_caster<kiyosi::python_binding::PythonValuationTimeAnnotation> {
 template <>
 struct type_caster<kiyosi::python_binding::PythonGreekRequestAnnotation> {
     NB_TYPE_CASTER(kiyosi::python_binding::PythonGreekRequestAnnotation,
-                   (kiyosi::python_binding::EnumNames<kiyosi::Greek>::Name +
+                   (kiyosi::python_binding::choice_annotation<kiyosi::Greek>() +
                     const_name(" | collections.abc.Iterable[") +
-                    kiyosi::python_binding::EnumNames<kiyosi::Greek>::Name +
+                    kiyosi::python_binding::choice_annotation<kiyosi::Greek>() +
                     const_name("]")))
 };
 
 template <typename Enum>
 struct type_caster<kiyosi::python_binding::PythonChoice<Enum>> {
     NB_TYPE_CASTER(kiyosi::python_binding::PythonChoice<Enum>,
-                   kiyosi::python_binding::EnumNames<Enum>::Name)
+                   kiyosi::python_binding::choice_annotation<Enum>())
     bool from_python(handle source, uint32_t, cleanup_list*) noexcept
     {
         if (!isinstance<str>(source)) return false;
@@ -197,7 +206,7 @@ struct type_caster<kiyosi::python_binding::PythonChoice<Enum>> {
 template <typename Enum>
     requires requires { kiyosi::python_binding::EnumNames<Enum>::values; }
 struct type_caster<Enum, enable_if_t<std::is_enum_v<Enum>>> {
-    NB_TYPE_CASTER(Enum, kiyosi::python_binding::EnumNames<Enum>::Name)
+    NB_TYPE_CASTER(Enum, kiyosi::python_binding::choice_annotation<Enum>())
     bool from_python(handle source, uint32_t, cleanup_list*) noexcept
     {
         if (!isinstance<str>(source)) return false;

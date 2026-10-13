@@ -17,6 +17,7 @@ on:
       - python/**
       - tests/**
       - tools/generate_sse_calendar.py
+      - tools/generate_choice_stubs.py
       - tools/quantlib-oracle/**
   workflow_dispatch:
   release:

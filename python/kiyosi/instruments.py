@@ -1,19 +1,26 @@
 """Validated derivative instruments."""
 
-from typing import Literal as _Literal
-
 from ._native import (
     Accumulator,
     AmericanOption,
     ArithmeticAveragePriceOption,
     AssetOrNothingOption,
+    AutocallableBarrierState,
     BarrierOption,
+    BarrierTouchState,
+    BarrierType,
     BinaryBarrierOption,
     BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
     GeometricAveragePriceOption,
+    KnockInObservationMode,
+    ObservationMode,
+    OptionType,
+    PayoffType,
     PhoenixOption,
+    RebateTiming,
+    SettlementTiming,
     SnowballOption,
     TernarySnowballOption,
     TouchOption,
@@ -36,13 +43,3 @@ from ._native import (
     standard_snowball,
     step_down_snowball,
 )
-
-AutocallableBarrierState = _Literal["none", "knocked_out", "knocked_in"]
-BarrierTouchState = _Literal["untouched", "touched"]
-BarrierType = _Literal["up_and_in", "up_and_out", "down_and_in", "down_and_out"]
-KnockInObservationMode = _Literal["every_trading_day", "at_expiry"]
-ObservationMode = _Literal["continuous", "scheduled"]
-OptionType = _Literal["call", "put"]
-PayoffType = _Literal["cash", "asset"]
-RebateTiming = _Literal["at_hit", "at_expiry"]
-SettlementTiming = _Literal["at_hit", "at_expiry"]

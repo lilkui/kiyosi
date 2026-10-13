@@ -1,3 +1,4 @@
+import ast
 import csv
 import math
 import numbers
@@ -17,7 +18,7 @@ import kiyosi
 # Jobs set KIYOSI_TEST_CUDA=disabled only after building with KIYOSI_ENABLE_CUDA=OFF,
 # or enabled after building with CUDA support on a host with a usable GPU.
 # Unset runs the portable tests, including CUDA validation and expiry settlement.
-from kiyosi import market, pricing
+from kiyosi import instruments, market, pricing
 from kiyosi.instruments import (
     Accumulator,
     AmericanOption,
@@ -2436,6 +2437,59 @@ class KiyosiPythonTests(unittest.TestCase):
             pricing.FiniteDifferenceVanillaEngine(scheme="Crank-Nicolson")
         with self.assertRaises(TypeError):
             pricing.FiniteDifferenceVanillaEngine(scheme=1)
+
+    def test_choice_aliases_match_signatures_and_generated_stubs(self):
+        from kiyosi import _native
+
+        stub = ast.parse(
+            Path(_native.__file__).with_name("_native.pyi").read_text(encoding="utf-8")
+        )
+        declarations = {
+            node.target.id: node.value
+            for node in stub.body
+            if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
+        }
+        for module, name, method in (
+            (kiyosi, "Greek", kiyosi.PricingResult.require),
+            (instruments, "OptionType", EuropeanOption.__init__),
+            (instruments, "BarrierType", BarrierOption.__init__),
+            (instruments, "ObservationMode", BarrierOption.__init__),
+            (instruments, "BarrierTouchState", BarrierOption.__init__),
+            (instruments, "RebateTiming", BarrierOption.__init__),
+            (instruments, "SettlementTiming", cash_one_touch_up),
+            (
+                instruments,
+                "PayoffType",
+                instruments.BinaryBarrierOption.payoff_type.fget,
+            ),
+            (instruments, "KnockInObservationMode", PhoenixOption.__init__),
+            (instruments, "AutocallableBarrierState", BinarySnowballOption.__init__),
+            (market, "BusinessDayConvention", market.TradingCalendar.adjust),
+            (
+                pricing,
+                "FiniteDifferenceScheme",
+                pricing.FiniteDifferenceVanillaEngine.__init__,
+            ),
+            (pricing, "MonteCarloBackend", pricing.MonteCarloVanillaEngine.__init__),
+            (pricing, "CouponQuoteConvention", pricing.implied_coupon),
+        ):
+            with self.subTest(alias=name):
+                alias = getattr(module, name)
+                self.assertIs(alias, getattr(_native, name))
+                signatures = "\n".join(item[0] for item in method.__nb_signature__)
+                self.assertIn(repr(alias), signatures)
+                value = declarations[name]
+                self.assertIsInstance(value, ast.Subscript)
+                self.assertEqual(value.value.id, "Literal")
+                choices = ast.literal_eval(value.slice)
+                self.assertEqual(
+                    get_args(alias),
+                    choices if isinstance(choices, tuple) else (choices,),
+                )
+        for scheme in get_args(pricing.FiniteDifferenceScheme):
+            self.assertEqual(
+                pricing.FiniteDifferenceVanillaEngine(scheme=scheme).scheme, scheme
+            )
 
     def test_explicit_pricing_result_surface(self):
         self.assertFalse(hasattr(kiyosi, "price"))
