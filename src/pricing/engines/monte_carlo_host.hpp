@@ -4,6 +4,7 @@
 #include <cmath>
 #include <new>
 #include <random>
+#include <utility>
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
@@ -110,6 +111,46 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
     for (std::size_t i = 0; i < count; ++i)
         prices[i] = means[i].value();
     return prices;
+}
+
+template <typename State, std::size_t count>
+Result<std::array<double, count>> checked_path_prices(
+    const std::array<State, count>& states, std::array<double, count> prices)
+{
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto value = checked_price(states[i].payoff ? *states[i].payoff : prices[i]);
+        if (!value) return std::unexpected(value.error());
+        prices[i] = *value;
+    }
+    return prices;
+}
+
+template <typename Inputs, typename State, typename Prepare, typename PathPayoffs>
+Result<std::array<double, 3>> cpu_rate_prices(
+    const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    double h, std::optional<double> base_price, const Prepare& prepare, const PathPayoffs& path_payoffs)
+{
+    std::array<Inputs, 3> inputs{};
+    std::array<State, 3> initial{};
+    initial[0].payoff = base_price;
+    for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
+        const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
+        const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(), rate, context.valuation_time());
+        if (!shifted) return std::unexpected(shifted.error());
+        auto prepared = prepare(*shifted);
+        if (!prepared) return std::unexpected(prepared.error());
+        inputs[i] = std::move(prepared->first);
+        initial[i] = std::move(prepared->second);
+    }
+    std::array<double, 3> prices{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        const auto values = cpu_path_means<3>(settings, [&](auto& generator) {
+            return path_payoffs(inputs, initial, generator);
+        });
+        if (!values) return std::unexpected(values.error());
+        prices = *values;
+    }
+    return checked_path_prices(initial, prices);
 }
 
 // One draw advances every active state; scalar calls enter active, batched states may already be settled.
@@ -222,6 +263,28 @@ inline Result<double> cuda_mean(CudaPricingResult cuda_result)
     }
     return std::unexpected(Error{ErrorCategory::backend_failure,
                                  "CUDA Monte Carlo returned an unknown status"});
+}
+
+// Pack only active states; the caller merges already settled prices afterward.
+template <typename Request, typename State, std::size_t count, typename MakeRequest, typename Price>
+Result<std::array<double, count>> cuda_active_prices(
+    const std::array<State, count>& states, const MakeRequest& make_request, const Price& price)
+{
+    std::array<Request, count> requests{};
+    std::array<std::size_t, count> indices{};
+    std::size_t active = 0;
+    for (std::size_t i = 0; i < count; ++i) {
+        if (states[i].payoff) continue;
+        indices[active] = i;
+        requests[active++] = make_request(states[i]);
+    }
+    const auto result = price(std::span{requests}.first(active));
+    const auto valid = cuda_mean(result.result);
+    if (!valid) return std::unexpected(valid.error());
+    std::array<double, count> prices{};
+    for (std::size_t i = 0; i < active; ++i)
+        prices[indices[i]] = result.payoff_means[i];
+    return prices;
 }
 
 } // namespace kiyosi::detail

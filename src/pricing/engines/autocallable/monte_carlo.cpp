@@ -161,20 +161,14 @@ Result<std::array<double, count>> price_spot_bumps(
         if (!inputs) return std::unexpected(inputs.error());
         if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-            std::array<CudaAutocallableRequest, count> requests{};
-            std::array<std::size_t, count> indices{};
-            std::size_t active = 0;
-            for (std::size_t i = 0; i < count; ++i) {
-                if (initial[i].payoff) continue;
-                indices[active] = i;
-                requests[active++] = {settings.path_count, *settings.seed, initial[i].spot,
-                                      inputs->terminal_discount, program, initial[i].path};
-            }
-            const auto result = cuda_autocallable_spot_prices(std::span{requests}.first(active), inputs->step_count, workspace);
-            const auto valid = cuda_mean(result.result);
-            if (!valid) return std::unexpected(valid.error());
-            for (std::size_t i = 0; i < active; ++i)
-                prices[indices[i]] = result.payoff_means[i];
+            const auto values = cuda_active_prices<CudaAutocallableRequest>(initial,
+                [&](const auto& state) {
+                    return CudaAutocallableRequest{settings.path_count, *settings.seed, state.spot,
+                        inputs->terminal_discount, program, state.path};
+                },
+                [&](auto requests) { return cuda_autocallable_spot_prices(requests, inputs->step_count, workspace); });
+            if (!values) return std::unexpected(values.error());
+            prices = *values;
 #else
             return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
@@ -186,12 +180,7 @@ Result<std::array<double, count>> price_spot_bumps(
             prices = *values;
         }
     }
-    for (std::size_t i = 0; i < count; ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
-        if (!value) return std::unexpected(value.error());
-        prices[i] = *value;
-    }
-    return prices;
+    return checked_path_prices(initial, prices);
 }
 
 template <AutocallableProduct Note>
@@ -200,41 +189,23 @@ Result<std::array<double, 3>> price_rate_bumps(
     double h, std::optional<double> base_price = std::nullopt)
 {
     const auto program = autocallable_program(note);
-    std::array<SimulationInputs, 3> inputs{};
-    std::array<PathState, 3> initial{};
-    initial[0].payoff = base_price;
-    for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
-        const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
-        const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
-                                             rate, context.valuation_time());
-        if (!shifted) return std::unexpected(shifted.error());
-        const auto state = autocallable_initial_state(note, *shifted, program);
-        const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, *shifted, program, state);
-        if (fixed) {
-            const auto value = checked_price(*fixed);
-            if (!value) return std::unexpected(value.error());
-        } else {
-            auto prepared = prepare_simulation(note, *shifted, state.next_observation,
-                                               program_knock_in_affects_payoff(program) && program.daily_knock_in && !state.path.knocked_in);
-            if (!prepared) return std::unexpected(prepared.error());
-            inputs[i] = std::move(*prepared);
-        }
-        initial[i] = {shifted->spot_price(), state.path, fixed};
-    }
-    std::array<double, 3> prices{};
-    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
-        const auto values = cpu_path_means<3>(settings, [&](auto& generator) {
-            return path_payoffs(program, inputs, initial, generator);
-        });
-        if (!values) return std::unexpected(values.error());
-        prices = *values;
-    }
-    for (std::size_t i = 0; i < prices.size(); ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
-        if (!value) return std::unexpected(value.error());
-        prices[i] = *value;
-    }
-    return prices;
+    return cpu_rate_prices<SimulationInputs, PathState>(context, settings, h, base_price,
+        [&](const PricingContext& shifted) -> Result<std::pair<SimulationInputs, PathState>> {
+            const auto state = autocallable_initial_state(note, shifted, program);
+            const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, shifted, program, state);
+            SimulationInputs inputs{};
+            if (fixed) {
+                const auto value = checked_price(*fixed);
+                if (!value) return std::unexpected(value.error());
+            } else {
+                auto prepared = prepare_simulation(note, shifted, state.next_observation,
+                    program_knock_in_affects_payoff(program) && program.daily_knock_in && !state.path.knocked_in);
+                if (!prepared) return std::unexpected(prepared.error());
+                inputs = std::move(*prepared);
+            }
+            return std::pair{std::move(inputs), PathState{shifted.spot_price(), state.path, fixed}};
+        },
+        [&](const auto& inputs, const auto& initial, auto& generator) { return path_payoffs(program, inputs, initial, generator); });
 }
 
 template <AutocallableProduct Note>

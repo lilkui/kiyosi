@@ -104,21 +104,14 @@ Result<std::array<double, count>> price_spot_bumps(
         if (!steps) return std::unexpected(steps.error());
         if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-            std::array<CudaAccumulatorRequest, count> requests{};
-            std::array<std::size_t, count> indices{};
-            std::size_t active = 0;
-            for (std::size_t i = 0; i < count; ++i) {
-                if (initial[i].payoff) continue;
-                indices[active] = i;
-                requests[active++] = {settings.path_count, *settings.seed, initial[i].spot,
-                                      option.strike(), option.knock_out_level(), option.daily_quantity(),
-                                      option.acceleration_factor(), initial[i].quantity};
-            }
-            const auto result = cuda_accumulator_spot_prices(std::span{requests}.first(active), *steps, workspace);
-            const auto valid = cuda_mean(result.result);
-            if (!valid) return std::unexpected(valid.error());
-            for (std::size_t i = 0; i < active; ++i)
-                prices[indices[i]] = result.payoff_means[i];
+            const auto values = cuda_active_prices<CudaAccumulatorRequest>(initial,
+                [&](const auto& state) {
+                    return CudaAccumulatorRequest{settings.path_count, *settings.seed, state.spot,
+                        option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity};
+                },
+                [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
+            if (!values) return std::unexpected(values.error());
+            prices = *values;
 #else
             return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
@@ -130,51 +123,28 @@ Result<std::array<double, count>> price_spot_bumps(
             prices = *values;
         }
     }
-    for (std::size_t i = 0; i < count; ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
-        if (!value) return std::unexpected(value.error());
-        prices[i] = *value;
-    }
-    return prices;
+    return checked_path_prices(initial, prices);
 }
 
 Result<std::array<double, 3>> price_rate_bumps(
     const Accumulator& option, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings, double h, std::optional<double> base_price = std::nullopt)
 {
-    std::array<std::vector<SimulationStep>, 3> steps;
-    std::array<PathState, 3> initial{};
-    initial[0].payoff = base_price;
-    for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
-        const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
-        const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
-                                             rate, context.valuation_time());
-        if (!shifted) return std::unexpected(shifted.error());
-        const auto state = accumulator_initial_state(option, *shifted);
-        if (state.settlement) {
-            const auto value = checked_price(*state.settlement);
-            if (!value) return std::unexpected(value.error());
-        } else {
-            auto prepared = prepare_simulation(option, *shifted);
-            if (!prepared) return std::unexpected(prepared.error());
-            steps[i] = std::move(*prepared);
-        }
-        initial[i] = {shifted->spot_price(), state.quantity, {}, state.settlement};
-    }
-    std::array<double, 3> prices{};
-    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
-        const auto values = cpu_path_means<3>(settings, [&](auto& generator) {
-            return path_payoffs(option, steps, initial, generator);
-        });
-        if (!values) return std::unexpected(values.error());
-        prices = *values;
-    }
-    for (std::size_t i = 0; i < prices.size(); ++i) {
-        const auto value = checked_price(initial[i].payoff ? *initial[i].payoff : prices[i]);
-        if (!value) return std::unexpected(value.error());
-        prices[i] = *value;
-    }
-    return prices;
+    return cpu_rate_prices<std::vector<SimulationStep>, PathState>(context, settings, h, base_price,
+        [&](const PricingContext& shifted) -> Result<std::pair<std::vector<SimulationStep>, PathState>> {
+            const auto state = accumulator_initial_state(option, shifted);
+            std::vector<SimulationStep> steps;
+            if (state.settlement) {
+                const auto value = checked_price(*state.settlement);
+                if (!value) return std::unexpected(value.error());
+            } else {
+                auto prepared = prepare_simulation(option, shifted);
+                if (!prepared) return std::unexpected(prepared.error());
+                steps = std::move(*prepared);
+            }
+            return std::pair{std::move(steps), PathState{shifted.spot_price(), state.quantity, {}, state.settlement}};
+        },
+        [&](const auto& steps, const auto& initial, auto& generator) { return path_payoffs(option, steps, initial, generator); });
 }
 
 Result<double> price_accumulator(

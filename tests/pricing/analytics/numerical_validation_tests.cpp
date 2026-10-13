@@ -106,6 +106,54 @@ TEST_CASE("Trading-day path batches share draws and skip settled states", "[mont
     CHECK(invalid.error().category == ErrorCategory::invalid_result);
 }
 
+TEST_CASE("Monte Carlo batch orchestration preserves settled slots and failures", "[monte-carlo-batch]")
+{
+    using namespace kiyosi;
+    using namespace kiyosi::detail;
+    struct State {
+        double spot;
+        std::optional<double> payoff;
+    };
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, day(2025, 1, 1));
+    std::vector<double> prepared_rates;
+    int simulated_paths = 0;
+    const auto fixed = cpu_rate_prices<double, State>(context, {3, 42}, 0.25, 9.0,
+        [&](const PricingContext& shifted) -> Result<std::pair<double, State>> {
+            prepared_rates.push_back(shifted.model_parameters().risk_free_rate());
+            return std::pair{0.0, State{shifted.spot_price(), shifted.model_parameters().risk_free_rate()}};
+        },
+        [&](const auto&, const auto&, auto&) -> Result<std::array<double, 3>> {
+            ++simulated_paths;
+            return std::array{1.0, 2.0, 3.0};
+        });
+    REQUIRE(fixed);
+    CHECK(*fixed == std::array{9.0, 0.04 + 0.25, 0.04 - 0.25});
+    CHECK(prepared_rates == std::vector{0.04 + 0.25, 0.04 - 0.25});
+    CHECK(simulated_paths == 0);
+
+    const std::array states{State{10.0, 1.0}, State{20.0, {}}, State{30.0, 3.0}, State{40.0, {}}};
+    const auto packed = cuda_active_prices<double>(states, [](const State& state) { return state.spot; },
+        [](std::span<double> requests) {
+            REQUIRE(requests.size() == 2);
+            CHECK(requests[0] == 20.0);
+            CHECK(requests[1] == 40.0);
+            return CudaSpotPricingResult{{CudaPricingStatus::success}, {4.0, 8.0}};
+        });
+    REQUIRE(packed);
+    const auto merged = checked_path_prices(states, *packed);
+    REQUIRE(merged);
+    CHECK(*merged == std::array{1.0, 4.0, 3.0, 8.0});
+    const auto unavailable = cuda_active_prices<double>(states, [](const State& state) { return state.spot; },
+        [](auto) { return CudaSpotPricingResult{{CudaPricingStatus::unavailable, 0.0, "no device"}, {}}; });
+    REQUIRE_FALSE(unavailable);
+    CHECK(unavailable.error().category == ErrorCategory::backend_unavailable);
+    auto invalid = *packed;
+    invalid[1] = std::numeric_limits<double>::infinity();
+    const auto rejected = checked_path_prices(states, invalid);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Numerical stencils share rounded shifts and boundary eligibility", "[numerical-stencils]")
 {
     using namespace kiyosi;
