@@ -112,13 +112,10 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
                space->interpolate(intercept, shifted_spot, intercept_curvature);
     };
     const double value = price_at(spot);
-    const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, space->upper, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot); });
-    if (!speed) return std::unexpected(speed.error());
-    return make_pricing_result(value,
-                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(slope, spot) * initial.quantity + space->delta(intercept, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(slope, spot) * initial.quantity + space->gamma(intercept, spot)} : std::nullopt},
-                                {Greek::speed, *speed}});
+    return finite_difference_result(value, spot, space->upper, output, spot_shift,
+        [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); },
+        [&](double shifted_spot) { return space->delta(slope, shifted_spot) * initial.quantity + space->delta(intercept, shifted_spot); },
+        [&](double shifted_spot) { return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot); });
 }
 
 Result<double> FiniteDifferenceAccumulatorEngine::price(

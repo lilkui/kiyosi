@@ -12,7 +12,9 @@
 
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/day_count.hpp>
+#include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>
+#include <kiyosi/pricing/settings/numerical_shift.hpp>
 
 namespace kiyosi::detail {
 
@@ -28,6 +30,20 @@ Result<std::optional<double>> finite_difference_speed(
         if (!price) return std::unexpected(price.error());
     }
     return std::optional{(gamma_at(spot + h) - gamma_at(spot - h)) / (2.0 * h)};
+}
+
+template <typename Price, typename Delta, typename Gamma>
+Result<PricingResult> finite_difference_result(
+    double value, double spot, double upper, GreeksRequest output, double spot_shift,
+    const Price& price_at, const Delta& delta_at, const Gamma& gamma_at)
+{
+    const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
+    const auto speed = finite_difference_speed(spot, h, upper, price_at, gamma_at);
+    if (!speed) return std::unexpected(speed.error());
+    return make_pricing_result(value,
+        {{Greek::delta, output.has(Greek::delta) ? std::optional{delta_at(spot)} : std::nullopt},
+         {Greek::gamma, output.has(Greek::gamma) ? std::optional{gamma_at(spot)} : std::nullopt},
+         {Greek::speed, *speed}});
 }
 
 struct FiniteDifferenceTimeGrid {

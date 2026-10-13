@@ -134,13 +134,10 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (old.size() < space->size()) old.resize(space->size(), rebate_value(time_to_expiry));
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
-    const double h = output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, space->upper, [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
-    if (!speed) return std::unexpected(speed.error());
-    return make_pricing_result(value,
-                               {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
-                                {Greek::speed, *speed}});
+    return finite_difference_result(value, spot, space->upper, output, spot_shift,
+        [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); },
+        [&](double shifted_spot) { return space->delta(old, shifted_spot); },
+        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
 }
 Result<PricingResult> price_barrier(
     const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings,

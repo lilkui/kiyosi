@@ -95,13 +95,9 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
     const auto value = price_at(spot);
     if (!value) return std::unexpected(value.error());
-    const double h = requested_output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, space->upper, price_at,
-                                               [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
-    if (!speed) return std::unexpected(speed.error());
-    return make_pricing_result(*value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{space->delta(old, spot)} : std::nullopt},
-                                        {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{space->gamma(old, spot)} : std::nullopt},
-                                        {Greek::speed, *speed}});
+    return finite_difference_result(*value, spot, space->upper, requested_output, spot_shift, price_at,
+        [&](double shifted_spot) { return space->delta(old, shifted_spot); },
+        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
 }
 
 } // namespace

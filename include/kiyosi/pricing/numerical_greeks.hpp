@@ -66,18 +66,6 @@ inline Result<void> validate_greeks_settings(NumericalShiftSettings settings)
     return {};
 }
 
-// Use the rounded upper bump on both sides; a collapsed or asymmetric stencil is unavailable.
-inline double symmetric_shift(double value, double requested)
-{
-    const double high = value + requested;
-    const double shift = high - value;
-    const double low = value - shift;
-    return std::isfinite(high) && std::isfinite(shift) && shift > 0.0 &&
-                   std::isfinite(low) && value - low == shift
-               ? shift
-               : 0.0;
-}
-
 template <typename Option>
 bool all_greeks_unavailable(const Option&, const PricingContext&) { return false; }
 

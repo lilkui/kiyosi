@@ -62,6 +62,62 @@ TEST_CASE("Finite-difference speed validates shifted prices before using gamma",
     }
 }
 
+TEST_CASE("Finite-difference results select measures and preserve shifted failures", "[fd-result]")
+{
+    using namespace kiyosi;
+    int price_calls = 0, delta_calls = 0, gamma_calls = 0;
+    bool reject_price = false;
+    const auto price_at = [&](double spot) -> Result<double> {
+        ++price_calls;
+        if (reject_price)
+            return std::unexpected(Error{ErrorCategory::invalid_result, "shifted price rejected"});
+        return spot;
+    };
+    const auto delta_at = [&](double) { ++delta_calls; return 7.0; };
+    const auto gamma_at = [&](double spot) { ++gamma_calls; return 3.0 * spot; };
+    SECTION("Only requested derivatives are evaluated")
+    {
+        for (const auto request : {GreeksRequest{}, GreeksRequest{Greek::delta}, GreeksRequest{Greek::gamma},
+                                  GreeksRequest{Greek::speed}, GreeksRequest{Greek::delta, Greek::gamma, Greek::speed}}) {
+            price_calls = delta_calls = gamma_calls = 0;
+            const auto result = detail::finite_difference_result(
+                123.0, 100.0, 200.0, request, 1.0, price_at, delta_at, gamma_at);
+            REQUIRE(result);
+            CHECK(result->price() == 123.0);
+            for (const auto [greek, expected] : {std::pair{Greek::delta, 7.0}, std::pair{Greek::gamma, 300.0},
+                                                std::pair{Greek::speed, 3.0}}) {
+                CHECK(result->has(greek) == request.has(greek));
+                if (request.has(greek)) CHECK(result->require(greek) == Result<double>{expected});
+            }
+            CHECK(price_calls == (request.has(Greek::speed) ? 2 : 0));
+            CHECK(delta_calls == (request.has(Greek::delta) ? 1 : 0));
+            CHECK(gamma_calls == (request.has(Greek::gamma) ? 1 : 0) + (request.has(Greek::speed) ? 2 : 0));
+        }
+    }
+    SECTION("Unavailable speed leaves the price without shifted evaluations")
+    {
+        const auto result = detail::finite_difference_result(
+            123.0, 100.0, 100.5, {Greek::speed}, 1.0, price_at, delta_at, gamma_at);
+        REQUIRE(result);
+        CHECK(result->price() == 123.0);
+        CHECK_FALSE(result->has(Greek::speed));
+        CHECK(price_calls == 0);
+        CHECK(gamma_calls == 0);
+    }
+    SECTION("A shifted price error stops derivative evaluation")
+    {
+        reject_price = true;
+        const auto result = detail::finite_difference_result(
+            123.0, 100.0, 200.0, true, 1.0, price_at, delta_at, gamma_at);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_result);
+        CHECK(result.error().message == "shifted price rejected");
+        CHECK(price_calls == 1);
+        CHECK(delta_calls == 0);
+        CHECK(gamma_calls == 0);
+    }
+}
+
 TEST_CASE("Finite-difference spline interpolation preserves nodes and affine values")
 {
     for (const int steps : {3, 8}) {
