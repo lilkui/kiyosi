@@ -38,10 +38,6 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(
-        const Note& note, const PricingContext& context, bool& contract_validated,
-        GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
-
     FiniteDifferenceSettings settings_;
 };
 

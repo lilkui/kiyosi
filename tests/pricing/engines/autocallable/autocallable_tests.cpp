@@ -26,6 +26,48 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Implied volatility request preparation runs once before seeded trials", "[implied-request-preparation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const MonteCarloVanillaEngine engine{MonteCarloSettings{.path_count = 31, .step_count = 3}};
+    int preparations = 0, trials = 0;
+    std::optional<std::uint64_t> seed;
+    const auto price = [&](const auto& seeded, const auto&, const auto& market) -> Result<double> {
+        CHECK(preparations == 1);
+        CHECK(seeded.settings().seed == seed);
+        ++trials;
+        return market.model_parameters().volatility();
+    };
+    const auto prepare = [&](const auto& seeded, ImpliedVolatilitySettings settings) -> Result<ImpliedVolatilitySettings> {
+        ++preparations;
+        seed = seeded.settings().seed;
+        CHECK(seed.has_value());
+        return settings;
+    };
+    const auto invalid = detail::solve_implied_volatility(engine, option, context, 0.3,
+        {.lower_bound = 0.0}, price, prepare);
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+    CHECK(preparations == 0);
+    CHECK(trials == 0);
+    const auto solved = detail::solve_implied_volatility(engine, option, context, 0.3, {}, price, prepare);
+    REQUIRE(solved);
+    CHECK(*solved == Catch::Approx(0.3).margin(1e-8));
+    CHECK(preparations == 1);
+    CHECK(trials >= 3);
+    trials = 0;
+    const auto rejected = detail::solve_implied_volatility(engine, option, context, 0.3, {}, price,
+        [](const auto&, ImpliedVolatilitySettings) -> Result<ImpliedVolatilitySettings> {
+            return std::unexpected(Error{ErrorCategory::unsupported_operation, "request preparation rejected"});
+        });
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::unsupported_operation);
+    CHECK(trials == 0);
+}
+
 TEST_CASE("Autocallable path observations preserve event boundaries and coupon ordering", "[autocallable-path]")
 {
     using namespace kiyosi::detail;

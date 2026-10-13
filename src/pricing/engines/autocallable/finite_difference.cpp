@@ -12,6 +12,7 @@
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
 #include "../../detail/calendar_dates.hpp"
+#include "../../detail/autocallable_pricer.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -36,6 +37,13 @@ struct AutocallableFiniteDifferenceWorkspace {
     std::vector<ObservationEvent> observation_events;
     std::vector<double> trading_times;
     std::vector<double> alive, next_alive, knocked_in, next_knocked_in, curvature;
+};
+
+template <AutocallableProduct Note>
+struct AutocallableFiniteDifferenceRequest {
+    // Coupon trials use core-validated replacements with the bound contract's schedule.
+    AutocallableContract<Note> contract;
+    AutocallableFiniteDifferenceWorkspace workspace;
 };
 
 Result<PricingResult> rollback_autocallable(
@@ -161,8 +169,7 @@ Result<PricingResult> rollback_autocallable(
 template <AutocallableProduct Note>
 Result<PricingResult> price_autocallable(
     const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
-    bool& contract_validated, GreeksRequest output, double spot_shift,
-    AutocallableFiniteDifferenceWorkspace& workspace)
+    AutocallableFiniteDifferenceRequest<Note>& request, GreeksRequest output, double spot_shift)
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -171,16 +178,12 @@ Result<PricingResult> price_autocallable(
     auto settings_valid = detail::validate_finite_difference_settings(
         settings, trading_fd_max_steps, trading_fd_max_steps);
     if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (!contract_validated) {
-        const auto note_validation = validate_autocallable_note(note);
-        if (!note_validation) return std::unexpected(note_validation.error());
-        const auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
-        if (!schedule) return std::unexpected(schedule.error());
-        contract_validated = true;
-    }
+    const auto contract = request.contract.validate_schedule();
+    if (!contract) return std::unexpected(contract.error());
     auto history = validate_autocallable_history(note, context);
     if (!history) return std::unexpected(history.error());
 
+    auto& workspace = request.workspace;
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
 
@@ -243,39 +246,28 @@ Result<double> solve_coupon(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
 {
-    AutocallableFiniteDifferenceWorkspace workspace;
-    bool contract_validated = false;
+    AutocallableFiniteDifferenceRequest<Note> request{{note, context.calendar()}, {}};
     return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
                                         [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
                                             return detail::price_value(price_autocallable(
-                                                instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
-                                                NumericalShiftSettings{}.spot_shift, workspace));
+                                                instrument, market, scalar.settings(), request, GreeksRequest{},
+                                                NumericalShiftSettings{}.spot_shift));
                                         });
 }
 
 } // namespace
 
 template <AutocallableProduct Note>
-Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_native(
-    const Note& note, const PricingContext& context, bool& contract_validated,
-    GreeksRequest output, double spot_shift) const
-{
-    AutocallableFiniteDifferenceWorkspace workspace;
-    return price_autocallable(note, context, settings_, contract_validated, output, spot_shift, workspace);
-}
-
-template <AutocallableProduct Note>
 Result<double> implied_volatility(
     const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
-    AutocallableFiniteDifferenceWorkspace workspace;
-    bool contract_validated = false;
+    AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
                                                 return detail::price_value(price_autocallable(
-                                                    instrument, market, scalar.settings(), contract_validated, GreeksRequest{},
-                                                    NumericalShiftSettings{}.spot_shift, workspace));
+                                                    instrument, market, scalar.settings(), request, GreeksRequest{},
+                                                    NumericalShiftSettings{}.spot_shift));
                                             });
 }
 
@@ -305,19 +297,21 @@ template <AutocallableProduct Note>
 Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
     const Note& note, const PricingContext& context) const
 {
-    bool contract_validated = false;
-    return detail::price_value(price_native(note, context, contract_validated, GreeksRequest{}));
+    AutocallableFiniteDifferenceRequest<Note> request{{note, context.calendar()}, {}};
+    return detail::price_value(price_autocallable(note, context, settings_, request, GreeksRequest{}, NumericalShiftSettings{}.spot_shift));
 }
 
 template <AutocallableProduct Note>
 Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
                                                                                   GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    bool contract_validated = false;
+    AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
     return detail::price_with_greeks(*this, option, context, greeks, settings,
-                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
-                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, contract_validated, output, settings.spot_shift);
+                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest requested_output) {
+                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : requested_output;
+                                         // Greek shifts may change time or rates; only contract validation survives.
+                                         request.workspace = {};
+                                         return price_autocallable(option, shifted, engine.settings(), request, output, settings.spot_shift);
                                      });
 }
 

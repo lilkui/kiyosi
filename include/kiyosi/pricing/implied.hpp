@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <concepts>
+#include <cstddef>
 #include <numeric>
 #include <random>
 #include <utility>
@@ -109,10 +111,10 @@ template <typename Option>
 bool volatility_affects_price(const Option&, const PricingContext&) { return true; }
 
 // Keep validation and seeding identical when a solver supplies request-local pricing storage.
-template <typename Engine, typename Option, typename Price>
+template <typename Engine, typename Option, typename Price, typename Prepare = std::nullptr_t>
 [[nodiscard]] Result<double> solve_implied_volatility(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedVolatilitySettings settings, const Price& price)
+    ImpliedVolatilitySettings settings, const Price& price, const Prepare& prepare = nullptr)
 {
     if (!std::isfinite(observed_price))
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "observed price must be finite"});
@@ -126,11 +128,14 @@ template <typename Engine, typename Option, typename Price>
         auto simulation = engine.settings();
         if (!simulation.seed) {
             simulation.seed = std::random_device{}();
-            return solve_implied_volatility(Engine{simulation}, option, context, observed_price, settings, price);
+            return solve_implied_volatility(Engine{simulation}, option, context, observed_price, settings, price, prepare);
         }
     }
 
-    const auto prepared = prepare_implied_volatility(engine, option, context, settings);
+    const auto prepared = [&] {
+        if constexpr (std::same_as<Prepare, std::nullptr_t>) return prepare_implied_volatility(engine, option, context, settings);
+        else return prepare(engine, settings);
+    }();
     if (!prepared) return std::unexpected(prepared.error());
     settings = *prepared;
 
