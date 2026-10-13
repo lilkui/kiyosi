@@ -114,6 +114,7 @@ target_sources(kiyosi
     PRIVATE
         src/core/day_count.cpp
         src/core/time.cpp
+        src/pricing/detail/instrument_analytics.cpp
         src/market/calendars/sse.cpp
         src/pricing/engines/accumulator/finite_difference.cpp
         src/pricing/engines/accumulator/monte_carlo.cpp
@@ -151,6 +152,7 @@ target_sources(kiyosi
             include/kiyosi/instruments/barrier/binary.hpp
             include/kiyosi/instruments/barrier/option.hpp
             include/kiyosi/instruments/barrier/terms.hpp
+            include/kiyosi/instruments/autocallable/fwd.hpp
             include/kiyosi/instruments/autocallable/note.hpp
             include/kiyosi/instruments/autocallable/phoenix.hpp
             include/kiyosi/instruments/autocallable/presets.hpp
@@ -165,11 +167,9 @@ target_sources(kiyosi
             include/kiyosi/pricing/numerical_greeks.hpp
             include/kiyosi/pricing/result.hpp
             include/kiyosi/pricing/detail/autocallable_program.hpp
+            include/kiyosi/pricing/detail/instrument_analytics.hpp
             include/kiyosi/pricing/detail/autocallable_traits.hpp
-            include/kiyosi/pricing/detail/accumulator_traits.hpp
             include/kiyosi/pricing/detail/accumulator_program.hpp
-            include/kiyosi/pricing/detail/asian_traits.hpp
-            include/kiyosi/pricing/detail/barrier_traits.hpp
             include/kiyosi/pricing/detail/finite_difference_domain.hpp
             include/kiyosi/pricing/settings/binomial.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp

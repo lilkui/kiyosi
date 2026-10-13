@@ -1,4 +1,5 @@
 add_executable(kiyosi_tests
+    api/analytics_headers_tests.cpp
     api/header_tests.cpp
     api/parity_tests.cpp
     instruments/accumulator_tests.cpp

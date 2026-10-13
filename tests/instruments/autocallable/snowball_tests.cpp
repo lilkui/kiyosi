@@ -9,6 +9,7 @@
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
+#include <kiyosi/pricing/detail/autocallable_traits.hpp>
 
 #include "support/common.hpp"
 

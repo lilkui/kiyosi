@@ -9,10 +9,7 @@
 #include <span>
 
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/detail/accumulator_traits.hpp>
-#include <kiyosi/pricing/detail/asian_traits.hpp>
-#include <kiyosi/pricing/detail/autocallable_traits.hpp>
-#include <kiyosi/pricing/detail/barrier_traits.hpp>
+#include <kiyosi/pricing/detail/instrument_analytics.hpp>
 #include <kiyosi/pricing/detail/finite_difference_domain.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/finite_difference.hpp>

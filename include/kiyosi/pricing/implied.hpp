@@ -9,21 +9,32 @@
 #include <utility>
 
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/detail/autocallable_traits.hpp>
-#include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
-#include <kiyosi/pricing/engines/autocallable/monte_carlo.hpp>
-#include <kiyosi/pricing/engines/barrier/analytic.hpp>
-#include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
-#include <kiyosi/pricing/engines/vanilla/binomial.hpp>
-#include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
-#include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 #include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
 
 namespace kiyosi {
 
+class AnalyticBarrierEngine;
+class AnalyticBinaryBarrierEngine;
+class CoxRossRubinsteinVanillaEngine;
+class FiniteDifferenceAutocallableEngine;
+class MonteCarloAccumulatorEngine;
+class MonteCarloAutocallableEngine;
+class MonteCarloVanillaEngine;
+
 namespace detail {
+
+// Declare built-in hooks before generic solvers so either public-header include order works.
+template <typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const CoxRossRubinsteinVanillaEngine&, const Option&, const PricingContext&, ImpliedVolatilitySettings);
+template <AutocallableProduct Note>
+[[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const MonteCarloAutocallableEngine&, const Note&, const PricingContext&, ImpliedVolatilitySettings);
+template <AutocallableProduct Note>
+Result<std::array<double, 2>> coupon_endpoint_prices(
+    const MonteCarloAutocallableEngine&, const Note&, const Note&, const PricingContext&);
 
 // Brent interpolation keeps the bracket and falls back to bisection when progress is uncertain.
 template <typename Evaluate>

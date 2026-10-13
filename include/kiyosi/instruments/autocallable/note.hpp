@@ -11,23 +11,12 @@
 #include <vector>
 
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/instruments/autocallable/fwd.hpp>
 #include <kiyosi/core/time.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/market/schedule.hpp>
 
 namespace kiyosi {
-
-class PhoenixOption;
-class SnowballOption;
-class BinarySnowballOption;
-class TernarySnowballOption;
-
-/// Complete products supported by the autocallable pricing engines.
-template <typename Note>
-concept AutocallableProduct = std::same_as<Note, PhoenixOption> ||
-                              std::same_as<Note, SnowballOption> ||
-                              std::same_as<Note, BinarySnowballOption> ||
-                              std::same_as<Note, TernarySnowballOption>;
 
 /// Monitoring frequency for an autocallable knock-in barrier.
 enum class KnockInObservationMode : std::uint8_t {
@@ -73,7 +62,7 @@ namespace detail {
 
 template <AutocallableProduct Note>
 [[nodiscard]] Result<Note> replace_snowball_coupons(Note, double, double);
-[[nodiscard]] Result<PhoenixOption> replace_coupon(const PhoenixOption&, double);
+[[nodiscard]] KIYOSI_EXPORT Result<PhoenixOption> replace_coupon(const PhoenixOption&, double);
 
 // Adapts construction terms to the immutable note validator, without copies.
 template <typename Terms>
