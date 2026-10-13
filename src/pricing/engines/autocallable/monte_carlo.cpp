@@ -435,9 +435,9 @@ Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {
             AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
-            const AutocallablePricer prices{[&](const Note&, const PricingContext& shifted) {
+            const auto prices = [&](const PricingContext& shifted) {
                 return price_autocallable(shifted, seeded.settings(), request);
-            }};
+            };
             return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend,
                 [&](const PricingContext& shifted) { return validate_pricing(request, shifted, seeded.settings()); },
                 [&]<std::size_t count>(const PricingContext& shifted, double shift) {

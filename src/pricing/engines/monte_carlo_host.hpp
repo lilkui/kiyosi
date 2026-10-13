@@ -20,20 +20,6 @@
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
 
-#if KIYOSI_HAS_CUDA
-template <typename Price>
-struct CudaMonteCarloPricer {
-    Price evaluate;
-    mutable CudaWorkspace workspace{};
-
-    template <typename Option>
-    Result<double> price(const Option& option, const PricingContext& context) const
-    {
-        return evaluate(option, context, &workspace);
-    }
-};
-#endif
-
 template <std::size_t count>
 Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
 {
@@ -48,9 +34,9 @@ Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& 
                                 {Greek::speed, speed}});
 }
 
-template <typename Engine, typename Option, typename Validate, typename SpotPrices, typename RatePrices>
+template <typename Price, typename Option, typename Validate, typename SpotPrices, typename RatePrices>
 Result<PricingResult> complete_monte_carlo_greeks(
-    const Engine& scalar, const Option& option, const PricingContext& context,
+    const Price& scalar, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings, MonteCarloBackend backend,
     const Validate& validate, const SpotPrices& spot_prices, const RatePrices& price_rates)
 {
@@ -75,7 +61,7 @@ Result<PricingResult> complete_monte_carlo_greeks(
             rate_prices = *values;
             return make_pricing_result((*values)[0]);
         }
-        const auto value = scalar.price(option, context);
+        const auto value = scalar(context);
         if (!value) return std::unexpected(value.error());
         return make_pricing_result(*value);
     }();

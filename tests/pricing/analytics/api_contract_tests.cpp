@@ -354,7 +354,7 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     std::vector<PricingContext> calls;
     const RecordingPriceEngine engine{&calls};
     const auto native = *make_pricing_result(10000.0);
-    const auto basic = detail::complete_greeks(engine, option, context, GreeksRequest{Greek::delta, Greek::gamma}, {}, native);
+    const auto basic = detail::complete_greeks([&](const PricingContext& shifted) { return engine.price(option, shifted); }, option, context, GreeksRequest{Greek::delta, Greek::gamma}, {}, native);
     REQUIRE(basic);
     REQUIRE(calls.size() == 2);
     CHECK(calls[0].spot_price() == 100.0 + NumericalShiftSettings{}.spot_shift);
@@ -369,12 +369,12 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     calls.clear();
     const auto supplied = *make_pricing_result(10000.0, {{Greek::delta, 17.0},
                                                          {Greek::gamma, 0.0}});
-    const auto preserved = detail::complete_greeks(engine, option, context, GreeksRequest{Greek::delta, Greek::gamma}, {}, supplied);
+    const auto preserved = detail::complete_greeks([&](const PricingContext& shifted) { return engine.price(option, shifted); }, option, context, GreeksRequest{Greek::delta, Greek::gamma}, {}, supplied);
     REQUIRE(preserved);
     CHECK(calls.empty());
     CHECK(greek_value(*preserved, Greek::delta) == 17.0);
     CHECK(greek_value(*preserved, Greek::gamma) == 0.0);
-    const auto full = detail::complete_greeks(engine, option, context, GreeksRequest{true}, {}, supplied);
+    const auto full = detail::complete_greeks([&](const PricingContext& shifted) { return engine.price(option, shifted); }, option, context, GreeksRequest{true}, {}, supplied);
     REQUIRE(full);
     CHECK_FALSE(calls.empty());
     CHECK(greek_value(*full, Greek::delta) == 17.0);
@@ -394,7 +394,7 @@ TEST_CASE("Shared Greek completion filters native measures at event thresholds",
     for (const double spot : {109.98, 109.995, 110.0}) {
         CAPTURE(spot);
         const auto context = market(spot, effective);
-        const auto result = detail::complete_greeks(engine, option, context, true, {}, supplied);
+        const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return engine.price(option, shifted); }, option, context, true, {}, supplied);
         REQUIRE(result);
         CHECK(result->price() == 123.0);
         CHECK(greek_value(*result, Greek::vega) == 8.0);
@@ -439,7 +439,7 @@ TEST_CASE("Explicit volatility spot batches preserve mixed Greeks without scalar
                                GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
         std::vector<PricingContext> scalar_calls;
         std::vector<double> batch_volatilities;
-        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+        const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
             request, shifts, native, nullptr,
             [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
                 const double vol = shifted.model_parameters().volatility();
@@ -474,14 +474,14 @@ TEST_CASE("Explicit spot batches reject incomplete values and propagate failures
                               detail::NumericalSpotPrices{1.0, std::numeric_limits<double>::infinity(), 2.0},
                               detail::NumericalSpotPrices{1.0, 2.0, std::numeric_limits<double>::quiet_NaN()},
                               detail::NumericalSpotPrices{std::numeric_limits<double>::infinity(), 1.0, 2.0}}) {
-        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+        const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
             {Greek::zomma}, {}, native, nullptr,
             [&](const PricingContext&, double, bool) -> Result<detail::NumericalSpotPrices> { return prices; });
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_result);
     }
     for (const bool fail_high : {false, true}) {
-        const auto result = detail::complete_greeks(RecordingPriceEngine{&scalar_calls}, option, context,
+        const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
             {Greek::vanna}, {}, native, nullptr,
             [&](const PricingContext& shifted, double, bool) -> Result<detail::NumericalSpotPrices> {
                 if ((shifted.model_parameters().volatility() > context.model_parameters().volatility()) == fail_high)
@@ -840,14 +840,14 @@ TEST_CASE("Joint completion keeps unavailable stencils and propagates feasible f
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
     const auto native = *make_pricing_result(10000.0);
-    const auto unavailable = detail::complete_greeks(RecordingPriceEngine{&calls}, option,
+    const auto unavailable = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&calls}.price(option, shifted); }, option,
                                                      market(), GreeksRequest{Greek::delta, Greek::gamma}, NumericalShiftSettings{.spot_shift = 100.0}, native);
     REQUIRE(unavailable);
     CHECK(unavailable->price() == 10000.0);
     CHECK_FALSE(unavailable->has(Greek::delta));
     CHECK_FALSE(unavailable->has(Greek::gamma));
     CHECK(calls.empty());
-    const auto rejected = detail::complete_greeks(RecordingPriceEngine{&calls, true}, option,
+    const auto rejected = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&calls, true}.price(option, shifted); }, option,
                                                   market(), GreeksRequest{Greek::delta, Greek::gamma}, {}, native);
     REQUIRE_FALSE(rejected);
     CHECK(rejected.error().category == ErrorCategory::invalid_schedule);
@@ -877,7 +877,7 @@ TEST_CASE("Expiry suppresses all requested Greeks", "[pricing-api]")
     const RecordingPriceEngine engine{&calls};
     const auto native = *make_pricing_result(10.0, {{Greek::delta, 1.0}});
     const auto completed = detail::complete_greeks(
-        engine, option, market(110.0, expiry), true, {}, native);
+        [&](const PricingContext& shifted) { return engine.price(option, shifted); }, option, market(110.0, expiry), true, {}, native);
     REQUIRE(completed);
     CHECK(completed->price() == 10.0);
     CHECK_FALSE(completed->has(Greek::delta));

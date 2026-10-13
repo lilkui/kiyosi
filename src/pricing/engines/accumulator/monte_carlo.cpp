@@ -239,18 +239,22 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
     return detail::evaluate_greeks(
         *this, option, context, greeks, settings,
         [&](const auto& seeded) -> Result<PricingResult> {
-            const auto calculate = [&](const auto& scalar, CudaWorkspace* workspace) -> Result<PricingResult> {
-                return complete_monte_carlo_greeks(scalar, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
-            };
+            CudaWorkspace* workspace = nullptr;
 #if KIYOSI_HAS_CUDA
-            if (seeded.settings().backend == MonteCarloBackend::cuda) {
-                const CudaMonteCarloPricer prices{[&](const Accumulator& instrument, const PricingContext& shifted, CudaWorkspace* workspace) {
-                    return price_accumulator(instrument, shifted, seeded.settings(), workspace);
-                }};
-                return calculate(prices, &prices.workspace);
-            }
+            CudaWorkspace storage;
+            if (seeded.settings().backend == MonteCarloBackend::cuda) workspace = &storage;
 #endif
-            return calculate(seeded, nullptr);
+            const auto price = [&](const PricingContext& shifted) {
+                return price_accumulator(option, shifted, seeded.settings(), workspace);
+            };
+            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend,
+                [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); },
+                [&]<std::size_t count>(const PricingContext& shifted, double shift) {
+                    return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace);
+                },
+                [&](double shift, std::optional<double> base_price) {
+                    return price_rate_bumps(option, context, seeded.settings(), shift, base_price);
+                });
         });
 }
 

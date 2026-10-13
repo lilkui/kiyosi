@@ -41,14 +41,16 @@ template <typename Engine, typename Option>
     return make_pricing_context(*parameters, spot, valuation, context.calendar());
 }
 
-template <typename Engine, typename Option>
+template <typename Price>
 [[nodiscard]] Result<double> shifted_value(
-    const Engine& engine, const Option& option, const PricingContext& context, double spot,
+    const Price& price, const PricingContext& context, double spot,
     double volatility, double rate, Timestamp valuation)
 {
     auto shifted = shifted_context(context, spot, volatility, rate, valuation);
     if (!shifted) return std::unexpected(shifted.error());
-    return numerical_value(engine, option, *shifted);
+    const auto value = price(*shifted);
+    if (!value) return std::unexpected(value.error());
+    return checked_price(*value);
 }
 
 /// Extracts a checked scalar from the private native engine result.
@@ -147,9 +149,9 @@ struct NumericalSpotPrices {
 
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
-template <typename Engine, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
+template <typename Price, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
 Result<PricingResult> complete_greeks(
-    const Engine& engine, const Option& option, const PricingContext& context,
+    const Price& price, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings, const PricingResult& native,
     const Native& evaluate_native = nullptr, const SpotBatch& evaluate_spot_batch = nullptr)
 {
@@ -170,11 +172,11 @@ Result<PricingResult> complete_greeks(
     const bool spot_stencil_available = stencils.spot_available;
     const double two_h = 2.0 * h;
     const bool scalar_speed_available = need(Greek::speed) && stencils.speed_available;
-    constexpr bool native_stencil = requires { evaluate_native(engine, context, GreeksRequest{}); };
+    constexpr bool native_stencil = requires { evaluate_native(context, GreeksRequest{}); };
     const auto checked_native = [&](const auto& shifted, GreeksRequest derivatives) -> Result<PricingResult> {
         derivatives = native_greeks_request(option, shifted, derivatives,
                                             symmetric_shift(shifted.spot_price(), settings.spot_shift));
-        auto result = evaluate_native(engine, shifted, derivatives);
+        auto result = evaluate_native(shifted, derivatives);
         const auto value = price_value(result);
         if (!value) return std::unexpected(value.error());
         if (!result->all_finite())
@@ -190,7 +192,7 @@ Result<PricingResult> complete_greeks(
     if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) ||
                                    (need(Greek::speed) && (scalar_speed_available || native_stencil)))) {
         std::optional<PricingResult> native_up, native_down;
-        if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+        if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
             if (need(Greek::speed)) {
                 const auto evaluate = [&](double shifted_spot) -> Result<PricingResult> {
                     const auto shifted = shifted_context(context, shifted_spot, volatility, rate, valuation_time);
@@ -205,9 +207,9 @@ Result<PricingResult> complete_greeks(
                 native_down = *low;
             }
         }
-        const auto p_up = native_up ? Result<double>{native_up->price()} : detail::shifted_value(engine, option, context, spot + h, volatility, rate, valuation_time);
+        const auto p_up = native_up ? Result<double>{native_up->price()} : detail::shifted_value(price, context, spot + h, volatility, rate, valuation_time);
         if (!p_up) return std::unexpected(p_up.error());
-        const auto p_down = native_down ? Result<double>{native_down->price()} : detail::shifted_value(engine, option, context, spot - h, volatility, rate, valuation_time);
+        const auto p_down = native_down ? Result<double>{native_down->price()} : detail::shifted_value(price, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
         spot_up = *p_up;
         spot_down = *p_down;
@@ -221,10 +223,10 @@ Result<PricingResult> complete_greeks(
 
         if (need(Greek::speed) && !native_speed && scalar_speed_available) {
             const auto p_up2 = detail::shifted_value(
-                engine, option, context, spot + two_h, volatility, rate, valuation_time);
+                price, context, spot + two_h, volatility, rate, valuation_time);
             if (!p_up2) return std::unexpected(p_up2.error());
             const auto p_down2 = detail::shifted_value(
-                engine, option, context, spot - two_h, volatility, rate, valuation_time);
+                price, context, spot - two_h, volatility, rate, valuation_time);
             if (!p_down2) return std::unexpected(p_down2.error());
             speed = (*p_up2 - 2.0 * *p_up + 2.0 * *p_down - *p_down2) /
                     h / h / two_h;
@@ -242,7 +244,7 @@ Result<PricingResult> complete_greeks(
         const double volatility_high = volatility + volatility_shift;
         const double volatility_low = volatility - volatility_shift;
         std::optional<PricingResult> native_high, native_low;
-        if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+        if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
             if (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))) {
                 const auto evaluate = [&](double shifted_volatility) -> Result<PricingResult> {
                     const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
@@ -284,14 +286,14 @@ Result<PricingResult> complete_greeks(
                 batches = std::array{*high, *low};
             }
         }
-        const auto v_up = native_high ? Result<double>{native_high->price()} : batches ? Result<double>{(*batches)[0].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_high, rate, valuation_time)
+        const auto v_up = native_high ? Result<double>{native_high->price()} : batches ? Result<double>{(*batches)[0].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_high, rate, valuation_time)
                                                                                                       : p0;
         if (!v_up) return std::unexpected(v_up.error());
-        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(engine, option, context, spot + h, volatility_high, rate, valuation_time) : p0;
+        const auto d_up = batches ? Result<double>{(*batches)[0].up} : scalar_mixed ? detail::shifted_value(price, context, spot + h, volatility_high, rate, valuation_time) : p0;
         if (!d_up) return std::unexpected(d_up.error());
-        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(engine, option, context, spot - h, volatility_high, rate, valuation_time) : p0;
+        const auto d_down = batches ? Result<double>{(*batches)[0].down} : scalar_mixed ? detail::shifted_value(price, context, spot - h, volatility_high, rate, valuation_time) : p0;
         if (!d_down) return std::unexpected(d_down.error());
-        const auto v_down = native_low ? Result<double>{native_low->price()} : batches ? Result<double>{(*batches)[1].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(engine, option, context, spot, volatility_low, rate, valuation_time)
+        const auto v_down = native_low ? Result<double>{native_low->price()} : batches ? Result<double>{(*batches)[1].center.value_or(*p0)} : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_low, rate, valuation_time)
                                                                                                       : p0;
         if (!v_down) return std::unexpected(v_down.error());
         if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
@@ -303,10 +305,10 @@ Result<PricingResult> complete_greeks(
 
         if (scalar_mixed) {
             const auto d_up_low = batches ? Result<double>{(*batches)[1].up} : detail::shifted_value(
-                engine, option, context, spot + h, volatility_low, rate, valuation_time);
+                price, context, spot + h, volatility_low, rate, valuation_time);
             if (!d_up_low) return std::unexpected(d_up_low.error());
             const auto d_down_low = batches ? Result<double>{(*batches)[1].down} : detail::shifted_value(
-                engine, option, context, spot - h, volatility_low, rate, valuation_time);
+                price, context, spot - h, volatility_low, rate, valuation_time);
             if (!d_down_low) return std::unexpected(d_down_low.error());
             if (need(Greek::vanna) && !native_vanna) vanna = ((*d_up - *d_down) - (*d_up_low - *d_down_low)) /
                                                              h / vol_scale / 4.0;
@@ -324,10 +326,10 @@ Result<PricingResult> complete_greeks(
     const double rate_scale = 200.0 * rate_shift;
     if (need(Greek::rho) && stencils.rate_available) {
         const auto r_up = detail::shifted_value(
-            engine, option, context, spot, volatility, rate + rate_shift, valuation_time);
+            price, context, spot, volatility, rate + rate_shift, valuation_time);
         if (!r_up) return std::unexpected(r_up.error());
         const auto r_down = detail::shifted_value(
-            engine, option, context, spot, volatility, rate - rate_shift, valuation_time);
+            price, context, spot, volatility, rate - rate_shift, valuation_time);
         if (!r_down) return std::unexpected(r_down.error());
         rho = (*r_up - *r_down) / rate_scale;
     }
@@ -358,7 +360,7 @@ Result<PricingResult> complete_greeks(
         if (!time_available) return std::unexpected(time_available.error());
         if (!spot_discontinuity && *time_available && before != after) {
             std::optional<PricingResult> native_before, native_after;
-            if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
+            if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
                 const bool native_time_stencil_available = (before != valuation_time && after != valuation_time) ||
                                                            ((!need(Greek::charm) || native_has(Greek::delta)) && (!need(Greek::color) || native_has(Greek::gamma)));
                 if (spot_stencil_available && native_time_stencil_available && (need(Greek::charm) || need(Greek::color))) {
@@ -384,16 +386,16 @@ Result<PricingResult> complete_greeks(
             const bool scalar_mixed = spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color));
             const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
             const auto t_before = native_before ? Result<double>{native_before->price()} : !need_time_prices || before == valuation_time ? p0
-                                                                                                                                         : detail::shifted_value(engine, option, context, spot, volatility, rate, before);
+                                                                                                                                         : detail::shifted_value(price, context, spot, volatility, rate, before);
             if (!t_before) return std::unexpected(t_before.error());
             const auto d_before = !scalar_mixed ? p0 : before == valuation_time && spot_up ? Result<double>{*spot_up}
-                                                                                           : detail::shifted_value(engine, option, context, spot + h, volatility, rate, before);
+                                                                                           : detail::shifted_value(price, context, spot + h, volatility, rate, before);
             if (!d_before) return std::unexpected(d_before.error());
             const auto d_before_low = !scalar_mixed ? p0 : before == valuation_time && spot_down ? Result<double>{*spot_down}
-                                                                                                 : detail::shifted_value(engine, option, context, spot - h, volatility, rate, before);
+                                                                                                 : detail::shifted_value(price, context, spot - h, volatility, rate, before);
             if (!d_before_low) return std::unexpected(d_before_low.error());
             const auto t_after = native_after ? Result<double>{native_after->price()} : !need_time_prices || after == valuation_time ? p0
-                                                                                                                                     : detail::shifted_value(engine, option, context, spot, volatility, rate, after);
+                                                                                                                                     : detail::shifted_value(price, context, spot, volatility, rate, after);
             if (!t_after) return std::unexpected(t_after.error());
             const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
@@ -406,12 +408,12 @@ Result<PricingResult> complete_greeks(
                 const auto d_after = after == valuation_time && spot_up
                                          ? Result<double>{*spot_up}
                                          : detail::shifted_value(
-                                               engine, option, context, spot + h, volatility, rate, after);
+                                               price, context, spot + h, volatility, rate, after);
                 if (!d_after) return std::unexpected(d_after.error());
                 const auto d_after_low = after == valuation_time && spot_down
                                              ? Result<double>{*spot_down}
                                              : detail::shifted_value(
-                                                   engine, option, context, spot - h, volatility, rate, after);
+                                                   price, context, spot - h, volatility, rate, after);
                 if (!d_after_low) return std::unexpected(d_after_low.error());
                 if (need(Greek::charm) && !native_charm) charm = ((*d_after - *d_after_low) - (*d_before - *d_before_low)) /
                                                                  h / day_scale / 2.0;
@@ -501,24 +503,16 @@ Result<PricingResult> price_with_greeks(
         *native = native->selected(native_request);
         if (!native->all_finite())
             return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-        if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
-            // Scalar stencils share the native callback's request-local validation.
-            struct NativePricer {
-                const Engine* engine{};
-                const Native* evaluate{};
-
-                Result<double> price(const Option&, const PricingContext& shifted) const
-                {
-                    return price_value((*evaluate)(*engine, shifted, GreeksRequest{}));
-                }
-            };
-            return complete_greeks(NativePricer{&fixed, &evaluate_native}, option, context, greeks, settings, *native,
-                                   [&](const auto&, const PricingContext& shifted, GreeksRequest request) {
-                                       return evaluate_native(fixed, shifted, request);
-                                   });
-        } else {
-            return complete_greeks(fixed, option, context, greeks, settings, *native, evaluate_native);
-        }
+        const auto price = [&](const PricingContext& shifted) {
+            if constexpr (is_builtin_finite_difference_engine<Engine, Option>)
+                return price_value(evaluate_native(fixed, shifted, GreeksRequest{}));
+            else
+                return fixed.price(option, shifted);
+        };
+        return complete_greeks(price, option, context, greeks, settings, *native,
+                               [&](const PricingContext& shifted, GreeksRequest request) {
+                                   return evaluate_native(fixed, shifted, request);
+                               });
     });
 }
 
@@ -531,7 +525,8 @@ Result<PricingResult> price_with_greeks(
                            [&](const Engine& fixed) -> Result<PricingResult> {
                                const auto value = numerical_value(fixed, option, context);
                                if (!value) return std::unexpected(value.error());
-                               return complete_greeks(fixed, option, context, greeks, settings, *make_pricing_result(*value));
+                               return complete_greeks([&](const PricingContext& shifted) { return fixed.price(option, shifted); },
+                                                      option, context, greeks, settings, *make_pricing_result(*value));
                            });
 }
 

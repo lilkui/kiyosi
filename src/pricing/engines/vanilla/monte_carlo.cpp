@@ -454,7 +454,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
         const EuropeanMonteCarloSamples samples{seeded.settings()};
         const auto value = samples.price(option, context);
         if (!value) return std::unexpected(value.error());
-        return detail::complete_greeks(samples, option, context, greeks, settings, *make_pricing_result(*value)); });
+        return detail::complete_greeks([&](const PricingContext& shifted) { return samples.price(option, shifted); }, option, context, greeks, settings, *make_pricing_result(*value)); });
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,
@@ -491,7 +491,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
         return make_pricing_result(*value);
         }();
         if (!native) return std::unexpected(native.error());
-        return detail::complete_greeks(prices, option, context, greeks, settings, *native); });
+        return detail::complete_greeks([&](const PricingContext& shifted) { return prices.price(option, shifted); }, option, context, greeks, settings, *native); });
 }
 
 } // namespace kiyosi

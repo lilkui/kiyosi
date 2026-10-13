@@ -29,7 +29,7 @@ TEST_CASE("Shared Monte Carlo Greeks propagate invalid batched sensitivities", "
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     const auto result = detail::complete_monte_carlo_greeks(
-        AnalyticVanillaEngine{}, option, context, {Greek::rho}, {}, MonteCarloBackend::cpu,
+        [&](const PricingContext& shifted) { return AnalyticVanillaEngine{}.price(option, shifted); }, option, context, {Greek::rho}, {}, MonteCarloBackend::cpu,
         [](const PricingContext&) -> Result<void> { return {}; },
         []<std::size_t count>(const PricingContext&, double) -> Result<std::array<double, count>> { return std::array<double, count>{}; },
         [](double, std::optional<double>) -> Result<std::array<double, 3>> {
