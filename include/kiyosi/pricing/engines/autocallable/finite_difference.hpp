@@ -14,8 +14,7 @@ namespace kiyosi {
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
 /// Accepts 3..2,000 asset steps and 1..2,000 time steps.
-template <AutocallableProduct Note>
-class KIYOSI_EXPORT FiniteDifferenceAutocallableEngine {
+class FiniteDifferenceAutocallableEngine {
 public:
     /// Creates an engine with aggregate finite-difference settings.
     explicit FiniteDifferenceAutocallableEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
@@ -26,12 +25,14 @@ public:
 
     /// Prices an autocallable note by finite differences.
     /// @return Price, or a contract, context, or settings error.
-    [[nodiscard]] Result<double> price(const Note& note, const PricingContext& context) const;
+    template <AutocallableProduct Note>
+    [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     /// Delta, gamma, and speed reuse the solved layer; vanna/zomma and charm/color difference native delta/gamma shifted in volatility and time.
     /// Other measures use numerical price differences.
-    [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
+    template <AutocallableProduct Note>
+    [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
@@ -41,20 +42,11 @@ private:
     FiniteDifferenceSettings settings_;
 };
 
-/// Finite-difference engine for Phoenix options.
-using FiniteDifferencePhoenixEngine = FiniteDifferenceAutocallableEngine<PhoenixOption>;
-/// Finite-difference engine for snowball options.
-using FiniteDifferenceSnowballEngine = FiniteDifferenceAutocallableEngine<SnowballOption>;
-/// Finite-difference engine for binary snowball options.
-using FiniteDifferenceBinarySnowballEngine = FiniteDifferenceAutocallableEngine<BinarySnowballOption>;
-/// Finite-difference engine for ternary snowball options.
-using FiniteDifferenceTernarySnowballEngine = FiniteDifferenceAutocallableEngine<TernarySnowballOption>;
-
 namespace detail {
 template <AutocallableProduct Note>
-inline constexpr bool is_builtin_finite_difference_engine<FiniteDifferenceAutocallableEngine<Note>, Note> = true;
+inline constexpr bool is_builtin_finite_difference_engine<FiniteDifferenceAutocallableEngine, Note> = true;
 template <AutocallableProduct Note>
-inline constexpr bool has_affine_coupon_price<FiniteDifferenceAutocallableEngine<Note>, Note> = true;
+inline constexpr bool has_affine_coupon_price<FiniteDifferenceAutocallableEngine, Note> = true;
 } // namespace detail
 
 } // namespace kiyosi

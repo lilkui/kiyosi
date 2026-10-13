@@ -64,7 +64,7 @@ void register_matrix()
     const auto dense_note = *make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = dense_expiry, .observations = *kiyosi::make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 110.0), std::vector<double>(dense_dates.size(), 0.08))});
     const auto dense_context = *make_pricing_context(context.model_parameters(), 80.25,
                                                      start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
-    const FiniteDifferenceSnowballEngine dense_engine{80, 1};
+    const FiniteDifferenceAutocallableEngine dense_engine{80, 1};
     const double dense_quote = *dense_engine.price(dense_note, dense_context);
     kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense", [=, dense_note = dense_note] { return implied_volatility(dense_engine, dense_note, dense_context, dense_quote); }, "volatility");
     kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense/independent_trials", [=, dense_note = dense_note] { return detail::solve_implied_volatility(dense_engine, dense_note, dense_context, dense_quote, {},
@@ -94,22 +94,22 @@ void register_matrix()
                     TurnbullWakemanArithmeticAveragePriceEngine{}, context);
     register_kiyosi("accumulator/fd", accumulator, FiniteDifferenceAccumulatorEngine{80, 80}, context, false);
     register_kiyosi("accumulator/mc", accumulator, MonteCarloAccumulatorEngine{2'000, 42}, context, false);
-    register_kiyosi("phoenix/fd", phoenix, FiniteDifferencePhoenixEngine{80, 80}, context, false);
-    register_kiyosi("phoenix/mc", phoenix, MonteCarloPhoenixEngine{2'000, 42}, context, false);
-    register_kiyosi("snowball/fd", snowball, FiniteDifferenceSnowballEngine{80, 80}, context, false);
-    register_kiyosi("snowball/mc", snowball, MonteCarloSnowballEngine{2'000, 42}, context, false);
-    register_kiyosi("binary_snowball/fd", binary_snowball, FiniteDifferenceBinarySnowballEngine{80, 80}, context, false);
-    register_kiyosi("binary_snowball/mc", binary_snowball, MonteCarloBinarySnowballEngine{2'000, 42}, context, false);
-    register_kiyosi("ternary_snowball/fd", ternary_snowball, FiniteDifferenceTernarySnowballEngine{80, 80}, context, false);
-    register_kiyosi("ternary_snowball/mc", ternary_snowball, MonteCarloTernarySnowballEngine{2'000, 42}, context, false);
+    register_kiyosi("phoenix/fd", phoenix, FiniteDifferenceAutocallableEngine{80, 80}, context, false);
+    register_kiyosi("phoenix/mc", phoenix, MonteCarloAutocallableEngine{2'000, 42}, context, false);
+    register_kiyosi("snowball/fd", snowball, FiniteDifferenceAutocallableEngine{80, 80}, context, false);
+    register_kiyosi("snowball/mc", snowball, MonteCarloAutocallableEngine{2'000, 42}, context, false);
+    register_kiyosi("binary_snowball/fd", binary_snowball, FiniteDifferenceAutocallableEngine{80, 80}, context, false);
+    register_kiyosi("binary_snowball/mc", binary_snowball, MonteCarloAutocallableEngine{2'000, 42}, context, false);
+    register_kiyosi("ternary_snowball/fd", ternary_snowball, FiniteDifferenceAutocallableEngine{80, 80}, context, false);
+    register_kiyosi("ternary_snowball/mc", ternary_snowball, MonteCarloAutocallableEngine{2'000, 42}, context, false);
 #if KIYOSI_HAS_CUDA
     register_kiyosi("european/mc_cuda", european, MonteCarloVanillaEngine{5'000, 10, 42, MonteCarloBackend::cuda}, context, false, true);
     register_kiyosi("american/mc_cuda", american, MonteCarloVanillaEngine{5'000, 20, 42, MonteCarloBackend::cuda}, context, false, true);
     register_kiyosi("accumulator/mc_cuda", accumulator, MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("phoenix/mc_cuda", phoenix, MonteCarloPhoenixEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("snowball/mc_cuda", snowball, MonteCarloSnowballEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("binary_snowball/mc_cuda", binary_snowball, MonteCarloBinarySnowballEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("ternary_snowball/mc_cuda", ternary_snowball, MonteCarloTernarySnowballEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
+    register_kiyosi("phoenix/mc_cuda", phoenix, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
+    register_kiyosi("snowball/mc_cuda", snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
+    register_kiyosi("binary_snowball/mc_cuda", binary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
+    register_kiyosi("ternary_snowball/mc_cuda", ternary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
 #endif
 }
 

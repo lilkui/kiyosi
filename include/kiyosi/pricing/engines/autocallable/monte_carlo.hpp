@@ -25,8 +25,7 @@ template <AutocallableProduct Note>
 
 /// Simulates observation dates and expiry, adding trading days for daily knock-in monitoring.
 /// Accepts 1..10,000,000 paths.
-template <AutocallableProduct Note>
-class KIYOSI_EXPORT MonteCarloAutocallableEngine {
+class MonteCarloAutocallableEngine {
 public:
     /// Creates an engine with aggregate trading-day simulation settings.
     explicit MonteCarloAutocallableEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
@@ -38,11 +37,13 @@ public:
 
     /// Prices an autocallable note by Monte Carlo simulation.
     /// @return Price, or a contract, context, settings, or backend error.
-    [[nodiscard]] Result<double> price(const Note& note, const PricingContext& context) const;
+    template <AutocallableProduct Note>
+    [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
     /// CPU spot sensitivities share per-path draws with separate event states and constant storage.
-    [[nodiscard]] Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
+    template <AutocallableProduct Note>
+    [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
@@ -52,28 +53,19 @@ private:
     TradingDayMonteCarloSettings settings_;
 };
 
-/// Monte Carlo engine for Phoenix options.
-using MonteCarloPhoenixEngine = MonteCarloAutocallableEngine<PhoenixOption>;
-/// Monte Carlo engine for snowball options.
-using MonteCarloSnowballEngine = MonteCarloAutocallableEngine<SnowballOption>;
-/// Monte Carlo engine for binary snowball options.
-using MonteCarloBinarySnowballEngine = MonteCarloAutocallableEngine<BinarySnowballOption>;
-/// Monte Carlo engine for ternary snowball options.
-using MonteCarloTernarySnowballEngine = MonteCarloAutocallableEngine<TernarySnowballOption>;
-
 namespace detail {
 template <AutocallableProduct Note>
-inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAutocallableEngine<Note>, Note> = true;
+inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAutocallableEngine, Note> = true;
 template <AutocallableProduct Note>
-inline constexpr bool has_affine_coupon_price<MonteCarloAutocallableEngine<Note>, Note> = true;
+inline constexpr bool has_affine_coupon_price<MonteCarloAutocallableEngine, Note> = true;
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
     ImpliedVolatilitySettings settings);
 
 template <AutocallableProduct Note>
 Result<std::array<double, 2>> coupon_endpoint_prices(
-    const MonteCarloAutocallableEngine<Note>& engine, const Note& lower, const Note& upper, const PricingContext& context)
+    const MonteCarloAutocallableEngine& engine, const Note& lower, const Note& upper, const PricingContext& context)
 {
     return monte_carlo_coupon_prices(lower, upper, context, engine.settings());
 }

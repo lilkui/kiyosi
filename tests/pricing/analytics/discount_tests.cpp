@@ -103,7 +103,7 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
                 else terms.maturity_coupon_rate += amount;
                 const auto upper = make_binary_snowball_option(terms);
                 REQUIRE(upper);
-                const MonteCarloBinarySnowballEngine engine{10, 42, backend};
+                const MonteCarloAutocallableEngine engine{10, 42, backend};
                 const auto price = engine.price(*lower, context);
                 REQUIRE(price);
                 CHECK(*price == Catch::Approx(sign * discounted).epsilon(2e-12).margin(0.0));
@@ -127,14 +127,14 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
         }
         if (rate > 0.0) {
             const auto phoenix = *make_phoenix_option({.coupon_rate = amount, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .principal_ratio = 0.0, .effective_date = start, .expiry_date = end, .observations = {{middle, 200.0, 0.0, 0.0}, {end, 200.0, 0.0, 0.0}}});
-            const auto price = MonteCarloPhoenixEngine{10, 42, backend}.price(phoenix, context);
+            const auto price = MonteCarloAutocallableEngine{10, 42, backend}.price(phoenix, context);
             REQUIRE(price);
             CHECK(*price == Catch::Approx(discounted).epsilon(2e-12).margin(0.0));
         }
     }
     const auto context = *make_pricing_context(*make_bsm_parameters(-750.0, -750.0, 1e-20), 100.0, start);
     const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .effective_date = start, .expiry_date = middle, .observations = {{middle, 200.0, 0.0}}});
-    const auto overflow = MonteCarloBinarySnowballEngine{10, 42, backend}.price(note, context);
+    const auto overflow = MonteCarloAutocallableEngine{10, 42, backend}.price(note, context);
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
 }

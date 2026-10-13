@@ -18,6 +18,38 @@ from kiyosi.market import (
 
 
 class ObservationRecordTests(unittest.TestCase):
+    def test_reusable_autocallable_engines_accept_every_product(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2,
+            ), spot_price=120, valuation_time=end, calendar=all_days_calendar(),
+        )
+        common = dict(effective_date=start, expiry_date=end, barrier_state="none")
+        participation = dict(initial_spot=100, upper_strike=100, lower_strike=0)
+        knock_in = dict(knock_in_level=80, knock_in_observation_mode="at_expiry")
+        engines = (
+            pricing.FiniteDifferenceAutocallableEngine(asset_step_count=32, time_step_count=2),
+            pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),
+        )
+        for factory, extra in (
+            (BinarySnowballOption, {}),
+            (TernarySnowballOption, knock_in | {"minimum_coupon_rate": 0}),
+            (SnowballOption, knock_in | participation),
+            (PhoenixOption, knock_in | participation),
+        ):
+            phoenix = factory is PhoenixOption
+            terms = {"coupon_rate": 0.08} if phoenix else {"maturity_coupon_rate": 0.05}
+            observation = AutocallableObservation(end, 110, **(
+                {"coupon_barrier_level": 90} if phoenix else {"coupon_rate": 0.08}))
+            note = factory(**common, **extra, **terms, observations=[observation])
+            for engine in engines:
+                with self.subTest(product=factory.__name__, engine=type(engine).__name__):
+                    self.assertEqual(engine.price(note, context), 1.08)
+                    result = engine.price_with_greeks(note, context, "delta")
+                    self.assertEqual(result.price, 1.08)
+                    self.assertIsNone(result.delta)
+
     def test_record_constructors_preserve_associations_and_core_validation(self):
         start, first, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         context = PricingContext(
@@ -29,11 +61,11 @@ class ObservationRecordTests(unittest.TestCase):
         participation = dict(initial_spot=100, upper_strike=100, lower_strike=60)
         knock_in = dict(knock_in_level=75, knock_in_observation_mode="at_expiry")
         for factory, engine, extra in (
-            (BinarySnowballOption, pricing.FiniteDifferenceBinarySnowballEngine(), {}),
-            (TernarySnowballOption, pricing.FiniteDifferenceTernarySnowballEngine(),
+            (BinarySnowballOption, pricing.FiniteDifferenceAutocallableEngine(), {}),
+            (TernarySnowballOption, pricing.FiniteDifferenceAutocallableEngine(),
              knock_in | {"minimum_coupon_rate": 0.01}),
-            (SnowballOption, pricing.FiniteDifferenceSnowballEngine(), knock_in | participation),
-            (PhoenixOption, pricing.FiniteDifferencePhoenixEngine(), knock_in | participation),
+            (SnowballOption, pricing.FiniteDifferenceAutocallableEngine(), knock_in | participation),
+            (PhoenixOption, pricing.FiniteDifferenceAutocallableEngine(), knock_in | participation),
         ):
             phoenix = factory is PhoenixOption
             records = [
@@ -103,18 +135,18 @@ class ObservationRecordTests(unittest.TestCase):
         for factory, engine_type, extra in (
             (
                 SnowballOption,
-                pricing.FiniteDifferenceSnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 knock_in | participation,
             ),
-            (BinarySnowballOption, pricing.FiniteDifferenceBinarySnowballEngine, {}),
+            (BinarySnowballOption, pricing.FiniteDifferenceAutocallableEngine, {}),
             (
                 TernarySnowballOption,
-                pricing.FiniteDifferenceTernarySnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 knock_in | {"minimum_coupon_rate": 0.015625},
             ),
             (
                 PhoenixOption,
-                pricing.FiniteDifferencePhoenixEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 knock_in | participation | {"coupon_barrier_levels": [85, 80]},
             ),
         ):
@@ -226,13 +258,13 @@ class ObservationRecordTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         for engine in (
-            pricing.FiniteDifferenceBinarySnowballEngine(),
-            pricing.MonteCarloBinarySnowballEngine(path_count=8, seed=7),
+            pricing.FiniteDifferenceAutocallableEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=8, seed=7),
         ):
             self.assertAlmostEqual(engine.price(snowball, context), 1.06, delta=1e-14)
         for engine in (
-            pricing.FiniteDifferencePhoenixEngine(),
-            pricing.MonteCarloPhoenixEngine(path_count=8, seed=7),
+            pricing.FiniteDifferenceAutocallableEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=8, seed=7),
         ):
             self.assertAlmostEqual(engine.price(phoenix, context), 1.02, delta=1e-14)
         for principal, category in (

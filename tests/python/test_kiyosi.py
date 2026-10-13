@@ -113,7 +113,7 @@ class KiyosiPythonTests(unittest.TestCase):
             option_type="put", strike=100, effective_date=start, expiry_date=end
         )
         expected = 1 - AnalyticVanillaEngine().price(put, context) / 100
-        actual = pricing.MonteCarloSnowballEngine(path_count=50000, seed=42).price(
+        actual = pricing.MonteCarloAutocallableEngine(path_count=50000, seed=42).price(
             note, context
         )
         self.assertAlmostEqual(actual, expected, delta=0.002)
@@ -350,7 +350,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 base = price(1)
                 with self.subTest(backend=backend, strike=strike):
                     self.assertAlmostEqual(price(1e303), base, delta=abs(base) * 1e-12)
-            autocallable = pricing.MonteCarloBinarySnowballEngine(
+            autocallable = pricing.MonteCarloAutocallableEngine(
                 path_count=100000, seed=42, backend=backend
             )
             for principal in (1e305, math.ulp(0.0)):
@@ -380,7 +380,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 model_parameters=parameters, spot_price=100, valuation_time=start
             )
             with self.assertRaises(kiyosi.KiyosiError) as error:
-                pricing.MonteCarloBinarySnowballEngine(
+                pricing.MonteCarloAutocallableEngine(
                     path_count=32, seed=42, backend=backend
                 ).price(overflow, context)
             self.assertEqual(
@@ -420,8 +420,8 @@ class KiyosiPythonTests(unittest.TestCase):
             ),
             (
                 BinarySnowballOption(**common, **snowball),
-                pricing.MonteCarloBinarySnowballEngine,
-                pricing.FiniteDifferenceBinarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
             ),
             (
                 TernarySnowballOption(
@@ -431,13 +431,13 @@ class KiyosiPythonTests(unittest.TestCase):
                     knock_in_level=70,
                     knock_in_observation_mode="every_trading_day",
                 ),
-                pricing.MonteCarloTernarySnowballEngine,
-                pricing.FiniteDifferenceTernarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
             ),
             (
                 kiyosi.instruments.SnowballOption(**common, **snowball, **downside),
-                pricing.MonteCarloSnowballEngine,
-                pricing.FiniteDifferenceSnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
             ),
             (
                 PhoenixOption(
@@ -446,8 +446,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     coupon_rate=0.1,
                     coupon_barrier_levels=[90, 90],
                 ),
-                pricing.MonteCarloPhoenixEngine,
-                pricing.FiniteDifferencePhoenixEngine,
+                pricing.MonteCarloAutocallableEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
             ),
             (
                 BinarySnowballOption(
@@ -458,8 +458,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     },
                     **snowball,
                 ),
-                pricing.MonteCarloBinarySnowballEngine,
-                pricing.FiniteDifferenceBinarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
             ),
         )
         parameters = BlackScholesMertonParameters(
@@ -603,7 +603,7 @@ class KiyosiPythonTests(unittest.TestCase):
             expiry_date=end,
         )
         cases.extend(
-            (pricing.MonteCarloPhoenixEngine(path_count=32, seed=7), phoenix, spot)
+            (pricing.MonteCarloAutocallableEngine(path_count=32, seed=7), phoenix, spot)
             for spot in (119.999, 89.999, 70.001)
         )
         for engine, option, spot in cases:
@@ -756,10 +756,7 @@ class KiyosiPythonTests(unittest.TestCase):
         for engine_type in (
             pricing.MonteCarloVanillaEngine,
             pricing.MonteCarloAccumulatorEngine,
-            pricing.MonteCarloSnowballEngine,
-            pricing.MonteCarloBinarySnowballEngine,
-            pricing.MonteCarloTernarySnowballEngine,
-            pricing.MonteCarloPhoenixEngine,
+            pricing.MonteCarloAutocallableEngine,
         ):
             for value in (0, 7, 2**64 - 1):
                 with self.subTest(engine=engine_type.__name__, seed=value):
@@ -798,8 +795,8 @@ class KiyosiPythonTests(unittest.TestCase):
             risk_free_rate=0.04, dividend_yield=0.01, volatility=0.3
         )
         for engine in (
-            pricing.MonteCarloBinarySnowballEngine(path_count=64, seed=73),
-            pricing.FiniteDifferenceBinarySnowballEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
+            pricing.FiniteDifferenceAutocallableEngine(),
         ):
             for valuation in (start, start + timedelta(days=1)):
                 context = PricingContext(
@@ -928,8 +925,8 @@ class KiyosiPythonTests(unittest.TestCase):
             (0, 0.2, 0.1, 0.2, "knocked_in", fixing, True),
         )
         for engine in (
-            pricing.MonteCarloTernarySnowballEngine(path_count=64, seed=73),
-            pricing.FiniteDifferenceTernarySnowballEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
+            pricing.FiniteDifferenceAutocallableEngine(),
         ):
             for rate, maturity, minimum, coupon, state, valuation, exposed in scenarios:
                 with self.subTest(
@@ -1451,7 +1448,7 @@ class KiyosiPythonTests(unittest.TestCase):
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0, dividend_yield=0, volatility=0.2
         )
-        engine = pricing.MonteCarloBinarySnowballEngine(path_count=2000, seed=1)
+        engine = pricing.MonteCarloAutocallableEngine(path_count=2000, seed=1)
         previous = 1.2
         for bump in range(31):
             spot = 100 + 0.01 * bump
@@ -1825,7 +1822,7 @@ class KiyosiPythonTests(unittest.TestCase):
             for upper in (499, 501):
                 with self.subTest(spot=spot, upper=upper):
                     self.assertAlmostEqual(
-                        pricing.FiniteDifferenceBinarySnowballEngine(
+                        pricing.FiniteDifferenceAutocallableEngine(
                             asset_upper_boundary=upper
                         ).price(note, context),
                         1 + 0.1 / 365,
@@ -1960,8 +1957,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     valuation_time=valuation,
                 )
                 for engine in (
-                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=1),
-                    pricing.FiniteDifferencePhoenixEngine(
+                    pricing.MonteCarloAutocallableEngine(path_count=64, seed=1),
+                    pricing.FiniteDifferenceAutocallableEngine(
                         asset_step_count=40,
                         time_step_count=40,
                         asset_upper_boundary=400,
@@ -2003,8 +2000,8 @@ class KiyosiPythonTests(unittest.TestCase):
             )
             for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
                 for engine in (
-                    pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
-                    pricing.FiniteDifferenceSnowballEngine(
+                    pricing.MonteCarloAutocallableEngine(path_count=64, seed=1),
+                    pricing.FiniteDifferenceAutocallableEngine(
                         asset_step_count=40, time_step_count=40
                     ),
                 ):
@@ -2128,7 +2125,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 knock_out_coupon_rates=[.1], maturity_coupon_rate=.1,
                 knock_out_levels=[120], observation_dates=[end],
                 effective_date=start, expiry_date=end)
-            engine = k.MonteCarloBinarySnowballEngine(path_count=2, seed=1)
+            engine = k.MonteCarloAutocallableEngine(path_count=2, seed=1)
             for choice in ('unknown', chr(0xD800)):
                 try:
                     k.implied_coupon(engine, note, context, 1, quote_convention=choice)
@@ -2364,7 +2361,7 @@ class KiyosiPythonTests(unittest.TestCase):
                     pricing.MonteCarloAccumulatorEngine(path_count=2, seed=1),
                     accumulator,
                 ),
-                (pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1), note),
+                (pricing.MonteCarloAutocallableEngine(path_count=2, seed=1), note),
             ):
                 with self.subTest(rate=rate, volatility=volatility, engine=engine):
                     with self.assertRaises(kiyosi.KiyosiError) as error:
@@ -2847,7 +2844,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
         linked = "shift_maturity_coupon"
         fixed = "preserve_maturity_coupon"
-        engine = pricing.FiniteDifferenceSnowballEngine(
+        engine = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=40, time_step_count=40
         )
         observed_price = engine.price(target_standard, self.context)
@@ -2887,7 +2884,7 @@ class KiyosiPythonTests(unittest.TestCase):
         context = PricingContext(
             model_parameters=self.parameters, spot_price=100, valuation_time=effective
         )
-        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=73)
+        engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=73)
         price = engine.price(option, context)
         implied = implied_coupon(
             engine,
@@ -2922,7 +2919,7 @@ class KiyosiPythonTests(unittest.TestCase):
             effective_date=date(2025, 1, 1),
             expiry_date=expiry,
         )
-        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=1)
+        engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=1)
         for solve in (
             lambda: implied_volatility(engine, note, expired, 0),
             lambda: implied_coupon(
@@ -3002,7 +2999,7 @@ class KiyosiPythonTests(unittest.TestCase):
             "effective_date": date(2025, 1, 1),
             "expiry_date": date(2025, 1, 6),
         }
-        engine = pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=1)
+        engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=1)
         later = PricingContext(
             model_parameters=self.parameters,
             spot_price=100,
@@ -3164,8 +3161,8 @@ class KiyosiPythonTests(unittest.TestCase):
             calendar=calendar,
         )
         for engine in (
-            pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=7),
-            pricing.FiniteDifferenceBinarySnowballEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),
+            pricing.FiniteDifferenceAutocallableEngine(),
         ):
             with self.subTest(engine=type(engine).__name__):
                 with self.assertRaises(kiyosi.KiyosiError) as error:
@@ -3422,12 +3419,12 @@ class KiyosiPythonTests(unittest.TestCase):
             calendar=market.all_days_calendar(),
         )
         engines = (
-            pricing.FiniteDifferencePhoenixEngine(
+            pricing.FiniteDifferenceAutocallableEngine(
                 asset_step_count=400,
                 time_step_count=1600,
                 asset_upper_boundary=400,
             ),
-            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
         )
         for engine in engines:
             with self.subTest(engine=type(engine).__name__):
@@ -3463,12 +3460,12 @@ class KiyosiPythonTests(unittest.TestCase):
                     calendar=market.all_days_calendar(),
                 )
                 for engine in (
-                    pricing.FiniteDifferencePhoenixEngine(
+                    pricing.FiniteDifferenceAutocallableEngine(
                         asset_step_count=400,
                         time_step_count=400,
                         asset_upper_boundary=4 * scale,
                     ),
-                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                    pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
                 ):
                     with self.subTest(
                         scale=scale, dates=dates, engine=type(engine).__name__
@@ -3591,10 +3588,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
         for engine_type in (
             pricing.MonteCarloAccumulatorEngine,
-            pricing.MonteCarloPhoenixEngine,
-            pricing.MonteCarloSnowballEngine,
-            pricing.MonteCarloBinarySnowballEngine,
-            pricing.MonteCarloTernarySnowballEngine,
+            pricing.MonteCarloAutocallableEngine,
         ):
             with self.subTest(engine=engine_type.__name__):
                 default = engine_type()
@@ -3611,10 +3605,7 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_trading_day_monte_carlo_accepts_optional_seed(self):
         for engine_type in (
             pricing.MonteCarloAccumulatorEngine,
-            pricing.MonteCarloSnowballEngine,
-            pricing.MonteCarloBinarySnowballEngine,
-            pricing.MonteCarloTernarySnowballEngine,
-            pricing.MonteCarloPhoenixEngine,
+            pricing.MonteCarloAutocallableEngine,
         ):
             with self.subTest(engine=engine_type.__name__):
                 self.assertEqual(engine_type().seed, 1)
@@ -4302,7 +4293,7 @@ class KiyosiPythonTests(unittest.TestCase):
             pricing.CoxRossRubinsteinVanillaEngine,
             pricing.FiniteDifferenceVanillaEngine,
             pricing.MonteCarloVanillaEngine,
-            pricing.MonteCarloSnowballEngine,
+            pricing.MonteCarloAutocallableEngine,
         )
         for engine_type in configured_engines:
             with self.subTest(engine=engine_type.__name__):
@@ -4485,7 +4476,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 valuation_time=at,
             )
 
-        engine = pricing.MonteCarloSnowballEngine(path_count=20000, seed=1)
+        engine = pricing.MonteCarloAutocallableEngine(path_count=20000, seed=1)
         self.assertAlmostEqual(
             engine.price(note, context(saturday)),
             engine.price(note, context(saturday + timedelta(microseconds=1))),
@@ -4730,8 +4721,8 @@ class KiyosiPythonTests(unittest.TestCase):
                         valuation_time=date.fromisoformat(values["valuation_date"]),
                     )
                     for engine in (
-                        pricing.MonteCarloSnowballEngine(path_count=64, seed=1),
-                        pricing.FiniteDifferenceSnowballEngine(),
+                        pricing.MonteCarloAutocallableEngine(path_count=64, seed=1),
+                        pricing.FiniteDifferenceAutocallableEngine(),
                     ):
                         b = engine.price_with_greeks(
                             explicit_none, context, all_greeks=True
@@ -4804,10 +4795,10 @@ class KiyosiPythonTests(unittest.TestCase):
                             expiry_date=end,
                         )
                         for engine in (
-                            pricing.MonteCarloBinarySnowballEngine(
+                            pricing.MonteCarloAutocallableEngine(
                                 path_count=2, seed=1
                             ),
-                            pricing.FiniteDifferenceBinarySnowballEngine(),
+                            pricing.FiniteDifferenceAutocallableEngine(),
                         ):
                             price = engine.price(option, context)
                             with self.assertRaises(kiyosi.KiyosiError) as error:

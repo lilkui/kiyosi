@@ -56,11 +56,11 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
     } else {
         {
             INFO("FD");
-            check(kiyosi::FiniteDifferenceAutocallableEngine<Instrument>{grid});
+            check(kiyosi::FiniteDifferenceAutocallableEngine{grid});
         }
         {
             INFO("MC");
-            check(kiyosi::MonteCarloAutocallableEngine<Instrument>{{64, 73}});
+            check(kiyosi::MonteCarloAutocallableEngine{{64, 73}});
         }
     }
 }
@@ -160,7 +160,7 @@ TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishe
     }
     const auto check_extinguished = [](const auto& result) {
         REQUIRE(result);
-        const auto before_first = kiyosi::MonteCarloAutocallableEngine<std::remove_cvref_t<decltype(*result)>>{{64, 73}}
+        const auto before_first = kiyosi::MonteCarloAutocallableEngine{{64, 73}}
                                       .price(*result, market(100.0, effective_date));
         REQUIRE_FALSE(before_first);
         CHECK(before_first.error().category == kiyosi::ErrorCategory::invalid_option);
@@ -270,10 +270,10 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
     const auto context = market(100.0, start, 0.0, 1e-8);
     // 91/365 and this subdivision count previously introduced a second endpoint
     // nearly equal to maturity. One observation owes principal 1 plus the accrued coupon.
-    const auto fd = kiyosi::FiniteDifferencePhoenixEngine{
+    const auto fd = kiyosi::FiniteDifferenceAutocallableEngine{
         {400, 1600, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}}
                         .price(*note, context);
-    const auto mc = kiyosi::MonteCarloPhoenixEngine{{64, 73}}.price(*note, context);
+    const auto mc = kiyosi::MonteCarloAutocallableEngine{{64, 73}}.price(*note, context);
     REQUIRE(fd);
     REQUIRE(mc);
     for (const auto& result : {*fd, *mc}) {
@@ -297,9 +297,9 @@ TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cro
                 REQUIRE(result);
                 CHECK(*result == Catch::Approx(1.08).margin(1e-6).epsilon(0.0));
             };
-            check(kiyosi::FiniteDifferencePhoenixEngine{
+            check(kiyosi::FiniteDifferenceAutocallableEngine{
                 {400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 4.0 * scale}});
-            check(kiyosi::MonteCarloPhoenixEngine{{64, 73}});
+            check(kiyosi::MonteCarloAutocallableEngine{{64, 73}});
         }
     }
 }
@@ -317,7 +317,7 @@ TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]
             CAPTURE(spot, upper);
             const kiyosi::FiniteDifferenceSettings grid{
                 200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper};
-            const auto called = kiyosi::FiniteDifferenceBinarySnowballEngine{grid}.price(note, context);
+            const auto called = kiyosi::FiniteDifferenceAutocallableEngine{grid}.price(note, context);
             REQUIRE(called);
             CHECK(*called == Catch::Approx(1.0 + 0.1 / 365.0).epsilon(0.0).margin(1e-12));
             const auto settled = kiyosi::FiniteDifferenceAccumulatorEngine{grid}.price(accumulator, context);
@@ -354,7 +354,7 @@ TEST_CASE("Finite-difference current accrual and knock-in precede continuation",
         return *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.1}}});
     };
     const auto context = *kiyosi::make_pricing_context(parameters, 79.9, event);
-    const kiyosi::FiniteDifferenceSnowballEngine engine{grid};
+    const kiyosi::FiniteDifferenceAutocallableEngine engine{grid};
     const auto current = engine.price(snowball(kiyosi::AutocallableBarrierState::none), context);
     const auto prior = engine.price(snowball(kiyosi::AutocallableBarrierState::knocked_in), context);
     REQUIRE(current);
@@ -370,7 +370,7 @@ TEST_CASE("Finite-difference current coupons use the actual barrier branch", "[a
     };
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0, event);
-    const kiyosi::FiniteDifferencePhoenixEngine engine{
+    const kiyosi::FiniteDifferenceAutocallableEngine engine{
         {200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0}};
     const auto paid = engine.price(note(80.0), context);
     const auto missed = engine.price(note(80.1), context);

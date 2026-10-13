@@ -81,8 +81,8 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
     };
     require_repeatable(call, kiyosi::MonteCarloVanillaEngine{20000, 252, 42});
     require_repeatable(put, kiyosi::MonteCarloVanillaEngine{20000, 50, 42});
-    require_repeatable(phoenix, kiyosi::MonteCarloPhoenixEngine{{1000, 42}});
-    require_repeatable(snowball, kiyosi::MonteCarloSnowballEngine{{1000, 42}});
-    require_repeatable(binary, kiyosi::MonteCarloBinarySnowballEngine{{1000, 42}});
-    require_repeatable(ternary, kiyosi::MonteCarloTernarySnowballEngine{{1000, 42}});
+    require_repeatable(phoenix, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
+    require_repeatable(snowball, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
+    require_repeatable(binary, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
+    require_repeatable(ternary, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
 }

@@ -52,7 +52,7 @@ double fd_price(const Instrument& instrument, const PricingContext& market,
     if constexpr (std::is_same_v<Instrument, Accumulator>)
         return price(FiniteDifferenceAccumulatorEngine{settings}.price(instrument, market));
     else
-        return price(FiniteDifferenceAutocallableEngine<Instrument>{settings}.price(instrument, market));
+        return price(FiniteDifferenceAutocallableEngine{settings}.price(instrument, market));
 }
 
 template <typename Instrument>
@@ -62,7 +62,7 @@ double mc_price(const Instrument& instrument, const PricingContext& market,
     if constexpr (std::is_same_v<Instrument, Accumulator>)
         return price(MonteCarloAccumulatorEngine{settings}.price(instrument, market));
     else
-        return price(MonteCarloAutocallableEngine<Instrument>{settings}.price(instrument, market));
+        return price(MonteCarloAutocallableEngine{settings}.price(instrument, market));
 }
 
 template <typename Instrument>

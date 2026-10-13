@@ -175,7 +175,7 @@ class DiscountUnderflowTests(unittest.TestCase):
                             effective_date=start,
                             expiry_date=end if early else middle,
                         )
-                        engine = pricing.MonteCarloBinarySnowballEngine(
+                        engine = pricing.MonteCarloAutocallableEngine(
                             path_count=10, seed=42, backend=backend
                         )
                         with self.subTest(
@@ -230,7 +230,7 @@ class DiscountUnderflowTests(unittest.TestCase):
                         effective_date=start,
                         expiry_date=end,
                     )
-                    engine = pricing.MonteCarloPhoenixEngine(
+                    engine = pricing.MonteCarloAutocallableEngine(
                         path_count=10, seed=42, backend=backend
                     )
                     with self.subTest(backend=backend, rate=rate, instrument="phoenix"):
@@ -260,7 +260,7 @@ class DiscountUnderflowTests(unittest.TestCase):
             valuation_time=start,
         )
         with self.assertRaises(KiyosiError) as error:
-            pricing.MonteCarloBinarySnowballEngine(path_count=10, seed=42).price(
+            pricing.MonteCarloAutocallableEngine(path_count=10, seed=42).price(
                 note, context
             )
         self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)

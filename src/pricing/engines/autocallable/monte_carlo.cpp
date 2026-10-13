@@ -343,7 +343,7 @@ static Result<void> validate_monte_carlo_autocallable(
 
 template <AutocallableProduct Note>
 Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
     ImpliedVolatilitySettings settings)
 {
     AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
@@ -351,7 +351,7 @@ Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
 }
 
 template <AutocallableProduct Note>
-Result<double> MonteCarloAutocallableEngine<Note>::price(const Note& note, const PricingContext& context) const
+Result<double> MonteCarloAutocallableEngine::price(const Note& note, const PricingContext& context) const
 {
     AutocallableMonteCarloRequest<Note> request{{note, context.calendar()}};
     return price_autocallable(context, settings_, request);
@@ -359,7 +359,7 @@ Result<double> MonteCarloAutocallableEngine<Note>::price(const Note& note, const
 
 template <AutocallableProduct Note>
 Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
     AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
@@ -391,7 +391,7 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     if (initial.settlement || alternate_initial.settlement ||
         autocallable_fixed_value(lower, context, program, initial) ||
         autocallable_fixed_value(upper, context, alternate_program, alternate_initial) || daily != alternate_daily) {
-        const MonteCarloAutocallableEngine<Note> engine{settings};
+        const MonteCarloAutocallableEngine engine{settings};
         const auto first = engine.price(lower, context);
         if (!first) return std::unexpected(first.error());
         const auto second = engine.price(upper, context);
@@ -428,7 +428,7 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
 }
 
 template <AutocallableProduct Note>
-Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
+Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note& option, const PricingContext& context,
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::evaluate_greeks(
@@ -450,35 +450,31 @@ Result<PricingResult> MonteCarloAutocallableEngine<Note>::price_with_greeks(cons
 }
 
 template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<PhoenixOption>&, const PhoenixOption&,
+    const MonteCarloAutocallableEngine&, const PhoenixOption&,
     const PricingContext&, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const MonteCarloAutocallableEngine&, const SnowballOption&,
     const PricingContext&, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const MonteCarloAutocallableEngine&, const BinarySnowballOption&,
     const PricingContext&, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const MonteCarloAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, ImpliedVolatilitySettings);
 
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<PhoenixOption>&, const PhoenixOption&,
+    const MonteCarloAutocallableEngine&, const PhoenixOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const MonteCarloAutocallableEngine&, const SnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const MonteCarloAutocallableEngine&, const BinarySnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const MonteCarloAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 
-template class MonteCarloAutocallableEngine<PhoenixOption>;
-template class MonteCarloAutocallableEngine<SnowballOption>;
-template class MonteCarloAutocallableEngine<BinarySnowballOption>;
-template class MonteCarloAutocallableEngine<TernarySnowballOption>;
 
 template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     const PhoenixOption&, const PhoenixOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
@@ -488,5 +484,14 @@ template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_
     const BinarySnowballOption&, const BinarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
 template KIYOSI_EXPORT Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     const TernarySnowballOption&, const TernarySnowballOption&, const PricingContext&, const TradingDayMonteCarloSettings&);
+
+template KIYOSI_EXPORT Result<double> MonteCarloAutocallableEngine::price(const PhoenixOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const PhoenixOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> MonteCarloAutocallableEngine::price(const SnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const SnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> MonteCarloAutocallableEngine::price(const BinarySnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const BinarySnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> MonteCarloAutocallableEngine::price(const TernarySnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const TernarySnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
 
 } // namespace kiyosi

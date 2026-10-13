@@ -47,14 +47,14 @@ class AutocallableRegressionTests(unittest.TestCase):
                 (PhoenixOption, dict(
                     **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
                     coupon_rate=0.08, coupon_barrier_levels=[100, 99, 98],
-                ), pricing.FiniteDifferencePhoenixEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
                 (SnowballOption, dict(
                     **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=60,
-                ), pricing.FiniteDifferenceSnowballEngine),
-                (BinarySnowballOption, coupons, pricing.FiniteDifferenceBinarySnowballEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
+                (BinarySnowballOption, coupons, pricing.FiniteDifferenceAutocallableEngine),
                 (TernarySnowballOption, dict(
                     **knock_in, **coupons, minimum_coupon_rate=0.02,
-                ), pricing.FiniteDifferenceTernarySnowballEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
@@ -95,14 +95,14 @@ class AutocallableRegressionTests(unittest.TestCase):
                 (PhoenixOption, dict(
                     **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
                     coupon_rate=0.073, coupon_barrier_levels=[90, 90],
-                ), pricing.FiniteDifferencePhoenixEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
                 (SnowballOption, dict(
                     **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=100,
-                ), pricing.FiniteDifferenceSnowballEngine),
-                (BinarySnowballOption, coupons, pricing.FiniteDifferenceBinarySnowballEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
+                (BinarySnowballOption, coupons, pricing.FiniteDifferenceAutocallableEngine),
                 (TernarySnowballOption, dict(
                     **knock_in, **coupons, minimum_coupon_rate=0,
-                ), pricing.FiniteDifferenceTernarySnowballEngine),
+                ), pricing.FiniteDifferenceAutocallableEngine),
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
@@ -159,18 +159,16 @@ class AutocallableRegressionTests(unittest.TestCase):
             knock_in_observation_mode="every_trading_day",
         )
         cases = (
-            (BinarySnowballOption, coupons, "BinarySnowball"),
-            (SnowballOption, {**coupons, **downside}, "Snowball"),
+            (BinarySnowballOption, coupons),
+            (SnowballOption, {**coupons, **downside}),
             (
                 TernarySnowballOption,
                 {**coupons, "knock_in_level": 99, "minimum_coupon_rate": 0.02,
                  "knock_in_observation_mode": "every_trading_day"},
-                "TernarySnowball",
             ),
             (
                 PhoenixOption,
                 {**downside, "coupon_rate": 0.08, "coupon_barrier_levels": [100] * len(dates)},
-                "Phoenix",
             ),
         )
 
@@ -185,12 +183,12 @@ class AutocallableRegressionTests(unittest.TestCase):
             )
 
         base = context()
-        for option_type, terms, name in cases:
+        for option_type, terms in cases:
             note = option_type(**common, **terms, barrier_state="none")
             missing_history = option_type(**common, **terms)
             engines = (
-                getattr(pricing, f"MonteCarlo{name}Engine")(path_count=31, seed=42),
-                getattr(pricing, f"FiniteDifference{name}Engine")(
+                pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
+                pricing.FiniteDifferenceAutocallableEngine(
                     asset_step_count=80, time_step_count=1
                 ),
             )
@@ -249,7 +247,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     maturity_coupon_rate=0.05,
                     **terms,
                 ),
-                pricing.MonteCarloBinarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
         ]
         for mode in ("every_trading_day", "at_expiry"):
@@ -265,7 +263,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             lower_strike=60,
                             **common,
                         ),
-                        pricing.MonteCarloSnowballEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         PhoenixOption(
@@ -276,7 +274,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             lower_strike=60,
                             **common,
                         ),
-                        pricing.MonteCarloPhoenixEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         TernarySnowballOption(
@@ -285,7 +283,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             minimum_coupon_rate=0.02,
                             **common,
                         ),
-                        pricing.MonteCarloTernarySnowballEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                 ]
             )
@@ -357,8 +355,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             expiry_date=end,
         )
         for engine in (
-            pricing.FiniteDifferenceSnowballEngine(),
-            pricing.MonteCarloSnowballEngine(path_count=64, seed=42),
+            pricing.FiniteDifferenceAutocallableEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),
         ):
             for time in (
                 datetime(2025, 1, 1, tzinfo=UTC),
@@ -400,8 +398,8 @@ class AutocallableRegressionTests(unittest.TestCase):
             valuation_time=datetime(2025, 1, 2, 12, tzinfo=UTC),
         )
         for engine in (
-            pricing.FiniteDifferenceSnowballEngine(),
-            pricing.MonteCarloSnowballEngine(path_count=64, seed=42),
+            pricing.FiniteDifferenceAutocallableEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=64, seed=42),
         ):
             for state in ("none", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
@@ -466,7 +464,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             )
             for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
                 with self.subTest(mode=mode, scheme=scheme):
-                    result = pricing.FiniteDifferencePhoenixEngine(
+                    result = pricing.FiniteDifferenceAutocallableEngine(
                         asset_step_count=200,
                         time_step_count=2000,
                         scheme=scheme,
@@ -547,17 +545,17 @@ class AutocallableRegressionTests(unittest.TestCase):
         cases = (
             (
                 snowball,
-                pricing.FiniteDifferenceSnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 downside + 0.06 * digital,
             ),
             (
                 phoenix,
-                pricing.FiniteDifferencePhoenixEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 downside + 0.08 * discount,
             ),
             (
                 ternary,
-                pricing.FiniteDifferenceTernarySnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 1.02 * discount + 0.04 * digital,
             ),
         )
@@ -595,9 +593,9 @@ class AutocallableRegressionTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         for engine in (
-            pricing.MonteCarloSnowballEngine(path_count=2_000, seed=42),
-            pricing.FiniteDifferenceSnowballEngine(scheme="crank_nicolson"),
-            pricing.FiniteDifferenceSnowballEngine(scheme="implicit_euler"),
+            pricing.MonteCarloAutocallableEngine(path_count=2_000, seed=42),
+            pricing.FiniteDifferenceAutocallableEngine(scheme="crank_nicolson"),
+            pricing.FiniteDifferenceAutocallableEngine(scheme="implicit_euler"),
         ):
             with self.subTest(engine=type(engine).__name__):
                 self.assertEqual(
@@ -612,7 +610,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                         context,
                     ),
                 )
-        explicit = pricing.FiniteDifferenceSnowballEngine(
+        explicit = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=80,
             time_step_count=200,
             scheme="explicit_euler",
@@ -622,7 +620,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             SnowballOption(**terms, knock_in_observation_mode="every_trading_day"),
             context,
         )
-        reference = pricing.FiniteDifferenceSnowballEngine(
+        reference = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=80,
             time_step_count=2000,
             scheme="explicit_euler",
@@ -662,21 +660,21 @@ class AutocallableRegressionTests(unittest.TestCase):
         for backend in ("cpu", "cuda"):
             with self.subTest(backend=backend):
                 self.assertEqual(
-                    pricing.MonteCarloSnowballEngine(
+                    pricing.MonteCarloAutocallableEngine(
                         path_count=20_000, seed=42, backend=backend
                     ).price(note, context),
                     1,
                 )
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            pricing.MonteCarloSnowballEngine(path_count=0).price(note, context)
+            pricing.MonteCarloAutocallableEngine(path_count=0).price(note, context)
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
-        engine = pricing.FiniteDifferenceSnowballEngine(asset_upper_boundary=1)
+        engine = pricing.FiniteDifferenceAutocallableEngine(asset_upper_boundary=1)
         result = engine.price_with_greeks(note, context, ["delta", "gamma"])
         self.assertEqual((result.price, result.delta, result.gamma), (1, 0, 0))
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            pricing.FiniteDifferenceSnowballEngine(time_step_count=0).price(
+            pricing.FiniteDifferenceAutocallableEngine(time_step_count=0).price(
                 note, context
             )
         self.assertEqual(
@@ -702,7 +700,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        result = pricing.FiniteDifferenceBinarySnowballEngine().price_with_greeks(
+        result = pricing.FiniteDifferenceAutocallableEngine().price_with_greeks(
             note, context, ["delta", "gamma", "vega", "rho"]
         )
         self.assertEqual(result.price, math.exp(-0.04))
@@ -731,7 +729,7 @@ class AutocallableRegressionTests(unittest.TestCase):
             with self.subTest(valuation=valuation):
                 with self.assertRaises(kiyosi.KiyosiError) as error:
                     pricing.implied_volatility(
-                        pricing.MonteCarloBinarySnowballEngine(path_count=2, seed=1),
+                        pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
                         note,
                         context,
                         1,
@@ -766,13 +764,13 @@ class AutocallableRegressionTests(unittest.TestCase):
                 for note, engine in (
                     (
                         BinarySnowballOption(**terms),
-                        pricing.MonteCarloBinarySnowballEngine(
+                        pricing.MonteCarloAutocallableEngine(
                             path_count=2000, seed=42
                         ),
                     ),
                     (
                         snowball,
-                        pricing.MonteCarloSnowballEngine(path_count=2000, seed=42),
+                        pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
                     ),
                 ):
                     with self.subTest(

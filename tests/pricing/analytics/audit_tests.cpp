@@ -619,8 +619,8 @@ TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[
                             CHECK(result.error().category == ErrorCategory::unsupported_operation);
                         }
                     };
-                    check(MonteCarloPhoenixEngine{{64, 73}});
-                    check(FiniteDifferencePhoenixEngine{});
+                    check(MonteCarloAutocallableEngine{{64, 73}});
+                    check(FiniteDifferenceAutocallableEngine{});
                 }
             }
         }
@@ -639,7 +639,7 @@ TEST_CASE("Trading finite-difference prices are invariant to currency scale", "[
         const auto snowball = *make_binary_snowball_option(
             {.maturity_coupon_rate = 0.2, .effective_date = start, .expiry_date = end, .observations = {{end, 101.0 * scale, 0.1}}});
         const auto accrued = FiniteDifferenceAccumulatorEngine{}.price(accumulator, context);
-        const auto normalized = FiniteDifferenceBinarySnowballEngine{}.price(snowball, context);
+        const auto normalized = FiniteDifferenceAutocallableEngine{}.price(snowball, context);
         REQUIRE(accrued);
         REQUIRE(normalized);
         return std::array{*accrued / scale, *normalized};
@@ -706,12 +706,12 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 const bool exposed = rate != 0.0 || lower != 100.0 || coupon != 0.0;
                 const auto snowball = *make_snowball_option(
                     {.maturity_coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, coupon}, {end, 120.0, coupon}}});
-                check(MonteCarloSnowballEngine{{64, 73}}, snowball, context, exposed);
-                check(FiniteDifferenceSnowballEngine{}, snowball, context, exposed);
+                check(MonteCarloAutocallableEngine{{64, 73}}, snowball, context, exposed);
+                check(FiniteDifferenceAutocallableEngine{}, snowball, context, exposed);
                 const auto phoenix = *make_phoenix_option(
                     {.coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0, 90.0}, {end, 120.0, 0.0, 90.0}}});
-                check(MonteCarloPhoenixEngine{{64, 73}}, phoenix, context, exposed);
-                check(FiniteDifferencePhoenixEngine{}, phoenix, context, exposed);
+                check(MonteCarloAutocallableEngine{{64, 73}}, phoenix, context, exposed);
+                check(FiniteDifferenceAutocallableEngine{}, phoenix, context, exposed);
             }
         }
     }
@@ -720,8 +720,8 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                                                    historical ? fixing : start);
         const auto note = *make_snowball_option(
             {.maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = historical ? AutocallableBarrierState::knocked_in : AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0}, {end, 120.0, 0.0}}});
-        check(MonteCarloSnowballEngine{{64, 73}}, note, context, false);
-        check(FiniteDifferenceSnowballEngine{}, note, context, false);
+        check(MonteCarloAutocallableEngine{{64, 73}}, note, context, false);
+        check(FiniteDifferenceAutocallableEngine{}, note, context, false);
     }
     for (const double knock_out : {90.0, 100.0, 120.0}) {
         for (const double acceleration : {0.0, 1.0}) {
@@ -796,8 +796,8 @@ TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api
                     CHECK(result.error().category == ErrorCategory::unsupported_operation);
                 }
             };
-            check(MonteCarloPhoenixEngine{{64, 73}});
-            check(FiniteDifferencePhoenixEngine{});
+            check(MonteCarloAutocallableEngine{{64, 73}});
+            check(FiniteDifferenceAutocallableEngine{});
         }
     }
 }

@@ -105,7 +105,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
         base_context.valuation_time() + std::chrono::hours{12}, base_context.calendar());
     const auto accumulator = accumulator_scenario().first;
     const auto snowball = snowball_scenario().first;
-    const MonteCarloSnowballEngine snowball_monte_carlo{20'000, 42};
+    const MonteCarloAutocallableEngine snowball_monte_carlo{20'000, 42};
     register_price("analytics/kiyosi/snowball/mc/price", snowball, snowball_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_unavailable_speed", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
@@ -120,7 +120,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/mc/numerical_all", [=] { return calculate_numerical_greeks(accumulator_monte_carlo, accumulator, context); }, "price")->UseRealTime();
 #if KIYOSI_HAS_CUDA
     const MonteCarloAccumulatorEngine cuda_accumulator{250'000, 42, MonteCarloBackend::cuda};
-    const MonteCarloSnowballEngine cuda_snowball{250'000, 42, MonteCarloBackend::cuda};
+    const MonteCarloAutocallableEngine cuda_snowball{250'000, 42, MonteCarloBackend::cuda};
     register_price("analytics/kiyosi/accumulator/mc_cuda/price", accumulator, cuda_accumulator, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc_cuda/delta_gamma", [=] { return cuda_accumulator.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_price("analytics/kiyosi/snowball/mc_cuda/price", snowball, cuda_snowball, context)->UseRealTime();
@@ -144,7 +144,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
                    FiniteDifferenceAccumulatorEngine{{.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}}, weekday_context);
     register_price("analytics/kiyosi/accumulator/fd/calendar_weekdays/split_grid/price", accumulator,
                    FiniteDifferenceAccumulatorEngine{}, weekday_context);
-    const FiniteDifferenceSnowballEngine snowball_engine{};
+    const FiniteDifferenceAutocallableEngine snowball_engine{};
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out});
     const auto knock_in_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in});
     register_price("analytics/kiyosi/barrier/analytic/down_and_in/price", knock_in_barrier, AnalyticBarrierEngine{}, base_context);
@@ -164,8 +164,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_price("analytics/kiyosi/barrier/fd/scheduled_dense/price", dense_barrier, dense_barrier_engine, dense_barrier_context);
     register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/vega_rho", [=, dense_barrier = dense_barrier] { return dense_barrier_engine.price_with_greeks(dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}); }, "price");
     register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return detail::price_with_greeks(dense_barrier_engine, dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price");
-    const MonteCarloSnowballEngine dense_monte_carlo{1, 42};
-    const FiniteDifferenceSnowballEngine dense_finite_difference{80, 1};
+    const MonteCarloAutocallableEngine dense_monte_carlo{1, 42};
+    const FiniteDifferenceAutocallableEngine dense_finite_difference{80, 1};
     register_price("analytics/kiyosi/snowball/mc/scheduled_dense/price", dense_snowball, dense_monte_carlo, dense_context);
     register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
@@ -277,7 +277,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return detail::solve_implied_coupon(snowball_engine, snowball, context, *coupon_quote, ImpliedCouponSettings{},
                                                                  [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
-    const MonteCarloSnowballEngine coupon_engine{20'000, 42};
+    const MonteCarloAutocallableEngine coupon_engine{20'000, 42};
     const auto monte_carlo_quote = coupon_engine.price(snowball, context);
     register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=, snowball = snowball, monte_carlo_quote = monte_carlo_quote]() -> Result<double> {
                              if (!monte_carlo_quote) return std::unexpected(monte_carlo_quote.error());
@@ -289,15 +289,15 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto expiry_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.08}}});
     register_price("analytics/kiyosi/snowball/fd/expiry_only/price", expiry_note, snowball_engine, base_context);
-    register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, FiniteDifferenceSnowballEngine{{200, 1000}}, base_context);
+    register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, FiniteDifferenceAutocallableEngine{{200, 1000}}, base_context);
     const auto fixed_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.0}}});
     const auto fixed_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, european.effective_date());
-    register_price("analytics/kiyosi/snowball/mc/fixed/price", fixed_note, MonteCarloSnowballEngine{20'000, 42}, fixed_context);
+    register_price("analytics/kiyosi/snowball/mc/fixed/price", fixed_note, MonteCarloAutocallableEngine{20'000, 42}, fixed_context);
     register_price("analytics/kiyosi/snowball/fd/fixed/price", fixed_note, snowball_engine, fixed_context);
     const auto protected_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{Date{std::chrono::year{2025} / 7 / 1}, 110.0, 0.08}, {european.expiry_date(), 104.0, 0.08}}});
-    register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloSnowballEngine{20'000, 42}, base_context);
+    register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloAutocallableEngine{20'000, 42}, base_context);
     register_price("analytics/kiyosi/snowball/fd/protected/price", protected_note, snowball_engine, base_context);
     const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
     const auto no_dividend = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 100.0, european.effective_date());
@@ -329,8 +329,8 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
         register_monte_carlo("bm_monte_carlo_accumulator" + suffix, accumulator_scenario(),
                              MonteCarloAccumulatorEngine{{250'000, 42, backend}});
         register_monte_carlo("bm_monte_carlo_phoenix" + suffix, phoenix_scenario(),
-                             MonteCarloPhoenixEngine{{250'000, 42, backend}});
+                             MonteCarloAutocallableEngine{{250'000, 42, backend}});
         register_monte_carlo("bm_monte_carlo_snowball" + suffix, snowball_scenario(),
-                             MonteCarloSnowballEngine{{250'000, 42, backend}});
+                             MonteCarloAutocallableEngine{{250'000, 42, backend}});
     }
 }

@@ -408,7 +408,7 @@ class SharedSampleTests(unittest.TestCase):
             ),
             (
                 SnowballOption(**common, **coupons, **downside),
-                pricing.MonteCarloSnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
             (
                 PhoenixOption(
@@ -417,11 +417,11 @@ class SharedSampleTests(unittest.TestCase):
                     coupon_rate=0.08,
                     coupon_barrier_levels=[100, 99, 98],
                 ),
-                pricing.MonteCarloPhoenixEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
             (
                 BinarySnowballOption(**common, **coupons),
-                pricing.MonteCarloBinarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
             (
                 TernarySnowballOption(
@@ -431,7 +431,7 @@ class SharedSampleTests(unittest.TestCase):
                     minimum_coupon_rate=0.02,
                     knock_in_observation_mode="every_trading_day",
                 ),
-                pricing.MonteCarloTernarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
         )
         cases += tuple(
@@ -680,7 +680,7 @@ class SharedSampleTests(unittest.TestCase):
         cases += (
             (
                 BinarySnowballOption(**common, **coupons),
-                pricing.MonteCarloBinarySnowballEngine(path_count=31, seed=42),
+                pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
             ),
             (
                 TernarySnowballOption(
@@ -690,11 +690,11 @@ class SharedSampleTests(unittest.TestCase):
                     minimum_coupon_rate=0.02,
                     knock_in_observation_mode="every_trading_day",
                 ),
-                pricing.MonteCarloTernarySnowballEngine(path_count=31, seed=42),
+                pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
             ),
             (
                 SnowballOption(**common, **coupons, **downside),
-                pricing.MonteCarloSnowballEngine(path_count=31, seed=42),
+                pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
             ),
             (
                 PhoenixOption(
@@ -703,7 +703,7 @@ class SharedSampleTests(unittest.TestCase):
                     coupon_rate=0.08,
                     coupon_barrier_levels=[90] * 3,
                 ),
-                pricing.MonteCarloPhoenixEngine(path_count=31, seed=42),
+                pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
             ),
         )
         if os.environ.get("KIYOSI_TEST_CUDA") == "enabled":
@@ -942,7 +942,7 @@ class SharedSampleTests(unittest.TestCase):
             ),
             (
                 BinarySnowballOption(**common, **coupons),
-                pricing.MonteCarloBinarySnowballEngine,
+                pricing.MonteCarloAutocallableEngine,
             ),
         ]
         for mode in ("every_trading_day", "at_expiry"):
@@ -963,11 +963,11 @@ class SharedSampleTests(unittest.TestCase):
                             minimum_coupon_rate=0.02,
                             knock_in_observation_mode=mode,
                         ),
-                        pricing.MonteCarloTernarySnowballEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         SnowballOption(**common, **coupons, **downside),
-                        pricing.MonteCarloSnowballEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         PhoenixOption(
@@ -976,7 +976,7 @@ class SharedSampleTests(unittest.TestCase):
                             coupon_rate=0.08,
                             coupon_barrier_levels=[100] * 3,
                         ),
-                        pricing.MonteCarloPhoenixEngine,
+                        pricing.MonteCarloAutocallableEngine,
                     ),
                 ]
             )

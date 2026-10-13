@@ -75,19 +75,15 @@ concept CanPriceWithSettings = requires(
     engine.price(option, context, Settings{});
 };
 
-template <template <typename> class Engine, typename Note>
-concept AcceptsNote = requires { typename Engine<Note>; };
-
-template <template <typename> class Engine>
+template <typename Engine>
 constexpr bool autocallable_product_constraints =
-    AcceptsNote<Engine, kiyosi::PhoenixOption> &&
-    AcceptsNote<Engine, kiyosi::SnowballOption> &&
-    AcceptsNote<Engine, kiyosi::BinarySnowballOption> &&
-    AcceptsNote<Engine, kiyosi::TernarySnowballOption> &&
-    !AcceptsNote<Engine, kiyosi::AutocallableNote> &&
-    !AcceptsNote<Engine, kiyosi::KnockInAutocallableNote> &&
-    !AcceptsNote<Engine, kiyosi::EuropeanOption> &&
-    !AcceptsNote<Engine, const kiyosi::SnowballOption>;
+    CanPrice<Engine, kiyosi::PhoenixOption> &&
+    CanPrice<Engine, kiyosi::SnowballOption> &&
+    CanPrice<Engine, kiyosi::BinarySnowballOption> &&
+    CanPrice<Engine, kiyosi::TernarySnowballOption> &&
+    !CanPrice<Engine, kiyosi::AutocallableNote> &&
+    !CanPrice<Engine, kiyosi::KnockInAutocallableNote> &&
+    !CanPrice<Engine, kiyosi::EuropeanOption>;
 
 } // namespace
 

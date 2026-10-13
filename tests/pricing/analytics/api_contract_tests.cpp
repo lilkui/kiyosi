@@ -135,8 +135,8 @@ TEST_CASE("Irrelevant knock-in events preserve spot and time Greeks", "[pricing-
             CHECK(greek_value(*result, Greek::theta) == Catch::Approx(0.04 / 365.0 * result->price()).margin(1e-8));
         }
     };
-    check(FiniteDifferenceSnowballEngine{});
-    check(MonteCarloSnowballEngine{{64, 42}});
+    check(FiniteDifferenceAutocallableEngine{});
+    check(MonteCarloAutocallableEngine{{64, 42}});
 }
 
 TEST_CASE("Completed knock-in preserves time Greeks without hiding live events", "[pricing-api][knock-in-greeks]")
@@ -153,8 +153,8 @@ TEST_CASE("Completed knock-in preserves time Greeks without hiding live events",
                 CHECK(result->has(greek) == (state == AutocallableBarrierState::knocked_in));
         }
     };
-    check(FiniteDifferenceSnowballEngine{});
-    check(MonteCarloSnowballEngine{{64, 42}});
+    check(FiniteDifferenceAutocallableEngine{});
+    check(MonteCarloAutocallableEngine{{64, 42}});
 }
 
 TEST_CASE("Resolved scheduled barriers retain time Greeks across inactive observations", "[pricing-api][resolved-events]")
@@ -205,10 +205,10 @@ TEST_CASE("Knocked-out autocallables retain zero time Greeks after valid history
         {.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry, .observations = {{day(2025, 3, 3), 110.0, 0.08}, {day(2025, 7, 2), 110.0, 0.08}, {expiry, 110.0, 0.08}}});
     const auto snowball = *make_snowball_option(
         {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry, .observations = *kiyosi::make_autocallable_observations(binary.observation_dates() | std::ranges::to<std::vector<Date>>(), binary.knock_out_levels() | std::ranges::to<std::vector<double>>(), std::vector<double>{0.08, 0.08, 0.08})});
-    check(binary, FiniteDifferenceBinarySnowballEngine{});
-    check(binary, MonteCarloBinarySnowballEngine{32, 42});
-    check(snowball, FiniteDifferenceSnowballEngine{});
-    check(snowball, MonteCarloSnowballEngine{32, 42});
+    check(binary, FiniteDifferenceAutocallableEngine{});
+    check(binary, MonteCarloAutocallableEngine{32, 42});
+    check(snowball, FiniteDifferenceAutocallableEngine{});
+    check(snowball, MonteCarloAutocallableEngine{32, 42});
 }
 
 TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observations", "[pricing-api][audit-fixes]")
@@ -1027,8 +1027,8 @@ TEST_CASE("Built-in implied coupons solve affine price curves directly", "[prici
             }
         }
     };
-    check(MonteCarloBinarySnowballEngine{{512, 42}});
-    check(FiniteDifferenceBinarySnowballEngine{});
+    check(MonteCarloAutocallableEngine{{512, 42}});
+    check(FiniteDifferenceAutocallableEngine{});
 }
 
 TEST_CASE("Monte Carlo coupon bounds share paths without changing endpoint prices", "[pricing-api][monte-carlo-performance]")
@@ -1045,7 +1045,7 @@ TEST_CASE("Monte Carlo coupon bounds share paths without changing endpoint price
 #if !KIYOSI_HAS_CUDA
                     if (backend == MonteCarloBackend::cuda) continue;
 #endif
-                    const MonteCarloAutocallableEngine<Note> engine{{512, 42, backend}};
+                    const MonteCarloAutocallableEngine engine{{512, 42, backend}};
                     const auto replace = [&](double coupon) {
                         if constexpr (std::same_as<Note, PhoenixOption>) return detail::replace_coupon(note, coupon);
                         else return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon);
@@ -1097,7 +1097,7 @@ TEST_CASE("Finite difference coupon storage preserves independent prices and req
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             const auto check = [&](const auto& note) {
                 using Note = std::decay_t<decltype(note)>;
-                const FiniteDifferenceAutocallableEngine<Note> engine{{16, 8, scheme}};
+                const FiniteDifferenceAutocallableEngine engine{{16, 8, scheme}};
                 const auto quote = engine.price(note, context);
                 REQUIRE(quote);
                 for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
@@ -1158,7 +1158,7 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 71.46981808356617, start);
     const auto note = *make_snowball_option(
         {.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 72.54516454112279, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 7, 1), 93.43788934756687, 0.073}, {end, 93.43788934756687, 0.073}}});
-    const FiniteDifferenceSnowballEngine engine{{5, 10}};
+    const FiniteDifferenceAutocallableEngine engine{{5, 10}};
     const auto quote = engine.price(note, context);
     REQUIRE(quote);
     const auto insufficient = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
@@ -1258,7 +1258,7 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
         CHECK(std::isfinite(greek_value(*after, kiyosi::Greek::gamma)));
     };
     check(kiyosi::MonteCarloAccumulatorEngine{{64, 7}}, accumulator);
-    check(kiyosi::MonteCarloBinarySnowballEngine{{64, 7}}, snowball);
+    check(kiyosi::MonteCarloAutocallableEngine{{64, 7}}, snowball);
 }
 
 TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-api]")
@@ -1298,7 +1298,7 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
     const auto note = *make_phoenix_option(
         {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.0, 90.0}, {expiry, 120.0, 0.0, 90.0}}});
     for (const double spot : {119.999, 89.999, 70.001})
-        check(MonteCarloPhoenixEngine{{32, 7}}, note, spot);
+        check(MonteCarloAutocallableEngine{{32, 7}}, note, spot);
 }
 
 TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[pricing-api]")
@@ -1345,8 +1345,8 @@ TEST_CASE("Implied Phoenix coupon requires a payable coupon", "[pricing-api][aud
             }
         }
     };
-    check(kiyosi::MonteCarloPhoenixEngine{{64, 1}});
-    check(kiyosi::FiniteDifferencePhoenixEngine{{.asset_step_count = 40, .time_step_count = 40, .asset_upper_boundary = 400.0}});
+    check(kiyosi::MonteCarloAutocallableEngine{{64, 1}});
+    check(kiyosi::FiniteDifferenceAutocallableEngine{{.asset_step_count = 40, .time_step_count = 40, .asset_upper_boundary = 400.0}});
 }
 
 TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote convention", "[pricing-api][audit-fixes]")
@@ -1375,8 +1375,8 @@ TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote conventi
             }
         }
     };
-    check(kiyosi::MonteCarloSnowballEngine{{64, 1}});
-    check(kiyosi::FiniteDifferenceSnowballEngine{{40, 40}});
+    check(kiyosi::MonteCarloAutocallableEngine{{64, 1}});
+    check(kiyosi::FiniteDifferenceAutocallableEngine{{40, 40}});
 }
 
 TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replacement", "[pricing-api][audit-fixes]")
@@ -1410,12 +1410,12 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
     const auto ternary = *make_ternary_snowball_option(
         {.maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
-    check(snowball, MonteCarloSnowballEngine{32});
-    check(snowball, FiniteDifferenceSnowballEngine{});
-    check(binary, MonteCarloBinarySnowballEngine{32});
-    check(binary, FiniteDifferenceBinarySnowballEngine{});
-    check(ternary, MonteCarloTernarySnowballEngine{32});
-    check(ternary, FiniteDifferenceTernarySnowballEngine{});
+    check(snowball, MonteCarloAutocallableEngine{32});
+    check(snowball, FiniteDifferenceAutocallableEngine{});
+    check(binary, MonteCarloAutocallableEngine{32});
+    check(binary, FiniteDifferenceAutocallableEngine{});
+    check(ternary, MonteCarloAutocallableEngine{32});
+    check(ternary, FiniteDifferenceAutocallableEngine{});
 }
 
 TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]")
@@ -1456,8 +1456,8 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
             }
         }
     };
-    check(MonteCarloBinarySnowballEngine{{64, 73}});
-    check(FiniteDifferenceBinarySnowballEngine{});
+    check(MonteCarloAutocallableEngine{{64, 73}});
+    check(FiniteDifferenceAutocallableEngine{});
 
     const auto accumulator = *make_accumulator(
         {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 0.0, .effective_date = effective, .expiry_date = expiry});
@@ -1510,8 +1510,8 @@ TEST_CASE("Implied ternary volatility requires remaining cashflow exposure", "[p
             }
         }
     };
-    check(MonteCarloTernarySnowballEngine{{64, 73}});
-    check(FiniteDifferenceTernarySnowballEngine{});
+    check(MonteCarloAutocallableEngine{{64, 73}});
+    check(FiniteDifferenceAutocallableEngine{});
 }
 
 TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatility", "[pricing-api][audit-fixes]")
@@ -1542,19 +1542,19 @@ TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatili
     check(accumulator, MonteCarloAccumulatorEngine{{64, 73}}, FiniteDifferenceAccumulatorEngine{});
     const auto binary = *make_binary_snowball_option(
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(binary, MonteCarloBinarySnowballEngine{{64, 73}}, FiniteDifferenceBinarySnowballEngine{});
+    check(binary, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
     const auto ternary = *make_ternary_snowball_option(
         {.maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(ternary, MonteCarloTernarySnowballEngine{{64, 73}}, FiniteDifferenceTernarySnowballEngine{});
+    check(ternary, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
     const auto snowball = *make_snowball_option(
         {.maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(snowball, MonteCarloSnowballEngine{{64, 73}}, FiniteDifferenceSnowballEngine{});
+    check(snowball, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
     const auto phoenix = *make_phoenix_option(
         {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.0, 90.0}, {expiry, 120.0, 0.0, 90.0}}});
-    check(phoenix, MonteCarloPhoenixEngine{{64, 73}}, FiniteDifferencePhoenixEngine{});
+    check(phoenix, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
     const auto settled = *make_binary_snowball_option(
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry, .observations = {{day(2025, 3, 3), 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(settled, MonteCarloBinarySnowballEngine{{64, 73}}, FiniteDifferenceBinarySnowballEngine{});
+    check(settled, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
 }
 
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
@@ -1571,13 +1571,13 @@ TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-ap
     const auto note = *kiyosi::make_binary_snowball_option(
         {.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::knocked_out, .effective_date = day(2025, 1, 1), .expiry_date = expiry, .observations = {{day(2025, 7, 1), 120.0, 0.1}, {expiry, 120.0, 0.1}}});
     const auto coupon = kiyosi::implied_coupon(
-        kiyosi::MonteCarloBinarySnowballEngine{{32, 1}}, note, market, 0.0,
+        kiyosi::MonteCarloAutocallableEngine{{32, 1}}, note, market, 0.0,
         kiyosi::CouponQuoteConvention::shift_maturity_coupon);
     REQUIRE_FALSE(coupon);
     CHECK(coupon.error().category == kiyosi::ErrorCategory::unsupported_operation);
 
     const auto note_volatility = kiyosi::implied_volatility(
-        kiyosi::MonteCarloBinarySnowballEngine{{32, 1}}, note, market, 0.0);
+        kiyosi::MonteCarloAutocallableEngine{{32, 1}}, note, market, 0.0);
     REQUIRE_FALSE(note_volatility);
     CHECK(note_volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
 

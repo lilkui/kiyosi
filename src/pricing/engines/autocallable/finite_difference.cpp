@@ -243,7 +243,7 @@ Result<PricingResult> price_autocallable(
 
 template <typename Note, typename ReplaceCoupon>
 Result<double> solve_coupon(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& note, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const Note& note, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
 {
     AutocallableFiniteDifferenceRequest<Note> request{{note, context.calendar()}, {}};
@@ -259,7 +259,7 @@ Result<double> solve_coupon(
 
 template <AutocallableProduct Note>
 Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings)
 {
     AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
@@ -273,7 +273,7 @@ Result<double> implied_volatility(
 
 template <AutocallableProduct Note>
 Result<double> implied_coupon(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
     requires requires(const Note& value, double coupon) {
         detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
@@ -285,7 +285,7 @@ Result<double> implied_coupon(
 }
 
 Result<double> implied_coupon(
-    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const PhoenixOption& option, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings)
 {
     return solve_coupon(engine, option, context, observed_price, settings, [](const auto& note, double coupon) {
@@ -294,7 +294,7 @@ Result<double> implied_coupon(
 }
 
 template <AutocallableProduct Note>
-Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
+Result<double> FiniteDifferenceAutocallableEngine::price(
     const Note& note, const PricingContext& context) const
 {
     AutocallableFiniteDifferenceRequest<Note> request{{note, context.calendar()}, {}};
@@ -302,7 +302,7 @@ Result<double> FiniteDifferenceAutocallableEngine<Note>::price(
 }
 
 template <AutocallableProduct Note>
-Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greeks(const Note& option, const PricingContext& context,
+Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const Note& option, const PricingContext& context,
                                                                                   GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
@@ -316,30 +316,35 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine<Note>::price_with_greek
 }
 
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<PhoenixOption>&, const PhoenixOption&,
+    const FiniteDifferenceAutocallableEngine&, const PhoenixOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const SnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const BinarySnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, double, ImpliedVolatilitySettings);
 template KIYOSI_EXPORT Result<double> implied_coupon(
-    const FiniteDifferenceAutocallableEngine<SnowballOption>&, const SnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const SnowballOption&,
     const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
 template KIYOSI_EXPORT Result<double> implied_coupon(
-    const FiniteDifferenceAutocallableEngine<BinarySnowballOption>&, const BinarySnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const BinarySnowballOption&,
     const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
 template KIYOSI_EXPORT Result<double> implied_coupon(
-    const FiniteDifferenceAutocallableEngine<TernarySnowballOption>&, const TernarySnowballOption&,
+    const FiniteDifferenceAutocallableEngine&, const TernarySnowballOption&,
     const PricingContext&, double, CouponQuoteConvention, ImpliedCouponSettings);
 
-template class FiniteDifferenceAutocallableEngine<PhoenixOption>;
-template class FiniteDifferenceAutocallableEngine<SnowballOption>;
-template class FiniteDifferenceAutocallableEngine<BinarySnowballOption>;
-template class FiniteDifferenceAutocallableEngine<TernarySnowballOption>;
+
+template KIYOSI_EXPORT Result<double> FiniteDifferenceAutocallableEngine::price(const PhoenixOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const PhoenixOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> FiniteDifferenceAutocallableEngine::price(const SnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const SnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> FiniteDifferenceAutocallableEngine::price(const BinarySnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const BinarySnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
+template KIYOSI_EXPORT Result<double> FiniteDifferenceAutocallableEngine::price(const TernarySnowballOption&, const PricingContext&) const;
+template KIYOSI_EXPORT Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(const TernarySnowballOption&, const PricingContext&, GreeksRequest, NumericalShiftSettings) const;
 
 } // namespace kiyosi

@@ -78,13 +78,13 @@ TEST_CASE("CUDA Greek workspaces preserve scalar stencils and concurrent request
           *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
     const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
     const TradingDayMonteCarloSettings settings{31, 42, MonteCarloBackend::cuda};
-    check(MonteCarloBinarySnowballEngine{settings},
+    check(MonteCarloAutocallableEngine{settings},
           *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloTernarySnowballEngine{settings},
+    check(MonteCarloAutocallableEngine{settings},
           *make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloSnowballEngine{settings},
+    check(MonteCarloAutocallableEngine{settings},
           *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloPhoenixEngine{settings},
+    check(MonteCarloAutocallableEngine{settings},
           *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
 }
 
@@ -323,7 +323,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
         REQUIRE(scaled);
         CHECK_THAT(*scaled / 1e303, Catch::Matchers::WithinRel(*base, 1e-12));
     }
-    const MonteCarloBinarySnowballEngine autocallable{{100'000, 42, backend}};
+    const MonteCarloAutocallableEngine autocallable{{100'000, 42, backend}};
     for (const double principal : {1e305, std::numeric_limits<double>::denorm_min()}) {
         const auto option = *make_binary_snowball_option(
             {.maturity_coupon_rate = 0.0, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day, .observations = {{next_day, 120.0, 0.0}}});
@@ -333,7 +333,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
     }
     const auto overflow = *make_binary_snowball_option(
         {.maturity_coupon_rate = 1e308, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 1e308}}});
-    const auto invalid = MonteCarloBinarySnowballEngine{{32, 42, backend}}.price(
+    const auto invalid = MonteCarloAutocallableEngine{{32, 42, backend}}.price(
         overflow, *make_pricing_context(parameters, 100.0, start));
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_result);
@@ -1122,7 +1122,7 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.1, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
     const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
     const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
-    const MonteCarloBinarySnowballEngine autocallable{{64, 42, MonteCarloBackend::cuda}};
+    const MonteCarloAutocallableEngine autocallable{{64, 42, MonteCarloBackend::cuda}};
     const auto unstable = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1000.0), 100.0, start);
     for (int device = 0; device < device_count; ++device) {
         CAPTURE(device);

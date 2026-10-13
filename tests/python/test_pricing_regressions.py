@@ -597,19 +597,19 @@ class PricingRegressionTests(unittest.TestCase):
             ),
             (
                 SnowballOption(**coupons, **strikes, **knock_in, **ladder),
-                pricing.FiniteDifferenceSnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 110,
             ),
             (
                 BinarySnowballOption(**coupons, **ladder),
-                pricing.FiniteDifferenceBinarySnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 110,
             ),
             (
                 TernarySnowballOption(
                     minimum_coupon_rate=0, **coupons, **knock_in, **ladder
                 ),
-                pricing.FiniteDifferenceTernarySnowballEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 110,
             ),
             (
@@ -620,7 +620,7 @@ class PricingRegressionTests(unittest.TestCase):
                     **knock_in,
                     **ladder,
                 ),
-                pricing.FiniteDifferencePhoenixEngine,
+                pricing.FiniteDifferenceAutocallableEngine,
                 110,
             ),
         )
@@ -1533,7 +1533,7 @@ class PricingRegressionTests(unittest.TestCase):
                 0,
             ),
             (
-                pricing.FiniteDifferenceSnowballEngine(
+                pricing.FiniteDifferenceAutocallableEngine(
                     asset_step_count=800, asset_upper_boundary=800
                 ),
                 note,

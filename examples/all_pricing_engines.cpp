@@ -102,14 +102,14 @@ try {
 
     price("Accumulator", "FiniteDifferenceAccumulatorEngine", kiyosi::FiniteDifferenceAccumulatorEngine{80, 80}.price(accumulator, context));
     price("Accumulator", "MonteCarloAccumulatorEngine", kiyosi::MonteCarloAccumulatorEngine{2'000, 42}.price(accumulator, context));
-    price("PhoenixOption", "FiniteDifferencePhoenixEngine", kiyosi::FiniteDifferencePhoenixEngine{80, 80}.price(phoenix, context));
-    price("PhoenixOption", "MonteCarloPhoenixEngine", kiyosi::MonteCarloPhoenixEngine{2'000, 42}.price(phoenix, context));
-    price("SnowballOption", "FiniteDifferenceSnowballEngine", kiyosi::FiniteDifferenceSnowballEngine{80, 80}.price(snowball, context));
-    price("SnowballOption", "MonteCarloSnowballEngine", kiyosi::MonteCarloSnowballEngine{2'000, 42}.price(snowball, context));
-    price("BinarySnowballOption", "FiniteDifferenceBinarySnowballEngine", kiyosi::FiniteDifferenceBinarySnowballEngine{80, 80}.price(binary_snowball, context));
-    price("BinarySnowballOption", "MonteCarloBinarySnowballEngine", kiyosi::MonteCarloBinarySnowballEngine{2'000, 42}.price(binary_snowball, context));
-    price("TernarySnowballOption", "FiniteDifferenceTernarySnowballEngine", kiyosi::FiniteDifferenceTernarySnowballEngine{80, 80}.price(ternary_snowball, context));
-    price("TernarySnowballOption", "MonteCarloTernarySnowballEngine", kiyosi::MonteCarloTernarySnowballEngine{2'000, 42}.price(ternary_snowball, context));
+    price("PhoenixOption", "FiniteDifferenceAutocallableEngine", kiyosi::FiniteDifferenceAutocallableEngine{80, 80}.price(phoenix, context));
+    price("PhoenixOption", "MonteCarloAutocallableEngine", kiyosi::MonteCarloAutocallableEngine{2'000, 42}.price(phoenix, context));
+    price("SnowballOption", "FiniteDifferenceAutocallableEngine", kiyosi::FiniteDifferenceAutocallableEngine{80, 80}.price(snowball, context));
+    price("SnowballOption", "MonteCarloAutocallableEngine", kiyosi::MonteCarloAutocallableEngine{2'000, 42}.price(snowball, context));
+    price("BinarySnowballOption", "FiniteDifferenceAutocallableEngine", kiyosi::FiniteDifferenceAutocallableEngine{80, 80}.price(binary_snowball, context));
+    price("BinarySnowballOption", "MonteCarloAutocallableEngine", kiyosi::MonteCarloAutocallableEngine{2'000, 42}.price(binary_snowball, context));
+    price("TernarySnowballOption", "FiniteDifferenceAutocallableEngine", kiyosi::FiniteDifferenceAutocallableEngine{80, 80}.price(ternary_snowball, context));
+    price("TernarySnowballOption", "MonteCarloAutocallableEngine", kiyosi::MonteCarloAutocallableEngine{2'000, 42}.price(ternary_snowball, context));
 
     for (const auto request : {kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma}, kiyosi::GreeksRequest{true}}) {
         const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, request);

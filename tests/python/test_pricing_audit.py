@@ -720,8 +720,8 @@ class PricingAuditTests(unittest.TestCase):
                             or (rate != 0 and dates[0] != end)
                         )
                         for engine in (
-                            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
-                            pricing.FiniteDifferencePhoenixEngine(),
+                            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
+                            pricing.FiniteDifferenceAutocallableEngine(),
                         ):
                             with self.subTest(
                                 rate=rate, dates=dates, barrier=barrier,
@@ -785,7 +785,7 @@ class PricingAuditTests(unittest.TestCase):
             return (
                 pricing.FiniteDifferenceAccumulatorEngine().price(accumulator, context)
                 / scale,
-                pricing.FiniteDifferenceBinarySnowballEngine().price(snowball, context),
+                pricing.FiniteDifferenceAutocallableEngine().price(snowball, context),
             )
 
         expected = prices(1)
@@ -1221,8 +1221,8 @@ class PricingAuditTests(unittest.TestCase):
                     expiry_date=end,
                 )
                 for engine in (
-                    pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
-                    pricing.FiniteDifferencePhoenixEngine(),
+                    pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
+                    pricing.FiniteDifferenceAutocallableEngine(),
                 ):
                     with self.subTest(
                         valuation=valuation, lower=lower, engine=type(engine).__name__
@@ -1313,15 +1313,15 @@ class PricingAuditTests(unittest.TestCase):
                     )
                     for engine, option in (
                         (
-                            pricing.MonteCarloSnowballEngine(path_count=64, seed=73),
+                            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
                             snowball,
                         ),
-                        (pricing.FiniteDifferenceSnowballEngine(), snowball),
+                        (pricing.FiniteDifferenceAutocallableEngine(), snowball),
                         (
-                            pricing.MonteCarloPhoenixEngine(path_count=64, seed=73),
+                            pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
                             phoenix,
                         ),
-                        (pricing.FiniteDifferencePhoenixEngine(), phoenix),
+                        (pricing.FiniteDifferenceAutocallableEngine(), phoenix),
                     ):
                         with self.subTest(
                             engine=type(engine).__name__,
@@ -1358,8 +1358,8 @@ class PricingAuditTests(unittest.TestCase):
                 expiry_date=end,
             )
             for engine in (
-                pricing.MonteCarloSnowballEngine(path_count=64, seed=73),
-                pricing.FiniteDifferenceSnowballEngine(),
+                pricing.MonteCarloAutocallableEngine(path_count=64, seed=73),
+                pricing.FiniteDifferenceAutocallableEngine(),
             ):
                 check(engine, note, context, False)
         context = PricingContext(

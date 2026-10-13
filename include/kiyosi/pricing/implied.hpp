@@ -230,7 +230,7 @@ template <>
 /// Finite-difference autocallables validate immutable contracts and calendars once per solve.
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings = {});
 
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
@@ -242,7 +242,7 @@ template <>
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
-    const MonteCarloAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings = {});
 
 namespace detail {
@@ -393,14 +393,14 @@ template <typename Engine, typename Option>
 /// Reuse grids, buffers and compatible factors within one solve; requests share no storage.
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
-    const FiniteDifferenceAutocallableEngine<Note>& engine, const Note& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings = {})
     requires requires(const Note& value, double coupon) {
         detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
     };
 
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
-    const FiniteDifferencePhoenixEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    const FiniteDifferenceAutocallableEngine& engine, const PhoenixOption& option, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings = {});
 
 } // namespace kiyosi

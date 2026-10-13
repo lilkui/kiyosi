@@ -169,8 +169,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     }
                     CHECK(a->has(kiyosi::Greek::delta) == (test.expected.at("delta") == "available"));
                 };
-                check(kiyosi::MonteCarloSnowballEngine{kiyosi::TradingDayMonteCarloSettings{64, 1}});
-                check(kiyosi::FiniteDifferenceSnowballEngine{});
+                check(kiyosi::MonteCarloAutocallableEngine{kiyosi::TradingDayMonteCarloSettings{64, 1}});
+                check(kiyosi::FiniteDifferenceAutocallableEngine{});
             } else if (test.kind == "unidentifiable_touch") {
                 const auto start = parse_date(test.inputs.at("effective_date"));
                 const auto end = parse_date(test.inputs.at("expiry_date"));
@@ -208,8 +208,8 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     REQUIRE(shifted);
                     CHECK_THAT(*shifted, Catch::Matchers::WithinAbs(0.1, 1e-6));
                 };
-                check(kiyosi::MonteCarloBinarySnowballEngine{{2, 1}});
-                check(kiyosi::FiniteDifferenceBinarySnowballEngine{});
+                check(kiyosi::MonteCarloAutocallableEngine{{2, 1}});
+                check(kiyosi::FiniteDifferenceAutocallableEngine{});
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
                     std::stod(test.inputs.at("risk_free_rate")),

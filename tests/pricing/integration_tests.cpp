@@ -81,7 +81,7 @@ TEST_CASE("Trading Monte Carlo rejects invalid simulation paths")
             *kiyosi::make_bsm_parameters(rate, 0.02, volatility), 100.0, start);
         for (const auto& price : {
                  kiyosi::MonteCarloAccumulatorEngine{2, 1}.price(accumulator, context),
-                 kiyosi::MonteCarloBinarySnowballEngine{2, 1}.price(note, context)}) {
+                 kiyosi::MonteCarloAutocallableEngine{2, 1}.price(note, context)}) {
             REQUIRE_FALSE(price);
             CHECK(price.error().category == kiyosi::ErrorCategory::invalid_result);
         }
@@ -184,7 +184,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
 
     auto note = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = valuation, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.1}}});
     REQUIRE(note);
-    const kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
+    const kiyosi::MonteCarloAutocallableEngine engine{{128, 7}};
     auto note_result = engine.price(*note, *context);
     REQUIRE(note_result.has_value());
     CHECK(*note_result > 0.0);

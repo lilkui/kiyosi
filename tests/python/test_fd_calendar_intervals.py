@@ -25,7 +25,7 @@ cases = [
         ),
     ),
     (
-        pricing.FiniteDifferenceSnowballEngine,
+        pricing.FiniteDifferenceAutocallableEngine,
         SnowballOption(
             knock_out_coupon_rates=[0.08] * 4,
             maturity_coupon_rate=0.06,

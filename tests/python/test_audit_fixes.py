@@ -126,15 +126,15 @@ class AuditFixTests(unittest.TestCase):
             )
             for scheme in ("crank_nicolson", "implicit_euler"):
                 for note, engine_type, expected in (
-                    (snowball, pricing.FiniteDifferenceSnowballEngine, downside),
+                    (snowball, pricing.FiniteDifferenceAutocallableEngine, downside),
                     (
                         phoenix,
-                        pricing.FiniteDifferencePhoenixEngine,
+                        pricing.FiniteDifferenceAutocallableEngine,
                         downside + coupons,
                     ),
                     (
                         ternary,
-                        pricing.FiniteDifferenceTernarySnowballEngine,
+                        pricing.FiniteDifferenceAutocallableEngine,
                         1.02 * discount(end),
                     ),
                 ):
@@ -241,8 +241,8 @@ class AuditFixTests(unittest.TestCase):
             valuation_time=start,
         )
         for engine in (
-            pricing.MonteCarloBinarySnowballEngine(path_count=512, seed=42),
-            pricing.FiniteDifferenceBinarySnowballEngine(),
+            pricing.MonteCarloAutocallableEngine(path_count=512, seed=42),
+            pricing.FiniteDifferenceAutocallableEngine(),
         ):
             for coupon in (0.073, -0.17):
                 note = BinarySnowballOption(
@@ -302,21 +302,21 @@ class AuditFixTests(unittest.TestCase):
                         coupon_rate=0.073,
                         coupon_barrier_levels=[90, 90],
                     ),
-                    pricing.MonteCarloPhoenixEngine,
+                    pricing.MonteCarloAutocallableEngine,
                 ),
                 (
                     SnowballOption(**common, **knock_in, **downside, **coupons),
-                    pricing.MonteCarloSnowballEngine,
+                    pricing.MonteCarloAutocallableEngine,
                 ),
                 (
                     BinarySnowballOption(**common, **coupons),
-                    pricing.MonteCarloBinarySnowballEngine,
+                    pricing.MonteCarloAutocallableEngine,
                 ),
                 (
                     TernarySnowballOption(
                         **common, **knock_in, **coupons, minimum_coupon_rate=-2
                     ),
-                    pricing.MonteCarloTernarySnowballEngine,
+                    pricing.MonteCarloAutocallableEngine,
                 ),
             )
             for note, engine_type in cases:
@@ -404,7 +404,7 @@ class AuditFixTests(unittest.TestCase):
         note = SnowballOption(
             **terms, knock_out_coupon_rates=[0.073, 0.073], maturity_coupon_rate=0.073
         )
-        engine = pricing.FiniteDifferenceSnowballEngine(
+        engine = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=5, time_step_count=10
         )
         quote = engine.price(note, context)

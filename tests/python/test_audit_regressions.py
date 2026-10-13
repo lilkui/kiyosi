@@ -87,15 +87,15 @@ class AuditRegressionTests(unittest.TestCase):
             (
                 binary,
                 (
-                    pricing.FiniteDifferenceBinarySnowballEngine(),
-                    pricing.MonteCarloBinarySnowballEngine(path_count=32, seed=42),
+                    pricing.FiniteDifferenceAutocallableEngine(),
+                    pricing.MonteCarloAutocallableEngine(path_count=32, seed=42),
                 ),
             ),
             (
                 snowball,
                 (
-                    pricing.FiniteDifferenceSnowballEngine(),
-                    pricing.MonteCarloSnowballEngine(path_count=32, seed=42),
+                    pricing.FiniteDifferenceAutocallableEngine(),
+                    pricing.MonteCarloAutocallableEngine(path_count=32, seed=42),
                 ),
             ),
         ):

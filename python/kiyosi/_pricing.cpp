@@ -740,43 +740,29 @@ Settings are validated when price() is called.)doc")
         module, "MonteCarloAccumulatorEngine");
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
-    auto finite_snowball = bind_finite_difference_engine<FiniteDifferenceSnowballEngine>(
-        module, "FiniteDifferenceSnowballEngine");
-    bind_engine_price<FiniteDifferenceSnowballEngine, SnowballOption>(module, finite_snowball);
-    auto finite_binary = bind_finite_difference_engine<FiniteDifferenceBinarySnowballEngine>(
-        module, "FiniteDifferenceBinarySnowballEngine");
-    bind_engine_price<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module, finite_binary);
-    auto finite_ternary = bind_finite_difference_engine<FiniteDifferenceTernarySnowballEngine>(
-        module, "FiniteDifferenceTernarySnowballEngine");
-    bind_engine_price<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(module, finite_ternary);
-    auto finite_phoenix = bind_finite_difference_engine<FiniteDifferencePhoenixEngine>(
-        module, "FiniteDifferencePhoenixEngine");
-    bind_engine_price<FiniteDifferencePhoenixEngine, PhoenixOption>(module, finite_phoenix);
+    auto finite_autocallable = bind_finite_difference_engine<FiniteDifferenceAutocallableEngine>(module, "FiniteDifferenceAutocallableEngine");
+    bind_engine_price<FiniteDifferenceAutocallableEngine, SnowballOption>(module, finite_autocallable);
+    bind_engine_price<FiniteDifferenceAutocallableEngine, BinarySnowballOption>(module, finite_autocallable);
+    bind_engine_price<FiniteDifferenceAutocallableEngine, TernarySnowballOption>(module, finite_autocallable);
+    bind_engine_price<FiniteDifferenceAutocallableEngine, PhoenixOption>(module, finite_autocallable);
 
-    auto monte_carlo_snowball = bind_trading_day_monte_carlo_engine<MonteCarloSnowballEngine>(
-        module, "MonteCarloSnowballEngine");
-    bind_engine_price<MonteCarloSnowballEngine, SnowballOption>(module, monte_carlo_snowball);
-    auto monte_carlo_binary = bind_trading_day_monte_carlo_engine<MonteCarloBinarySnowballEngine>(
-        module, "MonteCarloBinarySnowballEngine");
-    bind_engine_price<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module, monte_carlo_binary);
-    auto monte_carlo_ternary = bind_trading_day_monte_carlo_engine<MonteCarloTernarySnowballEngine>(
-        module, "MonteCarloTernarySnowballEngine");
-    bind_engine_price<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module, monte_carlo_ternary);
-    auto monte_carlo_phoenix = bind_trading_day_monte_carlo_engine<MonteCarloPhoenixEngine>(
-        module, "MonteCarloPhoenixEngine");
-    bind_engine_price<MonteCarloPhoenixEngine, PhoenixOption>(module, monte_carlo_phoenix);
+    auto monte_carlo_autocallable = bind_trading_day_monte_carlo_engine<MonteCarloAutocallableEngine>(module, "MonteCarloAutocallableEngine");
+    bind_engine_price<MonteCarloAutocallableEngine, SnowballOption>(module, monte_carlo_autocallable);
+    bind_engine_price<MonteCarloAutocallableEngine, BinarySnowballOption>(module, monte_carlo_autocallable);
+    bind_engine_price<MonteCarloAutocallableEngine, TernarySnowballOption>(module, monte_carlo_autocallable);
+    bind_engine_price<MonteCarloAutocallableEngine, PhoenixOption>(module, monte_carlo_autocallable);
 }
 
 void bind_analytics(nb::module_& module)
 {
-    bind_snowball_implied_coupon_pair<FiniteDifferenceSnowballEngine, SnowballOption>(module);
-    bind_snowball_implied_coupon_pair<MonteCarloSnowballEngine, SnowballOption>(module);
-    bind_snowball_implied_coupon_pair<FiniteDifferenceBinarySnowballEngine, BinarySnowballOption>(module);
-    bind_snowball_implied_coupon_pair<MonteCarloBinarySnowballEngine, BinarySnowballOption>(module);
-    bind_snowball_implied_coupon_pair<FiniteDifferenceTernarySnowballEngine, TernarySnowballOption>(module);
-    bind_snowball_implied_coupon_pair<MonteCarloTernarySnowballEngine, TernarySnowballOption>(module);
-    bind_implied_coupon_pair<FiniteDifferencePhoenixEngine, PhoenixOption>(module);
-    bind_implied_coupon_pair<MonteCarloPhoenixEngine, PhoenixOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceAutocallableEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloAutocallableEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceAutocallableEngine, BinarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloAutocallableEngine, BinarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<FiniteDifferenceAutocallableEngine, TernarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<MonteCarloAutocallableEngine, TernarySnowballOption>(module);
+    bind_implied_coupon_pair<FiniteDifferenceAutocallableEngine, PhoenixOption>(module);
+    bind_implied_coupon_pair<MonteCarloAutocallableEngine, PhoenixOption>(module);
 }
 
 } // namespace kiyosi::python_binding
