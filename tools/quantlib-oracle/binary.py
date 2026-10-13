@@ -201,6 +201,8 @@ def scenarios():
 def metadata():
     return {
         "source_symbol": SOURCE,
+        "reference_kind": "analytic",
+        "reference_classification": "independent-analytic",
         "decomposition": "expiry_date: binary American deferred,unconditional: call+put,hit: cash American digital (asset pays H),already-hit: European or immediate cash",
         "measure_sources": "native American digital or European Greeks where supplied,otherwise central QuantLib price differences",
         "numerical_settings": "central prices: spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
@@ -213,14 +215,20 @@ def rows():
         reference = g.reference(
             inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
         )
-        row = g.reference_row(identifier, inputs, reference, BUDGET, BUDGET)
-        row["instrument"] = (
-            "TouchOption" if inputs["option"] == "none" else "BinaryBarrierOption"
+        row = g.reference_row(
+            identifier,
+            inputs,
+            reference,
+            BUDGET,
+            BUDGET,
+            instrument="TouchOption"
+            if inputs["option"] == "none"
+            else "BinaryBarrierOption",
+            engine="AnalyticBinaryBarrierEngine",
+            provenance=metadata(),
         )
-        row["engine"] = "AnalyticBinaryBarrierEngine"
         terms = row["inputs"]
         terms.update(
-            metadata(),
             spot_shift=0.02,
             volatility_shift=0.0001,
             rate_shift=0.0001,

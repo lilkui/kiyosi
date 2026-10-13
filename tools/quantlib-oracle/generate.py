@@ -62,14 +62,15 @@ def numerical_profiles(path):
 
 def numerical_row(scenario, profile, reference):
     row = g.reference_row(
-        scenario["case_id"],
+        scenario["case_id"] + "-" + profile["engine"].lower(),
         scenario["inputs"],
         reference,
         profile["tolerances"],
         profile["numerical_tolerances"],
+        instrument="EuropeanOption",
+        engine=profile["engine"],
+        provenance=g.EUROPEAN_PROVENANCE,
     )
-    row["case_id"] += "-" + profile["engine"].lower()
-    row["engine"] = profile["engine"]
     inputs = row["inputs"]
     inputs.update(profile["settings"])
     inputs.update(profile["shifts"])
@@ -231,6 +232,9 @@ def regenerate(
                     reference,
                     item["tolerances"],
                     item["numerical_tolerances"],
+                    instrument="EuropeanOption",
+                    engine="AnalyticEuropeanEngine",
+                    provenance=g.EUROPEAN_PROVENANCE,
                 )
             )
         )

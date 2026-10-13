@@ -179,10 +179,11 @@ def rows():
                 (outputs, metadata),
                 profile["tolerances"],
                 profile["numerical_tolerances"],
+                instrument="AmericanOption",
+                engine=engine,
+                provenance=provenance(),
             )
-            row["instrument"], row["engine"] = "AmericanOption", engine
             attributes = row["inputs"]
-            attributes.update(provenance())
             attributes.update(profile["settings"])
             attributes.update(profile["shifts"])
             attributes.update(

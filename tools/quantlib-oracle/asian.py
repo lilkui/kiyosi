@@ -176,14 +176,18 @@ def rows():
         reference = g.reference(
             inputs, STABILITY, unavailable=exclusions(inputs), measure_fn=measure
         )
-        row = g.reference_row(identifier, inputs, reference, BUDGET, BUDGET)
-        row["instrument"], row["engine"] = (
-            INSTRUMENTS[inputs["averaging"]],
-            ENGINES[inputs["averaging"]],
+        row = g.reference_row(
+            identifier,
+            inputs,
+            reference,
+            BUDGET,
+            BUDGET,
+            instrument=INSTRUMENTS[inputs["averaging"]],
+            engine=ENGINES[inputs["averaging"]],
+            provenance=metadata(inputs),
         )
         terms = row["inputs"]
         terms.update(
-            metadata(inputs),
             spot_shift=0.02,
             volatility_shift=0.0001,
             rate_shift=0.0001,

@@ -16,6 +16,34 @@ import generate
 import oracle as g
 
 
+def check_reference_rows():
+    inputs = {"option": "put", "strike": 100}
+    reference = ({"price": 12.0}, {"unit_price": "price"})
+    provenance = american.provenance()
+    budgets = {"price": 0.01}
+    original = deepcopy((inputs, reference, provenance, budgets))
+    row = g.reference_row(
+        "ql-american-row",
+        inputs,
+        reference,
+        budgets,
+        budgets,
+        instrument="AmericanOption",
+        engine="CrrEngine",
+        provenance=provenance,
+    )
+    assert row["instrument"] == "AmericanOption" and row["engine"] == "CrrEngine"
+    assert row["variant"] == "put" and row["outputs"] == {"price": 12.0}
+    assert row["tolerances"] == budgets
+    assert row["inputs"]["unit_price"] == "price"
+    assert row["inputs"]["numerical_tolerance_price"] == 0.01
+    assert all(row["inputs"][key] == value for key, value in provenance.items())
+    row["inputs"]["strike"] = 200
+    row["outputs"]["price"] = 0
+    row["tolerances"]["price"] = 0
+    assert (inputs, reference, provenance, budgets) == original
+
+
 def check_manifest_explanations():
     text = generate.FIXTURE.read_text()
     declaration = r"(unavailable_[^=;\t\n]+)=([^;\t\n]+)"
@@ -32,6 +60,7 @@ def check_manifest_explanations():
 
 
 def check_generation():
+    check_reference_rows()
     check_manifest_explanations()
     barrier.check_bindings()
     binary.check_bindings()

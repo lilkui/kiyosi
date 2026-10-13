@@ -118,16 +118,14 @@ def rows():
         reference = g.reference(inputs, STABILITY)
         for profile in config["profiles"]:
             row = g.reference_row(
-                identifier,
+                identifier + "-" + profile["engine"].lower(),
                 inputs,
                 reference,
                 profile["tolerances"],
                 profile["numerical_tolerances"],
-            )
-            row["case_id"] += "-" + profile["engine"].lower()
-            row["instrument"], row["engine"] = (
-                INSTRUMENTS[inputs["payoff"]],
-                profile["engine"],
+                instrument=INSTRUMENTS[inputs["payoff"]],
+                engine=profile["engine"],
+                provenance=g.EUROPEAN_PROVENANCE,
             )
             metadata = row["inputs"]
             metadata.update(profile["settings"])

@@ -169,8 +169,11 @@ def scenarios():
 def metadata():
     return {
         "source_symbol": SOURCE,
+        "reference_kind": "analytic",
+        "reference_classification": "independent-analytic",
         "decomposition": "KI or KO-hit direct,KO-expiry_date=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
         "measure_sources": "central differences of QuantLib portfolio prices, no native Greeks",
+        "numerical_settings": "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
         "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation, see GENERATION.md",
     }
 
@@ -180,14 +183,17 @@ def rows():
         reference = g.reference(inputs, STABILITY, measure_fn=measure)
         for engine in ENGINES:
             budget = ANALYTIC if engine == ENGINES[0] else FD
-            row = g.reference_row(identifier, inputs, reference, budget, budget)
-            row["case_id"] += "-" + engine.lower()
-            row["instrument"], row["engine"] = "BarrierOption", engine
-            terms = row["inputs"]
-            terms.update(metadata())
-            terms["numerical_settings"] = (
-                "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days"
+            row = g.reference_row(
+                identifier + "-" + engine.lower(),
+                inputs,
+                reference,
+                budget,
+                budget,
+                instrument="BarrierOption",
+                engine=engine,
+                provenance=metadata(),
             )
+            terms = row["inputs"]
             terms.update(
                 spot_shift=0.03 if engine == ENGINES[0] else 2,
                 volatility_shift=0.0001 if engine == ENGINES[0] else 0.002,
