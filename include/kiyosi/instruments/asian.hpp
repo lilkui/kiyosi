@@ -51,14 +51,12 @@ private:
     OptionType option_type, double strike, Date averaging_start_date, double realized_average, Date effective_date,
     Date expiry_date)
 {
-    auto option_terms = make_option_terms(option_type, strike, effective_date, expiry_date);
-    // Keep direction and strike errors before the realized average, and life errors after it.
-    if (!option_terms && (option_terms.error().category == ErrorCategory::invalid_option ||
-                          option_terms.error().category == ErrorCategory::invalid_strike))
-        return std::unexpected(option_terms.error());
+    const auto direction_and_strike = validate_option_direction_and_strike(option_type, strike);
+    if (!direction_and_strike) return std::unexpected(direction_and_strike.error());
     if (!std::isfinite(realized_average) || realized_average < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "realized average must be finite and non-negative"});
+    auto option_terms = make_option_terms(option_type, strike, effective_date, expiry_date);
     if (!option_terms) return std::unexpected(option_terms.error());
     if (!is_supported_date(averaging_start_date))
         return std::unexpected(Error{ErrorCategory::invalid_date, "averaging start date is invalid"});

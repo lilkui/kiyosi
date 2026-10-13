@@ -19,6 +19,15 @@ class OptionTerms;
 
 namespace detail {
 [[nodiscard]] Result<OptionTerms> make_option_terms(OptionType, double, Date, Date);
+
+[[nodiscard]] inline Result<void> validate_option_direction_and_strike(OptionType option_type, double strike)
+{
+    if (option_type != OptionType::call && option_type != OptionType::put)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
+    if (!std::isfinite(strike) || strike <= 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    return {};
+}
 }
 
 /// Contractual essentials shared by every strike-and-life option: option_type, strike, and life dates.
@@ -48,10 +57,8 @@ private:
 [[nodiscard]] inline Result<OptionTerms> detail::make_option_terms(
     OptionType option_type, double strike, Date effective_date, Date expiry_date)
 {
-    if (option_type != OptionType::call && option_type != OptionType::put)
-        return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
-    if (!std::isfinite(strike) || strike <= 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    const auto direction_and_strike = validate_option_direction_and_strike(option_type, strike);
+    if (!direction_and_strike) return std::unexpected(direction_and_strike.error());
     auto life = validate_instrument_life(effective_date, expiry_date);
     if (!life) return std::unexpected(life.error());
     return OptionTerms{option_type, strike, effective_date, expiry_date};
