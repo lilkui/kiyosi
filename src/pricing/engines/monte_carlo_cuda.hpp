@@ -6,9 +6,7 @@
 #include <memory>
 #include <span>
 
-#include <kiyosi/pricing/detail/autocallable_program.hpp>
-
-#include "monte_carlo_discount.hpp"
+#include "monte_carlo_simulation.hpp"
 
 namespace kiyosi::detail {
 
@@ -40,18 +38,6 @@ struct CudaAmericanRequest {
     double diffusion{};
     double discount{};
     int payoff_sign{};
-};
-
-struct CudaSimulationStep {
-    double drift{};
-    double diffusion{};
-    MonteCarloDiscount discount{};
-};
-
-struct CudaAutocallableStep {
-    CudaSimulationStep simulation{};
-    AutocallableEvent event{};
-    double alternate_coupon{};
 };
 
 struct CudaAccumulatorRequest {
@@ -107,15 +93,15 @@ private:
 [[nodiscard]] CudaPricingResult cuda_american_price(
     CudaAmericanRequest request, CudaWorkspace* workspace = nullptr, bool cache_growth = false);
 [[nodiscard]] CudaPricingResult cuda_accumulator_price(
-    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace = nullptr);
+    CudaAccumulatorRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_price(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
+    CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaPricingResult cuda_autocallable_coupon_prices(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
+    CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 // Internal batches contain 1..5 requests with identical path counts, seeds and simulation steps.
 [[nodiscard]] CudaSpotPricingResult cuda_accumulator_spot_prices(
-    std::span<const CudaAccumulatorRequest> requests, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace = nullptr);
+    std::span<const CudaAccumulatorRequest> requests, std::span<const SimulationStep> steps, CudaWorkspace* workspace = nullptr);
 [[nodiscard]] CudaSpotPricingResult cuda_autocallable_spot_prices(
-    std::span<const CudaAutocallableRequest> requests, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace = nullptr);
+    std::span<const CudaAutocallableRequest> requests, std::span<const AutocallableStep> steps, CudaWorkspace* workspace = nullptr);
 
 } // namespace kiyosi::detail

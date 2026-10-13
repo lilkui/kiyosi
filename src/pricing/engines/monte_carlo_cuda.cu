@@ -340,7 +340,7 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
 }
 
 __global__ void simulate_accumulator_paths(
-    CudaAccumulatorRequest request, const CudaSimulationStep* steps, std::size_t step_count,
+    CudaAccumulatorRequest request, const SimulationStep* steps, std::size_t step_count,
     double* payoffs, int* invalid)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
@@ -374,7 +374,7 @@ __global__ void simulate_accumulator_paths(
 
 template <bool paired>
 __global__ void simulate_autocallable_paths(
-    CudaAutocallableRequest request, const CudaAutocallableStep* steps, std::size_t step_count,
+    CudaAutocallableRequest request, const AutocallableStep* steps, std::size_t step_count,
     double* payoffs, double* alternate_payoffs, int* invalid)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
@@ -436,7 +436,7 @@ __device__ void write_spot_payoff(const SpotRequests<Request>& requests, int bum
 }
 
 __global__ void simulate_accumulator_spot_paths(
-    SpotRequests<CudaAccumulatorRequest> requests, const CudaSimulationStep* steps, std::size_t step_count)
+    SpotRequests<CudaAccumulatorRequest> requests, const SimulationStep* steps, std::size_t step_count)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (path >= requests.values[0].path_count) return;
@@ -480,7 +480,7 @@ __global__ void simulate_accumulator_spot_paths(
 }
 
 __global__ void simulate_autocallable_spot_paths(
-    SpotRequests<CudaAutocallableRequest> requests, const CudaAutocallableStep* steps, std::size_t step_count)
+    SpotRequests<CudaAutocallableRequest> requests, const AutocallableStep* steps, std::size_t step_count)
 {
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (path >= requests.values[0].path_count) return;
@@ -675,7 +675,7 @@ CudaSpotPricingResult spot_prices(std::span<const Request> requests, std::span<c
 } // namespace
 
 CudaSpotPricingResult cuda_accumulator_spot_prices(
-    std::span<const CudaAccumulatorRequest> requests, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace)
+    std::span<const CudaAccumulatorRequest> requests, std::span<const SimulationStep> steps, CudaWorkspace* workspace)
 {
     return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
         simulate_accumulator_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
@@ -683,7 +683,7 @@ CudaSpotPricingResult cuda_accumulator_spot_prices(
 }
 
 CudaSpotPricingResult cuda_autocallable_spot_prices(
-    std::span<const CudaAutocallableRequest> requests, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
+    std::span<const CudaAutocallableRequest> requests, std::span<const AutocallableStep> steps, CudaWorkspace* workspace)
 {
     return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
         simulate_autocallable_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
@@ -832,7 +832,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
 }
 
 CudaPricingResult cuda_accumulator_price(
-    CudaAccumulatorRequest request, std::span<const CudaSimulationStep> steps, CudaWorkspace* workspace)
+    CudaAccumulatorRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace)
 {
     CudaWorkspace local;
     auto& storage = (workspace ? *workspace : local).storage();
@@ -851,7 +851,7 @@ CudaPricingResult cuda_accumulator_price(
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
     simulate_accumulator_paths<<<block_count, threads_per_block, 0, stream>>>(
-        request, static_cast<const CudaSimulationStep*>(device_steps.get()), steps.size(),
+        request, static_cast<const SimulationStep*>(device_steps.get()), steps.size(),
         outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
@@ -860,7 +860,7 @@ CudaPricingResult cuda_accumulator_price(
 
 template <bool paired>
 static CudaPricingResult autocallable_prices(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
+    CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace)
 {
     CudaWorkspace local;
     auto& storage = (workspace ? *workspace : local).storage();
@@ -884,7 +884,7 @@ static CudaPricingResult autocallable_prices(
     const int block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
     simulate_autocallable_paths<paired><<<block_count, threads_per_block, 0, stream>>>(
-        request, static_cast<const CudaAutocallableStep*>(device_steps.get()), steps.size(),
+        request, static_cast<const AutocallableStep*>(device_steps.get()), steps.size(),
         outputs.payoffs, alternate_outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
@@ -899,13 +899,13 @@ static CudaPricingResult autocallable_prices(
 }
 
 CudaPricingResult cuda_autocallable_price(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
+    CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace)
 {
     return autocallable_prices<false>(request, steps, workspace);
 }
 
 CudaPricingResult cuda_autocallable_coupon_prices(
-    CudaAutocallableRequest request, std::span<const CudaAutocallableStep> steps, CudaWorkspace* workspace)
+    CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace)
 {
     return autocallable_prices<true>(request, steps, workspace);
 }

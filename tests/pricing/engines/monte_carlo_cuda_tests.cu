@@ -37,8 +37,8 @@ TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][m
     using namespace kiyosi::detail;
     const auto price = [] {
         CudaWorkspace workspace;
-        const std::array<CudaSimulationStep, 1> accumulator_steps{{{0.0, 0.1, 0.99}}};
-        const std::array<CudaAutocallableStep, 1> autocallable_steps{{{{0.0, 0.1, 0.99}, {110.0, 0.01, 0.0, false, true}}}};
+        const std::array<SimulationStep, 1> accumulator_steps{{{0.0, 0.1, 0.99}}};
+        const std::array<AutocallableStep, 1> autocallable_steps{{{{0.0, 0.1, 0.99}, {110.0, 0.01, 0.0, false, true}}}};
         AutocallableProgram program{};
         program.principal_ratio = 1.0;
         const std::array<CudaAccumulatorRequest, 3> accumulators{{{512, 42, 90.0, 90.0, 120.0, 1.0, 2.0, 0.0},
@@ -190,8 +190,8 @@ TEST_CASE("CUDA shared spot paths preserve independent settlements and recover f
             for (const double diffusion : {0.0, 0.1}) {
                 CAPTURE(paths, seed, diffusion);
                 const std::array<double, 5> spots{90.0, 100.0, 110.0, 120.0, 50.0};
-                std::array<CudaSimulationStep, 3> steps{{{0.1, diffusion, {0.99}}, {0.1, diffusion, {0.98}}, {0.1, diffusion, {0.97}}}};
-                std::array<CudaAutocallableStep, 3> events{};
+                std::array<SimulationStep, 3> steps{{{0.1, diffusion, {0.99}}, {0.1, diffusion, {0.98}}, {0.1, diffusion, {0.97}}}};
+                std::array<AutocallableStep, 3> events{};
                 for (std::size_t index = 0; index < events.size(); ++index)
                     events[index] = {steps[index], {115.0, 0.01 * static_cast<double>(index + 1), 105.0, true, true}};
                 const AutocallableProgram program{1.0, 100.0, 100.0, 60.0, 100.0, 0.08, 0.0,

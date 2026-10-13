@@ -16,6 +16,7 @@
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
 #include "monte_carlo_random.hpp"
+#include "monte_carlo_simulation.hpp"
 #include "monte_carlo_stencil.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
@@ -161,8 +162,8 @@ __forceinline
 #else
 [[gnu::always_inline]] inline
 #endif
-Result<void> simulate_path_batch(const Steps& steps, std::array<State, count>& states,
-                                 Pcg32& generator, const Observe& observe)
+    Result<void> simulate_path_batch(const Steps& steps, std::array<State, count>& states,
+                                     Pcg32& generator, const Observe& observe)
 {
     const auto& common = [&]() -> const auto& {
         if constexpr (shared_steps) return steps;
@@ -179,8 +180,7 @@ Result<void> simulate_path_batch(const Steps& steps, std::array<State, count>& s
                     else return common_step;
                 }();
                 return std::exp(simulation.drift + simulation.diffusion * draw);
-            }
-            else return 0.0;
+            } else return 0.0;
         }();
         for (std::size_t i = 0; i < count; ++i) {
             auto& state = states[i];
@@ -224,16 +224,16 @@ Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathP
     return checked_price((*prices)[0]);
 }
 
-inline Result<CudaSimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
+inline Result<SimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
 {
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
     const double dt = actual_365_fixed_year_fraction(previous, current);
     const double exponent = -rate * actual_365_fixed_year_fraction(context.valuation_time(), current);
-    const CudaSimulationStep step{(rate - dividend - 0.5 * sigma * sigma) * dt,
-                                  sigma * std::sqrt(dt),
-                                  {std::exp(exponent), exponent}};
+    const SimulationStep step{(rate - dividend - 0.5 * sigma * sigma) * dt,
+                              sigma * std::sqrt(dt),
+                              {std::exp(exponent), exponent}};
     if (!std::isfinite(step.drift) || !std::isfinite(step.diffusion) || !std::isfinite(exponent))
         return std::unexpected(Error{ErrorCategory::invalid_result,
                                      "Monte Carlo simulation parameters are non-finite"});

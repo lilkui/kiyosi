@@ -27,7 +27,7 @@ using namespace detail;
 namespace {
 
 struct SimulationInputs {
-    std::vector<CudaAutocallableStep> step_count;
+    std::vector<AutocallableStep> step_count;
     MonteCarloDiscount terminal_discount;
 };
 
@@ -45,7 +45,7 @@ Result<SimulationInputs> prepare_simulation(
         if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
         return events;
     }();
-    std::vector<CudaAutocallableStep> steps;
+    std::vector<AutocallableStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
     const auto observations = note.observations_view();
@@ -115,7 +115,7 @@ Result<std::array<double, count>> path_payoffs(
         if constexpr (shared_inputs)
             return simulate_path_batch<true>(inputs.step_count, states, generator, observe);
         else {
-            std::array<std::span<const CudaAutocallableStep>, count> sequences{};
+            std::array<std::span<const AutocallableStep>, count> sequences{};
             for (std::size_t i = 0; i < count; ++i)
                 sequences[i] = inputs[i].step_count;
             return simulate_path_batch<false>(sequences, states, generator, observe);

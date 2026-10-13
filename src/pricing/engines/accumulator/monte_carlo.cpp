@@ -22,8 +22,6 @@ using namespace detail;
 
 namespace {
 
-using SimulationStep = detail::CudaSimulationStep;
-
 Result<std::vector<SimulationStep>> prepare_simulation(const Accumulator& option,
                                                        const PricingContext& context)
 {
@@ -55,13 +53,13 @@ Result<std::array<double, count>> path_payoffs(
 {
     constexpr bool shared_steps = std::same_as<Steps, std::vector<SimulationStep>>;
     const auto simulated = simulate_path_batch<shared_steps>(steps, states, generator,
-        [&](auto& state, const auto& step) {
-            state.discount = step.discount;
-            if (accumulator_knocked_out(state.spot, option.knock_out_level()))
-                state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
-            else
-                state.quantity += accumulator_purchase_quantity(state.spot, option.strike(), option.daily_quantity(), option.acceleration_factor());
-        });
+                                                             [&](auto& state, const auto& step) {
+                                                                 state.discount = step.discount;
+                                                                 if (accumulator_knocked_out(state.spot, option.knock_out_level()))
+                                                                     state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
+                                                                 else
+                                                                     state.quantity += accumulator_purchase_quantity(state.spot, option.strike(), option.daily_quantity(), option.acceleration_factor());
+                                                             });
     if (!simulated) return std::unexpected(simulated.error());
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i)
@@ -104,12 +102,8 @@ Result<std::array<double, count>> price_spot_bumps(
         if (!steps) return std::unexpected(steps.error());
         if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-            const auto values = cuda_active_prices<CudaAccumulatorRequest>(initial,
-                [&](const auto& state) {
-                    return CudaAccumulatorRequest{settings.path_count, *settings.seed, state.spot,
-                        option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity};
-                },
-                [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
+            const auto values = cuda_active_prices<CudaAccumulatorRequest>(initial, [&](const auto& state) { return CudaAccumulatorRequest{settings.path_count, *settings.seed, state.spot,
+                                                                                                                                           option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity}; }, [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
             if (!values) return std::unexpected(values.error());
             prices = *values;
 #else
@@ -130,8 +124,7 @@ Result<std::array<double, 3>> price_rate_bumps(
     const Accumulator& option, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings, double h, std::optional<double> base_price = std::nullopt)
 {
-    return cpu_rate_prices<std::vector<SimulationStep>, PathState>(context, settings, h, base_price,
-        [&](const PricingContext& shifted) -> Result<std::pair<std::vector<SimulationStep>, PathState>> {
+    return cpu_rate_prices<std::vector<SimulationStep>, PathState>(context, settings, h, base_price, [&](const PricingContext& shifted) -> Result<std::pair<std::vector<SimulationStep>, PathState>> {
             const auto state = accumulator_initial_state(option, shifted);
             std::vector<SimulationStep> steps;
             if (state.settlement) {
@@ -142,9 +135,7 @@ Result<std::array<double, 3>> price_rate_bumps(
                 if (!prepared) return std::unexpected(prepared.error());
                 steps = std::move(*prepared);
             }
-            return std::pair{std::move(steps), PathState{shifted.spot_price(), state.quantity, {}, state.settlement}};
-        },
-        [&](const auto& steps, const auto& initial, auto& generator) { return path_payoffs(option, steps, initial, generator); });
+            return std::pair{std::move(steps), PathState{shifted.spot_price(), state.quantity, {}, state.settlement}}; }, [&](const auto& steps, const auto& initial, auto& generator) { return path_payoffs(option, steps, initial, generator); });
 }
 
 Result<double> price_accumulator(
@@ -217,14 +208,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
             const auto price = [&](const PricingContext& shifted) {
                 return price_accumulator(option, shifted, seeded.settings(), workspace);
             };
-            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend,
-                [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); },
-                [&]<std::size_t count>(const PricingContext& shifted, double shift) {
-                    return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace);
-                },
-                [&](double shift, std::optional<double> base_price) {
-                    return price_rate_bumps(option, context, seeded.settings(), shift, base_price);
-                });
+            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
         });
 }
 
