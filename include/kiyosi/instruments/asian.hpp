@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <concepts>
 #include <utility>
 
 #include <kiyosi/core/day_count.hpp>
@@ -23,15 +24,20 @@ struct ArithmeticAveraging {
     friend bool operator==(const ArithmeticAveraging&, const ArithmeticAveraging&) = default;
 };
 
-template <typename Averaging>
+/// Averaging conventions whose semantics are defined by the core.
+template <typename Value>
+concept AveragingConvention = std::same_as<Value, GeometricAveraging> ||
+                              std::same_as<Value, ArithmeticAveraging>;
+
+template <AveragingConvention Averaging>
 class AveragePriceOption;
 
-template <typename Averaging>
+template <AveragingConvention Averaging>
 [[nodiscard]] Result<AveragePriceOption<Averaging>> make_average_option(
     OptionType, double, Date, Date, Date, double realized_average = default_realized_average);
 
 /// Average-rate option; `Averaging` distinguishes the geometric and arithmetic conventions.
-template <typename Averaging>
+template <AveragingConvention Averaging>
 class AveragePriceOption {
 public:
     /// Returns the call-or-put direction.
@@ -56,7 +62,7 @@ private:
     Date averaging_start_date_;
     double realized_average_;
 
-    template <typename OtherAveraging>
+    template <AveragingConvention OtherAveraging>
     friend Result<AveragePriceOption<OtherAveraging>> make_average_option(
         OptionType, double, Date, Date, Date, double);
 };
@@ -83,7 +89,7 @@ inline double arithmetic_average_adjusted_strike(const ArithmeticAveragePriceOpt
 /// Equal averaging start and expiry dates denote a single fixing at expiry.
 /// @tparam Averaging GeometricAveraging or ArithmeticAveraging.
 /// @return The option, or an input-validation error.
-template <typename Averaging>
+template <AveragingConvention Averaging>
 [[nodiscard]] inline Result<AveragePriceOption<Averaging>> make_average_option(
     OptionType option_type, double strike, Date effective_date, Date averaging_start_date, Date expiry_date,
     double realized_average)

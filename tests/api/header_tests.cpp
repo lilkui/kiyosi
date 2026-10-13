@@ -48,6 +48,23 @@ struct UnrecognizedOptionTag {
 template <typename Payoff, typename Exercise>
 concept CanFormOption = requires { typename kiyosi::ExerciseBasedOption<Payoff, Exercise>; };
 
+template <typename Averaging>
+concept CanFormAverageOption = requires { typename kiyosi::AveragePriceOption<Averaging>; };
+
+template <typename Averaging>
+concept CanMakeAverageOption = requires(kiyosi::Date date) {
+    kiyosi::make_average_option<Averaging>(kiyosi::OptionType::call, 100.0, date, date, date);
+};
+
+static_assert(CanFormAverageOption<kiyosi::GeometricAveraging>);
+static_assert(CanFormAverageOption<kiyosi::ArithmeticAveraging>);
+static_assert(!CanFormAverageOption<UnrecognizedOptionTag>);
+static_assert(!CanFormAverageOption<int>);
+static_assert(CanMakeAverageOption<kiyosi::GeometricAveraging>);
+static_assert(CanMakeAverageOption<kiyosi::ArithmeticAveraging>);
+static_assert(!CanMakeAverageOption<UnrecognizedOptionTag>);
+static_assert(!CanMakeAverageOption<int>);
+
 static_assert(kiyosi::OptionPayoff<kiyosi::VanillaPayoff>);
 static_assert(kiyosi::OptionPayoff<const kiyosi::CashOrNothingPayoff&>);
 static_assert(kiyosi::OptionPayoff<kiyosi::AssetOrNothingPayoff>);

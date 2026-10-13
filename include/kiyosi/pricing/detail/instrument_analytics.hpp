@@ -6,6 +6,7 @@
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
 #include <kiyosi/instruments/autocallable/fwd.hpp>
+#include <kiyosi/instruments/asian.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
 
 namespace kiyosi {
@@ -15,9 +16,6 @@ class Accumulator;
 class BarrierOption;
 class BinaryBarrierOption;
 class TouchOption;
-struct ArithmeticAveraging;
-template <typename Averaging>
-class AveragePriceOption;
 
 namespace detail {
 
@@ -29,7 +27,7 @@ concept BarrierProduct = std::same_as<Option, BarrierOption> ||
 [[nodiscard]] KIYOSI_EXPORT Result<bool> time_stencil_available(const Accumulator&, const PricingContext&, Timestamp, Timestamp);
 [[nodiscard]] KIYOSI_EXPORT bool volatility_affects_price(const Accumulator&, const PricingContext&);
 
-template <typename Averaging>
+template <AveragingConvention Averaging>
 [[nodiscard]] KIYOSI_EXPORT Result<bool> time_stencil_available(const AveragePriceOption<Averaging>&, const PricingContext&, Timestamp, Timestamp);
 [[nodiscard]] KIYOSI_EXPORT bool volatility_affects_price(const AveragePriceOption<ArithmeticAveraging>&, const PricingContext&);
 

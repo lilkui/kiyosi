@@ -22,7 +22,7 @@ bool at_spot_discontinuity(const Accumulator& option, const PricingContext& cont
 }
 
 Result<bool> time_stencil_available(const Accumulator&, const PricingContext& context,
-                                           Timestamp before, Timestamp after)
+                                    Timestamp before, Timestamp after)
 {
     for (Date date = date_of(before); date <= date_of(after); date += std::chrono::days{1}) {
         const Timestamp event = start_of_day(date);
@@ -43,7 +43,7 @@ bool volatility_affects_price(const Accumulator& option, const PricingContext& c
     return !knocked_out_now && (accumulator_accrues(option) || exposed_quantity);
 }
 
-template <typename Averaging>
+template <AveragingConvention Averaging>
 Result<bool> time_stencil_available(const AveragePriceOption<Averaging>& option, const PricingContext&,
                                     Timestamp before, Timestamp after)
 {
@@ -196,8 +196,6 @@ Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)
     if (!valid) return std::unexpected(valid.error());
     return replaced;
 }
-
-
 
 template KIYOSI_EXPORT bool at_spot_discontinuity(const BarrierOption&, const PricingContext&, double);
 template KIYOSI_EXPORT bool all_greeks_unavailable(const BarrierOption&, const PricingContext&);
