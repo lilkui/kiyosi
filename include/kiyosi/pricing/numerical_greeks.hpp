@@ -97,6 +97,35 @@ bool at_spot_discontinuity(const Option&, const PricingContext&, double = 0.0) {
 template <typename Option>
 Result<bool> time_stencil_available(const Option&, const PricingContext&, Timestamp, Timestamp) { return true; }
 
+struct NumericalStencils {
+    double spot_shift;
+    double volatility_shift;
+    double rate_shift;
+    bool spot_discontinuity;
+    bool spot_available;
+    bool speed_available;
+    bool volatility_available;
+    bool rate_available;
+};
+
+template <typename Option>
+NumericalStencils numerical_stencils(const Option& option, const PricingContext& context,
+                                     NumericalShiftSettings settings)
+{
+    const double spot = context.spot_price();
+    const double volatility = context.model_parameters().volatility();
+    const double h = symmetric_shift(spot, settings.spot_shift);
+    const double v = symmetric_shift(volatility, settings.volatility_shift);
+    const double r = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+    const bool spot_available = h > 0.0 && spot > h && !at_spot_discontinuity(option, context, h);
+    const double two_h = 2.0 * h;
+    return {h, v, r, at_spot_discontinuity(option, context), spot_available,
+            spot_available && std::isfinite(two_h) && spot > two_h &&
+                symmetric_shift(spot, two_h) == two_h && !at_spot_discontinuity(option, context, two_h),
+            v > 0.0 && volatility > v && std::isfinite(100.0 * v),
+            r > 0.0 && std::isfinite(200.0 * r)};
+}
+
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
 template <typename Engine, typename Option, typename Native = decltype(nullptr)>
@@ -115,14 +144,12 @@ Result<PricingResult> complete_greeks(
     const auto need = [&](Greek measure) {
         return greeks.has(measure) && !native.has(measure);
     };
-    const double h = symmetric_shift(spot, settings.spot_shift);
-    const bool spot_discontinuity = at_spot_discontinuity(option, context);
-    const bool spot_stencil_available = h > 0.0 && !at_spot_discontinuity(option, context, h) && spot > h &&
-                                        std::isfinite(spot + h) && spot + h > spot && spot - h < spot;
+    const auto stencils = numerical_stencils(option, context, settings);
+    const double h = stencils.spot_shift;
+    const bool spot_discontinuity = stencils.spot_discontinuity;
+    const bool spot_stencil_available = stencils.spot_available;
     const double two_h = 2.0 * h;
-    const bool scalar_speed_available = need(Greek::speed) && spot_stencil_available && std::isfinite(two_h) && spot > two_h &&
-                                        symmetric_shift(spot, two_h) == two_h &&
-                                        !at_spot_discontinuity(option, context, two_h);
+    const bool scalar_speed_available = need(Greek::speed) && stencils.speed_available;
     constexpr bool native_stencil = requires { evaluate_native(engine, context, GreeksRequest{}); };
     const auto checked_native = [&](const auto& shifted, GreeksRequest derivatives) -> Result<PricingResult> {
         auto result = evaluate_native(engine, shifted, derivatives);
@@ -184,10 +211,9 @@ Result<PricingResult> complete_greeks(
     auto vega = *native.get(Greek::vega);
     auto vanna = *native.get(Greek::vanna);
     auto zomma = *native.get(Greek::zomma);
-    const double volatility_shift = symmetric_shift(volatility, settings.volatility_shift);
+    const double volatility_shift = stencils.volatility_shift;
     const double vol_scale = 100.0 * volatility_shift;
-    const bool volatility_stencil_available =
-        volatility_shift > 0.0 && volatility > volatility_shift && std::isfinite(vol_scale);
+    const bool volatility_stencil_available = stencils.volatility_available;
     if (volatility_stencil_available &&
         (need(Greek::vega) || (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))))) {
         const double volatility_high = volatility + volatility_shift;
@@ -252,9 +278,9 @@ Result<PricingResult> complete_greeks(
     }
 
     auto rho = *native.get(Greek::rho);
-    const double rate_shift = symmetric_shift(rate, settings.rate_shift);
+    const double rate_shift = stencils.rate_shift;
     const double rate_scale = 200.0 * rate_shift;
-    if (need(Greek::rho) && rate_shift > 0.0 && std::isfinite(rate_scale)) {
+    if (need(Greek::rho) && stencils.rate_available) {
         const auto r_up = detail::shifted_value(
             engine, option, context, spot, volatility, rate + rate_shift, valuation_time);
         if (!r_up) return std::unexpected(r_up.error());

@@ -94,21 +94,16 @@ Result<PricingResult> complete_monte_carlo_greeks(
 {
     const auto valid = validate(context);
     if (!valid) return std::unexpected(valid.error());
-    const double spot = context.spot_price();
-    const double h = symmetric_shift(spot, settings.spot_shift);
-    const double rate_shift = symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
+    const auto stencils = numerical_stencils(option, context, settings);
+    const double h = stencils.spot_shift;
+    const double rate_shift = stencils.rate_shift;
     std::optional<std::array<double, 3>> rate_prices;
     const bool batch_rates = backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
-                             rate_shift > 0.0 && std::isfinite(200.0 * rate_shift) && !greeks_unavailable(option, context);
+                             stencils.rate_available && !greeks_unavailable(option, context);
     auto native = [&]() -> Result<PricingResult> {
-        const double two_h = 2.0 * h;
-        const bool speed_available = std::isfinite(two_h) && spot > two_h &&
-                                     symmetric_shift(spot, two_h) == two_h &&
-                                     !at_spot_discontinuity(option, context, two_h);
-        if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available)) &&
-            h > 0.0 && spot > h && !greeks_unavailable(option, context) &&
-            !at_spot_discontinuity(option, context, h)) {
-            if (greeks.has(Greek::speed) && speed_available)
+        if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && stencils.speed_available)) &&
+            stencils.spot_available && !greeks_unavailable(option, context)) {
+            if (greeks.has(Greek::speed) && stencils.speed_available)
                 return spot_bump_result(spot_prices.template operator()<5>(context, h), greeks, h);
             return spot_bump_result(spot_prices.template operator()<3>(context, h), greeks, h);
         }
@@ -136,7 +131,7 @@ Result<PricingResult> complete_monte_carlo_greeks(
         if (!native) return std::unexpected(native.error());
     }
     const bool mixed = (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)) &&
-                       spot > h && !at_spot_discontinuity(option, context, h);
+                       stencils.spot_available && stencils.volatility_available;
     const auto sample = [&](const PricingContext& shifted, double shift, bool center) -> Result<std::array<double, 3>> {
         const auto valid = validate(shifted);
         if (!valid) return std::unexpected(valid.error());
@@ -146,7 +141,7 @@ Result<PricingResult> complete_monte_carlo_greeks(
         return std::array{0.0, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
     };
     const MonteCarloMixedPricer prices{&scalar, &context, mixed ? h : 0.0,
-                                       symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift),
+                                       stencils.volatility_shift,
                                        greeks.has(Greek::vega) || greeks.has(Greek::zomma), sample};
     return complete_greeks(prices, option, context, greeks, settings, *native);
 }

@@ -17,6 +17,36 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Numerical stencils share rounded shifts and boundary eligibility", "[numerical-stencils]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto market = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto ordinary = detail::numerical_stencils(option, market, {});
+    CHECK(ordinary.spot_available);
+    CHECK(ordinary.speed_available);
+    CHECK(ordinary.volatility_available);
+    CHECK(ordinary.rate_available);
+    CHECK(100.0 + ordinary.spot_shift == 100.0 + NumericalShiftSettings{}.spot_shift);
+    const auto wide = detail::numerical_stencils(option, market, {.spot_shift = 60.0, .volatility_shift = 0.2});
+    CHECK(wide.spot_available);
+    CHECK_FALSE(wide.speed_available);
+    CHECK_FALSE(wide.volatility_available);
+    const auto collapsed = detail::numerical_stencils(option, market, {.spot_shift = 1e-30, .rate_shift = 1e-30});
+    CHECK_FALSE(collapsed.spot_available);
+    CHECK_FALSE(collapsed.speed_available);
+    CHECK_FALSE(collapsed.rate_available);
+    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
+        .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
+    const auto event = detail::numerical_stencils(barrier, market, {});
+    CHECK(event.spot_discontinuity);
+    CHECK_FALSE(event.spot_available);
+    CHECK_FALSE(event.speed_available);
+    CHECK(event.volatility_available);
+    CHECK(event.rate_available);
+}
+
 TEST_CASE("Monte Carlo spot stencils preserve node meaning and cubic derivatives", "[monte-carlo-stencil]")
 {
     using namespace kiyosi;

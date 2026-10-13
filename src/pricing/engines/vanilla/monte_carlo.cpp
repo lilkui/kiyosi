@@ -441,23 +441,13 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-        const double spot = context.spot_price();
-        const double h = detail::symmetric_shift(spot, settings.spot_shift);
-        const double two_h = 2.0 * h;
-        const double volatility = context.model_parameters().volatility();
-        const double volatility_shift = detail::symmetric_shift(volatility, settings.volatility_shift);
-        const bool volatility_available = volatility_shift > 0.0 && volatility > volatility_shift &&
-                                          std::isfinite(100.0 * volatility_shift);
-        const double rate_shift = detail::symmetric_shift(context.model_parameters().risk_free_rate(), settings.rate_shift);
-        const bool rate_available = rate_shift > 0.0 && std::isfinite(200.0 * rate_shift);
-        const bool speed_available = std::isfinite(two_h) && spot > two_h &&
-                                     detail::symmetric_shift(spot, two_h) == two_h;
+        const auto stencils = detail::numerical_stencils(option, context, settings);
         const bool cache_samples = greeks.has(Greek::theta) ||
-            (volatility_available && greeks.has(Greek::vega)) || (rate_available && greeks.has(Greek::rho)) ||
-            (h > 0.0 && spot > h &&
+            (stencils.volatility_available && greeks.has(Greek::vega)) || (stencils.rate_available && greeks.has(Greek::rho)) ||
+            (stencils.spot_available &&
              (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || greeks.has(Greek::charm) || greeks.has(Greek::color) ||
-              (greeks.has(Greek::speed) && speed_available) ||
-              (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)))));
+              (greeks.has(Greek::speed) && stencils.speed_available) ||
+              (stencils.volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma)))));
         // Stream a single price without sample storage; shared completion still decides availability.
         if (!cache_samples)
             return detail::price_with_greeks(seeded, option, context, greeks, settings);
@@ -471,26 +461,18 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
                                                                  GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& seeded) -> Result<PricingResult> {
-        const double spot_shift = detail::symmetric_shift(context.spot_price(), settings.spot_shift);
-        const double volatility_shift = detail::symmetric_shift(context.model_parameters().volatility(), settings.volatility_shift);
-        const bool volatility_available = volatility_shift > 0.0 &&
-                                          context.model_parameters().volatility() > volatility_shift &&
-                                          std::isfinite(100.0 * volatility_shift);
-        const double two_h = 2.0 * spot_shift;
-        const bool speed_available = std::isfinite(two_h) && context.spot_price() > two_h &&
-                                     detail::symmetric_shift(context.spot_price(), two_h) == two_h;
-        const bool cache_growth =
-            spot_shift > 0.0 && context.spot_price() > spot_shift &&
-            (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && speed_available) ||
-             (volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
+        const auto stencils = detail::numerical_stencils(option, context, settings);
+        const bool cache_growth = stencils.spot_available &&
+            (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && stencils.speed_available) ||
+             (stencils.volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
              greeks.has(Greek::charm) || greeks.has(Greek::color));
         const AmericanMonteCarloPricer prices{seeded.settings(), cache_growth};
         const auto native = [&]() -> Result<PricingResult> {
         const auto value = prices.price(option, context);
         if (!value) return std::unexpected(value.error());
         const double rate = context.model_parameters().risk_free_rate();
-        const double shift = detail::symmetric_shift(rate, settings.rate_shift);
-        if (greeks.has(Greek::rho) && std::isfinite(200.0 * shift) && !detail::greeks_unavailable(option, context) &&
+        const double shift = stencils.rate_shift;
+        if (greeks.has(Greek::rho) && stencils.rate_available && !detail::greeks_unavailable(option, context) &&
             option.option_type() == OptionType::call && context.model_parameters().dividend_yield() <= 0.0 &&
             rate - shift < 0.0 && rate + shift >= 0.0) {
             // Keep one estimator across the rate stencil when the terminal-only shortcut changes branch.
