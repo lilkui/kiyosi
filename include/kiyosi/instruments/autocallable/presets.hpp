@@ -57,7 +57,7 @@ struct StandardSnowballTerms {
     StandardSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose knock-out level decreases by observation.
@@ -83,7 +83,7 @@ struct StepDownSnowballTerms {
     auto expanded = detail::common_snowball_terms(terms);
     for (std::size_t index = 0; index < expanded.observations.size(); ++index)
         expanded.observations[index].knock_out_level = terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose coupon and knock-out level both decrease by observation.
@@ -115,7 +115,7 @@ struct BothDownSnowballTerms {
         observation.knock_out_level = terms.initial_knock_out_level - static_cast<double>(index) * terms.knock_out_level_decrement;
     }
     expanded.maturity_coupon_rate = expanded.observations.empty() ? 0.0 : expanded.observations.back().coupon_rate;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with distinct knock-out and maturity coupons.
@@ -138,9 +138,10 @@ struct DualCouponSnowballTerms {
     DualCouponSnowballTerms terms)
 {
     auto expanded = detail::common_snowball_terms(terms);
-    for (auto& observation : expanded.observations) observation.coupon_rate = terms.knock_out_coupon_rate;
+    for (auto& observation : expanded.observations)
+        observation.coupon_rate = terms.knock_out_coupon_rate;
     expanded.maturity_coupon_rate = terms.maturity_coupon_rate;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with a distinct final knock-out level.
@@ -164,7 +165,7 @@ struct ParachuteSnowballTerms {
 {
     auto expanded = detail::common_snowball_terms(terms);
     if (!expanded.observations.empty()) expanded.observations.back().knock_out_level = terms.final_knock_out_level;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball with an out-of-the-money upper settlement strike.
@@ -188,7 +189,7 @@ struct OtmSnowballTerms {
 {
     auto expanded = detail::common_snowball_terms(terms);
     expanded.upper_strike = terms.upper_strike;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose downside participation is capped by a lower strike.
@@ -212,7 +213,7 @@ struct LossCappedSnowballTerms {
 {
     auto expanded = detail::common_snowball_terms(terms);
     expanded.lower_strike = terms.lower_strike;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 /// Terms for a snowball whose knock-in barrier is observed only at expiry.
@@ -225,7 +226,7 @@ using EuropeanSnowballTerms = StandardSnowballTerms;
 {
     auto expanded = detail::common_snowball_terms(terms);
     expanded.knock_in_observation_mode = KnockInObservationMode::at_expiry;
-    return make_snowball_option(expanded);
+    return make_snowball_option(std::move(expanded));
 }
 
 } // namespace kiyosi
