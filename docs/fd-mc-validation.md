@@ -1,15 +1,10 @@
-# FD–MC pricing validation
+# FD–MC 定价验证
 
-The C++ regression suite compares finite-difference and Monte Carlo prices for
-standard, binary, and ternary snowballs, phoenixes, and accumulators. It requires
-neither QuantLib nor Python. These are numerical consistency checks, supplemented
-by independently calculated settlement and limiting-payoff checks: the autocallable
-engines share payoff rules, so agreement alone is not an independent payoff oracle.
+C++ 回归测试对比有限差分（FD）与蒙特卡洛（MC）引擎对普通雪球、二元雪球、三元雪球、凤凰和累购产品的定价，无需 QuantLib 或 Python。除数值一致性检查外，测试还独立计算结算金额与极限情形下的收益，用作校验。自动赎回类产品的两种引擎共用收益规则，因此价格一致本身不能独立证明收益计算正确。
 
-## Running
+## 运行方式
 
-On Windows, first activate the Visual Studio Developer environment. From the
-repository root:
+Windows 下先激活 Visual Studio 开发者环境，再在仓库根目录运行：
 
 ```powershell
 cmake --preset windows-release
@@ -17,85 +12,40 @@ cmake --build --preset windows-release --target kiyosi_tests
 ctest --preset windows-release -R "FD-MC|Finite-difference grids preserve"
 ```
 
-The default suite includes five stochastic baseline comparisons and fast
-known-payoff checks. The extended test is hidden from default Catch2 runs and
-excluded from default CTest discovery. Run it explicitly:
+默认测试包含五组随机基准对比，以及快速的已知收益检查。扩展测试不参与 Catch2 默认运行，也不纳入 CTest 默认发现范围，需显式运行：
 
 ```powershell
 out/build/windows-release/tests/kiyosi_tests.exe "[extended]" --durations yes
 ```
 
-To include it in CTest discovery, configure with
-`cmake --preset windows-release -DKIYOSI_EXTENDED_VALIDATION=ON`, then run
-`ctest --preset windows-release -R "FD-MC extended"`.
-Set the option back to `OFF` to restore normal discovery. Linux uses the
-`linux-release` preset and the executable without `.exe`.
+如需让 CTest 发现扩展测试，先用 `cmake --preset windows-release -DKIYOSI_EXTENDED_VALIDATION=ON` 配置，再运行 `ctest --preset windows-release -R "FD-MC extended"`。将该选项改回 `OFF` 即可恢复默认发现范围。Linux 使用 `linux-release` 预设，可执行文件不带 `.exe` 后缀。
 
-## Scenarios and error budgets
+## 场景与误差容限
 
-The baseline uses a 91-day life, spot 100, volatility 25%, rate 4%, and dividend
-yield 1%, with the same weekdays calendar and observation dates for both engines.
-Autocall levels step from 112 to 108 to 104; snowball coupons also step down.
-Extended cases cover spots near knock-in, coupon, and knock-out levels;
-expiry-only knock-in at 35% volatility; and historical knock-in together with
-nonzero accumulated quantity. Each case runs all five product families.
-Historical knock-in is valued after monitoring starts; binary notes retain their
-default state because they have no knock-in barrier.
+基准场景的存续期为 91 天，现货价格为 100，波动率为 25%，利率为 4%，股息率为 1%。两种引擎使用相同的周一至周五交易日历和观察日期。敲出水平依次为 112、108、104，雪球票息也逐期降低。
 
-All budgets are absolute native price units, not percentages of the computed
-price. This remains meaningful for negative and near-zero accumulator values.
+扩展场景覆盖现货价格接近敲入、付息和敲出水平的情况，以及波动率为 35% 时仅到期观察敲入、历史已敲入且累计数量非零的情况。每个场景均测试上述五类产品。历史已敲入场景的估值时点位于监测开始之后；二元雪球没有敲入障碍，保留默认状态。
 
-| Product | FD budget | Maximum MC envelope, default | Maximum MC envelope, extended |
+所有容限均以各产品价格的绝对单位表示，而非计算价格的百分比，因此也适用于累购产品的负值或接近零的估值。
+
+| 产品 | FD 容限 | MC 误差包络上限（默认） | MC 误差包络上限（扩展） |
 | --- | ---: | ---: | ---: |
-| Snowball | 0.003 | 0.004 | 0.002 |
-| Binary snowball | 0.0003 | 0.0003 | 0.00015 |
-| Ternary snowball | 0.0005 | 0.0004 | 0.0002 |
-| Phoenix | 0.008 | 0.008 | 0.004 |
-| Accumulator | 2.0 | 8.0 | 4.0 |
+| 普通雪球 | 0.003 | 0.004 | 0.002 |
+| 二元雪球 | 0.0003 | 0.0003 | 0.00015 |
+| 三元雪球 | 0.0005 | 0.0004 | 0.0002 |
+| 凤凰 | 0.008 | 0.008 | 0.004 |
+| 累购 | 2.0 | 8.0 | 4.0 |
 
-Snowballs use principal ratio 1. Phoenix uses principal ratio 1 plus annualized
-coupons in the same units, accrued over each observation period using Actual/365 Fixed.
-Accumulator values are quantity times underlying-price difference, with daily quantity 1 and
-acceleration 2. The budgets deliberately differ by this scale and payoff shape;
-they are regression acceptance budgets for these scenarios, not universal
-accuracy guarantees for arbitrary contracts or default engine settings.
+雪球的本金比例为 1。凤凰的本金比例也为 1，另加同单位的年化票息，按各观察期间以 Actual/365 Fixed 计息。累购价值为数量乘以标的价差，每日数量为 1，加速倍数为 2。各产品的容限根据计价尺度和收益结构分别设定，仅用于这些场景的回归验收，不代表任意合约或引擎默认设置下的精度保证。
 
-## Checks and diagnostics
+## 检查项与诊断信息
 
-- **FD refinement:** compare coarse, medium, and fine Crank–Nicolson grids.
-  Default spatial counts are 300/600/1200 and time counts 240/480/960;
-  extended counts are 400/800/1600 for both. The final change must fit the FD
-  budget and must not exceed the preceding change, allowing a floor of 10% of
-  the FD budget for small nonmonotone changes around discontinuities.
-- **Domain truncation:** widen the asset domain from 300 to 450 (default) or
-  375 (extended autocallable cases). Extended accumulators use 128 to 160 to
-  resolve the current-day knock-out jump within the engine's 2000-node limit;
-  daily knock-out terminates continuation above 110. Preserve fine-grid spacing
-  and time steps in every domain comparison. The price change
-  must be at most 10% of the FD budget.
-- **MC precision:** use 12 fixed, distinct seeds. Each batch has 32,768 paths
-  in the default suite, 131,072 in extended autocallable cases, and 524,288 in
-  extended accumulator cases. For batch means `x[b]`, estimate the standard error
-  of their overall mean as `sqrt(sum((x[b] - mean)^2) / (12 * 11))`.
-  The four-standard-error envelope must fit its fixed MC budget independently
-  of whether the engines agree. No retry-until-pass or seed selection occurs.
-- **Agreement:** the fine FD price must lie within its FD budget plus the
-  measured MC envelope of the MC mean. Its discrepancy must also be no worse
-  than the coarse-grid discrepancy, allowing the same sampling envelope.
-- **Independent anchors:** explicit expiry payoff tables cover strict knock-in,
-  inclusive knock-out/coupon levels, capped losses, historical states, and
-  accumulator quantities. Constant-path limits and fixed discounted cashflows
-  exercise pre-expiry pricing. Focused regressions cover immediate and future
-  accumulator settlement and counting the terminal coupon exactly once.
+- **FD 网格细化：**对比粗、中、细三档 Crank–Nicolson 网格。默认空间划分数为 300/600/1200，时间划分数为 240/480/960；扩展测试两者均为 400/800/1600。最后一次细化的价格变化须在 FD 容限内，且不大于前一次变化；比较时以 FD 容限的 10% 为下限，允许不连续点附近出现小幅非单调变化。
+- **计算域截断：**将标的价格域上界从 300 扩至 450（默认），或扩至 375（扩展自动赎回场景）。扩展累购场景则从 128 扩至 160，以在引擎的 2000 节点限制内分辨当日敲出跳变；每日敲出会使价格高于 110 时的延续价值归零。各组计算域对比均保持细网格的空间间距和时间步长，价格变化不得超过 FD 容限的 10%。
+- **MC 精度：**使用 12 个固定且互不相同的随机种子。默认每批 32,768 条路径，扩展自动赎回场景每批 131,072 条，扩展累购场景每批 524,288 条。设各批均值为 `x[b]`，总均值的标准误估计为 `sqrt(sum((x[b] - mean)^2) / (12 * 11))`。四倍标准误构成的误差包络须在固定 MC 容限内，无论两种引擎的价格是否一致。测试不采用反复重试直至通过或筛选种子的方式。
+- **价格一致性：**细网格 FD 价格与 MC 均值之差不得超过 FD 容限与实测 MC 误差包络之和。细网格的价差也不得大于粗网格价差，比较时允许同样的抽样误差包络。
+- **独立校验：**显式到期收益表覆盖严格敲入、含边界的敲出和付息条件、损失封顶、历史状态及累购数量。常值路径极限和固定贴现现金流用于检验到期前定价。专项回归测试覆盖累购的即时与未来结算，以及到期票息仅计一次。
 
-Failures capture the scenario, grids' prices, domain change, seeds, path count,
-batch prices, standard error, discrepancy, and budgets. Catch2's `--success`
-option also displays these diagnostics for passing comparisons. Seeded results
-are reproducible within a standard-library implementation; normal generators
-can differ across platforms. The statistical envelope is a regression guard,
-not a simultaneous confidence guarantee or a bound on untested model error.
+测试失败时会记录场景、各档网格价格、扩大计算域后的价格变化、随机种子、路径数、各批价格、标准误、价差和容限。Catch2 的 `--success` 选项也可显示通过测试的诊断信息。固定种子的结果可在同一标准库实现内复现，但正态随机数生成器的实现可能因平台而异。统计误差包络仅用作回归检查，不保证所有比较同时满足某一置信水平，也不约束未经测试的模型误差。
 
-The suite exposed and now guards two core defects: accumulator knock-out
-retaining continuation value, and a rounded FD time-grid endpoint beyond expiry
-that replayed terminal coupons or purchases. Python regression cases exercise
-the same public pricing behavior through the bindings.
+这组测试曾发现并持续防范两个核心缺陷：累购敲出后仍保留延续价值；FD 时间网格终点因舍入越过到期日，导致到期票息或购入数量被重复计入。Python 回归测试通过绑定验证相同的公开定价行为。
