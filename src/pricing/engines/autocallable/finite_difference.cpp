@@ -91,8 +91,8 @@ Result<PricingResult> rollback_autocallable(
     const auto expiry_event = event_at(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        const bool ki = initial.path.knocked_in || (program.has_knock_in && value < program.knock_in_level);
-        if (expiry_event.active && value >= expiry_event.knock_out_level) {
+        const bool ki = program_knocked_in(program, value, initial.path.knocked_in, true);
+        if (expiry_event.active && program_knocked_out(expiry_event, value)) {
             alive[index] = program.principal_ratio +
                            program_observation_coupon(expiry_event, value);
             if (needs_knock_in_layer) knocked_in[index] = alive[index];
@@ -128,8 +128,8 @@ Result<PricingResult> rollback_autocallable(
         if (event.active || (needs_knock_in_layer && daily)) {
             for (std::size_t index = 0; index < size; ++index) {
                 const double value = asset(index);
-                const bool transitioned = needs_knock_in_layer && daily && value < program.knock_in_level;
-                if (event.active && value >= event.knock_out_level) {
+                const bool transitioned = needs_knock_in_layer && daily && program_knocked_in(program, value, false, false);
+                if (event.active && program_knocked_out(event, value)) {
                     next_alive[index] = program.principal_ratio +
                                         program_observation_coupon(event, value);
                     if (needs_knock_in_layer) next_knocked_in[index] = next_alive[index];

@@ -105,7 +105,7 @@ AutocallableInitialState autocallable_initial_state(const Note& note, const Pric
     if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation_time) {
         const auto event = autocallable_event(note, initial.next_observation);
         const double coupon = program_observation_coupon(event, value);
-        if (value >= event.knock_out_level)
+        if (program_knocked_out(event, value))
             return {.path = initial.path,
                     .next_observation = initial.next_observation + 1,
                     .settlement = program.principal_ratio + coupon};

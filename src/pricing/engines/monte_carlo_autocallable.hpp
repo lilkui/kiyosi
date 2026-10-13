@@ -20,7 +20,7 @@ KIYOSI_AUTOCALLABLE_HOST_DEVICE inline bool observe_autocallable_path(
     state.knocked_in = program_knocked_in(program, spot, state.knocked_in, false);
     if (!event.active) return false;
     const double coupon = program_observation_coupon(event, spot);
-    if (spot >= event.knock_out_level) {
+    if (program_knocked_out(event, spot)) {
         payoff = discount.apply(program.principal_ratio + coupon) + state.coupons;
         return true;
     }

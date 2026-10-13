@@ -56,6 +56,12 @@ KIYOSI_HOST_DEVICE inline bool program_knocked_in(
     return knocked_in;
 }
 
+// Requires an active contractual observation.
+KIYOSI_HOST_DEVICE inline bool program_knocked_out(const AutocallableEvent& event, double spot)
+{
+    return spot >= event.knock_out_level;
+}
+
 KIYOSI_HOST_DEVICE inline double program_observation_coupon(
     const AutocallableEvent& event, double spot)
 {
