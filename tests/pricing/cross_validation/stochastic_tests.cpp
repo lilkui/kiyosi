@@ -122,9 +122,8 @@ Terms note_terms(const Scenario& scenario)
         terms.upper_strike = 100.0;
         terms.lower_strike = 60.0;
     }
-    terms.knock_out_levels = {112.0, 108.0, 104.0};
-    terms.observation_dates = {effective_date + std::chrono::days{30},
-                               effective_date + std::chrono::days{60}, expiry_date};
+    terms.observations = {{effective_date + std::chrono::days{30}, 112.0},
+                          {effective_date + std::chrono::days{60}, 108.0}, {expiry_date, 104.0}};
     terms.effective_date = effective_date;
     terms.expiry_date = expiry_date;
     if constexpr (requires { terms.knock_in_level; }) {
@@ -132,14 +131,14 @@ Terms note_terms(const Scenario& scenario)
         terms.knock_in_level = 80.0;
         terms.knock_in_observation_mode = scenario.knock_in_observation_mode;
     }
-    if constexpr (requires { terms.knock_out_coupon_rates; }) {
-        terms.knock_out_coupon_rates = {0.12, 0.10, 0.08};
+    if constexpr (requires { terms.maturity_coupon_rate; }) {
+        for (std::size_t i = 0; i < terms.observations.size(); ++i) terms.observations[i].coupon_rate = std::array{0.12, 0.10, 0.08}[i];
         terms.maturity_coupon_rate = 0.06;
     }
     if constexpr (requires { terms.minimum_coupon_rate; }) terms.minimum_coupon_rate = 0.01;
     if constexpr (requires { terms.coupon_rate; }) {
         terms.coupon_rate = 0.0025; // Annualized rate in normalized principal units.
-        terms.coupon_barrier_levels = {90.0, 90.0, 90.0};
+        for (auto& observation : terms.observations) observation.coupon_barrier_level = 90.0;
     }
     return terms;
 }

@@ -58,19 +58,7 @@ try {
                                                         .accumulated_quantity = 0.0,
                                                         .effective_date = effective_date,
                                                         .expiry_date = expiry_date});
-    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
-                                                       .initial_spot = 100.0,
-                                                       .knock_in_level = 80.0,
-                                                       .knock_out_levels = {110.0},
-                                                       .coupon_barrier_levels = {90.0},
-                                                       .upper_strike = 100.0,
-                                                       .lower_strike = 60.0,
-                                                       .observation_dates = {expiry_date},
-                                                       .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                       .principal_ratio = 1.0,
-                                                       .effective_date = effective_date,
-                                                       .expiry_date = expiry_date});
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.0, 90.0}}});
     const auto snowball = *kiyosi::make_both_down_snowball({.initial_coupon_rate = 0.08,
                                                             .coupon_rate_decrement = 0.01,
                                                             .initial_spot = 100.0,
@@ -80,25 +68,8 @@ try {
                                                             .observation_dates = {expiry_date},
                                                             .effective_date = effective_date,
                                                             .expiry_date = expiry_date});
-    const auto binary_snowball = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
-                                                                       .maturity_coupon_rate = 0.05,
-                                                                       .knock_out_levels = {110.0},
-                                                                       .observation_dates = {expiry_date},
-                                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                                       .principal_ratio = 1.0,
-                                                                       .effective_date = effective_date,
-                                                                       .expiry_date = expiry_date});
-    const auto ternary_snowball = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.08},
-                                                                         .maturity_coupon_rate = 0.05,
-                                                                         .minimum_coupon_rate = 0.02,
-                                                                         .knock_in_level = 80.0,
-                                                                         .knock_out_levels = {110.0},
-                                                                         .observation_dates = {expiry_date},
-                                                                         .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                                         .principal_ratio = 1.0,
-                                                                         .effective_date = effective_date,
-                                                                         .expiry_date = expiry_date});
+    const auto binary_snowball = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.08}}});
+    const auto ternary_snowball = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.08}}});
 
     bool ok = true;
     const auto price = [&](std::string_view instrument, std::string_view engine, const auto& value) {

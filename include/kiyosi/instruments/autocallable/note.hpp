@@ -51,13 +51,31 @@ struct AutocallableObservation {
     friend bool operator==(const AutocallableObservation&, const AutocallableObservation&) = default;
 };
 
+/// Associates parallel inputs before note construction. Omitted coupon sequences use record defaults.
+/// Validates sequence lengths; contractual values and dates are validated by the note factory.
+[[nodiscard]] inline Result<std::vector<AutocallableObservation>> make_autocallable_observations(
+    const std::vector<Date>& dates, const std::vector<double>& levels,
+    std::optional<std::vector<double>> coupons = std::nullopt,
+    std::optional<std::vector<double>> coupon_barriers = std::nullopt)
+{
+    if (levels.size() != dates.size() || (coupons && coupons->size() != dates.size()) ||
+        (coupon_barriers && coupon_barriers->size() != dates.size()))
+        return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable observation sequence lengths differ"});
+    std::vector<AutocallableObservation> observations;
+    observations.reserve(dates.size());
+    for (std::size_t i = 0; i < dates.size(); ++i)
+        observations.push_back({dates[i], levels[i], coupons ? (*coupons)[i] : 0.0,
+                                coupon_barriers ? (*coupon_barriers)[i] : 0.0});
+    return observations;
+}
+
 namespace detail {
 
 template <AutocallableProduct Note>
 [[nodiscard]] Result<Note> replace_snowball_coupons(Note, double, double);
 [[nodiscard]] Result<PhoenixOption> replace_coupon(const PhoenixOption&, double);
 
-// Adapts record and sequence inputs to the immutable note validator, without copies.
+// Adapts construction terms to the immutable note validator, without copies.
 template <typename Terms>
 struct AutocallableInput {
     const Terms* terms{};
@@ -66,24 +84,12 @@ struct AutocallableInput {
     Date expiry_date() const { return terms->expiry_date; }
     auto barrier_state() const { return terms->barrier_state; }
     template <typename Value>
-    auto observation_field(Value AutocallableObservation::* member, const std::vector<Value>& values) const
+    auto observation_field(Value AutocallableObservation::* member) const
     {
-        const bool records = !terms->observations.empty();
-        return std::views::iota(std::size_t{0}, records ? terms->observations.size() : values.size()) |
-               std::views::transform([this, member, &values, records](std::size_t index) {
-                   return records ? terms->observations[index].*member : values[index];
-               });
+        return terms->observations | std::views::transform(member);
     }
-    auto observation_dates() const { return observation_field(&AutocallableObservation::date, terms->observation_dates); }
-    auto knock_out_levels() const { return observation_field(&AutocallableObservation::knock_out_level, terms->knock_out_levels); }
-    bool mixed_observation_inputs() const
-    {
-        if (terms->observations.empty()) return false;
-        bool sequences = !terms->observation_dates.empty() || !terms->knock_out_levels.empty();
-        if constexpr (requires { terms->knock_out_coupon_rates; }) sequences |= !terms->knock_out_coupon_rates.empty();
-        if constexpr (requires { terms->coupon_barrier_levels; }) sequences |= !terms->coupon_barrier_levels.empty();
-        return sequences;
-    }
+    auto observation_dates() const { return observation_field(&AutocallableObservation::date); }
+    auto knock_out_levels() const { return observation_field(&AutocallableObservation::knock_out_level); }
     bool unused_observation_fields() const
     {
         for (const auto& observation : terms->observations) {
@@ -126,14 +132,14 @@ struct AutocallableInput {
         return terms->coupon_rate;
     }
     auto coupon_barrier_levels() const
-        requires requires { terms->coupon_barrier_levels; }
+        requires requires { terms->coupon_rate; }
     {
-        return observation_field(&AutocallableObservation::coupon_barrier_level, terms->coupon_barrier_levels);
+        return observation_field(&AutocallableObservation::coupon_barrier_level);
     }
     auto knock_out_coupon_rates() const
-        requires requires { terms->knock_out_coupon_rates; }
+        requires requires { terms->maturity_coupon_rate; }
     {
-        return observation_field(&AutocallableObservation::coupon_rate, terms->knock_out_coupon_rates);
+        return observation_field(&AutocallableObservation::coupon_rate);
     }
     double maturity_coupon_rate() const
         requires requires { terms->maturity_coupon_rate; }
@@ -146,22 +152,6 @@ struct AutocallableInput {
         return terms->minimum_coupon_rate;
     }
 };
-
-// Input validation establishes equal sequence lengths before records are constructed.
-template <typename Terms>
-std::vector<AutocallableObservation> autocallable_observations(const Terms& terms)
-{
-    if (!terms.observations.empty()) return terms.observations;
-    std::vector<AutocallableObservation> observations;
-    observations.reserve(terms.observation_dates.size());
-    for (std::size_t i = 0; i < terms.observation_dates.size(); ++i) {
-        AutocallableObservation observation{terms.observation_dates[i], terms.knock_out_levels[i]};
-        if constexpr (requires { terms.knock_out_coupon_rates; }) observation.coupon_rate = terms.knock_out_coupon_rates[i];
-        if constexpr (requires { terms.coupon_barrier_levels; }) observation.coupon_barrier_level = terms.coupon_barrier_levels[i];
-        observations.push_back(observation);
-    }
-    return observations;
-}
 
 } // namespace detail
 
@@ -274,9 +264,6 @@ template <typename Note>
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
     auto life = validate_instrument_life(note.effective_date(), note.expiry_date());
     if (!life) return std::unexpected(life.error());
-    if constexpr (requires { note.mixed_observation_inputs(); })
-        if (note.mixed_observation_inputs())
-            return std::unexpected(Error{ErrorCategory::invalid_schedule, "observation records and sequences cannot be mixed"});
     if (note.observation_dates().empty() ||
         note.knock_out_levels().size() != note.observation_dates().size())
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable schedule is invalid"});

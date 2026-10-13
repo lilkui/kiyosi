@@ -77,6 +77,8 @@ target_link_libraries(my_app PRIVATE kiyosi::kiyosi)
 
 Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. For examples of additional instruments and pricing engines, see [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp).
 
+Autocallable C++ construction terms use `observations`, a vector of `AutocallableObservation` records that associate each date with its knock-out level and coupon terms. Use `make_autocallable_observations` to associate parallel sequences before calling a note factory. Python constructors accept either records or complete parallel sequences; both forms use the same core factory.
+
 ## Validation
 
 Pricing tests compare Kiyosi's results with reference values generated independently using [QuantLib](https://www.quantlib.org/). QuantLib is used by the [reference-generation tooling](tools/quantlib-oracle/GENERATION.md) and is not required to build or run the C++ core. See the [pricing benchmark matrix](benchmarks/README.md) for performance comparisons.

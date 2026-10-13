@@ -96,17 +96,10 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
         for (const bool early : {false, true}) {
             for (const double sign : {-1.0, 0.0, 1.0}) {
                 CAPTURE(backend, rate, early, sign);
-                BinarySnowballTerms terms{
-                    .knock_out_coupon_rates = early ? std::vector{(sign - 1.0) * amount, 0.0} : std::vector{0.0},
-                    .maturity_coupon_rate = early ? 0.0 : (sign - 1.0) * amount,
-                    .knock_out_levels = early ? std::vector{80.0, 80.0} : std::vector{200.0},
-                    .observation_dates = early ? std::vector{middle, end} : std::vector{middle},
-                    .principal_ratio = amount,
-                    .effective_date = start,
-                    .expiry_date = early ? end : middle};
+                BinarySnowballTerms terms{.maturity_coupon_rate = early ? 0.0 : (sign - 1.0) * amount, .principal_ratio = amount, .effective_date = start, .expiry_date = early ? end : middle, .observations = *kiyosi::make_autocallable_observations(early ? std::vector{middle, end} : std::vector{middle}, early ? std::vector{80.0, 80.0} : std::vector{200.0}, early ? std::vector{(sign - 1.0) * amount, 0.0} : std::vector{0.0})};
                 const auto lower = make_binary_snowball_option(terms);
                 REQUIRE(lower);
-                if (early) terms.knock_out_coupon_rates.front() += amount;
+                if (early) terms.observations.front().coupon_rate += amount;
                 else terms.maturity_coupon_rate += amount;
                 const auto upper = make_binary_snowball_option(terms);
                 REQUIRE(upper);
@@ -133,14 +126,14 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
             CHECK(*result->require(Greek::delta) == Catch::Approx(discounted).epsilon(1e-8).margin(0.0));
         }
         if (rate > 0.0) {
-            const auto phoenix = *make_phoenix_option({.coupon_rate = amount, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {200.0, 200.0}, .coupon_barrier_levels = {0.0, 0.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {middle, end}, .principal_ratio = 0.0, .effective_date = start, .expiry_date = end});
+            const auto phoenix = *make_phoenix_option({.coupon_rate = amount, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .principal_ratio = 0.0, .effective_date = start, .expiry_date = end, .observations = {{middle, 200.0, 0.0, 0.0}, {end, 200.0, 0.0, 0.0}}});
             const auto price = MonteCarloPhoenixEngine{10, 42, backend}.price(phoenix, context);
             REQUIRE(price);
             CHECK(*price == Catch::Approx(discounted).epsilon(2e-12).margin(0.0));
         }
     }
     const auto context = *make_pricing_context(*make_bsm_parameters(-750.0, -750.0, 1e-20), 100.0, start);
-    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {200.0}, .observation_dates = {middle}, .effective_date = start, .expiry_date = middle});
+    const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .effective_date = start, .expiry_date = middle, .observations = {{middle, 200.0, 0.0}}});
     const auto overflow = MonteCarloBinarySnowballEngine{10, 42, backend}.price(note, context);
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);

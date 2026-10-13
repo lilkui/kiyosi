@@ -67,22 +67,22 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
 
 auto snowball(AutocallableBarrierState status)
 {
-    return kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_snowball_option({.maturity_coupon_rate = 0.12, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.20}}});
 }
 
 auto ternary(AutocallableBarrierState status)
 {
-    return kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.12, .minimum_coupon_rate = 0.03, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.20}}});
 }
 
 auto binary(AutocallableBarrierState status)
 {
-    return kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.20}, .maturity_coupon_rate = 0.12, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.12, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.20}}});
 }
 
 auto phoenix(AutocallableBarrierState status)
 {
-    return kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date});
+    return kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = status, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.0, 90.0}}});
 }
 } // namespace
 
@@ -214,7 +214,7 @@ TEST_CASE("FD-MC pre-expiry_date prices approach independently known constant-pa
 TEST_CASE("FD-MC binary snowball discounts a known fixed terminal cashflow", "[cross-validation]")
 {
     // The only observation is expiry_date and both outcomes pay 1.12, for every simulated path.
-    const auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.12}, .maturity_coupon_rate = 0.12, .knock_out_levels = {120.0}, .observation_dates = {expiry_date}, .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto note = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.12, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.12}}});
     REQUIRE(note);
     check_known_price(*note, market(100.0, effective_date, 0.05), 1.12 * std::exp(-0.05), 1e-8);
 }
@@ -265,7 +265,7 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
 {
     const auto start = day(2025, 1, 6);
     const auto maturity = start + std::chrono::days{91};
-    const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.0025, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {maturity}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = maturity});
+    const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.0025, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = maturity, .observations = {{maturity, 120.0, 0.0, 90.0}}});
     REQUIRE(note);
     const auto context = market(100.0, start, 0.0, 1e-8);
     // 91/365 and this subdivision count previously introduced a second endpoint
@@ -288,17 +288,7 @@ TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cro
         for (const bool split : {false, true}) {
             const std::vector<kiyosi::Date> dates = split ? std::vector{middle, expiry_date}
                                                           : std::vector{expiry_date};
-            const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.08,
-                                                           .initial_spot = scale,
-                                                           .knock_in_level = 0.5 * scale,
-                                                           .knock_out_levels = std::vector(dates.size(), 2.0 * scale),
-                                                           .coupon_barrier_levels = std::vector(dates.size(), 0.9 * scale),
-                                                           .upper_strike = scale,
-                                                           .lower_strike = 0.0,
-                                                           .observation_dates = dates,
-                                                           .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                           .effective_date = effective_date,
-                                                           .expiry_date = expiry_date});
+            const auto note = kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = scale, .knock_in_level = 0.5 * scale, .upper_strike = scale, .lower_strike = 0.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(dates, std::vector(dates.size(), 2.0 * scale), std::nullopt, std::vector(dates.size(), 0.9 * scale))});
             REQUIRE(note);
             CAPTURE(scale, split);
             const auto context = market(scale, effective_date, 0.0, 1e-8);
@@ -318,7 +308,7 @@ TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]
 {
     const auto event = day(2025, 1, 2);
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.2, .knock_out_levels = {120.0, 130.0}, .observation_dates = {event, expiry_date}, .effective_date = effective_date, .expiry_date = expiry_date});
+    const auto note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.2, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{event, 120.0, 0.1}, {expiry_date, 130.0, 0.1}}});
     const auto accumulator = *kiyosi::make_accumulator(
         {100.0, 120.0, 1.0, 2.0, 3.0, effective_date, expiry_date});
     for (const double spot : {120.0, 120.1}) {
@@ -361,7 +351,7 @@ TEST_CASE("Finite-difference current accrual and knock-in precede continuation",
         CHECK(*actual == *expected);
     }
     const auto snowball = [&](kiyosi::AutocallableBarrierState state) {
-        return *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date});
+        return *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.1}}});
     };
     const auto context = *kiyosi::make_pricing_context(parameters, 79.9, event);
     const kiyosi::FiniteDifferenceSnowballEngine engine{grid};
@@ -376,7 +366,7 @@ TEST_CASE("Finite-difference current coupons use the actual barrier branch", "[a
 {
     const auto event = day(2025, 1, 2);
     const auto note = [&](double barrier) {
-        return *kiyosi::make_phoenix_option({.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 60.0, .knock_out_levels = {120.0, 130.0}, .coupon_barrier_levels = {barrier, 80.0}, .upper_strike = 100.0, .lower_strike = 0.0, .observation_dates = {event, expiry_date}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = effective_date, .expiry_date = expiry_date});
+        return *kiyosi::make_phoenix_option({.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 60.0, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{event, 120.0, 0.0, barrier}, {expiry_date, 130.0, 0.0, 80.0}}});
     };
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0, event);

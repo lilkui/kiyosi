@@ -71,14 +71,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
     check(kiyosi::AnalyticBinaryBarrierEngine{}, binary, 7.0);
     check(kiyosi::AnalyticGeometricAveragePriceEngine{}, *kiyosi::make_geometric_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
     check(kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
-    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                            .maturity_coupon_rate = 0.05,
-                                                            .knock_out_levels = {100.0},
-                                                            .observation_dates = {expiry_date},
-                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                            .principal_ratio = 1.0,
-                                                            .effective_date = effective_date,
-                                                            .expiry_date = expiry_date});
+    const auto note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
     check(kiyosi::MonteCarloBinarySnowballEngine{{32, 7}}, note, 1.1);
     check(kiyosi::FiniteDifferenceBinarySnowballEngine{}, note, 1.1);
     const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
@@ -90,47 +83,13 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                         .expiry_date = expiry_date});
     check(kiyosi::MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 10.0);
     check(kiyosi::FiniteDifferenceAccumulatorEngine{}, accumulator, 10.0);
-    const auto snowball = *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                         .maturity_coupon_rate = 0.05,
-                                                         .initial_spot = 100.0,
-                                                         .knock_in_level = 80.0,
-                                                         .knock_out_levels = {100.0},
-                                                         .upper_strike = 100.0,
-                                                         .lower_strike = 60.0,
-                                                         .observation_dates = {expiry_date},
-                                                         .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                         .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                         .principal_ratio = 1.0,
-                                                         .effective_date = effective_date,
-                                                         .expiry_date = expiry_date});
+    const auto snowball = *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
     check(kiyosi::MonteCarloSnowballEngine{{32, 7}}, snowball, 1.1);
     check(kiyosi::FiniteDifferenceSnowballEngine{}, snowball, 1.1);
-    const auto ternary = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                                .maturity_coupon_rate = 0.05,
-                                                                .minimum_coupon_rate = 0.02,
-                                                                .knock_in_level = 80.0,
-                                                                .knock_out_levels = {100.0},
-                                                                .observation_dates = {expiry_date},
-                                                                .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                                .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                                .principal_ratio = 1.0,
-                                                                .effective_date = effective_date,
-                                                                .expiry_date = expiry_date});
+    const auto ternary = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
     check(kiyosi::MonteCarloTernarySnowballEngine{{32, 7}}, ternary, 1.1);
     check(kiyosi::FiniteDifferenceTernarySnowballEngine{}, ternary, 1.1);
-    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08,
-                                                       .initial_spot = 100.0,
-                                                       .knock_in_level = 80.0,
-                                                       .knock_out_levels = {100.0},
-                                                       .coupon_barrier_levels = {90.0},
-                                                       .upper_strike = 100.0,
-                                                       .lower_strike = 60.0,
-                                                       .observation_dates = {expiry_date},
-                                                       .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry,
-                                                       .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                       .principal_ratio = 1.0,
-                                                       .effective_date = effective_date,
-                                                       .expiry_date = expiry_date});
+    const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.0, 90.0}}});
     check(kiyosi::MonteCarloPhoenixEngine{{32, 7}}, phoenix, 1.08);
     check(kiyosi::FiniteDifferencePhoenixEngine{}, phoenix, 1.08);
 }
@@ -209,14 +168,7 @@ TEST_CASE("Autocallable observations occur at midnight only", "[architecture]")
     const auto effective_date = day(2025, 1, 1);
     const auto observation_date = day(2025, 7, 1);
     const auto expiry_date = day(2026, 1, 1);
-    const auto note = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {10.0, 0.1},
-                                                            .maturity_coupon_rate = 0.05,
-                                                            .knock_out_levels = {90.0, 90.0},
-                                                            .observation_dates = {observation_date, expiry_date},
-                                                            .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                            .principal_ratio = 1.0,
-                                                            .effective_date = effective_date,
-                                                            .expiry_date = expiry_date});
+    const auto note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{observation_date, 90.0, 10.0}, {expiry_date, 90.0, 0.1}}});
     const auto check = [&](const auto& engine) {
         for (const int hour : {0, 12}) {
             const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12),
@@ -239,17 +191,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
     const auto effective_date = day(2025, 1, 1);
     const auto observation_date = day(2025, 1, 2);
     const auto expiry_date = day(2025, 1, 3);
-    const auto note = *kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                             .maturity_coupon_rate = 0.8,
-                                                             .minimum_coupon_rate = 0.2,
-                                                             .knock_in_level = 80.0,
-                                                             .knock_out_levels = {1000.0},
-                                                             .observation_dates = {expiry_date},
-                                                             .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                             .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                             .principal_ratio = 1.0,
-                                                             .effective_date = effective_date,
-                                                             .expiry_date = expiry_date});
+    const auto note = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.8, .minimum_coupon_rate = 0.2, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 1000.0, 0.1}}});
     const kiyosi::MonteCarloTernarySnowballEngine engine{{32, 7}};
     for (const int hour : {0, 12}) {
         const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(400.0, 0.0, 1e-12),

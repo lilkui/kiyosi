@@ -600,7 +600,7 @@ TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[
                 for (const double lower : {100.0, 60.0}) {
                     CAPTURE(rate, dates, barrier, lower);
                     const auto note = *make_phoenix_option(
-                        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dates.size(), 120.0), .coupon_barrier_levels = std::vector<double>(dates.size(), barrier), .upper_strike = 100.0, .lower_strike = lower, .observation_dates = dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+                        {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(dates, std::vector<double>(dates.size(), 120.0), std::nullopt, std::vector<double>(dates.size(), barrier))});
                     const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.02, bounds.lower_bound), 100.0, start, all_days_calendar());
                     const bool exposed = lower != 100.0 || barrier != 0.0 || dates.size() > 1 || (rate != 0.0 && dates.front() != end);
                     const auto check = [&](const auto& engine) {
@@ -637,7 +637,7 @@ TEST_CASE("Trading finite-difference prices are invariant to currency scale", "[
         const auto accumulator = *make_accumulator(
             {.strike = 100.0 * scale, .knock_out_level = 120.0 * scale, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
         const auto snowball = *make_binary_snowball_option(
-            {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2, .knock_out_levels = {101.0 * scale}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+            {.maturity_coupon_rate = 0.2, .effective_date = start, .expiry_date = end, .observations = {{end, 101.0 * scale, 0.1}}});
         const auto accrued = FiniteDifferenceAccumulatorEngine{}.price(accumulator, context);
         const auto normalized = FiniteDifferenceBinarySnowballEngine{}.price(snowball, context);
         REQUIRE(accrued);
@@ -705,11 +705,11 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, 0.05), 100.0, start);
                 const bool exposed = rate != 0.0 || lower != 100.0 || coupon != 0.0;
                 const auto snowball = *make_snowball_option(
-                    {.knock_out_coupon_rates = {coupon, coupon}, .maturity_coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = lower, .observation_dates = {fixing, end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+                    {.maturity_coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, coupon}, {end, 120.0, coupon}}});
                 check(MonteCarloSnowballEngine{{64, 73}}, snowball, context, exposed);
                 check(FiniteDifferenceSnowballEngine{}, snowball, context, exposed);
                 const auto phoenix = *make_phoenix_option(
-                    {.coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0, 120.0}, .coupon_barrier_levels = {90.0, 90.0}, .upper_strike = 100.0, .lower_strike = lower, .observation_dates = {fixing, end}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end});
+                    {.coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0, 90.0}, {end, 120.0, 0.0, 90.0}}});
                 check(MonteCarloPhoenixEngine{{64, 73}}, phoenix, context, exposed);
                 check(FiniteDifferencePhoenixEngine{}, phoenix, context, exposed);
             }
@@ -719,7 +719,7 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
         const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.05), historical ? 100.0 : 70.0,
                                                    historical ? fixing : start);
         const auto note = *make_snowball_option(
-            {.knock_out_coupon_rates = {0.0, 0.0}, .maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {fixing, end}, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = historical ? AutocallableBarrierState::knocked_in : AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+            {.maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = historical ? AutocallableBarrierState::knocked_in : AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0}, {end, 120.0, 0.0}}});
         check(MonteCarloSnowballEngine{{64, 73}}, note, context, false);
         check(FiniteDifferenceSnowballEngine{}, note, context, false);
     }
@@ -782,7 +782,7 @@ TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api
             CAPTURE(valuation, lower);
             const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.05), 100.0, valuation, all_days_calendar());
             const auto option = *make_phoenix_option(
-                {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = lower, .observation_dates = {fixing}, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end});
+                {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.0, 90.0}}});
             const auto check = [&](const auto& engine) {
                 const auto quote = engine.price(option, context);
                 REQUIRE(quote);

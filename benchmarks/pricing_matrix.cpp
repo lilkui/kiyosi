@@ -40,7 +40,7 @@ void register_matrix()
     const auto geometric = *make_geometric_average_option(OptionType::call, 100.0, start, start, expiry);
     const auto arithmetic = *make_arithmetic_average_option(OptionType::call, 100.0, start, start, expiry);
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = expiry});
-    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .coupon_barrier_levels = {90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {expiry}, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = expiry});
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.0, 90.0}}});
     const auto snowball = *make_both_down_snowball({.initial_coupon_rate = 0.08,
                                                     .coupon_rate_decrement = 0.01,
                                                     .initial_spot = 100.0,
@@ -50,21 +50,8 @@ void register_matrix()
                                                     .observation_dates = {expiry},
                                                     .effective_date = start,
                                                     .expiry_date = expiry});
-    const auto binary_snowball = *make_binary_snowball_option({.knock_out_coupon_rates = {0.08},
-                                                               .maturity_coupon_rate = 0.05,
-                                                               .knock_out_levels = {110.0},
-                                                               .observation_dates = {expiry},
-                                                               .effective_date = start,
-                                                               .expiry_date = expiry});
-    const auto ternary_snowball = *make_ternary_snowball_option({.knock_out_coupon_rates = {0.08},
-                                                                 .maturity_coupon_rate = 0.05,
-                                                                 .minimum_coupon_rate = 0.02,
-                                                                 .knock_in_level = 80.0,
-                                                                 .knock_out_levels = {110.0},
-                                                                 .observation_dates = {expiry},
-                                                                 .knock_in_observation_mode = KnockInObservationMode::every_trading_day,
-                                                                 .effective_date = start,
-                                                                 .expiry_date = expiry});
+    const auto binary_snowball = *make_binary_snowball_option({.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
+    const auto ternary_snowball = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
 
     register_kiyosi("european/analytic", european, AnalyticVanillaEngine{}, context);
     const auto up_and_out = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
@@ -74,18 +61,7 @@ void register_matrix()
     std::vector<Date> dense_dates;
     for (auto date = start + std::chrono::days{1}; date <= dense_expiry; date += std::chrono::days{1})
         dense_dates.push_back(date);
-    const auto dense_note = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08),
-                                                   .maturity_coupon_rate = 0.08,
-                                                   .initial_spot = 100.0,
-                                                   .knock_in_level = 80.0,
-                                                   .knock_out_levels = std::vector<double>(dense_dates.size(), 110.0),
-                                                   .upper_strike = 100.0,
-                                                   .lower_strike = 60.0,
-                                                   .observation_dates = dense_dates,
-                                                   .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-                                                   .barrier_state = AutocallableBarrierState::none,
-                                                   .effective_date = start,
-                                                   .expiry_date = dense_expiry});
+    const auto dense_note = *make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = dense_expiry, .observations = *kiyosi::make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 110.0), std::vector<double>(dense_dates.size(), 0.08))});
     const auto dense_context = *make_pricing_context(context.model_parameters(), 80.25,
                                                      start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const FiniteDifferenceSnowballEngine dense_engine{80, 1};

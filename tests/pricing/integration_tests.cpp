@@ -74,7 +74,7 @@ TEST_CASE("Trading Monte Carlo rejects invalid simulation paths")
     const auto accumulator = *kiyosi::make_accumulator(
         {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     const auto note = *kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.2, .knock_out_levels = {120.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+        {.maturity_coupon_rate = 0.2, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
     for (const auto [rate, volatility] : {
              std::pair{0.05, 1e308}, std::pair{0.05, 1000.0}, std::pair{1e308, 0.2}}) {
         const auto context = *kiyosi::make_pricing_context(
@@ -182,14 +182,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
     REQUIRE(asian_result.has_value());
     REQUIRE(*asian_result > 0.0);
 
-    auto note = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1},
-                                                     .maturity_coupon_rate = 0.05,
-                                                     .knock_out_levels = {110.0},
-                                                     .observation_dates = {expiry_date},
-                                                     .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                     .principal_ratio = 1.0,
-                                                     .effective_date = valuation,
-                                                     .expiry_date = expiry_date});
+    auto note = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = valuation, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.1}}});
     REQUIRE(note);
     const kiyosi::MonteCarloBinarySnowballEngine engine{{128, 7}};
     auto note_result = engine.price(*note, *context);

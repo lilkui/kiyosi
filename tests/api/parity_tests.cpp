@@ -195,7 +195,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 const auto context = *kiyosi::make_pricing_context(
                     *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0,
                     parse_date(test.inputs.at("valuation_date")));
-                const auto option = *kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {110.0}, .observation_dates = {parse_date(test.inputs.at("observation_date"))}, .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+                const auto option = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.1, .barrier_state = kiyosi::AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{parse_date(test.inputs.at("observation_date")), 110.0, 0.1}}});
                 const auto check = [&](const auto& engine) {
                     const auto price = engine.price(option, context);
                     REQUIRE(price);

@@ -63,19 +63,7 @@ auto phoenix_scenario()
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     return std::pair{
-        *kiyosi::make_phoenix_option({.coupon_rate = 0.002,
-                                      .initial_spot = 100.0,
-                                      .knock_in_level = 75.0,
-                                      .knock_out_levels = {110.0, 108.0, 106.0, 104.0},
-                                      .coupon_barrier_levels = {90.0, 90.0, 90.0, 90.0},
-                                      .upper_strike = 100.0,
-                                      .lower_strike = 60.0,
-                                      .observation_dates = observations,
-                                      .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                      .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                      .principal_ratio = 1.0,
-                                      .effective_date = effective_date,
-                                      .expiry_date = expiry_date}),
+        *kiyosi::make_phoenix_option({.coupon_rate = 0.002, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 106.0, 104.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0, 90.0})}),
         context};
 }
 
@@ -90,19 +78,7 @@ auto snowball_scenario(kiyosi::AutocallableBarrierState barrier_state = kiyosi::
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     return std::pair{
-        *kiyosi::make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08, 0.08},
-                                       .maturity_coupon_rate = 0.06,
-                                       .initial_spot = 100.0,
-                                       .knock_in_level = 75.0,
-                                       .knock_out_levels = {110.0, 108.0, 106.0, 104.0},
-                                       .upper_strike = 100.0,
-                                       .lower_strike = 60.0,
-                                       .observation_dates = observations,
-                                       .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                       .barrier_state = barrier_state,
-                                       .principal_ratio = 1.0,
-                                       .effective_date = effective_date,
-                                       .expiry_date = expiry_date}),
+        *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = barrier_state, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 106.0, 104.0}, std::vector<double>{0.08, 0.08, 0.08, 0.08})}),
         context};
 }
 
@@ -181,7 +157,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto dense_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dense_dates, .touch_state = BarrierTouchState::untouched});
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=, dense_barrier = dense_barrier] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
-    const auto dense_snowball = *make_snowball_option({.knock_out_coupon_rates = std::vector<double>(dense_dates.size(), 0.08), .maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = std::vector<double>(dense_dates.size(), 1'000.0), .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = dense_dates, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry});
+    const auto dense_snowball = *make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .observations = *kiyosi::make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 1'000.0), std::vector<double>(dense_dates.size(), 0.08))});
     const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const auto dense_barrier_context = *make_pricing_context(base_context.model_parameters(), 100.25, dense_context.valuation_time(), weekdays_calendar());
     const FiniteDifferenceBarrierEngine dense_barrier_engine{80, 1};
@@ -311,16 +287,16 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto knocked_in = snowball_scenario(AutocallableBarrierState::knocked_in).first;
     register_price("analytics/kiyosi/snowball/fd/knocked_in/price", knocked_in, snowball_engine, context);
     const auto expiry_note = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {european.expiry_date()}, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+        {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.08}}});
     register_price("analytics/kiyosi/snowball/fd/expiry_only/price", expiry_note, snowball_engine, base_context);
     register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, FiniteDifferenceSnowballEngine{{200, 1000}}, base_context);
     const auto fixed_note = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {european.expiry_date()}, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+        {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.0}}});
     const auto fixed_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, european.effective_date());
     register_price("analytics/kiyosi/snowball/mc/fixed/price", fixed_note, MonteCarloSnowballEngine{20'000, 42}, fixed_context);
     register_price("analytics/kiyosi/snowball/fd/fixed/price", fixed_note, snowball_engine, fixed_context);
     const auto protected_note = *make_snowball_option(
-        {.knock_out_coupon_rates = {0.08, 0.08}, .maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .knock_out_levels = {110.0, 104.0}, .upper_strike = 100.0, .lower_strike = 100.0, .observation_dates = {Date{std::chrono::year{2025} / 7 / 1}, european.expiry_date()}, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
+        {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{Date{std::chrono::year{2025} / 7 / 1}, 110.0, 0.08}, {european.expiry_date(), 104.0, 0.08}}});
     register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloSnowballEngine{20'000, 42}, base_context);
     register_price("analytics/kiyosi/snowball/fd/protected/price", protected_note, snowball_engine, base_context);
     const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};

@@ -20,23 +20,19 @@ TEST_CASE("Autocallable factories accept associated observation records", "[obse
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), first = day(2025, 7, 1), end = day(2026, 1, 1);
     const auto check = [&](auto factory, auto terms) {
-        terms.observation_dates = {first, end};
-        terms.knock_out_levels = {115.0, 110.0};
-        if constexpr (requires { terms.knock_out_coupon_rates; }) terms.knock_out_coupon_rates = {0.08, 0.12};
-        if constexpr (requires { terms.coupon_barrier_levels; }) terms.coupon_barrier_levels = {85.0, 80.0};
-        const auto sequence_note = factory(terms);
-        REQUIRE(sequence_note);
-        terms.observations = detail::autocallable_observations(terms);
-        const auto mixed = factory(terms);
-        REQUIRE_FALSE(mixed);
-        CHECK(mixed.error().category == ErrorCategory::invalid_schedule);
-        terms.observation_dates.clear();
-        terms.knock_out_levels.clear();
-        if constexpr (requires { terms.knock_out_coupon_rates; }) terms.knock_out_coupon_rates.clear();
-        if constexpr (requires { terms.coupon_barrier_levels; }) terms.coupon_barrier_levels.clear();
+        terms.observations = {{first, 115.0}, {end, 110.0}};
+        if constexpr (requires { terms.coupon_rate; }) {
+            terms.observations[0].coupon_barrier_level = 85.0;
+            terms.observations[1].coupon_barrier_level = 80.0;
+        } else {
+            terms.observations[0].coupon_rate = 0.08;
+            terms.observations[1].coupon_rate = 0.12;
+        }
         const auto record_note = factory(terms);
         REQUIRE(record_note);
-        CHECK(*record_note == *sequence_note);
+        const auto original = *record_note;
+        CHECK(record_note->observations_view()[0] == terms.observations[0]);
+        CHECK(record_note->observations_view()[1] == terms.observations[1]);
         std::ranges::reverse(terms.observations);
         const auto unordered = factory(terms);
         REQUIRE_FALSE(unordered);
@@ -48,7 +44,7 @@ TEST_CASE("Autocallable factories accept associated observation records", "[obse
         const auto invalid_level = factory(terms);
         REQUIRE_FALSE(invalid_level);
         CHECK(invalid_level.error().category == ErrorCategory::invalid_parameter);
-        CHECK(*record_note == *sequence_note);
+        CHECK(*record_note == original);
         terms.observations.front().knock_out_level = 115.0;
         if constexpr (requires { terms.coupon_rate; }) terms.observations.front().coupon_rate = 0.1;
         else terms.observations.front().coupon_barrier_level = 1.0;
@@ -65,6 +61,29 @@ TEST_CASE("Autocallable factories accept associated observation records", "[obse
         .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
 }
 
+TEST_CASE("Observation sequence adapter preserves associations and rejects mismatched lengths", "[observation-record-input]")
+{
+    using namespace kiyosi;
+    const auto first = day(2025, 7, 1), end = day(2026, 1, 1);
+    const std::vector<Date> dates{first, end};
+    const std::vector<double> levels{115.0, 110.0};
+    const auto coupons = make_autocallable_observations(dates, levels, std::vector{0.08, 0.12});
+    REQUIRE(coupons);
+    CHECK(*coupons == std::vector<AutocallableObservation>{{first, 115.0, 0.08}, {end, 110.0, 0.12}});
+    const auto barriers = make_autocallable_observations(dates, levels, std::nullopt, std::vector{85.0, 80.0});
+    REQUIRE(barriers);
+    CHECK(*barriers == std::vector<AutocallableObservation>{{first, 115.0, 0.0, 85.0}, {end, 110.0, 0.0, 80.0}});
+    for (const auto& invalid : {
+        make_autocallable_observations(dates, {115.0}),
+        make_autocallable_observations(dates, levels, std::vector<double>{}),
+        make_autocallable_observations(dates, levels, std::vector{0.08}),
+        make_autocallable_observations(dates, levels, std::nullopt, std::vector<double>{}),
+        make_autocallable_observations(dates, levels, std::nullopt, std::vector{85.0})}) {
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == ErrorCategory::invalid_schedule);
+    }
+}
+
 TEST_CASE("Coupon replacement preserves owning notes and validates changed terms", "[coupon-replacement]")
 {
     using namespace kiyosi;
@@ -75,7 +94,8 @@ TEST_CASE("Coupon replacement preserves owning notes and validates changed terms
         const auto original = *note;
         for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
             auto expected_terms = terms;
-            expected_terms.knock_out_coupon_rates = {0.375, 0.5};
+            expected_terms.observations[0].coupon_rate = 0.375;
+            expected_terms.observations[1].coupon_rate = 0.5;
             expected_terms.maturity_coupon_rate = convention == CouponQuoteConvention::shift_maturity_coupon ? 0.3125 : 0.0625;
             const auto expected = factory(expected_terms);
             const auto replaced = detail::replace_coupon(*note, 0.375, convention);
@@ -95,31 +115,17 @@ TEST_CASE("Coupon replacement preserves owning notes and validates changed terms
         REQUIRE_FALSE(invalid_convention);
         CHECK(invalid_convention.error().category == ErrorCategory::invalid_parameter);
         auto overflow_terms = terms;
-        overflow_terms.knock_out_coupon_rates = {-std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+        overflow_terms.observations[0].coupon_rate = -std::numeric_limits<double>::max();
+        overflow_terms.observations[1].coupon_rate = std::numeric_limits<double>::max();
         const auto overflow_note = factory(overflow_terms);
         REQUIRE(overflow_note);
         const auto overflow = detail::replace_coupon(*overflow_note, 0.0, CouponQuoteConvention::preserve_maturity_coupon);
         REQUIRE_FALSE(overflow);
         CHECK(overflow.error().category == ErrorCategory::invalid_parameter);
     };
-    check(make_snowball_option, SnowballTerms{
-        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625,
-        .initial_spot = 105.0, .knock_in_level = 75.0, .knock_out_levels = {115.0, 110.0},
-        .upper_strike = 100.0, .lower_strike = 55.0, .observation_dates = {first, end},
-        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-        .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5,
-        .effective_date = start, .expiry_date = end});
-    check(make_binary_snowball_option, BinarySnowballTerms{
-        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625,
-        .knock_out_levels = {115.0, 110.0}, .observation_dates = {first, end},
-        .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5,
-        .effective_date = start, .expiry_date = end});
-    const TernarySnowballTerms ternary_terms{
-        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625, .minimum_coupon_rate = 0.015625,
-        .knock_in_level = 75.0, .knock_out_levels = {115.0, 110.0}, .observation_dates = {first, end},
-        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-        .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5,
-        .effective_date = start, .expiry_date = end};
+    check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.0625, .initial_spot = 105.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 55.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.125}, {end, 110.0, 0.25}}});
+    check(make_binary_snowball_option, BinarySnowballTerms{.maturity_coupon_rate = 0.0625, .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.125}, {end, 110.0, 0.25}}});
+    const TernarySnowballTerms ternary_terms{.maturity_coupon_rate = 0.0625, .minimum_coupon_rate = 0.015625, .knock_in_level = 75.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.125}, {end, 110.0, 0.25}}};
     check(make_ternary_snowball_option, ternary_terms);
     const auto ternary = make_ternary_snowball_option(ternary_terms);
     REQUIRE(ternary);
@@ -128,12 +134,7 @@ TEST_CASE("Coupon replacement preserves owning notes and validates changed terms
     CHECK(below_floor.error().category == ErrorCategory::invalid_parameter);
     CHECK(*ternary == *make_ternary_snowball_option(ternary_terms));
 
-    PhoenixTerms phoenix_terms{.coupon_rate = 0.125, .initial_spot = 105.0, .knock_in_level = 75.0,
-        .knock_out_levels = {115.0, 110.0}, .coupon_barrier_levels = {85.0, 80.0},
-        .upper_strike = 100.0, .lower_strike = 55.0, .observation_dates = {first, end},
-        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
-        .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5,
-        .effective_date = start, .expiry_date = end};
+    PhoenixTerms phoenix_terms{.coupon_rate = 0.125, .initial_spot = 105.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 55.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.0, 85.0}, {end, 110.0, 0.0, 80.0}}};
     const auto phoenix = make_phoenix_option(phoenix_terms);
     REQUIRE(phoenix);
     const auto original = *phoenix;
@@ -155,7 +156,7 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), first = day(2025, 1, 11), end = day(2025, 1, 31);
     const auto snowball = make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.365, 0.73}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0, 105.0}, .observation_dates = {first, end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+        {.maturity_coupon_rate = 0.05, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{first, 110.0, 0.365}, {end, 105.0, 0.73}}});
     REQUIRE(snowball);
     const auto observations = snowball->observations_view();
     REQUIRE(observations.size() == 2);
@@ -165,7 +166,7 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
     CHECK(detail::autocallable_event(*snowball, 1).coupon == Catch::Approx(0.06));
 
     const auto phoenix = make_phoenix_option(
-        {.coupon_rate = 0.365, .initial_spot = 100.0, .knock_in_level = 70.0, .knock_out_levels = {110.0, 105.0}, .coupon_barrier_levels = {108.0, 102.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {first, end}, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end});
+        {.coupon_rate = 0.365, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{first, 110.0, 0.0, 108.0}, {end, 105.0, 0.0, 102.0}}});
     REQUIRE(phoenix);
     CHECK(phoenix->observations_view()[0] == AutocallableObservation{first, 110.0, 0.0, 108.0});
     CHECK(phoenix->observations_view()[1] == AutocallableObservation{end, 105.0, 0.0, 102.0});
@@ -182,7 +183,7 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
         CHECK(*price == Catch::Approx(1.02));
     }
 
-    BinarySnowballTerms mismatched{.knock_out_coupon_rates = {0.365}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0, 105.0}, .observation_dates = {first, end}, .principal_ratio = -1.0, .effective_date = start, .expiry_date = end};
+    BinarySnowballTerms mismatched{.maturity_coupon_rate = 0.05, .principal_ratio = -1.0, .effective_date = start, .expiry_date = end, .observations = {}};
     const auto invalid_principal = make_binary_snowball_option(mismatched);
     REQUIRE_FALSE(invalid_principal);
     CHECK(invalid_principal.error().category == ErrorCategory::invalid_parameter);
@@ -289,20 +290,20 @@ TEST_CASE("Autocallable base validation accepts shared terms without participati
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
     const auto binary = kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .effective_date = effective, .expiry_date = expiry});
+        {.maturity_coupon_rate = 0.05, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
     REQUIRE(binary);
     CHECK(kiyosi::validate_autocallable_note(*binary));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*binary)));
 
     const auto ternary = kiyosi::make_ternary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry});
+        {.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
     REQUIRE(ternary);
     CHECK(kiyosi::validate_autocallable_note(*ternary));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::KnockInAutocallableNote&>(*ternary)));
     CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*ternary)));
 
     const auto invalid_binary = kiyosi::make_binary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .knock_out_levels = {110.0}, .observation_dates = {expiry}, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry});
+        {.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
     REQUIRE_FALSE(invalid_binary);
     CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
@@ -328,38 +329,17 @@ TEST_CASE("Autocallable factories preserve validation error categories")
         CHECK(invalid_parameter.error().category == kiyosi::ErrorCategory::invalid_parameter);
         if constexpr (requires { terms.initial_spot; }) terms.initial_spot = 100.0;
         else terms.principal_ratio = 1.0;
-        terms.observation_dates.clear();
+        terms.observations.clear();
         const auto invalid_schedule = factory(std::move(terms));
         REQUIRE_FALSE(invalid_schedule.has_value());
         CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
     };
 
     check(kiyosi::make_phoenix_option,
-          kiyosi::PhoenixTerms{.coupon_rate = 0.05,
-                               .initial_spot = 100.0,
-                               .knock_in_level = 60.0,
-                               .knock_out_levels = {110.0},
-                               .coupon_barrier_levels = {80.0},
-                               .upper_strike = 100.0,
-                               .lower_strike = 60.0,
-                               .observation_dates = {expiry_date},
-                               .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                               .effective_date = effective_date,
-                               .expiry_date = expiry_date});
+          kiyosi::PhoenixTerms{.coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 60.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.0, 80.0}}});
     check(kiyosi::make_binary_snowball_option,
-          kiyosi::BinarySnowballTerms{.knock_out_coupon_rates = {0.05},
-                                      .maturity_coupon_rate = 0.05,
-                                      .knock_out_levels = {110.0},
-                                      .observation_dates = {expiry_date},
-                                      .effective_date = effective_date,
-                                      .expiry_date = expiry_date});
-    const kiyosi::BinarySnowballTerms binary_terms{.knock_out_coupon_rates = {0.05},
-                                                   .maturity_coupon_rate = 0.05,
-                                                   .knock_out_levels = {110.0},
-                                                   .observation_dates = {expiry_date},
-                                                   .barrier_state = kiyosi::AutocallableBarrierState::knocked_in,
-                                                   .effective_date = effective_date,
-                                                   .expiry_date = expiry_date};
+          kiyosi::BinarySnowballTerms{.maturity_coupon_rate = 0.05, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.05}}});
+    const kiyosi::BinarySnowballTerms binary_terms{.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.05}}};
     const auto invalid_binary = kiyosi::make_binary_snowball_option(binary_terms);
     REQUIRE_FALSE(invalid_binary);
     CHECK(invalid_binary.error().category == kiyosi::ErrorCategory::invalid_parameter);
@@ -368,27 +348,9 @@ TEST_CASE("Autocallable factories preserve validation error categories")
     const auto knocked_out = kiyosi::make_binary_snowball_option(knocked_out_binary);
     CHECK(knocked_out.has_value());
     check(kiyosi::make_snowball_option,
-          kiyosi::SnowballTerms{.knock_out_coupon_rates = {0.05},
-                                .maturity_coupon_rate = 0.05,
-                                .initial_spot = 100.0,
-                                .knock_in_level = 60.0,
-                                .knock_out_levels = {110.0},
-                                .upper_strike = 100.0,
-                                .lower_strike = 60.0,
-                                .observation_dates = {expiry_date},
-                                .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                .effective_date = effective_date,
-                                .expiry_date = expiry_date});
+          kiyosi::SnowballTerms{.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 60.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.05}}});
     check(kiyosi::make_ternary_snowball_option,
-          kiyosi::TernarySnowballTerms{.knock_out_coupon_rates = {0.05},
-                                       .maturity_coupon_rate = 0.05,
-                                       .minimum_coupon_rate = 0.01,
-                                       .knock_in_level = 60.0,
-                                       .knock_out_levels = {110.0},
-                                       .observation_dates = {expiry_date},
-                                       .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                       .effective_date = effective_date,
-                                       .expiry_date = expiry_date});
+          kiyosi::TernarySnowballTerms{.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.01, .knock_in_level = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.05}}});
 }
 
 TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons")
@@ -399,35 +361,9 @@ TEST_CASE("Snowball factory rejects invalid schedules and accepts signed coupons
 
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
-    const auto note = kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-        .knock_out_coupon_rates = {-0.1},
-        .maturity_coupon_rate = -0.05,
-        .initial_spot = 100.0,
-        .knock_in_level = 60.0,
-        .knock_out_levels = {110.0},
-        .upper_strike = 100.0,
-        .lower_strike = 60.0,
-        .observation_dates = {expiry_date},
-        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-        .barrier_state = kiyosi::AutocallableBarrierState::none,
-        .principal_ratio = 1.0,
-        .effective_date = effective_date,
-        .expiry_date = expiry_date});
+    const auto note = kiyosi::make_snowball_option(kiyosi::SnowballTerms{.maturity_coupon_rate = -0.05, .initial_spot = 100.0, .knock_in_level = 60.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, -0.1}}});
     REQUIRE(note);
-    const auto invalid_schedule = kiyosi::make_snowball_option(kiyosi::SnowballTerms{
-        .knock_out_coupon_rates = {0.1},
-        .maturity_coupon_rate = 0.05,
-        .initial_spot = 100.0,
-        .knock_in_level = 60.0,
-        .knock_out_levels = {110.0},
-        .upper_strike = 100.0,
-        .lower_strike = 60.0,
-        .observation_dates = {expiry_date, effective_date},
-        .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-        .barrier_state = kiyosi::AutocallableBarrierState::none,
-        .principal_ratio = 1.0,
-        .effective_date = effective_date,
-        .expiry_date = expiry_date});
+    const auto invalid_schedule = kiyosi::make_snowball_option(kiyosi::SnowballTerms{.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 60.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.1}, {effective_date, 110.0, 0.1}}});
     REQUIRE_FALSE(invalid_schedule.has_value());
     CHECK(invalid_schedule.error().category == kiyosi::ErrorCategory::invalid_schedule);
 }
@@ -551,25 +487,8 @@ TEST_CASE("Binary and ternary Snowballs imply knock-out coupons")
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
     const std::vector<kiyosi::Date> observation_dates{day(2025, 7, 1), expiry_date};
-    const auto binary = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {0.10, 0.09},
-                                                             .maturity_coupon_rate = 0.03,
-                                                             .knock_out_levels = {105.0, 100.0},
-                                                             .observation_dates = observation_dates,
-                                                             .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                             .principal_ratio = 1.0,
-                                                             .effective_date = effective_date,
-                                                             .expiry_date = expiry_date});
-    const auto ternary = kiyosi::make_ternary_snowball_option({.knock_out_coupon_rates = {0.10, 0.09},
-                                                               .maturity_coupon_rate = 0.03,
-                                                               .minimum_coupon_rate = 0.01,
-                                                               .knock_in_level = 70.0,
-                                                               .knock_out_levels = {105.0, 100.0},
-                                                               .observation_dates = observation_dates,
-                                                               .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day,
-                                                               .barrier_state = kiyosi::AutocallableBarrierState::none,
-                                                               .principal_ratio = 1.0,
-                                                               .effective_date = effective_date,
-                                                               .expiry_date = expiry_date});
+    const auto binary = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.03, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observation_dates, std::vector<double>{105.0, 100.0}, std::vector<double>{0.10, 0.09})});
+    const auto ternary = kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.03, .minimum_coupon_rate = 0.01, .knock_in_level = 70.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observation_dates, std::vector<double>{105.0, 100.0}, std::vector<double>{0.10, 0.09})});
     REQUIRE(binary);
     REQUIRE(ternary);
 
@@ -599,7 +518,7 @@ TEST_CASE("Ternary coupon floor cannot exceed its maturity coupon")
     const auto start = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
     const auto invalid = kiyosi::make_ternary_snowball_option(
-        {.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.06, .knock_in_level = 80.0, .knock_out_levels = {120.0}, .observation_dates = {expiry}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = expiry});
+        {.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.06, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 120.0, 0.1}}});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
@@ -619,7 +538,7 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
     };
     const auto note = [&](std::optional<kiyosi::AutocallableBarrierState> state) {
         const auto result = kiyosi::make_snowball_option(
-            {.knock_out_coupon_rates = {0.1, 0.1}, .maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {120.0, 120.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = {first, expiry}, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective, .expiry_date = expiry});
+            {.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective, .expiry_date = expiry, .observations = {{first, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
         REQUIRE(result);
         return *result;
     };
@@ -654,12 +573,7 @@ TEST_CASE("Negative Binary Snowball coupon can be implied")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
-    const auto option = kiyosi::make_binary_snowball_option({.knock_out_coupon_rates = {-0.1},
-                                                             .maturity_coupon_rate = -0.1,
-                                                             .knock_out_levels = {1.0},
-                                                             .observation_dates = {expiry_date},
-                                                             .effective_date = effective_date,
-                                                             .expiry_date = expiry_date});
+    const auto option = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = -0.1, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 1.0, -0.1}}});
     REQUIRE(option);
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date);

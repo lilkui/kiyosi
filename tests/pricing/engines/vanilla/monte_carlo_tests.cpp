@@ -79,13 +79,13 @@ TEST_CASE("CUDA Greek workspaces preserve scalar stencils and concurrent request
     const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
     const TradingDayMonteCarloSettings settings{31, 42, MonteCarloBackend::cuda};
     check(MonteCarloBinarySnowballEngine{settings},
-          *make_binary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+          *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
     check(MonteCarloTernarySnowballEngine{settings},
-          *make_ternary_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0, 110.0}, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+          *make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
     check(MonteCarloSnowballEngine{settings},
-          *make_snowball_option({.knock_out_coupon_rates = {0.08, 0.08, 0.08}, .maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0, 110.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+          *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
     check(MonteCarloPhoenixEngine{settings},
-          *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_levels = {110.0, 110.0, 110.0}, .coupon_barrier_levels = {90.0, 90.0, 90.0}, .upper_strike = 100.0, .lower_strike = 60.0, .observation_dates = observations, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end}));
+          *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
 }
 
 TEST_CASE("CUDA packed path outputs preserve block boundaries and failure flags", "[cuda][cuda-workspace]")
@@ -326,13 +326,13 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
     const MonteCarloBinarySnowballEngine autocallable{{100'000, 42, backend}};
     for (const double principal : {1e305, std::numeric_limits<double>::denorm_min()}) {
         const auto option = *make_binary_snowball_option(
-            {.knock_out_coupon_rates = {0.0}, .maturity_coupon_rate = 0.0, .knock_out_levels = {120.0}, .observation_dates = {next_day}, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day});
+            {.maturity_coupon_rate = 0.0, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day, .observations = {{next_day, 120.0, 0.0}}});
         const auto price = autocallable.price(option, *make_pricing_context(parameters, 100.0, start));
         REQUIRE(price);
         CHECK(*price == principal);
     }
     const auto overflow = *make_binary_snowball_option(
-        {.knock_out_coupon_rates = {1e308}, .maturity_coupon_rate = 1e308, .knock_out_levels = {120.0}, .observation_dates = {end}, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end});
+        {.maturity_coupon_rate = 1e308, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 1e308}}});
     const auto invalid = MonteCarloBinarySnowballEngine{{32, 42, backend}}.price(
         overflow, *make_pricing_context(parameters, 100.0, start));
     REQUIRE_FALSE(invalid);
@@ -1119,7 +1119,7 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     const auto european = *make_european_option(OptionType::call, 100.0, start, end);
     const auto american = *make_american_option(OptionType::put, 100.0, start, end);
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
-    const auto note = *make_binary_snowball_option({.knock_out_coupon_rates = {0.1}, .maturity_coupon_rate = 0.1, .knock_out_levels = {120.0}, .observation_dates = {end}, .effective_date = start, .expiry_date = end});
+    const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.1, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
     const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
     const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
     const MonteCarloBinarySnowballEngine autocallable{{64, 42, MonteCarloBackend::cuda}};
