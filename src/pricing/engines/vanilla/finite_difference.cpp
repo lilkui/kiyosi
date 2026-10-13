@@ -77,10 +77,10 @@ Result<PricingResult> price_finite_difference(
         const bool call = option.option_type() == OptionType::call;
         // The asymptotic edge loses option time value for long or volatile maturities.
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
-        const double continuation = sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
-                                            strike * std::exp(-rate * tau) * probabilities.cash);
+        const double continuation = black_scholes_values(sign, upper, strike, -dividend * tau,
+                                                          -rate * tau, probabilities).price;
         const double high = american ? std::max({sign * (upper - strike), 0.0, continuation}) : continuation;
-        const double discounted_strike = strike * std::exp(-rate * tau);
+        const double discounted_strike = scaled_exponential(strike, -rate * tau);
         const double low = call ? 0.0 : (american ? std::max(strike, discounted_strike) : discounted_strike);
         return Boundaries{low, high};
     };

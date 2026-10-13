@@ -72,9 +72,9 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const auto vanilla_boundary = [&](double tau) {
         const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
-        return Boundaries{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
-                          sign * (upper * std::exp(-dividend * tau) * probabilities.asset -
-                                  strike * std::exp(-rate * tau) * probabilities.cash)};
+        return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
+                          black_scholes_values(sign, upper, strike, -dividend * tau,
+                                                -rate * tau, probabilities).price};
     };
     std::vector<double> vanilla;
     if (knock_in) {
@@ -90,7 +90,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             if (knocked(spacing * index)) old[index] = option.rebate();
     const auto boundary = [&](double tau) {
         if (!scheduled && upper_barrier)
-            return Boundaries{option.option_type() == OptionType::put ? strike * std::exp(-rate * tau) : 0.0,
+            return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
                               rebate_value(tau)};
         Boundaries edges = vanilla_boundary(tau);
         if (!scheduled) {

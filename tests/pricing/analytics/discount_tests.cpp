@@ -207,6 +207,35 @@ TEST_CASE("Prices survive underflowing discount factors", "[audit-fixes]")
     }
 }
 
+TEST_CASE("Finite-difference boundaries preserve extreme discount scales", "[discount-scaling]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1);
+    const auto end = test::day(2026, 1, 1);
+    for (const double rate : {-720.0, 720.0}) {
+        const double amount = rate < 0.0 ? 1e-300 : 1e300;
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(rate, type);
+            const bool call = type == OptionType::call;
+            const double spot = amount * (call ? 4.0 - 1e-12 : 1e-12);
+            const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 0.2), spot, start);
+            const FiniteDifferenceSettings settings{40, 2000, FiniteDifferenceScheme::crank_nicolson, 4.0 * amount};
+            const auto vanilla = *make_european_option(type, amount, start, end);
+            const auto barrier = *make_barrier_option({.option_type = type, .strike = amount,
+                .effective_date = start, .expiry_date = end,
+                .barrier_level = amount * (call ? 0.5 : 3.0),
+                .barrier_type = call ? BarrierType::down_and_out : BarrierType::up_and_out});
+            // Approach the exact upper call or lower put boundary, independently of interior grid error.
+            const double expected = std::exp(std::log(amount) - rate) * (call ? 3.0 : 1.0);
+            for (const auto& price : {FiniteDifferenceVanillaEngine{settings}.price(vanilla, context),
+                                      FiniteDifferenceBarrierEngine{settings}.price(barrier, context)}) {
+                REQUIRE(price);
+                CHECK(*price == Catch::Approx(expected).epsilon(1e-6).margin(0.0));
+            }
+        }
+    }
+}
+
 TEST_CASE("Resolved barrier settlements preserve extreme discount scales", "[audit-fixes]")
 {
     using namespace kiyosi;

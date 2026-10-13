@@ -18,6 +18,34 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext, all_days
 
 
 class DiscountUnderflowTests(unittest.TestCase):
+    def test_finite_difference_boundaries_preserve_extreme_discount_scales(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for rate in (-720.0, 720.0):
+            amount = 1e-300 if rate < 0 else 1e300
+            for kind in ("call", "put"):
+                call = kind == "call"
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=rate, volatility=0.2
+                    ),
+                    spot_price=amount * (4 - 1e-12 if call else 1e-12),
+                    valuation_time=start,
+                )
+                terms = dict(option_type=kind, strike=amount, effective_date=start, expiry_date=end)
+                vanilla = EuropeanOption(**terms)
+                barrier = BarrierOption(
+                    **terms, barrier_level=amount * (0.5 if call else 3),
+                    barrier_type="down_and_out" if call else "up_and_out",
+                )
+                settings = dict(asset_step_count=40, time_step_count=2000, asset_upper_boundary=4 * amount)
+                expected = math.exp(math.log(amount) - rate) * (3 if call else 1)
+                for engine, option in (
+                    (pricing.FiniteDifferenceVanillaEngine(**settings), vanilla),
+                    (pricing.FiniteDifferenceBarrierEngine(**settings), barrier),
+                ):
+                    with self.subTest(rate=rate, kind=kind, engine=type(engine).__name__):
+                        self.assertTrue(math.isclose(engine.price(option, context), expected, rel_tol=1e-6))
+
     def test_accumulator_monte_carlo_preserves_discounted_quantity_products(self):
         start = date(2025, 1, 1)
         backends = ["cpu"] + (
