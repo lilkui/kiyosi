@@ -74,7 +74,7 @@ template <typename Terms>
 {
     if (!std::isfinite(terms.principal_ratio) || terms.principal_ratio < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
-    if constexpr (requires { terms.initial_spot; terms.upper_strike; terms.lower_strike; })
+    if constexpr (std::same_as<Terms, PhoenixTerms> || std::same_as<Terms, SnowballTerms>)
         if (!std::isfinite(terms.initial_spot) || terms.initial_spot <= 0.0 ||
             !std::isfinite(terms.upper_strike) || terms.upper_strike <= 0.0 ||
             !std::isfinite(terms.lower_strike) || terms.lower_strike < 0.0 ||
@@ -96,7 +96,8 @@ template <typename Terms>
         terms.barrier_state != AutocallableBarrierState::knocked_in)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "autocallable touch status is invalid"});
-    if constexpr (requires { terms.knock_in_level; }) {
+    if constexpr (std::same_as<Terms, PhoenixTerms> || std::same_as<Terms, SnowballTerms> ||
+                  std::same_as<Terms, TernarySnowballTerms>) {
         if (!std::isfinite(terms.knock_in_level) || terms.knock_in_level <= 0.0 ||
             (terms.knock_in_observation_mode != KnockInObservationMode::every_trading_day &&
              terms.knock_in_observation_mode != KnockInObservationMode::at_expiry))
@@ -106,8 +107,9 @@ template <typename Terms>
             return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                          "knock-in state requires a knock-in barrier"});
     }
-    constexpr bool phoenix = requires { terms.coupon_rate; };
-    constexpr bool snowball = requires { terms.maturity_coupon_rate; };
+    constexpr bool phoenix = std::same_as<Terms, PhoenixTerms>;
+    constexpr bool snowball = std::same_as<Terms, SnowballTerms> || std::same_as<Terms, BinarySnowballTerms> ||
+                              std::same_as<Terms, TernarySnowballTerms>;
     if constexpr (phoenix) {
         if (!std::isfinite(terms.coupon_rate))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "Phoenix coupon is invalid"});
@@ -123,7 +125,7 @@ template <typename Terms>
         if (!std::isfinite(terms.maturity_coupon_rate))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "maturity coupon is invalid"});
     }
-    if constexpr (requires { terms.minimum_coupon_rate; }) {
+    if constexpr (std::same_as<Terms, TernarySnowballTerms>) {
         if (!std::isfinite(terms.minimum_coupon_rate) ||
             terms.minimum_coupon_rate > terms.maturity_coupon_rate)
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "minimum coupon is invalid"});
@@ -179,43 +181,63 @@ public:
     /// Returns the positive reference spot.
     double initial_spot() const noexcept
         requires requires(const Terms& terms) { terms.initial_spot; }
-    { return terms_.initial_spot; }
+    {
+        return terms_.initial_spot;
+    }
     /// Returns the positive upper settlement strike.
     double upper_strike() const noexcept
         requires requires(const Terms& terms) { terms.upper_strike; }
-    { return terms_.upper_strike; }
+    {
+        return terms_.upper_strike;
+    }
     /// Returns the non-negative lower settlement strike.
     double lower_strike() const noexcept
         requires requires(const Terms& terms) { terms.lower_strike; }
-    { return terms_.lower_strike; }
+    {
+        return terms_.lower_strike;
+    }
     /// Returns the positive downside knock-in level.
     double knock_in_level() const noexcept
         requires requires(const Terms& terms) { terms.knock_in_level; }
-    { return terms_.knock_in_level; }
+    {
+        return terms_.knock_in_level;
+    }
     /// Returns the knock-in monitoring frequency.
     KnockInObservationMode knock_in_observation_mode() const noexcept
         requires requires(const Terms& terms) { terms.knock_in_observation_mode; }
-    { return terms_.knock_in_observation_mode; }
+    {
+        return terms_.knock_in_observation_mode;
+    }
     /// Returns the annualized conditional observation coupon.
     double coupon_rate() const noexcept
         requires requires(const Terms& terms) { terms.coupon_rate; }
-    { return terms_.coupon_rate; }
+    {
+        return terms_.coupon_rate;
+    }
     /// Returns the finite maturity coupon rate.
     double maturity_coupon_rate() const noexcept
         requires requires(const Terms& terms) { terms.maturity_coupon_rate; }
-    { return terms_.maturity_coupon_rate; }
+    {
+        return terms_.maturity_coupon_rate;
+    }
     /// Returns the finite maturity-coupon floor after knock-in.
     double minimum_coupon_rate() const noexcept
         requires requires(const Terms& terms) { terms.minimum_coupon_rate; }
-    { return terms_.minimum_coupon_rate; }
+    {
+        return terms_.minimum_coupon_rate;
+    }
     /// Returns one finite knock-out coupon rate per observation date.
     auto knock_out_coupon_rates() const noexcept
         requires requires(const Terms& terms) { terms.maturity_coupon_rate; }
-    { return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate); }
+    {
+        return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate);
+    }
     /// Returns one non-negative coupon barrier per observation date.
     auto coupon_barrier_levels() const noexcept
         requires requires(const Terms& terms) { terms.coupon_rate; }
-    { return observations_view() | std::views::transform(&AutocallableObservation::coupon_barrier_level); }
+    {
+        return observations_view() | std::views::transform(&AutocallableObservation::coupon_barrier_level);
+    }
 
     /// Compares every contractual term and observation.
     friend bool operator==(const AutocallableNote&, const AutocallableNote&) = default;
