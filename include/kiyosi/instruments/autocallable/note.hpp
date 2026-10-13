@@ -83,24 +83,7 @@ struct AutocallableInput {
     Date effective_date() const { return terms->effective_date; }
     Date expiry_date() const { return terms->expiry_date; }
     auto barrier_state() const { return terms->barrier_state; }
-    template <typename Value>
-    auto observation_field(Value AutocallableObservation::* member) const
-    {
-        return terms->observations | std::views::transform(member);
-    }
-    auto observation_dates() const { return observation_field(&AutocallableObservation::date); }
-    auto knock_out_levels() const { return observation_field(&AutocallableObservation::knock_out_level); }
-    bool unused_observation_fields() const
-    {
-        for (const auto& observation : terms->observations) {
-            if constexpr (requires { terms->coupon_rate; }) {
-                if (observation.coupon_rate != 0.0) return true;
-            } else {
-                if (observation.coupon_barrier_level != 0.0) return true;
-            }
-        }
-        return false;
-    }
+    std::span<const AutocallableObservation> observations_view() const { return terms->observations; }
     double initial_spot() const
         requires requires { terms->initial_spot; }
     {
@@ -130,16 +113,6 @@ struct AutocallableInput {
         requires requires { terms->coupon_rate; }
     {
         return terms->coupon_rate;
-    }
-    auto coupon_barrier_levels() const
-        requires requires { terms->coupon_rate; }
-    {
-        return observation_field(&AutocallableObservation::coupon_barrier_level);
-    }
-    auto knock_out_coupon_rates() const
-        requires requires { terms->maturity_coupon_rate; }
-    {
-        return observation_field(&AutocallableObservation::coupon_rate);
     }
     double maturity_coupon_rate() const
         requires requires { terms->maturity_coupon_rate; }
@@ -249,7 +222,7 @@ private:
 /// Authoritative domain validation for every autocallable product; optional features are
 /// detected structurally so each product only pays for the checks it needs.
 /// Pass the concrete product for complete validation; base references validate only shared terms.
-/// @tparam Note Autocallable note exposing the required term accessors.
+/// @tparam Note Autocallable note exposing term accessors and read-only observation records.
 /// @return Success, or an input-validation error with a stable category.
 template <typename Note>
 [[nodiscard]] inline Result<void> validate_autocallable_note(const Note& note)
@@ -264,15 +237,15 @@ template <typename Note>
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "autocallable terms are invalid"});
     auto life = validate_instrument_life(note.effective_date(), note.expiry_date());
     if (!life) return std::unexpected(life.error());
-    if (note.observation_dates().empty() ||
-        note.knock_out_levels().size() != note.observation_dates().size())
+    const auto observations = note.observations_view();
+    if (observations.empty())
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "autocallable schedule is invalid"});
-    auto schedule = detail::validate_date_schedule(note.observation_dates(), note.effective_date(), note.expiry_date());
+    const auto dates = observations | std::views::transform(&AutocallableObservation::date);
+    auto schedule = detail::validate_date_schedule(dates, note.effective_date(), note.expiry_date());
     if (!schedule) return std::unexpected(schedule.error());
-    for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-        if (!std::isfinite(note.knock_out_levels()[index]) || note.knock_out_levels()[index] <= 0.0)
+    for (const auto& observation : observations)
+        if (!std::isfinite(observation.knock_out_level) || observation.knock_out_level <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "knock-out levels are invalid"});
-    }
     if (note.barrier_state() && note.barrier_state() != AutocallableBarrierState::none &&
         note.barrier_state() != AutocallableBarrierState::knocked_out &&
         note.barrier_state() != AutocallableBarrierState::knocked_in)
@@ -288,23 +261,19 @@ template <typename Note>
             return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                          "knock-in state requires a knock-in barrier"});
     }
-    if constexpr (requires { note.coupon_rate(); }) {
+    constexpr bool phoenix = requires { note.coupon_rate(); };
+    constexpr bool snowball = requires { note.maturity_coupon_rate(); };
+    if constexpr (phoenix) {
         if (!std::isfinite(note.coupon_rate()))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "Phoenix coupon is invalid"});
-        if (note.coupon_barrier_levels().size() != note.observation_dates().size())
-            return std::unexpected(Error{ErrorCategory::invalid_schedule,
-                                         "Phoenix coupon schedule is invalid"});
-        for (const double barrier : note.coupon_barrier_levels())
-            if (!std::isfinite(barrier) || barrier < 0.0)
+        for (const auto& observation : observations)
+            if (!std::isfinite(observation.coupon_barrier_level) || observation.coupon_barrier_level < 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                              "coupon barrier levels are invalid"});
     }
-    if constexpr (requires { note.knock_out_coupon_rates(); }) {
-        if (note.knock_out_coupon_rates().size() != note.observation_dates().size())
-            return std::unexpected(Error{ErrorCategory::invalid_schedule,
-                                         "coupon schedule count is invalid"});
-        for (const double coupon : note.knock_out_coupon_rates())
-            if (!std::isfinite(coupon))
+    if constexpr (snowball) {
+        for (const auto& observation : observations)
+            if (!std::isfinite(observation.coupon_rate))
                 return std::unexpected(Error{ErrorCategory::invalid_parameter, "coupon rates are invalid"});
         if (!std::isfinite(note.maturity_coupon_rate()))
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "maturity coupon is invalid"});
@@ -314,9 +283,10 @@ template <typename Note>
             note.minimum_coupon_rate() > note.maturity_coupon_rate())
             return std::unexpected(Error{ErrorCategory::invalid_parameter, "minimum coupon is invalid"});
     }
-    if constexpr (requires { note.unused_observation_fields(); })
-        if (note.unused_observation_fields())
-            return std::unexpected(Error{ErrorCategory::invalid_parameter, "observation contains terms unsupported by this product"});
+    if constexpr (phoenix || snowball)
+        for (const auto& observation : observations)
+            if ((phoenix ? observation.coupon_rate : observation.coupon_barrier_level) != 0.0)
+                return std::unexpected(Error{ErrorCategory::invalid_parameter, "observation contains terms unsupported by this product"});
     return {};
 }
 

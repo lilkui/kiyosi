@@ -213,13 +213,12 @@ struct CouponSumEngine {
 class CopyCountingNote {
 public:
     CopyCountingNote(int& copies, kiyosi::Date effective_date, kiyosi::Date expiry_date)
-        : copies_(&copies), observation_dates_{expiry_date}, effective_(effective_date), expiry_(expiry_date)
+        : copies_(&copies), observations_{{expiry_date, 110.0}}, effective_(effective_date), expiry_(expiry_date)
     {
     }
 
     CopyCountingNote(const CopyCountingNote& other)
-        : copies_(other.copies_), knock_out_prices_(other.knock_out_prices_),
-          observation_dates_(other.observation_dates_), effective_(other.effective_),
+        : copies_(other.copies_), observations_(other.observations_), effective_(other.effective_),
           expiry_(other.expiry_)
     {
         ++*copies_;
@@ -230,10 +229,9 @@ public:
     CopyCountingNote& operator=(CopyCountingNote&&) = delete;
 
     double initial_spot() const noexcept { return 100.0; }
-    const std::vector<double>& knock_out_levels() const noexcept { return knock_out_prices_; }
     double upper_strike() const noexcept { return 100.0; }
     double lower_strike() const noexcept { return 60.0; }
-    const std::vector<kiyosi::Date>& observation_dates() const noexcept { return observation_dates_; }
+    std::span<const kiyosi::AutocallableObservation> observations_view() const noexcept { return observations_; }
     double principal_ratio() const noexcept { return 1.0; }
     kiyosi::Date effective_date() const noexcept { return effective_; }
     kiyosi::Date expiry_date() const noexcept { return expiry_; }
@@ -244,8 +242,7 @@ public:
 
 private:
     int* copies_;
-    std::vector<double> knock_out_prices_{110.0};
-    std::vector<kiyosi::Date> observation_dates_;
+    std::vector<kiyosi::AutocallableObservation> observations_;
     kiyosi::Date effective_;
     kiyosi::Date expiry_;
 };
