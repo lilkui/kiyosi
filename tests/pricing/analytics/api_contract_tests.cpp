@@ -386,11 +386,8 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
 
 TEST_CASE("Shared Greek completion filters native measures at event thresholds", "[pricing-api]")
 {
-    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
-        .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
-    const auto supplied = *make_pricing_result(123.0, {{Greek::delta, 1.0}, {Greek::gamma, 2.0},
-        {Greek::speed, 3.0}, {Greek::charm, 4.0}, {Greek::color, 5.0},
-        {Greek::vanna, 6.0}, {Greek::zomma, 7.0}, {Greek::vega, 8.0}, {Greek::rho, 9.0}});
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
+    const auto supplied = *make_pricing_result(123.0, {{Greek::delta, 1.0}, {Greek::gamma, 2.0}, {Greek::speed, 3.0}, {Greek::charm, 4.0}, {Greek::color, 5.0}, {Greek::vanna, 6.0}, {Greek::zomma, 7.0}, {Greek::vega, 8.0}, {Greek::rho, 9.0}});
     const FiniteDifferenceAccumulatorEngine engine;
     for (const double spot : {109.98, 109.995, 110.0}) {
         CAPTURE(spot);
@@ -410,18 +407,17 @@ TEST_CASE("Shared Greek completion filters native measures at event thresholds",
 
 TEST_CASE("Native Greek requests are filtered before event-sensitive evaluation", "[pricing-api]")
 {
-    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
-        .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
     int calls = 0;
     const auto result = detail::price_with_greeks(FiniteDifferenceAccumulatorEngine{}, option,
-        market(109.995, effective), {Greek::delta, Greek::vega, Greek::rho}, {},
-        [&](const auto&, const PricingContext&, GreeksRequest request) {
-            ++calls;
-            CHECK_FALSE(request.has(Greek::delta));
-            CHECK(request.has(Greek::vega));
-            CHECK(request.has(Greek::rho));
-            return make_pricing_result(123.0, {{Greek::vega, 8.0}, {Greek::rho, 9.0}});
-        });
+                                                  market(109.995, effective), {Greek::delta, Greek::vega, Greek::rho}, {},
+                                                  [&](const auto&, const PricingContext&, GreeksRequest request) {
+                                                      ++calls;
+                                                      CHECK_FALSE(request.has(Greek::delta));
+                                                      CHECK(request.has(Greek::vega));
+                                                      CHECK(request.has(Greek::rho));
+                                                      return make_pricing_result(123.0, {{Greek::vega, 8.0}, {Greek::rho, 9.0}});
+                                                  });
     REQUIRE(result);
     CHECK(calls == 1);
     CHECK(result->price() == 123.0);
@@ -441,16 +437,16 @@ TEST_CASE("Explicit volatility spot batches preserve mixed Greeks without scalar
         std::vector<PricingContext> scalar_calls;
         std::vector<double> batch_volatilities;
         const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
-            request, shifts, native, nullptr,
-            [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
-                const double vol = shifted.model_parameters().volatility();
-                batch_volatilities.push_back(vol);
-                CHECK(h == 0.25);
-                CHECK(center == (request.has(Greek::vega) || request.has(Greek::zomma)));
-                const auto price = [&](double spot) { return spot * spot * (1.0 + vol * vol); };
-                return detail::NumericalSpotPrices{center ? std::optional{price(100.0)} : std::nullopt,
-                    price(100.0 + h), price(100.0 - h)};
-            });
+                                                    request, shifts, native, nullptr,
+                                                    [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
+                                                        const double vol = shifted.model_parameters().volatility();
+                                                        batch_volatilities.push_back(vol);
+                                                        CHECK(h == 0.25);
+                                                        CHECK(center == (request.has(Greek::vega) || request.has(Greek::zomma)));
+                                                        const auto price = [&](double spot) { return spot * spot * (1.0 + vol * vol); };
+                                                        return detail::NumericalSpotPrices{center ? std::optional{price(100.0)} : std::nullopt,
+                                                                                           price(100.0 + h), price(100.0 - h)};
+                                                    });
         REQUIRE(result);
         CHECK(scalar_calls.empty());
         CHECK(batch_volatilities == std::vector<double>{0.625, 0.375});
@@ -458,7 +454,7 @@ TEST_CASE("Explicit volatility spot batches preserve mixed Greeks without scalar
         CHECK_FALSE(result->has(Greek::delta));
         CHECK_FALSE(result->has(Greek::gamma));
         for (const auto [greek, expected] : {std::pair{Greek::vega, 100.0},
-                                            std::pair{Greek::vanna, 2.0}, std::pair{Greek::zomma, 0.02}}) {
+                                             std::pair{Greek::vanna, 2.0}, std::pair{Greek::zomma, 0.02}}) {
             if (request.has(greek)) CHECK(greek_value(*result, greek) == Catch::Approx(expected).epsilon(1e-12));
             else CHECK_FALSE(result->has(greek));
         }
@@ -476,19 +472,19 @@ TEST_CASE("Explicit spot batches reject incomplete values and propagate failures
                               detail::NumericalSpotPrices{1.0, 2.0, std::numeric_limits<double>::quiet_NaN()},
                               detail::NumericalSpotPrices{std::numeric_limits<double>::infinity(), 1.0, 2.0}}) {
         const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
-            {Greek::zomma}, {}, native, nullptr,
-            [&](const PricingContext&, double, bool) -> Result<detail::NumericalSpotPrices> { return prices; });
+                                                    {Greek::zomma}, {}, native, nullptr,
+                                                    [&](const PricingContext&, double, bool) -> Result<detail::NumericalSpotPrices> { return prices; });
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_result);
     }
     for (const bool fail_high : {false, true}) {
         const auto result = detail::complete_greeks([&](const PricingContext& shifted) { return RecordingPriceEngine{&scalar_calls}.price(option, shifted); }, option, context,
-            {Greek::vanna}, {}, native, nullptr,
-            [&](const PricingContext& shifted, double, bool) -> Result<detail::NumericalSpotPrices> {
-                if ((shifted.model_parameters().volatility() > context.model_parameters().volatility()) == fail_high)
-                    return std::unexpected(Error{ErrorCategory::invalid_schedule, "batch rejected"});
-                return detail::NumericalSpotPrices{std::nullopt, 1.0, 2.0};
-            });
+                                                    {Greek::vanna}, {}, native, nullptr,
+                                                    [&](const PricingContext& shifted, double, bool) -> Result<detail::NumericalSpotPrices> {
+                                                        if ((shifted.model_parameters().volatility() > context.model_parameters().volatility()) == fail_high)
+                                                            return std::unexpected(Error{ErrorCategory::invalid_schedule, "batch rejected"});
+                                                        return detail::NumericalSpotPrices{std::nullopt, 1.0, 2.0};
+                                                    });
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_schedule);
         CHECK(result.error().message == "batch rejected");

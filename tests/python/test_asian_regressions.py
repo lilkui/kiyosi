@@ -16,19 +16,32 @@ class AsianRegressionTests(unittest.TestCase):
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0, dividend_yield=0, volatility=1e-200
             ),
-            spot_price=1e-200, valuation_time=start,
+            spot_price=1e-200,
+            valuation_time=start,
         )
         for kind, engine in (
-            (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine()),
-            (ArithmeticAveragePriceOption, pricing.TurnbullWakemanArithmeticAveragePriceEngine()),
+            (
+                GeometricAveragePriceOption,
+                pricing.AnalyticGeometricAveragePriceEngine(),
+            ),
+            (
+                ArithmeticAveragePriceOption,
+                pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+            ),
         ):
             with self.subTest(kind=kind):
                 option = kind(
-                    option_type="call", strike=5e-201, effective_date=start,
-                    averaging_start_date=start, expiry_date=end,
+                    option_type="call",
+                    strike=5e-201,
+                    effective_date=start,
+                    averaging_start_date=start,
+                    expiry_date=end,
                 )
                 result = engine.price_with_greeks(
-                    option, context, greeks="vanna", spot_shift=1e-201,
+                    option,
+                    context,
+                    greeks="vanna",
+                    spot_shift=1e-201,
                     volatility_shift=1e-201,
                 )
                 self.assertAlmostEqual(result.price, 5e-201, delta=5e-213)
@@ -44,23 +57,39 @@ class AsianRegressionTests(unittest.TestCase):
             valuation_time=start,
         )
         for kind, engine, expected_price, expected_delta in (
-            (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine(),
-             5.035867546515384, 0.5473455532045122),
-            (ArithmeticAveragePriceOption, pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
-             5.246501860362777, 0.5602339572242674),
+            (
+                GeometricAveragePriceOption,
+                pricing.AnalyticGeometricAveragePriceEngine(),
+                5.035867546515384,
+                0.5473455532045122,
+            ),
+            (
+                ArithmeticAveragePriceOption,
+                pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+                5.246501860362777,
+                0.5602339572242674,
+            ),
         ):
             option = kind(
-                option_type="call", strike=100, effective_date=start,
-                averaging_start_date=start, expiry_date=end,
+                option_type="call",
+                strike=100,
+                effective_date=start,
+                averaging_start_date=start,
+                expiry_date=end,
             )
 
-            def calculate(selection):
+            def calculate(selection, engine=engine, option=option):
                 return engine.price_with_greeks(option, context, **selection)
 
-            selections = [{"greeks": "delta"}, {"greeks": ["delta", "delta"]},
-                          {"all_greeks": True}] * 4
+            selections = [
+                {"greeks": "delta"},
+                {"greeks": ["delta", "delta"]},
+                {"all_greeks": True},
+            ] * 4
             with self.subTest(kind=kind), ThreadPoolExecutor(max_workers=4) as pool:
-                for selection, result in zip(selections, pool.map(calculate, selections)):
+                for selection, result in zip(
+                    selections, pool.map(calculate, selections)
+                ):
                     self.assertAlmostEqual(result.price, expected_price, delta=1e-12)
                     self.assertAlmostEqual(result.delta, expected_delta, delta=1e-12)
                     if "greeks" in selection:
@@ -71,8 +100,12 @@ class AsianRegressionTests(unittest.TestCase):
                         self.assertGreater(result.vega, 0)
                 for selection in selections[:3]:
                     with self.assertRaises(kiyosi.KiyosiError) as error:
-                        engine.price_with_greeks(option, context, **selection, spot_shift=0)
-                    self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                        engine.price_with_greeks(
+                            option, context, **selection, spot_shift=0
+                        )
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                    )
 
     def test_accrued_arithmetic_calls_retain_representable_discounted_prices(self):
         start = date(2025, 1, 1)

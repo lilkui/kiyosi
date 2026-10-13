@@ -162,7 +162,7 @@ bool volatility_affects_price(const Note& option, const PricingContext& context)
     return !initial.settlement && !autocallable_fixed_value(option, context, program, initial);
 }
 
-Result<double> shifted_maturity_coupon(
+static Result<double> shifted_maturity_coupon(
     double maturity_coupon_rate, double shift, CouponQuoteConvention convention)
 {
     switch (convention) {

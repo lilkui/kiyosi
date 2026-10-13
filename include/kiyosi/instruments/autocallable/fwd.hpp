@@ -11,7 +11,7 @@ struct TernarySnowballTerms;
 
 template <typename Terms>
 concept AutocallableTerms = std::same_as<Terms, PhoenixTerms> || std::same_as<Terms, SnowballTerms> ||
-                           std::same_as<Terms, BinarySnowballTerms> || std::same_as<Terms, TernarySnowballTerms>;
+                            std::same_as<Terms, BinarySnowballTerms> || std::same_as<Terms, TernarySnowballTerms>;
 
 template <AutocallableTerms Terms>
 class AutocallableNote;

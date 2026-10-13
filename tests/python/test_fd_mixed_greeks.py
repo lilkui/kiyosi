@@ -18,7 +18,10 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
         )
         for option_type in ("call", "put"):
             option = EuropeanOption(
-                option_type=option_type, strike=100, effective_date=start, expiry_date=end
+                option_type=option_type,
+                strike=100,
+                effective_date=start,
+                expiry_date=end,
             )
             for engine in (
                 pricing.CoxRossRubinsteinVanillaEngine(step_count=1000),
@@ -29,7 +32,9 @@ class FiniteDifferenceMixedGreekTests(unittest.TestCase):
                         option_type=option_type, engine=type(engine), greek=greek
                     ):
                         single = engine.price_with_greeks(option, context, [greek])
-                        joint = engine.price_with_greeks(option, context, [greek, dependency])
+                        joint = engine.price_with_greeks(
+                            option, context, [greek, dependency]
+                        )
                         expected = pricing.AnalyticVanillaEngine().price_with_greeks(
                             option, context, [greek]
                         )

@@ -185,7 +185,6 @@ TEST_CASE("Autocallable requests validate immutable schedules once", "[autocalla
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, calendar);
     const auto check = [&](const auto& note) {
-        using Note = std::remove_cvref_t<decltype(note)>;
         const auto check_engine = [&](const auto& engine) {
             const auto expected = [&] {
                 if constexpr (std::same_as<decltype(engine.settings()), FiniteDifferenceSettings>)
@@ -358,7 +357,6 @@ TEST_CASE("Autocallable FD volatility workspaces preserve independent trials", "
     const auto base = context(0.27);
     const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4, .price_tolerance = 1e-12};
     const auto check = [&](const auto& note) {
-        using Note = std::remove_cvref_t<decltype(note)>;
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             CAPTURE(scheme);
             const FiniteDifferenceAutocallableEngine engine{32, 64, scheme};
@@ -411,7 +409,6 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
     const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
     const NumericalShiftSettings shifts{.spot_shift = 0.2, .rate_shift = 0.25};
     const auto check = [&](const auto& note) {
-        using Note = std::remove_cvref_t<decltype(note)>;
         for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
             for (const int paths : {1, 31, 32})
                 for (const double spot : {98.0, 99.0, 100.25, 101.0, 103.0})
@@ -567,7 +564,6 @@ TEST_CASE("Autocallables omit daily monitoring only when knock-in cannot change 
     const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, calendar);
     const auto check = [&](const auto& daily, const auto& expiry, bool affects_payoff) {
-        using Note = std::remove_cvref_t<decltype(daily)>;
         const auto check_engine = [&](const auto& engine) {
             queries->store(0);
             const auto actual = engine.price(daily, context);
@@ -1061,7 +1057,6 @@ TEST_CASE("Autocallable Monte Carlo processes valuation-date observation events 
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), 100.0, valuation);
     const auto monte_carlo_price = [&](const auto& instrument) {
-        using Instrument = std::remove_cvref_t<decltype(instrument)>;
         const auto result = kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(instrument, context);
         REQUIRE(result);
         return *result;
@@ -1391,7 +1386,6 @@ TEST_CASE("Autocallable engines enumerate dates only for daily monitoring")
     const bool monte_carlo = GENERATE(false, true);
     CAPTURE(monte_carlo);
     const auto price = [&](const auto& note, const auto& market) {
-        using Note = std::remove_cvref_t<decltype(note)>;
         if (monte_carlo)
             return kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, market);
         return kiyosi::FiniteDifferenceAutocallableEngine{{40, 40}}.price(note, market);

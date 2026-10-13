@@ -78,14 +78,14 @@ TEST_CASE("Finite-difference results select measures and preserve shifted failur
     SECTION("Only requested derivatives are evaluated")
     {
         for (const auto request : {GreeksRequest{}, GreeksRequest{Greek::delta}, GreeksRequest{Greek::gamma},
-                                  GreeksRequest{Greek::speed}, GreeksRequest{Greek::delta, Greek::gamma, Greek::speed}}) {
+                                   GreeksRequest{Greek::speed}, GreeksRequest{Greek::delta, Greek::gamma, Greek::speed}}) {
             price_calls = delta_calls = gamma_calls = 0;
             const auto result = detail::finite_difference_result(
                 123.0, 100.0, 200.0, request, 1.0, price_at, delta_at, gamma_at);
             REQUIRE(result);
             CHECK(result->price() == 123.0);
             for (const auto [greek, expected] : {std::pair{Greek::delta, 7.0}, std::pair{Greek::gamma, 300.0},
-                                                std::pair{Greek::speed, 3.0}}) {
+                                                 std::pair{Greek::speed, 3.0}}) {
                 CHECK(result->has(greek) == request.has(greek));
                 if (request.has(greek)) CHECK(result->require(greek) == Result<double>{expected});
             }

@@ -10,6 +10,7 @@
 #include <kiyosi/instruments/autocallable/snowball.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/detail/instrument_analytics.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
@@ -44,7 +45,7 @@ public:
     /// CPU spot sensitivities share per-path draws with separate event states and constant storage.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
-                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
+                                                                        GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     TradingDayMonteCarloSettings settings() const noexcept { return settings_; }
@@ -58,11 +59,6 @@ template <AutocallableProduct Note>
 inline constexpr bool is_builtin_monte_carlo_engine<MonteCarloAutocallableEngine, Note> = true;
 template <AutocallableProduct Note>
 inline constexpr bool has_affine_coupon_price<MonteCarloAutocallableEngine, Note> = true;
-template <AutocallableProduct Note>
-[[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
-    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
-    ImpliedVolatilitySettings settings);
-
 template <AutocallableProduct Note>
 Result<std::array<double, 2>> coupon_endpoint_prices(
     const MonteCarloAutocallableEngine& engine, const Note& lower, const Note& upper, const PricingContext& context)

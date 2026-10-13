@@ -71,7 +71,7 @@ TEST_CASE("Barrier monitoring state preserves observation boundaries and history
     const auto last = test::day(2025, 3, 3), expiry = test::day(2025, 4, 1);
     const auto make_option = [&](ObservationMode mode, std::optional<BarrierTouchState> history) {
         return *make_cash_no_touch_down(start, expiry, 90.0, 10.0, mode,
-            mode == ObservationMode::scheduled ? std::vector{first, last} : std::vector<Date>{}, history);
+                                        mode == ObservationMode::scheduled ? std::vector{first, last} : std::vector<Date>{}, history);
     };
     SECTION("Only the exact final observation can add a current touch")
     {

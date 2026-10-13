@@ -31,7 +31,7 @@ TEST_CASE("Autocallable factories accept associated observation records", "[obse
         }
         const auto record_note = factory(terms);
         REQUIRE(record_note);
-        const auto original = *record_note;
+        const auto original = *record_note; // NOLINT(performance-unnecessary-copy-initialization): snapshot detects mutation.
         CHECK(record_note->observations_view()[0] == terms.observations[0]);
         CHECK(record_note->observations_view()[1] == terms.observations[1]);
         std::ranges::reverse(terms.observations);
@@ -86,10 +86,10 @@ TEST_CASE("Coupon replacement preserves owning notes and validates changed terms
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), first = day(2025, 7, 1), end = day(2026, 1, 1);
-    const auto check = [](auto factory, auto terms) {
+    const auto check = [](auto factory, const auto& terms) {
         const auto note = factory(terms);
         REQUIRE(note);
-        const auto original = *note;
+        const auto original = *note; // NOLINT(performance-unnecessary-copy-initialization): snapshot detects mutation.
         for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
             auto expected_terms = terms;
             expected_terms.observations[0].coupon_rate = 0.375;
@@ -135,7 +135,7 @@ TEST_CASE("Coupon replacement preserves owning notes and validates changed terms
     PhoenixTerms phoenix_terms{.coupon_rate = 0.125, .initial_spot = 105.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 55.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.0, 85.0}, {end, 110.0, 0.0, 80.0}}};
     const auto phoenix = make_phoenix_option(phoenix_terms);
     REQUIRE(phoenix);
-    const auto original = *phoenix;
+    const auto original = *phoenix; // NOLINT(performance-unnecessary-copy-initialization): snapshot detects mutation.
     phoenix_terms.coupon_rate = 0.375;
     const auto replaced = detail::replace_coupon(*phoenix, 0.375);
     REQUIRE(replaced);

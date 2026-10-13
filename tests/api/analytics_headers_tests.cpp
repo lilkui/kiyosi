@@ -25,8 +25,7 @@ TEST_CASE("Analytics headers preserve product hooks when included before engines
     REQUIRE(solved);
     CHECK(std::abs(*solved - 1.0) < 1e-6);
 
-    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0,
-        .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
+    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
     const auto result = calculate_numerical_greeks(AnalyticBarrierEngine{}, barrier, context);
     REQUIRE(result);
     CHECK(result->price() == 0.0);

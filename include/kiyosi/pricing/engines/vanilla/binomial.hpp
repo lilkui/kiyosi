@@ -9,6 +9,7 @@
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
+#include <kiyosi/pricing/detail/instrument_analytics.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/binomial.hpp>
 

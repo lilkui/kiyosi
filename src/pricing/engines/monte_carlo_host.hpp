@@ -157,7 +157,7 @@ Result<std::array<double, 3>> cpu_rate_prices(
 // One draw advances every active state; scalar calls enter active, batched states may already be settled.
 // Keep product observation inlined in the time-step loop.
 template <bool shared_steps, typename Steps, typename State, std::size_t count, typename Observe>
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && !defined(__clang__)
 __forceinline
 #else
 [[gnu::always_inline]] inline

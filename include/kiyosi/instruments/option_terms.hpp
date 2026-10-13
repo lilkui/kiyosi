@@ -28,7 +28,7 @@ namespace detail {
         return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
     return {};
 }
-}
+} // namespace detail
 
 /// Contractual essentials shared by every strike-and-life option: option_type, strike, and life dates.
 class OptionTerms {

@@ -16,8 +16,21 @@ class Accumulator;
 class BarrierOption;
 class BinaryBarrierOption;
 class TouchOption;
+class CoxRossRubinsteinVanillaEngine;
+class MonteCarloAutocallableEngine;
 
 namespace detail {
+
+// Declare built-in hooks before generic solvers so either public-header include order works.
+template <typename Option>
+Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const CoxRossRubinsteinVanillaEngine&, const Option&, const PricingContext&, ImpliedVolatilitySettings);
+template <AutocallableProduct Note>
+[[nodiscard]] KIYOSI_EXPORT Result<ImpliedVolatilitySettings> prepare_implied_volatility(
+    const MonteCarloAutocallableEngine&, const Note&, const PricingContext&, ImpliedVolatilitySettings);
+template <AutocallableProduct Note>
+Result<std::array<double, 2>> coupon_endpoint_prices(
+    const MonteCarloAutocallableEngine&, const Note&, const Note&, const PricingContext&);
 
 template <typename Option>
 concept BarrierProduct = std::same_as<Option, BarrierOption> ||
@@ -50,7 +63,6 @@ template <AutocallableProduct Note>
 template <AutocallableProduct Note>
     requires requires(const Note& note) { note.knock_out_coupon_rates(); }
 [[nodiscard]] KIYOSI_EXPORT Result<Note> replace_coupon(const Note&, double, CouponQuoteConvention);
-[[nodiscard]] KIYOSI_EXPORT Result<PhoenixOption> replace_coupon(const PhoenixOption&, double);
 
 } // namespace detail
 } // namespace kiyosi

@@ -74,7 +74,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
         return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
                           black_scholes_values(sign, upper, strike, -dividend * tau,
-                                                -rate * tau, probabilities).price};
+                                               -rate * tau, probabilities)
+                              .price};
     };
     std::vector<double> vanilla;
     if (knock_in) {
@@ -134,10 +135,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (old.size() < space->size()) old.resize(space->size(), rebate_value(time_to_expiry));
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
-    return finite_difference_result(value, spot, space->upper, output, spot_shift,
-        [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); },
-        [&](double shifted_spot) { return space->delta(old, shifted_spot); },
-        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
 }
 Result<PricingResult> price_barrier(
     const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings,

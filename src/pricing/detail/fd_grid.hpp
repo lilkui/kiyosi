@@ -41,9 +41,9 @@ Result<PricingResult> finite_difference_result(
     const auto speed = finite_difference_speed(spot, h, upper, price_at, gamma_at);
     if (!speed) return std::unexpected(speed.error());
     return make_pricing_result(value,
-        {{Greek::delta, output.has(Greek::delta) ? std::optional{delta_at(spot)} : std::nullopt},
-         {Greek::gamma, output.has(Greek::gamma) ? std::optional{gamma_at(spot)} : std::nullopt},
-         {Greek::speed, *speed}});
+                               {{Greek::delta, output.has(Greek::delta) ? std::optional{delta_at(spot)} : std::nullopt},
+                                {Greek::gamma, output.has(Greek::gamma) ? std::optional{gamma_at(spot)} : std::nullopt},
+                                {Greek::speed, *speed}});
 }
 
 struct FiniteDifferenceTimeGrid {

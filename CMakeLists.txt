@@ -240,6 +240,10 @@ if(KIYOSI_BUILD_BENCHMARKS)
         FIND_PACKAGE_ARGS 1.9.5 CONFIG
     )
     FetchContent_MakeAvailable(benchmark)
+    if(benchmark_SOURCE_DIR AND CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_SIMULATE_ID STREQUAL "MSVC")
+        # Google Benchmark 1.9.5 omits its printf attribute for Clang targeting MSVC.
+        target_compile_options(benchmark PRIVATE -Wno-missing-format-attribute -Wno-format-nonliteral)
+    endif()
     add_subdirectory(benchmarks)
 endif()
 

@@ -1,5 +1,6 @@
 """Checks that the SSE generator uses the live XSHG list."""
 
+import importlib
 import io
 import sys
 import unittest
@@ -7,7 +8,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
-import generate_sse_calendar as generator  # noqa: E402
+generator = importlib.import_module("generate_sse_calendar")
 
 
 class GenerateSseCalendarTests(unittest.TestCase):

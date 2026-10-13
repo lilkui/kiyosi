@@ -23,12 +23,16 @@ template <typename Terms>
                            .effective_date = terms.effective_date,
                            .expiry_date = terms.expiry_date};
     expanded.observations.reserve(terms.observation_dates.size());
-    for (const Date date : terms.observation_dates) {
-        AutocallableObservation observation{date, 0.0};
-        if constexpr (requires { terms.coupon_rate; }) observation.coupon_rate = terms.coupon_rate;
-        if constexpr (requires { terms.knock_out_level; }) observation.knock_out_level = terms.knock_out_level;
-        expanded.observations.push_back(observation);
-    }
+    const double coupon_rate = [&] {
+        if constexpr (requires { terms.coupon_rate; }) return terms.coupon_rate;
+        else return 0.0;
+    }();
+    const double knock_out_level = [&] {
+        if constexpr (requires { terms.knock_out_level; }) return terms.knock_out_level;
+        else return 0.0;
+    }();
+    for (const Date date : terms.observation_dates)
+        expanded.observations.push_back({date, knock_out_level, coupon_rate});
     if constexpr (requires { terms.coupon_rate; }) expanded.maturity_coupon_rate = terms.coupon_rate;
     return expanded;
 }

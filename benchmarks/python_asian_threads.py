@@ -21,16 +21,28 @@ def main():
     )
     for kind, engine in (
         (GeometricAveragePriceOption, pricing.AnalyticGeometricAveragePriceEngine()),
-        (ArithmeticAveragePriceOption, pricing.TurnbullWakemanArithmeticAveragePriceEngine()),
+        (
+            ArithmeticAveragePriceOption,
+            pricing.TurnbullWakemanArithmeticAveragePriceEngine(),
+        ),
     ):
         option = kind(
-            option_type="call", strike=100, effective_date=start,
-            averaging_start_date=start, expiry_date=end,
+            option_type="call",
+            strike=100,
+            effective_date=start,
+            averaging_start_date=start,
+            expiry_date=end,
         )
         for selection in ({"greeks": "delta"}, {"all_greeks": True}):
             expected = engine.price_with_greeks(option, context, **selection)
 
-            def run(count):
+            def run(
+                count,
+                engine=engine,
+                option=option,
+                selection=selection,
+                expected=expected,
+            ):
                 for _ in range(count):
                     result = engine.price_with_greeks(option, context, **selection)
                 assert result.price == expected.price and result.delta == expected.delta
@@ -41,7 +53,9 @@ def main():
                 with ThreadPoolExecutor(max_workers=workers) as pool:
                     for _ in range(5):
                         started = time.perf_counter()
-                        futures = [pool.submit(run, 80_000 // workers) for _ in range(workers)]
+                        futures = [
+                            pool.submit(run, 80_000 // workers) for _ in range(workers)
+                        ]
                         for future in futures:
                             future.result()
                         samples.append((time.perf_counter() - started) * 1000)

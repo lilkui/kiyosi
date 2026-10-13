@@ -234,7 +234,7 @@ Result<PricingResult> complete_greeks(
     std::optional<double> spot_down;
     if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) ||
                                    (need(Greek::speed) && (scalar_speed_available || native_stencil)))) {
-        std::optional<PricingResult> native_up, native_down;
+        std::optional<std::array<PricingResult, 2>> native_spots;
         if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
             if (need(Greek::speed)) {
                 const auto evaluate = [&](double shifted_spot) -> Result<PricingResult> {
@@ -246,13 +246,12 @@ Result<PricingResult> complete_greeks(
                 if (!high) return std::unexpected(high.error());
                 const auto low = evaluate(spot - h);
                 if (!low) return std::unexpected(low.error());
-                native_up = *high;
-                native_down = *low;
+                native_spots = std::array{*high, *low};
             }
         }
-        const auto p_up = native_up ? Result<double>{native_up->price()} : detail::shifted_value(price, context, spot + h, volatility, rate, valuation_time);
+        const auto p_up = native_spots ? Result<double>{(*native_spots)[0].price()} : detail::shifted_value(price, context, spot + h, volatility, rate, valuation_time);
         if (!p_up) return std::unexpected(p_up.error());
-        const auto p_down = native_down ? Result<double>{native_down->price()} : detail::shifted_value(price, context, spot - h, volatility, rate, valuation_time);
+        const auto p_down = native_spots ? Result<double>{(*native_spots)[1].price()} : detail::shifted_value(price, context, spot - h, volatility, rate, valuation_time);
         if (!p_down) return std::unexpected(p_down.error());
         spot_up = *p_up;
         spot_down = *p_down;
@@ -260,9 +259,9 @@ Result<PricingResult> complete_greeks(
         // Divide separately so powers of the shift cannot overflow or underflow.
         if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
 
-        const bool native_speed = native_up && native_up->has(Greek::gamma) && native_down->has(Greek::gamma);
+        const bool native_speed = native_spots && (*native_spots)[0].has(Greek::gamma) && (*native_spots)[1].has(Greek::gamma);
         if (need(Greek::speed) && native_speed)
-            speed = (**native_up->get(Greek::gamma) - **native_down->get(Greek::gamma)) / (2.0 * h);
+            speed = (**(*native_spots)[0].get(Greek::gamma) - **(*native_spots)[1].get(Greek::gamma)) / (2.0 * h);
 
         if (need(Greek::speed) && !native_speed && scalar_speed_available) {
             const auto p_up2 = detail::shifted_value(
@@ -286,7 +285,7 @@ Result<PricingResult> complete_greeks(
         (need(Greek::vega) || (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))))) {
         const double volatility_high = volatility + volatility_shift;
         const double volatility_low = volatility - volatility_shift;
-        std::optional<PricingResult> native_high, native_low;
+        std::optional<std::array<PricingResult, 2>> native_volatilities;
         if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
             if (spot_stencil_available && (need(Greek::vanna) || need(Greek::zomma))) {
                 const auto evaluate = [&](double shifted_volatility) -> Result<PricingResult> {
@@ -301,17 +300,16 @@ Result<PricingResult> complete_greeks(
                 if (!high) return std::unexpected(high.error());
                 const auto low = evaluate(volatility_low);
                 if (!low) return std::unexpected(low.error());
-                native_high = *high;
-                native_low = *low;
+                native_volatilities = std::array{*high, *low};
             }
         }
-        const bool native_vanna = native_high && native_high->has(Greek::delta) && native_low->has(Greek::delta);
-        const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
+        const bool native_vanna = native_volatilities && (*native_volatilities)[0].has(Greek::delta) && (*native_volatilities)[1].has(Greek::delta);
+        const bool native_zomma = native_volatilities && (*native_volatilities)[0].has(Greek::gamma) && (*native_volatilities)[1].has(Greek::gamma);
         const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
         const std::array shifted_volatilities{volatility_high, volatility_low};
         const auto sampled = sample_mixed_greeks(
-            {native_high ? &*native_high : nullptr, native_low ? &*native_low : nullptr},
+            {native_volatilities ? native_volatilities->data() : nullptr, native_volatilities ? &(*native_volatilities)[1] : nullptr},
             scalar_mixed, need_volatility_prices, *p0,
             [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
                 const double shifted_volatility = shifted_volatilities[index];
@@ -325,9 +323,9 @@ Result<PricingResult> complete_greeks(
         if (need(Greek::vega)) vega = (v_up - v_down) / (2.0 * vol_scale);
 
         if (need(Greek::vanna) && native_vanna)
-            vanna = (**native_high->get(Greek::delta) - **native_low->get(Greek::delta)) / (2.0 * vol_scale);
+            vanna = (**(*native_volatilities)[0].get(Greek::delta) - **(*native_volatilities)[1].get(Greek::delta)) / (2.0 * vol_scale);
         if (need(Greek::zomma) && native_zomma)
-            zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
+            zomma = (**(*native_volatilities)[0].get(Greek::gamma) - **(*native_volatilities)[1].get(Greek::gamma)) / (2.0 * vol_scale);
 
         if (scalar_mixed) {
             const auto& high = (*sampled->spots)[0];
@@ -381,7 +379,7 @@ Result<PricingResult> complete_greeks(
         const auto time_available = time_stencil_available(option, context, before, after);
         if (!time_available) return std::unexpected(time_available.error());
         if (!spot_discontinuity && *time_available && before != after) {
-            std::optional<PricingResult> native_before, native_after;
+            std::optional<std::array<PricingResult, 2>> native_times;
             if constexpr (requires { evaluate_native(context, GreeksRequest{}); }) {
                 const bool native_time_stencil_available = (before != valuation_time && after != valuation_time) ||
                                                            ((!need(Greek::charm) || native_has(Greek::delta)) && (!need(Greek::color) || native_has(Greek::gamma)));
@@ -399,17 +397,16 @@ Result<PricingResult> complete_greeks(
                     if (!first) return std::unexpected(first.error());
                     const auto last = evaluate(after);
                     if (!last) return std::unexpected(last.error());
-                    native_before = *first;
-                    native_after = *last;
+                    native_times = std::array{*first, *last};
                 }
             }
-            const bool native_charm = native_before && native_before->has(Greek::delta) && native_after->has(Greek::delta);
-            const bool native_color = native_before && native_before->has(Greek::gamma) && native_after->has(Greek::gamma);
+            const bool native_charm = native_times && (*native_times)[0].has(Greek::delta) && (*native_times)[1].has(Greek::delta);
+            const bool native_color = native_times && (*native_times)[0].has(Greek::gamma) && (*native_times)[1].has(Greek::gamma);
             const bool scalar_mixed = spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color));
             const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
             const std::array shifted_times{before, after};
             const auto sampled = sample_mixed_greeks(
-                {native_before ? &*native_before : nullptr, native_after ? &*native_after : nullptr},
+                {native_times ? native_times->data() : nullptr, native_times ? &(*native_times)[1] : nullptr},
                 scalar_mixed, need_time_prices, *p0,
                 [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
                     const Timestamp time = shifted_times[index];
@@ -429,9 +426,9 @@ Result<PricingResult> complete_greeks(
             const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (t_after - t_before) / day_scale;
             if (need(Greek::charm) && native_charm)
-                charm = (**native_after->get(Greek::delta) - **native_before->get(Greek::delta)) / day_scale;
+                charm = (**(*native_times)[1].get(Greek::delta) - **(*native_times)[0].get(Greek::delta)) / day_scale;
             if (need(Greek::color) && native_color)
-                color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
+                color = (**(*native_times)[1].get(Greek::gamma) - **(*native_times)[0].get(Greek::gamma)) / day_scale;
 
             if (scalar_mixed) {
                 const auto& first = (*sampled->spots)[0];

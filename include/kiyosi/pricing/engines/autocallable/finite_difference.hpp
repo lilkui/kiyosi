@@ -33,7 +33,7 @@ public:
     /// Other measures use numerical price differences.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
-                                                          GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
+                                                                        GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
     /// Returns the engine settings.
     FiniteDifferenceSettings settings() const noexcept { return settings_; }

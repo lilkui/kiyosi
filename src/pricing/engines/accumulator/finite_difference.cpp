@@ -112,10 +112,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
                space->interpolate(intercept, shifted_spot, intercept_curvature);
     };
     const double value = price_at(spot);
-    return finite_difference_result(value, spot, space->upper, output, spot_shift,
-        [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); },
-        [&](double shifted_spot) { return space->delta(slope, shifted_spot) * initial.quantity + space->delta(intercept, shifted_spot); },
-        [&](double shifted_spot) { return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot); });
+    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return space->delta(slope, shifted_spot) * initial.quantity + space->delta(intercept, shifted_spot); }, [&](double shifted_spot) { return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot); });
 }
 
 Result<double> FiniteDifferenceAccumulatorEngine::price(

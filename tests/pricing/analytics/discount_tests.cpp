@@ -221,10 +221,7 @@ TEST_CASE("Finite-difference boundaries preserve extreme discount scales", "[dis
             const auto context = *make_pricing_context(*make_bsm_parameters(rate, rate, 0.2), spot, start);
             const FiniteDifferenceSettings settings{40, 2000, FiniteDifferenceScheme::crank_nicolson, 4.0 * amount};
             const auto vanilla = *make_european_option(type, amount, start, end);
-            const auto barrier = *make_barrier_option({.option_type = type, .strike = amount,
-                .effective_date = start, .expiry_date = end,
-                .barrier_level = amount * (call ? 0.5 : 3.0),
-                .barrier_type = call ? BarrierType::down_and_out : BarrierType::up_and_out});
+            const auto barrier = *make_barrier_option({.option_type = type, .strike = amount, .effective_date = start, .expiry_date = end, .barrier_level = amount * (call ? 0.5 : 3.0), .barrier_type = call ? BarrierType::down_and_out : BarrierType::up_and_out});
             // Approach the exact upper call or lower put boundary, independently of interior grid error.
             const double expected = std::exp(std::log(amount) - rate) * (call ? 3.0 : 1.0);
             for (const auto& price : {FiniteDifferenceVanillaEngine{settings}.price(vanilla, context),

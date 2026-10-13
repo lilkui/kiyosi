@@ -30,7 +30,8 @@ Result<double> QuadratureVanillaEngine::price(const EuropeanOption& option, cons
     if (width < 1e-5)
         return detail::price_value(price_at_volatility(option, context, sigma, GreeksRequest{}));
     const double threshold = -standardize_forward(log_price_ratio(spot, strike) + (rate - dividend) * tau,
-                                                  sigma, root) + 0.5 * width;
+                                                  sigma, root) +
+                             0.5 * width;
     if (!std::isfinite(width) || std::isnan(threshold))
         return std::unexpected(Error{ErrorCategory::invalid_result, "integral pricing parameters are non-finite"});
     // Completing the square centers the asset-weighted density at width instead of zero.

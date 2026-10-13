@@ -14,7 +14,7 @@ LAST_YEAR = 2099
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = ROOT / "src/market/calendars/sse.cpp"
 TABLE = re.compile(
-    r"constexpr auto sse_holidays = std::to_array<int>\(\{.*?\}\);", re.S
+    r"constexpr auto sse_holidays = std::to_array<int>\(\{.*?\}\);", re.DOTALL
 )
 SOURCE = (
     "https://raw.githubusercontent.com/gerrymanoim/exchange_calendars/HEAD/"
@@ -79,7 +79,7 @@ def recorded_holidays():
     match = re.search(
         r"precomputed_shanghai_holidays\s*=\s*pd\.to_datetime\(\s*(\[.*?\])\s*\)",
         source,
-        re.S,
+        re.DOTALL,
     )
     if match is None:
         raise ValueError("XSHG holiday list not found in upstream source")

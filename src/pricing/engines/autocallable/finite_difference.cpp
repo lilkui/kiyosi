@@ -68,9 +68,7 @@ Result<PricingResult> rollback_autocallable(
         return std::unexpected(stable.error());
 
     const auto event_at = [&](double time) {
-        const auto found = std::lower_bound(
-            observation_events.begin(), observation_events.end(), time,
-            [](const ObservationEvent& event, double value) { return event.time < value; });
+        const auto found = std::ranges::lower_bound(observation_events, time, {}, &ObservationEvent::time);
         return found == observation_events.end() || found->time != time
                    ? AutocallableEvent{}
                    : found->event;
