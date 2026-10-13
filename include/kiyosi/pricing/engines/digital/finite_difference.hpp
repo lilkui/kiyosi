@@ -37,8 +37,6 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const CashOrNothingOption&, const PricingContext&, GreeksRequest, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
-    [[nodiscard]] Result<PricingResult> price_native(const AssetOrNothingOption&, const PricingContext&, GreeksRequest, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
     FiniteDifferenceSettings settings_;
 };
 

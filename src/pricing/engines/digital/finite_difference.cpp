@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <limits>
 #include <vector>
 
@@ -18,8 +19,9 @@ using namespace detail;
 namespace {
 template <typename Option>
 Result<PricingResult> price_digital_fd(const Option& option, const PricingContext& context,
-                                       FiniteDifferenceSettings settings, bool asset, GreeksRequest requested_output, double spot_shift)
+                                       FiniteDifferenceSettings settings, GreeksRequest requested_output, double spot_shift = NumericalShiftSettings{}.spot_shift)
 {
+    constexpr bool asset = std::same_as<Option, AssetOrNothingOption>;
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     auto settings_valid = detail::validate_finite_difference_settings(
@@ -98,35 +100,26 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
 
 } // namespace
 
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const CashOrNothingOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
-{
-    return price_digital_fd(option, context, settings_, false, output, spot_shift);
-}
-Result<PricingResult> FiniteDifferenceDigitalEngine::price_native(const AssetOrNothingOption& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
-{
-    return price_digital_fd(option, context, settings_, true, output, spot_shift);
-}
-
 Result<double> FiniteDifferenceDigitalEngine::price(const CashOrNothingOption& option, const PricingContext& context) const
 {
-    return detail::price_value(price_native(option, context, GreeksRequest{}));
+    return detail::price_value(price_digital_fd(option, context, settings_, GreeksRequest{}));
 }
 
 Result<double> FiniteDifferenceDigitalEngine::price(const AssetOrNothingOption& option, const PricingContext& context) const
 {
-    return detail::price_value(price_native(option, context, GreeksRequest{}));
+    return detail::price_value(price_digital_fd(option, context, settings_, GreeksRequest{}));
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const CashOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_digital_fd(option, shifted, engine.settings(), request, settings.spot_shift); });
 }
 
 Result<PricingResult> FiniteDifferenceDigitalEngine::price_with_greeks(const AssetOrNothingOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return engine.price_native(option, shifted, request, settings.spot_shift); });
+    return detail::price_with_greeks(*this, option, context, greeks, settings, [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) { return price_digital_fd(option, shifted, engine.settings(), request, settings.spot_shift); });
 }
 
 } // namespace kiyosi

@@ -52,8 +52,6 @@ public:
     BinomialSettings settings() const noexcept { return settings_; }
 
 private:
-    [[nodiscard]] Result<PricingResult> price_native(const EuropeanOption&, const PricingContext&, GreeksRequest) const;
-    [[nodiscard]] Result<PricingResult> price_native(const AmericanOption&, const PricingContext&, GreeksRequest) const;
     BinomialSettings settings_;
 };
 

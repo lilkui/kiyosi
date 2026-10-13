@@ -7,23 +7,17 @@
 namespace kiyosi {
 using namespace detail;
 
-Result<PricingResult> AnalyticVanillaEngine::price_native(
-    const EuropeanOption& option, const PricingContext& context, GreeksRequest output) const
-{
-    return price_at_volatility(option, context, context.model_parameters().volatility(), output);
-}
-
 Result<double> AnalyticVanillaEngine::price(
     const EuropeanOption& option, const PricingContext& context) const
 {
-    return detail::price_value(price_native(option, context, GreeksRequest{}));
+    return detail::price_value(price_at_volatility(option, context, context.model_parameters().volatility(), GreeksRequest{}));
 }
 
 Result<PricingResult> AnalyticVanillaEngine::price_with_greeks(
     const EuropeanOption& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto& engine) { return engine.price_native(option, context, greeks); });
+    return detail::evaluate_greeks(*this, option, context, greeks, settings, [&](const auto&) { return price_at_volatility(option, context, context.model_parameters().volatility(), greeks); });
 }
 
 } // namespace kiyosi
