@@ -54,37 +54,15 @@ Result<std::array<double, count>> path_payoffs(
     std::array<PathState, count> states, Pcg32& generator)
 {
     constexpr bool shared_steps = std::same_as<Steps, std::vector<SimulationStep>>;
-    const auto& common_steps = [&]() -> const auto& {
-        if constexpr (shared_steps) return steps;
-        else return *std::ranges::max_element(steps, {}, [](const auto& sequence) { return sequence.size(); });
-    }();
-    std::normal_distribution<double> normal;
-    for (std::size_t index = 0; index < common_steps.size(); ++index) {
-        const double draw = normal(generator);
-        const double growth = [&] {
-            if constexpr (shared_steps) return std::exp(common_steps[index].drift + common_steps[index].diffusion * draw);
-            else return 0.0;
-        }();
-        for (std::size_t i = 0; i < count; ++i) {
-            auto& state = states[i];
-            if (state.payoff) continue;
-            const auto& step = [&]() -> const auto& {
-                if constexpr (shared_steps) return common_steps[index];
-                else return steps[i][index];
-            }();
-            if constexpr (shared_steps) state.spot *= growth;
-            else state.spot *= std::exp(step.drift + step.diffusion * draw);
-            if (!std::isfinite(state.spot) || state.spot <= 0.0)
-                return std::unexpected(Error{ErrorCategory::invalid_result,
-                                             "Monte Carlo simulation produced an invalid asset price"});
+    const auto simulated = simulate_path_batch<shared_steps>(steps, states, generator,
+        [&](auto& state, const auto& step) {
             state.discount = step.discount;
             if (accumulator_knocked_out(state.spot, option.knock_out_level()))
                 state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
             else
                 state.quantity += accumulator_purchase_quantity(state.spot, option.strike(), option.daily_quantity(), option.acceleration_factor());
-        }
-        if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
-    }
+        });
+    if (!simulated) return std::unexpected(simulated.error());
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i)
         payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].discount.apply(states[i].quantity, states[i].spot - option.strike());

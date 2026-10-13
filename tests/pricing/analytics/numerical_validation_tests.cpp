@@ -17,6 +17,49 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Trading-day path batches share draws and skip settled states", "[monte-carlo-batch]")
+{
+    using namespace kiyosi;
+    using namespace kiyosi::detail;
+    struct State {
+        double spot;
+        std::optional<double> payoff;
+    };
+    const std::vector<CudaSimulationStep> steps{{0.01, 0.2, {}}, {0.03, 0.1, {}}};
+    Pcg32 expected_generator{42, 7};
+    std::normal_distribution<double> normal;
+    const double first_growth = std::exp(0.01 + 0.2 * normal(expected_generator));
+    const double second_growth = std::exp(0.03 + 0.1 * normal(expected_generator));
+    std::array states{State{100.0, {}}, State{200.0, {}}};
+    Pcg32 generator{42, 7};
+    int observations = 0;
+    const auto simulated = simulate_path_batch<true>(steps, states, generator, [&](auto&, const auto&) { ++observations; });
+    REQUIRE(simulated);
+    CHECK(states[0].spot == 100.0 * first_growth * second_growth);
+    CHECK(states[1].spot == 200.0 * first_growth * second_growth);
+    CHECK(observations == 4);
+    CHECK(generator() == expected_generator());
+
+    const std::array sequences{steps, std::vector<CudaSimulationStep>{}};
+    states = {State{100.0, {}}, State{200.0, 17.0}};
+    Pcg32 independent_generator{42, 7};
+    observations = 0;
+    const auto independent = simulate_path_batch<false>(sequences, states, independent_generator,
+        [&](auto& state, const auto&) { ++observations; state.payoff = state.spot; });
+    REQUIRE(independent);
+    CHECK(states[0].spot == 100.0 * first_growth);
+    CHECK(states[1].spot == 200.0);
+    CHECK(states[1].payoff == 17.0);
+    CHECK(observations == 1);
+
+    const std::vector<CudaSimulationStep> overflowing{{1000.0, 0.0, {}}};
+    std::array invalid_states{State{100.0, {}}};
+    const auto invalid = simulate_path_batch<true>(overflowing, invalid_states, independent_generator,
+        [](auto&, const auto&) { FAIL("Invalid spots must fail before observation"); });
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Numerical stencils share rounded shifts and boundary eligibility", "[numerical-stencils]")
 {
     using namespace kiyosi;

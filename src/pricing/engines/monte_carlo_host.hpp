@@ -165,6 +165,65 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
     return prices;
 }
 
+// One draw advances every active state; scalar calls enter active, batched states may already be settled.
+// Keep product observation inlined in the time-step loop.
+template <bool shared_steps, typename Steps, typename State, std::size_t count, typename Observe>
+#if defined(_MSC_VER)
+__forceinline
+#else
+[[gnu::always_inline]] inline
+#endif
+Result<void> simulate_path_batch(const Steps& steps, std::array<State, count>& states,
+                                 Pcg32& generator, const Observe& observe)
+{
+    const auto& common = [&]() -> const auto& {
+        if constexpr (shared_steps) return steps;
+        else return *std::ranges::max_element(steps, {}, [](const auto& sequence) { return sequence.size(); });
+    }();
+    std::normal_distribution<double> normal;
+    std::size_t index = 0;
+    for (const auto& common_step : common) {
+        const double draw = normal(generator);
+        const double shared_growth = [&] {
+            if constexpr (shared_steps) {
+                const auto& simulation = [&]() -> const auto& {
+                    if constexpr (requires { common_step.simulation; }) return common_step.simulation;
+                    else return common_step;
+                }();
+                return std::exp(simulation.drift + simulation.diffusion * draw);
+            }
+            else return 0.0;
+        }();
+        for (std::size_t i = 0; i < count; ++i) {
+            auto& state = states[i];
+            if constexpr (count > 1)
+                if (state.payoff) continue;
+            const auto& step = [&]() -> const auto& {
+                if constexpr (shared_steps) return common_step;
+                else return steps[i][index];
+            }();
+            if constexpr (shared_steps) state.spot *= shared_growth;
+            else {
+                const auto& simulation = [&]() -> const auto& {
+                    if constexpr (requires { step.simulation; }) return step.simulation;
+                    else return step;
+                }();
+                state.spot *= std::exp(simulation.drift + simulation.diffusion * draw);
+            }
+            if (!std::isfinite(state.spot) || state.spot <= 0.0)
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "Monte Carlo simulation produced an invalid asset price"});
+            observe(state, step);
+            if constexpr (count == 1)
+                if (state.payoff) return {};
+        }
+        if constexpr (count > 1)
+            if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
+        ++index;
+    }
+    return {};
+}
+
 template <typename PathPayoff>
 Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
 {

@@ -105,54 +105,29 @@ Result<std::array<double, count>> path_payoffs(
 {
     auto states = initial_states;
     constexpr bool shared_inputs = std::same_as<Inputs, SimulationInputs>;
-    const auto& common = [&]() -> const SimulationInputs& {
-        if constexpr (shared_inputs) return inputs;
-        else return *std::ranges::max_element(inputs, {}, [](const auto& value) { return value.step_count.size(); });
-    }();
-    std::normal_distribution<double> normal;
-    std::size_t index = 0;
-    for (const auto& common_step : common.step_count) {
-        const double draw = normal(generator);
-        double shared_growth = 0.0; // NOLINT(misc-const-correctness): assigned when all paths share simulation inputs.
+    const auto observe = [&](auto& state, const auto& step) {
+        double payoff = 0.0;
+        if (observe_autocallable_path(program, step.event, step.simulation.discount, state.spot, state.path, payoff))
+            state.payoff = payoff;
+    };
+    const auto simulated = [&] {
         if constexpr (shared_inputs)
-            shared_growth = std::exp(common_step.simulation.drift + common_step.simulation.diffusion * draw);
-        for (std::size_t i = 0; i < count; ++i) {
-            auto& state = states[i];
-            if constexpr (count > 1)
-                if (state.payoff) continue;
-            const auto& step = [&]() -> const CudaAutocallableStep& {
-                if constexpr (shared_inputs) return common_step;
-                else return inputs[i].step_count[index];
-            }();
-            const double growth = [&] {
-                if constexpr (shared_inputs) return shared_growth;
-                else return std::exp(step.simulation.drift + step.simulation.diffusion * draw);
-            }();
-            state.spot *= growth;
-            if (!std::isfinite(state.spot) || state.spot <= 0.0)
-                return std::unexpected(Error{ErrorCategory::invalid_result,
-                                             "Monte Carlo simulation produced an invalid asset price"});
-            double payoff = 0.0;
-            if (observe_autocallable_path(program, step.event, step.simulation.discount, state.spot, state.path, payoff)) {
-                if constexpr (count == 1) return std::array{payoff};
-                else state.payoff = payoff;
-            }
+            return simulate_path_batch<true>(inputs.step_count, states, generator, observe);
+        else {
+            std::array<std::span<const CudaAutocallableStep>, count> sequences{};
+            for (std::size_t i = 0; i < count; ++i) sequences[i] = inputs[i].step_count;
+            return simulate_path_batch<false>(sequences, states, generator, observe);
         }
-        if constexpr (count > 1)
-            if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
-        ++index;
-    }
+    }();
+    if (!simulated) return std::unexpected(simulated.error());
     std::array<double, count> payoffs{};
     for (std::size_t i = 0; i < count; ++i) {
         auto& state = states[i];
         const auto& terminal_discount = [&]() -> const MonteCarloDiscount& {
-            if constexpr (shared_inputs) return common.terminal_discount;
+            if constexpr (shared_inputs) return inputs.terminal_discount;
             else return inputs[i].terminal_discount;
         }();
-        if constexpr (count == 1)
-            payoffs[i] = settle_autocallable_path(program, terminal_discount, state.spot, state.path);
-        else
-            payoffs[i] = state.payoff ? *state.payoff : settle_autocallable_path(program, terminal_discount, state.spot, state.path);
+        payoffs[i] = state.payoff ? *state.payoff : settle_autocallable_path(program, terminal_discount, state.spot, state.path);
     }
     return payoffs;
 }
