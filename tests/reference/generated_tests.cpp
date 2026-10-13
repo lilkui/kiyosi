@@ -33,6 +33,8 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
         if (fixture.instrument == "GeometricAveragePriceOption" || fixture.instrument == "ArithmeticAveragePriceOption") continue;
         const bool american = fixture.instrument == "AmericanOption";
         const bool digital = fixture.instrument == "CashOrNothingOption" || fixture.instrument == "AssetOrNothingOption";
+        const auto contract_engine = fixture.instrument + "/" + fixture.engine;
+        wrappers.try_emplace(contract_engine, 0);
         if (digital) ++digital_rows[fixture.engine];
         REQUIRE((american || digital || fixture.instrument == "EuropeanOption"));
         REQUIRE(fixture.case_id.starts_with(american ? "ql-american-" : digital ? "ql-digital-"
@@ -56,10 +58,10 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
         const auto check_contract = [&](const auto& option) {
             const auto check_engine = [&](const auto& engine) {
                 const auto native = [&]() -> kiyosi::Result<kiyosi::PricingResult> {
-                    if (fixture.engine == "AnalyticEuropeanEngine")
+                    if (fixture.engine == "AnalyticVanillaEngine")
                         return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{true});
-                    if (fixture.engine == "CrrEngine" || fixture.engine == "FiniteDifferenceEuropeanEngine" ||
-                        fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
+                    if (fixture.engine == "CoxRossRubinsteinVanillaEngine" || fixture.engine == "FiniteDifferenceVanillaEngine" ||
+                        fixture.engine == "AnalyticDigitalEngine" ||
                         fixture.engine == "FiniteDifferenceDigitalEngine")
                         return engine.price_with_greeks(option, *context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
                     const auto value = engine.price(option, *context);
@@ -70,11 +72,11 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                 const bool expiry_boundary = (date("expiry_date") - date("valuation")).count() <= 2;
                 const bool exercise_boundary = american && (date("valuation") - date("effective_date")).count() < 2;
                 const bool boundary = expiry_boundary || exercise_boundary;
-                const bool analytic = fixture.engine == "AnalyticEuropeanEngine";
+                const bool analytic = fixture.engine == "AnalyticVanillaEngine";
                 if (!analytic) REQUIRE((inputs.at("wrapper") == "true" || inputs.at("wrapper") == "false"));
                 const bool wrapped = analytic || inputs.at("wrapper") == "true";
                 if (digital && boundary) REQUIRE_FALSE(wrapped);
-                if (wrapped) ++wrappers[fixture.engine];
+                if (wrapped) ++wrappers[contract_engine];
                 kiyosi::NumericalShiftSettings shifts;
                 if (!analytic) {
                     shifts = {number("spot_shift"), number("volatility_shift"), number("rate_shift"),
@@ -91,9 +93,9 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                     INFO("measure=" << name);
                     if (!fixture.outputs.contains(name)) continue;
                     const bool native_measure = analytic ||
-                                                ((fixture.engine == "CrrEngine" ||
-                                                  fixture.engine == "FiniteDifferenceEuropeanEngine" ||
-                                                  fixture.engine == "FiniteDifferenceAmericanEngine" || fixture.engine == "AnalyticDigitalEngine" ||
+                                                ((fixture.engine == "CoxRossRubinsteinVanillaEngine" ||
+                                                  fixture.engine == "FiniteDifferenceVanillaEngine" ||
+                                                  fixture.engine == "AnalyticDigitalEngine" ||
                                                   fixture.engine == "FiniteDifferenceDigitalEngine") &&
                                                  (name == "delta" || name == "gamma"));
                     if (native_measure) REQUIRE(native->has(measure));
@@ -123,7 +125,7 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                                                                         static_cast<int>(number("time_step_count")), kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")}});
                 } else FAIL("Unknown digital engine: " << fixture.engine);
             } else {
-                if (fixture.engine == "AnalyticEuropeanEngine") {
+                if (fixture.engine == "AnalyticVanillaEngine") {
                     if constexpr (!american_contract) {
                         const kiyosi::AnalyticVanillaEngine engine;
                         check_engine(engine);
@@ -133,17 +135,17 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                         REQUIRE(implied.has_value());
                         CHECK_THAT(*implied, Catch::Matchers::WithinAbs(number("volatility"), 1e-7));
                     } else {
-                        FAIL("AnalyticEuropeanEngine cannot price an American contract");
+                        FAIL("AnalyticVanillaEngine cannot price an American contract");
                     }
-                } else if (fixture.engine == "BjerksundStenslandAmericanEngine") {
+                } else if (fixture.engine == "BjerksundStenslandVanillaEngine") {
                     if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandVanillaEngine{});
-                    else FAIL("BjerksundStenslandAmericanEngine requires an American contract");
-                } else if (fixture.engine == "CrrEngine") {
+                    else FAIL("BjerksundStenslandVanillaEngine requires an American contract");
+                } else if (fixture.engine == "CoxRossRubinsteinVanillaEngine") {
                     check_engine(kiyosi::CoxRossRubinsteinVanillaEngine{static_cast<int>(number("steps"))});
-                } else if (fixture.engine == "IntegralEuropeanEngine") {
+                } else if (fixture.engine == "QuadratureVanillaEngine") {
                     if constexpr (!american_contract) check_engine(kiyosi::QuadratureVanillaEngine{});
-                    else FAIL("IntegralEuropeanEngine requires a European contract");
-                } else if (fixture.engine == (american ? "FiniteDifferenceAmericanEngine" : "FiniteDifferenceEuropeanEngine")) {
+                    else FAIL("QuadratureVanillaEngine requires a European contract");
+                } else if (fixture.engine == "FiniteDifferenceVanillaEngine") {
                     const std::map<std::string, kiyosi::FiniteDifferenceScheme> schemes{
                         {"explicit_euler", kiyosi::FiniteDifferenceScheme::explicit_euler},
                         {"implicit_euler", kiyosi::FiniteDifferenceScheme::implicit_euler},
@@ -151,7 +153,7 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                     REQUIRE(schemes.contains(inputs.at("scheme")));
                     check_engine(FiniteDifference{{static_cast<int>(number("asset_step_count")),
                                                    static_cast<int>(number("time_step_count")), schemes.at(inputs.at("scheme")), number("asset_upper_boundary")}});
-                } else if (fixture.engine == (american ? "MonteCarloAmericanEngine" : "MonteCarloEuropeanEngine")) {
+                } else if (fixture.engine == "MonteCarloVanillaEngine") {
                     check_engine(MonteCarlo{
                         kiyosi::test::detail::integer<int>(inputs.at("paths"), 0, "paths"),
                         kiyosi::test::detail::integer<int>(inputs.at("steps"), 0, "steps"),
@@ -183,12 +185,15 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
         ++compared;
     }
     REQUIRE(compared > 0);
-    REQUIRE(compared_engines.size() == 11);
-    for (const auto& engine : compared_engines)
-        REQUIRE(wrappers[engine] >= 2);
+    REQUIRE(compared_engines.size() == 9);
+    for (const auto& [contract_engine, count] : wrappers) {
+        INFO("contract/engine=" << contract_engine);
+        REQUIRE(count >= 2);
+    }
     REQUIRE(digital_rows.size() == 3);
     for (const auto& [engine, count] : digital_rows) {
         REQUIRE(count == 40);
-        REQUIRE(wrappers[engine] == (engine == "FiniteDifferenceDigitalEngine" ? 4 : 36));
+        const int wrapped = wrappers.at("CashOrNothingOption/" + engine) + wrappers.at("AssetOrNothingOption/" + engine);
+        REQUIRE(wrapped == (engine == "FiniteDifferenceDigitalEngine" ? 4 : 36));
     }
 }

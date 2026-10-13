@@ -278,7 +278,7 @@ inline std::vector<ReferenceCase> parse_reference_cases(std::istream& input)
                 if (name.starts_with("unavailable_") && !units.contains(name.substr(12))) throw invalid();
             }
         }
-        if (value.engine == "MonteCarloEuropeanEngine" || value.engine == "MonteCarloAmericanEngine") {
+        if (value.engine == "MonteCarloVanillaEngine") {
             (void)integer<std::uint64_t>(required_input("seed"), row, "seed");
             if (integer<int>(required_input("paths"), row, "paths") <= 0 ||
                 integer<int>(required_input("steps"), row, "steps") <= 0)

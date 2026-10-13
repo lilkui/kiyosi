@@ -105,7 +105,7 @@ TEST_CASE("QuantLib fixture parser rejects missing or invalid Greek declarations
 TEST_CASE("American reference fixtures reject unknown measures and exercise boundary omissions")
 {
     const auto original = fixture_text();
-    const auto start = original.find("ql-american-call-exercise-start-crrengine\t");
+    const auto start = original.find("ql-american-call-exercise-start-coxrossrubinsteinvanillaengine\t");
     REQUIRE(start != std::string::npos);
     const auto end = original.find('\n', start);
     const auto row = original.substr(start, end - start);
@@ -212,7 +212,7 @@ TEST_CASE("Reference fixture conversions retain field diagnostics for format and
     const auto parse = [](const std::string& tolerance, const std::string& settings) {
         std::istringstream input{
             "case_id\tinstrument\tengine\tvariant\tinputs\toutputs\ttolerances\n"
-            "test\tOption\tMonteCarloEuropeanEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
+            "test\tOption\tMonteCarloVanillaEngine\tcall\tsource_revision=test;source_symbol=test;convention=test;"
             "reference_kind=statistical;tolerance=" +
             tolerance +
             ";" + settings + "\tprice=1\tprice=0.1\n"};
@@ -268,30 +268,30 @@ TEST_CASE("Pricing reference manifest inventories QuantLib supported engines and
     const auto cases = kiyosi::test::load_reference_cases(kiyosi::test::fixture_path());
     const std::set<std::string> required_engines{
         "AnalyticBarrierEngine", "AnalyticBinaryBarrierEngine", "AnalyticDigitalEngine",
-        "AnalyticEuropeanEngine", "TurnbullWakemanArithmeticAveragePriceEngine",
-        "BjerksundStenslandAmericanEngine", "CrrEngine",
-        "FiniteDifferenceAmericanEngine", "FiniteDifferenceBarrierEngine",
-        "FiniteDifferenceDigitalEngine", "FiniteDifferenceEuropeanEngine",
-        "AnalyticGeometricAveragePriceEngine", "QuadratureDigitalEngine", "IntegralEuropeanEngine",
-        "MonteCarloAmericanEngine", "MonteCarloEuropeanEngine"};
+        "AnalyticVanillaEngine", "TurnbullWakemanArithmeticAveragePriceEngine",
+        "BjerksundStenslandVanillaEngine", "CoxRossRubinsteinVanillaEngine",
+        "FiniteDifferenceVanillaEngine", "FiniteDifferenceBarrierEngine",
+        "FiniteDifferenceDigitalEngine",
+        "AnalyticGeometricAveragePriceEngine", "QuadratureDigitalEngine", "QuadratureVanillaEngine",
+        "MonteCarloVanillaEngine"};
     const std::set<std::string> required_instruments{
         "AmericanOption", "ArithmeticAveragePriceOption", "BarrierOption",
         "BinaryBarrierOption", "TouchOption", "AssetOrNothingOption",
         "CashOrNothingOption", "EuropeanOption", "GeometricAveragePriceOption"};
     const std::set<std::string> required_pairs{
-        "AmericanOption/FiniteDifferenceAmericanEngine",
-        "AmericanOption/MonteCarloAmericanEngine", "AmericanOption/BjerksundStenslandAmericanEngine",
-        "AmericanOption/CrrEngine",
+        "AmericanOption/FiniteDifferenceVanillaEngine",
+        "AmericanOption/MonteCarloVanillaEngine", "AmericanOption/BjerksundStenslandVanillaEngine",
+        "AmericanOption/CoxRossRubinsteinVanillaEngine",
         "ArithmeticAveragePriceOption/TurnbullWakemanArithmeticAveragePriceEngine", "BarrierOption/AnalyticBarrierEngine",
         "BarrierOption/FiniteDifferenceBarrierEngine",
         "BinaryBarrierOption/AnalyticBinaryBarrierEngine", "TouchOption/AnalyticBinaryBarrierEngine",
         "AssetOrNothingOption/AnalyticDigitalEngine",
         "AssetOrNothingOption/QuadratureDigitalEngine", "AssetOrNothingOption/FiniteDifferenceDigitalEngine",
         "CashOrNothingOption/AnalyticDigitalEngine", "CashOrNothingOption/FiniteDifferenceDigitalEngine",
-        "CashOrNothingOption/QuadratureDigitalEngine", "EuropeanOption/AnalyticEuropeanEngine",
-        "EuropeanOption/CrrEngine",
-        "EuropeanOption/FiniteDifferenceEuropeanEngine", "EuropeanOption/IntegralEuropeanEngine",
-        "EuropeanOption/MonteCarloEuropeanEngine", "GeometricAveragePriceOption/AnalyticGeometricAveragePriceEngine"};
+        "CashOrNothingOption/QuadratureDigitalEngine", "EuropeanOption/AnalyticVanillaEngine",
+        "EuropeanOption/CoxRossRubinsteinVanillaEngine",
+        "EuropeanOption/FiniteDifferenceVanillaEngine", "EuropeanOption/QuadratureVanillaEngine",
+        "EuropeanOption/MonteCarloVanillaEngine", "GeometricAveragePriceOption/AnalyticGeometricAveragePriceEngine"};
     std::set<std::string> actual_engines;
     std::set<std::string> actual_instruments;
     std::set<std::string> actual_pairs;

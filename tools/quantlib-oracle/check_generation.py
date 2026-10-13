@@ -29,10 +29,13 @@ def check_reference_rows():
         budgets,
         budgets,
         instrument="AmericanOption",
-        engine="CrrEngine",
+        engine="CoxRossRubinsteinVanillaEngine",
         provenance=provenance,
     )
-    assert row["instrument"] == "AmericanOption" and row["engine"] == "CrrEngine"
+    assert (
+        row["instrument"] == "AmericanOption"
+        and row["engine"] == "CoxRossRubinsteinVanillaEngine"
+    )
     assert row["variant"] == "put" and row["outputs"] == {"price": 12.0}
     assert row["tolerances"] == budgets
     assert row["inputs"]["unit_price"] == "price"

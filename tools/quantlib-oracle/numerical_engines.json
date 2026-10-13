@@ -1,13 +1,13 @@
 {
   "profiles": [
     {
-      "engine": "CrrEngine",
+      "engine": "CoxRossRubinsteinVanillaEngine",
       "settings": {
         "steps": 800
       }
     },
     {
-      "engine": "IntegralEuropeanEngine",
+      "engine": "QuadratureVanillaEngine",
       "settings": {},
       "shifts": {
         "spot_shift": 0.01,
@@ -40,7 +40,7 @@
       }
     },
     {
-      "engine": "FiniteDifferenceEuropeanEngine",
+      "engine": "FiniteDifferenceVanillaEngine",
       "settings": {
         "asset_step_count": 400,
         "time_step_count": 800,
@@ -55,7 +55,7 @@
       }
     },
     {
-      "engine": "MonteCarloEuropeanEngine",
+      "engine": "MonteCarloVanillaEngine",
       "settings": {
         "seed": 42,
         "paths": 200000,

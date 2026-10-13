@@ -17,15 +17,15 @@ import oracle as g
 
 FIXTURE = g.PROJECT.parents[1] / "tests/fixtures/pricing_reference.tsv"
 NUMERICAL_ENGINES = {
-    "CrrEngine": {"steps"},
-    "IntegralEuropeanEngine": set(),
-    "FiniteDifferenceEuropeanEngine": {
+    "CoxRossRubinsteinVanillaEngine": {"steps"},
+    "QuadratureVanillaEngine": set(),
+    "FiniteDifferenceVanillaEngine": {
         "asset_step_count",
         "time_step_count",
         "scheme",
         "asset_upper_boundary",
     },
-    "MonteCarloEuropeanEngine": {"seed", "paths", "steps"},
+    "MonteCarloVanillaEngine": {"seed", "paths", "steps"},
 }
 
 
@@ -233,7 +233,7 @@ def regenerate(
                     item["tolerances"],
                     item["numerical_tolerances"],
                     instrument="EuropeanOption",
-                    engine="AnalyticEuropeanEngine",
+                    engine="AnalyticVanillaEngine",
                     provenance=g.EUROPEAN_PROVENANCE,
                 )
             )

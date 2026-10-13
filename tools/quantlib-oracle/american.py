@@ -23,15 +23,15 @@ STABILITY = {
     "rho": 0.001,
 }
 ENGINES = {
-    "CrrEngine": {"steps"},
-    "FiniteDifferenceAmericanEngine": {
+    "CoxRossRubinsteinVanillaEngine": {"steps"},
+    "FiniteDifferenceVanillaEngine": {
         "asset_step_count",
         "time_step_count",
         "scheme",
         "asset_upper_boundary",
     },
-    "BjerksundStenslandAmericanEngine": set(),
-    "MonteCarloAmericanEngine": {"seed", "paths", "steps"},
+    "BjerksundStenslandVanillaEngine": set(),
+    "MonteCarloVanillaEngine": {"seed", "paths", "steps"},
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry_date"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"
@@ -124,17 +124,17 @@ def reference(inputs):
 
 
 def provenance():
-    return dict(
-        source_symbol="QuantLib.FdBlackScholesVanillaEngine",
-        reference_kind="discretized",
-        reference_classification="convergence-verified-contract",
-        exercise="AmericanExercise(effective_date,expiry_date,payoffAtExpiry=false)",
-        reference_grids="800x800,1600x1600,3200x3200 time-by-space",
-        reference_scheme="Douglas with 2 damping steps, localVol=false, continuous dividend yield",
-        numerical_settings="spot 0.5/1,volatility 0.002/0.004,rate 0.001/0.002,time 1/2 calendar days",
-        measure_sources="price/delta/gamma native,others central differences of price/delta/gamma",
-        reference_uncertainty="maximum final-grid and bump discrepancy, not a rigorous bound",
-    )
+    return {
+        "source_symbol": "QuantLib.FdBlackScholesVanillaEngine",
+        "reference_kind": "discretized",
+        "reference_classification": "convergence-verified-contract",
+        "exercise": "AmericanExercise(effective_date,expiry_date,payoffAtExpiry=false)",
+        "reference_grids": "800x800,1600x1600,3200x3200 time-by-space",
+        "reference_scheme": "Douglas with 2 damping steps, localVol=false, continuous dividend yield",
+        "numerical_settings": "spot 0.5/1,volatility 0.002/0.004,rate 0.001/0.002,time 1/2 calendar days",
+        "measure_sources": "price/delta/gamma native,others central differences of price/delta/gamma",
+        "reference_uncertainty": "maximum final-grid and bump discrepancy, not a rigorous bound",
+    }
 
 
 def rows():
