@@ -40,7 +40,7 @@ Result<SimulationInputs> prepare_simulation(
     const Timestamp valuation = context.valuation_time();
     const auto dates = [&] {
         if (daily_knock_in) return trading_dates(context.calendar(), valuation, note.expiry_date());
-        const auto observations = note.observation_dates();
+        const auto observations = note.observations_view() | std::views::transform(&AutocallableObservation::date);
         std::vector<Date> events(observations.begin() + static_cast<std::ptrdiff_t>(next_observation), observations.end());
         if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
         return events;
@@ -48,11 +48,12 @@ Result<SimulationInputs> prepare_simulation(
     std::vector<CudaAutocallableStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
+    const auto observations = note.observations_view();
     for (const Date current : dates) {
         AutocallableEvent event{};
         double alternate_coupon = 0.0;
-        if (next_observation < note.observation_dates().size() &&
-            note.observation_dates()[next_observation] == current) {
+        if (next_observation < observations.size() &&
+            observations[next_observation].date == current) {
             event = autocallable_event(note, next_observation);
             if (alternate) alternate_coupon = autocallable_event(*alternate, next_observation).coupon;
             ++next_observation;

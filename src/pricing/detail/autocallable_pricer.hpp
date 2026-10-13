@@ -46,7 +46,8 @@ private:
         if (schedule_validated_) return {};
         const auto terms = validate_terms();
         if (!terms) return std::unexpected(terms.error());
-        const auto valid = validate_observation_trading_days(note_.observation_dates(), calendar_);
+        const auto valid = validate_observation_trading_days(
+            note_.observations_view() | std::views::transform(&AutocallableObservation::date), calendar_);
         if (!valid) return std::unexpected(valid.error());
         schedule_validated_ = true;
         return {};

@@ -110,14 +110,13 @@ bool at_spot_discontinuity(const Note& option, const PricingContext& context, do
         option.barrier_state() == AutocallableBarrierState::knocked_out) return false;
     const double spot = context.spot_price();
     const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
-    const auto& dates = option.observation_dates();
-    const auto found = std::lower_bound(dates.begin(), dates.end(), context.valuation_date());
-    if (found != dates.end() && *found == context.valuation_date()) {
-        const auto index = static_cast<std::size_t>(found - dates.begin());
-        if (crosses(option.knock_out_levels()[index])) return true;
-        if (spot > option.knock_out_levels()[index]) return false;
+    const auto observations = option.observations_view();
+    const auto found = std::ranges::lower_bound(observations, context.valuation_date(), {}, &AutocallableObservation::date);
+    if (found != observations.end() && found->date == context.valuation_date()) {
+        if (crosses(found->knock_out_level)) return true;
+        if (spot > found->knock_out_level) return false;
         if constexpr (std::same_as<Note, PhoenixOption>)
-            if (option.coupon_rate() != 0.0 && crosses(option.coupon_barrier_levels()[index])) return true;
+            if (option.coupon_rate() != 0.0 && crosses(found->coupon_barrier_level)) return true;
     }
     if constexpr (!std::same_as<Note, BinarySnowballOption>)
         // Pricing has already validated history; absent initial history means not knocked in.
@@ -141,7 +140,7 @@ Result<bool> time_stencil_available(const Note& option, const PricingContext& co
         if (!shifted) return std::unexpected(shifted.error());
         available = validate_autocallable_history(option, *shifted).has_value();
     } else {
-        available = std::ranges::none_of(option.observation_dates(), crosses_event);
+        available = std::ranges::none_of(option.observations_view(), crosses_event, &AutocallableObservation::date);
     }
     if constexpr (!std::same_as<Note, BinarySnowballOption>) {
         const bool daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&
@@ -181,7 +180,7 @@ template <AutocallableProduct Note>
 Result<Note> replace_coupon(
     const Note& option, double coupon, CouponQuoteConvention convention)
 {
-    const double shift = coupon - option.knock_out_coupon_rates().front();
+    const double shift = coupon - option.observations_view().front().coupon_rate;
     const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
     if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());

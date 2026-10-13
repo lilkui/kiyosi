@@ -143,7 +143,7 @@ template <typename Terms>
 /// Valuation excludes cashflows settled before the valuation time. Principal, coupons and
 /// downside components use normalized payoff units and are added independently.
 /// Observation views borrow this note. Destruction, moving from, or assignment invalidates
-/// them; projection iterators also require their view object to remain alive.
+/// them. Convenience getters return owning copies independent of this note.
 /// Concurrent const access follows the library default; assignment must not overlap access.
 template <AutocallableTerms Terms>
 class AutocallableNote {
@@ -164,10 +164,10 @@ public:
         return *this;
     }
 
-    /// Returns one positive knock-out level per observation date.
-    auto knock_out_levels() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::knock_out_level); }
-    /// Returns the strictly ordered observation dates.
-    auto observation_dates() const noexcept { return observations_view() | std::views::transform(&AutocallableObservation::date); }
+    /// Returns an owning copy of the positive knock-out levels.
+    std::vector<double> knock_out_levels() const { return observations_view() | std::views::transform(&AutocallableObservation::knock_out_level) | std::ranges::to<std::vector<double>>(); }
+    /// Returns an owning copy of the strictly ordered observation dates.
+    std::vector<Date> observation_dates() const { return observations_view() | std::views::transform(&AutocallableObservation::date) | std::ranges::to<std::vector<Date>>(); }
     /// Borrows complete immutable observations with the lifetime documented above.
     std::span<const AutocallableObservation> observations_view() const noexcept { return terms_.observations; }
     /// Returns the non-negative normalized principal component.
@@ -226,17 +226,17 @@ public:
     {
         return terms_.minimum_coupon_rate;
     }
-    /// Returns one finite knock-out coupon rate per observation date.
-    auto knock_out_coupon_rates() const noexcept
+    /// Returns an owning copy of the finite knock-out coupon rates.
+    std::vector<double> knock_out_coupon_rates() const
         requires requires(const Terms& terms) { terms.maturity_coupon_rate; }
     {
-        return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate);
+        return observations_view() | std::views::transform(&AutocallableObservation::coupon_rate) | std::ranges::to<std::vector<double>>();
     }
-    /// Returns one non-negative coupon barrier per observation date.
-    auto coupon_barrier_levels() const noexcept
+    /// Returns an owning copy of the non-negative coupon barriers.
+    std::vector<double> coupon_barrier_levels() const
         requires requires(const Terms& terms) { terms.coupon_rate; }
     {
-        return observations_view() | std::views::transform(&AutocallableObservation::coupon_barrier_level);
+        return observations_view() | std::views::transform(&AutocallableObservation::coupon_barrier_level) | std::ranges::to<std::vector<double>>();
     }
 
     /// Compares every contractual term and observation.
@@ -268,8 +268,9 @@ template <typename Note>
     const Note& note, const PricingContext& context)
 {
     const Timestamp valuation = context.valuation_time();
-    const bool had_knock_out_observation = !note.observation_dates().empty() &&
-                                           start_of_day(note.observation_dates().front()) < valuation;
+    const auto observations = note.observations_view();
+    const bool had_knock_out_observation = !observations.empty() &&
+                                           start_of_day(observations.front().date) < valuation;
     bool had_knock_in_observation = false; // NOLINT(misc-const-correctness): mutable for notes with daily monitoring.
     if constexpr (requires { note.knock_in_observation_mode(); })
         if (note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day)
@@ -297,7 +298,7 @@ namespace detail {
 template <AutocallableProduct Note>
 [[nodiscard]] inline Result<Note> replace_snowball_coupons(Note note, double coupon, double maturity_coupon_rate)
 {
-    const double shift = coupon - note.knock_out_coupon_rates().front();
+    const double shift = coupon - note.observations_view().front().coupon_rate;
     for (auto& observation : note.terms_.observations)
         observation.coupon_rate += shift;
     note.terms_.maturity_coupon_rate = maturity_coupon_rate;

@@ -202,9 +202,10 @@ Result<PricingResult> price_autocallable(
     if (workspace.daily_grid != daily_grid) {
         std::vector<Date> anchors;
         observation_events.clear();
-        observation_events.reserve(note.observation_dates().size());
-        for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-            const Date value = note.observation_dates()[index];
+        const auto observations = note.observations_view();
+        observation_events.reserve(observations.size());
+        for (std::size_t index = 0; index < observations.size(); ++index) {
+            const Date value = observations[index].date;
             if (value <= valuation) continue;
             const double time = actual_365_fixed_year_fraction(valuation, value);
             observation_events.push_back({time, index});

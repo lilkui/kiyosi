@@ -54,12 +54,9 @@ TEST_CASE("Autocallable factories accept associated observation records", "[obse
         CHECK(unused_field.error().category == ErrorCategory::invalid_parameter);
     };
     check(make_binary_snowball_option, BinarySnowballTerms{.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = end});
-    check(make_ternary_snowball_option, TernarySnowballTerms{.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.01,
-        .knock_in_level = 75.0, .effective_date = start, .expiry_date = end});
-    check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 75.0,
-        .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
-    check(make_phoenix_option, PhoenixTerms{.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0,
-        .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
+    check(make_ternary_snowball_option, TernarySnowballTerms{.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.01, .knock_in_level = 75.0, .effective_date = start, .expiry_date = end});
+    check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
+    check(make_phoenix_option, PhoenixTerms{.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end});
 }
 
 TEST_CASE("Observation sequence adapter preserves associations and rejects mismatched lengths", "[observation-record-input]")
@@ -75,11 +72,11 @@ TEST_CASE("Observation sequence adapter preserves associations and rejects misma
     REQUIRE(barriers);
     CHECK(*barriers == std::vector<AutocallableObservation>{{first, 115.0, 0.0, 85.0}, {end, 110.0, 0.0, 80.0}});
     for (const auto& invalid : {
-        make_autocallable_observations(dates, {115.0}),
-        make_autocallable_observations(dates, levels, std::vector<double>{}),
-        make_autocallable_observations(dates, levels, std::vector{0.08}),
-        make_autocallable_observations(dates, levels, std::nullopt, std::vector<double>{}),
-        make_autocallable_observations(dates, levels, std::nullopt, std::vector{85.0})}) {
+             make_autocallable_observations(dates, {115.0}),
+             make_autocallable_observations(dates, levels, std::vector<double>{}),
+             make_autocallable_observations(dates, levels, std::vector{0.08}),
+             make_autocallable_observations(dates, levels, std::nullopt, std::vector<double>{}),
+             make_autocallable_observations(dates, levels, std::nullopt, std::vector{85.0})}) {
         REQUIRE_FALSE(invalid);
         CHECK(invalid.error().category == ErrorCategory::invalid_schedule);
     }
@@ -194,6 +191,33 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
     CHECK(invalid_schedule.error().category == ErrorCategory::invalid_schedule);
 }
 
+TEST_CASE("Autocallable convenience getters own their observation values", "[observation-ownership]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), first = day(2025, 7, 1), end = day(2026, 1, 1);
+    std::vector<Date> dates;
+    std::vector<double> levels, coupons, barriers;
+    {
+        const auto snowball = *make_binary_snowball_option(
+            {.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.08}, {end, 110.0, 0.12}}});
+        const auto phoenix = *make_phoenix_option(
+            {.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 0.0, .effective_date = start, .expiry_date = end, .observations = {{first, 115.0, 0.0, 85.0}, {end, 110.0, 0.0, 80.0}}});
+        dates = snowball.observation_dates();
+        levels = snowball.knock_out_levels();
+        coupons = snowball.knock_out_coupon_rates();
+        barriers = phoenix.coupon_barrier_levels();
+        const auto iterator = snowball.observations_view().begin();
+        CHECK(iterator->date == first);
+        auto changed = snowball.knock_out_levels();
+        changed.front() = 1.0;
+        CHECK(snowball.observations_view().front().knock_out_level == 115.0);
+    }
+    CHECK(dates == std::vector<Date>{first, end});
+    CHECK(levels == std::vector<double>{115.0, 110.0});
+    CHECK(coupons == std::vector<double>{0.08, 0.12});
+    CHECK(barriers == std::vector<double>{85.0, 80.0});
+}
+
 struct CouponSumEngine {
     mutable std::vector<double> coupon_rates;
     mutable double maturity_coupon_rate{};
@@ -203,7 +227,7 @@ struct CouponSumEngine {
     kiyosi::Result<double> price(
         const Option& option, const kiyosi::PricingContext&) const
     {
-        coupon_rates = option.knock_out_coupon_rates() | std::ranges::to<std::vector<double>>();
+        coupon_rates = option.knock_out_coupon_rates();
         maturity_coupon_rate = option.maturity_coupon_rate();
         if constexpr (requires { option.minimum_coupon_rate(); })
             minimal_coupon = option.minimum_coupon_rate();
@@ -319,16 +343,31 @@ TEST_CASE("Autocallable factories own copied or moved construction terms", "[aut
         CHECK(invalid.error().category == ErrorCategory::invalid_schedule);
     };
     check(make_binary_snowball_option, BinarySnowballTerms{.maturity_coupon_rate = 0.05,
-        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+                                                           .effective_date = start,
+                                                           .expiry_date = end,
+                                                           .observations = {{end, 110.0, 0.05}}});
     check(make_ternary_snowball_option, TernarySnowballTerms{.maturity_coupon_rate = 0.05,
-        .minimum_coupon_rate = 0.01, .knock_in_level = 80.0,
-        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+                                                             .minimum_coupon_rate = 0.01,
+                                                             .knock_in_level = 80.0,
+                                                             .effective_date = start,
+                                                             .expiry_date = end,
+                                                             .observations = {{end, 110.0, 0.05}}});
     check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.05,
-        .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
-        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+                                              .initial_spot = 100.0,
+                                              .knock_in_level = 80.0,
+                                              .upper_strike = 100.0,
+                                              .lower_strike = 60.0,
+                                              .effective_date = start,
+                                              .expiry_date = end,
+                                              .observations = {{end, 110.0, 0.05}}});
     check(make_phoenix_option, PhoenixTerms{.coupon_rate = 0.05,
-        .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
-        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 80.0}}});
+                                            .initial_spot = 100.0,
+                                            .knock_in_level = 80.0,
+                                            .upper_strike = 100.0,
+                                            .lower_strike = 60.0,
+                                            .effective_date = start,
+                                            .expiry_date = end,
+                                            .observations = {{end, 110.0, 0.0, 80.0}}});
 }
 
 TEST_CASE("Autocallable factories preserve validation error categories")

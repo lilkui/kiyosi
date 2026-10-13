@@ -90,19 +90,19 @@ AutocallableInitialState autocallable_initial_state(const Note& note, const Pric
 
     const Timestamp valuation_time = context.valuation_time();
     const double value = context.spot_price();
-    const auto& dates = note.observation_dates();
+    const auto observations = note.observations_view();
     AutocallableInitialState initial{
         .path = {.coupons = 0.0,
                  .knocked_in = note.barrier_state() == AutocallableBarrierState::knocked_in},
         .next_observation = static_cast<std::size_t>(
-            std::lower_bound(dates.begin(), dates.end(), valuation_time) - dates.begin())};
+            std::ranges::lower_bound(observations, valuation_time, {}, &AutocallableObservation::date) - observations.begin())};
     if (program.has_knock_in && program.daily_knock_in &&
         valuation_time == start_of_day(date_of(valuation_time)) &&
         context.calendar().is_trading_day(date_of(valuation_time)))
         initial.path.knocked_in = program_knocked_in(
             program, value, initial.path.knocked_in, valuation_time == note.expiry_date());
 
-    if (initial.next_observation < dates.size() && dates[initial.next_observation] == valuation_time) {
+    if (initial.next_observation < observations.size() && observations[initial.next_observation].date == valuation_time) {
         const auto event = autocallable_event(note, initial.next_observation);
         const double coupon = program_observation_coupon(event, value);
         if (program_knocked_out(event, value))
@@ -146,9 +146,10 @@ std::optional<double> autocallable_fixed_value(const Note& note, const PricingCo
     const double maturity_value = (program.principal_ratio + terminal_coupon) * terminal_discount;
     if (!std::isfinite(maturity_value)) return std::nullopt;
     double remaining_coupon_value = 0.0;
-    for (std::size_t i = note.observation_dates().size(); i-- > initial.next_observation;) {
+    const auto observations = note.observations_view();
+    for (std::size_t i = observations.size(); i-- > initial.next_observation;) {
         const auto event = autocallable_event(note, i);
-        const double discount = std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), note.observation_dates()[i]));
+        const double discount = std::exp(-rate * actual_365_fixed_year_fraction(context.valuation_time(), observations[i].date));
         if (!std::isnormal(discount)) return std::nullopt;
         // Phoenix pays the current coupon in either branch; knock-out loses only later coupons.
         const double knock_out_value = (program.principal_ratio + (program.carries_observation_coupon ? 0.0 : event.coupon)) * discount;

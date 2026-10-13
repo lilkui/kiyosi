@@ -345,6 +345,10 @@ class ObservationRecordTests(unittest.TestCase):
             self.assertEqual(note.knock_out_levels, [110, 105])
         self.assertEqual(snowball.knock_out_coupon_rates, [0.365, 0.73])
         self.assertEqual(phoenix.coupon_barrier_levels, [108, 102])
+        snowball.knock_out_coupon_rates.reverse()
+        phoenix.coupon_barrier_levels.reverse()
+        self.assertEqual(snowball.knock_out_coupon_rates, [0.365, 0.73])
+        self.assertEqual(phoenix.coupon_barrier_levels, [108, 102])
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.04,
