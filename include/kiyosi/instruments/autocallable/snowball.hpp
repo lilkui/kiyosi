@@ -97,6 +97,8 @@ private:
     double maturity_coupon_rate_;
 
     friend Result<SnowballOption> make_snowball_option(const SnowballTerms&);
+    template <AutocallableProduct Note>
+    friend Result<Note> detail::replace_snowball_coupons(Note, double, double);
 };
 
 /// Snowball variant settling a flat coupon at maturity regardless of the terminal spot.
@@ -118,6 +120,8 @@ private:
     double maturity_coupon_rate_;
 
     friend Result<BinarySnowballOption> make_binary_snowball_option(const BinarySnowballTerms&);
+    template <AutocallableProduct Note>
+    friend Result<Note> detail::replace_snowball_coupons(Note, double, double);
 };
 
 /// Snowball variant whose maturity coupon steps down to a floor once knocked in.
@@ -142,6 +146,8 @@ private:
     double minimum_coupon_rate_;
 
     friend Result<TernarySnowballOption> make_ternary_snowball_option(const TernarySnowballTerms&);
+    template <AutocallableProduct Note>
+    friend Result<Note> detail::replace_snowball_coupons(Note, double, double);
 };
 
 [[nodiscard]] inline Result<BinarySnowballOption> make_binary_snowball_option(const BinarySnowballTerms& terms)

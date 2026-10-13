@@ -6,7 +6,6 @@
 #include <chrono>
 #include <cstddef>
 #include <optional>
-#include <vector>
 
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/market/context.hpp>
@@ -238,92 +237,25 @@ inline Result<double> shifted_maturity_coupon(
                                  "coupon quote convention is invalid"});
 }
 
-template <std::ranges::input_range Rates>
-std::vector<double> shifted_coupon_rates(
-    const Rates& coupon_rates, double coupon)
-{
-    auto result = coupon_rates | std::ranges::to<std::vector<double>>();
-    const double shift = coupon - result.front();
-    for (double& rate : result)
-        rate += shift;
-    return result;
-}
-
-inline Result<SnowballOption> replace_coupon(
-    const SnowballOption& option, double coupon, CouponQuoteConvention convention)
+template <AutocallableProduct Note>
+    requires requires(const Note& note) { note.knock_out_coupon_rates(); }
+inline Result<Note> replace_coupon(
+    const Note& option, double coupon, CouponQuoteConvention convention)
 {
     const double shift = coupon - option.knock_out_coupon_rates().front();
     const auto maturity_coupon_rate = shifted_maturity_coupon(
         option.maturity_coupon_rate(), shift, convention);
     if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(
-                                     option.knock_out_coupon_rates(), coupon),
-                                 .maturity_coupon_rate = *maturity_coupon_rate,
-                                 .initial_spot = option.initial_spot(),
-                                 .knock_in_level = option.knock_in_level(),
-                                 .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
-                                 .upper_strike = option.upper_strike(),
-                                 .lower_strike = option.lower_strike(),
-                                 .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
-                                 .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                 .barrier_state = option.barrier_state(),
-                                 .principal_ratio = option.principal_ratio(),
-                                 .effective_date = option.effective_date(),
-                                 .expiry_date = option.expiry_date()});
-}
-
-inline Result<BinarySnowballOption> replace_coupon(
-    const BinarySnowballOption& option, double coupon, CouponQuoteConvention convention)
-{
-    const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon_rate = shifted_maturity_coupon(
-        option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_binary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-                                        .maturity_coupon_rate = *maturity_coupon_rate,
-                                        .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
-                                        .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
-                                        .barrier_state = option.barrier_state(),
-                                        .principal_ratio = option.principal_ratio(),
-                                        .effective_date = option.effective_date(),
-                                        .expiry_date = option.expiry_date()});
-}
-
-inline Result<TernarySnowballOption> replace_coupon(
-    const TernarySnowballOption& option, double coupon, CouponQuoteConvention convention)
-{
-    const double shift = coupon - option.knock_out_coupon_rates().front();
-    const auto maturity_coupon_rate = shifted_maturity_coupon(
-        option.maturity_coupon_rate(), shift, convention);
-    if (!maturity_coupon_rate) return std::unexpected(maturity_coupon_rate.error());
-    return make_ternary_snowball_option({.knock_out_coupon_rates = shifted_coupon_rates(option.knock_out_coupon_rates(), coupon),
-                                         .maturity_coupon_rate = *maturity_coupon_rate,
-                                         .minimum_coupon_rate = option.minimum_coupon_rate(),
-                                         .knock_in_level = option.knock_in_level(),
-                                         .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
-                                         .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
-                                         .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                         .barrier_state = option.barrier_state(),
-                                         .principal_ratio = option.principal_ratio(),
-                                         .effective_date = option.effective_date(),
-                                         .expiry_date = option.expiry_date()});
+    return replace_snowball_coupons(option, coupon, *maturity_coupon_rate);
 }
 
 inline Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)
 {
-    return make_phoenix_option({.coupon_rate = coupon,
-                                .initial_spot = option.initial_spot(),
-                                .knock_in_level = option.knock_in_level(),
-                                .knock_out_levels = option.knock_out_levels() | std::ranges::to<std::vector<double>>(),
-                                .coupon_barrier_levels = option.coupon_barrier_levels() | std::ranges::to<std::vector<double>>(),
-                                .upper_strike = option.upper_strike(),
-                                .lower_strike = option.lower_strike(),
-                                .observation_dates = option.observation_dates() | std::ranges::to<std::vector<Date>>(),
-                                .knock_in_observation_mode = option.knock_in_observation_mode(),
-                                .barrier_state = option.barrier_state(),
-                                .principal_ratio = option.principal_ratio(),
-                                .effective_date = option.effective_date(),
-                                .expiry_date = option.expiry_date()});
+    auto replaced = option;
+    replaced.coupon_rate_ = coupon;
+    const auto valid = validate_autocallable_note(replaced);
+    if (!valid) return std::unexpected(valid.error());
+    return replaced;
 }
 
 } // namespace kiyosi::detail

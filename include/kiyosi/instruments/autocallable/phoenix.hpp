@@ -62,6 +62,7 @@ private:
     double coupon_rate_;
 
     friend Result<PhoenixOption> make_phoenix_option(const PhoenixTerms&);
+    friend Result<PhoenixOption> detail::replace_coupon(const PhoenixOption&, double);
 };
 
 [[nodiscard]] inline Result<PhoenixOption> make_phoenix_option(const PhoenixTerms& terms)

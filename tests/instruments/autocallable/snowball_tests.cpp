@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 
 #include <chrono>
+#include <limits>
 #include <optional>
 #include <type_traits>
 #include <utility>
@@ -13,6 +14,91 @@
 
 namespace {
 using kiyosi::test::day;
+
+TEST_CASE("Coupon replacement preserves owning notes and validates changed terms", "[coupon-replacement]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), first = day(2025, 7, 1), end = day(2026, 1, 1);
+    const auto check = [](auto factory, auto terms) {
+        const auto note = factory(terms);
+        REQUIRE(note);
+        const auto original = *note;
+        for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
+            auto expected_terms = terms;
+            expected_terms.knock_out_coupon_rates = {0.375, 0.5};
+            expected_terms.maturity_coupon_rate = convention == CouponQuoteConvention::shift_maturity_coupon ? 0.3125 : 0.0625;
+            const auto expected = factory(expected_terms);
+            const auto replaced = detail::replace_coupon(*note, 0.375, convention);
+            REQUIRE(expected);
+            REQUIRE(replaced);
+            CHECK(*replaced == *expected);
+            CHECK(replaced->observations_view().data() != note->observations_view().data());
+            CHECK(*note == original);
+        }
+        for (const double invalid : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+            const auto rejected = detail::replace_coupon(*note, invalid, CouponQuoteConvention::preserve_maturity_coupon);
+            REQUIRE_FALSE(rejected);
+            CHECK(rejected.error().category == ErrorCategory::invalid_parameter);
+            CHECK(*note == original);
+        }
+        const auto invalid_convention = detail::replace_coupon(*note, 0.375, static_cast<CouponQuoteConvention>(255));
+        REQUIRE_FALSE(invalid_convention);
+        CHECK(invalid_convention.error().category == ErrorCategory::invalid_parameter);
+        auto overflow_terms = terms;
+        overflow_terms.knock_out_coupon_rates = {-std::numeric_limits<double>::max(), std::numeric_limits<double>::max()};
+        const auto overflow_note = factory(overflow_terms);
+        REQUIRE(overflow_note);
+        const auto overflow = detail::replace_coupon(*overflow_note, 0.0, CouponQuoteConvention::preserve_maturity_coupon);
+        REQUIRE_FALSE(overflow);
+        CHECK(overflow.error().category == ErrorCategory::invalid_parameter);
+    };
+    check(make_snowball_option, SnowballTerms{
+        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625,
+        .initial_spot = 105.0, .knock_in_level = 75.0, .knock_out_levels = {115.0, 110.0},
+        .upper_strike = 100.0, .lower_strike = 55.0, .observation_dates = {first, end},
+        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
+        .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5,
+        .effective_date = start, .expiry_date = end});
+    check(make_binary_snowball_option, BinarySnowballTerms{
+        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625,
+        .knock_out_levels = {115.0, 110.0}, .observation_dates = {first, end},
+        .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5,
+        .effective_date = start, .expiry_date = end});
+    const TernarySnowballTerms ternary_terms{
+        .knock_out_coupon_rates = {0.125, 0.25}, .maturity_coupon_rate = 0.0625, .minimum_coupon_rate = 0.015625,
+        .knock_in_level = 75.0, .knock_out_levels = {115.0, 110.0}, .observation_dates = {first, end},
+        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
+        .barrier_state = AutocallableBarrierState::knocked_in, .principal_ratio = 1.5,
+        .effective_date = start, .expiry_date = end};
+    check(make_ternary_snowball_option, ternary_terms);
+    const auto ternary = make_ternary_snowball_option(ternary_terms);
+    REQUIRE(ternary);
+    const auto below_floor = detail::replace_coupon(*ternary, 0.0, CouponQuoteConvention::shift_maturity_coupon);
+    REQUIRE_FALSE(below_floor);
+    CHECK(below_floor.error().category == ErrorCategory::invalid_parameter);
+    CHECK(*ternary == *make_ternary_snowball_option(ternary_terms));
+
+    PhoenixTerms phoenix_terms{.coupon_rate = 0.125, .initial_spot = 105.0, .knock_in_level = 75.0,
+        .knock_out_levels = {115.0, 110.0}, .coupon_barrier_levels = {85.0, 80.0},
+        .upper_strike = 100.0, .lower_strike = 55.0, .observation_dates = {first, end},
+        .knock_in_observation_mode = KnockInObservationMode::at_expiry,
+        .barrier_state = AutocallableBarrierState::none, .principal_ratio = 1.5,
+        .effective_date = start, .expiry_date = end};
+    const auto phoenix = make_phoenix_option(phoenix_terms);
+    REQUIRE(phoenix);
+    const auto original = *phoenix;
+    phoenix_terms.coupon_rate = 0.375;
+    const auto replaced = detail::replace_coupon(*phoenix, 0.375);
+    REQUIRE(replaced);
+    CHECK(*replaced == *make_phoenix_option(phoenix_terms));
+    CHECK(replaced->observations_view().data() != phoenix->observations_view().data());
+    for (const double invalid : {std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::infinity()}) {
+        const auto rejected = detail::replace_coupon(*phoenix, invalid);
+        REQUIRE_FALSE(rejected);
+        CHECK(rejected.error().category == ErrorCategory::invalid_parameter);
+    }
+    CHECK(*phoenix == original);
+}
 
 TEST_CASE("Autocallable records retain each date level and coupon association", "[autocallable-records]")
 {

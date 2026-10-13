@@ -53,6 +53,10 @@ struct AutocallableObservation {
 
 namespace detail {
 
+template <AutocallableProduct Note>
+[[nodiscard]] Result<Note> replace_snowball_coupons(Note, double, double);
+[[nodiscard]] Result<PhoenixOption> replace_coupon(const PhoenixOption&, double);
+
 // Adapts sequence inputs to the same validator used by immutable notes, without copies.
 template <typename Terms>
 struct AutocallableInput {
@@ -184,6 +188,8 @@ private:
 
     friend class KnockInAutocallableNote;
     friend class BinarySnowballOption;
+    template <AutocallableProduct Note>
+    friend Result<Note> detail::replace_snowball_coupons(Note, double, double);
 };
 
 /// An autocallable note carrying a downside knock-in barrier.
@@ -322,6 +328,19 @@ template <typename Note>
 }
 
 namespace detail {
+
+// Copy once, preserving every observation association and all non-coupon terms.
+template <AutocallableProduct Note>
+[[nodiscard]] inline Result<Note> replace_snowball_coupons(Note note, double coupon, double maturity_coupon_rate)
+{
+    const double shift = coupon - note.knock_out_coupon_rates().front();
+    for (auto& observation : note.terms_.observations)
+        observation.coupon_rate += shift;
+    note.maturity_coupon_rate_ = maturity_coupon_rate;
+    const auto valid = validate_autocallable_note(note);
+    if (!valid) return std::unexpected(valid.error());
+    return note;
+}
 
 template <typename Terms>
 [[nodiscard]] inline Result<void> validate_autocallable_terms(const Terms& terms)

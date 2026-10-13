@@ -3,7 +3,12 @@ from datetime import date
 
 import kiyosi
 from kiyosi import pricing
-from kiyosi.instruments import BinarySnowballOption, PhoenixOption
+from kiyosi.instruments import (
+    BinarySnowballOption,
+    PhoenixOption,
+    SnowballOption,
+    TernarySnowballOption,
+)
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -12,6 +17,100 @@ from kiyosi.market import (
 
 
 class ObservationRecordTests(unittest.TestCase):
+    def test_coupon_solves_preserve_original_observation_records(self):
+        start, first, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
+        common = {
+            "knock_out_levels": [115, 110],
+            "observation_dates": [first, end],
+            "barrier_state": "none",
+            "principal_ratio": 1.5,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        knock_in = {"knock_in_level": 75, "knock_in_observation_mode": "at_expiry"}
+        participation = {"initial_spot": 105, "upper_strike": 100, "lower_strike": 55}
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04,
+                dividend_yield=0.01,
+                volatility=0.2,
+            ),
+            spot_price=105,
+            valuation_time=start,
+            calendar=all_days_calendar(),
+        )
+        for factory, engine_type, extra in (
+            (
+                SnowballOption,
+                pricing.FiniteDifferenceSnowballEngine,
+                knock_in | participation,
+            ),
+            (BinarySnowballOption, pricing.FiniteDifferenceBinarySnowballEngine, {}),
+            (
+                TernarySnowballOption,
+                pricing.FiniteDifferenceTernarySnowballEngine,
+                knock_in | {"minimum_coupon_rate": 0.015625},
+            ),
+            (
+                PhoenixOption,
+                pricing.FiniteDifferencePhoenixEngine,
+                knock_in | participation | {"coupon_barrier_levels": [85, 80]},
+            ),
+        ):
+            engine = engine_type(asset_step_count=80, time_step_count=40)
+            terms = common | extra
+            phoenix = factory is PhoenixOption
+            original_coupons = (
+                {"coupon_rate": 0.125}
+                if phoenix
+                else {
+                    "knock_out_coupon_rates": [0.125, 0.25],
+                    "maturity_coupon_rate": 0.0625,
+                }
+            )
+            note = factory(**terms, **original_coupons)
+            original_price = engine.price(note, context)
+            for convention in (
+                (None,)
+                if phoenix
+                else (
+                    "shift_maturity_coupon",
+                    "preserve_maturity_coupon",
+                )
+            ):
+                target_coupons = (
+                    {"coupon_rate": 0.375}
+                    if phoenix
+                    else {
+                        "knock_out_coupon_rates": [0.375, 0.5],
+                        "maturity_coupon_rate": 0.3125
+                        if convention == "shift_maturity_coupon"
+                        else 0.0625,
+                    }
+                )
+                target = factory(**terms, **target_coupons)
+                kwargs = {} if phoenix else {"quote_convention": convention}
+                with self.subTest(product=factory.__name__, convention=convention):
+                    solved = pricing.implied_coupon(
+                        engine,
+                        note,
+                        context,
+                        engine.price(target, context),
+                        lower_bound=0.125,
+                        upper_bound=0.5,
+                        **kwargs,
+                    )
+                    self.assertAlmostEqual(solved, 0.375, delta=1e-7)
+                    self.assertEqual(note.observation_dates, [first, end])
+                    self.assertEqual(note.knock_out_levels, [115, 110])
+                    if phoenix:
+                        self.assertEqual(note.coupon_rate, 0.125)
+                        self.assertEqual(note.coupon_barrier_levels, [85, 80])
+                    else:
+                        self.assertEqual(note.knock_out_coupon_rates, [0.125, 0.25])
+                        self.assertEqual(note.maturity_coupon_rate, 0.0625)
+                    self.assertEqual(engine.price(note, context), original_price)
+
     def test_observation_records_preserve_associations_and_own_python_sequences(self):
         start, first, end = date(2025, 1, 1), date(2025, 1, 11), date(2025, 1, 31)
         dates, levels, coupons, barriers = (
