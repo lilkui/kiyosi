@@ -942,6 +942,39 @@ TEST_CASE("Seeded Monte Carlo joint pricing is reproducible and matches scalar p
     }
     CHECK(engine.settings().seed == 73);
 }
+TEST_CASE("Monte Carlo requests seed once without replacing configured engines", "[pricing-api][request-seeding]")
+{
+    const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
+    const auto context = market();
+    const MonteCarloVanillaEngine configured{{32, 4, 73}};
+    const auto expected = configured.price(option, context);
+    REQUIRE(expected);
+    const auto fixed = detail::with_monte_carlo_seed<MonteCarloVanillaEngine, EuropeanOption>(
+        configured, [&](const MonteCarloVanillaEngine& request) {
+            CHECK(&request == &configured);
+            return request.price(option, context);
+        });
+    REQUIRE(fixed);
+    CHECK(*fixed == *expected);
+
+    const MonteCarloVanillaEngine unseeded{{32, 4, std::nullopt}};
+    const auto sampled = detail::with_monte_carlo_seed<MonteCarloVanillaEngine, EuropeanOption>(
+        unseeded, [&](const MonteCarloVanillaEngine& request) {
+            CHECK(request.settings().seed.has_value());
+            CHECK(request.settings().path_count == 32);
+            CHECK(request.settings().step_count == 4);
+            const auto first = request.price(option, context);
+            const auto second = request.price(option, context);
+            REQUIRE(first);
+            REQUIRE(second);
+            CHECK(*first == *second);
+            return first;
+        });
+    REQUIRE(sampled);
+    CHECK(*sampled >= 0.0);
+    CHECK_FALSE(unseeded.settings().seed);
+}
+
 TEST_CASE("Scalar and basic analytic pricing avoid overflowing higher Greeks", "[pricing-api]")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 1e-160,

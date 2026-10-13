@@ -6,7 +6,6 @@
 #include <cmath>
 #include <optional>
 #include <ratio>
-#include <random>
 #include <span>
 
 #include <kiyosi/market/context.hpp>
@@ -442,16 +441,9 @@ Result<PricingResult> evaluate_greeks(
     if (!request_valid) return std::unexpected(request_valid.error());
     const auto valid = validate_greeks_settings(settings);
     if (!valid) return std::unexpected(valid.error());
-    auto result = [&] {
-        if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
-            auto simulation = engine.settings();
-            if (!simulation.seed) {
-                simulation.seed = std::random_device{}();
-                return evaluate(Engine{simulation});
-            }
-        }
+    auto result = with_monte_carlo_seed<Engine, Option>(engine, [&](const Engine& seeded) {
         if constexpr (is_builtin_finite_difference_engine<Engine, Option>) {
-            auto grid = engine.settings();
+            auto grid = seeded.settings();
             if (!grid.asset_upper_boundary) {
                 // Spot bumps share one mesh; settlements may never construct a grid.
                 const double upper = default_finite_difference_upper_boundary(option, context);
@@ -461,8 +453,8 @@ Result<PricingResult> evaluate_greeks(
                 }
             }
         }
-        return evaluate(engine);
-    }();
+        return evaluate(seeded);
+    });
     const auto value = price_value(result);
     if (!value) return std::unexpected(value.error());
     *result = result->selected(greeks);

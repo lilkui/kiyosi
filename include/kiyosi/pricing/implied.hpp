@@ -6,7 +6,6 @@
 #include <concepts>
 #include <cstddef>
 #include <numeric>
-#include <random>
 #include <utility>
 
 #include <kiyosi/market/context.hpp>
@@ -124,49 +123,43 @@ template <typename Engine, typename Option, typename Price, typename Prepare = s
         settings.parameter_tolerance <= 0.0 || settings.max_iterations <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "implied-volatility settings are invalid"});
-    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
-        auto simulation = engine.settings();
-        if (!simulation.seed) {
-            simulation.seed = std::random_device{}();
-            return solve_implied_volatility(Engine{simulation}, option, context, observed_price, settings, price, prepare);
-        }
-    }
+    return with_monte_carlo_seed<Engine, Option>(engine, [&](const Engine& seeded) -> Result<double> {
+        const auto prepared = [&] {
+            if constexpr (std::same_as<Prepare, std::nullptr_t>) return prepare_implied_volatility(seeded, option, context, settings);
+            else return prepare(seeded, settings);
+        }();
+        if (!prepared) return std::unexpected(prepared.error());
+        settings = *prepared;
 
-    const auto prepared = [&] {
-        if constexpr (std::same_as<Prepare, std::nullptr_t>) return prepare_implied_volatility(engine, option, context, settings);
-        else return prepare(engine, settings);
-    }();
-    if (!prepared) return std::unexpected(prepared.error());
-    settings = *prepared;
+        const auto evaluate = [&](double volatility) -> Result<double> {
+            auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
+                                                   context.model_parameters().risk_free_rate(),
+                                                   context.valuation_time());
+            if (!shifted) return std::unexpected(shifted.error());
+            auto priced = price(seeded, option, *shifted);
+            if (!priced) return std::unexpected(priced.error());
+            return *priced - observed_price;
+        };
 
-    const auto evaluate = [&](double volatility) -> Result<double> {
-        auto shifted = detail::shifted_context(context, context.spot_price(), volatility,
-                                               context.model_parameters().risk_free_rate(),
-                                               context.valuation_time());
-        if (!shifted) return std::unexpected(shifted.error());
-        auto priced = price(engine, option, *shifted);
-        if (!priced) return std::unexpected(priced.error());
-        return *priced - observed_price;
-    };
-
-    const double lo = settings.lower_bound;
-    const double hi = settings.upper_bound;
-    auto flo = evaluate(lo);
-    if (!flo) return std::unexpected(flo.error());
-    auto fhi = evaluate(hi);
-    if (!fhi) return std::unexpected(fhi.error());
-    const double elo = *flo;
-    const double ehi = *fhi;
-    // Pricing above validates the contract and history before these state checks.
-    if (context.valuation_time() == start_of_day(option.expiry_date()) || !volatility_affects_price(option, context))
-        return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                     "volatility does not affect the remaining cashflows"});
-    if (std::abs(elo) <= settings.price_tolerance) return lo;
-    if (std::abs(ehi) <= settings.price_tolerance) return hi;
-    if ((elo < 0.0) == (ehi < 0.0))
-        return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
-                                     "price is not bracketed by volatility bounds"});
-    return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
+        const double lo = settings.lower_bound;
+        const double hi = settings.upper_bound;
+        auto flo = evaluate(lo);
+        if (!flo) return std::unexpected(flo.error());
+        auto fhi = evaluate(hi);
+        if (!fhi) return std::unexpected(fhi.error());
+        const double elo = *flo;
+        const double ehi = *fhi;
+        // Pricing above validates the contract and history before these state checks.
+        if (context.valuation_time() == start_of_day(option.expiry_date()) || !volatility_affects_price(option, context))
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "volatility does not affect the remaining cashflows"});
+        if (std::abs(elo) <= settings.price_tolerance) return lo;
+        if (std::abs(ehi) <= settings.price_tolerance) return hi;
+        if ((elo < 0.0) == (ehi < 0.0))
+            return std::unexpected(Error{ErrorCategory::unbracketed_volatility,
+                                         "price is not bracketed by volatility bounds"});
+        return detail::brent_implied_volatility(settings, elo, ehi, evaluate);
+    });
 }
 
 } // namespace detail
@@ -261,75 +254,69 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
                                      "implied-coupon settings are invalid"});
     const auto valid = validate_autocallable_note(option);
     if (!valid) return std::unexpected(valid.error());
-    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
-        auto simulation = engine.settings();
-        if (!simulation.seed) {
-            simulation.seed = std::random_device{}();
-            return solve_implied_coupon(Engine{simulation}, option, context, observed_price, settings, replace_coupon, price);
-        }
-    }
+    return with_monte_carlo_seed<Engine, Option>(engine, [&](const Engine& seeded) -> Result<double> {
+        const auto price_at_coupon = [&](double coupon) -> Result<double> {
+            auto replaced = replace_coupon(option, coupon);
+            if (!replaced) return std::unexpected(replaced.error());
+            auto priced = price(seeded, *replaced, context);
+            if (!priced) return std::unexpected(priced.error());
+            if (!std::isfinite(*priced))
+                return std::unexpected(Error{ErrorCategory::solver_non_finite,
+                                             "implied-coupon pricing became non-finite"});
+            return *priced;
+        };
 
-    const auto price_at_coupon = [&](double coupon) -> Result<double> {
-        auto replaced = replace_coupon(option, coupon);
-        if (!replaced) return std::unexpected(replaced.error());
-        auto priced = price(engine, *replaced, context);
-        if (!priced) return std::unexpected(priced.error());
-        if (!std::isfinite(*priced))
-            return std::unexpected(Error{ErrorCategory::solver_non_finite,
-                                         "implied-coupon pricing became non-finite"});
-        return *priced;
-    };
-
-    const double lo = settings.lower_bound;
-    const double hi = settings.upper_bound;
-    const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
-        if constexpr (requires { coupon_endpoint_prices(engine, option, option, context); }) {
-            const auto lower = replace_coupon(option, lo);
-            if (!lower) return std::unexpected(lower.error());
-            const auto upper = replace_coupon(option, hi);
-            if (!upper) return std::unexpected(upper.error());
-            return coupon_endpoint_prices(engine, *lower, *upper, context);
-        } else {
-            const auto lower = price_at_coupon(lo);
-            if (!lower) return std::unexpected(lower.error());
-            const auto upper = price_at_coupon(hi);
-            if (!upper) return std::unexpected(upper.error());
-            return std::array{*lower, *upper};
+        const double lo = settings.lower_bound;
+        const double hi = settings.upper_bound;
+        const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
+            if constexpr (requires { coupon_endpoint_prices(seeded, option, option, context); }) {
+                const auto lower = replace_coupon(option, lo);
+                if (!lower) return std::unexpected(lower.error());
+                const auto upper = replace_coupon(option, hi);
+                if (!upper) return std::unexpected(upper.error());
+                return coupon_endpoint_prices(seeded, *lower, *upper, context);
+            } else {
+                const auto lower = price_at_coupon(lo);
+                if (!lower) return std::unexpected(lower.error());
+                const auto upper = price_at_coupon(hi);
+                if (!upper) return std::unexpected(upper.error());
+                return std::array{*lower, *upper};
+            }
+        }();
+        if (!endpoint_prices) return std::unexpected(endpoint_prices.error());
+        const double lower_price = (*endpoint_prices)[0];
+        const double upper_price = (*endpoint_prices)[1];
+        // Coupon shifts change payoffs affinely; equal endpoint prices have no sampled quote exposure.
+        if (lower_price == upper_price)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "coupon does not affect the remaining cashflows"});
+        const double flo = lower_price - observed_price;
+        const double fhi = upper_price - observed_price;
+        if (std::abs(flo) <= settings.price_tolerance) return lo;
+        if (std::abs(fhi) <= settings.price_tolerance) return hi;
+        if ((flo < 0.0) == (fhi < 0.0))
+            return std::unexpected(Error{ErrorCategory::unbracketed_coupon,
+                                         "price is not bracketed by coupon bounds"});
+        const auto evaluate = [&](double coupon) -> Result<double> {
+            auto priced = price_at_coupon(coupon);
+            if (!priced) return std::unexpected(priced.error());
+            return *priced - observed_price;
+        };
+        if constexpr (has_affine_coupon_price<Engine, Option>) {
+            // Coupon payoffs are affine; halve prices only if their span overflows.
+            const double span = upper_price - lower_price;
+            const double fraction = std::isfinite(span)
+                                        ? (observed_price - lower_price) / span
+                                        : (0.5 * observed_price - 0.5 * lower_price) / (0.5 * upper_price - 0.5 * lower_price);
+            const double coupon = std::lerp(lo, hi, fraction);
+            const auto residual = evaluate(coupon);
+            if (!residual) return std::unexpected(residual.error());
+            if (std::abs(*residual) <= settings.price_tolerance) return coupon;
+            // FD spline limiting or simulation roundoff can require bisection.
         }
-    }();
-    if (!endpoint_prices) return std::unexpected(endpoint_prices.error());
-    const double lower_price = (*endpoint_prices)[0];
-    const double upper_price = (*endpoint_prices)[1];
-    // Coupon shifts change payoffs affinely; equal endpoint prices have no sampled quote exposure.
-    if (lower_price == upper_price)
-        return std::unexpected(Error{ErrorCategory::unsupported_operation,
-                                     "coupon does not affect the remaining cashflows"});
-    const double flo = lower_price - observed_price;
-    const double fhi = upper_price - observed_price;
-    if (std::abs(flo) <= settings.price_tolerance) return lo;
-    if (std::abs(fhi) <= settings.price_tolerance) return hi;
-    if ((flo < 0.0) == (fhi < 0.0))
-        return std::unexpected(Error{ErrorCategory::unbracketed_coupon,
-                                     "price is not bracketed by coupon bounds"});
-    const auto evaluate = [&](double coupon) -> Result<double> {
-        auto priced = price_at_coupon(coupon);
-        if (!priced) return std::unexpected(priced.error());
-        return *priced - observed_price;
-    };
-    if constexpr (has_affine_coupon_price<Engine, Option>) {
-        // Coupon payoffs are affine; halve prices only if their span overflows.
-        const double span = upper_price - lower_price;
-        const double fraction = std::isfinite(span)
-                                    ? (observed_price - lower_price) / span
-                                    : (0.5 * observed_price - 0.5 * lower_price) / (0.5 * upper_price - 0.5 * lower_price);
-        const double coupon = std::lerp(lo, hi, fraction);
-        const auto residual = evaluate(coupon);
-        if (!residual) return std::unexpected(residual.error());
-        if (std::abs(*residual) <= settings.price_tolerance) return coupon;
-        // FD spline limiting or simulation roundoff can require bisection.
-    }
-    return detail::bisect_implied(settings, flo, evaluate,
-                                  "implied-coupon solver did not converge");
+        return detail::bisect_implied(settings, flo, evaluate,
+                                      "implied-coupon solver did not converge");
+    });
 }
 
 template <typename Engine, typename Option, typename ReplaceCoupon>

@@ -3,6 +3,7 @@
 #include <concepts>
 #include <cstdint>
 #include <optional>
+#include <random>
 
 #include <kiyosi/core/error.hpp>
 
@@ -44,6 +45,20 @@ namespace detail {
 // Only built-in engines can be reconstructed from their settings.
 template <typename Engine, typename Option>
 inline constexpr bool is_builtin_monte_carlo_engine = false;
+
+// One synchronous request owns its seed; configured and custom engines pass through unchanged.
+template <typename Engine, typename Option, typename Evaluate>
+auto with_monte_carlo_seed(const Engine& engine, const Evaluate& evaluate)
+{
+    if constexpr (is_builtin_monte_carlo_engine<Engine, Option>) {
+        auto settings = engine.settings();
+        if (!settings.seed) {
+            settings.seed = std::random_device{}();
+            return evaluate(Engine{settings});
+        }
+    }
+    return evaluate(engine);
+}
 
 inline constexpr int maximum_monte_carlo_path_count = 10'000'000;
 inline constexpr int maximum_vanilla_monte_carlo_step_count = 10'000;
