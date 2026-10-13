@@ -1194,6 +1194,24 @@ class PricingAuditTests(unittest.TestCase):
                 expected = 1e100 * 0.5 * math.erfc(threshold / math.sqrt(2))
                 self.assertTrue(math.isclose(value, expected, rel_tol=1e-8))
 
+    def test_quadrature_vanilla_accepts_infinite_standardized_forward_limits(self):
+        start, end = date(2025, 1, 1), date(2035, 1, 1)
+        for rate, dividend in ((1e308, 1e307), (1e307, 1e308)):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                ),
+                spot_price=100, valuation_time=start,
+            )
+            for direction in ("call", "put"):
+                with self.subTest(rate=rate, dividend=dividend, direction=direction):
+                    option = EuropeanOption(
+                        option_type=direction, strike=100,
+                        effective_date=start, expiry_date=end,
+                    )
+                    self.assertEqual(pricing.AnalyticVanillaEngine().price(option, context), 0.0)
+                    self.assertEqual(pricing.QuadratureVanillaEngine().price(option, context), 0.0)
+
     def test_implied_volatility_counts_only_future_phoenix_coupons(self):
         start, fixing, end = date(2025, 1, 1), date(2025, 1, 3), date(2025, 1, 6)
         for valuation in (date(2025, 1, 2), fixing, date(2025, 1, 4)):

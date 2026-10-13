@@ -849,6 +849,25 @@ TEST_CASE("Fixed barrier settlements bypass irrelevant vanilla overflow", "[audi
     }
 }
 
+TEST_CASE("Quadrature vanilla accepts infinite standardized forward limits", "[audit-fixes][quadrature-limits]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2035, 1, 1);
+    for (const auto rates : {std::array{1e308, 1e307}, std::array{1e307, 1e308}}) {
+        const auto context = *make_pricing_context(*make_bsm_parameters(rates[0], rates[1], 0.2), 100.0, start);
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(rates, type);
+            const auto option = *make_european_option(type, 100.0, start, end);
+            const auto analytic = AnalyticVanillaEngine{}.price(option, context);
+            REQUIRE(analytic);
+            CHECK(*analytic == 0.0);
+            const auto integral = QuadratureVanillaEngine{}.price(option, context);
+            REQUIRE(integral);
+            CHECK(*integral == *analytic);
+        }
+    }
+}
+
 TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[audit-fixes]")
 {
     for (const double threshold : {0.0, 11.0, 11.9, 11.99, 12.0, 13.6, 30.0}) {
