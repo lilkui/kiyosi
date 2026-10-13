@@ -25,6 +25,56 @@ from kiyosi.market import (
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_equivalent_hit_rebates_and_touch_payments_share_discount_validation(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for up in (False, True):
+            level = 120 if up else 80
+            barrier = BarrierOption(
+                option_type="call" if up else "put",
+                strike=level,
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=level,
+                barrier_type="up_and_out" if up else "down_and_out",
+                rebate=7,
+                rebate_timing="at_hit",
+            )
+            touch = (cash_one_touch_up if up else cash_one_touch_down)(
+                effective_date=start,
+                expiry_date=end,
+                barrier_level=level,
+                payout=7,
+                settlement_timing="at_hit",
+            )
+            for dividend in (-0.04, -0.08, -0.08000000000000002, -0.1):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=-0.02, dividend_yield=dividend, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                with self.subTest(up=up, dividend=dividend):
+                    contracts = (
+                        (pricing.AnalyticBarrierEngine(), barrier),
+                        (pricing.AnalyticBinaryBarrierEngine(), touch),
+                    )
+                    if dividend == -0.1:
+                        prices = [
+                            engine.price(option, context)
+                            for engine, option in contracts
+                        ]
+                        self.assertAlmostEqual(*prices, delta=1e-12)
+                        self.assertGreater(prices[1], 0)
+                    else:
+                        for engine, option in contracts:
+                            with self.assertRaises(kiyosi.KiyosiError) as error:
+                                engine.price(option, context)
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_RESULT,
+                            )
+
     def test_dense_scheduled_greeks_preserve_independent_stencils(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         common = {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <numbers>
@@ -81,7 +82,7 @@ inline double scaled_normal_cdf(double amount, double log_weight, double value) 
     return exponential_normal_cdf(std::log(amount) + log_weight, value);
 }
 
-inline double barrier_hit_discount(double distance, bool upper, double drift, double volatility, double t, double rate) noexcept
+inline Result<double> barrier_hit_discount(double distance, bool upper, double drift, double volatility, double t, double rate)
 {
     if (t == 0.0) return 1.0;
     const double variance = volatility * volatility;
@@ -89,12 +90,14 @@ inline double barrier_hit_discount(double distance, bool upper, double drift, do
     if (variance == 0.0) {
         if (signed_drift >= 0.0) return 0.0;
         // Keep the normal boundary at expiry even when squaring volatility underflows.
-        return exponential_normal_cdf(rate * (distance / signed_drift),
-                                      standardize_forward(-signed_drift * t - distance, volatility, std::sqrt(t)));
+        return checked_price(exponential_normal_cdf(rate * (distance / signed_drift),
+                                                    standardize_forward(-signed_drift * t - distance, volatility, std::sqrt(t))));
     }
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
-    if (discriminant < 0.0)
-        return std::numeric_limits<double>::quiet_NaN();
+    const double scale = std::max({1.0, std::abs(signed_drift * signed_drift), std::abs(2.0 * rate * variance)});
+    if (discriminant < 0.0 || (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale))
+        return std::unexpected(Error{ErrorCategory::invalid_result,
+                                     "barrier hit discounting is numerically unstable"});
     const double root = std::sqrt(discriminant);
     const double root_time = volatility * std::sqrt(t);
     // Rationalize the small root difference to retain discounting as variance approaches zero.
@@ -104,8 +107,7 @@ inline double barrier_hit_discount(double distance, bool upper, double drift, do
                                                 (root * t - distance) / root_time);
     const double second = exponential_normal_cdf(second_exponent * distance,
                                                  (-root * t - distance) / root_time);
-    const double result = first + second;
-    return std::isfinite(result) ? result : std::numeric_limits<double>::quiet_NaN();
+    return checked_price(first + second);
 }
 
 /// Simpson integration of a scaled normal tail; reflect negative thresholds to avoid long intervals.

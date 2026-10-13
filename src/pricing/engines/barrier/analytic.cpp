@@ -5,7 +5,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 #include "../../detail/analytic_barrier.hpp"
 #include "../../detail/barrier_settlement.hpp"
@@ -57,17 +56,10 @@ Result<double> price_barrier(
     double hit_discount = 0.0;
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
-        const double variance = sigma * sigma;
-        const double discriminant = drift * drift + 2.0 * rate * variance;
-        const double scale = std::max({1.0, std::abs(drift * drift), std::abs(2.0 * rate * variance)});
-        if (rate < 0.0 && discriminant <= 16.0 * std::numeric_limits<double>::epsilon() * scale)
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "barrier rebate discounting is numerically unstable"});
-        hit_discount = barrier_hit_discount(std::abs(log_ratio), upper,
-                                            drift, sigma, t, rate);
-        if (!std::isfinite(hit_discount))
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "barrier rebate discounting is numerically unstable"});
+        const auto discount = barrier_hit_discount(std::abs(log_ratio), upper,
+                                                   drift, sigma, t, rate);
+        if (!discount) return std::unexpected(discount.error());
+        hit_discount = *discount;
     }
     const double root_time = sigma * std::sqrt(t), discounted_rebate = scaled_exponential(option.rebate(), -rate * t);
     const double mu = (rate - dividend) / sigma / sigma - 0.5;

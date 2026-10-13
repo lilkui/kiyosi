@@ -17,6 +17,42 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Equivalent hit rebates and touch payments share discount validation", "[hit-discount]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const bool up : {false, true}) {
+        const double level = up ? 120.0 : 80.0;
+        const auto barrier = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put,
+                                                   .strike = level,
+                                                   .effective_date = start,
+                                                   .expiry_date = end,
+                                                   .barrier_level = level,
+                                                   .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
+                                                   .rebate = 7.0,
+                                                   .rebate_timing = RebateTiming::at_hit});
+        const auto touch = *(up ? make_cash_one_touch_up(start, end, level, 7.0, SettlementTiming::at_hit)
+                                : make_cash_one_touch_down(start, end, level, 7.0, SettlementTiming::at_hit));
+        for (const double dividend : {-0.04, -0.08, -0.08000000000000002, -0.1}) {
+            CAPTURE(up, dividend);
+            const auto context = *make_pricing_context(*make_bsm_parameters(-0.02, dividend, 0.2), 100.0, start);
+            const auto rebate = AnalyticBarrierEngine{}.price(barrier, context);
+            const auto payment = AnalyticBinaryBarrierEngine{}.price(touch, context);
+            if (dividend == -0.1) {
+                REQUIRE(rebate);
+                REQUIRE(payment);
+                CHECK_THAT(*rebate, Catch::Matchers::WithinAbs(*payment, 1e-12));
+                CHECK(*payment > 0.0);
+            } else {
+                REQUIRE_FALSE(rebate);
+                REQUIRE_FALSE(payment);
+                CHECK(rebate.error().category == ErrorCategory::invalid_result);
+                CHECK(payment.error().category == ErrorCategory::invalid_result);
+            }
+        }
+    }
+}
+
 TEST_CASE("Scheduled analytic Greeks validate calendars once per request", "[analytic-schedule]")
 {
     using namespace kiyosi;
