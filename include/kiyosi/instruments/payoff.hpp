@@ -8,6 +8,7 @@
 #include <variant>
 
 #include <kiyosi/core/error.hpp>
+#include <kiyosi/instruments/option_terms.hpp>
 
 namespace kiyosi {
 
@@ -74,5 +75,16 @@ using BinaryPayoff = std::variant<CashOrNothingPayoff, AssetOrNothingPayoff>;
     return std::holds_alternative<CashOrNothingPayoff>(payoff) ? PayoffType::cash
                                                                : PayoffType::asset;
 }
+
+namespace detail {
+
+// Requires validated option direction, strike, spot and payoff terms.
+[[nodiscard]] inline double binary_payoff_value(OptionType option_type, double strike, double payout, bool asset, double spot) noexcept
+{
+    const bool in_the_money = option_type == OptionType::call ? spot > strike : spot < strike;
+    return in_the_money ? (asset ? spot : payout) : 0.0;
+}
+
+} // namespace detail
 
 } // namespace kiyosi

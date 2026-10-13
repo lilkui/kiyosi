@@ -11,6 +11,47 @@
 
 using kiyosi::test::measures;
 
+TEST_CASE("Digital and binary barrier terminal payoffs share strict strike boundaries", "[binary-terminal-payoff]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        for (const double spot : {99.0, std::nextafter(100.0, 0.0), 100.0, std::nextafter(100.0, 101.0), 101.0}) {
+            CAPTURE(type, spot);
+            const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, end);
+            const bool exercised = type == OptionType::call ? spot > 100.0 : spot < 100.0;
+            const auto check = [&](const auto& engine, const auto& option, double expected) {
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == expected);
+                const auto result = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(result);
+                CHECK(result->price() == expected);
+                CHECK_FALSE(result->has(Greek::delta));
+            };
+            const auto cash = *make_cash_or_nothing_option(type, 100.0, 7.0, start, end);
+            const auto asset = *make_asset_or_nothing_option(type, 100.0, start, end);
+            const auto check_digital = [&](const auto& engine) {
+                check(engine, cash, exercised ? 7.0 : 0.0);
+                check(engine, asset, exercised ? spot : 0.0);
+            };
+            check_digital(AnalyticDigitalEngine{});
+            check_digital(QuadratureDigitalEngine{});
+            check_digital(FiniteDifferenceDigitalEngine{});
+            for (const bool knock_in : {false, true}) {
+                for (const bool touched : {false, true}) {
+                    CAPTURE(knock_in, touched);
+                    const BinaryBarrierTerms terms{
+                        .option_type = type, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 50.0, .barrier_type = knock_in ? BarrierType::down_and_in : BarrierType::down_and_out, .touch_state = touched ? BarrierTouchState::touched : BarrierTouchState::untouched};
+                    const bool pays = exercised && knock_in == touched;
+                    check(AnalyticBinaryBarrierEngine{}, *make_cash_binary_barrier_option(terms, 7.0), pays ? 7.0 : 0.0);
+                    check(AnalyticBinaryBarrierEngine{}, *make_asset_binary_barrier_option(terms), pays ? spot : 0.0);
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Digital prices preserve subnormal volatility", "[audit-fixes]")
 {
     using namespace kiyosi;

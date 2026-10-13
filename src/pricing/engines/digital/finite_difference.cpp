@@ -34,10 +34,8 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
         if constexpr (requires { option.payout(); }) return option.payout();
         else return 1.0;
     }();
-    if (time == 0.0) {
-        const bool in_the_money = sign * (spot - strike) > 0.0;
-        return make_pricing_result(in_the_money ? (asset ? spot : payout) : 0.0);
-    }
+    if (time == 0.0)
+        return make_pricing_result(binary_payoff_value(option.option_type(), strike, payout, asset, spot));
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
@@ -95,9 +93,7 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
     const auto value = price_at(spot);
     if (!value) return std::unexpected(value.error());
-    return finite_difference_result(*value, spot, space->upper, requested_output, spot_shift, price_at,
-        [&](double shifted_spot) { return space->delta(old, shifted_spot); },
-        [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    return finite_difference_result(*value, spot, space->upper, requested_output, spot_shift, price_at, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
 }
 
 } // namespace

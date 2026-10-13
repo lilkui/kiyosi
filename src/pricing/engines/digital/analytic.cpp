@@ -20,10 +20,8 @@ Result<PricingResult> AnalyticDigitalEngine::price_impl(
     const double spot = context.spot_price();
     const double t = actual_365_fixed_year_fraction(context.valuation_time(), expiry_date);
     const double sign = type == OptionType::call ? 1.0 : -1.0;
-    if (t == 0.0) {
-        const bool exercised = sign * (spot - strike) > 0.0;
-        return make_pricing_result(exercised ? (asset_settlement ? spot : payout) : 0.0);
-    }
+    if (t == 0.0)
+        return make_pricing_result(binary_payoff_value(type, strike, payout, asset_settlement, spot));
     const double sigma = context.model_parameters().volatility();
     const double root_t = std::sqrt(t);
     const double rate_df = std::exp(-context.model_parameters().risk_free_rate() * t);

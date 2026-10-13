@@ -61,8 +61,9 @@ Result<double> vanilla_digital(const BinaryBarrierContractView& option, const Pr
 double terminal_payoff(const BinaryBarrierContractView& option, double spot, bool touched)
 {
     const auto& terms = *option.barrier_terms;
-    const bool in_money = !option.option_type || (*option.option_type == OptionType::call ? spot > option.strike : spot < option.strike);
-    return terms.is_knock_in() == touched && in_money ? (option.asset_settlement ? spot : option.payout) : 0.0;
+    if (terms.is_knock_in() != touched) return 0.0;
+    return option.option_type ? binary_payoff_value(*option.option_type, option.strike, option.payout, option.asset_settlement, spot)
+                              : (option.asset_settlement ? spot : option.payout);
 }
 
 Result<double> price_contract(const BinaryBarrierContractView& option, const PricingContext& context, bool& schedule_validated)
