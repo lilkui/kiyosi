@@ -102,13 +102,13 @@ private:
     bool invalid_ = false;
 };
 
-/// Price and a fixed-size collection of optional Greeks.
+/// Finite price and a fixed-size collection of optional finite Greeks.
 class PricingResult {
 public:
     /// Storage type indexed by greek_index().
     using GreekValues = std::array<std::optional<double>, greek_count>;
 
-    /// Price is present in every successfully constructed result.
+    /// A finite price is present in every successfully constructed result.
     [[nodiscard]] double price() const noexcept { return price_; }
 
     /// Reports whether the Greek is available; a stored zero is available.
@@ -175,7 +175,8 @@ private:
 /// Builds a result from a price and runtime Greek entries.
 /// Unknown Greeks are rejected with `invalid_parameter`.
 /// Later duplicate entries replace earlier entries for the same Greek.
-/// @return The populated result, or an `invalid_parameter` error.
+/// The final price and every available Greek must be finite.
+/// @return The populated result, or an `invalid_parameter` or `invalid_result` error.
 [[nodiscard]] inline Result<PricingResult> make_pricing_result(
     double price, std::initializer_list<std::pair<Greek, std::optional<double>>> entries = {})
 {
@@ -187,6 +188,9 @@ private:
                                          "unknown Greek"});
         output.values_[*index] = value;
     }
+    if (!output.all_finite())
+        return std::unexpected(Error{ErrorCategory::invalid_result,
+                                     "pricing result contains a non-finite value"});
     return output;
 }
 

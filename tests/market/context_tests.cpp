@@ -101,4 +101,43 @@ TEST_CASE("Pricing result rejects unknown Greeks")
     STATIC_REQUIRE_FALSE(noexcept(result->get(unknown)));
 }
 
+TEST_CASE("Pricing result rejects non-finite prices and available Greeks")
+{
+    for (const double value : {std::numeric_limits<double>::quiet_NaN(),
+                               std::numeric_limits<double>::infinity(),
+                               -std::numeric_limits<double>::infinity()}) {
+        const auto price = kiyosi::make_pricing_result(value);
+        REQUIRE_FALSE(price);
+        CHECK(price.error().category == kiyosi::ErrorCategory::invalid_result);
+        for (std::size_t index = 0; index < kiyosi::greek_count; ++index) {
+            CAPTURE(index);
+            const auto greek = static_cast<kiyosi::Greek>(index);
+            const auto result = kiyosi::make_pricing_result(1.0, {{greek, value}});
+            REQUIRE_FALSE(result);
+            CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);
+        }
+    }
+}
+
+TEST_CASE("Pricing result validates final duplicate entries and preserves unavailable Greeks")
+{
+    using kiyosi::Greek;
+    const double infinity = std::numeric_limits<double>::infinity();
+    const auto result = kiyosi::make_pricing_result(-2.0, {{Greek::delta, infinity},
+                                                           {Greek::delta, -3.0},
+                                                           {Greek::gamma, infinity},
+                                                           {Greek::gamma, std::nullopt},
+                                                           {Greek::rho, 0.0}});
+    REQUIRE(result);
+    CHECK(result->price() == -2.0);
+    CHECK(greek_value(*result, Greek::delta) == -3.0);
+    CHECK_FALSE(result->has(Greek::gamma));
+    CHECK_FALSE(result->has(Greek::vega));
+    CHECK(greek_value(*result, Greek::rho) == 0.0);
+
+    const auto invalid = kiyosi::make_pricing_result(1.0, {{Greek::delta, 3.0}, {Greek::delta, infinity}});
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_result);
+}
+
 } // namespace

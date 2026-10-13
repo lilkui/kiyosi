@@ -49,11 +49,11 @@ template <typename Price>
     return checked_price(*value);
 }
 
-/// Extracts a checked scalar from the private native engine result.
+/// Extracts a scalar from the validated native engine result.
 inline Result<double> price_value(const Result<PricingResult>& result)
 {
     if (!result) return std::unexpected(result.error());
-    return checked_price(result->price());
+    return result->price();
 }
 
 inline Result<void> validate_greeks_settings(NumericalShiftSettings settings)
@@ -223,10 +223,7 @@ Result<PricingResult> complete_greeks(
         derivatives = native_greeks_request(option, shifted, derivatives,
                                             symmetric_shift(shifted.spot_price(), settings.spot_shift));
         auto result = evaluate_native(shifted, derivatives);
-        const auto value = price_value(result);
-        if (!value) return std::unexpected(value.error());
-        if (!result->all_finite())
-            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+        if (!result) return result;
         *result = result->selected(derivatives);
         return result;
     };
@@ -450,9 +447,6 @@ Result<PricingResult> complete_greeks(
     auto output = make_pricing_result(*p0, {{Greek::delta, delta}, {Greek::gamma, gamma}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
     if (!output) return std::unexpected(output.error());
     *output = output->selected(greeks);
-    if (!output->all_finite())
-        return std::unexpected(Error{ErrorCategory::invalid_result,
-                                     "numerical analytics are non-finite"});
     return output;
 }
 
@@ -480,12 +474,9 @@ Result<PricingResult> evaluate_greeks(
         }
         return evaluate(seeded);
     });
-    const auto value = price_value(result);
-    if (!value) return std::unexpected(value.error());
+    if (!result) return result;
     *result = result->selected(greeks);
-    if (!result->all_finite())
-        return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
-    if (greeks_unavailable(option, context)) return make_pricing_result(*value);
+    if (greeks_unavailable(option, context)) return make_pricing_result(result->price());
     return result;
 }
 
@@ -515,11 +506,8 @@ Result<PricingResult> price_with_greeks(
         native_request = native_greeks_request(option, context, native_request,
                                                symmetric_shift(context.spot_price(), settings.spot_shift));
         auto native = evaluate_native(fixed, context, native_request);
-        const auto value = price_value(native);
-        if (!value) return std::unexpected(value.error());
+        if (!native) return native;
         *native = native->selected(native_request);
-        if (!native->all_finite())
-            return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
         const auto price = [&](const PricingContext& shifted) {
             if constexpr (is_builtin_finite_difference_engine<Engine, Option>)
                 return price_value(evaluate_native(fixed, shifted, GreeksRequest{}));

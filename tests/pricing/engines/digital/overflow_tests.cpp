@@ -11,6 +11,26 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
+TEST_CASE("Digital result validation preserves selected finite Greeks", "[pricing-api]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto option = *make_cash_or_nothing_option(OptionType::call, 1e-200, 1e100, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 1e-200, start);
+    const AnalyticDigitalEngine engine;
+    const auto scalar = engine.price(option, context);
+    REQUIRE(scalar);
+    CHECK(*scalar == Catch::Approx(1e100 * 0.5 * std::erfc(0.1 / std::numbers::sqrt2)));
+    const auto selected = engine.price_with_greeks(option, context, {Greek::delta});
+    REQUIRE(selected);
+    CHECK(selected->price() == *scalar);
+    CHECK(*selected->require(Greek::delta) == Catch::Approx(1e300 * std::exp(-0.005) / (0.2 * std::sqrt(2.0 * std::numbers::pi))));
+    CHECK_FALSE(selected->has(Greek::gamma));
+    const auto invalid = engine.price_with_greeks(option, context, {Greek::gamma});
+    REQUIRE_FALSE(invalid);
+    CHECK(invalid.error().category == ErrorCategory::invalid_result);
+}
+
 TEST_CASE("Finite-difference digital prices preserve scaled discount factors", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

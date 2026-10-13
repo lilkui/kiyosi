@@ -9,6 +9,42 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class DigitalOverflowTests(unittest.TestCase):
+    def test_result_validation_preserves_selected_finite_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = CashOrNothingOption(
+            option_type="call",
+            strike=1e-200,
+            payout=1e100,
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0,
+                dividend_yield=0,
+                volatility=0.2,
+            ),
+            spot_price=1e-200,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticDigitalEngine()
+        scalar = engine.price(option, context)
+        self.assertTrue(
+            math.isclose(scalar, 1e100 * 0.5 * math.erfc(0.1 / math.sqrt(2)))
+        )
+        selected = engine.price_with_greeks(option, context, "delta")
+        self.assertEqual(selected.price, scalar)
+        self.assertTrue(
+            math.isclose(
+                selected.delta,
+                1e300 * math.exp(-0.005) / (0.2 * math.sqrt(2 * math.pi)),
+            )
+        )
+        self.assertIsNone(selected.gamma)
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price_with_greeks(option, context, "gamma")
+        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+
     def test_deep_in_the_money_digital_prices_survive_overflowing_discount_factors(
         self,
     ):
