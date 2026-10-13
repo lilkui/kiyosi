@@ -35,7 +35,6 @@ sdist.exclude = ["wheelhouse"]
 cmake.args = [
     "-DKIYOSI_BUILD_PYTHON=ON",
     "-DKIYOSI_INSTALL=OFF",
-    "-DKIYOSI_BUILD_EXAMPLES=OFF",
     "-DKIYOSI_BUILD_BENCHMARKS=OFF",
     "-DBUILD_TESTING=OFF",
 ]

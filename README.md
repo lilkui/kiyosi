@@ -75,7 +75,7 @@ find_package(kiyosi CONFIG REQUIRED)
 target_link_libraries(my_app PRIVATE kiyosi::kiyosi)
 ```
 
-Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. For examples of additional instruments and pricing engines, see [`examples/all_pricing_engines.cpp`](examples/all_pricing_engines.cpp).
+Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`.
 
 Autocallable C++ construction terms use `observations`, a vector of `AutocallableObservation` records that associate each date with its knock-out level and coupon terms. Use `make_autocallable_observations` to associate parallel sequences before calling a note factory. Python constructors accept either records or complete parallel sequences; both forms use the same core factory.
 

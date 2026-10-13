@@ -13,7 +13,6 @@ option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets"
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
-option(KIYOSI_BUILD_EXAMPLES "Build the example programs" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" OFF)
 option(KIYOSI_ENABLE_CUDA "Build the optional CUDA Monte Carlo backend" OFF)
 
@@ -65,7 +64,6 @@ if(KIYOSI_ENABLE_CLANG_FORMAT)
     file(GLOB_RECURSE KIYOSI_CLANG_FORMAT_SOURCES CONFIGURE_DEPENDS
         "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/benchmarks/*.hpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/examples/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/include/*.hpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/python/*.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/python/*.hpp"
@@ -245,10 +243,6 @@ if(KIYOSI_BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
 endif()
 
-if(KIYOSI_BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif()
-
 if(KIYOSI_ENABLE_CLANG_TIDY)
     set(KIYOSI_TIDY_TARGETS kiyosi)
     if(TARGET kiyosi_benchmarks)
@@ -256,9 +250,6 @@ if(KIYOSI_ENABLE_CLANG_TIDY)
     endif()
     if(TARGET kiyosi_tests)
         list(APPEND KIYOSI_TIDY_TARGETS kiyosi_tests)
-    endif()
-    if(TARGET kiyosi_example_all_pricing_engines)
-        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_example_all_pricing_engines)
     endif()
     foreach(target_name IN LISTS KIYOSI_TIDY_TARGETS)
         set_target_properties(${target_name} PROPERTIES CXX_CLANG_TIDY "${KIYOSI_CLANG_TIDY_EXECUTABLE}")

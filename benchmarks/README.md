@@ -12,7 +12,7 @@ On Windows with vcpkg `QuantLib:x64-windows-static`, run these commands from the
 
 ```powershell
 $env:VCPKG_ROOT = 'C:/path/to/vcpkg'
-cmake --preset windows-release --fresh -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_TESTING=OFF -DKIYOSI_BUILD_EXAMPLES=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_TOOLCHAIN_FILE="${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
+cmake --preset windows-release --fresh -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_TESTING=OFF -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DCMAKE_TOOLCHAIN_FILE="${env:VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=x64-windows-static
 cmake --build --preset windows-release --target kiyosi_benchmarks
 ./out/build/windows-release/benchmarks/kiyosi_benchmarks.exe --benchmark_repetitions=5 --benchmark_report_aggregates_only=true --benchmark_out=out/build/windows-release/benchmarks.json --benchmark_out_format=json
 python benchmarks/compare.py out/build/windows-release/benchmarks.json
