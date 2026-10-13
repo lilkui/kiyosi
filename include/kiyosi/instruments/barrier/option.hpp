@@ -90,10 +90,8 @@ private:
                                                     std::move(terms.observation_dates), terms.effective_date, terms.expiry_date,
                                                     terms.touch_state);
     if (!barrier_terms) return std::unexpected(barrier_terms.error());
-    if (terms.option_type != OptionType::call && terms.option_type != OptionType::put)
-        return std::unexpected(Error{ErrorCategory::invalid_option, "option type must be call or put"});
-    if (!std::isfinite(terms.strike) || terms.strike <= 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_strike, "strike must be finite and positive"});
+    const auto direction_and_strike = detail::validate_option_direction_and_strike(terms.option_type, terms.strike);
+    if (!direction_and_strike) return std::unexpected(direction_and_strike.error());
     if (!std::isfinite(terms.rebate) || terms.rebate < 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "barrier terms must be finite and non-negative"});
