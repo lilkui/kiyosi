@@ -81,8 +81,8 @@ constexpr bool autocallable_product_constraints =
     CanPrice<Engine, kiyosi::SnowballOption> &&
     CanPrice<Engine, kiyosi::BinarySnowballOption> &&
     CanPrice<Engine, kiyosi::TernarySnowballOption> &&
-    !CanPrice<Engine, kiyosi::AutocallableNote> &&
-    !CanPrice<Engine, kiyosi::KnockInAutocallableNote> &&
+    !CanPrice<Engine, kiyosi::SnowballTerms> &&
+    !CanPrice<Engine, kiyosi::PhoenixTerms> &&
     !CanPrice<Engine, kiyosi::EuropeanOption>;
 
 } // namespace

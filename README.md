@@ -79,6 +79,8 @@ Include the umbrella header with `#include <kiyosi/kiyosi.hpp>`. For examples of
 
 Autocallable C++ construction terms use `observations`, a vector of `AutocallableObservation` records that associate each date with its knock-out level and coupon terms. Use `make_autocallable_observations` to associate parallel sequences before calling a note factory. Python constructors accept either records or complete parallel sequences; both forms use the same core factory.
 
+Autocallable C++ product names are distinct `AutocallableNote<Terms>` specializations. Each product owns one private terms value; there are no partial base-note values. Factories accept terms by value, so callers can move observation storage into a product.
+
 Reuse `FiniteDifferenceAutocallableEngine` or `MonteCarloAutocallableEngine` across snowball, binary snowball, ternary snowball, and Phoenix notes. Each engine stores only its numerical settings; product rules come from the note passed to `price` or `price_with_greeks`.
 
 ## Validation

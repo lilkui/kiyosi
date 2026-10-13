@@ -211,48 +211,19 @@ struct CouponSumEngine {
     }
 };
 
-class CopyCountingNote {
-public:
-    CopyCountingNote(int& copies, kiyosi::Date effective_date, kiyosi::Date expiry_date)
-        : copies_(&copies), observations_{{expiry_date, 110.0}}, effective_(effective_date), expiry_(expiry_date)
-    {
-    }
-
-    CopyCountingNote(const CopyCountingNote& other)
-        : copies_(other.copies_), observations_(other.observations_), effective_(other.effective_),
-          expiry_(other.expiry_)
-    {
-        ++*copies_;
-    }
-    ~CopyCountingNote() = default;
-    CopyCountingNote& operator=(const CopyCountingNote&) = delete;
-    CopyCountingNote(CopyCountingNote&&) = delete;
-    CopyCountingNote& operator=(CopyCountingNote&&) = delete;
-
-    double initial_spot() const noexcept { return 100.0; }
-    double upper_strike() const noexcept { return 100.0; }
-    double lower_strike() const noexcept { return 60.0; }
-    std::span<const kiyosi::AutocallableObservation> observations_view() const noexcept { return observations_; }
-    double principal_ratio() const noexcept { return 1.0; }
-    kiyosi::Date effective_date() const noexcept { return effective_; }
-    kiyosi::Date expiry_date() const noexcept { return expiry_; }
-    std::optional<kiyosi::AutocallableBarrierState> barrier_state() const noexcept
-    {
-        return kiyosi::AutocallableBarrierState::none;
-    }
-
-private:
-    int* copies_;
-    std::vector<kiyosi::AutocallableObservation> observations_;
-    kiyosi::Date effective_;
-    kiyosi::Date expiry_;
+struct CopyCountingObservations : std::vector<kiyosi::AutocallableObservation> {
+    int* copies;
+    CopyCountingObservations(int& count, kiyosi::Date expiry)
+        : std::vector<kiyosi::AutocallableObservation>{{expiry, 110.0, 0.05}}, copies(&count) {}
+    CopyCountingObservations(const CopyCountingObservations& other)
+        : std::vector<kiyosi::AutocallableObservation>(other), copies(other.copies) { ++*copies; }
+    ~CopyCountingObservations() = default;
+    CopyCountingObservations& operator=(const CopyCountingObservations&) = delete;
+    CopyCountingObservations(CopyCountingObservations&&) = delete;
+    CopyCountingObservations& operator=(CopyCountingObservations&&) = delete;
 };
 } // namespace
 
-static_assert(!std::is_copy_assignable_v<kiyosi::AutocallableNote>);
-static_assert(!std::is_move_assignable_v<kiyosi::AutocallableNote>);
-static_assert(!std::is_copy_assignable_v<kiyosi::KnockInAutocallableNote>);
-static_assert(!std::is_move_assignable_v<kiyosi::KnockInAutocallableNote>);
 static_assert(std::is_copy_constructible_v<kiyosi::SnowballOption>);
 static_assert(std::is_copy_assignable_v<kiyosi::SnowballOption>);
 static_assert(std::is_move_constructible_v<kiyosi::SnowballOption>);
@@ -276,14 +247,12 @@ concept HasParticipationTerms = requires(const Note& note) {
     note.upper_strike();
     note.lower_strike();
 };
-static_assert(!HasParticipationTerms<kiyosi::AutocallableNote>);
-static_assert(!HasParticipationTerms<kiyosi::KnockInAutocallableNote>);
 static_assert(!HasParticipationTerms<kiyosi::BinarySnowballOption>);
 static_assert(!HasParticipationTerms<kiyosi::TernarySnowballOption>);
 static_assert(HasParticipationTerms<kiyosi::SnowballOption>);
 static_assert(HasParticipationTerms<kiyosi::PhoenixOption>);
 
-TEST_CASE("Autocallable base validation accepts shared terms without participation", "[autocallable-terms]")
+TEST_CASE("Complete autocallables validate their product-specific terms", "[autocallable-terms]")
 {
     const auto effective = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
@@ -291,14 +260,11 @@ TEST_CASE("Autocallable base validation accepts shared terms without participati
         {.maturity_coupon_rate = 0.05, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
     REQUIRE(binary);
     CHECK(kiyosi::validate_autocallable_note(*binary));
-    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*binary)));
 
     const auto ternary = kiyosi::make_ternary_snowball_option(
         {.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
     REQUIRE(ternary);
     CHECK(kiyosi::validate_autocallable_note(*ternary));
-    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::KnockInAutocallableNote&>(*ternary)));
-    CHECK(kiyosi::validate_autocallable_note(static_cast<const kiyosi::AutocallableNote&>(*ternary)));
 
     const auto invalid_binary = kiyosi::make_binary_snowball_option(
         {.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .effective_date = effective, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.1}}});
@@ -309,10 +275,60 @@ TEST_CASE("Autocallable base validation accepts shared terms without participati
 TEST_CASE("Autocallable validation does not copy its input")
 {
     int copies = 0;
-    const CopyCountingNote note{copies, day(2025, 1, 1), day(2026, 1, 1)};
+    const struct Terms {
+        double principal_ratio;
+        kiyosi::Date effective_date;
+        kiyosi::Date expiry_date;
+        std::optional<kiyosi::AutocallableBarrierState> barrier_state;
+        double maturity_coupon_rate;
+        CopyCountingObservations observations;
+    } terms{1.0, day(2025, 1, 1), day(2026, 1, 1), kiyosi::AutocallableBarrierState::none,
+            0.05, CopyCountingObservations{copies, day(2026, 1, 1)}};
 
-    REQUIRE(kiyosi::validate_autocallable_note(note));
+    REQUIRE(kiyosi::detail::validate_autocallable_terms(terms));
     CHECK(copies == 0);
+}
+
+TEST_CASE("Autocallable factories own copied or moved construction terms", "[autocallable-terms]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto check = [](auto factory, auto terms) {
+        const auto copy = factory(terms);
+        REQUIRE(copy);
+        const auto original = terms.observations.front();
+        terms.observations.front().knock_out_level += 1.0;
+        CHECK(copy->observations_view().front() == original);
+        const auto* storage = terms.observations.data();
+        auto moved = factory(std::move(terms));
+        REQUIRE(moved);
+        CHECK(moved->observations_view().data() == storage);
+        CHECK(*copy != *moved);
+        CHECK(validate_autocallable_note(*moved));
+        auto assigned = *copy;
+        assigned = *moved;
+        CHECK(assigned == *moved);
+        CHECK(assigned.observations_view().data() != moved->observations_view().data());
+        const auto& same = assigned;
+        assigned = same;
+        CHECK(assigned == *moved);
+        const auto owner = std::move(*moved);
+        CHECK(validate_autocallable_note(owner));
+        const auto invalid = validate_autocallable_note(*moved); // NOLINT(bugprone-use-after-move): verifies moved-from rejection.
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == ErrorCategory::invalid_schedule);
+    };
+    check(make_binary_snowball_option, BinarySnowballTerms{.maturity_coupon_rate = 0.05,
+        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+    check(make_ternary_snowball_option, TernarySnowballTerms{.maturity_coupon_rate = 0.05,
+        .minimum_coupon_rate = 0.01, .knock_in_level = 80.0,
+        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+    check(make_snowball_option, SnowballTerms{.maturity_coupon_rate = 0.05,
+        .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
+        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.05}}});
+    check(make_phoenix_option, PhoenixTerms{.coupon_rate = 0.05,
+        .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
+        .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 80.0}}});
 }
 
 TEST_CASE("Autocallable factories preserve validation error categories")

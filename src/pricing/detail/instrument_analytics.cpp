@@ -193,7 +193,7 @@ Result<Note> replace_coupon(
 Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)
 {
     auto replaced = option;
-    replaced.coupon_rate_ = coupon;
+    replaced.terms_.coupon_rate = coupon;
     const auto valid = validate_autocallable_note(replaced);
     if (!valid) return std::unexpected(valid.error());
     return replaced;
