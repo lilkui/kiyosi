@@ -71,8 +71,13 @@ category : ErrorCategory
         PyErr_NewException("kiyosi.KiyosiError", PyExc_Exception,
                            exception_attributes.ptr()));
     module.attr("KiyosiError") = exception_type;
-    // nanobind has no translator payload cleanup hook; retain the class for the interpreter lifetime.
-    nb::register_exception_translator(translate_domain_exception, exception_type.release().ptr());
+    // Keep the translator's class alive even if its public exports are removed.
+    const nb::capsule exception_owner(exception_type.ptr(), [](void* pointer) noexcept {
+        Py_DECREF(static_cast<PyObject*>(pointer));
+    });
+    exception_type.inc_ref();
+    module.attr("_domain_exception_owner") = exception_owner;
+    nb::register_exception_translator(translate_domain_exception, exception_type.ptr());
 
     bind_market(module);
     bind_instruments(module);
