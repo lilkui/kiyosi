@@ -126,6 +126,19 @@ NumericalStencils numerical_stencils(const Option& option, const PricingContext&
             r > 0.0 && std::isfinite(200.0 * r)};
 }
 
+template <typename Option>
+GreeksRequest native_greeks_request(const Option& option, const PricingContext& context,
+                                    GreeksRequest greeks, double spot_radius)
+{
+    if (!at_spot_discontinuity(option, context, spot_radius)) return greeks;
+    std::array<Greek, 3> available{};
+    std::size_t count = 0;
+    for (const auto greek : {Greek::vega, Greek::rho, Greek::theta})
+        if (greeks.has(greek) && (greek != Greek::theta || !at_spot_discontinuity(option, context)))
+            available[count++] = greek;
+    return GreeksRequest{std::span{available}.first(count)};
+}
+
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
 template <typename Engine, typename Option, typename Native = decltype(nullptr)>
@@ -141,10 +154,11 @@ Result<PricingResult> complete_greeks(
     const Result<double> p0 = native.price();
     if (greeks_unavailable(option, context))
         return make_pricing_result(*p0);
-    const auto need = [&](Greek measure) {
-        return greeks.has(measure) && !native.has(measure);
-    };
     const auto stencils = numerical_stencils(option, context, settings);
+    const auto native_request = native_greeks_request(option, context, true, stencils.spot_shift);
+    const auto native_has = [&](Greek measure) { return native_request.has(measure) && native.has(measure); };
+    const auto native_value = [&](Greek measure) { return native_has(measure) ? *native.get(measure) : std::nullopt; };
+    const auto need = [&](Greek measure) { return greeks.has(measure) && !native_has(measure); };
     const double h = stencils.spot_shift;
     const bool spot_discontinuity = stencils.spot_discontinuity;
     const bool spot_stencil_available = stencils.spot_available;
@@ -152,16 +166,19 @@ Result<PricingResult> complete_greeks(
     const bool scalar_speed_available = need(Greek::speed) && stencils.speed_available;
     constexpr bool native_stencil = requires { evaluate_native(engine, context, GreeksRequest{}); };
     const auto checked_native = [&](const auto& shifted, GreeksRequest derivatives) -> Result<PricingResult> {
+        derivatives = native_greeks_request(option, shifted, derivatives,
+                                            symmetric_shift(shifted.spot_price(), settings.spot_shift));
         auto result = evaluate_native(engine, shifted, derivatives);
         const auto value = price_value(result);
         if (!value) return std::unexpected(value.error());
         if (!result->all_finite())
             return std::unexpected(Error{ErrorCategory::invalid_result, "native Greeks are non-finite"});
+        *result = result->selected(derivatives);
         return result;
     };
-    auto delta = *native.get(Greek::delta);
-    auto gamma = *native.get(Greek::gamma);
-    auto speed = *native.get(Greek::speed);
+    auto delta = native_value(Greek::delta);
+    auto gamma = native_value(Greek::gamma);
+    auto speed = native_value(Greek::speed);
     std::optional<double> spot_up;
     std::optional<double> spot_down;
     if (spot_stencil_available && (need(Greek::delta) || need(Greek::gamma) ||
@@ -208,9 +225,9 @@ Result<PricingResult> complete_greeks(
         }
     }
 
-    auto vega = *native.get(Greek::vega);
-    auto vanna = *native.get(Greek::vanna);
-    auto zomma = *native.get(Greek::zomma);
+    auto vega = native_value(Greek::vega);
+    auto vanna = native_value(Greek::vanna);
+    auto zomma = native_value(Greek::zomma);
     const double volatility_shift = stencils.volatility_shift;
     const double vol_scale = 100.0 * volatility_shift;
     const bool volatility_stencil_available = stencils.volatility_available;
@@ -277,7 +294,7 @@ Result<PricingResult> complete_greeks(
         }
     }
 
-    auto rho = *native.get(Greek::rho);
+    auto rho = native_value(Greek::rho);
     const double rate_shift = stencils.rate_shift;
     const double rate_scale = 200.0 * rate_shift;
     if (need(Greek::rho) && stencils.rate_available) {
@@ -290,9 +307,9 @@ Result<PricingResult> complete_greeks(
         rho = (*r_up - *r_down) / rate_scale;
     }
 
-    auto theta = *native.get(Greek::theta);
-    auto charm = *native.get(Greek::charm);
-    auto color = *native.get(Greek::color);
+    auto theta = native_value(Greek::theta);
+    auto charm = native_value(Greek::charm);
+    auto color = native_value(Greek::color);
     if (need(Greek::theta) || need(Greek::charm) || need(Greek::color)) {
         using Days = std::chrono::duration<double, std::ratio<86400>>;
         auto lower_bound = start_of_day(Date{std::chrono::year::min() / std::chrono::January / 1});
@@ -318,7 +335,7 @@ Result<PricingResult> complete_greeks(
             std::optional<PricingResult> native_before, native_after;
             if constexpr (requires { evaluate_native(engine, context, GreeksRequest{}); }) {
                 const bool native_time_stencil_available = (before != valuation_time && after != valuation_time) ||
-                                                           ((!need(Greek::charm) || native.has(Greek::delta)) && (!need(Greek::color) || native.has(Greek::gamma)));
+                                                           ((!need(Greek::charm) || native_has(Greek::delta)) && (!need(Greek::color) || native_has(Greek::gamma)));
                 if (spot_stencil_available && native_time_stencil_available && (need(Greek::charm) || need(Greek::color))) {
                     const auto evaluate = [&](Timestamp time) -> Result<PricingResult> {
                         if (time == valuation_time) return native;
@@ -451,6 +468,8 @@ Result<PricingResult> price_with_greeks(
                 native_request = GreeksRequest{std::span{measures}.first(count)};
             }
         }
+        native_request = native_greeks_request(option, context, native_request,
+                                               symmetric_shift(context.spot_price(), settings.spot_shift));
         auto native = evaluate_native(fixed, context, native_request);
         const auto value = price_value(native);
         if (!value) return std::unexpected(value.error());

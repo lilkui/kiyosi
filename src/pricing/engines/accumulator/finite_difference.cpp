@@ -132,8 +132,7 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const
 {
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
-                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return engine.price_native(option, shifted, output, settings.spot_shift);
+                                         return engine.price_native(option, shifted, request, settings.spot_shift);
                                      });
 }
 

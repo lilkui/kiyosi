@@ -383,6 +383,52 @@ TEST_CASE("Selected Greek completion uses only missing spot differences", "[pric
     CHECK(greek_value(*full, Greek::rho) == 0.0);
 }
 
+TEST_CASE("Shared Greek completion filters native measures at event thresholds", "[pricing-api]")
+{
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
+        .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
+    const auto supplied = *make_pricing_result(123.0, {{Greek::delta, 1.0}, {Greek::gamma, 2.0},
+        {Greek::speed, 3.0}, {Greek::charm, 4.0}, {Greek::color, 5.0},
+        {Greek::vanna, 6.0}, {Greek::zomma, 7.0}, {Greek::vega, 8.0}, {Greek::rho, 9.0}});
+    const FiniteDifferenceAccumulatorEngine engine;
+    for (const double spot : {109.98, 109.995, 110.0}) {
+        CAPTURE(spot);
+        const auto context = market(spot, effective);
+        const auto result = detail::complete_greeks(engine, option, context, true, {}, supplied);
+        REQUIRE(result);
+        CHECK(result->price() == 123.0);
+        CHECK(greek_value(*result, Greek::vega) == 8.0);
+        CHECK(greek_value(*result, Greek::rho) == 9.0);
+        for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed, Greek::charm,
+                                 Greek::color, Greek::vanna, Greek::zomma}) {
+            if (spot == 109.98) CHECK(result->get(greek) == supplied.get(greek));
+            else CHECK_FALSE(result->has(greek));
+        }
+    }
+}
+
+TEST_CASE("Native Greek requests are filtered before event-sensitive evaluation", "[pricing-api]")
+{
+    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0,
+        .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = effective, .expiry_date = expiry});
+    int calls = 0;
+    const auto result = detail::price_with_greeks(FiniteDifferenceAccumulatorEngine{}, option,
+        market(109.995, effective), {Greek::delta, Greek::vega, Greek::rho}, {},
+        [&](const auto&, const PricingContext&, GreeksRequest request) {
+            ++calls;
+            CHECK_FALSE(request.has(Greek::delta));
+            CHECK(request.has(Greek::vega));
+            CHECK(request.has(Greek::rho));
+            return make_pricing_result(123.0, {{Greek::vega, 8.0}, {Greek::rho, 9.0}});
+        });
+    REQUIRE(result);
+    CHECK(calls == 1);
+    CHECK(result->price() == 123.0);
+    CHECK_FALSE(result->has(Greek::delta));
+    CHECK(greek_value(*result, Greek::vega) == 8.0);
+    CHECK(greek_value(*result, Greek::rho) == 9.0);
+}
+
 TEST_CASE("Mixed Greek completion skips unused central prices", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);

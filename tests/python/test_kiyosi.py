@@ -564,6 +564,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 touch_state="untouched",
             )
             cases.append((AnalyticBarrierEngine(), option, 119.999))
+            cases.append((pricing.FiniteDifferenceBarrierEngine(), option, 119.999))
             context = PricingContext(
                 model_parameters=parameters, spot_price=119.985, valuation_time=observed
             )
@@ -582,9 +583,13 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         cases.extend(
             (
-                pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+                engine,
                 accumulator,
                 spot,
+            )
+            for engine in (
+                pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+                pricing.FiniteDifferenceAccumulatorEngine(),
             )
             for spot in (99.999, 90.001)
         )
@@ -603,7 +608,11 @@ class KiyosiPythonTests(unittest.TestCase):
             expiry_date=end,
         )
         cases.extend(
-            (pricing.MonteCarloAutocallableEngine(path_count=32, seed=7), phoenix, spot)
+            (engine, phoenix, spot)
+            for engine in (
+                pricing.MonteCarloAutocallableEngine(path_count=32, seed=7),
+                pricing.FiniteDifferenceAutocallableEngine(),
+            )
             for spot in (119.999, 89.999, 70.001)
         )
         for engine, option, spot in cases:

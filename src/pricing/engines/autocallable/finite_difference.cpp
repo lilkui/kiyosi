@@ -308,10 +308,9 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(cons
     AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest requested_output) {
-                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : requested_output;
                                          // Greek shifts may change time or rates; only contract validation survives.
                                          request.workspace = {};
-                                         return price_autocallable(option, shifted, engine.settings(), request, output, settings.spot_shift);
+                                         return price_autocallable(option, shifted, engine.settings(), request, requested_output, settings.spot_shift);
                                      });
 }
 

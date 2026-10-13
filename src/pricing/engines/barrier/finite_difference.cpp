@@ -178,8 +178,7 @@ Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const Bar
     bool schedule_validated = false;
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
-                                         const auto output = detail::at_spot_discontinuity(option, shifted, detail::symmetric_shift(shifted.spot_price(), settings.spot_shift)) ? GreeksRequest{} : request;
-                                         return price_barrier(option, shifted, engine.settings(), schedule_validated, output, settings.spot_shift);
+                                         return price_barrier(option, shifted, engine.settings(), schedule_validated, request, settings.spot_shift);
                                      });
 }
 
