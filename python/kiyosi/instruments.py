@@ -1,3 +1,4 @@
+# ruff: noqa: F401
 """Validated derivative instruments."""
 
 from ._native import (
@@ -30,6 +31,7 @@ from ._native import (
     asset_no_touch_up,
     asset_one_touch_down,
     asset_one_touch_up,
+    autocallable_observations,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_no_touch_down,

@@ -17,6 +17,7 @@ from kiyosi.instruments import (
     asset_no_touch_up,
     asset_one_touch_down,
     asset_one_touch_up,
+    autocallable_observations,
     cash_no_touch_down,
     cash_no_touch_up,
     cash_one_touch_down,
@@ -92,10 +93,10 @@ class AuditFixTests(unittest.TestCase):
             + (end - middle).days / 365 * discount(end)
         )
         for state in ("none", "knocked_in"):
+            observation_dates = [valuation, middle, end]
+            knock_out_levels = [200, 200, 200]
             terms = {
                 "knock_in_level": 75,
-                "knock_out_levels": [200, 200, 200],
-                "observation_dates": [valuation, middle, end],
                 "knock_in_observation_mode": "every_trading_day",
                 "barrier_state": state,
                 "effective_date": start,
@@ -109,20 +110,30 @@ class AuditFixTests(unittest.TestCase):
             snowball = SnowballOption(
                 **terms,
                 **downside_terms,
-                knock_out_coupon_rates=[0.1, 0.1, 0.1],
                 maturity_coupon_rate=0.8,
+                observations=autocallable_observations(
+                    observation_dates,
+                    knock_out_levels,
+                    knock_out_coupon_rates=[0.1, 0.1, 0.1],
+                ),
             )
             phoenix = PhoenixOption(
                 **terms,
                 **downside_terms,
                 coupon_rate=0.08,
-                coupon_barrier_levels=[0, 0, 0],
+                observations=autocallable_observations(
+                    observation_dates, knock_out_levels, coupon_barrier_levels=[0, 0, 0]
+                ),
             )
             ternary = TernarySnowballOption(
                 **terms,
-                knock_out_coupon_rates=[0.1, 0.1, 0.1],
                 maturity_coupon_rate=0.8,
                 minimum_coupon_rate=0.02,
+                observations=autocallable_observations(
+                    observation_dates,
+                    knock_out_levels,
+                    knock_out_coupon_rates=[0.1, 0.1, 0.1],
+                ),
             )
             for scheme in ("crank_nicolson", "implicit_euler"):
                 for note, engine_type, expected in (
@@ -246,12 +257,14 @@ class AuditFixTests(unittest.TestCase):
         ):
             for coupon in (0.073, -0.17):
                 note = BinarySnowballOption(
-                    knock_out_coupon_rates=[coupon, coupon + 0.01],
                     maturity_coupon_rate=coupon + 0.02,
-                    knock_out_levels=[110, 110],
-                    observation_dates=[date(2025, 7, 1), end],
                     effective_date=start,
                     expiry_date=end,
+                    observations=autocallable_observations(
+                        [date(2025, 7, 1), end],
+                        [110, 110],
+                        knock_out_coupon_rates=[coupon, coupon + 0.01],
+                    ),
                 )
                 quote = engine.price(note, context)
                 for convention in ("shift_maturity_coupon", "preserve_maturity_coupon"):
@@ -280,9 +293,9 @@ class AuditFixTests(unittest.TestCase):
             ["cuda"] if os.environ.get("KIYOSI_TEST_CUDA") == "enabled" else []
         )
         for mode in ("at_expiry", "every_trading_day"):
+            observation_dates = [fixing, end]
+            knock_out_levels = [110, 110]
             common = {
-                "knock_out_levels": [110, 110],
-                "observation_dates": [fixing, end],
                 "effective_date": start,
                 "expiry_date": end,
                 "barrier_state": "none",
@@ -290,8 +303,12 @@ class AuditFixTests(unittest.TestCase):
             knock_in = {"knock_in_level": 80, "knock_in_observation_mode": mode}
             downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 100}
             coupons = {
-                "knock_out_coupon_rates": [0.073, 0.083],
                 "maturity_coupon_rate": 0.073,
+                "observations": autocallable_observations(
+                    observation_dates,
+                    knock_out_levels,
+                    knock_out_coupon_rates=[0.073, 0.083],
+                ),
             }
             cases = (
                 (
@@ -300,7 +317,11 @@ class AuditFixTests(unittest.TestCase):
                         **knock_in,
                         **downside,
                         coupon_rate=0.073,
-                        coupon_barrier_levels=[90, 90],
+                        observations=autocallable_observations(
+                            observation_dates,
+                            knock_out_levels,
+                            coupon_barrier_levels=[90, 90],
+                        ),
                     ),
                     pricing.MonteCarloAutocallableEngine,
                 ),
@@ -390,19 +411,25 @@ class AuditFixTests(unittest.TestCase):
             spot_price=71.46981808356617,
             valuation_time=start,
         )
+        observation_dates = [date(2025, 7, 1), end]
+        knock_out_levels = [93.43788934756687, 93.43788934756687]
         terms = {
             "initial_spot": 100,
             "knock_in_level": 72.54516454112279,
-            "knock_out_levels": [93.43788934756687, 93.43788934756687],
             "upper_strike": 100,
             "lower_strike": 0,
-            "observation_dates": [date(2025, 7, 1), end],
             "knock_in_observation_mode": "at_expiry",
             "effective_date": start,
             "expiry_date": end,
         }
         note = SnowballOption(
-            **terms, knock_out_coupon_rates=[0.073, 0.073], maturity_coupon_rate=0.073
+            **terms,
+            maturity_coupon_rate=0.073,
+            observations=autocallable_observations(
+                observation_dates,
+                knock_out_levels,
+                knock_out_coupon_rates=[0.073, 0.073],
+            ),
         )
         engine = pricing.FiniteDifferenceAutocallableEngine(
             asset_step_count=5, time_step_count=10
@@ -438,8 +465,12 @@ class AuditFixTests(unittest.TestCase):
         self.assertAlmostEqual(solved, 0.073, delta=1e-9)
         repriced = SnowballOption(
             **terms,
-            knock_out_coupon_rates=[solved, solved],
             maturity_coupon_rate=solved,
+            observations=autocallable_observations(
+                observation_dates,
+                knock_out_levels,
+                knock_out_coupon_rates=[solved, solved],
+            ),
         )
         self.assertAlmostEqual(engine.price(repriced, context), quote, delta=1e-10)
 

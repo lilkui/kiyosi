@@ -11,6 +11,7 @@ from kiyosi.instruments import (
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
+    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -21,154 +22,301 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
-    def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(self):
+    def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(
+        self,
+    ):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
-        common = dict(
-            knock_out_levels=[101, 100, 99],
-            observation_dates=[date(2025, 1, 3), date(2025, 1, 8), end],
-            effective_date=start, expiry_date=end, barrier_state="none",
-        )
-        coupons = dict(knock_out_coupon_rates=[0.08] * 3, maturity_coupon_rate=0.06)
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [101, 100, 99]
+        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+            ),
+        }
 
         def context(volatility):
             return PricingContext(
                 model_parameters=BlackScholesMertonParameters(
                     risk_free_rate=0.04, dividend_yield=0.01, volatility=volatility
                 ),
-                spot_price=100.25, valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+                spot_price=100.25,
+                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
                 calendar=all_days_calendar(),
             )
 
         base = context(0.27)
-        bounds = dict(lower_bound=0.1, upper_bound=0.4, price_tolerance=1e-12)
+        bounds = {"lower_bound": 0.1, "upper_bound": 0.4, "price_tolerance": 1e-12}
         for mode in ("at_expiry", "every_trading_day"):
-            knock_in = dict(knock_in_level=99, knock_in_observation_mode=mode)
+            knock_in = {"knock_in_level": 99, "knock_in_observation_mode": mode}
             cases = (
-                (PhoenixOption, dict(
-                    **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
-                    coupon_rate=0.08, coupon_barrier_levels=[100, 99, 98],
-                ), pricing.FiniteDifferenceAutocallableEngine),
-                (SnowballOption, dict(
-                    **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=60,
-                ), pricing.FiniteDifferenceAutocallableEngine),
-                (BinarySnowballOption, coupons, pricing.FiniteDifferenceAutocallableEngine),
-                (TernarySnowballOption, dict(
-                    **knock_in, **coupons, minimum_coupon_rate=0.02,
-                ), pricing.FiniteDifferenceAutocallableEngine),
+                (
+                    PhoenixOption,
+                    dict(
+                        **knock_in,
+                        initial_spot=100,
+                        upper_strike=100,
+                        lower_strike=60,
+                        coupon_rate=0.08,
+                        observations=autocallable_observations(
+                            observation_dates,
+                            knock_out_levels,
+                            coupon_barrier_levels=[100, 99, 98],
+                        ),
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    SnowballOption,
+                    dict(
+                        **knock_in,
+                        **coupons,
+                        initial_spot=100,
+                        upper_strike=100,
+                        lower_strike=60,
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    BinarySnowballOption,
+                    coupons,
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    TernarySnowballOption,
+                    dict(
+                        **knock_in,
+                        **coupons,
+                        minimum_coupon_rate=0.02,
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
                 for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
                     with self.subTest(kind=kind, mode=mode, scheme=scheme):
-                        engine = engine_type(asset_step_count=32, time_step_count=64, scheme=scheme)
-                        quotes = [engine.price(note, context(volatility)) for volatility in (0.17, 0.33)]
+                        engine = engine_type(
+                            asset_step_count=32, time_step_count=64, scheme=scheme
+                        )
+                        quotes = [
+                            engine.price(note, context(volatility))
+                            for volatility in (0.17, 0.33)
+                        ]
 
-                        def solve(quote):
-                            return pricing.implied_volatility(engine, note, base, quote, **bounds)
+                        def solve(quote, *, engine=engine, note=note):
+                            return pricing.implied_volatility(
+                                engine, note, base, quote, **bounds
+                            )
 
                         expected = [solve(quote) for quote in quotes]
                         for quote, volatility in zip(quotes, expected):
-                            self.assertAlmostEqual(engine.price(note, context(volatility)), quote, delta=1e-10)
+                            self.assertAlmostEqual(
+                                engine.price(note, context(volatility)),
+                                quote,
+                                delta=1e-10,
+                            )
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             solve(1e10)
-                        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY)
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.UNBRACKETED_VOLATILITY,
+                        )
                         with ThreadPoolExecutor(max_workers=2) as pool:
                             recovered = list(pool.map(solve, quotes))
                         self.assertEqual(recovered, expected)
 
-    def test_finite_difference_coupon_requests_preserve_layer_changes_and_isolation(self):
+    def test_finite_difference_coupon_requests_preserve_layer_changes_and_isolation(
+        self,
+    ):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
-        common = dict(
-            knock_out_levels=[110, 110], observation_dates=[date(2025, 1, 7), end],
-            effective_date=start, expiry_date=end, barrier_state="none",
-        )
-        coupons = dict(knock_out_coupon_rates=[0.073, 0.083], maturity_coupon_rate=0.073)
+        observation_dates = [date(2025, 1, 7), end]
+        knock_out_levels = [110, 110]
+        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        coupons = {
+            "maturity_coupon_rate": 0.073,
+            "observations": autocallable_observations(
+                observation_dates,
+                knock_out_levels,
+                knock_out_coupon_rates=[0.073, 0.083],
+            ),
+        }
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=0.03, dividend_yield=0, volatility=0.3
             ),
-            spot_price=100.25, valuation_time=start, calendar=all_days_calendar(),
+            spot_price=100.25,
+            valuation_time=start,
+            calendar=all_days_calendar(),
         )
         for mode in ("at_expiry", "every_trading_day"):
-            knock_in = dict(knock_in_level=99, knock_in_observation_mode=mode)
+            knock_in = {"knock_in_level": 99, "knock_in_observation_mode": mode}
             cases = (
-                (PhoenixOption, dict(
-                    **knock_in, initial_spot=100, upper_strike=100, lower_strike=60,
-                    coupon_rate=0.073, coupon_barrier_levels=[90, 90],
-                ), pricing.FiniteDifferenceAutocallableEngine),
-                (SnowballOption, dict(
-                    **knock_in, **coupons, initial_spot=100, upper_strike=100, lower_strike=100,
-                ), pricing.FiniteDifferenceAutocallableEngine),
-                (BinarySnowballOption, coupons, pricing.FiniteDifferenceAutocallableEngine),
-                (TernarySnowballOption, dict(
-                    **knock_in, **coupons, minimum_coupon_rate=0,
-                ), pricing.FiniteDifferenceAutocallableEngine),
+                (
+                    PhoenixOption,
+                    dict(
+                        **knock_in,
+                        initial_spot=100,
+                        upper_strike=100,
+                        lower_strike=60,
+                        coupon_rate=0.073,
+                        observations=autocallable_observations(
+                            observation_dates,
+                            knock_out_levels,
+                            coupon_barrier_levels=[90, 90],
+                        ),
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    SnowballOption,
+                    dict(
+                        **knock_in,
+                        **coupons,
+                        initial_spot=100,
+                        upper_strike=100,
+                        lower_strike=100,
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    BinarySnowballOption,
+                    coupons,
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
+                (
+                    TernarySnowballOption,
+                    dict(
+                        **knock_in,
+                        **coupons,
+                        minimum_coupon_rate=0,
+                    ),
+                    pricing.FiniteDifferenceAutocallableEngine,
+                ),
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
                 for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
-                    engine = engine_type(asset_step_count=16, time_step_count=8, scheme=scheme)
+                    engine = engine_type(
+                        asset_step_count=16, time_step_count=8, scheme=scheme
+                    )
                     quote = engine.price(note, context)
-                    conventions = ({},) if kind is PhoenixOption else (
-                        {"quote_convention": "shift_maturity_coupon"},
-                        {"quote_convention": "preserve_maturity_coupon"},
+                    conventions = (
+                        ({},)
+                        if kind is PhoenixOption
+                        else (
+                            {"quote_convention": "shift_maturity_coupon"},
+                            {"quote_convention": "preserve_maturity_coupon"},
+                        )
                     )
                     for convention in conventions:
                         alternate_terms = dict(terms)
                         if kind is PhoenixOption:
                             alternate_terms["coupon_rate"] = 0.12
                         else:
-                            alternate_terms["knock_out_coupon_rates"] = [0.12, 0.13]
-                            if convention["quote_convention"] == "shift_maturity_coupon":
+                            alternate_terms["observations"] = autocallable_observations(
+                                observation_dates,
+                                knock_out_levels,
+                                knock_out_coupon_rates=[0.12, 0.13],
+                            )
+                            if (
+                                convention["quote_convention"]
+                                == "shift_maturity_coupon"
+                            ):
                                 alternate_terms["maturity_coupon_rate"] = 0.12
-                        alternate_quote = engine.price(kind(**common, **alternate_terms), context)
+                        alternate_quote = engine.price(
+                            kind(**common, **alternate_terms), context
+                        )
 
-                        def solve(observed_price):
+                        def solve(
+                            observed_price,
+                            *,
+                            convention=convention,
+                            engine=engine,
+                            note=note,
+                        ):
                             return pricing.implied_coupon(
-                                engine, note, context, observed_price, lower_bound=0, upper_bound=0.2,
-                                price_tolerance=1e-12, parameter_tolerance=1e-12, **convention,
+                                engine,
+                                note,
+                                context,
+                                observed_price,
+                                lower_bound=0,
+                                upper_bound=0.2,
+                                price_tolerance=1e-12,
+                                parameter_tolerance=1e-12,
+                                **convention,
                             )
 
-                        with self.subTest(kind=kind, mode=mode, scheme=scheme, convention=convention):
+                        with self.subTest(
+                            kind=kind, mode=mode, scheme=scheme, convention=convention
+                        ):
                             with ThreadPoolExecutor(max_workers=2) as pool:
-                                results = list(pool.map(solve, (quote, alternate_quote)))
+                                results = list(
+                                    pool.map(solve, (quote, alternate_quote))
+                                )
                             self.assertAlmostEqual(results[0], 0.073, delta=1e-9)
                             self.assertAlmostEqual(results[1], 0.12, delta=1e-9)
                             with self.assertRaises(kiyosi.KiyosiError) as error:
                                 pricing.implied_coupon(
-                                    engine, note, context, quote, lower_bound=0.2,
-                                    upper_bound=0, **convention,
+                                    engine,
+                                    note,
+                                    context,
+                                    quote,
+                                    lower_bound=0.2,
+                                    upper_bound=0,
+                                    **convention,
                                 )
-                            self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER)
+                            self.assertEqual(
+                                error.exception.category,
+                                kiyosi.ErrorCategory.INVALID_PARAMETER,
+                            )
                             self.assertEqual(solve(quote), results[0])
 
     def test_autocallable_requests_revalidate_contracts_and_calendars(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         dates = [start + timedelta(days=index) for index in range(1, 13)]
-        common = dict(
-            knock_out_levels=[110] * len(dates),
-            observation_dates=dates,
-            effective_date=start,
-            expiry_date=end,
-        )
-        coupons = dict(
-            knock_out_coupon_rates=[0.08] * len(dates), maturity_coupon_rate=0.06
-        )
-        downside = dict(
-            initial_spot=100, knock_in_level=99, upper_strike=100, lower_strike=60,
-            knock_in_observation_mode="every_trading_day",
-        )
+        observation_dates = dates
+        knock_out_levels = [110] * len(dates)
+        common = {"effective_date": start, "expiry_date": end}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates,
+                knock_out_levels,
+                knock_out_coupon_rates=[0.08] * len(dates),
+            ),
+        }
+        downside = {
+            "initial_spot": 100,
+            "knock_in_level": 99,
+            "upper_strike": 100,
+            "lower_strike": 60,
+            "knock_in_observation_mode": "every_trading_day",
+        }
         cases = (
             (BinarySnowballOption, coupons),
             (SnowballOption, {**coupons, **downside}),
             (
                 TernarySnowballOption,
-                {**coupons, "knock_in_level": 99, "minimum_coupon_rate": 0.02,
-                 "knock_in_observation_mode": "every_trading_day"},
+                {
+                    **coupons,
+                    "knock_in_level": 99,
+                    "minimum_coupon_rate": 0.02,
+                    "knock_in_observation_mode": "every_trading_day",
+                },
             ),
             (
                 PhoenixOption,
-                {**downside, "coupon_rate": 0.08, "coupon_barrier_levels": [100] * len(dates)},
+                {
+                    **downside,
+                    "coupon_rate": 0.08,
+                    "observations": autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        coupon_barrier_levels=[100] * len(dates),
+                    ),
+                },
             ),
         )
 
@@ -194,8 +342,10 @@ class AutocallableRegressionTests(unittest.TestCase):
             )
             for engine in engines:
                 with self.subTest(engine=type(engine).__name__):
-                    shifts = dict(volatility_shift=0.01, rate_shift=0.01)
-                    result = engine.price_with_greeks(note, base, ["vega", "rho"], **shifts)
+                    shifts = {"volatility_shift": 0.01, "rate_shift": 0.01}
+                    result = engine.price_with_greeks(
+                        note, base, ["vega", "rho"], **shifts
+                    )
                     self.assertEqual(result.price, engine.price(note, base))
                     vol_shift = (0.2 + 0.01) - 0.2
                     self.assertEqual(
@@ -203,7 +353,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                         (
                             engine.price(note, context(volatility=0.2 + vol_shift))
                             - engine.price(note, context(volatility=0.2 - vol_shift))
-                        ) / (200 * vol_shift),
+                        )
+                        / (200 * vol_shift),
                     )
                     rate_shift = (0.04 + 0.01) - 0.04
                     self.assertEqual(
@@ -211,20 +362,31 @@ class AutocallableRegressionTests(unittest.TestCase):
                         (
                             engine.price(note, context(rate=0.04 + rate_shift))
                             - engine.price(note, context(rate=0.04 - rate_shift))
-                        ) / (200 * rate_shift),
+                        )
+                        / (200 * rate_shift),
                     )
                     for option, shifted, category in (
-                        (note, context(calendar=weekdays_calendar()), kiyosi.ErrorCategory.INVALID_DATE),
+                        (
+                            note,
+                            context(calendar=weekdays_calendar()),
+                            kiyosi.ErrorCategory.INVALID_DATE,
+                        ),
                         (missing_history, base, kiyosi.ErrorCategory.INVALID_PARAMETER),
                     ):
                         with self.assertRaises(kiyosi.KiyosiError) as error:
                             engine.price_with_greeks(option, shifted, ["vega", "rho"])
                         self.assertEqual(error.exception.category, category)
                     with ThreadPoolExecutor(max_workers=2) as pool:
-                        results = list(pool.map(
-                            lambda _: engine.price_with_greeks(note, base, ["vega", "rho"], **shifts),
-                            range(2),
-                        ))
+                        results = list(
+                            pool.map(
+                                lambda _, *, engine=engine, note=note, shifts=shifts: (
+                                    engine.price_with_greeks(
+                                        note, base, ["vega", "rho"], **shifts
+                                    )
+                                ),
+                                range(2),
+                            )
+                        )
                     for recovered in results:
                         self.assertEqual(
                             (recovered.price, recovered.vega, recovered.rho),
@@ -233,19 +395,19 @@ class AutocallableRegressionTests(unittest.TestCase):
 
     def test_shared_spot_simulations_match_separate_seeded_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
-        terms = {
-            "knock_out_levels": [101, 100, 99],
-            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
-            "barrier_state": "none",
-            "effective_date": start,
-            "expiry_date": end,
-        }
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [101, 100, 99]
+        terms = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
         cases = [
             (
                 BinarySnowballOption(
-                    knock_out_coupon_rates=[0.08] * 3,
                     maturity_coupon_rate=0.05,
                     **terms,
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        knock_out_coupon_rates=[0.08] * 3,
+                    ),
                 ),
                 pricing.MonteCarloAutocallableEngine,
             ),
@@ -256,12 +418,16 @@ class AutocallableRegressionTests(unittest.TestCase):
                 [
                     (
                         SnowballOption(
-                            knock_out_coupon_rates=[0.08] * 3,
                             maturity_coupon_rate=0.06,
                             initial_spot=100,
                             upper_strike=100,
                             lower_strike=60,
                             **common,
+                            observations=autocallable_observations(
+                                observation_dates,
+                                knock_out_levels,
+                                knock_out_coupon_rates=[0.08] * 3,
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
@@ -269,19 +435,27 @@ class AutocallableRegressionTests(unittest.TestCase):
                         PhoenixOption(
                             coupon_rate=0.08,
                             initial_spot=100,
-                            coupon_barrier_levels=[100, 99, 98],
                             upper_strike=100,
                             lower_strike=60,
                             **common,
+                            observations=autocallable_observations(
+                                observation_dates,
+                                knock_out_levels,
+                                coupon_barrier_levels=[100, 99, 98],
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
                     (
                         TernarySnowballOption(
-                            knock_out_coupon_rates=[0.08] * 3,
                             maturity_coupon_rate=0.06,
                             minimum_coupon_rate=0.02,
                             **common,
+                            observations=autocallable_observations(
+                                observation_dates,
+                                knock_out_levels,
+                                knock_out_coupon_rates=[0.08] * 3,
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),
@@ -341,18 +515,18 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = SnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
-            knock_out_levels=[110],
             upper_strike=100,
             lower_strike=100,
-            observation_dates=[end],
             barrier_state="none",
             knock_in_observation_mode="every_trading_day",
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0]
+            ),
         )
         for engine in (
             pricing.FiniteDifferenceAutocallableEngine(),
@@ -404,18 +578,18 @@ class AutocallableRegressionTests(unittest.TestCase):
             for state in ("none", "knocked_in"):
                 with self.subTest(engine=type(engine).__name__, state=state):
                     note = SnowballOption(
-                        knock_out_coupon_rates=[0.08],
                         maturity_coupon_rate=0.06,
                         initial_spot=100,
                         knock_in_level=75,
-                        knock_out_levels=[110],
                         upper_strike=100,
                         lower_strike=60,
-                        observation_dates=[end],
                         barrier_state=state,
                         effective_date=start,
                         expiry_date=end,
                         knock_in_observation_mode="every_trading_day",
+                        observations=autocallable_observations(
+                            [end], [110], knock_out_coupon_rates=[0.08]
+                        ),
                     )
                     result = engine.price_with_greeks(
                         note, context, ["theta", "charm", "color"]
@@ -448,19 +622,21 @@ class AutocallableRegressionTests(unittest.TestCase):
                 coupon_rate=0.08,
                 initial_spot=100,
                 knock_in_level=80,
-                knock_out_levels=[110, 108, 106, 104],
-                coupon_barrier_levels=[90] * 4,
                 upper_strike=100,
                 lower_strike=60,
-                observation_dates=[
-                    date(2025, 4, 1),
-                    date(2025, 7, 1),
-                    date(2025, 10, 1),
-                    end,
-                ],
                 knock_in_observation_mode=mode,
                 effective_date=start,
                 expiry_date=end,
+                observations=autocallable_observations(
+                    [
+                        date(2025, 4, 1),
+                        date(2025, 7, 1),
+                        date(2025, 10, 1),
+                        end,
+                    ],
+                    [110, 108, 106, 104],
+                    coupon_barrier_levels=[90] * 4,
+                ),
             )
             for scheme in ("crank_nicolson", "implicit_euler", "explicit_euler"):
                 with self.subTest(mode=mode, scheme=scheme):
@@ -488,35 +664,41 @@ class AutocallableRegressionTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
+        observation_dates = [end]
+        knock_out_levels = [110]
         common = {
             "knock_in_level": 100,
-            "knock_out_levels": [110],
-            "observation_dates": [end],
             "knock_in_observation_mode": "at_expiry",
             "effective_date": start,
             "expiry_date": end,
         }
         snowball = SnowballOption(
             **common,
-            knock_out_coupon_rates=[0.06],
             maturity_coupon_rate=0.06,
             initial_spot=100,
             upper_strike=100,
             lower_strike=60,
+            observations=autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.06]
+            ),
         )
         phoenix = PhoenixOption(
             **common,
             coupon_rate=0.08,
-            coupon_barrier_levels=[0],
             initial_spot=100,
             upper_strike=100,
             lower_strike=60,
+            observations=autocallable_observations(
+                observation_dates, knock_out_levels, coupon_barrier_levels=[0]
+            ),
         )
         ternary = TernarySnowballOption(
             **common,
-            knock_out_coupon_rates=[0.06],
             maturity_coupon_rate=0.06,
             minimum_coupon_rate=0.02,
+            observations=autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.06]
+            ),
         )
         put_prices = [
             pricing.AnalyticVanillaEngine().price(
@@ -573,16 +755,16 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_protected_snowball_uses_observation_paths_with_stochastic_knock_out(self):
         start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         terms = {
-            "knock_out_coupon_rates": [0.08, 0.08],
             "maturity_coupon_rate": 0,
             "initial_spot": 100,
             "knock_in_level": 75,
-            "knock_out_levels": [110, 104],
             "upper_strike": 100,
             "lower_strike": 100,
-            "observation_dates": [middle, end],
             "effective_date": start,
             "expiry_date": end,
+            "observations": autocallable_observations(
+                [middle, end], [110, 104], knock_out_coupon_rates=[0.08, 0.08]
+            ),
         }
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -638,17 +820,17 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_fixed_autocallable_prices_skip_numerical_work_after_validation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = SnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
-            knock_out_levels=[110],
             upper_strike=100,
             lower_strike=100,
-            observation_dates=[end],
             effective_date=start,
             expiry_date=end,
             knock_in_observation_mode="every_trading_day",
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0]
+            ),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -686,12 +868,12 @@ class AutocallableRegressionTests(unittest.TestCase):
 
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
-            knock_out_levels=[110],
-            observation_dates=[end],
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0]
+            ),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -710,13 +892,13 @@ class AutocallableRegressionTests(unittest.TestCase):
     def test_fixed_implied_volatility_preserves_non_finite_pricing_errors(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[1e308],
             maturity_coupon_rate=1e308,
-            knock_out_levels=[110],
-            observation_dates=[end],
             principal_ratio=1e308,
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[1e308]
+            ),
         )
         for valuation in (start, end):
             context = PricingContext(
@@ -745,12 +927,14 @@ class AutocallableRegressionTests(unittest.TestCase):
         )
         for observations in ([date(2025, 7, 1)], [date(2025, 7, 1), end]):
             terms = {
-                "knock_out_coupon_rates": [0.08] * len(observations),
                 "maturity_coupon_rate": 0.04,
-                "knock_out_levels": [110] * len(observations),
-                "observation_dates": observations,
                 "effective_date": start,
                 "expiry_date": end,
+                "observations": autocallable_observations(
+                    observations,
+                    [110] * len(observations),
+                    knock_out_coupon_rates=[0.08] * len(observations),
+                ),
             }
             for mode in ("at_expiry", "every_trading_day"):
                 snowball = SnowballOption(
@@ -764,9 +948,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 for note, engine in (
                     (
                         BinarySnowballOption(**terms),
-                        pricing.MonteCarloAutocallableEngine(
-                            path_count=2000, seed=42
-                        ),
+                        pricing.MonteCarloAutocallableEngine(path_count=2000, seed=42),
                     ),
                     (
                         snowball,

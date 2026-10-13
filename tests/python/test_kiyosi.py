@@ -38,6 +38,7 @@ from kiyosi.instruments import (
     asset_no_touch_down,
     asset_one_touch_down,
     asset_one_touch_up,
+    autocallable_observations,
     both_down_snowball,
     cash_binary_barrier_option,
     cash_one_touch_up,
@@ -96,18 +97,18 @@ class KiyosiPythonTests(unittest.TestCase):
             calendar=market.all_days_calendar(),
         )
         note = SnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
-            knock_out_levels=[1e6],
             upper_strike=100,
             lower_strike=0,
-            observation_dates=[end],
             knock_in_observation_mode="every_trading_day",
             barrier_state="knocked_in",
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [1e6], knock_out_coupon_rates=[0]
+            ),
         )
         put = EuropeanOption(
             option_type="put", strike=100, effective_date=start, expiry_date=end
@@ -355,26 +356,26 @@ class KiyosiPythonTests(unittest.TestCase):
             )
             for principal in (1e305, math.ulp(0.0)):
                 option = BinarySnowballOption(
-                    knock_out_coupon_rates=[0],
                     maturity_coupon_rate=0,
-                    knock_out_levels=[120],
-                    observation_dates=[next_day],
                     principal_ratio=principal,
                     effective_date=start,
                     expiry_date=next_day,
+                    observations=autocallable_observations(
+                        [next_day], [120], knock_out_coupon_rates=[0]
+                    ),
                 )
                 context = PricingContext(
                     model_parameters=parameters, spot_price=100, valuation_time=start
                 )
                 self.assertEqual(autocallable.price(option, context), principal)
             overflow = BinarySnowballOption(
-                knock_out_coupon_rates=[1e308],
                 maturity_coupon_rate=1e308,
-                knock_out_levels=[120],
-                observation_dates=[end],
                 principal_ratio=1e308,
                 effective_date=start,
                 expiry_date=end,
+                observations=autocallable_observations(
+                    [end], [120], knock_out_coupon_rates=[1e308]
+                ),
             )
             context = PricingContext(
                 model_parameters=parameters, spot_price=100, valuation_time=start
@@ -389,14 +390,15 @@ class KiyosiPythonTests(unittest.TestCase):
 
     def test_determined_cashflows_bypass_grids_and_reject_implied_volatility(self):
         start, observed, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
-        common = {
-            "knock_out_levels": [120, 120],
-            "observation_dates": [observed, end],
-            "barrier_state": "none",
-            "effective_date": start,
-            "expiry_date": end,
+        observation_dates = [observed, end]
+        knock_out_levels = [120, 120]
+        common = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
+        snowball = {
+            "maturity_coupon_rate": 0.1,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.1, 0.1]
+            ),
         }
-        snowball = {"knock_out_coupon_rates": [0.1, 0.1], "maturity_coupon_rate": 0.1}
         downside = {
             "initial_spot": 100,
             "knock_in_level": 70,
@@ -444,7 +446,11 @@ class KiyosiPythonTests(unittest.TestCase):
                     **common,
                     **downside,
                     coupon_rate=0.1,
-                    coupon_barrier_levels=[90, 90],
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        coupon_barrier_levels=[90, 90],
+                    ),
                 ),
                 pricing.MonteCarloAutocallableEngine,
                 pricing.FiniteDifferenceAutocallableEngine,
@@ -454,9 +460,15 @@ class KiyosiPythonTests(unittest.TestCase):
                     **{
                         **common,
                         "barrier_state": "knocked_out",
-                        "observation_dates": [date(2025, 3, 3), end],
                     },
-                    **snowball,
+                    **{
+                        **snowball,
+                        "observations": autocallable_observations(
+                            [date(2025, 3, 3), end],
+                            knock_out_levels,
+                            knock_out_coupon_rates=[0.1, 0.1],
+                        ),
+                    },
                 ),
                 pricing.MonteCarloAutocallableEngine,
                 pricing.FiniteDifferenceAutocallableEngine,
@@ -597,15 +609,17 @@ class KiyosiPythonTests(unittest.TestCase):
             coupon_rate=0.1,
             initial_spot=100,
             knock_in_level=70,
-            knock_out_levels=[140, 120, 120],
-            coupon_barrier_levels=[110, 90, 90],
             upper_strike=100,
             lower_strike=0,
-            observation_dates=[date(2025, 4, 1), observed, end],
             knock_in_observation_mode="every_trading_day",
             barrier_state="none",
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [date(2025, 4, 1), observed, end],
+                [140, 120, 120],
+                coupon_barrier_levels=[110, 90, 90],
+            ),
         )
         cases.extend(
             (engine, phoenix, spot)
@@ -814,13 +828,13 @@ class KiyosiPythonTests(unittest.TestCase):
                     valuation_time=valuation,
                 )
                 note = BinarySnowballOption(
-                    knock_out_coupon_rates=[0.3, 0.1],
                     maturity_coupon_rate=0.1,
-                    knock_out_levels=[120, 120],
-                    observation_dates=[start, end],
                     barrier_state="none",
                     effective_date=start,
                     expiry_date=end,
+                    observations=autocallable_observations(
+                        [start, end], [120, 120], knock_out_coupon_rates=[0.3, 0.1]
+                    ),
                 )
                 quote = 1.1 * math.exp(-0.04 * (end - valuation).days / 365)
                 with self.subTest(engine=type(engine).__name__, valuation=valuation):
@@ -831,12 +845,12 @@ class KiyosiPythonTests(unittest.TestCase):
                         kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
                     )
             note = BinarySnowballOption(
-                knock_out_coupon_rates=[0.2],
                 maturity_coupon_rate=0.1,
-                knock_out_levels=[120],
-                observation_dates=[end],
                 effective_date=start,
                 expiry_date=end,
+                observations=autocallable_observations(
+                    [end], [120], knock_out_coupon_rates=[0.2]
+                ),
             )
             context = PricingContext(
                 model_parameters=parameters, spot_price=100, valuation_time=start
@@ -860,12 +874,12 @@ class KiyosiPythonTests(unittest.TestCase):
                 0.05,
             )
             early_note = BinarySnowballOption(
-                knock_out_coupon_rates=[0, 0],
                 maturity_coupon_rate=0,
-                knock_out_levels=[120, 120],
-                observation_dates=[date(2025, 7, 1), end],
                 effective_date=start,
                 expiry_date=end,
+                observations=autocallable_observations(
+                    [date(2025, 7, 1), end], [120, 120], knock_out_coupon_rates=[0, 0]
+                ),
             )
             for rate in (0, 0.04):
                 low_context = PricingContext(
@@ -948,16 +962,18 @@ class KiyosiPythonTests(unittest.TestCase):
                     valuation=valuation,
                 ):
                     note = TernarySnowballOption(
-                        knock_out_coupon_rates=[coupon, coupon],
                         maturity_coupon_rate=maturity,
                         minimum_coupon_rate=minimum,
                         knock_in_level=70,
-                        knock_out_levels=[120, 120],
-                        observation_dates=[fixing, end],
                         knock_in_observation_mode="every_trading_day",
                         barrier_state=state,
                         effective_date=start,
                         expiry_date=end,
+                        observations=autocallable_observations(
+                            [fixing, end],
+                            [120, 120],
+                            knock_out_coupon_rates=[coupon, coupon],
+                        ),
                     )
                     context = PricingContext(
                         model_parameters=BlackScholesMertonParameters(
@@ -1447,12 +1463,12 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_seeded_autocallable_paths_stay_coupled_across_knock_out_changes(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0, 0],
             maturity_coupon_rate=0.2,
-            knock_out_levels=[110, 110],
-            observation_dates=[date(2025, 7, 1), end],
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [date(2025, 7, 1), end], [110, 110], knock_out_coupon_rates=[0, 0]
+            ),
         )
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0, dividend_yield=0, volatility=0.2
@@ -1806,12 +1822,12 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_fd_current_events_use_actual_spot(self):
         start, event, end = date(2025, 1, 1), date(2025, 1, 2), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0.1, 0.1],
             maturity_coupon_rate=0.2,
-            knock_out_levels=[120, 130],
-            observation_dates=[event, end],
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [event, end], [120, 130], knock_out_coupon_rates=[0.1, 0.1]
+            ),
         )
         accumulator = Accumulator(
             strike=100,
@@ -1949,15 +1965,15 @@ class KiyosiPythonTests(unittest.TestCase):
                 coupon_rate=0.1,
                 initial_spot=100,
                 knock_in_level=70,
-                knock_out_levels=[120, 120],
-                coupon_barrier_levels=[barrier, 90],
                 upper_strike=100,
                 lower_strike=0,
-                observation_dates=[fixing, end],
                 knock_in_observation_mode="every_trading_day",
                 barrier_state="none",
                 effective_date=start,
                 expiry_date=end,
+                observations=autocallable_observations(
+                    [fixing, end], [120, 120], coupon_barrier_levels=[barrier, 90]
+                ),
             )
             for spot in (80, 90, 120):
                 context = PricingContext(
@@ -2131,8 +2147,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     risk_free_rate=.05, dividend_yield=.02, volatility=.2),
                 spot_price=100, valuation_time=start)
             note = k.BinarySnowballOption(
-                knock_out_coupon_rates=[.1], maturity_coupon_rate=.1,
-                knock_out_levels=[120], observation_dates=[end],
+                maturity_coupon_rate=.1,
+                observations=k.autocallable_observations([end], [120], knock_out_coupon_rates=[.1]),
                 effective_date=start, expiry_date=end)
             engine = k.MonteCarloAutocallableEngine(path_count=2, seed=1)
             for choice in ('unknown', chr(0xD800)):
@@ -2350,12 +2366,12 @@ class KiyosiPythonTests(unittest.TestCase):
             expiry_date=end,
         )
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0.1],
             maturity_coupon_rate=0.2,
-            knock_out_levels=[120],
-            observation_dates=[end],
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [120], knock_out_coupon_rates=[0.1]
+            ),
         )
         for rate, volatility in ((0.05, 1e308), (0.05, 1000), (1e308, 0.2)):
             context = PricingContext(
@@ -2798,7 +2814,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 "trading_days_per_year=252",
             ),
             (self.context, "PricingContext(", "spot_price=100.0"),
-            (note, "SnowballOption(", "knock_out_coupon_rates=[0.1]"),
+            (note, "SnowballOption(", "coupon_rate=0.1"),
             (
                 pricing.FiniteDifferenceVanillaEngine(),
                 "FiniteDifferenceVanillaEngine(",
@@ -2883,12 +2899,12 @@ class KiyosiPythonTests(unittest.TestCase):
         effective = date(2025, 1, 1)
         expiry = date(2026, 1, 1)
         option = BinarySnowballOption(
-            knock_out_coupon_rates=[-0.1],
             maturity_coupon_rate=-0.1,
-            knock_out_levels=[1],
-            observation_dates=[expiry],
             effective_date=effective,
             expiry_date=expiry,
+            observations=autocallable_observations(
+                [expiry], [1], knock_out_coupon_rates=[-0.1]
+            ),
         )
         context = PricingContext(
             model_parameters=self.parameters, spot_price=100, valuation_time=effective
@@ -2920,13 +2936,15 @@ class KiyosiPythonTests(unittest.TestCase):
         )
 
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0.1, 0.1],
             maturity_coupon_rate=0.05,
-            knock_out_levels=[120, 120],
-            observation_dates=[date(2025, 7, 1), expiry],
             barrier_state="knocked_out",
             effective_date=date(2025, 1, 1),
             expiry_date=expiry,
+            observations=autocallable_observations(
+                [date(2025, 7, 1), expiry],
+                [120, 120],
+                knock_out_coupon_rates=[0.1, 0.1],
+            ),
         )
         engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=1)
         for solve in (
@@ -2948,12 +2966,12 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_binary_snowball_rejects_knock_in_history(self):
         expiry = date(2026, 1, 1)
         terms = {
-            "knock_out_coupon_rates": [0.05],
             "maturity_coupon_rate": 0.05,
-            "knock_out_levels": [110],
-            "observation_dates": [expiry],
             "effective_date": date(2025, 1, 1),
             "expiry_date": expiry,
+            "observations": autocallable_observations(
+                [expiry], [110], knock_out_coupon_rates=[0.05]
+            ),
         }
         with self.assertRaises(kiyosi.KiyosiError) as error:
             BinarySnowballOption(**terms, barrier_state="knocked_in")
@@ -2968,12 +2986,9 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_sequence_conversion_preserves_iterator_initialization_errors(self):
         expiry = date(2026, 1, 1)
         terms = {
-            "knock_out_coupon_rates": [0.05],
-            "maturity_coupon_rate": 0.05,
-            "knock_out_levels": [110],
             "observation_dates": [expiry],
-            "effective_date": date(2025, 1, 1),
-            "expiry_date": expiry,
+            "knock_out_levels": [110],
+            "knock_out_coupon_rates": [0.05],
         }
         for field in ("observation_dates", "knock_out_levels"):
             for error_type in (RuntimeError, MemoryError):
@@ -2984,7 +2999,7 @@ class KiyosiPythonTests(unittest.TestCase):
 
                 with self.subTest(field=field, error=error_type.__name__):
                     with self.assertRaises(error_type) as error:
-                        BinarySnowballOption(**{**terms, field: FailingIterable()})
+                        autocallable_observations(**{**terms, field: FailingIterable()})
                     self.assertEqual(
                         str(error.exception), "iterator initialization failed"
                     )
@@ -2992,21 +3007,23 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.subTest(field=field, kind="non-iterable"),
                 self.assertRaises(TypeError),
             ):
-                BinarySnowballOption(**{**terms, field: 42})
+                autocallable_observations(**{**terms, field: 42})
             with self.subTest(field=field, kind="generator"):
-                note = BinarySnowballOption(
+                note = autocallable_observations(
                     **{**terms, field: (value for value in terms[field])}
                 )
-                self.assertEqual(getattr(note, field), terms[field])
+                self.assertEqual(note, autocallable_observations(**terms))
 
     def test_autocallable_history_is_explicit_after_observation(self):
         terms = {
-            "knock_out_coupon_rates": [0.05, 0.05],
             "maturity_coupon_rate": 0.05,
-            "knock_out_levels": [110, 110],
-            "observation_dates": [date(2025, 1, 2), date(2025, 1, 6)],
             "effective_date": date(2025, 1, 1),
             "expiry_date": date(2025, 1, 6),
+            "observations": autocallable_observations(
+                [date(2025, 1, 2), date(2025, 1, 6)],
+                [110, 110],
+                knock_out_coupon_rates=[0.05, 0.05],
+            ),
         }
         engine = pricing.MonteCarloAutocallableEngine(path_count=32, seed=1)
         later = PricingContext(
@@ -3153,11 +3170,11 @@ class KiyosiPythonTests(unittest.TestCase):
                 )
                 self.assertTrue(math.isfinite(engine.price(adjusted_option, context)))
         note_terms = {
-            "knock_out_coupon_rates": [0],
             "maturity_coupon_rate": 0.01,
-            "knock_out_levels": [200],
-            "observation_dates": [date(2025, 1, 3)],
             "effective_date": date(2025, 1, 3),
+            "observations": autocallable_observations(
+                [date(2025, 1, 3)], [200], knock_out_coupon_rates=[0]
+            ),
         }
         nominal_note = BinarySnowballOption(**note_terms, expiry_date=nominal)
         adjusted_note = BinarySnowballOption(
@@ -3305,12 +3322,12 @@ class KiyosiPythonTests(unittest.TestCase):
             (
                 "Snowball",
                 lambda start, end: BinarySnowballOption(
-                    knock_out_coupon_rates=[0.1],
                     maturity_coupon_rate=0.05,
-                    knock_out_levels=[110],
-                    observation_dates=[end],
                     effective_date=start,
                     expiry_date=end,
+                    observations=autocallable_observations(
+                        [end], [110], knock_out_coupon_rates=[0.1]
+                    ),
                 ),
             ),
         )
@@ -3410,14 +3427,14 @@ class KiyosiPythonTests(unittest.TestCase):
             coupon_rate=0.0025,
             initial_spot=100,
             knock_in_level=80,
-            knock_out_levels=[120],
-            coupon_barrier_levels=[90],
             upper_strike=100,
             lower_strike=60,
-            observation_dates=[expiry_date],
             knock_in_observation_mode="every_trading_day",
             effective_date=effective_date,
             expiry_date=expiry_date,
+            observations=autocallable_observations(
+                [expiry_date], [120], coupon_barrier_levels=[90]
+            ),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -3449,14 +3466,16 @@ class KiyosiPythonTests(unittest.TestCase):
                     coupon_rate=0.08,
                     initial_spot=scale,
                     knock_in_level=0.5 * scale,
-                    knock_out_levels=[2 * scale] * len(dates),
-                    coupon_barrier_levels=[0.9 * scale] * len(dates),
                     upper_strike=scale,
                     lower_strike=0,
-                    observation_dates=dates,
                     knock_in_observation_mode="at_expiry",
                     effective_date=start,
                     expiry_date=end,
+                    observations=autocallable_observations(
+                        dates,
+                        [2 * scale] * len(dates),
+                        coupon_barrier_levels=[0.9 * scale] * len(dates),
+                    ),
                 )
                 context = PricingContext(
                     model_parameters=BlackScholesMertonParameters(
@@ -3840,14 +3859,19 @@ class KiyosiPythonTests(unittest.TestCase):
 
         dates = [StoredDate(2025, 1, 1) + timedelta(days=i) for i in range(1, 253)]
         terms = {
-            "knock_out_coupon_rates": [0.08] * len(dates),
             "maturity_coupon_rate": 0.06,
-            "knock_out_levels": [110] * len(dates),
             "effective_date": date(2025, 1, 1),
             "expiry_date": dates[-1],
         }
         with patch("builtins.__import__", wraps=__import__) as imported:
-            note = BinarySnowballOption(observation_dates=iter(dates), **terms)
+            note = BinarySnowballOption(
+                observations=autocallable_observations(
+                    iter(dates),
+                    [110] * len(dates),
+                    knock_out_coupon_rates=[0.08] * len(dates),
+                ),
+                **terms,
+            )
         self.assertLessEqual(
             sum(call.args[0] == "datetime" for call in imported.call_args_list), 3
         )
@@ -3861,8 +3885,8 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertTrue(all(type(value) is date for value in note.observation_dates))
         for invalid in (datetime(2025, 1, 3, tzinfo=UTC), "2025-01-03", None):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
-                BinarySnowballOption(
-                    observation_dates=iter([dates[0], invalid, *dates[2:]]), **terms
+                autocallable_observations(
+                    iter([dates[0], invalid, *dates[2:]]), [110] * len(dates)
                 )
 
         def broken_dates():
@@ -3870,7 +3894,7 @@ class KiyosiPythonTests(unittest.TestCase):
             raise RuntimeError("schedule unavailable")
 
         with self.assertRaisesRegex(RuntimeError, "schedule unavailable"):
-            BinarySnowballOption(observation_dates=broken_dates(), **terms)
+            autocallable_observations(broken_dates(), [110] * len(dates))
 
     def test_datetime_subclasses_use_stored_components_and_builtin_utc_conversion(self):
         class ShadowedTimestamp(datetime):
@@ -4793,20 +4817,18 @@ class KiyosiPythonTests(unittest.TestCase):
                         )
                     else:
                         option = BinarySnowballOption(
-                            knock_out_coupon_rates=[0.1],
                             maturity_coupon_rate=0.1,
-                            knock_out_levels=[110],
-                            observation_dates=[
-                                date.fromisoformat(values["observation_date"])
-                            ],
                             barrier_state="none",
                             effective_date=start,
                             expiry_date=end,
+                            observations=autocallable_observations(
+                                [date.fromisoformat(values["observation_date"])],
+                                [110],
+                                knock_out_coupon_rates=[0.1],
+                            ),
                         )
                         for engine in (
-                            pricing.MonteCarloAutocallableEngine(
-                                path_count=2, seed=1
-                            ),
+                            pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
                             pricing.FiniteDifferenceAutocallableEngine(),
                         ):
                             price = engine.price(option, context)

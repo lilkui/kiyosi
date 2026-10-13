@@ -7,11 +7,12 @@ from kiyosi.instruments import (
     AmericanOption,
     AssetOrNothingOption,
     BarrierOption,
+    BinarySnowballOption,
     CashOrNothingOption,
     EuropeanOption,
-    BinarySnowballOption,
     SnowballOption,
     asset_binary_barrier_option,
+    autocallable_observations,
     cash_binary_barrier_option,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
@@ -27,9 +28,12 @@ class AuditRegressionTests(unittest.TestCase):
             spot_price=100,
             valuation_time=date(2025, 7, 1),
         )
-        terms = dict(
-            option_type="call", strike=100, effective_date=start, expiry_date=end
-        )
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
         expected = pricing.calculate_numerical_greeks(
             pricing.AnalyticVanillaEngine(), EuropeanOption(**terms), context
         )
@@ -65,15 +69,17 @@ class AuditRegressionTests(unittest.TestCase):
         self,
     ):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        terms = dict(
-            knock_out_coupon_rates=[0.08] * 3,
-            maturity_coupon_rate=0.06,
-            knock_out_levels=[110] * 3,
-            observation_dates=[date(2025, 3, 3), date(2025, 7, 2), end],
-            barrier_state="knocked_out",
-            effective_date=start,
-            expiry_date=end,
-        )
+        terms = {
+            "maturity_coupon_rate": 0.06,
+            "barrier_state": "knocked_out",
+            "effective_date": start,
+            "expiry_date": end,
+            "observations": autocallable_observations(
+                [date(2025, 3, 3), date(2025, 7, 2), end],
+                [110] * 3,
+                knock_out_coupon_rates=[0.08] * 3,
+            ),
+        }
         binary = BinarySnowballOption(**terms)
         snowball = SnowballOption(
             **terms,

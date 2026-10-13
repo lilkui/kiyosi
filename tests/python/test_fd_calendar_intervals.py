@@ -2,7 +2,12 @@ import unittest
 from datetime import date, timedelta
 
 from kiyosi import pricing
-from kiyosi.instruments import Accumulator, BarrierOption, SnowballOption
+from kiyosi.instruments import (
+    Accumulator,
+    BarrierOption,
+    SnowballOption,
+    autocallable_observations,
+)
 from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
@@ -27,23 +32,25 @@ cases = [
     (
         pricing.FiniteDifferenceAutocallableEngine,
         SnowballOption(
-            knock_out_coupon_rates=[0.08] * 4,
             maturity_coupon_rate=0.06,
             initial_spot=100,
             knock_in_level=75,
-            knock_out_levels=[110] * 4,
             upper_strike=100,
             lower_strike=60,
-            observation_dates=[
-                date(2024, 4, 1),
-                date(2024, 7, 1),
-                date(2024, 10, 1),
-                end,
-            ],
             knock_in_observation_mode="every_trading_day",
             barrier_state="none",
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [
+                    date(2024, 4, 1),
+                    date(2024, 7, 1),
+                    date(2024, 10, 1),
+                    end,
+                ],
+                [110] * 4,
+                knock_out_coupon_rates=[0.08] * 4,
+            ),
         ),
     ),
     (

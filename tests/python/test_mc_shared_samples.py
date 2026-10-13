@@ -13,6 +13,7 @@ from kiyosi.instruments import (
     PhoenixOption,
     SnowballOption,
     TernarySnowballOption,
+    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -42,37 +43,66 @@ class SharedSampleTests(unittest.TestCase):
         )
         option = BinarySnowballOption(
             maturity_coupon_rate=0.06,
-            knock_out_coupon_rates=[0.08],
-            knock_out_levels=[110],
-            observation_dates=[end],
             effective_date=start,
             expiry_date=end,
             barrier_state="none",
+            observations=autocallable_observations(
+                [end], [110], knock_out_coupon_rates=[0.08]
+            ),
         )
-        backends = ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        backends = (
+            ("cpu", "cuda") if os.getenv("KIYOSI_TEST_CUDA") == "enabled" else ("cpu",)
+        )
         for backend in backends:
-            engine = pricing.MonteCarloAutocallableEngine(path_count=31, seed=42, backend=backend)
-            for valuation in (datetime(2025, 1, 1, tzinfo=UTC), datetime(2025, 1, 6, 12, tzinfo=UTC)):
+            engine = pricing.MonteCarloAutocallableEngine(
+                path_count=31, seed=42, backend=backend
+            )
+            for valuation in (
+                datetime(2025, 1, 1, tzinfo=UTC),
+                datetime(2025, 1, 6, 12, tzinfo=UTC),
+            ):
+
                 def context(spot, instant):
                     return PricingContext(
-                        model_parameters=parameters, spot_price=spot,
-                        valuation_time=instant, calendar=all_days_calendar(),
+                        model_parameters=parameters,
+                        spot_price=spot,
+                        valuation_time=instant,
+                        calendar=all_days_calendar(),
                     )
 
                 spot, h = 100.25, 0.25
-                before = max(datetime(2025, 1, 1, tzinfo=UTC), valuation - timedelta(days=1))
+                before = max(
+                    datetime(2025, 1, 1, tzinfo=UTC), valuation - timedelta(days=1)
+                )
                 after = valuation + timedelta(days=1)
                 first, last = [
-                    [engine.price(option, context(value, instant)) for value in (spot, spot + h, spot - h)]
+                    [
+                        engine.price(option, context(value, instant))
+                        for value in (spot, spot + h, spot - h)
+                    ]
                     for instant in (before, after)
                 ]
                 days = (after - before).total_seconds() / 86400
                 charm = ((last[1] - last[2]) - (first[1] - first[2])) / h / days / 2
-                color = ((last[1] - 2 * last[0] + last[2]) - (first[1] - 2 * first[0] + first[2])) / h / h / days
+                color = (
+                    (
+                        (last[1] - 2 * last[0] + last[2])
+                        - (first[1] - 2 * first[0] + first[2])
+                    )
+                    / h
+                    / h
+                    / days
+                )
                 for names in (["charm"], ["color"], ["theta", "charm", "color"]):
-                    with self.subTest(backend=backend, valuation=valuation, greeks=names):
-                        actual = engine.price_with_greeks(option, context(spot, valuation), names, spot_shift=h)
-                        self.assertEqual(actual.price, engine.price(option, context(spot, valuation)))
+                    with self.subTest(
+                        backend=backend, valuation=valuation, greeks=names
+                    ):
+                        actual = engine.price_with_greeks(
+                            option, context(spot, valuation), names, spot_shift=h
+                        )
+                        self.assertEqual(
+                            actual.price, engine.price(option, context(spot, valuation))
+                        )
                         if "charm" in names:
                             self.assertEqual(actual.charm, charm)
                         if "color" in names:
@@ -102,7 +132,14 @@ class SharedSampleTests(unittest.TestCase):
                             datetime(2025, 1, 1, 12, tzinfo=UTC),
                             end,
                         ):
-                            def context(shifted_rate):
+
+                            def context(
+                                shifted_rate,
+                                *,
+                                dividend=dividend,
+                                spot=spot,
+                                valuation=valuation,
+                            ):
                                 return PricingContext(
                                     model_parameters=BlackScholesMertonParameters(
                                         risk_free_rate=shifted_rate,
@@ -146,8 +183,12 @@ class SharedSampleTests(unittest.TestCase):
                                         self.assertIsNone(actual.delta)
                                         self.assertIsNone(actual.gamma)
                                     else:
-                                        self.assertEqual(actual.delta, spot_greeks.delta)
-                                        self.assertEqual(actual.gamma, spot_greeks.gamma)
+                                        self.assertEqual(
+                                            actual.delta, spot_greeks.delta
+                                        )
+                                        self.assertEqual(
+                                            actual.gamma, spot_greeks.gamma
+                                        )
 
         option = Accumulator(
             strike=100,
@@ -422,14 +463,15 @@ class SharedSampleTests(unittest.TestCase):
             valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
             calendar=all_days_calendar(),
         )
-        common = {
-            "knock_out_levels": [101, 100, 99],
-            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
-            "barrier_state": "none",
-            "effective_date": start,
-            "expiry_date": end,
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [101, 100, 99]
+        common = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+            ),
         }
-        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
         downside = {
             "initial_spot": 100,
             "knock_in_level": 99,
@@ -458,7 +500,11 @@ class SharedSampleTests(unittest.TestCase):
                     **common,
                     **downside,
                     coupon_rate=0.08,
-                    coupon_barrier_levels=[100, 99, 98],
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        coupon_barrier_levels=[100, 99, 98],
+                    ),
                 ),
                 pricing.MonteCarloAutocallableEngine,
             ),
@@ -480,7 +526,10 @@ class SharedSampleTests(unittest.TestCase):
         cases += tuple(
             (
                 option,
-                getattr(pricing, engine_type.__name__.replace("MonteCarlo", "FiniteDifference")),
+                getattr(
+                    pricing,
+                    engine_type.__name__.replace("MonteCarlo", "FiniteDifference"),
+                ),
             )
             for option, engine_type in cases[1:]
         )
@@ -491,7 +540,9 @@ class SharedSampleTests(unittest.TestCase):
             finite_difference = engine_type.__name__.startswith("FiniteDifference")
             for backend in ("cpu",) if finite_difference else backends:
                 with self.subTest(
-                    option=type(option).__name__, engine=engine_type.__name__, backend=backend
+                    option=type(option).__name__,
+                    engine=engine_type.__name__,
+                    backend=backend,
                 ):
                     engine = (
                         engine_type(asset_step_count=80, time_step_count=12)
@@ -688,14 +739,15 @@ class SharedSampleTests(unittest.TestCase):
                 pricing.MonteCarloAccumulatorEngine(path_count=31, seed=42),
             ),
         )
-        common = {
-            "knock_out_levels": [110, 110, 110],
-            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
-            "effective_date": start,
-            "expiry_date": end,
-            "barrier_state": "none",
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [110, 110, 110]
+        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+            ),
         }
-        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
         downside = {
             "initial_spot": 100,
             "knock_in_level": 80,
@@ -744,7 +796,11 @@ class SharedSampleTests(unittest.TestCase):
                     **common,
                     **downside,
                     coupon_rate=0.08,
-                    coupon_barrier_levels=[90] * 3,
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        coupon_barrier_levels=[90] * 3,
+                    ),
                 ),
                 pricing.MonteCarloAutocallableEngine(path_count=31, seed=42),
             ),
@@ -864,7 +920,12 @@ class SharedSampleTests(unittest.TestCase):
                             ]
                         )
                     (center_hi, up_hi, down_hi), (center_lo, up_lo, down_lo) = stencils
-                    vanna = ((up_hi - down_hi) - (up_lo - down_lo)) / h / (100 * vol_shift) / 4
+                    vanna = (
+                        ((up_hi - down_hi) - (up_lo - down_lo))
+                        / h
+                        / (100 * vol_shift)
+                        / 4
+                    )
                     zomma = (
                         (up_hi - 2 * center_hi + down_hi) / h / h
                         - (up_lo - 2 * center_lo + down_lo) / h / h
@@ -920,7 +981,12 @@ class SharedSampleTests(unittest.TestCase):
                     low, middle, high = rows[1]
                     delta = (high - low) / (2 * shift)
                     gamma = (high - 2 * middle + low) / shift / shift
-                    vanna = ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0])) / shift / (100 * vol_shift) / 4
+                    vanna = (
+                        ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0]))
+                        / shift
+                        / (100 * vol_shift)
+                        / 4
+                    )
                     zomma = (
                         (rows[2][2] - 2 * rows[2][1] + rows[2][0]) / shift / shift
                         - (rows[0][2] - 2 * rows[0][1] + rows[0][0]) / shift / shift
@@ -963,14 +1029,15 @@ class SharedSampleTests(unittest.TestCase):
             )
             for spot in (100.25, 101.25, 99.25, 102.25, 98.25)
         ]
-        common = {
-            "effective_date": start,
-            "expiry_date": end,
-            "knock_out_levels": [100, 102, 110],
-            "observation_dates": [date(2025, 1, 3), date(2025, 1, 8), end],
-            "barrier_state": "none",
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [100, 102, 110]
+        common = {"effective_date": start, "expiry_date": end, "barrier_state": "none"}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+            ),
         }
-        coupons = {"knock_out_coupon_rates": [0.08] * 3, "maturity_coupon_rate": 0.06}
         cases = [
             (
                 Accumulator(
@@ -1017,7 +1084,11 @@ class SharedSampleTests(unittest.TestCase):
                             **common,
                             **downside,
                             coupon_rate=0.08,
-                            coupon_barrier_levels=[100] * 3,
+                            observations=autocallable_observations(
+                                observation_dates,
+                                knock_out_levels,
+                                coupon_barrier_levels=[100] * 3,
+                            ),
                         ),
                         pricing.MonteCarloAutocallableEngine,
                     ),

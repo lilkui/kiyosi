@@ -17,6 +17,7 @@ from kiyosi.instruments import (
     SnowballOption,
     TernarySnowballOption,
     asset_binary_barrier_option,
+    autocallable_observations,
     cash_binary_barrier_option,
     cash_one_touch_down,
     cash_one_touch_up,
@@ -550,8 +551,15 @@ class PricingRegressionTests(unittest.TestCase):
             calendar=calendar,
         )
         life = {"effective_date": start, "expiry_date": end}
-        ladder = {"knock_out_levels": [110], "observation_dates": [end], **life}
-        coupons = {"knock_out_coupon_rates": [0.08], "maturity_coupon_rate": 0.06}
+        observation_dates = [end]
+        knock_out_levels = [110]
+        ladder = {**life}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08]
+            ),
+        }
         knock_in = {
             "knock_in_level": 75,
             "knock_in_observation_mode": "every_trading_day",
@@ -615,10 +623,12 @@ class PricingRegressionTests(unittest.TestCase):
             (
                 PhoenixOption(
                     coupon_rate=0.08,
-                    coupon_barrier_levels=[90],
                     **strikes,
                     **knock_in,
                     **ladder,
+                    observations=autocallable_observations(
+                        observation_dates, knock_out_levels, coupon_barrier_levels=[90]
+                    ),
                 ),
                 pricing.FiniteDifferenceAutocallableEngine,
                 110,
@@ -1505,18 +1515,18 @@ class PricingRegressionTests(unittest.TestCase):
             expiry_date=end,
         )
         note = SnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
             initial_spot=100,
             knock_in_level=75,
-            knock_out_levels=[200],
             upper_strike=100,
             lower_strike=0,
-            observation_dates=[end],
             knock_in_observation_mode="every_trading_day",
             barrier_state="knocked_in",
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [200], knock_out_coupon_rates=[0]
+            ),
         )
         put = EuropeanOption(
             option_type="put", strike=100, effective_date=start, expiry_date=end

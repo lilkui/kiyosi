@@ -12,9 +12,14 @@ from kiyosi.instruments import (
     CashOrNothingOption,
     EuropeanOption,
     PhoenixOption,
+    autocallable_observations,
     cash_one_touch_up,
 )
-from kiyosi.market import BlackScholesMertonParameters, PricingContext, all_days_calendar
+from kiyosi.market import (
+    BlackScholesMertonParameters,
+    PricingContext,
+    all_days_calendar,
+)
 
 
 class DiscountUnderflowTests(unittest.TestCase):
@@ -31,20 +36,36 @@ class DiscountUnderflowTests(unittest.TestCase):
                     spot_price=amount * (4 - 1e-12 if call else 1e-12),
                     valuation_time=start,
                 )
-                terms = dict(option_type=kind, strike=amount, effective_date=start, expiry_date=end)
+                terms = {
+                    "option_type": kind,
+                    "strike": amount,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
                 vanilla = EuropeanOption(**terms)
                 barrier = BarrierOption(
-                    **terms, barrier_level=amount * (0.5 if call else 3),
+                    **terms,
+                    barrier_level=amount * (0.5 if call else 3),
                     barrier_type="down_and_out" if call else "up_and_out",
                 )
-                settings = dict(asset_step_count=40, time_step_count=2000, asset_upper_boundary=4 * amount)
+                settings = {
+                    "asset_step_count": 40,
+                    "time_step_count": 2000,
+                    "asset_upper_boundary": 4 * amount,
+                }
                 expected = math.exp(math.log(amount) - rate) * (3 if call else 1)
                 for engine, option in (
                     (pricing.FiniteDifferenceVanillaEngine(**settings), vanilla),
                     (pricing.FiniteDifferenceBarrierEngine(**settings), barrier),
                 ):
-                    with self.subTest(rate=rate, kind=kind, engine=type(engine).__name__):
-                        self.assertTrue(math.isclose(engine.price(option, context), expected, rel_tol=1e-6))
+                    with self.subTest(
+                        rate=rate, kind=kind, engine=type(engine).__name__
+                    ):
+                        self.assertTrue(
+                            math.isclose(
+                                engine.price(option, context), expected, rel_tol=1e-6
+                            )
+                        )
 
     def test_accumulator_monte_carlo_preserves_discounted_quantity_products(self):
         start = date(2025, 1, 1)
@@ -64,7 +85,8 @@ class DiscountUnderflowTests(unittest.TestCase):
                             dividend_yield=rate - (365 if early else 0),
                             volatility=1e-20,
                         ),
-                        spot_price=spot, valuation_time=start,
+                        spot_price=spot,
+                        valuation_time=start,
                         calendar=all_days_calendar(),
                     )
                     terminal_spot = spot * math.exp(1 if early else 0)
@@ -76,50 +98,90 @@ class DiscountUnderflowTests(unittest.TestCase):
                         option = Accumulator(
                             strike=strike,
                             knock_out_level=spot * (2 if early else 10),
-                            daily_quantity=0, acceleration_factor=1,
-                            accumulated_quantity=quantity, effective_date=start,
+                            daily_quantity=0,
+                            acceleration_factor=1,
+                            accumulated_quantity=quantity,
+                            effective_date=start,
                             expiry_date=date(2025, 1, 3 if early else 2),
                         )
                         difference = terminal_spot - strike
-                        expected = math.copysign(math.exp(
-                            math.log(quantity) + math.log(abs(difference)) - rate / 365
-                        ), difference) if difference else 0
+                        expected = (
+                            math.copysign(
+                                math.exp(
+                                    math.log(quantity)
+                                    + math.log(abs(difference))
+                                    - rate / 365
+                                ),
+                                difference,
+                            )
+                            if difference
+                            else 0
+                        )
                         with self.subTest(
-                            backend=backend, spot=spot, rate=rate,
-                            early=early, strike_ratio=strike_ratio,
+                            backend=backend,
+                            spot=spot,
+                            rate=rate,
+                            early=early,
+                            strike_ratio=strike_ratio,
                         ):
                             price = engine.price(option, context)
-                            self.assertTrue(math.isclose(price, expected, rel_tol=2e-12))
+                            self.assertTrue(
+                                math.isclose(price, expected, rel_tol=2e-12)
+                            )
                             for greek in ("delta", "rho"):
                                 result = engine.price_with_greeks(
-                                    option, context, greek,
-                                    spot_shift=spot / 16, rate_shift=0.1,
+                                    option,
+                                    context,
+                                    greek,
+                                    spot_shift=spot / 16,
+                                    rate_shift=0.1,
                                 )
                                 self.assertEqual(result.price, price)
                                 expected_greek = (
-                                    math.exp(math.log(quantity) + (1 if early else 0) - rate / 365)
-                                    if greek == "delta" else
-                                    math.exp(math.log(quantity) + math.log(strike) - rate / 365) / 36500
+                                    math.exp(
+                                        math.log(quantity)
+                                        + (1 if early else 0)
+                                        - rate / 365
+                                    )
+                                    if greek == "delta"
+                                    else math.exp(
+                                        math.log(quantity)
+                                        + math.log(strike)
+                                        - rate / 365
+                                    )
+                                    / 36500
                                 )
-                                self.assertTrue(math.isclose(
-                                    getattr(result, greek), expected_greek, rel_tol=2e-6
-                                ))
+                                self.assertTrue(
+                                    math.isclose(
+                                        getattr(result, greek),
+                                        expected_greek,
+                                        rel_tol=2e-6,
+                                    )
+                                )
 
     def test_accumulator_monte_carlo_rejects_unrepresentable_discounted_products(self):
         start, end = date(2025, 1, 1), date(2025, 1, 2)
         option = Accumulator(
-            strike=1, knock_out_level=1000, daily_quantity=0,
-            acceleration_factor=1, accumulated_quantity=1e308,
-            effective_date=start, expiry_date=end,
+            strike=1,
+            knock_out_level=1000,
+            daily_quantity=0,
+            acceleration_factor=1,
+            accumulated_quantity=1e308,
+            effective_date=start,
+            expiry_date=end,
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
                 risk_free_rate=365, dividend_yield=365, volatility=1e-20
             ),
-            spot_price=100, valuation_time=start, calendar=all_days_calendar(),
+            spot_price=100,
+            valuation_time=start,
+            calendar=all_days_calendar(),
         )
         with self.assertRaises(KiyosiError) as error:
-            pricing.MonteCarloAccumulatorEngine(path_count=10, seed=42).price(option, context)
+            pricing.MonteCarloAccumulatorEngine(path_count=10, seed=42).price(
+                option, context
+            )
         self.assertEqual(error.exception.category, ErrorCategory.INVALID_RESULT)
 
     def test_analytic_delta_and_charm_retain_scaled_normal_tails(self):
@@ -127,12 +189,18 @@ class DiscountUnderflowTests(unittest.TestCase):
         # Independent high-precision normal-tail references at r = q = -710.
         references = (
             (
-                "call", 8, 4.448031813551352e-40,
-                -1.8407501816330744e-39, 8.923870780328184e-38,
+                "call",
+                8,
+                4.448031813551352e-40,
+                -1.8407501816330744e-39,
+                8.923870780328184e-38,
             ),
             (
-                "put", -8, -1.4847155549977004e-43,
-                6.144248777637284e-43, -2.9638565030696756e-41,
+                "put",
+                -8,
+                -1.4847155549977004e-43,
+                6.144248777637284e-43,
+                -2.9638565030696756e-41,
             ),
         )
         for direction, log_strike, delta, charm, digital_delta in references:
@@ -146,12 +214,12 @@ class DiscountUnderflowTests(unittest.TestCase):
                             spot_price=spot,
                             valuation_time=start,
                         )
-                        terms = dict(
-                            option_type=direction,
-                            strike=spot * math.exp(log_strike),
-                            effective_date=start,
-                            expiry_date=end,
-                        )
+                        terms = {
+                            "option_type": direction,
+                            "strike": spot * math.exp(log_strike),
+                            "effective_date": start,
+                            "expiry_date": end,
+                        }
                         scale = math.exp(-rate - 710)
                         option = EuropeanOption(**terms)
                         engine = pricing.AnalyticVanillaEngine()
@@ -160,7 +228,9 @@ class DiscountUnderflowTests(unittest.TestCase):
                             self.assertTrue(
                                 math.isclose(result.delta, delta * scale, rel_tol=1e-10)
                             )
-                            self.assertEqual(result.price, engine.price(option, context))
+                            self.assertEqual(
+                                result.price, engine.price(option, context)
+                            )
                             if "charm" in request:
                                 expected = (charm + (rate + 710) * delta / 365) * scale
                                 self.assertTrue(
@@ -170,7 +240,9 @@ class DiscountUnderflowTests(unittest.TestCase):
                         engine = pricing.AnalyticDigitalEngine()
                         result = engine.price_with_greeks(option, context, "delta")
                         self.assertTrue(
-                            math.isclose(result.delta, digital_delta * scale, rel_tol=1e-10)
+                            math.isclose(
+                                result.delta, digital_delta * scale, rel_tol=1e-10
+                            )
                         )
                         self.assertEqual(result.price, engine.price(option, context))
 
@@ -193,15 +265,17 @@ class DiscountUnderflowTests(unittest.TestCase):
                 for early in (False, True):
                     for sign in (-1, 0, 1):
                         note = BinarySnowballOption(
-                            knock_out_coupon_rates=(
-                                [(sign - 1) * amount, 0] if early else [0]
-                            ),
                             maturity_coupon_rate=0 if early else (sign - 1) * amount,
-                            knock_out_levels=[80, 80] if early else [200],
-                            observation_dates=[middle, end] if early else [middle],
                             principal_ratio=amount,
                             effective_date=start,
                             expiry_date=end if early else middle,
+                            observations=autocallable_observations(
+                                [middle, end] if early else [middle],
+                                [80, 80] if early else [200],
+                                knock_out_coupon_rates=[(sign - 1) * amount, 0]
+                                if early
+                                else [0],
+                            ),
                         )
                         engine = pricing.MonteCarloAutocallableEngine(
                             path_count=10, seed=42, backend=backend
@@ -248,15 +322,15 @@ class DiscountUnderflowTests(unittest.TestCase):
                         coupon_rate=amount,
                         initial_spot=100,
                         knock_in_level=80,
-                        knock_out_levels=[200, 200],
-                        coupon_barrier_levels=[0, 0],
                         upper_strike=100,
                         lower_strike=100,
-                        observation_dates=[middle, end],
                         knock_in_observation_mode="every_trading_day",
                         principal_ratio=0,
                         effective_date=start,
                         expiry_date=end,
+                        observations=autocallable_observations(
+                            [middle, end], [200, 200], coupon_barrier_levels=[0, 0]
+                        ),
                     )
                     engine = pricing.MonteCarloAutocallableEngine(
                         path_count=10, seed=42, backend=backend
@@ -273,12 +347,12 @@ class DiscountUnderflowTests(unittest.TestCase):
     def test_trading_day_monte_carlo_rejects_unrepresentable_discounted_payments(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         note = BinarySnowballOption(
-            knock_out_coupon_rates=[0],
             maturity_coupon_rate=0,
-            knock_out_levels=[200],
-            observation_dates=[end],
             effective_date=start,
             expiry_date=end,
+            observations=autocallable_observations(
+                [end], [200], knock_out_coupon_rates=[0]
+            ),
         )
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
