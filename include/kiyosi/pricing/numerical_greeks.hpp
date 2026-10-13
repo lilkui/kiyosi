@@ -164,6 +164,35 @@ Result<NumericalSpotPrices> sample_spot_prices(
     return sampled;
 }
 
+struct MixedGreekSamples {
+    std::array<double, 2> prices;
+    std::optional<std::array<NumericalSpotPrices, 2>> spots;
+};
+
+template <typename Sample, typename Price>
+Result<MixedGreekSamples> sample_mixed_greeks(
+    std::array<const PricingResult*, 2> native, bool scalar_mixed, bool need_prices,
+    double base_price, const Sample& sample, const Price& price)
+{
+    MixedGreekSamples result{};
+    if (scalar_mixed) {
+        const auto first = sample(0, need_prices && !native[0]);
+        if (!first) return std::unexpected(first.error());
+        const auto last = sample(1, need_prices && !native[1]);
+        if (!last) return std::unexpected(last.error());
+        result.spots = std::array{*first, *last};
+    }
+    for (std::size_t index = 0; index < result.prices.size(); ++index) {
+        const auto value = native[index]  ? Result<double>{native[index]->price()}
+                           : result.spots ? Result<double>{(*result.spots)[index].center.value_or(base_price)}
+                           : need_prices  ? price(index)
+                                          : Result<double>{base_price};
+        if (!value) return std::unexpected(value.error());
+        result.prices[index] = *value;
+    }
+    return result;
+}
+
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
 template <typename Price, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
@@ -283,28 +312,20 @@ Result<PricingResult> complete_greeks(
         const bool native_zomma = native_high && native_high->has(Greek::gamma) && native_low->has(Greek::gamma);
         const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
-        std::optional<std::array<NumericalSpotPrices, 2>> batches;
-        if (scalar_mixed) {
-            const auto sample = [&](double shifted_volatility, bool center) -> Result<NumericalSpotPrices> {
+        const std::array shifted_volatilities{volatility_high, volatility_low};
+        const auto sampled = sample_mixed_greeks(
+            {native_high ? &*native_high : nullptr, native_low ? &*native_low : nullptr},
+            scalar_mixed, need_volatility_prices, *p0,
+            [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
+                const double shifted_volatility = shifted_volatilities[index];
                 const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
                 if (!shifted) return std::unexpected(shifted.error());
                 return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center);
-            };
-            const auto high = sample(volatility_high, need_volatility_prices && !native_high);
-            if (!high) return std::unexpected(high.error());
-            const auto low = sample(volatility_low, need_volatility_prices && !native_low);
-            if (!low) return std::unexpected(low.error());
-            batches = std::array{*high, *low};
-        }
-        const auto v_up = native_high ? Result<double>{native_high->price()} : batches              ? Result<double>{(*batches)[0].center.value_or(*p0)}
-                                                                           : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_high, rate, valuation_time)
-                                                                                                    : p0;
-        if (!v_up) return std::unexpected(v_up.error());
-        const auto v_down = native_low ? Result<double>{native_low->price()} : batches              ? Result<double>{(*batches)[1].center.value_or(*p0)}
-                                                                           : need_volatility_prices ? detail::shifted_value(price, context, spot, volatility_low, rate, valuation_time)
-                                                                                                    : p0;
-        if (!v_down) return std::unexpected(v_down.error());
-        if (need(Greek::vega)) vega = (*v_up - *v_down) / (2.0 * vol_scale);
+            },
+            [&](std::size_t index) { return detail::shifted_value(price, context, spot, shifted_volatilities[index], rate, valuation_time); });
+        if (!sampled) return std::unexpected(sampled.error());
+        const auto [v_up, v_down] = sampled->prices;
+        if (need(Greek::vega)) vega = (v_up - v_down) / (2.0 * vol_scale);
 
         if (need(Greek::vanna) && native_vanna)
             vanna = (**native_high->get(Greek::delta) - **native_low->get(Greek::delta)) / (2.0 * vol_scale);
@@ -312,14 +333,14 @@ Result<PricingResult> complete_greeks(
             zomma = (**native_high->get(Greek::gamma) - **native_low->get(Greek::gamma)) / (2.0 * vol_scale);
 
         if (scalar_mixed) {
-            const auto& high = (*batches)[0];
-            const auto& low = (*batches)[1];
+            const auto& high = (*sampled->spots)[0];
+            const auto& low = (*sampled->spots)[1];
             if (need(Greek::vanna) && !native_vanna) vanna = ((high.up - high.down) - (low.up - low.down)) /
                                                              h / vol_scale / 4.0;
 
             if (need(Greek::zomma) && !native_zomma) {
-                const double gamma_high = (high.up - 2.0 * *v_up + high.down) / h / h;
-                const double gamma_low = (low.up - 2.0 * *v_down + low.down) / h / h;
+                const double gamma_high = (high.up - 2.0 * v_up + high.down) / h / h;
+                const double gamma_low = (low.up - 2.0 * v_down + low.down) / h / h;
                 zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
             }
         }
@@ -389,44 +410,39 @@ Result<PricingResult> complete_greeks(
             const bool native_color = native_before && native_before->has(Greek::gamma) && native_after->has(Greek::gamma);
             const bool scalar_mixed = spot_stencil_available && ((need(Greek::charm) && !native_charm) || (need(Greek::color) && !native_color));
             const bool need_time_prices = need(Greek::theta) || (spot_stencil_available && need(Greek::color) && !native_color);
-            std::optional<std::array<NumericalSpotPrices, 2>> batches;
-            if (scalar_mixed) {
-                const auto sample = [&](Timestamp time, bool center) -> Result<NumericalSpotPrices> {
+            const std::array shifted_times{before, after};
+            const auto sampled = sample_mixed_greeks(
+                {native_before ? &*native_before : nullptr, native_after ? &*native_after : nullptr},
+                scalar_mixed, need_time_prices, *p0,
+                [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
+                    const Timestamp time = shifted_times[index];
                     if (time == valuation_time && spot_up && spot_down)
                         return NumericalSpotPrices{*p0, *spot_up, *spot_down};
                     const auto shifted = shifted_context(context, spot, volatility, rate, time);
                     if (!shifted) return std::unexpected(shifted.error());
                     return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center,
                                               time == valuation_time ? std::optional{*p0} : std::nullopt);
-                };
-                const auto first = sample(before, need_time_prices && !native_before);
-                if (!first) return std::unexpected(first.error());
-                const auto last = sample(after, need_time_prices && !native_after);
-                if (!last) return std::unexpected(last.error());
-                batches = std::array{*first, *last};
-            }
-            const auto t_before = native_before ? Result<double>{native_before->price()} : batches                                     ? Result<double>{(*batches)[0].center.value_or(*p0)}
-                                                                                       : !need_time_prices || before == valuation_time ? p0
-                                                                                                                                       : detail::shifted_value(price, context, spot, volatility, rate, before);
-            if (!t_before) return std::unexpected(t_before.error());
-            const auto t_after = native_after ? Result<double>{native_after->price()} : batches                                    ? Result<double>{(*batches)[1].center.value_or(*p0)}
-                                                                                    : !need_time_prices || after == valuation_time ? p0
-                                                                                                                                   : detail::shifted_value(price, context, spot, volatility, rate, after);
-            if (!t_after) return std::unexpected(t_after.error());
+                },
+                [&](std::size_t index) {
+                    const Timestamp time = shifted_times[index];
+                    return time == valuation_time ? p0 : detail::shifted_value(price, context, spot, volatility, rate, time);
+                });
+            if (!sampled) return std::unexpected(sampled.error());
+            const auto [t_before, t_after] = sampled->prices;
             const double day_scale = Days{after - before}.count();
-            if (need(Greek::theta)) theta = (*t_after - *t_before) / day_scale;
+            if (need(Greek::theta)) theta = (t_after - t_before) / day_scale;
             if (need(Greek::charm) && native_charm)
                 charm = (**native_after->get(Greek::delta) - **native_before->get(Greek::delta)) / day_scale;
             if (need(Greek::color) && native_color)
                 color = (**native_after->get(Greek::gamma) - **native_before->get(Greek::gamma)) / day_scale;
 
             if (scalar_mixed) {
-                const auto& first = (*batches)[0];
-                const auto& last = (*batches)[1];
+                const auto& first = (*sampled->spots)[0];
+                const auto& last = (*sampled->spots)[1];
                 if (need(Greek::charm) && !native_charm) charm = ((last.up - last.down) - (first.up - first.down)) /
                                                                  h / day_scale / 2.0;
-                if (need(Greek::color) && !native_color) color = (((last.up - 2.0 * *t_after + last.down) -
-                                                                   (first.up - 2.0 * *t_before + first.down)) /
+                if (need(Greek::color) && !native_color) color = (((last.up - 2.0 * t_after + last.down) -
+                                                                   (first.up - 2.0 * t_before + first.down)) /
                                                                   h / h / day_scale);
             }
         }
