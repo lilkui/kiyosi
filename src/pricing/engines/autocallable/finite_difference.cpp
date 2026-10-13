@@ -24,6 +24,7 @@ namespace {
 struct ObservationEvent {
     double time;
     std::size_t index;
+    AutocallableEvent event{};
 };
 
 // Reuse only across coupon or volatility changes; all other inputs must stay fixed.
@@ -37,87 +38,20 @@ struct AutocallableFiniteDifferenceWorkspace {
     std::vector<double> alive, next_alive, knocked_in, next_knocked_in, curvature;
 };
 
-template <AutocallableProduct Note>
-Result<PricingResult> price_autocallable(
-    const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
-    bool& contract_validated, GreeksRequest output, double spot_shift,
-    AutocallableFiniteDifferenceWorkspace& workspace)
+Result<PricingResult> rollback_autocallable(
+    const AutocallableProgram& program, const AutocallableInitialState& initial,
+    const PricingContext& context, const FiniteDifferenceSettings& settings,
+    GreeksRequest output, double spot_shift, AutocallableFiniteDifferenceWorkspace& workspace)
 {
-    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
-    if (!valid) return std::unexpected(valid.error());
-    auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
-    if (!expiry_valid) return std::unexpected(expiry_valid.error());
-    auto settings_valid = detail::validate_finite_difference_settings(
-        settings, trading_fd_max_steps, trading_fd_max_steps);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
-    if (!contract_validated) {
-        const auto note_validation = validate_autocallable_note(note);
-        if (!note_validation) return std::unexpected(note_validation.error());
-        const auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
-        if (!schedule) return std::unexpected(schedule.error());
-        contract_validated = true;
-    }
-    auto history = validate_autocallable_history(note, context);
-    if (!history) return std::unexpected(history.error());
-
-    const auto program = autocallable_program(note);
-    const auto initial = autocallable_initial_state(note, context, program);
-
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
-    if (const auto fixed = autocallable_fixed_value(note, context, program, initial))
-        return make_pricing_result(*fixed,
-                                   {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
-                                    {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
-
     const double spot = context.spot_price();
-    if (!workspace.space) {
-        const double relevant = highest_finite_difference_level(note, context);
-        const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(note, context), {relevant});
-        if (!space) return std::unexpected(space.error());
-        workspace.space = *space;
-    }
     const auto& space = workspace.space;
-
-    const Timestamp valuation = context.valuation_time();
-    const double time_to_expiry = actual_365_fixed_year_fraction(valuation, note.expiry_date());
-
-    constexpr bool monitors_knock_in = requires(const Note& value) { value.knock_in_observation_mode(); };
-    bool monitors_daily = false; // NOLINT(misc-const-correctness): assigned for knock-in note types.
-    if constexpr (monitors_knock_in)
-        monitors_daily = note.knock_in_observation_mode() == KnockInObservationMode::every_trading_day;
+    const auto& grid = workspace.grid;
+    const auto& observation_events = workspace.observation_events;
+    const auto& trading_times = workspace.trading_times;
+    const double time_to_expiry = grid.times.back();
+    const bool monitors_daily = program.daily_knock_in;
     const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in &&
                                       program_knock_in_affects_payoff(program);
-    // Explicit-Euler stability can require daily subdivisions even without a knock-in layer.
-    const bool daily_grid = monitors_daily && (needs_knock_in_layer || settings.scheme == FiniteDifferenceScheme::explicit_euler);
-    auto& observation_events = workspace.observation_events;
-    auto& trading_times = workspace.trading_times;
-    auto& grid = workspace.grid;
-    // Coupon shifts can remove knock-in exposure and change the required time grid.
-    if (workspace.daily_grid != daily_grid) {
-        std::vector<Date> anchors;
-        observation_events.clear();
-        observation_events.reserve(note.observation_dates().size());
-        for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
-            const Date value = note.observation_dates()[index];
-            if (value <= valuation) continue;
-            const double time = actual_365_fixed_year_fraction(valuation, value);
-            observation_events.push_back({time, index});
-            anchors.push_back(value);
-        }
-        trading_times.clear();
-        if (daily_grid) {
-            const auto future_trading_dates = trading_dates(context.calendar(), valuation, note.expiry_date());
-            trading_times.reserve(future_trading_dates.size());
-            for (const Date value : future_trading_dates) {
-                const double time = actual_365_fixed_year_fraction(valuation, value);
-                trading_times.push_back(time);
-                anchors.push_back(value);
-            }
-        }
-        grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings.time_step_count, std::move(anchors));
-        workspace.daily_grid = daily_grid;
-    }
-
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
@@ -125,13 +59,13 @@ Result<PricingResult> price_autocallable(
         !stable)
         return std::unexpected(stable.error());
 
-    const auto event_index = [&](double time) -> std::optional<std::size_t> {
+    const auto event_at = [&](double time) {
         const auto found = std::lower_bound(
             observation_events.begin(), observation_events.end(), time,
             [](const ObservationEvent& event, double value) { return event.time < value; });
         return found == observation_events.end() || found->time != time
-                   ? std::nullopt
-                   : std::optional<std::size_t>{found->index};
+                   ? AutocallableEvent{}
+                   : found->event;
     };
 
     const std::size_t size = space->size();
@@ -146,14 +80,12 @@ Result<PricingResult> price_autocallable(
         knocked_in.resize(size);
         next_knocked_in.resize(size);
     }
-    const auto expiry_observation = event_index(time_to_expiry);
-    const auto expiry_event = expiry_observation ? autocallable_event(note, *expiry_observation) : AutocallableEvent{};
+    const auto expiry_event = event_at(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
         const double value = asset(index);
-        bool ki = initial.path.knocked_in; // NOLINT(misc-const-correctness): updated for knock-in note types.
-        if constexpr (monitors_knock_in) ki = ki || value < note.knock_in_level();
+        const bool ki = initial.path.knocked_in || (program.has_knock_in && value < program.knock_in_level);
         if (expiry_event.active && value >= expiry_event.knock_out_level) {
-            alive[index] = note.principal_ratio() +
+            alive[index] = program.principal_ratio +
                            program_observation_coupon(expiry_event, value);
             if (needs_knock_in_layer) knocked_in[index] = alive[index];
         } else {
@@ -182,17 +114,15 @@ Result<PricingResult> price_autocallable(
         if (!advanced)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
-        const auto observation_index = event_index(grid.times[step]);
-        const auto event = observation_index ? autocallable_event(note, *observation_index) : AutocallableEvent{};
+        const auto event = event_at(grid.times[step]);
         const bool daily = monitors_daily &&
                            std::ranges::binary_search(trading_times, grid.times[step]);
         if (event.active || (needs_knock_in_layer && daily)) {
             for (std::size_t index = 0; index < size; ++index) {
                 const double value = asset(index);
-                bool transitioned = false; // NOLINT(misc-const-correctness): updated for knock-in note types.
-                if constexpr (monitors_knock_in) transitioned = needs_knock_in_layer && daily && value < note.knock_in_level();
+                const bool transitioned = needs_knock_in_layer && daily && value < program.knock_in_level;
                 if (event.active && value >= event.knock_out_level) {
-                    next_alive[index] = note.principal_ratio() +
+                    next_alive[index] = program.principal_ratio +
                                         program_observation_coupon(event, value);
                     if (needs_knock_in_layer) next_knocked_in[index] = next_alive[index];
                 } else if (event.active) {
@@ -226,6 +156,86 @@ Result<PricingResult> price_autocallable(
                                {{Greek::delta, output.has(Greek::delta) ? std::optional{space->delta(alive, spot)} : std::nullopt},
                                 {Greek::gamma, output.has(Greek::gamma) ? std::optional{space->gamma(alive, spot)} : std::nullopt},
                                 {Greek::speed, *speed}});
+}
+
+template <AutocallableProduct Note>
+Result<PricingResult> price_autocallable(
+    const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
+    bool& contract_validated, GreeksRequest output, double spot_shift,
+    AutocallableFiniteDifferenceWorkspace& workspace)
+{
+    auto valid = validate_valuation_within_instrument_life(context.valuation_time(), note.effective_date(), note.expiry_date());
+    if (!valid) return std::unexpected(valid.error());
+    auto expiry_valid = validate_trading_expiry(context.calendar(), note.expiry_date());
+    if (!expiry_valid) return std::unexpected(expiry_valid.error());
+    auto settings_valid = detail::validate_finite_difference_settings(
+        settings, trading_fd_max_steps, trading_fd_max_steps);
+    if (!settings_valid) return std::unexpected(settings_valid.error());
+    if (!contract_validated) {
+        const auto note_validation = validate_autocallable_note(note);
+        if (!note_validation) return std::unexpected(note_validation.error());
+        const auto schedule = validate_observation_trading_days(note.observation_dates(), context.calendar());
+        if (!schedule) return std::unexpected(schedule.error());
+        contract_validated = true;
+    }
+    auto history = validate_autocallable_history(note, context);
+    if (!history) return std::unexpected(history.error());
+
+    const auto program = autocallable_program(note);
+    const auto initial = autocallable_initial_state(note, context, program);
+
+    if (initial.settlement) return make_pricing_result(*initial.settlement);
+    if (const auto fixed = autocallable_fixed_value(note, context, program, initial))
+        return make_pricing_result(*fixed,
+                                   {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
+                                    {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+
+    if (!workspace.space) {
+        const double relevant = highest_finite_difference_level(note, context);
+        const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(note, context), {relevant});
+        if (!space) return std::unexpected(space.error());
+        workspace.space = *space;
+    }
+
+    const Timestamp valuation = context.valuation_time();
+
+    const bool monitors_daily = program.daily_knock_in;
+    const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in &&
+                                      program_knock_in_affects_payoff(program);
+    // Explicit-Euler stability can require daily subdivisions even without a knock-in layer.
+    const bool daily_grid = monitors_daily && (needs_knock_in_layer || settings.scheme == FiniteDifferenceScheme::explicit_euler);
+    auto& observation_events = workspace.observation_events;
+    auto& trading_times = workspace.trading_times;
+    auto& grid = workspace.grid;
+    // Coupon shifts can remove knock-in exposure and change the required time grid.
+    if (workspace.daily_grid != daily_grid) {
+        std::vector<Date> anchors;
+        observation_events.clear();
+        observation_events.reserve(note.observation_dates().size());
+        for (std::size_t index = 0; index < note.observation_dates().size(); ++index) {
+            const Date value = note.observation_dates()[index];
+            if (value <= valuation) continue;
+            const double time = actual_365_fixed_year_fraction(valuation, value);
+            observation_events.push_back({time, index});
+            anchors.push_back(value);
+        }
+        trading_times.clear();
+        if (daily_grid) {
+            const auto future_trading_dates = trading_dates(context.calendar(), valuation, note.expiry_date());
+            trading_times.reserve(future_trading_dates.size());
+            for (const Date value : future_trading_dates) {
+                const double time = actual_365_fixed_year_fraction(valuation, value);
+                trading_times.push_back(time);
+                anchors.push_back(value);
+            }
+        }
+        grid = make_finite_difference_time_grid(valuation, note.expiry_date(), settings.time_step_count, std::move(anchors));
+        workspace.daily_grid = daily_grid;
+    }
+
+    for (auto& observation : workspace.observation_events)
+        observation.event = autocallable_event(note, observation.index);
+    return rollback_autocallable(program, initial, context, settings, output, spot_shift, workspace);
 }
 
 template <typename Note, typename ReplaceCoupon>
