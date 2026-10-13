@@ -1,9 +1,11 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <chrono>
+#include <cmath>
 #include <type_traits>
 
 #include <kiyosi/kiyosi.hpp>
+#include <kiyosi/pricing/detail/accumulator_program.hpp>
 
 #include "support/common.hpp"
 
@@ -89,4 +91,17 @@ TEST_CASE("Accumulator exposes its contractual terms")
     CHECK(accumulator->accumulated_quantity() == 3.0);
     CHECK(accumulator->effective_date() == effective_date);
     CHECK(accumulator->expiry_date() == expiry_date);
+}
+
+TEST_CASE("Accumulator observation rules preserve exact threshold comparisons", "[accumulator-rules]")
+{
+    using namespace kiyosi::detail;
+    CHECK(accumulator_purchase_quantity(std::nextafter(100.0, 0.0), 100.0, 3.0, 2.0) == 6.0);
+    CHECK(accumulator_purchase_quantity(100.0, 100.0, 3.0, 2.0) == 3.0);
+    CHECK(accumulator_purchase_quantity(std::nextafter(100.0, 110.0), 100.0, 3.0, 2.0) == 3.0);
+    CHECK(accumulator_purchase_quantity(90.0, 100.0, 3.0, 0.0) == 0.0);
+    CHECK(accumulator_purchase_quantity(90.0, 100.0, 0.0, 2.0) == 0.0);
+    CHECK_FALSE(accumulator_knocked_out(std::nextafter(110.0, 0.0), 110.0));
+    CHECK(accumulator_knocked_out(110.0, 110.0));
+    CHECK(accumulator_knocked_out(std::nextafter(110.0, 120.0), 110.0));
 }

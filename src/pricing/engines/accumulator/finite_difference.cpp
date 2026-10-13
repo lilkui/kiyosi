@@ -25,13 +25,11 @@ void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std
     for (std::size_t index = 0; index < space.size(); ++index) {
         const double asset = space.spacing * static_cast<double>(index);
         slope[index] = asset - option.strike();
-        if (asset >= option.knock_out_level()) {
+        if (accumulator_knocked_out(asset, option.knock_out_level())) {
             intercept[index] = 0.0;
             continue;
         }
-        const double bought = asset < option.strike()
-                                  ? option.daily_quantity() * option.acceleration_factor()
-                                  : option.daily_quantity();
+        const double bought = accumulator_purchase_quantity(asset, option.strike(), option.daily_quantity(), option.acceleration_factor());
         intercept[index] = slope[index] * bought;
     }
 }
@@ -93,16 +91,14 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         if (std::ranges::binary_search(trading_times, grid.times[step])) {
             for (std::size_t index = 0; index < size; ++index) {
                 const double asset = space->spacing * static_cast<double>(index);
-                if (asset >= option.knock_out_level()) {
+                if (accumulator_knocked_out(asset, option.knock_out_level())) {
                     // Knock-out settles every unit accumulated up to this event immediately.
                     // The affine value is quantity * (asset - strike), with no future purchases.
                     next_slope[index] = asset - option.strike();
                     next_intercept[index] = 0.0;
                 } else {
                     next_intercept[index] +=
-                        next_slope[index] * (asset < option.strike()
-                                                 ? option.daily_quantity() * option.acceleration_factor()
-                                                 : option.daily_quantity());
+                        next_slope[index] * accumulator_purchase_quantity(asset, option.strike(), option.daily_quantity(), option.acceleration_factor());
                 }
             }
         }

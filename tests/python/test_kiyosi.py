@@ -3315,6 +3315,34 @@ class KiyosiPythonTests(unittest.TestCase):
             with self.subTest(engine=type(engine).__name__):
                 self.assertAlmostEqual(engine.price(option, context), 30.0, delta=1e-6)
 
+    def test_accumulator_observation_thresholds_agree_across_engines(self):
+        expiry = date(2026, 1, 1)
+        option = Accumulator(
+            strike=100,
+            knock_out_level=110,
+            daily_quantity=1,
+            acceleration_factor=2,
+            accumulated_quantity=3,
+            effective_date=date(2025, 1, 1),
+            expiry_date=expiry,
+        )
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        engines = (
+            pricing.FiniteDifferenceAccumulatorEngine(),
+            pricing.MonteCarloAccumulatorEngine(path_count=32, seed=7),
+        )
+        for spot, expected in ((90, -50), (100, 0), (109, 36), (110, 30), (111, 33)):
+            context = PricingContext(
+                model_parameters=parameters, spot_price=spot, valuation_time=expiry
+            )
+            for engine in engines:
+                with self.subTest(engine=type(engine).__name__, spot=spot):
+                    self.assertAlmostEqual(
+                        engine.price(option, context), expected, delta=1e-12
+                    )
+
     def test_phoenix_terminal_coupon_is_paid_once(self):
         effective_date = date(2025, 1, 6)
         expiry_date = effective_date + timedelta(days=91)

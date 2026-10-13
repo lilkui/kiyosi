@@ -431,7 +431,7 @@ TEST_CASE("Accumulator exact-value shortcut requires zero carry and no accrual")
     }
 }
 
-TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
+TEST_CASE("Accumulator observation thresholds agree across pricing engines", "[accumulator-rules]")
 {
     const auto effective_date = day(2025, 1, 1);
     const auto expiry_date = day(2026, 1, 1);
@@ -447,14 +447,17 @@ TEST_CASE("Accumulator expiry_date settlement agrees across pricing engines")
                                                         .effective_date = effective_date,
                                                         .expiry_date = expiry_date});
 
-    const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(90.0));
-    REQUIRE(monte_carlo);
-    CHECK(*monte_carlo == Catch::Approx(-50.0));
-
-    const auto finite_difference =
-        kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(90.0));
-    REQUIRE(finite_difference);
-    CHECK(*finite_difference == Catch::Approx(-50.0));
+    for (const auto [spot, expected] : std::array{
+             std::array{90.0, -50.0}, std::array{100.0, 0.0}, std::array{109.0, 36.0},
+             std::array{110.0, 30.0}, std::array{111.0, 33.0}}) {
+        CAPTURE(spot);
+        const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(spot));
+        REQUIRE(monte_carlo);
+        CHECK(*monte_carlo == Catch::Approx(expected));
+        const auto finite_difference = kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(spot));
+        REQUIRE(finite_difference);
+        CHECK(*finite_difference == Catch::Approx(expected));
+    }
 }
 
 TEST_CASE("Accumulator engines reject nominal weekend expiry and accept adjusted expiry")

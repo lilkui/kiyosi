@@ -78,11 +78,10 @@ Result<std::array<double, count>> path_payoffs(
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "Monte Carlo simulation produced an invalid asset price"});
             state.discount = step.discount;
-            if (state.spot >= option.knock_out_level())
+            if (accumulator_knocked_out(state.spot, option.knock_out_level()))
                 state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
             else
-                state.quantity += state.spot < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                                               : option.daily_quantity();
+                state.quantity += accumulator_purchase_quantity(state.spot, option.strike(), option.daily_quantity(), option.acceleration_factor());
         }
         if (std::ranges::all_of(states, [](const auto& state) { return state.payoff.has_value(); })) break;
     }

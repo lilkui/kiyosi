@@ -4,6 +4,7 @@
 
 #include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/market/context.hpp>
+#include <kiyosi/pricing/detail/accumulator_program.hpp>
 
 namespace kiyosi::detail {
 
@@ -21,10 +22,9 @@ inline AccumulatorInitialState accumulator_initial_state(
     if (quantity == 0.0 && !accumulator_accrues(option)) return {quantity, 0.0};
     if (valuation == start_of_day(date_of(valuation)) &&
         context.calendar().is_trading_day(date_of(valuation))) {
-        if (value >= option.knock_out_level())
+        if (accumulator_knocked_out(value, option.knock_out_level()))
             return {quantity, quantity * (value - option.strike())};
-        quantity += value < option.strike() ? option.daily_quantity() * option.acceleration_factor()
-                                            : option.daily_quantity();
+        quantity += accumulator_purchase_quantity(value, option.strike(), option.daily_quantity(), option.acceleration_factor());
     }
     if (valuation == option.expiry_date()) return {quantity, quantity * (value - option.strike())};
     // Stopping a martingale preserves the expected value of a fixed position.

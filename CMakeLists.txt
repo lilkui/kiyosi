@@ -167,6 +167,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/detail/autocallable_program.hpp
             include/kiyosi/pricing/detail/autocallable_traits.hpp
             include/kiyosi/pricing/detail/accumulator_traits.hpp
+            include/kiyosi/pricing/detail/accumulator_program.hpp
             include/kiyosi/pricing/detail/asian_traits.hpp
             include/kiyosi/pricing/detail/barrier_traits.hpp
             include/kiyosi/pricing/detail/finite_difference_domain.hpp

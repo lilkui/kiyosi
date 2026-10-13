@@ -1,4 +1,5 @@
 #include "monte_carlo_autocallable.hpp"
+#include <kiyosi/pricing/detail/accumulator_program.hpp>
 
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
@@ -359,10 +360,8 @@ __global__ void simulate_accumulator_paths(
             return;
         }
         discount = step.discount;
-        if (spot >= request.knock_out) break;
-        quantity += spot < request.strike
-                        ? request.daily_quantity * request.acceleration
-                        : request.daily_quantity;
+        if (accumulator_knocked_out(spot, request.knock_out)) break;
+        quantity += accumulator_purchase_quantity(spot, request.strike, request.daily_quantity, request.acceleration);
     }
     const double payoff = discount.apply(quantity, spot - request.strike);
     if (!isfinite(payoff)) {
@@ -465,14 +464,12 @@ __global__ void simulate_accumulator_spot_paths(
                     requests.payoffs[output][path] = 0.0;
                 return;
             }
-            if (spots[bump] >= request.knock_out) {
+            if (accumulator_knocked_out(spots[bump], request.knock_out)) {
                 write_spot_payoff(requests, bump, path, discount.apply(quantities[bump], spots[bump] - request.strike));
                 done[bump] = true;
                 --remaining;
             } else {
-                quantities[bump] += spots[bump] < request.strike
-                                        ? request.daily_quantity * request.acceleration
-                                        : request.daily_quantity;
+                quantities[bump] += accumulator_purchase_quantity(spots[bump], request.strike, request.daily_quantity, request.acceleration);
             }
         }
         if (remaining == 0) break;
