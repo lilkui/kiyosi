@@ -34,7 +34,7 @@ jobs:
     name: Check QuantLib reference generation
     if: github.event_name != 'release'
     # Use Windows to reproduce the committed reference bytes.
-    runs-on: windows-2022
+    runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
         with:
@@ -51,13 +51,16 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-24.04, windows-2022]
+        os: [ubuntu-26.04, windows-2025-vs2026]
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build and test Linux core
         if: runner.os == 'Linux'
+        env:
+          CC: gcc-15
+          CXX: g++-15
         run: |
           cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON
           cmake --build --preset linux-release
@@ -66,7 +69,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -version '[18.0,19.0)' -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if (-not $vsInstallPath) { throw "Visual Studio C++ tools were not found" }
           & "$vsInstallPath\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
           cmake --workflow --preset windows-release
@@ -74,8 +77,10 @@ jobs:
   test-cpu:
     name: Test Python with CUDA disabled
     if: github.event_name != 'release'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     env:
+      CC: gcc-15
+      CXX: g++-15
       CMAKE_ARGS: -DKIYOSI_ENABLE_CUDA=OFF
       KIYOSI_TEST_CUDA: disabled
     steps:
@@ -95,15 +100,15 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-24.04
+          - os: ubuntu-26.04
             wheel: ''
-          - os: windows-2022
+          - os: windows-2025-vs2026
             wheel: cp311-win_amd64
-          - os: windows-2022
+          - os: windows-2025-vs2026
             wheel: cp312-win_amd64
-          - os: windows-2022
+          - os: windows-2025-vs2026
             wheel: cp313-win_amd64
-          - os: windows-2022
+          - os: windows-2025-vs2026
             wheel: cp314-win_amd64
 
     steps:
@@ -115,9 +120,9 @@ jobs:
         if: runner.os == 'Windows'
         uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d
         with:
-          cuda: '12.9.2'
+          cuda: '13.2.0'
           method: network
-          sub-packages: '["nvcc", "cudart", "cuobjdump", "curand_dev", "visual_studio_integration"]'
+          sub-packages: '["nvcc", "crt", "cudart", "cuobjdump", "curand_dev", "visual_studio_integration"]'
 
       - name: Cache cibuildwheel tools
         uses: actions/cache@v5
@@ -157,7 +162,7 @@ jobs:
   publish:
     name: Publish distributions to PyPI
     if: github.event_name == 'release'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     environment:
       name: pypi
       url: https://pypi.org/project/kiyosi/
@@ -197,7 +202,7 @@ jobs:
       - name: Download Linux distributions
         uses: actions/download-artifact@v8
         with:
-          name: distributions-ubuntu-24.04
+          name: distributions-ubuntu-26.04
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
           path: dist
@@ -205,7 +210,7 @@ jobs:
       - name: Download Windows distributions
         uses: actions/download-artifact@v8
         with:
-          pattern: distributions-windows-2022-*
+          pattern: distributions-windows-2025-vs2026-*
           merge-multiple: true
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
