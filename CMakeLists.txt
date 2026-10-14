@@ -14,6 +14,7 @@ option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targe
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" OFF)
+option(KIYOSI_BUILD_DOCS "Build Doxygen XML documentation" OFF)
 option(KIYOSI_ENABLE_CUDA "Build the optional CUDA Monte Carlo backend" OFF)
 
 if(KIYOSI_ENABLE_CUDA)
@@ -211,6 +212,26 @@ set_target_properties(kiyosi PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+
+if(KIYOSI_BUILD_DOCS)
+    find_package(Doxygen REQUIRED COMPONENTS doxygen)
+    set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/docs")
+    set(DOXYGEN_GENERATE_XML YES)
+    set(DOXYGEN_GENERATE_HTML NO)
+    set(DOXYGEN_GENERATE_LATEX NO)
+    set(DOXYGEN_EXTRACT_ALL YES)
+    set(DOXYGEN_FILE_PATTERNS "*.hpp")
+    set(DOXYGEN_MACRO_EXPANSION YES)
+    set(DOXYGEN_EXPAND_ONLY_PREDEF YES)
+    set(DOXYGEN_PREDEFINED "KIYOSI_EXPORT=")
+    set(DOXYGEN_QUIET YES)
+    doxygen_add_docs(kiyosi-doxygen
+        "${CMAKE_CURRENT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/core/version.hpp"
+        ALL
+        COMMENT "Generating kiyosi Doxygen XML documentation"
+    )
+endif()
 
 if(PROJECT_IS_TOP_LEVEL AND BUILD_TESTING)
     include(FetchContent)
