@@ -122,7 +122,19 @@ jobs:
         with:
           cuda: '13.2.0'
           method: network
-          sub-packages: '["nvcc", "crt", "cudart", "cuobjdump", "curand_dev", "visual_studio_integration"]'
+          sub-packages: '["nvcc", "nvvm", "crt", "cudart", "cuobjdump", "curand_dev", "thrust", "visual_studio_integration"]'
+
+      - name: Configure Windows wheel toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -version '[18.0,19.0)' -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsInstallPath) { throw "Visual Studio C++ tools were not found" }
+          & "$vsInstallPath\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          foreach ($name in 'PATH', 'INCLUDE', 'LIB', 'LIBPATH') {
+            "$name=$([Environment]::GetEnvironmentVariable($name))" >> $env:GITHUB_ENV
+          }
+          "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
 
       - name: Cache cibuildwheel tools
         uses: actions/cache@v5

@@ -603,7 +603,8 @@ TEST_CASE("Finite-difference factor cache recovers after failed solves", "[fd-fa
     REQUIRE(reused.advance(old, actual, 0.05, valid, 0.0, 16.0));
     REQUIRE(reused.advance(old, actual, 0.025, valid, 0.0, 16.0));
     for (int attempt = 0; attempt < 3; ++attempt) {
-        CHECK_FALSE(reused.advance(old, actual, 0.1, {-10.0, -10.0, 0.0, 1.0}, 0.0, 16.0));
+        // Binary-exact inputs keep the singular pivot zero with or without fused arithmetic.
+        CHECK_FALSE(reused.advance(old, actual, 0.125, {-8.0, -8.0, 0.0, 1.0}, 0.0, 16.0));
         auto invalid_old = old;
         invalid_old[2] = std::numeric_limits<double>::infinity();
         CHECK_FALSE(reused.advance(invalid_old, actual, 0.1, valid, 0.0, 16.0));
