@@ -40,7 +40,7 @@ cmake.args = [
 ]
 
 [tool.cibuildwheel]
-build = "cp3{11,12,13,14}-*"
+build = "cp3{11,12,13,14,15}-*"
 skip = "*-musllinux_*"
 archs = ["auto64"]
 environment = { CMAKE_ARGS = "-DKIYOSI_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75-real;80-real;86-real;89-real;90-real;100-real;120-real;120-virtual" }
