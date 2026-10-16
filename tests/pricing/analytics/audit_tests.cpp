@@ -897,6 +897,29 @@ TEST_CASE("Quadrature retains scaled prices beyond the former tail cutoff", "[au
     }
 }
 
+TEST_CASE("Quadrature tails preserve finite prices near double limits", "[audit-fixes][quadrature-tail-range]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    constexpr double threshold = 11.0;
+    constexpr double payout = 1e308;
+    const double log_probability = std::log(0.5 * std::erfc(threshold / std::numbers::sqrt2));
+    for (const double rate : {-60.0, -64.0}) {
+        const double expected = std::exp(std::log(payout) - rate + log_probability);
+        CHECK(detail::normal_tail_integral(threshold, payout, -rate) == Catch::Approx(expected).epsilon(1e-8));
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, 0.2), 100.0, start);
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            CAPTURE(rate, type);
+            const double sign = type == OptionType::call ? 1.0 : -1.0;
+            const double strike = 100.0 * std::exp(rate - 0.02 + sign * 0.2 * threshold);
+            const auto option = *make_cash_or_nothing_option(type, strike, payout, start, end);
+            const auto price = QuadratureDigitalEngine{}.price(option, context);
+            REQUIRE(price);
+            CHECK(*price == Catch::Approx(expected).epsilon(1e-8));
+        }
+    }
+}
+
 TEST_CASE("Analytic and quadrature prices preserve scaled normal tails", "[audit-fixes]")
 {
     const auto start = day(2025, 1, 1);

@@ -1495,6 +1495,31 @@ class PricingAuditTests(unittest.TestCase):
             coarse = pricing.FiniteDifferenceBarrierEngine(asset_step_count=3)
             self.assertGreaterEqual(coarse.price(option, context), 0)
 
+    def test_quadrature_tails_preserve_finite_prices_near_double_limits(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        threshold, payout = 11.0, 1e308
+        log_probability = math.log(0.5 * math.erfc(threshold / math.sqrt(2)))
+        for rate in (-60.0, -64.0):
+            expected = math.exp(math.log(payout) - rate + log_probability)
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=0, volatility=0.2
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
+            for direction, sign in (("call", 1), ("put", -1)):
+                with self.subTest(rate=rate, direction=direction):
+                    option = CashOrNothingOption(
+                        option_type=direction,
+                        strike=100 * math.exp(rate - 0.02 + sign * 0.2 * threshold),
+                        payout=payout,
+                        effective_date=start,
+                        expiry_date=end,
+                    )
+                    value = pricing.QuadratureDigitalEngine().price(option, context)
+                    self.assertTrue(math.isclose(value, expected, rel_tol=1e-8))
+
     def test_analytic_and_quadrature_prices_preserve_scaled_normal_tails(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

@@ -114,15 +114,18 @@ inline Result<double> barrier_hit_discount(double distance, bool upper, double d
 inline double normal_tail_integral(double threshold, double amount = 1.0, double log_discount = 0.0) noexcept
 {
     if (std::isnan(threshold)) return threshold;
+    if (std::isinf(threshold)) return scaled_normal_cdf(amount, log_discount, -threshold);
     const double lower = std::abs(threshold);
     const bool scaled_tail = threshold > 10.0;
     const double discount = scaled_tail ? 1.0 : std::exp(log_discount);
     const double scale = scaled_tail ? 1.0 : amount * discount;
     const bool direct_scale = std::isnormal(discount) && std::isfinite(scale);
     const double log_weight = scaled_tail ? std::log(amount) + log_discount : 0.0;
-    // Scale before exponentiating so representable prices survive probability underflow.
+    // Normalize large tails at their peak so densities and their sum cannot overflow.
     const auto density_at = [&](double value) {
-        return scaled_tail ? inverse_sqrt_two_pi * std::exp(log_weight - 0.5 * value * value) : normal_pdf(value);
+        if (!scaled_tail) return normal_pdf(value);
+        const double distance = value - lower;
+        return std::exp(-distance * (lower + 0.5 * distance));
     };
     const double density = density_at(lower);
     if (density == 0.0) {
@@ -143,6 +146,8 @@ inline double normal_tail_integral(double threshold, double amount = 1.0, double
         sum = next;
     }
     const double tail = sum * step / 3.0;
+    if (scaled_tail)
+        return std::exp(log_weight - 0.5 * lower * lower + std::log(inverse_sqrt_two_pi) + std::log(tail));
     const double probability = threshold < 0.0 ? 1.0 - tail : tail;
     return direct_scale ? scale * probability
                         : std::exp(std::log(amount) + log_discount + std::log(probability));
