@@ -2,6 +2,8 @@ import math
 import unittest
 from datetime import date
 
+from price_differences import price_differences
+
 from kiyosi import ErrorCategory, KiyosiError, pricing
 from kiyosi.instruments import (
     AmericanOption,
@@ -34,8 +36,11 @@ class AuditRegressionTests(unittest.TestCase):
             "effective_date": start,
             "expiry_date": end,
         }
-        expected = pricing.calculate_numerical_greeks(
-            pricing.AnalyticVanillaEngine(), EuropeanOption(**terms), context
+        expected = price_differences(
+            pricing.AnalyticVanillaEngine(),
+            EuropeanOption(**terms),
+            context,
+            greeks=("theta", "charm", "color"),
         )
         for state in ("touched", "untouched"):
             option = BarrierOption(
@@ -298,25 +303,15 @@ class AuditRegressionTests(unittest.TestCase):
                     spot_price=spot,
                     valuation_time=start,
                 )
-                for result in (
-                    pricing.calculate_numerical_greeks(
-                        pricing.AnalyticVanillaEngine(), option, context
-                    ),
-                    pricing.QuadratureVanillaEngine().price_with_greeks(
-                        option,
-                        context,
-                        ["delta", "gamma", "speed"],
-                    ),
-                ):
-                    self.assertAlmostEqual(result.delta, 1, delta=1e-12)
-                    self.assertEqual(result.gamma, 0)
-                    self.assertAlmostEqual(result.speed, 0, delta=1e-6)
+                result = pricing.QuadratureVanillaEngine().price_with_greeks(
+                    option, context, ["delta", "gamma", "speed"]
+                )
+                self.assertAlmostEqual(result.delta, 1, delta=1e-12)
+                self.assertEqual(result.gamma, 0)
+                self.assertAlmostEqual(result.speed, 0, delta=1e-6)
                 if spot == 1e14:
-                    collapsed = pricing.calculate_numerical_greeks(
-                        pricing.AnalyticVanillaEngine(),
-                        option,
-                        context,
-                        spot_shift=0.004,
+                    collapsed = pricing.QuadratureVanillaEngine().price_with_greeks(
+                        option, context, all_greeks=True, spot_shift=0.004
                     )
                     self.assertIsNone(collapsed.delta)
                     self.assertIsNone(collapsed.gamma)

@@ -6,6 +6,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/detail/math.hpp"
 
 namespace {
@@ -190,10 +191,10 @@ TEST_CASE("Numerical Greeks use representable symmetric bumps", "[audit-fixes][r
             CHECK(greek_value(*result, Greek::gamma) == 0.0);
             CHECK(greek_value(*result, Greek::speed) == Catch::Approx(0.0).margin(1e-6));
         };
-        check(calculate_numerical_greeks(AnalyticVanillaEngine{}, option, context));
+        check(kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, context));
         check(QuadratureVanillaEngine{}.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed}));
         if (spot == 1e14) {
-            const auto collapsed = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, context, {.spot_shift = 0.004});
+            const auto collapsed = kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, context, {.spot_shift = 0.004});
             REQUIRE(collapsed);
             CHECK_FALSE(collapsed->has(Greek::delta));
             CHECK_FALSE(collapsed->has(Greek::gamma));
@@ -673,7 +674,7 @@ TEST_CASE("Numerical time Greeks preserve microsecond shifts", "[audit-fixes]")
                 CHECK(greek_value(*result, Greek::theta) == Catch::Approx(-*prior / elapsed_days).epsilon(1e-10));
             };
             const AnalyticVanillaEngine analytic;
-            check(analytic, calculate_numerical_greeks(analytic, option, context));
+            check(analytic, kiyosi::test::price_differences(analytic, option, context));
             const QuadratureVanillaEngine quadrature;
             check(quadrature, quadrature.price_with_greeks(option, context, {Greek::theta}));
         }

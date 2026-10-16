@@ -6,6 +6,7 @@
 
 #include <benchmark/benchmark.h>
 #include <kiyosi/kiyosi.hpp>
+#include <kiyosi/pricing/detail/numerical_greeks.hpp>
 
 #include "pricing.hpp"
 
@@ -117,7 +118,6 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/mc/rho", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::rho}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma_rho", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma, Greek::rho}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/all", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, true); }, "price")->UseRealTime();
-    register_calculation("analytics/kiyosi/accumulator/mc/numerical_all", [=] { return calculate_numerical_greeks(accumulator_monte_carlo, accumulator, context); }, "price")->UseRealTime();
 #if KIYOSI_HAS_CUDA
     const MonteCarloAccumulatorEngine cuda_accumulator{250'000, 42, MonteCarloBackend::cuda};
     const MonteCarloAutocallableEngine cuda_snowball{250'000, 42, MonteCarloBackend::cuda};
@@ -156,7 +156,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
         if (weekdays_calendar().is_trading_day(date)) dense_dates.push_back(date);
     const auto dense_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dense_dates, .touch_state = BarrierTouchState::untouched});
     register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/all", [=, dense_barrier = dense_barrier] { return AnalyticBarrierEngine{}.price_with_greeks(dense_barrier, context, true); }, "price");
-    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return calculate_numerical_greeks(AnalyticBarrierEngine{}, dense_barrier, context); }, "price");
+    register_calculation("analytics/kiyosi/barrier/analytic/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return detail::price_with_greeks(AnalyticBarrierEngine{}, dense_barrier, context, true, NumericalShiftSettings{}); }, "price");
     const auto dense_snowball = *make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .observations = *kiyosi::make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 1'000.0), std::vector<double>(dense_dates.size(), 0.08))});
     const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const auto dense_barrier_context = *make_pricing_context(base_context.model_parameters(), 100.25, dense_context.valuation_time(), weekdays_calendar());
@@ -209,7 +209,6 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/mc/unavailable_speed", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc/unavailable_vanna", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::vanna}, {.volatility_shift = 0.3}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
-    register_calculation("analytics/kiyosi/european/mc/numerical_all", [=] { return calculate_numerical_greeks(monte_carlo_engine, european, context); }, "price");
     register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,
                    FiniteDifferenceVanillaEngine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}}, base_context);
     const auto off_node_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), base_context.calendar());

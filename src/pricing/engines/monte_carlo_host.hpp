@@ -9,7 +9,7 @@
 #include <kiyosi/core/day_count.hpp>
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/detail/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 

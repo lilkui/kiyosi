@@ -271,8 +271,8 @@ class SharedSampleTests(unittest.TestCase):
                 mixed = engine.price_with_greeks(
                     option, context, ["delta", "vega"], spot_shift=200
                 )
-                expected = pricing.calculate_numerical_greeks(
-                    engine, option, context, spot_shift=200
+                expected = engine.price_with_greeks(
+                    option, context, all_greeks=True, spot_shift=200
                 )
                 self.assertEqual(mixed.vega, expected.vega)
                 self.assertIsNone(mixed.delta)
@@ -648,7 +648,7 @@ class SharedSampleTests(unittest.TestCase):
             pricing.implied_volatility(engine, option, context, quote), expected
         )
 
-    def test_numerical_and_selected_greeks_match_the_engine_api(self):
+    def test_selected_greeks_match_all_requests(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         names = GREEKS
         for direction in ("call", "put"):
@@ -692,8 +692,8 @@ class SharedSampleTests(unittest.TestCase):
                                 actual = engine.price_with_greeks(
                                     option, context, GREEKS, **shifts
                                 )
-                                expected = pricing.calculate_numerical_greeks(
-                                    engine, option, context, **shifts
+                                expected = engine.price_with_greeks(
+                                    option, context, all_greeks=True, **shifts
                                 )
                                 self.assertEqual(actual.price, expected.price)
                                 self.assertEqual(
@@ -893,8 +893,8 @@ class SharedSampleTests(unittest.TestCase):
                         for value in (spot - h, spot, spot + h)
                     ]
                     low, middle, high = [engine.price(option, ctx) for ctx in contexts]
-                    result = pricing.calculate_numerical_greeks(
-                        engine, option, contexts[1], spot_shift=shift
+                    result = engine.price_with_greeks(
+                        option, contexts[1], all_greeks=True, spot_shift=shift
                     )
                     self.assertEqual(result.price, middle)
                     self.assertEqual(result.delta, (high - low) / (2 * h))

@@ -9,6 +9,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 
 namespace {
 
@@ -252,7 +253,7 @@ TEST_CASE("Analytic charm retains dividend carry when density underflows")
                 REQUIRE(result);
                 const double expected = in_the_money ? sign * dividend * std::exp(-dividend) / 365.0 : 0.0;
                 CHECK_THAT(greek_value(*result, kiyosi::Greek::charm), Catch::Matchers::WithinAbs(expected, 1e-15));
-                const auto numerical = kiyosi::calculate_numerical_greeks(engine, option, context);
+                const auto numerical = kiyosi::test::price_differences(engine, option, context);
                 REQUIRE(numerical);
                 CHECK_THAT(greek_value(*numerical, kiyosi::Greek::charm), Catch::Matchers::WithinAbs(expected, 2e-9));
             }

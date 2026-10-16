@@ -19,6 +19,7 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_random.hpp"
 #include "pricing/engines/monte_carlo_autocallable.hpp"
 
@@ -420,7 +421,7 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
                         const auto expected = detail::price_with_greeks(engine, note, context, true, shifts);
                         REQUIRE(expected);
                         const int scalar_queries = queries->exchange(0);
-                        const auto numerical = calculate_numerical_greeks(engine, note, context, shifts);
+                        const auto numerical = kiyosi::test::price_differences(engine, note, context, shifts);
                         REQUIRE(numerical);
                         if (spot == 100.25 && valuation == start_of_day(start) + std::chrono::hours{12})
                             CHECK(queries->load() < scalar_queries);

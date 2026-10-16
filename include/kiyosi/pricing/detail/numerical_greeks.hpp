@@ -534,23 +534,4 @@ Result<PricingResult> price_with_greeks(
 
 } // namespace detail
 
-/// Computes price and all feasible Greeks using only numerical price differences.
-/// At expiry or a monitored barrier hit-state boundary, only price is available.
-/// Missing legal stencils leave individual measures empty; a failed feasible valuation
-/// fails the operation. Built-in Monte Carlo valuations share one seed per request.
-/// Spot stencils crossing a currently monitored event threshold are unavailable.
-/// Built-in finite-difference valuations share the unshifted context's asset domain.
-/// Custom engines are used as supplied and control their own sampling and asset domain.
-/// Shifts and units follow NumericalShiftSettings and Greek, respectively.
-template <typename Engine, typename Option>
-[[nodiscard]] Result<PricingResult> calculate_numerical_greeks(
-    const Engine& engine, const Option& option, const PricingContext& context,
-    NumericalShiftSettings settings = {})
-{
-    if constexpr (detail::is_builtin_monte_carlo_engine<Engine, Option>)
-        return engine.price_with_greeks(option, context, true, settings);
-    else
-        return detail::price_with_greeks(engine, option, context, true, settings);
-}
-
 } // namespace kiyosi

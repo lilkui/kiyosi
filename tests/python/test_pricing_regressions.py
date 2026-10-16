@@ -3,6 +3,8 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
+from price_differences import price_differences
+
 import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -45,8 +47,12 @@ class PricingRegressionTests(unittest.TestCase):
                 spot_price=100 * scale,
                 valuation_time=date(2025, 6, 1),
             )
-            return pricing.calculate_numerical_greeks(
-                pricing.AnalyticVanillaEngine(), option, context, spot_shift=70 * scale
+            return price_differences(
+                pricing.AnalyticVanillaEngine(),
+                option,
+                context,
+                greeks=("charm",),
+                spot_shift=70 * scale,
             ).charm
 
         baseline = charm(1.0)
@@ -443,7 +449,7 @@ class PricingRegressionTests(unittest.TestCase):
                     self.assertAlmostEqual(getattr(result, name), expected, delta=1e-11)
                 self.assertEqual(result.price, engine.price(option, context))
 
-    def test_accumulator_mc_numerical_and_selected_greeks_match_the_engine_api(self):
+    def test_accumulator_mc_selected_greeks_match_all_requests(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         option = Accumulator(
             strike=100,
@@ -487,8 +493,8 @@ class PricingRegressionTests(unittest.TestCase):
                                 valuation_time=valuation,
                                 calendar=all_days_calendar(),
                             )
-                            expected = pricing.calculate_numerical_greeks(
-                                engine, option, context, spot_shift=0.2
+                            expected = engine.price_with_greeks(
+                                option, context, all_greeks=True, spot_shift=0.2
                             )
                             for request in (names, ["delta", "gamma"], ["speed"]):
                                 actual = engine.price_with_greeks(

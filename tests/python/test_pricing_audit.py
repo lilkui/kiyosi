@@ -1330,28 +1330,14 @@ class PricingAuditTests(unittest.TestCase):
                     valuation_time=expiry - 2 * shift,
                 )
                 elapsed_days = (2 * shift).total_seconds() / 86400
-                analytic = pricing.AnalyticVanillaEngine()
-                quadrature = pricing.QuadratureVanillaEngine()
-                for engine, evaluate in (
-                    (analytic, pricing.calculate_numerical_greeks),
-                    (
-                        quadrature,
-                        lambda engine, option, context: engine.price_with_greeks(
-                            option, context, "theta"
-                        ),
-                    ),
-                ):
-                    with self.subTest(
-                        year=year,
-                        microseconds=microseconds,
-                        engine=type(engine).__name__,
-                    ):
-                        expected = -engine.price(option, before) / elapsed_days
-                        self.assertLess(expected, 0)
-                        result = evaluate(engine, option, context)
-                        self.assertAlmostEqual(
-                            result.theta, expected, delta=abs(expected) * 1e-10
-                        )
+                engine = pricing.QuadratureVanillaEngine()
+                with self.subTest(year=year, microseconds=microseconds):
+                    expected = -engine.price(option, before) / elapsed_days
+                    self.assertLess(expected, 0)
+                    result = engine.price_with_greeks(option, context, "theta")
+                    self.assertAlmostEqual(
+                        result.theta, expected, delta=abs(expected) * 1e-10
+                    )
 
     def test_bjerksund_rejects_nonphysical_exercise_boundaries(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

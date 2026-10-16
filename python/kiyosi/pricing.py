@@ -22,7 +22,6 @@ from ._native import (
     QuadratureDigitalEngine,
     QuadratureVanillaEngine,
     TurnbullWakemanArithmeticAveragePriceEngine,
-    calculate_numerical_greeks,
     implied_coupon,
     implied_volatility,
 )
@@ -49,7 +48,6 @@ __all__ = [
     "QuadratureDigitalEngine",
     "QuadratureVanillaEngine",
     "TurnbullWakemanArithmeticAveragePriceEngine",
-    "calculate_numerical_greeks",
     "implied_coupon",
     "implied_volatility",
 ]

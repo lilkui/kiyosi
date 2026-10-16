@@ -11,6 +11,7 @@
 #include <kiyosi/kiyosi.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/detail/math.hpp"
 
 namespace {
@@ -68,7 +69,7 @@ TEST_CASE("Generic analytics preserve custom engine state", "[pricing-api][custo
     const auto check = [&](const auto& engine) {
         const auto price = engine.price(option, context);
         REQUIRE(price);
-        const auto numerical = calculate_numerical_greeks(engine, option, context);
+        const auto numerical = kiyosi::test::price_differences(engine, option, context);
         REQUIRE(numerical);
         CHECK(numerical->price() == *price);
         CHECK(greek_value(*numerical, Greek::delta) == Catch::Approx(2.0 * greek_value(*analytic, Greek::delta)).margin(1e-6));
@@ -162,7 +163,7 @@ TEST_CASE("Resolved scheduled barriers retain time Greeks across inactive observ
 {
     const auto context = market();
     const auto check = [&](const auto& engine, const auto& option, const auto& vanilla, const auto& vanilla_engine) {
-        const auto expected = calculate_numerical_greeks(vanilla_engine, vanilla, context);
+        const auto expected = kiyosi::test::price_differences(vanilla_engine, vanilla, context);
         const auto result = engine.price_with_greeks(option, context, {Greek::theta, Greek::charm, Greek::color});
         REQUIRE(expected);
         REQUIRE(result);
@@ -798,11 +799,11 @@ TEST_CASE("Joint pricing calculates only requested Greeks", "[pricing-api]")
 TEST_CASE("Unrepresentable shifts leave numerical sensitivities unavailable", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
-    const auto normal = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market());
+    const auto normal = kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, market());
     REQUIRE(normal);
     CHECK(greek_value(*normal, Greek::vega) > 0.0);
     CHECK(greek_value(*normal, Greek::rho) > 0.0);
-    const auto tiny = calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market(),
+    const auto tiny = kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, market(),
                                                  {.volatility_shift = 1e-20, .rate_shift = 1e-20});
     REQUIRE(tiny);
     for (const auto greek : {Greek::vega, Greek::vanna, Greek::zomma, Greek::rho})
@@ -910,7 +911,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
-    const auto result = calculate_numerical_greeks(RecordingPriceEngine{&calls}, option,
+    const auto result = kiyosi::test::price_differences(RecordingPriceEngine{&calls}, option,
                                                    market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
     REQUIRE(result);
     CHECK(greek_value(*result, Greek::theta) == 0.0);
@@ -1415,7 +1416,7 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
         for (const auto measure : {Greek::delta, Greek::gamma, Greek::speed,
                                    Greek::vanna, Greek::zomma, Greek::charm, Greek::color})
             CHECK_FALSE(result->has(measure));
-        const auto narrow = calculate_numerical_greeks(
+        const auto narrow = kiyosi::test::price_differences(
             engine, option, context, NumericalShiftSettings{.spot_shift = 0.0001});
         REQUIRE(narrow);
         CHECK(narrow->has(Greek::delta));
@@ -1427,7 +1428,7 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
         const auto option = *make_barrier_option(
             {.option_type = OptionType::call, .strike = 100.0, .effective_date = effective, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .rebate = 10.0, .observation_mode = mode, .observation_dates = mode == ObservationMode::scheduled ? std::vector<Date>{valuation, expiry} : std::vector<Date>{}, .touch_state = BarrierTouchState::untouched});
         check(AnalyticBarrierEngine{}, option, 119.999);
-        const auto wider = calculate_numerical_greeks(AnalyticBarrierEngine{}, option, market(119.985));
+        const auto wider = kiyosi::test::price_differences(AnalyticBarrierEngine{}, option, market(119.985));
         REQUIRE(wider);
         CHECK(wider->has(Greek::delta));
         CHECK(wider->has(Greek::gamma));

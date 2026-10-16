@@ -16,6 +16,7 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_random.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 
@@ -54,7 +55,7 @@ TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-c
     const auto scalar = detail::price_with_greeks(engine, option, context, true, {});
     REQUIRE(scalar);
     const int scalar_queries = queries->exchange(0);
-    const auto result = calculate_numerical_greeks(engine, option, context);
+    const auto result = kiyosi::test::price_differences(engine, option, context);
     REQUIRE(result);
     CHECK(queries->load() < scalar_queries);
     CHECK(result->price() == scalar->price());
@@ -107,7 +108,7 @@ TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valu
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, valuation, all_days_calendar());
                     const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                     REQUIRE(expected);
-                    const auto numerical = calculate_numerical_greeks(engine, option, context, shifts);
+                    const auto numerical = kiyosi::test::price_differences(engine, option, context, shifts);
                     REQUIRE(numerical);
                     CHECK(numerical->price() == expected->price());
                     CHECK(numerical->values_view() == expected->values_view());

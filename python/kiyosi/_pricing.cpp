@@ -163,9 +163,11 @@ failures fail the entire operation.
 At current autocallable-product event thresholds, undefined spot and time
 sensitivities remain None while feasible rate and volatility sensitivities survive.
 
-Shift keyword arguments are absolute, use core-owned defaults, and follow
-calculate_numerical_greeks. Monte Carlo valuations share one seed per
-request without changing the engine. Concurrent calls are safe.
+Shift keyword arguments are absolute and use core-owned defaults. Spot shifts
+use asset-price units, volatility and rate shifts use decimal units, and time
+shifts use calendar days. Collapsed or asymmetric stencils leave affected
+numerical Greeks unavailable. Monte Carlo valuations share one seed per request
+without changing the engine. Concurrent calls are safe.
 For American Monte Carlo, omitted or None spot_shift uses 8% of spot to reduce
 exercise-decision sampling noise. Explicit shifts remain absolute. Sampling error
 and bump-size bias remain; check convergence for the valuation.
@@ -342,56 +344,6 @@ Settings implied_settings(
 template <typename Engine, typename Instrument>
 void bind_analytics_pair(nb::module_& module)
 {
-    module.def(
-        "calculate_numerical_greeks",
-        [](const Engine& engine, const Instrument& instrument, const PricingContext& context,
-           PythonReal spot_shift, PythonReal volatility_shift, PythonReal rate_shift,
-           PythonInteger time_shift_days) {
-            const auto settings = numerical_settings(
-                real_number(spot_shift, "spot_shift"), volatility_shift, rate_shift, time_shift_days);
-            nb::gil_scoped_release release;
-            return unwrap(kiyosi::calculate_numerical_greeks(engine, instrument, context, settings));
-        },
-        "engine"_a, "instrument"_a, "context"_a, nb::kw_only(),
-        "spot_shift"_a = NumericalShiftSettings{}.spot_shift,
-        "volatility_shift"_a = NumericalShiftSettings{}.volatility_shift,
-        "rate_shift"_a = NumericalShiftSettings{}.rate_shift,
-        "time_shift_days"_a = NumericalShiftSettings{}.time_shift_days,
-        R"doc(Compute price and every feasible numerical Greek.
-
-Shifts are absolute. Omitted shifts use core-owned defaults. A measure with no
-valid finite-difference stencil inside a model boundary is ``None`` while other
-valid results are preserved. Spot bumps crossing a currently monitored event
-threshold leave spot-based sensitivities unavailable.
-
-Parameters
-----------
-engine : pricing engine
-    Engine used for every base and bumped valuation.
-instrument : instrument
-    Instrument supported by the engine.
-context : PricingContext
-    Market state and valuation instant.
-spot_shift : float, optional
-    Absolute spot change for spot-based sensitivities.
-volatility_shift : float, optional
-    Absolute volatility change for volatility-based sensitivities.
-rate_shift : float, optional
-    Absolute risk-free-rate change for rate-based sensitivities.
-time_shift_days : int, optional
-    Calendar-day step for time-based sensitivities.
-
-Returns
--------
-PricingResult
-    Price and each feasible numerical sensitivity.
-
-Raises
-------
-TypeError
-    If the engine/instrument combination or a setting is incompatible.
-KiyosiError
-    If the inputs are invalid or a feasible valuation fails.)doc");
     module.def(
         "implied_volatility",
         [](const Engine& engine, const Instrument& instrument, const PricingContext& context,

@@ -10,6 +10,7 @@
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 
 namespace {
@@ -479,7 +480,7 @@ TEST_CASE("Numerical charm preserves large monetary scaling", "[audit-fixes]")
     const auto evaluate = [&](double scale) {
         const auto option = *make_european_option(OptionType::call, 100.0 * scale, start, end);
         const auto market = *make_pricing_context(parameters, 100.0 * scale, day(2025, 6, 1));
-        return calculate_numerical_greeks(AnalyticVanillaEngine{}, option, market, {.spot_shift = 70.0 * scale});
+        return kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, market, {.spot_shift = 70.0 * scale});
     };
     const auto baseline = evaluate(1.0);
     const auto scaled = evaluate(1e306);
@@ -543,13 +544,13 @@ TEST_CASE("Numerical time Greeks center clipped stencils on valuation", "[audit-
         const double days = std::chrono::duration<double, std::ratio<86400>>{elapsed}.count();
         const auto time = start_of_day(valuation) + elapsed;
         const auto market = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), 100.0, time);
-        const auto result = calculate_numerical_greeks(QuadraticTimeEngine{}, option, market);
+        const auto result = kiyosi::test::price_differences(QuadraticTimeEngine{}, option, market);
         REQUIRE(result);
         check_close(greek_value(*result, Greek::theta), 2.0 * days * 10000.0, 1e-12);
         check_close(greek_value(*result, Greek::charm), 4.0 * days * 100.0, 1e-12);
         check_close(greek_value(*result, Greek::color), 4.0 * days, 1e-14);
     }
-    const auto first = calculate_numerical_greeks(QuadraticTimeEngine{}, option, context());
+    const auto first = kiyosi::test::price_differences(QuadraticTimeEngine{}, option, context());
     REQUIRE(first);
     check_close(greek_value(*first, Greek::theta), 10000.0);
 }
@@ -587,7 +588,7 @@ TEST_CASE("Finite-difference numerical Greeks keep the automatic asset grid fixe
         CAPTURE(spot);
         const auto market = context(spot, 0.03, 0.02, 0.2);
         const auto expected = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, market, true);
-        const auto numerical = kiyosi::calculate_numerical_greeks(finite, option, market);
+        const auto numerical = kiyosi::test::price_differences(finite, option, market);
         const auto joint = finite.price_with_greeks(option, market, {kiyosi::Greek::speed});
         REQUIRE(expected);
         REQUIRE(numerical);
@@ -698,7 +699,7 @@ TEST_CASE("Analytic and numerical analytics share Greek conventions")
     const auto market = context();
     const kiyosi::AnalyticVanillaEngine engine;
     const auto analytic_result = *engine.price_with_greeks(option, market, kiyosi::GreeksRequest{true});
-    const auto numerical_result = *kiyosi::calculate_numerical_greeks(engine, option, market);
+    const auto numerical_result = *kiyosi::test::price_differences(engine, option, market);
 
     for (std::size_t index = 0; index < kiyosi::greek_count; ++index) {
         const auto measure = static_cast<kiyosi::Greek>(index);
@@ -718,7 +719,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto market = context(100.0, 0.05, 0.02, 0.00005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_greeks(engine, option, market);
+        const auto result = kiyosi::test::price_differences(engine, option, market);
 
         REQUIRE(result);
         check_close(result->price(),
@@ -734,7 +735,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto market = context(0.005);
         const auto direct = *engine.price(option, market);
-        const auto result = kiyosi::calculate_numerical_greeks(engine, option, market);
+        const auto result = kiyosi::test::price_differences(engine, option, market);
 
         REQUIRE(result);
         check_close(result->price(),
@@ -754,7 +755,7 @@ TEST_CASE("Numerical analytics retain valid results at stencil boundaries")
     {
         const auto expiring = *kiyosi::make_european_option(
             kiyosi::OptionType::call, 100.0, valuation, valuation);
-        const auto result = kiyosi::calculate_numerical_greeks(engine, expiring, context());
+        const auto result = kiyosi::test::price_differences(engine, expiring, context());
 
         REQUIRE(result);
         CHECK(std::isfinite(result->price()));
@@ -768,7 +769,7 @@ TEST_CASE("Numerical analytics preserve feasible bump failures")
 {
     const auto option = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::calculate_numerical_greeks(
+    const auto result = kiyosi::test::price_differences(
         RejectingMixedBumpEngine{}, option, context());
 
     REQUIRE_FALSE(result);

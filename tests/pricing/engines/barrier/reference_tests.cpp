@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "support/reference_harness.hpp"
+#include "support/numerical.hpp"
 
 using kiyosi::test::barrier_kinds;
 using kiyosi::test::check_price;
@@ -421,7 +422,7 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
                                                         number("rate_shift"), static_cast<int>(number("time_shift_days"))};
             // Three nested spot shifts are used by speed; keep every stencil in the same hit state.
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::calculate_numerical_greeks(engine, *option, *context, shifts);
+            const auto numerical = kiyosi::test::price_differences(engine, *option, *context, shifts);
             kiyosi::test::check_numerical_result(fixture, numerical);
         };
         if (fixture.engine == "AnalyticBarrierEngine") check(kiyosi::AnalyticBarrierEngine{});

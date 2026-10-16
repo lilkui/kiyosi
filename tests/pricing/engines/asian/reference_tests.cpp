@@ -9,6 +9,7 @@
 #include <utility>
 
 #include "support/reference_harness.hpp"
+#include "support/numerical.hpp"
 
 using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
@@ -175,7 +176,7 @@ TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approxi
             }
             ++wrapped;
             REQUIRE(fixture.outputs.size() == measures.size() + 1);
-            const auto numerical = kiyosi::calculate_numerical_greeks(
+            const auto numerical = kiyosi::test::price_differences(
                 engine, *option, *context,
                 kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
                                                number("rate_shift"),

@@ -200,7 +200,7 @@ TEST_CASE("Numerical analytics expose shared Greeks")
     auto option = kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     REQUIRE(option.has_value());
-    auto analytics = kiyosi::calculate_numerical_greeks(kiyosi::CoxRossRubinsteinVanillaEngine{64}, *option, *context);
+    auto analytics = kiyosi::CoxRossRubinsteinVanillaEngine{64}.price_with_greeks(*option, *context, true);
     REQUIRE(analytics.has_value());
     CHECK(analytics->has(kiyosi::Greek::speed));
     CHECK(analytics->has(kiyosi::Greek::rho));

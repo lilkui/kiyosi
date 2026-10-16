@@ -496,8 +496,8 @@ class AutocallableRegressionTests(unittest.TestCase):
                             result.speed,
                             (up2 - 2 * up + 2 * down - down2) / h / h / (2 * h),
                         )
-                        numerical = pricing.calculate_numerical_greeks(
-                            engine, note, contexts[0], spot_shift=shift
+                        numerical = engine.price_with_greeks(
+                            note, contexts[0], all_greeks=True, spot_shift=shift
                         )
                         self.assertEqual(
                             (result.price, result.delta, result.gamma, result.speed),

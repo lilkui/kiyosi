@@ -12,6 +12,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 #include "pricing/engines/monte_carlo_mean.hpp"
 
@@ -633,7 +634,7 @@ TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[
                                              start_of_day(end) - std::chrono::microseconds{1}, start_of_day(end)}) {
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
                     for (const auto shifts : {NumericalShiftSettings{}, NumericalShiftSettings{0.125, 0.02, 0.005, 2}}) {
-                        const auto actual = calculate_numerical_greeks(engine, option, context, shifts);
+                        const auto actual = kiyosi::test::price_differences(engine, option, context, shifts);
                         const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                         REQUIRE(actual);
                         REQUIRE(expected);
@@ -875,7 +876,7 @@ TEST_CASE("American Monte Carlo rate Greeks retain one estimator across zero", "
         CAPTURE(rate);
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.0, 0.2), 100.0, start);
         const auto rho = engine.price_with_greeks(option, context, {Greek::rho}, shifts);
-        const auto all = calculate_numerical_greeks(engine, option, context, shifts);
+        const auto all = kiyosi::test::price_differences(engine, option, context, shifts);
         REQUIRE(rho);
         REQUIRE(all);
         CHECK(rho->price() == *engine.price(option, context));

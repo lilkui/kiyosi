@@ -163,7 +163,7 @@ target_sources(kiyosi
             include/kiyosi/market/schedule_builders.hpp
             include/kiyosi/market/calendars/sse.hpp
             include/kiyosi/pricing/implied.hpp
-            include/kiyosi/pricing/numerical_greeks.hpp
+            include/kiyosi/pricing/detail/numerical_greeks.hpp
             include/kiyosi/pricing/result.hpp
             include/kiyosi/pricing/detail/autocallable_program.hpp
             include/kiyosi/pricing/detail/instrument_analytics.hpp

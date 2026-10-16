@@ -12,6 +12,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 
 namespace {
 
@@ -70,7 +71,7 @@ TEST_CASE("Scheduled analytic Greeks validate calendars once per request", "[ana
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, calendar);
     const auto check = [&](const auto& engine, const auto& option) {
-        const auto expected = calculate_numerical_greeks(engine, option, context);
+        const auto expected = kiyosi::test::price_differences(engine, option, context);
         REQUIRE(expected);
         *queries = 0;
         const auto result = engine.price_with_greeks(option, context, true);

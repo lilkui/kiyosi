@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import get_args
 from unittest.mock import patch
 
+from price_differences import price_differences
+
 import kiyosi
 
 # Jobs set KIYOSI_TEST_CUDA=disabled only after building with KIYOSI_ENABLE_CUDA=OFF,
@@ -56,7 +58,6 @@ from kiyosi.pricing import (
     AnalyticBinaryBarrierEngine,
     AnalyticDigitalEngine,
     AnalyticVanillaEngine,
-    calculate_numerical_greeks,
     implied_coupon,
     implied_volatility,
 )
@@ -580,7 +581,9 @@ class KiyosiPythonTests(unittest.TestCase):
             context = PricingContext(
                 model_parameters=parameters, spot_price=119.985, valuation_time=observed
             )
-            wider = calculate_numerical_greeks(AnalyticBarrierEngine(), option, context)
+            wider = AnalyticBarrierEngine().price_with_greeks(
+                option, context, all_greeks=True
+            )
             self.assertIsNotNone(wider.delta)
             self.assertIsNotNone(wider.gamma)
             self.assertIsNone(wider.speed)
@@ -650,8 +653,8 @@ class KiyosiPythonTests(unittest.TestCase):
                     "color",
                 ):
                     self.assertIsNone(getattr(result, name), name)
-                narrow = calculate_numerical_greeks(
-                    engine, option, context, spot_shift=0.0001
+                narrow = engine.price_with_greeks(
+                    option, context, all_greeks=True, spot_shift=0.0001
                 )
                 self.assertIsNotNone(narrow.delta)
                 self.assertIsNotNone(narrow.gamma)
@@ -1240,7 +1243,9 @@ class KiyosiPythonTests(unittest.TestCase):
                     ),
                     greeks=["delta", "gamma"],
                 )
-                result = calculate_numerical_greeks(engine, option, context)
+                result = pricing.QuadratureVanillaEngine().price_with_greeks(
+                    option, context, all_greeks=True
+                )
                 self.assertAlmostEqual(
                     result.theta, after.price - before.price, delta=1e-9
                 )
@@ -1596,7 +1601,7 @@ class KiyosiPythonTests(unittest.TestCase):
                     context,
                     ["gamma", "speed"],
                 )
-                actual = calculate_numerical_greeks(finite, option, context)
+                actual = finite.price_with_greeks(option, context, all_greeks=True)
                 self.assertAlmostEqual(
                     actual.gamma,
                     expected.gamma,
@@ -2428,7 +2433,9 @@ class KiyosiPythonTests(unittest.TestCase):
                             delta=1e-15,
                         )
                         self.assertAlmostEqual(
-                            calculate_numerical_greeks(engine, option, context).charm,
+                            price_differences(
+                                engine, option, context, greeks=("charm",)
+                            ).charm,
                             expected,
                             delta=2e-9,
                         )
@@ -2514,6 +2521,9 @@ class KiyosiPythonTests(unittest.TestCase):
             )
 
     def test_explicit_pricing_result_surface(self):
+        for module in (kiyosi, pricing, kiyosi._native):
+            self.assertFalse(hasattr(module, "calculate_numerical_greeks"))
+        self.assertNotIn("calculate_numerical_greeks", pricing.__all__)
         self.assertFalse(hasattr(kiyosi, "price"))
         self.assertFalse(hasattr(pricing, "price"))
         self.assertFalse(hasattr(kiyosi, "GreeksLevel"))
@@ -2536,7 +2546,7 @@ class KiyosiPythonTests(unittest.TestCase):
         value = engine.price(self.option, context)
         basic = engine.price_with_greeks(self.option, context, ["delta", "gamma"])
         full = engine.price_with_greeks(self.option, context, all_greeks=True)
-        numerical = calculate_numerical_greeks(engine, self.option, context)
+        numerical = price_differences(engine, self.option, context)
         self.assertIs(type(value), float)
         self.assertEqual(basic.price, value)
         self.assertEqual(full.price, value)
@@ -2721,10 +2731,6 @@ class KiyosiPythonTests(unittest.TestCase):
                         "rho",
                     ):
                         self.assertIsNone(getattr(result, name))
-            numerical = calculate_numerical_greeks(engine, self.option, context)
-            self.assertEqual(numerical.price, 10)
-            self.assertIsNone(numerical.delta)
-            self.assertIsNone(numerical.vega)
 
     def test_joint_monte_carlo_reuses_explicit_seed_without_changing_settings(self):
         engine = pricing.MonteCarloVanillaEngine(path_count=512, step_count=5, seed=73)
@@ -3066,8 +3072,12 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
         self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("absolute", calculate_numerical_greeks.__doc__.lower())
-        self.assertIn("boundary", calculate_numerical_greeks.__doc__.lower())
+        self.assertIn(
+            "absolute", AnalyticVanillaEngine.price_with_greeks.__doc__.lower()
+        )
+        self.assertIn(
+            "boundary", AnalyticVanillaEngine.price_with_greeks.__doc__.lower()
+        )
         self.assertIn("solve", implied_volatility.__doc__.lower())
         self.assertIn("solve", implied_coupon.__doc__.lower())
         self.assertIn("start is excluded", fixed_interval_schedule.__doc__.lower())
@@ -4292,7 +4302,7 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         engine = AnalyticVanillaEngine()
         self.assertIsNotNone(
-            calculate_numerical_greeks(engine, self.option, self.context).vega
+            engine.price_with_greeks(self.option, self.context, all_greeks=True).vega
         )
         observed_price = engine.price(self.option, self.context)
         self.assertAlmostEqual(
@@ -4307,15 +4317,6 @@ class KiyosiPythonTests(unittest.TestCase):
                 observed_price,
                 lower_bound=0.5,
                 upper_bound=0.1,
-            )
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-        )
-
-    def test_calculate_numerical_greeks_rejects_invalid_shift_settings(self):
-        with self.assertRaises(kiyosi.KiyosiError) as error:
-            calculate_numerical_greeks(
-                AnalyticVanillaEngine(), self.option, self.context, spot_shift=0.0
             )
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
@@ -4349,8 +4350,8 @@ class KiyosiPythonTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
 
-    def test_calculate_numerical_greeks_retains_valid_boundary_results(self):
-        engine = AnalyticVanillaEngine()
+    def test_numerical_fallback_retains_valid_boundary_results(self):
+        engine = pricing.QuadratureVanillaEngine()
 
         low_volatility = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -4361,7 +4362,7 @@ class KiyosiPythonTests(unittest.TestCase):
             spot_price=100.0,
             valuation_time=date(2025, 1, 1),
         )
-        result = calculate_numerical_greeks(engine, self.option, low_volatility)
+        result = engine.price_with_greeks(self.option, low_volatility, all_greeks=True)
         self.assertAlmostEqual(result.price, engine.price(self.option, low_volatility))
         self.assertIsNotNone(result.delta)
         self.assertIsNotNone(result.rho)
@@ -4374,7 +4375,7 @@ class KiyosiPythonTests(unittest.TestCase):
             spot_price=0.005,
             valuation_time=date(2025, 1, 1),
         )
-        result = calculate_numerical_greeks(engine, self.option, low_spot)
+        result = engine.price_with_greeks(self.option, low_spot, all_greeks=True)
         self.assertAlmostEqual(result.price, engine.price(self.option, low_spot))
         self.assertIsNotNone(result.vega)
         self.assertIsNotNone(result.theta)
@@ -4645,15 +4646,13 @@ class KiyosiPythonTests(unittest.TestCase):
             spot_price=100,
             valuation_time=date(2025, 7, 1),
         )
-        normal = calculate_numerical_greeks(AnalyticVanillaEngine(), option, context)
+        normal = pricing.QuadratureVanillaEngine().price_with_greeks(
+            option, context, all_greeks=True
+        )
         self.assertGreater(normal.vega, 0)
         self.assertGreater(normal.rho, 0)
-        tiny = calculate_numerical_greeks(
-            AnalyticVanillaEngine(),
-            option,
-            context,
-            volatility_shift=1e-20,
-            rate_shift=1e-20,
+        tiny = pricing.QuadratureVanillaEngine().price_with_greeks(
+            option, context, all_greeks=True, volatility_shift=1e-20, rate_shift=1e-20
         )
         for name in ("vega", "vanna", "zomma", "rho"):
             self.assertIsNone(getattr(tiny, name))

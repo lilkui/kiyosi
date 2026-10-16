@@ -2,6 +2,8 @@ import math
 import unittest
 from datetime import UTC, date, datetime, timedelta
 
+from price_differences import price_differences
+
 import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -129,11 +131,20 @@ class AnalyticBarrierDomainTests(unittest.TestCase):
         )
         for engine, option in contracts:
             with self.subTest(option=type(option).__name__):
-                expected = pricing.calculate_numerical_greeks(engine, option, context)
+                time_greeks = ("theta", "charm", "color")
+                expected = price_differences(
+                    engine,
+                    option,
+                    context,
+                    greeks=tuple(greek for greek in greeks if greek not in time_greeks),
+                )
                 actual = engine.price_with_greeks(option, context, greeks)
                 self.assertEqual(actual.price, engine.price(option, context))
                 for greek in greeks:
-                    self.assertEqual(getattr(actual, greek), getattr(expected, greek))
+                    if greek in time_greeks:
+                        self.assertIsNone(getattr(actual, greek))
+                    else:
+                        self.assertEqual(getattr(actual, greek), getattr(expected, greek))
                 solved = pricing.implied_volatility(
                     engine,
                     option,

@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/autocallable/finite_difference.hpp>
 
-#include <kiyosi/pricing/numerical_greeks.hpp>
+#include <kiyosi/pricing/detail/numerical_greeks.hpp>
 #include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>

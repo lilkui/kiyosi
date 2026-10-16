@@ -7,6 +7,7 @@
 #include <type_traits>
 
 #include "support/reference_harness.hpp"
+#include "support/numerical.hpp"
 
 using kiyosi::test::check_price;
 using kiyosi::test::fixture_date;
@@ -83,7 +84,7 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                               static_cast<int>(number("time_shift_days"))};
                 }
                 const auto numerical = wrapped
-                                           ? kiyosi::calculate_numerical_greeks(engine, option, *context, shifts)
+                                           ? kiyosi::test::price_differences(engine, option, *context, shifts)
                                            : native;
                 REQUIRE(numerical.has_value());
                 if (wrapped)

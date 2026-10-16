@@ -1,5 +1,4 @@
 #include <kiyosi/pricing/implied.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
 
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/pricing/engines/barrier/analytic.hpp>
@@ -26,7 +25,7 @@ TEST_CASE("Analytics headers preserve product hooks when included before engines
     CHECK(std::abs(*solved - 1.0) < 1e-6);
 
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 100.0, .barrier_type = BarrierType::up_and_out});
-    const auto result = calculate_numerical_greeks(AnalyticBarrierEngine{}, barrier, context);
+    const auto result = AnalyticBarrierEngine{}.price_with_greeks(barrier, context, true);
     REQUIRE(result);
     CHECK(result->price() == 0.0);
     for (const auto greek : {Greek::delta, Greek::gamma, Greek::theta, Greek::vega, Greek::rho})

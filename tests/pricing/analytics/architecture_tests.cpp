@@ -6,6 +6,7 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 
 namespace {
 
@@ -142,7 +143,7 @@ TEST_CASE("Analytics preserve intraday valuation in market shifts", "[architectu
     const RecordingEngine engine{&moments, noon};
     SECTION("numerical analytics")
     {
-        const auto analytics = kiyosi::calculate_numerical_greeks(engine, option, context);
+        const auto analytics = kiyosi::test::price_differences(engine, option, context);
         REQUIRE(analytics);
         CHECK(greek_value(*analytics, kiyosi::Greek::vega) == Catch::Approx(0.01));
         CHECK(greek_value(*analytics, kiyosi::Greek::theta) == Catch::Approx(1.0));

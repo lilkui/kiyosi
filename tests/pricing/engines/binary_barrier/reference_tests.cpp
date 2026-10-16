@@ -5,6 +5,7 @@
 #include <string>
 
 #include "support/reference_harness.hpp"
+#include "support/numerical.hpp"
 
 using kiyosi::test::barrier_kinds;
 using kiyosi::test::check_price;
@@ -57,7 +58,7 @@ TEST_CASE("QuantLib binary barrier and touch contracts validate prices and smoot
                 number("spot_shift"), number("volatility_shift"), number("rate_shift"),
                 static_cast<int>(number("time_shift_days"))};
             REQUIRE(std::abs(number("spot") - number("barrier")) > 3 * shifts.spot_shift);
-            const auto numerical = kiyosi::calculate_numerical_greeks(
+            const auto numerical = kiyosi::test::price_differences(
                 engine, option, *context, shifts);
             kiyosi::test::check_numerical_result(fixture, numerical);
         };

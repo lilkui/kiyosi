@@ -35,7 +35,6 @@
 #include <kiyosi/instruments/vanilla.hpp>
 
 #include <kiyosi/pricing/implied.hpp>
-#include <kiyosi/pricing/numerical_greeks.hpp>
 #include <kiyosi/pricing/result.hpp>
 
 #include <kiyosi/pricing/settings/binomial.hpp>

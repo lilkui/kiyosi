@@ -7,7 +7,7 @@ uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/gen
 uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/check_generation.py
 ```
 
-QuantLib 1.43 is pinned in the existing uv environment. Generation computes each contract reference once, then attaches the target engine settings, native and numerical error budgets, and wrapper coverage selection. All rows remain in `tests/fixtures/pricing_reference.tsv`; the C++ tests consume it without Python or QuantLib.
+QuantLib 1.43 is pinned in the existing uv environment. Generation computes each contract reference once, then attaches the target engine settings, native and numerical error budgets, and scalar-price-difference coverage selection. All rows remain in `tests/fixtures/pricing_reference.tsv`; the C++ tests consume it without Python or QuantLib.
 
 CI runs the generation checks on Windows, where regeneration reproduces the committed fixture bytes, and requires them before publishing. Other platforms can produce different floating-point encodings and fail the exact-byte comparison.
 
@@ -17,4 +17,4 @@ The seven TSV columns are `case_id`, `instrument`, `engine`, `variant`, `inputs`
 
 Reference stability limits are independent of engine error budgets. Analytic references compare native Greeks with price differences and two bump sizes; American references also compare refined finite-difference grids. The recorded uncertainty is empirical, not a rigorous bound. Arithmetic Asian references measure agreement with the same Levy approximation, not error against the true arithmetic-average value.
 
-Scenario JSON and product row builders own explicit test configurations. Native budgets cover analytic roundoff, quadrature, grid error, approximation error or sampling error as applicable. Numerical budgets additionally allow finite-stencil truncation and interpolation error. The `wrapper` field selects scenarios exercising Kiyosi's numerical sensitivities; it does not affect reference calculation. Changing a budget or coverage selection must not change the underlying reference or its stability metadata.
+Scenario JSON and product row builders own explicit test configurations. Native budgets cover analytic roundoff, quadrature, grid error, approximation error or sampling error as applicable. Numerical budgets additionally allow finite-stencil truncation and interpolation error. The `wrapper` field selects test-only scalar-price-difference comparisons through Kiyosi's internal numerical helpers; it does not denote a public API or affect reference calculation. Changing a budget or coverage selection must not change the underlying reference or its stability metadata.
