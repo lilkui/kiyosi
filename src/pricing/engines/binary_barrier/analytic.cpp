@@ -102,14 +102,12 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const double log_ratio = log_price_ratio(barrier, spot);
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
-        const auto discount = barrier_hit_discount(
-            std::abs(log_ratio), upper, rate - dividend - 0.5 * variance, volatility, time, rate);
-        if (!discount) return std::unexpected(discount.error());
-        return checked_price(option.payout * *discount);
+        return barrier_hit_value(option.payout, std::abs(log_ratio), upper,
+                                 rate - dividend - 0.5 * variance, volatility, time, rate);
     }
     if (!option.option_type && volatility * volatility == 0.0) {
-        const auto probability = barrier_hit_discount(std::abs(log_ratio), upper, rate - dividend,
-                                                      volatility, time, 0.0);
+        const auto probability = barrier_hit_value(1.0, std::abs(log_ratio), upper, rate - dividend,
+                                                   volatility, time, 0.0);
         if (!probability) return std::unexpected(probability.error());
         const double weight = knock_in ? *probability : 1.0 - *probability;
         if (weight == 0.0) return 0.0;

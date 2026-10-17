@@ -33,6 +33,104 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_first_hit_payments_retain_scaled_far_tail_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=0.2
+        )
+        context = PricingContext(
+            model_parameters=parameters, spot_price=100, valuation_time=start
+        )
+        for up in (False, True):
+            for amount in (1e200, 1e300):
+                ratio = math.exp(8 if up else -8)
+                barrier = 100 * ratio
+                expected = (
+                    1.3325295301744355e-51 if up else 3.9722145459424451e-48
+                ) * (amount / 1e300)
+                asset_context = PricingContext(
+                    model_parameters=parameters,
+                    spot_price=amount / ratio,
+                    valuation_time=start,
+                )
+                for timing in ("at_hit", "at_expiry"):
+                    terms = {"effective_date": start, "expiry_date": end}
+                    cash = (cash_one_touch_up if up else cash_one_touch_down)(
+                        **terms,
+                        barrier_level=barrier,
+                        payout=amount,
+                        settlement_timing=timing,
+                    )
+                    asset = (asset_one_touch_up if up else asset_one_touch_down)(
+                        **terms, barrier_level=amount, settlement_timing=timing
+                    )
+                    rebate = BarrierOption(
+                        **terms,
+                        option_type="call" if up else "put",
+                        strike=2 * barrier if up else 0.5 * barrier,
+                        barrier_level=barrier,
+                        barrier_type="up_and_out" if up else "down_and_out",
+                        rebate=amount,
+                        rebate_timing=timing,
+                    )
+                    for engine, option, market in (
+                        (pricing.AnalyticBinaryBarrierEngine(), cash, context),
+                        (pricing.AnalyticBinaryBarrierEngine(), asset, asset_context),
+                        (pricing.AnalyticBarrierEngine(), rebate, context),
+                    ):
+                        with self.subTest(
+                            up=up, amount=amount, timing=timing, option=option
+                        ):
+                            actual = engine.price(option, market)
+                            self.assertTrue(
+                                math.isclose(actual, expected, rel_tol=1e-11)
+                            )
+                            self.assertEqual(
+                                engine.price_with_greeks(option, market, "delta").price,
+                                actual,
+                            )
+
+    def test_first_hit_payments_scale_extreme_discounts(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for up in (False, True):
+            spot, barrier = (1e-200, 1e200) if up else (1e200, 1e-200)
+            rate, amount = (-1000 if up else 1000), spot
+            distance = abs(math.log(barrier) - math.log(spot))
+            expected = math.exp(math.log(amount) - rate * (distance / 1000))
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=rate, dividend_yield=2 * rate, volatility=1e-200
+                ),
+                spot_price=spot,
+                valuation_time=start,
+            )
+            terms = {
+                "effective_date": start,
+                "expiry_date": end,
+                "barrier_level": barrier,
+            }
+            cash = (cash_one_touch_up if up else cash_one_touch_down)(
+                **terms, payout=amount, settlement_timing="at_hit"
+            )
+            rebate = BarrierOption(
+                **terms,
+                option_type="call" if up else "put",
+                strike=2 * barrier if up else 0.5 * barrier,
+                barrier_type="up_and_out" if up else "down_and_out",
+                rebate=amount,
+                rebate_timing="at_hit",
+            )
+            for engine, option in (
+                (pricing.AnalyticBinaryBarrierEngine(), cash),
+                (pricing.AnalyticBarrierEngine(), rebate),
+            ):
+                with self.subTest(up=up, option=option):
+                    self.assertTrue(
+                        math.isclose(
+                            engine.price(option, context), expected, rel_tol=1e-11
+                        )
+                    )
+
     def test_expiry_barrier_rebates_retain_rare_hit_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         engine = pricing.AnalyticBarrierEngine()

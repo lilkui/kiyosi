@@ -46,6 +46,81 @@ TEST_CASE("Binary barrier branches preserve in-out parity", "[binary-barrier-bra
                 }
 }
 
+TEST_CASE("First-hit payments retain scaled far-tail prices", "[first-hit-scale]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
+    const auto context = *make_pricing_context(parameters, 100.0, start);
+    for (const bool up : {false, true})
+        for (const double amount : {1e200, 1e300}) {
+            CAPTURE(up, amount);
+            const double ratio = std::exp(up ? 8.0 : -8.0);
+            const double barrier = 100.0 * ratio;
+            // High-precision first-passage values at log-distance 8 and volatility 20%.
+            const double expected = (up ? 1.3325295301744355e-51 : 3.9722145459424451e-48) * (amount / 1e300);
+            const auto asset_context = *make_pricing_context(parameters, amount / ratio, start);
+            const auto check = [&](const auto& engine, const auto& option, const auto& market) {
+                const auto price = engine.price(option, market);
+                REQUIRE(price);
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 1e-11));
+                const auto joint = engine.price_with_greeks(option, market, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+            };
+            for (const auto timing : {SettlementTiming::at_hit, SettlementTiming::at_expiry}) {
+                CAPTURE(timing);
+                const auto cash = *(up ? make_cash_one_touch_up(start, end, barrier, amount, timing)
+                                       : make_cash_one_touch_down(start, end, barrier, amount, timing));
+                const auto asset = *(up ? make_asset_one_touch_up(start, end, amount, timing)
+                                        : make_asset_one_touch_down(start, end, amount, timing));
+                const auto rebate = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put,
+                                                          .strike = up ? 2.0 * barrier : 0.5 * barrier,
+                                                          .effective_date = start,
+                                                          .expiry_date = end,
+                                                          .barrier_level = barrier,
+                                                          .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
+                                                          .rebate = amount,
+                                                          .rebate_timing = timing == SettlementTiming::at_hit ? RebateTiming::at_hit : RebateTiming::at_expiry});
+                check(AnalyticBinaryBarrierEngine{}, cash, context);
+                check(AnalyticBinaryBarrierEngine{}, asset, asset_context);
+                check(AnalyticBarrierEngine{}, rebate, context);
+            }
+        }
+}
+
+TEST_CASE("First-hit payments scale extreme discounts", "[first-hit-scale]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const bool up : {false, true}) {
+        CAPTURE(up);
+        const double spot = up ? 1e-200 : 1e200;
+        const double barrier = up ? 1e200 : 1e-200;
+        const double rate = up ? -1000.0 : 1000.0;
+        const double amount = spot;
+        const double distance = std::abs(std::log(barrier) - std::log(spot));
+        const double expected = std::exp(std::log(amount) - rate * (distance / 1000.0));
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, 2.0 * rate, 1e-200), spot, start);
+        const auto cash = *(up ? make_cash_one_touch_up(start, end, barrier, amount, SettlementTiming::at_hit)
+                               : make_cash_one_touch_down(start, end, barrier, amount, SettlementTiming::at_hit));
+        const auto rebate = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put,
+                                                  .strike = up ? 2.0 * barrier : 0.5 * barrier,
+                                                  .effective_date = start,
+                                                  .expiry_date = end,
+                                                  .barrier_level = barrier,
+                                                  .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
+                                                  .rebate = amount,
+                                                  .rebate_timing = RebateTiming::at_hit});
+        const auto touch_price = AnalyticBinaryBarrierEngine{}.price(cash, context);
+        const auto rebate_price = AnalyticBarrierEngine{}.price(rebate, context);
+        REQUIRE(touch_price);
+        REQUIRE(rebate_price);
+        CHECK_THAT(*touch_price, Catch::Matchers::WithinRel(expected, 1e-11));
+        CHECK_THAT(*rebate_price, Catch::Matchers::WithinRel(expected, 1e-11));
+    }
+}
+
 TEST_CASE("Binary barrier prices survive volatility variance underflow", "[binary-barrier-underflow]")
 {
     using namespace kiyosi;

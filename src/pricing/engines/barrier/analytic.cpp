@@ -53,15 +53,15 @@ Result<double> price_barrier(
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
     const double log_ratio = log_price_ratio(barrier, spot);
-    double hit_discount = 0.0;
+    double hit_rebate_value = 0.0;
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
-        const auto discount = barrier_hit_discount(std::abs(log_ratio), upper,
-                                                   drift, sigma, t, rate);
-        if (!discount) return std::unexpected(discount.error());
-        hit_discount = *discount;
+        const auto value = barrier_hit_value(option.rebate(), std::abs(log_ratio), upper,
+                                             drift, sigma, t, rate);
+        if (!value) return std::unexpected(value.error());
+        hit_rebate_value = *value;
     }
-    const double root_time = sigma * std::sqrt(t), discounted_rebate = scaled_exponential(option.rebate(), -rate * t);
+    const double root_time = sigma * std::sqrt(t);
     const double x = option.strike();
     const double carry = rate - dividend;
     const double mu = carry / sigma / sigma - 0.5;
@@ -97,7 +97,7 @@ Result<double> price_barrier(
     };
     const auto rebate = [&] {
         return option.rebate_timing() == RebateTiming::at_hit
-                   ? (hit_rebate ? option.rebate() * hit_discount : discounted_rebate)
+                   ? hit_rebate_value
                    : scaled_normal_cdf(option.rebate(), -rate * t, -eta * x2 + eta * root_time) +
                          reflected(option.rebate(), -rate * t, eta * y2 - eta * root_time, false, false);
     };

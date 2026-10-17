@@ -100,16 +100,16 @@ inline double scaled_barrier_reflection_tail(double amount, double log_discount,
                     std::log(volatility) + std::log(root) - std::log(std::abs(numerator)) + std::log(inverse_sqrt_two_pi));
 }
 
-inline Result<double> barrier_hit_discount(double distance, bool upper, double drift, double volatility, double t, double rate)
+inline Result<double> barrier_hit_value(double amount, double distance, bool upper, double drift, double volatility, double t, double rate)
 {
-    if (t == 0.0) return 1.0;
+    if (t == 0.0) return amount;
     const double variance = volatility * volatility;
     const double signed_drift = upper ? -drift : drift;
     if (variance == 0.0) {
         if (signed_drift >= 0.0) return 0.0;
         // Keep the normal boundary at expiry even when squaring volatility underflows.
-        return checked_price(exponential_normal_cdf(rate * (distance / signed_drift),
-                                                    standardize_forward(-signed_drift * t - distance, volatility, std::sqrt(t))));
+        return checked_price(scaled_normal_cdf(amount, rate * (distance / signed_drift),
+                                               standardize_forward(-signed_drift * t - distance, volatility, std::sqrt(t))));
     }
     const double discriminant = signed_drift * signed_drift + 2.0 * rate * variance;
     const double scale = std::max({1.0, std::abs(signed_drift * signed_drift), std::abs(2.0 * rate * variance)});
@@ -121,11 +121,11 @@ inline Result<double> barrier_hit_discount(double distance, bool upper, double d
     // Rationalize the small root difference to retain discounting as variance approaches zero.
     const double first_exponent = signed_drift < 0.0 ? -2.0 * rate / (root - signed_drift) : (-signed_drift - root) / variance;
     const double second_exponent = signed_drift > 0.0 ? 2.0 * rate / (root + signed_drift) : (-signed_drift + root) / variance;
-    const double first = exponential_normal_cdf(first_exponent * distance,
-                                                (root * t - distance) / root_time);
+    const double first = scaled_normal_cdf(amount, first_exponent * distance,
+                                           (root * t - distance) / root_time);
     const double second = std::isfinite(second_exponent)
-                              ? exponential_normal_cdf(second_exponent * distance, (-root * t - distance) / root_time)
-                              : scaled_barrier_reflection_tail(1.0, first_exponent * distance, distance, 0.0, root, volatility, t, 0.0);
+                              ? scaled_normal_cdf(amount, second_exponent * distance, (-root * t - distance) / root_time)
+                              : scaled_barrier_reflection_tail(amount, first_exponent * distance, distance, 0.0, root, volatility, t, 0.0);
     return checked_price(first + second);
 }
 
