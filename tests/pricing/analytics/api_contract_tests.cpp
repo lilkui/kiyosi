@@ -804,7 +804,7 @@ TEST_CASE("Unrepresentable shifts leave numerical sensitivities unavailable", "[
     CHECK(greek_value(*normal, Greek::vega) > 0.0);
     CHECK(greek_value(*normal, Greek::rho) > 0.0);
     const auto tiny = kiyosi::test::price_differences(AnalyticVanillaEngine{}, option, market(),
-                                                 {.volatility_shift = 1e-20, .rate_shift = 1e-20});
+                                                      {.volatility_shift = 1e-20, .rate_shift = 1e-20});
     REQUIRE(tiny);
     for (const auto greek : {Greek::vega, Greek::vanna, Greek::zomma, Greek::rho})
         CHECK_FALSE(tiny->has(greek));
@@ -912,7 +912,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     std::vector<PricingContext> calls;
     const auto result = kiyosi::test::price_differences(RecordingPriceEngine{&calls}, option,
-                                                   market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
+                                                        market(), NumericalShiftSettings{.time_shift_days = std::numeric_limits<int>::max()});
     REQUIRE(result);
     CHECK(greek_value(*result, Greek::theta) == 0.0);
     for (const auto& call : calls) {

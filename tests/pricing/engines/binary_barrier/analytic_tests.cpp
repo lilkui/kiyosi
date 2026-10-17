@@ -178,7 +178,7 @@ TEST_CASE("Reflected barrier tails survive overflowing exponents", "[barrier-car
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
-    const double carry = std::log(2.0);
+    const double carry = std::numbers::ln2;
     for (const double sigma : {1e-160, 1e-200}) {
         CAPTURE(sigma);
         const auto context = *make_pricing_context(*make_bsm_parameters(carry, 0.0, sigma), 0.5, start);

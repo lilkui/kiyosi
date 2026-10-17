@@ -16,9 +16,7 @@
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 
-namespace kiyosi {
-
-namespace detail {
+namespace kiyosi::detail {
 
 template <typename Engine, typename Option>
 [[nodiscard]] Result<double> numerical_value(
@@ -532,6 +530,4 @@ Result<PricingResult> price_with_greeks(
                            });
 }
 
-} // namespace detail
-
-} // namespace kiyosi
+} // namespace kiyosi::detail
