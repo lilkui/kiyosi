@@ -80,7 +80,7 @@ Checks: >-
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
   -portability-avoid-pragma-once
-WarningsAsErrors: ''
+WarningsAsErrors: '*'
 HeaderFilterRegex: '(^|[/\\])(include|src|tests|python)([/\\])'
 ExcludeHeaderFilterRegex: '(^|[/\\])(_deps|third_party|external|vendor|site-packages)([/\\])'
 SystemHeaders: false

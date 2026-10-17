@@ -1,0 +1,176 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+
+jobs:
+  quality:
+    name: clang-format, clang-tidy, Ruff format and lint
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - name: Install Python tooling
+        run: python -m pip install nanobind==3.1.0 ruff==0.16.9
+      - name: Configure quality checks
+        run: >-
+          cmake --preset quality
+          -DCMAKE_CXX_COMPILER=clang++-22
+          -DKIYOSI_CLANG_FORMAT_EXECUTABLE=clang-format-22
+          -DKIYOSI_CLANG_TIDY_EXECUTABLE=clang-tidy-22
+          -DKIYOSI_BUILD_BENCHMARKS=ON
+      - name: Run quality checks
+        run: cmake --build --preset quality --parallel 2
+
+  test-oracle:
+    name: Check QuantLib reference generation
+    # Use Windows to reproduce the committed reference bytes.
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+      - run: python -m pip install uv
+      - run: uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/check_generation.py
+
+  test-core:
+    name: Test C++ core on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-26.04, windows-2025-vs2026]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build and test Linux core
+        if: runner.os == 'Linux'
+        env:
+          CC: gcc-15
+          CXX: g++-15
+        run: |
+          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON
+          cmake --build --preset linux-release
+          ctest --preset linux-release
+      - name: Build and test Windows core
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -version '[18.0,19.0)' -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsInstallPath) { throw "Visual Studio C++ tools were not found" }
+          & "$vsInstallPath\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          cmake --workflow --preset windows-release
+
+  test-cpu:
+    name: Test Python with CUDA disabled
+    runs-on: ubuntu-26.04
+    env:
+      CC: gcc-15
+      CXX: g++-15
+      CMAKE_ARGS: -DKIYOSI_ENABLE_CUDA=OFF
+      KIYOSI_TEST_CUDA: disabled
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install .
+      - run: python -m unittest discover -s tests/python -p 'test_*.py'
+
+  build:
+    name: Build wheels on ${{ matrix.os }} ${{ matrix.wheel }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-26.04
+            wheel: ''
+          - os: windows-2025-vs2026
+            wheel: cp311-win_amd64
+          - os: windows-2025-vs2026
+            wheel: cp312-win_amd64
+          - os: windows-2025-vs2026
+            wheel: cp313-win_amd64
+          - os: windows-2025-vs2026
+            wheel: cp314-win_amd64
+          - os: windows-2025-vs2026
+            wheel: cp315-win_amd64
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Install CUDA Toolkit
+        if: runner.os == 'Windows'
+        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d
+        with:
+          cuda: '13.2.0'
+          method: network
+          sub-packages: '["nvcc", "nvvm", "crt", "cudart", "cuobjdump", "curand_dev", "thrust", "visual_studio_integration"]'
+
+      - name: Configure Windows wheel toolchain
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $vsInstallPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -version '[18.0,19.0)' -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vsInstallPath) { throw "Visual Studio C++ tools were not found" }
+          & "$vsInstallPath\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+          foreach ($name in 'PATH', 'INCLUDE', 'LIB', 'LIBPATH') {
+            "$name=$([Environment]::GetEnvironmentVariable($name))" >> $env:GITHUB_ENV
+          }
+          "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
+
+      - name: Cache cibuildwheel tools
+        uses: actions/cache@v5
+        with:
+          path: ${{ runner.temp }}/cibw-cache
+          key: cibw-${{ matrix.os }}-${{ matrix.wheel }}-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
+          restore-keys: |
+            cibw-${{ matrix.os }}-${{ matrix.wheel }}-
+
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v4.3.1
+        with:
+          only: ${{ matrix.wheel }}
+        env:
+          CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
+
+      - name: Build source distribution
+        if: runner.os == 'Linux'
+        run: pipx run build --sdist --outdir wheelhouse
+
+      - name: Check distribution sizes
+        run: >-
+          python -c "from pathlib import Path; from zipfile import ZipFile;
+          oversized = [(path.name, path.stat().st_size) for path in Path('wheelhouse').iterdir()
+          if path.stat().st_size >= 100 * 1024 * 1024];
+          assert not oversized, f'distributions exceed PyPI size limit: {oversized}';
+          bundled = [(wheel.name, member) for wheel in Path('wheelhouse').glob('*.whl')
+          for member in ZipFile(wheel).namelist() if 'cudart' in member.lower()];
+          assert not bundled, f'wheels contain shared CUDA runtimes instead of static linkage: {bundled}'"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: distributions-${{ matrix.os }}${{ matrix.wheel && format('-{0}', matrix.wheel) || '' }}
+          path: wheelhouse/*
+          if-no-files-found: error
