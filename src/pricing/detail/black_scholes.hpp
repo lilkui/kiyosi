@@ -134,7 +134,7 @@ inline Result<PricingResult> price_at_volatility(
                    : weighted_discount * cumulative_d1;
     };
     if (!(want(Greek::gamma) || want(Greek::speed) || want(Greek::theta) || want(Greek::charm) || want(Greek::color) || want(Greek::vega) || want(Greek::vanna) || want(Greek::zomma)))
-        return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * discounted_probability(1.0)} : std::nullopt}, {Greek::rho, want(Greek::rho) ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit} : std::nullopt}});
+        return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * discounted_probability(1.0)} : std::nullopt}, {Greek::rho, want(Greek::rho) ? std::optional{sign * (year_fraction / percentage_points_per_unit) * cash_value} : std::nullopt}});
     const double log_density = -0.5 * d1 * d1 + std::log(inverse_sqrt_two_pi);
     const bool regular = std::isfinite(log_density) && std::isfinite(d2) && std::isfinite(d1 * d2);
     // Apply all scale factors before exponentiating so representable derivatives survive tail underflow.
@@ -180,7 +180,7 @@ inline Result<PricingResult> price_at_volatility(
         if (want(Greek::zomma)) zomma = 0.0;
     }
     const std::optional<double> rho = want(Greek::rho)
-                                          ? std::optional{sign * year_fraction * cash_value / percentage_points_per_unit}
+                                          ? std::optional{sign * (year_fraction / percentage_points_per_unit) * cash_value}
                                           : std::nullopt;
     return make_pricing_result(value, {{Greek::delta, want(Greek::delta) ? std::optional{sign * discounted_probability(1.0)} : std::nullopt}, {Greek::gamma, want(Greek::gamma) ? std::optional{gamma} : std::nullopt}, {Greek::speed, speed}, {Greek::theta, theta}, {Greek::charm, charm}, {Greek::color, color}, {Greek::vega, vega}, {Greek::vanna, vanna}, {Greek::zomma, zomma}, {Greek::rho, rho}});
 }

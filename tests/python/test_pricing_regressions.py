@@ -3,8 +3,6 @@ import unittest
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, date, datetime, timedelta
 
-from price_differences import price_differences
-
 import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -29,9 +27,39 @@ from kiyosi.market import (
     PricingContext,
     all_days_calendar,
 )
+from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_analytic_rho_preserves_finite_large_scale_sensitivities(self):
+        start, end = date(2025, 1, 1), date(2035, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0,
+                dividend_yield=0,
+                volatility=0.2,
+            ),
+            spot_price=1e308,
+            valuation_time=start,
+        )
+        engine = pricing.AnalyticVanillaEngine()
+        for direction, expected in (
+            ("call", 3.7608790690553036e306),
+            ("put", -6.244600382999492e306),
+        ):
+            option = EuropeanOption(
+                option_type=direction,
+                strike=1e308,
+                effective_date=start,
+                expiry_date=end,
+            )
+            price = engine.price(option, context)
+            for request in ("rho", ["rho", "vega"]):
+                with self.subTest(direction=direction, request=request):
+                    actual = engine.price_with_greeks(option, context, greeks=request)
+                    self.assertEqual(actual.price, price)
+                    self.assertAlmostEqual(actual.rho / expected, 1, delta=1e-12)
+
     def test_numerical_charm_preserves_large_monetary_scaling(self):
         def charm(scale):
             option = EuropeanOption(

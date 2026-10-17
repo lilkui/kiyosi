@@ -16,6 +16,27 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Analytic rho preserves finite large-scale sensitivities", "[rho-scaling]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2035, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 1e308, start);
+    const AnalyticVanillaEngine engine;
+    for (const auto direction : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(direction, 1e308, start, end);
+        const double expected = direction == OptionType::call ? 3.7608790690553036e306 : -6.244600382999492e306;
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        for (const auto request : {GreeksRequest{Greek::rho}, GreeksRequest{Greek::rho, Greek::vega}}) {
+            CAPTURE(direction);
+            const auto actual = engine.price_with_greeks(option, context, request);
+            REQUIRE(actual);
+            CHECK(actual->price() == *price);
+            CHECK_THAT(greek_value(*actual, Greek::rho), Catch::Matchers::WithinRel(expected, 1e-12));
+        }
+    }
+}
+
 TEST_CASE("Bjerksund-Stensland quadrature preserves continuation prices", "[pricing-performance]")
 {
     using namespace kiyosi;
