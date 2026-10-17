@@ -33,6 +33,48 @@ from kiyosi.pricing import implied_volatility
 
 
 class PricingAuditTests(unittest.TestCase):
+    def test_expiry_barrier_rebates_retain_rare_hit_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = pricing.AnalyticBarrierEngine()
+        for up in (False, True):
+            for rate in (-0.03, 0.0, 0.04):
+                for amount in (10.0, 100.0, 1e9, 1e300):
+                    with self.subTest(up=up, rate=rate, amount=amount):
+                        barrier = 500.0 if up else 20.0
+                        distance = abs(math.log(barrier / 100))
+                        drift = (1 if up else -1) * (rate - 0.01 - 0.02)
+                        probability = 0.5 * math.erfc(
+                            (distance - drift) / (0.2 * math.sqrt(2))
+                        ) + math.exp(2 * drift * distance / 0.04) * 0.5 * math.erfc(
+                            (distance + drift) / (0.2 * math.sqrt(2))
+                        )
+                        expected = amount * math.exp(-rate) * probability
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=rate,
+                                dividend_yield=0.01,
+                                volatility=0.2,
+                            ),
+                            spot_price=100,
+                            valuation_time=start,
+                        )
+                        option = BarrierOption(
+                            option_type="call" if up else "put",
+                            strike=1000 if up else 10,
+                            effective_date=start,
+                            expiry_date=end,
+                            barrier_level=barrier,
+                            barrier_type="up_and_out" if up else "down_and_out",
+                            rebate=amount,
+                            rebate_timing="at_expiry",
+                        )
+                        actual = engine.price(option, context)
+                        self.assertTrue(math.isclose(actual, expected, rel_tol=1e-11))
+                        self.assertEqual(
+                            engine.price_with_greeks(option, context, "delta").price,
+                            actual,
+                        )
+
     def test_asian_analytic_prices_retain_scaled_normal_tails(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(

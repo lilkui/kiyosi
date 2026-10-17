@@ -95,7 +95,12 @@ Result<double> price_barrier(
         return scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
                reflected(option.rebate(), -rate * t, eta * y2 - eta * root_time, false, false);
     };
-    const auto rebate = [&] { return option.rebate_timing() == RebateTiming::at_hit ? (hit_rebate ? option.rebate() * hit_discount : discounted_rebate) : discounted_rebate - e(); };
+    const auto rebate = [&] {
+        return option.rebate_timing() == RebateTiming::at_hit
+                   ? (hit_rebate ? option.rebate() * hit_discount : discounted_rebate)
+                   : scaled_normal_cdf(option.rebate(), -rate * t, -eta * x2 + eta * root_time) +
+                         reflected(option.rebate(), -rate * t, eta * y2 - eta * root_time, false, false);
+    };
     double value = 0.0;
     if (call) {
         if (knock_in) value = upper ? (x > barrier ? a + e() : b() - c() + d() + e()) : (x > barrier ? c() + e() : a - b() + d() + e());

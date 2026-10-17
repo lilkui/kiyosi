@@ -352,6 +352,40 @@ TEST_CASE("Already-hit barrier rebates respect expiry_date payment timing")
     CHECK_THAT(*result, Catch::Matchers::WithinAbs(10.0 * std::exp(-0.05), 1e-12));
 }
 
+TEST_CASE("Expiry barrier rebates retain rare-hit prices", "[barrier-rebate-tail]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto normal = [](double value) { return 0.5 * std::erfc(-value / std::numbers::sqrt2); };
+    for (const bool up : {false, true})
+        for (const double rate : {-0.03, 0.0, 0.04})
+            for (const double amount : {10.0, 100.0, 1e9, 1e300}) {
+                CAPTURE(up, rate, amount);
+                const double barrier = up ? 500.0 : 20.0;
+                const double distance = std::abs(std::log(barrier / 100.0));
+                const double drift = (up ? 1.0 : -1.0) * (rate - 0.01 - 0.02);
+                const double probability = normal((drift - distance) / 0.2) +
+                                           std::exp(2.0 * drift * distance / 0.04) * normal((-drift - distance) / 0.2);
+                const double expected = amount * std::exp(-rate) * probability;
+                const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.01, 0.2), 100.0, start);
+                const auto option = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put,
+                                                          .strike = up ? 1000.0 : 10.0,
+                                                          .effective_date = start,
+                                                          .expiry_date = end,
+                                                          .barrier_level = barrier,
+                                                          .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out,
+                                                          .rebate = amount,
+                                                          .rebate_timing = RebateTiming::at_expiry});
+                const AnalyticBarrierEngine engine;
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK_THAT(*price, Catch::Matchers::WithinRel(expected, 1e-11));
+                const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+                REQUIRE(joint);
+                CHECK(joint->price() == *price);
+            }
+}
+
 TEST_CASE("Barrier hit rebates use the finite first-hit payment decomposition")
 {
     const auto valuation = day(2025, 1, 6);
