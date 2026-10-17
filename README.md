@@ -31,6 +31,8 @@ python -m pip install kiyosi
 
 预编译 wheel 无需本地 C++ 工具链；从源码构建需要 C++23 编译器与 CMake 3.28+。
 
+Windows 源码构建和 CMake 预设使用 clang-cl。请安装 Visual Studio C++ 工具及 C++ Clang 编译器组件，并在 Visual Studio Developer PowerShell 中运行构建命令。
+
 ## Python 快速上手
 
 计算一年期欧式看涨期权的价格。利率、股息率和波动率使用小数，利率和股息率采用连续复利。

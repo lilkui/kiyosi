@@ -31,6 +31,8 @@ python -m pip install kiyosi
 
 Prebuilt wheels require no local C++ toolchain. Source builds require a C++23 compiler and CMake 3.28+.
 
+Windows source builds and CMake presets use clang-cl. Install the Visual Studio C++ tools and C++ Clang compiler component, and run build commands in a Visual Studio Developer PowerShell.
+
 ## Python quick start
 
 Price a one-year European call. Rates, dividend yields, and volatility are decimals; rates and dividend yields are continuously compounded.

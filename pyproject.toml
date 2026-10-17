@@ -39,6 +39,12 @@ cmake.args = [
     "-DBUILD_TESTING=OFF",
 ]
 
+[[tool.scikit-build.overrides]]
+if.platform-system = "win32"
+inherit.cmake.args = "append"
+cmake.args = ["-GNinja"]
+cmake.define.CMAKE_CXX_COMPILER = "clang-cl.exe"
+
 [tool.cibuildwheel]
 build = "cp3{11,12,13,14,15}-*"
 skip = "*-musllinux_*"
