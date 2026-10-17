@@ -18,6 +18,28 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barriers preserve small-volatility prices with nonzero carry", "[barrier-carry]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const double sigma : {1e-160, 1e-200})
+        for (const double carry : {-0.3, -0.02, 0.02, 0.3})
+            for (const bool up : {false, true})
+                for (const bool knock_in : {false, true})
+                    for (const auto direction : {OptionType::call, OptionType::put}) {
+                        CAPTURE(sigma, carry, up, knock_in, direction);
+                        const double terminal = 100.0 * std::exp(carry);
+                        const bool touched = up ? terminal >= 120.0 : terminal <= 80.0;
+                        const double payoff = std::max((direction == OptionType::call ? 1.0 : -1.0) * (terminal - 100.0), 0.0);
+                        const double expected = (knock_in == touched ? payoff : 7.0) * std::exp(-0.03);
+                        const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.03 - carry, sigma), 100.0, start);
+                        const auto option = *make_barrier_option({.option_type = direction, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? (knock_in ? BarrierType::up_and_in : BarrierType::up_and_out) : (knock_in ? BarrierType::down_and_in : BarrierType::down_and_out), .rebate = 7.0, .rebate_timing = RebateTiming::at_expiry});
+                        const auto actual = AnalyticBarrierEngine{}.price(option, context);
+                        REQUIRE(actual);
+                        CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, 1e-11));
+                    }
+}
+
 TEST_CASE("Equivalent hit rebates and touch payments share discount validation", "[hit-discount]")
 {
     using namespace kiyosi;

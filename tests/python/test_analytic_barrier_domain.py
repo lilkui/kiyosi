@@ -2,8 +2,6 @@ import math
 import unittest
 from datetime import UTC, date, datetime, timedelta
 
-from price_differences import price_differences
-
 import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
@@ -24,9 +22,164 @@ from kiyosi.market import (
     PricingContext,
     all_days_calendar,
 )
+from price_differences import price_differences
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_small_volatility_barriers_with_nonzero_carry(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for sigma in (1e-160, 1e-200):
+            for carry in (-0.3, -0.02, 0.02, 0.3):
+                terminal = 100 * math.exp(carry)
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.03,
+                        dividend_yield=0.03 - carry,
+                        volatility=sigma,
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                for up in (False, True):
+                    touched = terminal >= 120 if up else terminal <= 80
+                    for knock_in in (False, True):
+                        for direction in ("call", "put"):
+                            terms = {
+                                "option_type": direction,
+                                "strike": 100,
+                                "effective_date": start,
+                                "expiry_date": end,
+                                "barrier_level": 120 if up else 80,
+                                "barrier_type": ("up" if up else "down")
+                                + ("_and_in" if knock_in else "_and_out"),
+                            }
+                            payoff = max(
+                                (1 if direction == "call" else -1) * (terminal - 100),
+                                0,
+                            )
+                            exercised = (
+                                terminal > 100
+                                if direction == "call"
+                                else terminal < 100
+                            )
+                            contracts = (
+                                (
+                                    pricing.AnalyticBarrierEngine(),
+                                    BarrierOption(
+                                        **terms, rebate=7, rebate_timing="at_expiry"
+                                    ),
+                                    (payoff if knock_in == touched else 7)
+                                    * math.exp(-0.03),
+                                ),
+                                (
+                                    pricing.AnalyticBinaryBarrierEngine(),
+                                    cash_binary_barrier_option(**terms, payout=10),
+                                    10 * math.exp(-0.03)
+                                    if knock_in == touched and exercised
+                                    else 0,
+                                ),
+                                (
+                                    pricing.AnalyticBinaryBarrierEngine(),
+                                    asset_binary_barrier_option(**terms),
+                                    terminal * math.exp(-0.03)
+                                    if knock_in == touched and exercised
+                                    else 0,
+                                ),
+                            )
+                            for engine, option, expected in contracts:
+                                with self.subTest(
+                                    sigma=sigma,
+                                    carry=carry,
+                                    terms=terms,
+                                    engine=type(engine).__name__,
+                                    option=type(option).__name__,
+                                ):
+                                    self.assertAlmostEqual(
+                                        engine.price(option, context),
+                                        expected,
+                                        delta=1e-11,
+                                    )
+
+    def test_reflected_barrier_tail_survives_overflowing_exponent(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        carry = math.log(2)
+        option = cash_binary_barrier_option(
+            option_type="put",
+            strike=1,
+            effective_date=start,
+            expiry_date=end,
+            barrier_level=1,
+            barrier_type="up_and_in",
+            payout=1e300,
+        )
+        for sigma in (1e-160, 1e-200):
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=carry,
+                    dividend_yield=0,
+                    volatility=sigma,
+                ),
+                spot_price=0.5,
+                valuation_time=start,
+            )
+            expected = (1e300 * sigma) / (4 * carry * math.sqrt(2 * math.pi))
+            with self.subTest(sigma=sigma):
+                actual = pricing.AnalyticBinaryBarrierEngine().price(option, context)
+                self.assertAlmostEqual(actual / expected, 1, delta=1e-12)
+
+    def test_small_volatility_hit_rebates_and_touch_payments(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for sigma in (1e-160, 1e-200):
+            for carry in (-0.3, -0.02, 0.02, 0.3):
+                terminal = 100 * math.exp(carry)
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.03,
+                        dividend_yield=0.03 - carry,
+                        volatility=sigma,
+                    ),
+                    spot_price=100,
+                    valuation_time=start,
+                )
+                for up in (False, True):
+                    barrier = 120 if up else 80
+                    crossed = terminal >= barrier if up else terminal <= barrier
+                    expected = (
+                        7 * math.exp(-0.03 * math.log(barrier / 100) / carry)
+                        if crossed
+                        else 0
+                    )
+                    touch = (cash_one_touch_up if up else cash_one_touch_down)(
+                        effective_date=start,
+                        expiry_date=end,
+                        barrier_level=barrier,
+                        payout=7,
+                        settlement_timing="at_hit",
+                    )
+                    option = BarrierOption(
+                        option_type="call" if up else "put",
+                        strike=barrier,
+                        effective_date=start,
+                        expiry_date=end,
+                        barrier_level=barrier,
+                        barrier_type="up_and_out" if up else "down_and_out",
+                        rebate=7,
+                        rebate_timing="at_hit",
+                    )
+                    for engine, instrument in (
+                        (pricing.AnalyticBinaryBarrierEngine(), touch),
+                        (pricing.AnalyticBarrierEngine(), option),
+                    ):
+                        with self.subTest(
+                            sigma=sigma,
+                            carry=carry,
+                            up=up,
+                            engine=type(engine).__name__,
+                        ):
+                            self.assertAlmostEqual(
+                                engine.price(instrument, context), expected, delta=1e-11
+                            )
+
     def test_equivalent_hit_rebates_and_touch_payments_share_discount_validation(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for up in (False, True):
@@ -144,7 +297,9 @@ class AnalyticBarrierDomainTests(unittest.TestCase):
                     if greek in time_greeks:
                         self.assertIsNone(getattr(actual, greek))
                     else:
-                        self.assertEqual(getattr(actual, greek), getattr(expected, greek))
+                        self.assertEqual(
+                            getattr(actual, greek), getattr(expected, greek)
+                        )
                 solved = pricing.implied_volatility(
                     engine,
                     option,

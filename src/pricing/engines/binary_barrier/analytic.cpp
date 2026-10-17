@@ -116,10 +116,13 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         const double amount = option.asset_settlement ? spot : option.payout;
         return checked_price(scaled_exponential(amount, -(option.asset_settlement ? dividend : rate) * time + std::log(weight)));
     }
-    const double mu = (rate - dividend) / volatility / volatility - 0.5;
+    const double carry = rate - dividend;
+    const double mu = carry / volatility / volatility - 0.5;
     const double log_moneyness = log_price_ratio(spot, option.strike);
-    const double x1 = log_moneyness / volatility_time + (1 + mu) * volatility_time;
-    const double x2 = -log_ratio / volatility_time + (1 + mu) * volatility_time;
+    const double x1 = std::isfinite(mu) ? log_moneyness / volatility_time + (1 + mu) * volatility_time
+                                        : standardize_forward(log_moneyness + carry * time, volatility, std::sqrt(time)) + 0.5 * volatility_time;
+    const double x2 = std::isfinite(mu) ? -log_ratio / volatility_time + (1 + mu) * volatility_time
+                                        : standardize_forward(-log_ratio + carry * time, volatility, std::sqrt(time)) + 0.5 * volatility_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / volatility_time + (1 + mu) * volatility_time;
     const double y2 = log_ratio / volatility_time + (1 + mu) * volatility_time;
     const bool down = !upper, call = option.option_type && *option.option_type == OptionType::call;
@@ -128,12 +131,17 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const double eta = down ? 1.0 : -1.0;
     const double amount = option.asset_settlement ? spot : option.payout;
     const double log_discount = -(option.asset_settlement ? dividend : rate) * time;
-    const double reflected_log_discount = log_discount + (2 * (option.asset_settlement ? mu + 1 : mu)) * log_ratio;
+    const double reflection = (2 * (option.asset_settlement ? mu + 1 : mu)) * log_ratio;
     const double shift = option.asset_settlement ? 0.0 : volatility_time;
     const auto f1 = [&] { return scaled_normal_cdf(amount, log_discount, phi * x1 - phi * shift); };
     const auto f2 = [&] { return scaled_normal_cdf(amount, log_discount, phi * x2 - phi * shift); };
-    const auto f3 = [&] { return scaled_normal_cdf(amount, reflected_log_discount, eta * y1 - eta * shift); };
-    const auto f4 = [&] { return scaled_normal_cdf(amount, reflected_log_discount, eta * y2 - eta * shift); };
+    const auto reflected = [&](double argument, bool at_strike) {
+        return std::isfinite(reflection) ? scaled_normal_cdf(amount, log_discount + reflection, argument)
+                                         : scaled_barrier_reflection_tail(amount, log_discount, log_ratio, at_strike ? log_price_ratio(barrier, option.strike) : 0.0,
+                                                                          carry, volatility, time, option.asset_settlement ? 0.5 : -0.5);
+    };
+    const auto f3 = [&] { return reflected(eta * y1 - eta * shift, true); };
+    const auto f4 = [&] { return reflected(eta * y2 - eta * shift, false); };
     double value = 0.0;
     if (!option.option_type) {
         value = knock_in ? f2() + f4() : f2() - f4();

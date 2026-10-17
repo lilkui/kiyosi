@@ -4,6 +4,7 @@
 #include <chrono>
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <vector>
 
 #include <kiyosi/kiyosi.hpp>
@@ -74,6 +75,47 @@ TEST_CASE("Binary barrier prices survive volatility variance underflow", "[binar
                         }
 }
 
+TEST_CASE("Binary barriers preserve small-volatility prices with nonzero carry", "[barrier-carry]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const double sigma : {1e-160, 1e-200})
+        for (const double carry : {-0.3, -0.02, 0.02, 0.3})
+            for (const bool up : {false, true})
+                for (const bool knock_in : {false, true})
+                    for (const auto direction : {OptionType::call, OptionType::put})
+                        for (const bool asset : {false, true}) {
+                            CAPTURE(sigma, carry, up, knock_in, direction, asset);
+                            const double terminal = 100.0 * std::exp(carry);
+                            const bool touched = up ? terminal >= 120.0 : terminal <= 80.0;
+                            const bool exercised = direction == OptionType::call ? terminal > 100.0 : terminal < 100.0;
+                            const double expected = knock_in == touched && exercised ? (asset ? terminal : 10.0) * std::exp(-0.03) : 0.0;
+                            const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.03 - carry, sigma), 100.0, start);
+                            const BinaryBarrierTerms terms{.option_type = direction, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 120.0 : 80.0, .barrier_type = up ? (knock_in ? BarrierType::up_and_in : BarrierType::up_and_out) : (knock_in ? BarrierType::down_and_in : BarrierType::down_and_out)};
+                            const auto option = *(asset ? make_asset_binary_barrier_option(terms) : make_cash_binary_barrier_option(terms, 10.0));
+                            const auto actual = AnalyticBinaryBarrierEngine{}.price(option, context);
+                            REQUIRE(actual);
+                            CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, 1e-11));
+                        }
+}
+
+TEST_CASE("Reflected barrier tails survive overflowing exponents", "[barrier-carry]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const double carry = std::log(2.0);
+    for (const double sigma : {1e-160, 1e-200}) {
+        CAPTURE(sigma);
+        const auto context = *make_pricing_context(*make_bsm_parameters(carry, 0.0, sigma), 0.5, start);
+        const auto option = *make_cash_binary_barrier_option(
+            {.option_type = OptionType::put, .strike = 1.0, .effective_date = start, .expiry_date = end, .barrier_level = 1.0, .barrier_type = BarrierType::up_and_in}, 1e300);
+        const auto actual = AnalyticBinaryBarrierEngine{}.price(option, context);
+        REQUIRE(actual);
+        const double expected = (1e300 * sigma) / (4.0 * carry * std::sqrt(2.0 * std::numbers::pi));
+        CHECK_THAT(*actual, Catch::Matchers::WithinRel(expected, 1e-12));
+    }
+}
+
 TEST_CASE("Touch prices survive volatility variance underflow", "[audit-fixes]")
 {
     using namespace kiyosi;
@@ -81,7 +123,7 @@ TEST_CASE("Touch prices survive volatility variance underflow", "[audit-fixes]")
     const AnalyticBinaryBarrierEngine engine;
     for (const bool up : {true, false}) {
         const double barrier = up ? 101.0 : 99.0;
-        for (const double sigma : {1e-200, std::numeric_limits<double>::denorm_min()}) {
+        for (const double sigma : {1e-160, 1e-200, std::numeric_limits<double>::denorm_min()}) {
             for (const bool crossing : {false, true}) {
                 const double dividend = crossing ? (up ? 0.0 : 0.1) : 0.05;
                 const auto context = *make_pricing_context(*make_bsm_parameters(0.05, dividend, sigma), 100.0, start);

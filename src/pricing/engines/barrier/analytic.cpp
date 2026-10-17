@@ -62,30 +62,38 @@ Result<double> price_barrier(
         hit_discount = *discount;
     }
     const double root_time = sigma * std::sqrt(t), discounted_rebate = scaled_exponential(option.rebate(), -rate * t);
-    const double mu = (rate - dividend) / sigma / sigma - 0.5;
     const double x = option.strike();
+    const double carry = rate - dividend;
+    const double mu = carry / sigma / sigma - 0.5;
     const double log_moneyness = log_price_ratio(spot, x);
-    const double x2 = -log_ratio / root_time + (1.0 + mu) * root_time;
+    const double x2 = std::isfinite(mu) ? -log_ratio / root_time + (1.0 + mu) * root_time
+                                        : standardize_forward(-log_ratio + carry * t, sigma, std::sqrt(t)) + 0.5 * root_time;
     const double y1 = (2.0 * log_ratio + log_moneyness) / root_time + (1.0 + mu) * root_time;
     const double y2 = log_ratio / root_time + (1.0 + mu) * root_time;
     const bool call = option.option_type() == OptionType::call;
     const double eta = upper ? -1.0 : 1.0;
     const double phi = call ? 1.0 : -1.0;
+    const auto reflected = [&](double amount, double discount, double argument, bool at_strike, bool asset) {
+        const double exponent = 2.0 * (asset ? mu + 1.0 : mu) * log_ratio;
+        return std::isfinite(exponent) ? scaled_normal_cdf(amount, discount + exponent, argument)
+                                       : scaled_barrier_reflection_tail(amount, discount, log_ratio, at_strike ? log_price_ratio(barrier, x) : 0.0,
+                                                                        carry, sigma, t, asset ? 0.5 : -0.5);
+    };
     // Evaluate only the Reiner-Rubinstein terms needed by this contract.
     const auto b = [&] {
         return phi * scaled_normal_cdf(spot, -dividend * t, phi * x2) - phi * scaled_normal_cdf(x, -rate * t, phi * x2 - phi * root_time);
     };
     const auto c = [&] {
-        return phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y1) -
-               phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y1 - eta * root_time);
+        return phi * reflected(spot, -dividend * t, eta * y1, true, true) -
+               phi * reflected(x, -rate * t, eta * y1 - eta * root_time, true, false);
     };
     const auto d = [&] {
-        return phi * scaled_normal_cdf(spot, -dividend * t + (2.0 * (mu + 1.0)) * log_ratio, eta * y2) -
-               phi * scaled_normal_cdf(x, -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time);
+        return phi * reflected(spot, -dividend * t, eta * y2, false, true) -
+               phi * reflected(x, -rate * t, eta * y2 - eta * root_time, false, false);
     };
     const auto e = [&] {
         return scaled_normal_cdf(option.rebate(), -rate * t, eta * x2 - eta * root_time) -
-               scaled_normal_cdf(option.rebate(), -rate * t + (2.0 * mu) * log_ratio, eta * y2 - eta * root_time);
+               reflected(option.rebate(), -rate * t, eta * y2 - eta * root_time, false, false);
     };
     const auto rebate = [&] { return option.rebate_timing() == RebateTiming::at_hit ? (hit_rebate ? option.rebate() * hit_discount : discounted_rebate) : discounted_rebate - e(); };
     double value = 0.0;
