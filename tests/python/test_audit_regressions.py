@@ -2,8 +2,6 @@ import math
 import unittest
 from datetime import date
 
-from price_differences import price_differences
-
 from kiyosi import ErrorCategory, KiyosiError, pricing
 from kiyosi.instruments import (
     AmericanOption,
@@ -18,6 +16,7 @@ from kiyosi.instruments import (
     cash_binary_barrier_option,
 )
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from price_differences import price_differences
 
 
 class AuditRegressionTests(unittest.TestCase):

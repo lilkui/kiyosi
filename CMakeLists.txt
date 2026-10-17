@@ -11,6 +11,7 @@ endif()
 option(KIYOSI_INSTALL "Enable install rules" ${PROJECT_IS_TOP_LEVEL})
 option(KIYOSI_ENABLE_CLANG_TIDY "Run clang-tidy while compiling project targets" OFF)
 option(KIYOSI_ENABLE_CLANG_FORMAT "Add clang-format and clang-format-check targets" OFF)
+option(KIYOSI_ENABLE_RUFF "Add Ruff lint and format checks" OFF)
 option(KIYOSI_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 option(KIYOSI_BUILD_PYTHON "Build the Python bindings" OFF)
 option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" OFF)
@@ -82,6 +83,17 @@ if(KIYOSI_ENABLE_CLANG_FORMAT)
     )
     add_custom_target(kiyosi-format-check
         COMMAND "${KIYOSI_CLANG_FORMAT_EXECUTABLE}" --dry-run --Werror ${KIYOSI_CLANG_FORMAT_SOURCES}
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        VERBATIM
+        USES_TERMINAL
+    )
+endif()
+
+if(KIYOSI_ENABLE_RUFF)
+    find_program(KIYOSI_RUFF_EXECUTABLE NAMES ruff REQUIRED)
+    add_custom_target(kiyosi-ruff-check
+        COMMAND "${KIYOSI_RUFF_EXECUTABLE}" check .
+        COMMAND "${KIYOSI_RUFF_EXECUTABLE}" format --check .
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
         VERBATIM
         USES_TERMINAL

@@ -13,8 +13,6 @@ from pathlib import Path
 from typing import get_args
 from unittest.mock import patch
 
-from price_differences import price_differences
-
 import kiyosi
 
 # Jobs set KIYOSI_TEST_CUDA=disabled only after building with KIYOSI_ENABLE_CUDA=OFF,
@@ -61,6 +59,7 @@ from kiyosi.pricing import (
     implied_coupon,
     implied_volatility,
 )
+from price_differences import price_differences
 
 
 def parity_fields(value):

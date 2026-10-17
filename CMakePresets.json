@@ -88,6 +88,7 @@
                 "CMAKE_COMPILE_WARNING_AS_ERROR": true,
                 "KIYOSI_ENABLE_CLANG_FORMAT": true,
                 "KIYOSI_ENABLE_CLANG_TIDY": true,
+                "KIYOSI_ENABLE_RUFF": true,
                 "KIYOSI_BUILD_PYTHON": true
             }
         }
@@ -118,7 +119,8 @@
             "configurePreset": "quality",
             "targets": [
                 "all",
-                "kiyosi-format-check"
+                "kiyosi-format-check",
+                "kiyosi-ruff-check"
             ]
         }
     ],
