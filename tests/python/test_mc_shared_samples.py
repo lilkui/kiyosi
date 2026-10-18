@@ -303,8 +303,8 @@ class SharedSampleTests(unittest.TestCase):
                 charm = ((last[1] - last[2]) - (first[1] - first[2])) / h / days / 2
                 color = (
                     (
-                        (last[1] - 2 * last[0] + last[2])
-                        - (first[1] - 2 * first[0] + first[2])
+                        ((last[1] - last[0]) - (last[0] - last[2]))
+                        - ((first[1] - first[0]) - (first[0] - first[2]))
                     )
                     / h
                     / h
@@ -1098,7 +1098,9 @@ class SharedSampleTests(unittest.TestCase):
                 low, middle, high = prices
                 self.assertEqual(selected.price, middle)
                 self.assertEqual(selected.delta, (high - low) / 120)
-                self.assertEqual(selected.gamma, (high - 2 * middle + low) / 60 / 60)
+                self.assertEqual(
+                    selected.gamma, ((high - middle) - (middle - low)) / 60 / 60
+                )
                 self.assertIsNone(selected.speed)
             for shift in (0.01, 0.2):
                 with self.subTest(engine=type(engine).__name__, shift=shift):
@@ -1118,7 +1120,9 @@ class SharedSampleTests(unittest.TestCase):
                     )
                     self.assertEqual(result.price, middle)
                     self.assertEqual(result.delta, (high - low) / (2 * h))
-                    self.assertEqual(result.gamma, (high - 2 * middle + low) / h / h)
+                    self.assertEqual(
+                        result.gamma, ((high - middle) - (middle - low)) / h / h
+                    )
                     vol_shift = (0.2 + 0.01) - 0.2
                     stencils = []
                     for vol in (0.2 + vol_shift, 0.2 - vol_shift):
@@ -1147,8 +1151,8 @@ class SharedSampleTests(unittest.TestCase):
                         / 4
                     )
                     zomma = (
-                        (up_hi - 2 * center_hi + down_hi) / h / h
-                        - (up_lo - 2 * center_lo + down_lo) / h / h
+                        ((up_hi - center_hi) - (center_hi - down_hi)) / h / h
+                        - ((up_lo - center_lo) - (center_lo - down_lo)) / h / h
                     ) / (2 * (100 * vol_shift))
                     for names in (["vanna"], ["zomma"], ["vega", "vanna", "zomma"]):
                         selected = engine.price_with_greeks(
@@ -1200,7 +1204,7 @@ class SharedSampleTests(unittest.TestCase):
                     ]
                     low, middle, high = rows[1]
                     delta = (high - low) / (2 * shift)
-                    gamma = (high - 2 * middle + low) / shift / shift
+                    gamma = ((high - middle) - (middle - low)) / shift / shift
                     vanna = (
                         ((rows[2][2] - rows[2][0]) - (rows[0][2] - rows[0][0]))
                         / shift
@@ -1208,8 +1212,12 @@ class SharedSampleTests(unittest.TestCase):
                         / 4
                     )
                     zomma = (
-                        (rows[2][2] - 2 * rows[2][1] + rows[2][0]) / shift / shift
-                        - (rows[0][2] - 2 * rows[0][1] + rows[0][0]) / shift / shift
+                        ((rows[2][2] - rows[2][1]) - (rows[2][1] - rows[2][0]))
+                        / shift
+                        / shift
+                        - ((rows[0][2] - rows[0][1]) - (rows[0][1] - rows[0][0]))
+                        / shift
+                        / shift
                     ) / (2 * (100 * vol_shift))
                     with self.subTest(direction=direction, paths=paths, seed=seed):
                         result = engine.price_with_greeks(
@@ -1332,10 +1340,13 @@ class SharedSampleTests(unittest.TestCase):
                             )
                             self.assertEqual(result.price, center)
                             self.assertEqual(result.delta, (up - down) / 2)
-                            self.assertEqual(result.gamma, up - 2 * center + down)
+                            self.assertEqual(
+                                result.gamma, (up - center) - (center - down)
+                            )
                             if "speed" in names:
                                 self.assertEqual(
-                                    result.speed, (up2 - 2 * up + 2 * down - down2) / 2
+                                    result.speed,
+                                    ((up2 - up) - (up - down) + (down - down2)) / 2,
                                 )
 
     def test_american_unavailable_stencils_retain_scalar_prices(self):

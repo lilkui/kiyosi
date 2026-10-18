@@ -31,6 +31,30 @@ from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_quadrature_greeks_preserve_prices_near_the_numeric_limit(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call",
+            strike=1e300,
+            effective_date=start,
+            expiry_date=end,
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=0.2
+            ),
+            spot_price=1e308,
+            valuation_time=date(2025, 6, 1),
+        )
+        for greek in ("gamma", "speed", "zomma", "color"):
+            with self.subTest(greek=greek):
+                result = pricing.QuadratureVanillaEngine().price_with_greeks(
+                    option, context, greeks=["delta", greek], spot_shift=1e306
+                )
+                self.assertEqual(result.price, 1e308 - 1e300)
+                self.assertEqual(result.delta, 1)
+                self.assertEqual(getattr(result, greek), 0)
+
     def test_binomial_immediate_exercise_returns_payoff_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for direction in ("put", "call"):

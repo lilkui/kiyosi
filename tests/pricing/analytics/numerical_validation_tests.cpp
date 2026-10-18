@@ -11,6 +11,7 @@
 
 #include "support/common.hpp"
 #include "support/numerical.hpp"
+#include "pricing/detail/fd_grid.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 
 namespace {
@@ -200,6 +201,73 @@ TEST_CASE("Monte Carlo spot stencils preserve node meaning and cubic derivatives
     };
     check.template operator()<3>();
     check.template operator()<5>();
+}
+
+TEST_CASE("Spot stencils preserve finite derivatives near price limits", "[price-limit-stencils]")
+{
+    using namespace kiyosi;
+    using namespace kiyosi::detail;
+    const double offset = std::ldexp(1.0, 1023);
+    const double unit = std::ldexp(1.0, 1000);
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 2.0, start, end);
+    const auto market = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 2.0, day(2025, 6, 1));
+    for (const double sign : {1.0, -1.0}) {
+        CAPTURE(sign);
+        const auto price_at = [&](double x) { return sign * (offset + unit * (x + x * x + x * x * x)); };
+        DYNAMIC_SECTION("Scalar prices and mixed Greeks, sign=" << sign)
+        {
+            const auto result = complete_greeks(
+                [&](const PricingContext& shifted) -> Result<double> { return price_at(shifted.spot_price() - 2.0); },
+                option, market, {Greek::delta, Greek::gamma, Greek::speed, Greek::zomma, Greek::color},
+                {.spot_shift = 0.5}, *make_pricing_result(price_at(0.0)));
+            REQUIRE(result);
+            CHECK(result->price() == sign * offset);
+            CHECK(greek_value(*result, Greek::delta) == sign * 1.25 * unit);
+            CHECK(greek_value(*result, Greek::gamma) == sign * 2.0 * unit);
+            CHECK(greek_value(*result, Greek::speed) == sign * 6.0 * unit);
+            CHECK(greek_value(*result, Greek::zomma) == 0.0);
+            CHECK(greek_value(*result, Greek::color) == 0.0);
+        }
+        DYNAMIC_SECTION("Monte Carlo price batches, sign=" << sign)
+        {
+            const auto check = [&]<std::size_t count>() {
+                using Stencil = SpotStencil<count>;
+                std::array<double, count> prices{};
+                for (std::size_t i = 0; i < count; ++i)
+                    prices[i] = price_at(0.5 * Stencil::offsets[i]);
+                const auto result = spot_bump_result<count>(prices, true, 0.5);
+                REQUIRE(result);
+                CHECK(result->price() == sign * offset);
+                CHECK(greek_value(*result, Greek::delta) == sign * 1.25 * unit);
+                CHECK(greek_value(*result, Greek::gamma) == sign * 2.0 * unit);
+                if constexpr (count == 5) CHECK(greek_value(*result, Greek::speed) == sign * 6.0 * unit);
+            };
+            check.template operator()<3>();
+            check.template operator()<5>();
+        }
+        DYNAMIC_SECTION("Finite-difference grid curvature, sign=" << sign)
+        {
+            const SpatialGrid grid{4.0, 1.0, 4};
+            const std::array values{price_at(-2.0), price_at(-1.0), price_at(0.0), price_at(1.0), price_at(2.0)};
+            CHECK(grid.gamma(values, 2.0) == sign * 2.0 * unit);
+        }
+    }
+}
+
+TEST_CASE("Quadrature Greeks preserve prices near the numeric limit", "[price-limit-stencils]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 1e300, start, end);
+    const auto market = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 1e308, day(2025, 6, 1));
+    const auto result = QuadratureVanillaEngine{}.price_with_greeks(
+        option, market, {Greek::delta, Greek::gamma, Greek::speed, Greek::zomma, Greek::color}, {.spot_shift = 1e306});
+    REQUIRE(result);
+    CHECK(result->price() == 1e308 - 1e300);
+    CHECK(greek_value(*result, Greek::delta) == 1.0);
+    for (const auto greek : {Greek::gamma, Greek::speed, Greek::zomma, Greek::color})
+        CHECK(greek_value(*result, greek) == 0.0);
 }
 
 TEST_CASE("Autocallable discontinuities use only the current observation", "[autocallable-boundaries]")

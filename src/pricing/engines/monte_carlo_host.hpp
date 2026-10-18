@@ -31,10 +31,10 @@ Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& 
     if (!prices) return std::unexpected(prices.error());
     std::optional<double> speed;
     if constexpr (count == 5)
-        speed = ((*prices)[Stencil::up_twice] - 2.0 * (*prices)[Stencil::up] + 2.0 * (*prices)[Stencil::down] - (*prices)[Stencil::down_twice]) / h / h / (2.0 * h);
+        speed = (((*prices)[Stencil::up_twice] - (*prices)[Stencil::up]) - ((*prices)[Stencil::up] - (*prices)[Stencil::down]) + ((*prices)[Stencil::down] - (*prices)[Stencil::down_twice])) / h / h / (2.0 * h);
     return make_pricing_result((*prices)[Stencil::center],
                                {{Greek::delta, greeks.has(Greek::delta) ? std::optional{((*prices)[Stencil::up] - (*prices)[Stencil::down]) / (2.0 * h)} : std::nullopt},
-                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{((*prices)[Stencil::up] - 2.0 * (*prices)[Stencil::center] + (*prices)[Stencil::down]) / h / h} : std::nullopt},
+                                {Greek::gamma, greeks.has(Greek::gamma) ? std::optional{(((*prices)[Stencil::up] - (*prices)[Stencil::center]) - ((*prices)[Stencil::center] - (*prices)[Stencil::down])) / h / h} : std::nullopt},
                                 {Greek::speed, speed}});
 }
 

@@ -254,8 +254,8 @@ Result<PricingResult> complete_greeks(
         spot_up = *p_up;
         spot_down = *p_down;
         if (need(Greek::delta)) delta = (*p_up - *p_down) / (2.0 * h);
-        // Divide separately so powers of the shift cannot overflow or underflow.
-        if (need(Greek::gamma)) gamma = (*p_up - 2.0 * *p0 + *p_down) / h / h;
+        // Subtract nearby prices before weighting; divide separately to preserve the shift's range.
+        if (need(Greek::gamma)) gamma = ((*p_up - *p0) - (*p0 - *p_down)) / h / h;
 
         const bool native_speed = native_spots && (*native_spots)[0].has(Greek::gamma) && (*native_spots)[1].has(Greek::gamma);
         if (need(Greek::speed) && native_speed)
@@ -268,7 +268,7 @@ Result<PricingResult> complete_greeks(
             const auto p_down2 = detail::shifted_value(
                 price, context, spot - two_h, volatility, rate, valuation_time);
             if (!p_down2) return std::unexpected(p_down2.error());
-            speed = (*p_up2 - 2.0 * *p_up + 2.0 * *p_down - *p_down2) /
+            speed = ((*p_up2 - *p_up) - (*p_up - *p_down) + (*p_down - *p_down2)) /
                     h / h / two_h;
         }
     }
@@ -332,8 +332,8 @@ Result<PricingResult> complete_greeks(
                                                              h / vol_scale / 4.0;
 
             if (need(Greek::zomma) && !native_zomma) {
-                const double gamma_high = (high.up - 2.0 * v_up + high.down) / h / h;
-                const double gamma_low = (low.up - 2.0 * v_down + low.down) / h / h;
+                const double gamma_high = ((high.up - v_up) - (v_up - high.down)) / h / h;
+                const double gamma_low = ((low.up - v_down) - (v_down - low.down)) / h / h;
                 zomma = (gamma_high - gamma_low) / (2.0 * vol_scale);
             }
         }
@@ -433,8 +433,8 @@ Result<PricingResult> complete_greeks(
                 const auto& last = (*sampled->spots)[1];
                 if (need(Greek::charm) && !native_charm) charm = ((last.up - last.down) - (first.up - first.down)) /
                                                                  h / day_scale / 2.0;
-                if (need(Greek::color) && !native_color) color = (((last.up - 2.0 * t_after + last.down) -
-                                                                   (first.up - 2.0 * t_before + first.down)) /
+                if (need(Greek::color) && !native_color) color = ((((last.up - t_after) - (t_after - last.down)) -
+                                                                   ((first.up - t_before) - (t_before - first.down))) /
                                                                   h / h / day_scale);
             }
         }

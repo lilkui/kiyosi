@@ -211,7 +211,7 @@ struct SpatialGrid {
     {
         return blend(spot, [&](std::size_t index) {
             // Divide separately so squared spacing cannot overflow or underflow.
-            return (values[index + 1] - 2.0 * values[index] + values[index - 1]) / spacing / spacing;
+            return ((values[index + 1] - values[index]) - (values[index] - values[index - 1])) / spacing / spacing;
         });
     }
 
