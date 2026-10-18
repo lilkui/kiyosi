@@ -101,7 +101,7 @@ class MarketReplaceTests(unittest.TestCase):
             with self.assertRaises(TypeError):
                 obj.replace(unknown=1)
         with self.assertRaises(TypeError):
-            self.context.replace(valuation_time=datetime(2025, 1, 6))
+            self.context.replace(valuation_time=datetime(2025, 1, 6))  # noqa: DTZ001 - reject naive timestamps
         with self.assertRaises(OverflowError):
             self.parameters.replace(volatility=10**1000)
 

@@ -443,7 +443,7 @@ TEST_CASE("Finite-difference speed validates bumped digital prices and event bou
 }
 
 constexpr auto valuation = day(2025, 1, 6);
-const auto expiry_date = valuation + std::chrono::days{365};
+constexpr auto expiry_date = valuation + std::chrono::days{365};
 
 kiyosi::PricingContext context(double spot = 100.0, double rate = 0.04,
                                double dividend = 0.01, double volatility = 0.3,

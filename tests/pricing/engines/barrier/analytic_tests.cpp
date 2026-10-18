@@ -3,6 +3,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <future>
 #include <limits>
 #include <memory>
@@ -140,7 +141,7 @@ TEST_CASE("Scheduled analytic Greeks validate calendars once per request", "[ana
     std::vector<Date> dates;
     for (auto date = start + std::chrono::days{1}; date <= end; date += std::chrono::days{1})
         if (weekdays_calendar().is_trading_day(date)) dates.push_back(date);
-    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto queries = std::make_shared<std::atomic<std::size_t>>(0);
     const auto allowed = std::make_shared<std::atomic<bool>>(true);
     const auto calendar = *make_trading_calendar([queries, allowed](Date date) {
         ++*queries;

@@ -259,7 +259,7 @@ Result<PricingResult> complete_greeks(
 
         const bool native_speed = native_spots && (*native_spots)[0].has(Greek::gamma) && (*native_spots)[1].has(Greek::gamma);
         if (need(Greek::speed) && native_speed)
-            speed = (**(*native_spots)[0].get(Greek::gamma) - **(*native_spots)[1].get(Greek::gamma)) / (2.0 * h);
+            speed = (*(*native_spots)[0].require(Greek::gamma) - *(*native_spots)[1].require(Greek::gamma)) / (2.0 * h);
 
         if (need(Greek::speed) && !native_speed && scalar_speed_available) {
             const auto p_up2 = detail::shifted_value(
@@ -321,11 +321,11 @@ Result<PricingResult> complete_greeks(
         if (need(Greek::vega)) vega = (v_up - v_down) / (2.0 * vol_scale);
 
         if (need(Greek::vanna) && native_vanna)
-            vanna = (**(*native_volatilities)[0].get(Greek::delta) - **(*native_volatilities)[1].get(Greek::delta)) / (2.0 * vol_scale);
+            vanna = (*(*native_volatilities)[0].require(Greek::delta) - *(*native_volatilities)[1].require(Greek::delta)) / (2.0 * vol_scale);
         if (need(Greek::zomma) && native_zomma)
-            zomma = (**(*native_volatilities)[0].get(Greek::gamma) - **(*native_volatilities)[1].get(Greek::gamma)) / (2.0 * vol_scale);
+            zomma = (*(*native_volatilities)[0].require(Greek::gamma) - *(*native_volatilities)[1].require(Greek::gamma)) / (2.0 * vol_scale);
 
-        if (scalar_mixed) {
+        if (sampled->spots) {
             const auto& high = (*sampled->spots)[0];
             const auto& low = (*sampled->spots)[1];
             if (need(Greek::vanna) && !native_vanna) vanna = ((high.up - high.down) - (low.up - low.down)) /
@@ -424,11 +424,11 @@ Result<PricingResult> complete_greeks(
             const double day_scale = Days{after - before}.count();
             if (need(Greek::theta)) theta = (t_after - t_before) / day_scale;
             if (need(Greek::charm) && native_charm)
-                charm = (**(*native_times)[1].get(Greek::delta) - **(*native_times)[0].get(Greek::delta)) / day_scale;
+                charm = (*(*native_times)[1].require(Greek::delta) - *(*native_times)[0].require(Greek::delta)) / day_scale;
             if (need(Greek::color) && native_color)
-                color = (**(*native_times)[1].get(Greek::gamma) - **(*native_times)[0].get(Greek::gamma)) / day_scale;
+                color = (*(*native_times)[1].require(Greek::gamma) - *(*native_times)[0].require(Greek::gamma)) / day_scale;
 
-            if (scalar_mixed) {
+            if (sampled->spots) {
                 const auto& first = (*sampled->spots)[0];
                 const auto& last = (*sampled->spots)[1];
                 if (need(Greek::charm) && !native_charm) charm = ((last.up - last.down) - (first.up - first.down)) /

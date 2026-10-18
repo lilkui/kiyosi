@@ -62,8 +62,10 @@ Result<std::array<double, count>> path_payoffs(
                                                              });
     if (!simulated) return std::unexpected(simulated.error());
     std::array<double, count> payoffs{};
-    for (std::size_t i = 0; i < count; ++i)
-        payoffs[i] = states[i].payoff ? *states[i].payoff : states[i].discount.apply(states[i].quantity, states[i].spot - option.strike());
+    for (std::size_t i = 0; i < count; ++i) {
+        const auto& state = states[i];
+        payoffs[i] = state.payoff ? *state.payoff : state.discount.apply(state.quantity, state.spot - option.strike());
+    }
     return payoffs;
 }
 

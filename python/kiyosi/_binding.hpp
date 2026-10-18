@@ -375,9 +375,11 @@ inline Date calendar_date(nb::handle value, std::string_view field, const PyDate
     if (!PyObject_TypeCheck(value.ptr(), api->DateType) || PyObject_TypeCheck(value.ptr(), api->DateTimeType))
         type_error(field, "a datetime.date");
     // Read stored components, bypassing subclass properties that can narrow or wrap.
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-cstyle-cast) - Python's macros cast the validated object to its C layout.
     return Date{std::chrono::year{PyDateTime_GET_YEAR(value.ptr())} /
                 std::chrono::month{static_cast<unsigned>(PyDateTime_GET_MONTH(value.ptr()))} /
                 std::chrono::day{static_cast<unsigned>(PyDateTime_GET_DAY(value.ptr()))}};
+    // NOLINTEND(cppcoreguidelines-pro-type-cstyle-cast)
 }
 
 inline PythonDateObject python_date(Date value, const PyDateTime_CAPI* api = datetime_api())

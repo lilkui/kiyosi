@@ -132,7 +132,7 @@ Result<std::array<double, count>> checked_path_prices(
     const std::array<State, count>& states, std::array<double, count> prices)
 {
     for (std::size_t i = 0; i < count; ++i) {
-        const auto value = checked_price(states[i].payoff ? *states[i].payoff : prices[i]);
+        const auto value = checked_price(states[i].payoff.value_or(prices[i]));
         if (!value) return std::unexpected(value.error());
         prices[i] = *value;
     }
