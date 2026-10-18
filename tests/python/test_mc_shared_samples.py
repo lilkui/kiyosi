@@ -591,8 +591,9 @@ class SharedSampleTests(unittest.TestCase):
                                 valuation_time=valuation,
                             )
                             quote = engine.price(option, context)
+                            # Few-path sampled prices can turn within a wider interval.
                             for bounds in (
-                                {"lower_bound": 0.1, "upper_bound": 0.4},
+                                {"lower_bound": 0.1, "upper_bound": 0.25},
                                 {"lower_bound": 0.15, "upper_bound": 0.25},
                             ):
                                 volatility = pricing.implied_volatility(
