@@ -116,13 +116,31 @@ class SharedSampleTests(unittest.TestCase):
             )
             for option_type in (EuropeanOption, AmericanOption)
         )
+        cases += (
+            (
+                AmericanOption(
+                    option_type="call",
+                    strike=100,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloVanillaEngine,
+            ),
+        )
         return context, cases
 
     def test_cpu_results_are_invariant_to_thread_count(self):
         context, cases = self.parallel_cases()
         for option, engine_type in cases:
+            settings = (
+                {"step_count": 7}
+                if engine_type is pricing.MonteCarloVanillaEngine
+                else {}
+            )
             for paths in (513, 1025):
-                serial = engine_type(path_count=paths, seed=42, thread_count=1)
+                serial = engine_type(
+                    path_count=paths, seed=42, thread_count=1, **settings
+                )
                 expected = serial.price_with_greeks(option, context, GREEKS)
                 quote = serial.price(option, context)
                 bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
@@ -134,7 +152,7 @@ class SharedSampleTests(unittest.TestCase):
                         option=type(option).__name__, paths=paths, threads=threads
                     ):
                         engine = engine_type(
-                            path_count=paths, seed=42, thread_count=threads
+                            path_count=paths, seed=42, thread_count=threads, **settings
                         )
                         self.assertEqual(engine.price(option, context), quote)
                         actual = engine.price_with_greeks(option, context, GREEKS)
@@ -163,6 +181,36 @@ class SharedSampleTests(unittest.TestCase):
                                     tuple(getattr(concurrent, name) for name in GREEKS),
                                     tuple(getattr(expected, name) for name in GREEKS),
                                 )
+
+    def test_parallel_american_agrees_with_finite_differences(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for option_type in ("put", "call"):
+            option = AmericanOption(
+                option_type=option_type,
+                strike=100,
+                effective_date=start,
+                expiry_date=end,
+            )
+            reference = pricing.FiniteDifferenceVanillaEngine(
+                asset_step_count=1200, time_step_count=1200
+            ).price(option, context)
+            serial = pricing.MonteCarloVanillaEngine(
+                path_count=100_000, step_count=50, seed=42, thread_count=1
+            ).price(option, context)
+            self.assertAlmostEqual(serial, reference, delta=0.15)
+            for threads in (0, 2, 4):
+                with self.subTest(option_type=option_type, threads=threads):
+                    parallel = pricing.MonteCarloVanillaEngine(
+                        path_count=100_000, step_count=50, seed=42, thread_count=threads
+                    ).price(option, context)
+                    self.assertEqual(parallel, serial)
 
     def test_thread_count_rejects_invalid_python_representations(self):
         for engine_type in (

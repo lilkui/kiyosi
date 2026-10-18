@@ -63,6 +63,7 @@ TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel
             };
             check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_european_option(OptionType::call, 100.0, start, end));
             check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_american_option(OptionType::put, 100.0, start, end));
+            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_american_option(OptionType::call, 100.0, start, end));
             check(MonteCarloAccumulatorEngine{paths, 42, MonteCarloBackend::cpu, threads},
                   *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
             const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
@@ -75,6 +76,27 @@ TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel
                   *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
             check(MonteCarloAutocallableEngine{settings},
                   *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
+        }
+    }
+}
+
+TEST_CASE("Parallel American Monte Carlo agrees with finite differences", "[mc-parallel]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    for (const auto type : {OptionType::put, OptionType::call}) {
+        const auto option = *make_american_option(type, 100.0, start, end);
+        const auto reference = FiniteDifferenceVanillaEngine{1200, 1200}.price(option, context);
+        const auto serial = MonteCarloVanillaEngine{100'000, 50, 42, MonteCarloBackend::cpu, 1}.price(option, context);
+        REQUIRE(reference);
+        REQUIRE(serial);
+        CHECK_THAT(*serial, Catch::Matchers::WithinAbs(*reference, 0.15));
+        for (const int threads : {0, 2, 4}) {
+            CAPTURE(type, threads);
+            const auto parallel = MonteCarloVanillaEngine{100'000, 50, 42, MonteCarloBackend::cpu, threads}.price(option, context);
+            REQUIRE(parallel);
+            CHECK(std::bit_cast<std::uint64_t>(*parallel) == std::bit_cast<std::uint64_t>(*serial));
         }
     }
 }

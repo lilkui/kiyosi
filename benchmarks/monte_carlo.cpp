@@ -25,7 +25,7 @@ auto monte_carlo_scenario()
         context};
 }
 
-auto american_monte_carlo_scenario()
+auto american_monte_carlo_scenario(kiyosi::OptionType option_type = kiyosi::OptionType::put)
 {
     const kiyosi::Date effective_date{std::chrono::year{2025} / 1 / 1};
     const kiyosi::Date expiry_date{std::chrono::year{2026} / 1 / 1};
@@ -33,7 +33,7 @@ auto american_monte_carlo_scenario()
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date);
     return std::pair{
         *kiyosi::make_american_option(
-            kiyosi::OptionType::put, 100.0, effective_date, expiry_date),
+            option_type, 100.0, effective_date, expiry_date),
         context};
 }
 
@@ -316,6 +316,13 @@ void kiyosi::benchmark_support::register_analytics_cases()
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
+    for (const auto type : {OptionType::put, OptionType::call})
+        for (const int paths : {128, 250'000, 1'000'000})
+            for (const int threads : {1, 2, 4, 12, 0})
+                register_monte_carlo(
+                    std::format("american_lsm/{}/{}/threads:{}", type == OptionType::put ? "put" : "call", paths, threads),
+                    american_monte_carlo_scenario(type),
+                    MonteCarloVanillaEngine{paths, 50, 42, MonteCarloBackend::cpu, threads});
     for (const auto backend : {MonteCarloBackend::cpu
 #if KIYOSI_HAS_CUDA
                                ,
