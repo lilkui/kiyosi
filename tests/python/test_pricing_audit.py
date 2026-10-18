@@ -1170,11 +1170,12 @@ class PricingAuditTests(unittest.TestCase):
             expiry_date=end,
             realized_average=1,
         )
-        with self.assertRaises(kiyosi.KiyosiError) as error:
+        self.assertEqual(
             pricing.TurnbullWakemanArithmeticAveragePriceEngine().price(
                 oversized, context
-            )
-        self.assertEqual(error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT)
+            ),
+            0,
+        )
 
     def test_quadrature_vanilla_retains_small_positive_volatility_time_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

@@ -10,6 +10,43 @@ from kiyosi.market import BlackScholesMertonParameters, PricingContext
 
 
 class AsianRegressionTests(unittest.TestCase):
+    def test_arithmetic_prices_survive_adjusted_strike_overflow(self):
+        start, end = date(2023, 1, 1), date(2026, 1, 1)
+        engine = pricing.TurnbullWakemanArithmeticAveragePriceEngine()
+        for valuation in (date(2025, 1, 1), end - timedelta(days=1)):
+            for volatility in (math.ulp(0.0), 1e-200, 1e-6, 0.2, 1.0):
+                for rate in (-0.05, 0, 0.05):
+                    parameters = BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=rate, volatility=volatility
+                    )
+                    for direction in ("call", "put"):
+                        with self.subTest(
+                            valuation=valuation,
+                            volatility=volatility,
+                            rate=rate,
+                            direction=direction,
+                        ):
+                            values = []
+                            for scale in (1, 1e306):
+                                option = ArithmeticAveragePriceOption(
+                                    option_type=direction,
+                                    strike=100 * scale,
+                                    effective_date=start,
+                                    averaging_start_date=start,
+                                    expiry_date=end,
+                                    realized_average=50 * scale,
+                                )
+                                context = PricingContext(
+                                    model_parameters=parameters,
+                                    spot_price=50 * scale,
+                                    valuation_time=valuation,
+                                )
+                                values.append(engine.price(option, context) / scale)
+                            self.assertTrue(
+                                math.isclose(values[0], values[1], rel_tol=1e-10),
+                                values,
+                            )
+
     def test_vanna_survives_underflow_of_combined_stencil_scales(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

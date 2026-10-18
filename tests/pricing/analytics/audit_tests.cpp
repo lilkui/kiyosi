@@ -493,9 +493,9 @@ TEST_CASE("Arithmetic Asian small-variance prices preserve nonzero carry", "[aud
     }
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-8), 100.0, end - std::chrono::days{1});
     const auto oversized = *make_arithmetic_average_option(OptionType::call, 1e308, start, start, end, 1.0);
-    const auto rejected = TurnbullWakemanArithmeticAveragePriceEngine{}.price(oversized, context);
-    REQUIRE_FALSE(rejected);
-    CHECK(rejected.error().category == ErrorCategory::invalid_result);
+    const auto price = TurnbullWakemanArithmeticAveragePriceEngine{}.price(oversized, context);
+    REQUIRE(price);
+    CHECK(*price == 0.0);
 }
 
 TEST_CASE("Quadrature vanilla retains small positive volatility time value", "[audit-fixes]")

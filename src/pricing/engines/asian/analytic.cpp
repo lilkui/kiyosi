@@ -172,6 +172,14 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
                                  scaled_exponential(spot, std::log(m1) + std::log(scale) - rate * tau));
         }
     }
+    const bool strike_overflow = !std::isfinite(adjusted_strike);
+    // Keep an overflowing adjusted strike in the original payoff units instead.
+    const double cash_strike = strike_overflow
+                                   ? std::fma(remaining / average_period, strike - realized, scale * strike)
+                                   : adjusted_strike;
+    const double log_scale = strike_overflow ? std::log(scale) : 0.0;
+    const double price_scale = strike_overflow ? 1.0 : scale;
+    const double log_moneyness = log_price_ratio(spot, cash_strike) + log_scale;
     const double vol2 = sigma * sigma;
     double variance_time = 0.0;
     const double log_variance = [&] {
@@ -196,11 +204,12 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
                                     : std::sqrt(std::max(0.0, log_variance / tau));
     const double root = adjusted_vol * std::sqrt(tau);
     if (root == 0.0) {
-        const double forward = spot * std::exp((rate - (rate - b_a)) * tau);
-        return checked_price(scale * std::exp(-rate * tau) *
-                             payoff(option.option_type(), forward, adjusted_strike));
+        if (sign * (log_moneyness + std::log(m1)) <= 0.0) return 0.0;
+        return checked_price(price_scale * std::max(sign * (scaled_exponential(spot, log_scale + std::log(m1) - rate * tau) -
+                                                            scaled_exponential(cash_strike, -rate * tau)),
+                                                    0.0));
     }
-    if (root < 1e-5 && adjusted_strike > 0.0) {
+    if (root < 1e-5 && !strike_overflow) {
         const auto parameters = make_bsm_parameters(rate, rate - b_a, sigma);
         if (!parameters)
             return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced an invalid carry"});
@@ -212,12 +221,12 @@ Result<double> TurnbullWakemanArithmeticAveragePriceEngine::price(
         if (!priced) return std::unexpected(priced.error());
         return checked_price(scale * priced->price());
     }
-    const double d1 = (log_price_ratio(spot, adjusted_strike) + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
+    const double d1 = (log_moneyness + (b_a + 0.5 * adjusted_vol * adjusted_vol) * tau) / root;
     const double d2 = d1 - root;
-    const double value = scale * black_scholes_values(
-                                     sign, spot, adjusted_strike, (b_a - rate) * tau, -rate * tau,
-                                     {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)})
-                                     .price;
+    const double value = price_scale * black_scholes_values(
+                                           sign, spot, cash_strike, log_scale + (b_a - rate) * tau, -rate * tau,
+                                           {d1, d2, normal_cdf(sign * d1), normal_cdf(sign * d2)})
+                                           .price;
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "Asian pricing produced a non-finite result"});
     return std::max(value, 0.0);
 }

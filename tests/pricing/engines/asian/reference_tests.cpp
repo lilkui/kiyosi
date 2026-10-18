@@ -4,6 +4,7 @@
 #include <array>
 #include <chrono>
 #include <cmath>
+#include <limits>
 #include <numbers>
 #include <string>
 #include <utility>
@@ -62,6 +63,33 @@ TEST_CASE("Accrued arithmetic Asian calls retain representable discounted prices
     const auto overflow = engine.price(option, context);
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
+}
+
+TEST_CASE("Arithmetic Asians retain finite prices when the adjusted strike overflows", "[asian-strike-scale]")
+{
+    using namespace kiyosi;
+    const auto start = Date{std::chrono::year{2023} / 1 / 1};
+    const auto end = Date{std::chrono::year{2026} / 1 / 1};
+    const TurnbullWakemanArithmeticAveragePriceEngine engine;
+    for (const auto valuation : {Date{std::chrono::year{2025} / 1 / 1}, end - std::chrono::days{1}})
+        for (const double volatility : {std::numeric_limits<double>::denorm_min(), 1e-200, 1e-6, 0.2, 1.0})
+            for (const double rate : {-0.05, 0.0, 0.05})
+                for (const auto type : {OptionType::call, OptionType::put}) {
+                    CAPTURE(valuation.time_since_epoch().count(), volatility, rate, type);
+                    const auto parameters = *make_bsm_parameters(rate, rate, volatility);
+                    const auto price_at_scale = [&](double scale) {
+                        const auto option = *make_arithmetic_average_option(type, 100.0 * scale, start, start, end, 50.0 * scale);
+                        const auto context = *make_pricing_context(parameters, 50.0 * scale, valuation);
+                        const auto price = engine.price(option, context);
+                        REQUIRE(price);
+                        return *price / scale;
+                    };
+                    const double reference = price_at_scale(1.0), scaled = price_at_scale(1e306);
+                    if (reference == 0.0)
+                        CHECK(scaled == 0.0);
+                    else
+                        CHECK_THAT(scaled, Catch::Matchers::WithinRel(reference, 1e-10));
+                }
 }
 
 TEST_CASE("Arithmetic Asians retain time value when squared volatility underflows", "[audit-fixes]")
