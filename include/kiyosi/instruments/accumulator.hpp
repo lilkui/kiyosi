@@ -30,6 +30,16 @@ struct AccumulatorTerms {
 /// prices exclude cashflows settled before valuation.
 class Accumulator {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// Uses constructor validation and error categories; zero is a known value, not unknown history.
+    [[nodiscard]] Result<Accumulator> replace(double accumulated_quantity) const
+    {
+        return make_accumulator({strike(), knock_out_level(), daily_quantity(), acceleration_factor(), accumulated_quantity, effective_date(), expiry_date()});
+    }
+
     /// Returns the purchase strike.
     double strike() const noexcept { return strike_; }
     /// Returns the knock-out spot level.

@@ -33,6 +33,21 @@ struct BarrierOptionTerms {
 /// Knock-in or knock-out vanilla payoff with an optional rebate.
 class BarrierOption {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// nullopt means unknown history; untouched means known absence of touches.
+    /// Uses core barrier construction validation and error categories.
+    [[nodiscard]] Result<BarrierOption> replace(std::optional<BarrierTouchState> touch_state) const
+    {
+        auto barrier = detail::make_barrier_terms(
+            barrier_level(), barrier_.barrier_type(), observation_mode(), observation_dates(),
+            effective_date(), expiry_date(), touch_state);
+        if (!barrier) return std::unexpected(barrier.error());
+        return BarrierOption{option_type_, strike_, rebate_, rebate_timing_, std::move(*barrier)};
+    }
+
     /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return option_type_; }
     /// Returns the positive strike price.

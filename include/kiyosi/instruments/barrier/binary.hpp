@@ -45,6 +45,21 @@ namespace detail {
 /// Strike-based binary option whose payoff also depends on a barrier_level event.
 class BinaryBarrierOption {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// nullopt means unknown history; untouched means known absence of touches.
+    /// Uses core barrier construction validation and error categories.
+    [[nodiscard]] Result<BinaryBarrierOption> replace(std::optional<BarrierTouchState> touch_state) const
+    {
+        auto barrier = detail::make_barrier_terms(
+            barrier_level(), barrier_.barrier_type(), observation_mode(), observation_dates(),
+            effective_date(), expiry_date(), touch_state);
+        if (!barrier) return std::unexpected(barrier.error());
+        return BinaryBarrierOption{terms_, payoff_, std::move(*barrier)};
+    }
+
     /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return terms_.option_type(); }
     /// Returns the positive strike price.
@@ -130,6 +145,21 @@ namespace detail {
 /// Strike-free one-touch or no-touch contract paying cash or the asset.
 class TouchOption {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// nullopt means unknown history; untouched means known absence of touches.
+    /// Uses core barrier construction validation and error categories.
+    [[nodiscard]] Result<TouchOption> replace(std::optional<BarrierTouchState> touch_state) const
+    {
+        auto barrier = detail::make_barrier_terms(
+            barrier_level(), barrier_.barrier_type(), observation_mode(), observation_dates(),
+            effective_date(), expiry_date(), touch_state);
+        if (!barrier) return std::unexpected(barrier.error());
+        return TouchOption{payoff_, settlement_timing_, std::move(*barrier)};
+    }
+
     /// Returns the cash-or-asset payoff.
     const BinaryPayoff& payoff() const noexcept { return payoff_; }
     /// Returns the payoff denomination.

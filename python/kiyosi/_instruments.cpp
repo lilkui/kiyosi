@@ -84,6 +84,19 @@ void bind_strike_option(nb::module_& module, const char* name,
     bind_common_option_properties(binding, name);
 }
 
+template <typename Instrument>
+void bind_touch_replace(nb::class_<Instrument>& binding)
+{
+    binding.def("replace", [](const Instrument& self, std::optional<PythonChoice<BarrierTouchState>> touch_state) { return unwrap(self.replace(touch_state)); }, nb::kw_only(), "touch_state"_a.none(), R"doc(Return a validated copy with only touch_state replaced.
+
+The keyword is required. None means unknown history; 'untouched' means no prior
+touch. All contract terms are preserved and the original is unchanged on success
+or failure. History is supplied by the caller, never inferred from spot. Corrections
+and historical revaluations are allowed; time consistency is checked during pricing.
+Conversion errors raise TypeError or ValueError; core rejections raise KiyosiError.
+Concurrent calls and reads are safe.)doc");
+}
+
 template <typename AverageOptionType>
 void bind_average_option(
     nb::module_& module, const char* name,
@@ -118,7 +131,7 @@ expiry_date : datetime.date
     Contract expiry at 00:00 UTC.
 realized_average : float, optional
     Average realized before valuation time, or zero before averaging begins.
-    Geometric averaging requires a positive value after averaging starts.
+    Both averaging conventions require a positive value after averaging starts.
     Defaults to the core-owned pre-averaging value.
 
 Raises
@@ -128,7 +141,16 @@ TypeError
 KiyosiError
     If the core rejects the terms or date ordering.)doc")
                        .def_prop_ro("averaging_start_date", [](const AverageOptionType& value) { return python_date(value.averaging_start_date()); }, "First date included in the averaging period; equality with expiry denotes a single fixing.")
-                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation, or zero before averaging begins; geometric averaging requires a positive value after averaging starts.");
+                       .def_prop_ro("realized_average", &AverageOptionType::realized_average, "Average realized before valuation, or zero before averaging begins; both averaging conventions require a positive value after averaging starts.");
+    binding.def("replace", [](const AverageOptionType& self, PythonReal realized_average) { return unwrap(self.replace(real_number(realized_average, "realized_average"))); }, nb::kw_only(), "realized_average"_a, R"doc(Return a validated copy with only realized_average replaced.
+
+The keyword is required and uses constructor units and conversion rules. None is
+not accepted. Zero denotes no elapsed averaging; pricing requires a positive
+average after averaging starts. All contract terms are preserved and the original
+is unchanged on success or failure. Corrections and historical revaluations are
+allowed; time consistency is checked during pricing. TypeError and OverflowError
+report conversion failures; KiyosiError reports core rejections.
+Concurrent calls and reads are safe.)doc");
     bind_common_option_properties(binding, name,
                                   {"option_type", "strike", "averaging_start_date", "effective_date", "expiry_date", "realized_average"});
 }
@@ -315,6 +337,7 @@ KiyosiError
                        .def_prop_ro("observation_mode", &BarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                        .def_prop_ro("touch_state", &BarrierOption::touch_state, "Barrier touch history before valuation.")
                        .def_prop_ro("observation_dates", [](const BarrierOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
+    bind_touch_replace(barrier);
     bind_common_option_properties(barrier, "BarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
@@ -333,6 +356,7 @@ Instances are created by :func:`cash_binary_barrier_option` or
                               .def_prop_ro("observation_mode", &BinaryBarrierOption::observation_mode, "Continuous or scheduled monitoring mode.")
                               .def_prop_ro("touch_state", &BinaryBarrierOption::touch_state, "Barrier touch history before valuation.")
                               .def_prop_ro("observation_dates", [](const BinaryBarrierOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
+    bind_touch_replace(binary_barrier);
     bind_common_option_properties(binary_barrier, "BinaryBarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "payoff_type", "payout", "observation_mode", "observation_dates", "touch_state"});
 
@@ -434,6 +458,7 @@ factory functions.)doc")
                      .def_prop_ro("touch_state", &TouchOption::touch_state, "Barrier touch history before valuation.")
                      .def_prop_ro("observation_dates", [](const TouchOption& value) { return python_dates(value.observation_dates()); }, "Copy of the scheduled observations at 00:00 UTC.");
     bind_value_equality(touch);
+    bind_touch_replace(touch);
     bind_repr(touch, "TouchOption",
               {"effective_date", "expiry_date", "barrier_level", "is_one_touch", "is_up", "payoff_type", "payout", "settlement_timing", "observation_mode", "observation_dates", "touch_state"});
 
@@ -522,6 +547,14 @@ KiyosiError
                            .def_prop_ro("effective_date", [](const Accumulator& value) { return python_date(value.effective_date()); }, "First date on which the contract is effective.")
                            .def_prop_ro("expiry_date", [](const Accumulator& value) { return python_date(value.expiry_date()); }, "Contract expiry at 00:00 UTC.");
     bind_value_equality(accumulator);
+    accumulator.def("replace", [](const Accumulator& self, PythonReal accumulated_quantity) { return unwrap(self.replace(real_number(accumulated_quantity, "accumulated_quantity"))); }, nb::kw_only(), "accumulated_quantity"_a, R"doc(Return a validated copy with only accumulated_quantity replaced.
+
+The keyword is required and uses constructor units and conversion rules. None is
+not accepted; zero means no accrued quantity. All contract terms are preserved and
+the original is unchanged on success or failure. The caller supplies the quantity;
+it is not computed from spot. Corrections and historical revaluations are allowed.
+TypeError and OverflowError report conversion failures; KiyosiError reports core
+rejections. Concurrent calls and reads are safe.)doc");
     bind_repr(accumulator, "Accumulator",
               {"strike", "knock_out_level", "daily_quantity", "acceleration_factor", "accumulated_quantity", "effective_date", "expiry_date"});
 

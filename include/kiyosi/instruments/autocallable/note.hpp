@@ -148,6 +148,19 @@ template <typename Terms>
 template <AutocallableTerms Terms>
 class AutocallableNote {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// nullopt means unknown history; none means known absence of barrier events.
+    /// Uses the same validation and error categories as the product factory.
+    [[nodiscard]] Result<AutocallableNote> replace(std::optional<AutocallableBarrierState> barrier_state) const
+    {
+        auto terms = terms_;
+        terms.barrier_state = barrier_state;
+        return detail::make_autocallable_note(std::move(terms));
+    }
+
     AutocallableNote(const AutocallableNote&) = default;
     AutocallableNote(AutocallableNote&&) noexcept = default;
     ~AutocallableNote() = default;

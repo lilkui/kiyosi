@@ -24,6 +24,14 @@ std::vector<AutocallableObservation> observation_sequence(nb::handle values)
 template <typename Note>
 void bind_note_properties(nb::class_<Note>& binding)
 {
+    binding.def("replace", [](const Note& self, std::optional<PythonChoice<AutocallableBarrierState>> barrier_state) { return unwrap(self.replace(barrier_state)); }, nb::kw_only(), "barrier_state"_a.none(), R"doc(Return a validated copy with only barrier_state replaced.
+
+The keyword is required. None means unknown history; 'none' means no prior barrier
+event. All contract terms are preserved and the original is unchanged on success
+or failure. History is supplied by the caller, never inferred from spot. Corrections
+and historical revaluations are allowed; time consistency is checked during pricing.
+Conversion errors raise TypeError or ValueError; core rejections raise KiyosiError.
+Concurrent calls and reads are safe.)doc");
     binding.def_prop_ro("observations", [](const Note& note) {
         const auto records = note.observations_view();
         return std::vector<AutocallableObservation>{records.begin(), records.end()}; }, "Owning copy of the complete observation records.");

@@ -40,6 +40,16 @@ template <AveragingConvention Averaging>
 template <AveragingConvention Averaging>
 class AveragePriceOption {
 public:
+    /// Returns a validated owning copy with only the supplied history replaced.
+    /// Preserves all contract terms and never changes this object, including on failure.
+    /// History is caller-supplied; time consistency is checked during pricing.
+    /// Concurrent calls and reads are safe without concurrent assignment or mutation.
+    /// Uses constructor validation and error categories; zero is a known value, not unknown history.
+    [[nodiscard]] Result<AveragePriceOption> replace(double realized_average) const
+    {
+        return make_average_option<Averaging>(option_type(), strike(), effective_date(), averaging_start_date(), expiry_date(), realized_average);
+    }
+
     /// Returns the call-or-put direction.
     OptionType option_type() const noexcept { return terms_.option_type(); }
     /// Returns the positive strike price.
