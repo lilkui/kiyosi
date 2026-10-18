@@ -59,21 +59,22 @@ namespace detail {
     return detail::make_observation_schedule(std::move(dates), start, end, calendar);
 }
 
-/// Builds monthly candidates beginning at `start + lock_up_months`; `start` is excluded and `end`
+/// Builds monthly candidates beginning at `start + first_observation_month`; `start` is excluded and `end`
 /// is an inclusive upper bound. The start day is clamped to each target month's last day, then each
 /// candidate moves forward to the next trading day, and duplicate adjusted dates are removed.
 /// Generation stops rather than crossing `end`,
 /// so `end` is not guaranteed to be an observation Date. For example, the weekdays calendar maps
-/// 2025-01-01 through 2025-03-01 with one lock-up month to [2025-02-03]; the Saturday end candidate
+/// 2025-01-01 through 2025-03-01 with first observation month 1 to [2025-02-03]; the Saturday end candidate
 /// would adjust past the bound. Supply explicit observation dates to an instrument factory when
 /// the contract requires a bespoke terminal Date.
+/// @param first_observation_month Positive month offset: 1 starts next month, 2 the month after; observations continue monthly.
 /// @return The validated schedule, or `invalid_date`, `invalid_time_range`, or `invalid_schedule`.
 [[nodiscard]] inline Result<ObservationSchedule> make_monthly_schedule(
-    Date start, Date end, int lock_up_months, const TradingCalendar& calendar = weekdays_calendar())
+    Date start, Date end, int first_observation_month, const TradingCalendar& calendar = weekdays_calendar())
 {
     auto life = validate_instrument_life(start, end);
     if (!life) return std::unexpected(life.error());
-    if (lock_up_months <= 0)
+    if (first_observation_month <= 0)
         return std::unexpected(Error{ErrorCategory::invalid_schedule, "monthly schedule terms are invalid"});
     const auto start_month = std::chrono::year_month_day{start};
     const auto end_month = std::chrono::year_month_day{end};
@@ -82,7 +83,7 @@ namespace detail {
         static_cast<int>(static_cast<unsigned>(end_month.month())) -
         static_cast<int>(static_cast<unsigned>(start_month.month()));
     std::vector<Date> dates;
-    for (std::int64_t month = lock_up_months; month <= months_until_end; ++month) {
+    for (std::int64_t month = first_observation_month; month <= months_until_end; ++month) {
         const auto target = detail::add_months(start, static_cast<int>(month));
         if (target > end) break;
         if (!dates.empty() && target <= dates.back()) continue;

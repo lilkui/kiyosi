@@ -3093,23 +3093,25 @@ class KiyosiPythonTests(unittest.TestCase):
         )
         self.assertEqual(
             monthly_schedule(
-                start=date(2025, 1, 1), end=date(2025, 3, 1), lock_up_months=1
+                start=date(2025, 1, 1), end=date(2025, 3, 1), first_observation_month=1
             ).dates,
             [date(2025, 2, 3)],
         )
         self.assertEqual(
             monthly_schedule(
-                start=date(2025, 1, 31), end=date(2025, 4, 30), lock_up_months=1
+                start=date(2025, 1, 31),
+                end=date(2025, 4, 30),
+                first_observation_month=1,
             ).dates,
             [date(2025, 2, 28), date(2025, 3, 31), date(2025, 4, 30)],
         )
 
-    def test_monthly_schedule_does_not_wrap_extreme_lock_up(self):
+    def test_monthly_schedule_does_not_wrap_extreme_first_observation_month(self):
         self.assertEqual(
             monthly_schedule(
                 start=date(2025, 1, 1),
                 end=date(2025, 12, 31),
-                lock_up_months=786433,
+                first_observation_month=786433,
             ).dates,
             [],
         )
@@ -3117,7 +3119,7 @@ class KiyosiPythonTests(unittest.TestCase):
             monthly_schedule(
                 start=date(9999, 11, 1),
                 end=date(9999, 12, 31),
-                lock_up_months=2,
+                first_observation_month=2,
             ).dates,
             [],
         )
@@ -3352,7 +3354,9 @@ class KiyosiPythonTests(unittest.TestCase):
 
         for schedule in (
             lambda: fixed_interval_schedule(start=later, end=earlier, interval_days=1),
-            lambda: monthly_schedule(start=later, end=earlier, lock_up_months=1),
+            lambda: monthly_schedule(
+                start=later, end=earlier, first_observation_month=1
+            ),
         ):
             with self.assertRaises(kiyosi.KiyosiError) as error:
                 schedule()

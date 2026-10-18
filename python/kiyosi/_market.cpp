@@ -394,17 +394,17 @@ interval produces 2025-01-06 and 2025-01-07. Supply explicit
 ``observation_dates`` to an instrument constructor for bespoke terminal dates.)doc");
     module.def(
         "monthly_schedule",
-        [](PythonDate start, PythonDate end, PythonInteger lock_up_months,
+        [](PythonDate start, PythonDate end, PythonInteger first_observation_month,
            const TradingCalendar& calendar) {
             return unwrap(make_monthly_schedule(
                 calendar_date(start, "start"), calendar_date(end, "end"),
-                integer(lock_up_months, "lock_up_months"), calendar));
+                integer(first_observation_month, "first_observation_month"), calendar));
         },
-        nb::kw_only(), "start"_a, "end"_a, "lock_up_months"_a,
+        nb::kw_only(), "start"_a, "end"_a, "first_observation_month"_a,
         "calendar"_a = weekdays_calendar(),
-        R"doc(Build a monthly observation schedule after a lock-up period.
+        R"doc(Build a monthly schedule starting at the specified observation month.
 
-Monthly candidates begin at ``start + lock_up_months``. ``start`` is excluded
+Monthly candidates begin at ``start + first_observation_month``. ``start`` is excluded
 and ``end`` is an inclusive bound. The start day is clamped to each target
 month's last day, then candidates use following trading-day adjustment.
 Duplicate adjusted dates are merged, as in fixed-interval schedules.
@@ -416,8 +416,8 @@ start : datetime.date
     Anchor date, excluded from the result.
 end : datetime.date
     Inclusive upper bound for adjusted dates.
-lock_up_months : int
-    Positive number of months before the first candidate.
+first_observation_month : int
+    Positive month offset from start to the first candidate: 1 means next month, 2 the month after.
 calendar : TradingCalendar, optional
     Adjustment calendar. Defaults to :func:`weekdays_calendar`.
 
@@ -431,14 +431,13 @@ Raises
 TypeError
     If an argument has an incompatible representation.
 OverflowError
-    If ``lock_up_months`` is outside the C++ ``int`` range.
+    If ``first_observation_month`` is outside the C++ ``int`` range.
 KiyosiError
-    If the dates, lock-up, calendar, or resulting schedule are invalid.
+    If the dates, first observation month, calendar, or resulting schedule are invalid.
 
 Examples
 --------
-With the weekdays calendar, 2025-01-01 through 2025-03-01 with one lock-up
-month produces only 2025-02-03; adjusting the Saturday end candidate would
+With the weekdays calendar, 2025-01-01 through 2025-03-01 with first observation month 1 produces only 2025-02-03; adjusting the Saturday end candidate would
 cross the bound. Supply explicit ``observation_dates`` to an instrument
 constructor for bespoke terminal dates.)doc");
 }
