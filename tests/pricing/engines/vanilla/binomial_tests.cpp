@@ -14,6 +14,34 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Binomial immediate exercise returns payoff Greeks", "[binomial-exercise-greeks]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const auto type : {OptionType::put, OptionType::call}) {
+        const bool put = type == OptionType::put;
+        const double spot = put ? 88.0 : 100.0;
+        const auto parameters = *make_bsm_parameters(put ? 0.15 : 0.0, put ? 0.0 : 0.15, 0.2);
+        const auto option = *make_american_option(type, put ? 100.0 : 88.0, start, end);
+        const auto context = *make_pricing_context(parameters, spot, start);
+        for (const int steps : {1, 2, 10, 256}) {
+            CAPTURE(type, steps);
+            const CoxRossRubinsteinVanillaEngine engine{steps};
+            const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+            REQUIRE(result);
+            CHECK(result->price() == 12.0);
+            CHECK(greek_value(*result, Greek::delta) == (put ? -1.0 : 1.0));
+            CHECK(greek_value(*result, Greek::gamma) == 0.0);
+            const auto high = engine.price(option, *make_pricing_context(parameters, spot + 0.001, start));
+            const auto low = engine.price(option, *make_pricing_context(parameters, spot - 0.001, start));
+            REQUIRE(high);
+            REQUIRE(low);
+            CHECK_THAT((*high - *low) / 0.002,
+                       Catch::Matchers::WithinAbs(greek_value(*result, Greek::delta), 1e-10));
+        }
+    }
+}
+
 TEST_CASE("Binomial speed tracks analytic sensitivity with default shifts", "[binomial-speed]")
 {
     using namespace kiyosi;

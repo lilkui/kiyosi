@@ -76,6 +76,13 @@ Result<PricingResult> price_binomial(
             const std::size_t index = static_cast<std::size_t>(node);
             const double continuation = discount *
                                         (probability * values[index + 1] + (1.0 - probability) * values[index]);
+            if constexpr (american) {
+                const double exercise = sign * (spot - strike);
+                if (level == 0 && exercise > 0.0 && exercise > continuation)
+                    return make_pricing_result(exercise,
+                                               {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{sign} : std::nullopt},
+                                                {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+            }
             values[index] = american ? std::max(continuation, sign * (level_node_spot - strike)) : continuation;
             if (!std::isfinite(values[index])) {
                 return std::unexpected(Error{ErrorCategory::invalid_result,

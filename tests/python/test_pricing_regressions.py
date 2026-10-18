@@ -31,6 +31,43 @@ from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_binomial_immediate_exercise_returns_payoff_greeks(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for direction in ("put", "call"):
+            put = direction == "put"
+            spot = 88.0 if put else 100.0
+            parameters = BlackScholesMertonParameters(
+                risk_free_rate=0.15 if put else 0.0,
+                dividend_yield=0.0 if put else 0.15,
+                volatility=0.2,
+            )
+            option = AmericanOption(
+                option_type=direction,
+                strike=100.0 if put else 88.0,
+                effective_date=start,
+                expiry_date=end,
+            )
+
+            def context(value, parameters=parameters):
+                return PricingContext(
+                    model_parameters=parameters, spot_price=value, valuation_time=start
+                )
+
+            for steps in (1, 2, 10, 256):
+                with self.subTest(direction=direction, steps=steps):
+                    engine = pricing.CoxRossRubinsteinVanillaEngine(steps)
+                    result = engine.price_with_greeks(
+                        option, context(spot), greeks=["delta", "gamma"]
+                    )
+                    self.assertEqual(result.price, 12.0)
+                    self.assertEqual(result.delta, -1.0 if put else 1.0)
+                    self.assertEqual(result.gamma, 0.0)
+                    bumped = (
+                        engine.price(option, context(spot + 0.001))
+                        - engine.price(option, context(spot - 0.001))
+                    ) / 0.002
+                    self.assertAlmostEqual(bumped, result.delta, delta=1e-10)
+
     def test_analytic_rho_preserves_finite_large_scale_sensitivities(self):
         start, end = date(2025, 1, 1), date(2035, 1, 1)
         context = PricingContext(
