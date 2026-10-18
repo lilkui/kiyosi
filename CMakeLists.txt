@@ -351,7 +351,7 @@ if(KIYOSI_BUILD_PYTHON)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT KIYOSI_IPO_SUPPORTED)
     if(KIYOSI_IPO_SUPPORTED)
-        set_target_properties(_native PROPERTIES
+        set_target_properties(kiyosi _native PROPERTIES
             INTERPROCEDURAL_OPTIMIZATION_RELEASE ON
             INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON
         )
