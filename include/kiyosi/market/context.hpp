@@ -14,10 +14,10 @@ class PricingContext;
 
 /// Fields to replace; absent fields retain their current values, including the calendar.
 struct PricingContextChanges {
-    std::optional<BlackScholesMertonParameters> model_parameters;
-    std::optional<double> spot_price;
-    std::optional<Timestamp> valuation_time;
-    std::optional<TradingCalendar> calendar;
+    std::optional<BlackScholesMertonParameters> model_parameters{};
+    std::optional<double> spot_price{};
+    std::optional<Timestamp> valuation_time{};
+    std::optional<TradingCalendar> calendar{};
 };
 
 [[nodiscard]] Result<PricingContext> make_pricing_context(

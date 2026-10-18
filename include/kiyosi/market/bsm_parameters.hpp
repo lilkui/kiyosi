@@ -9,9 +9,9 @@ namespace kiyosi {
 
 /// Fields to replace; absent fields retain their current values.
 struct BlackScholesMertonParameterChanges {
-    std::optional<double> risk_free_rate;
-    std::optional<double> dividend_yield;
-    std::optional<double> volatility;
+    std::optional<double> risk_free_rate{};
+    std::optional<double> dividend_yield{};
+    std::optional<double> volatility{};
 };
 
 /// Black-Scholes-Merton model parameters: continuously compounded rates and a flat volatility.
