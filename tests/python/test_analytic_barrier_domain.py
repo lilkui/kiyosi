@@ -29,6 +29,72 @@ from price_differences import price_differences
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_scheduled_barrier_prices_survive_shifted_level_overflow(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        observations = [date(2025, 4, 1), date(2025, 7, 1), date(2025, 10, 1), end]
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0, dividend_yield=0, volatility=1
+        )
+        references = {}
+        for scale in (1, 1e306):
+            context = PricingContext(
+                model_parameters=parameters,
+                spot_price=100 * scale,
+                valuation_time=start,
+            )
+            common = {
+                "effective_date": start,
+                "expiry_date": end,
+                "barrier_level": 170 * scale,
+                "observation_mode": "scheduled",
+                "observation_dates": observations,
+            }
+            engine = pricing.AnalyticBinaryBarrierEngine()
+            for factory, expected in (
+                (cash_one_touch_up, 0.25739250301126404),
+                (cash_no_touch_up, 0.742607496988736),
+            ):
+                with self.subTest(scale=scale, factory=factory.__name__):
+                    extra = (
+                        {"settlement_timing": "at_expiry"}
+                        if factory is cash_one_touch_up
+                        else {}
+                    )
+                    self.assertAlmostEqual(
+                        engine.price(factory(**common, payout=1, **extra), context),
+                        expected,
+                        delta=1e-12,
+                    )
+            for direction in ("call", "put"):
+                for barrier_type in ("up_and_in", "up_and_out"):
+                    terms = dict(
+                        common,
+                        option_type=direction,
+                        strike=175 * scale,
+                        barrier_type=barrier_type,
+                    )
+                    for engine, option, divisor in (
+                        (
+                            pricing.AnalyticBarrierEngine(),
+                            BarrierOption(**terms),
+                            scale,
+                        ),
+                        (
+                            pricing.AnalyticBinaryBarrierEngine(),
+                            cash_binary_barrier_option(**terms, payout=1),
+                            1,
+                        ),
+                    ):
+                        key = (direction, barrier_type, type(engine).__name__)
+                        with self.subTest(scale=scale, key=key):
+                            actual = engine.price(option, context) / divisor
+                            if scale == 1:
+                                references[key] = actual
+                            else:
+                                self.assertAlmostEqual(
+                                    actual, references[key], delta=1e-10
+                                )
+
     def test_scheduled_analytic_barriers_preserve_excluded_terminal_payoffs(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

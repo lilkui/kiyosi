@@ -99,10 +99,11 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
         return knock_in ? vanilla_digital(option, context, time) : Result<double>{0.0};
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
-    const auto shifted_barrier = analytic_barrier_level(terms, spot, volatility);
-    if (!shifted_barrier) return std::unexpected(shifted_barrier.error());
-    const double barrier = *shifted_barrier;
-    const double log_ratio = log_price_ratio(barrier, spot);
+    const auto shift_result = analytic_barrier_log_shift(terms, spot, volatility);
+    if (!shift_result) return std::unexpected(shift_result.error());
+    const double barrier_shift = *shift_result;
+    const double log_ratio = log_price_ratio(terms.barrier_level(), spot) + barrier_shift;
+    const bool strike_above_barrier = log_price_ratio(option.strike, terms.barrier_level()) > barrier_shift;
     if (option.settlement_timing == SettlementTiming::at_hit) {
         const double variance = volatility * volatility;
         return barrier_hit_value(option.payout, std::abs(log_ratio), upper,
@@ -138,7 +139,7 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     const auto f2 = [&] { return scaled_normal_cdf(amount, log_discount, phi * x2 - phi * shift); };
     const auto reflected = [&](double argument, bool at_strike) {
         return std::isfinite(reflection) ? scaled_normal_cdf(amount, log_discount + reflection, argument)
-                                         : scaled_barrier_reflection_tail(amount, log_discount, log_ratio, at_strike ? log_price_ratio(barrier, option.strike) : 0.0,
+                                         : scaled_barrier_reflection_tail(amount, log_discount, log_ratio, at_strike ? log_price_ratio(terms.barrier_level(), option.strike) + barrier_shift : 0.0,
                                                                           carry, volatility, time, option.asset_settlement ? 0.5 : -0.5);
     };
     const auto f3 = [&] { return reflected(eta * y1 - eta * shift, true); };
@@ -147,15 +148,15 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     if (!option.option_type) {
         value = knock_in ? f2() + f4() : f2() - f4();
     } else if (knock_in) {
-        if (call) value = down ? (option.strike > barrier ? f3() : f1() - f2() + f4())
-                               : (option.strike > barrier ? f1() : f2() - f3() + f4());
-        else value = down ? (option.strike > barrier ? f2() - f3() + f4() : f1())
-                          : (option.strike > barrier ? f1() - f2() + f4() : f3());
+        if (call) value = down ? (strike_above_barrier ? f3() : f1() - f2() + f4())
+                               : (strike_above_barrier ? f1() : f2() - f3() + f4());
+        else value = down ? (strike_above_barrier ? f2() - f3() + f4() : f1())
+                          : (strike_above_barrier ? f1() - f2() + f4() : f3());
     } else {
-        if (call) value = down ? (option.strike > barrier ? f1() - f3() : f2() - f4())
-                               : (option.strike > barrier ? 0.0 : f1() - f2() + f3() - f4());
-        else value = down ? (option.strike > barrier ? f1() - f2() + f3() - f4() : 0.0)
-                          : (option.strike > barrier ? f2() - f4() : f1() - f3());
+        if (call) value = down ? (strike_above_barrier ? f1() - f3() : f2() - f4())
+                               : (strike_above_barrier ? 0.0 : f1() - f2() + f3() - f4());
+        else value = down ? (strike_above_barrier ? f1() - f2() + f3() - f4() : 0.0)
+                          : (strike_above_barrier ? f2() - f4() : f1() - f3());
     }
     if (!std::isfinite(value)) return std::unexpected(Error{ErrorCategory::invalid_result, "binary barrier pricing produced a non-finite result"});
     return std::max(value, 0.0);

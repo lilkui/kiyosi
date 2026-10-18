@@ -46,6 +46,44 @@ TEST_CASE("Binary barrier branches preserve in-out parity", "[binary-barrier-bra
                 }
 }
 
+TEST_CASE("Scheduled analytic barriers preserve prices when the shifted level overflows", "[scheduled-barrier-scale]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const std::vector observations{day(2025, 4, 1), day(2025, 7, 1), day(2025, 10, 1), end};
+    const auto parameters = *make_bsm_parameters(0.0, 0.0, 1.0);
+    const AnalyticBinaryBarrierEngine binary_engine;
+    for (const double scale : {1.0, 1e306}) {
+        CAPTURE(scale);
+        const auto context = *make_pricing_context(parameters, 100.0 * scale, start);
+        const auto touch = *make_cash_one_touch_up(start, end, 170.0 * scale, 1.0, SettlementTiming::at_expiry, ObservationMode::scheduled, observations);
+        const auto no_touch = *make_cash_no_touch_up(start, end, 170.0 * scale, 1.0, ObservationMode::scheduled, observations);
+        const auto touched = binary_engine.price(touch, context);
+        const auto untouched = binary_engine.price(no_touch, context);
+        REQUIRE(touched);
+        REQUIRE(untouched);
+        CHECK_THAT(*touched, Catch::Matchers::WithinAbs(0.25739250301126404, 1e-12));
+        CHECK_THAT(*untouched, Catch::Matchers::WithinAbs(0.742607496988736, 1e-12));
+    }
+    for (const auto type : {OptionType::call, OptionType::put})
+        for (const auto barrier_type : {BarrierType::up_and_in, BarrierType::up_and_out}) {
+            CAPTURE(type, barrier_type);
+            const auto prices = [&](double scale) {
+                const auto context = *make_pricing_context(parameters, 100.0 * scale, start);
+                const auto vanilla = *make_barrier_option({.option_type = type, .strike = 175.0 * scale, .effective_date = start, .expiry_date = end, .barrier_level = 170.0 * scale, .barrier_type = barrier_type, .observation_mode = ObservationMode::scheduled, .observation_dates = observations});
+                const auto binary = *make_cash_binary_barrier_option({.option_type = type, .strike = 175.0 * scale, .effective_date = start, .expiry_date = end, .barrier_level = 170.0 * scale, .barrier_type = barrier_type, .observation_mode = ObservationMode::scheduled, .observation_dates = observations}, 1.0);
+                const auto vanilla_price = AnalyticBarrierEngine{}.price(vanilla, context);
+                const auto binary_price = binary_engine.price(binary, context);
+                REQUIRE(vanilla_price);
+                REQUIRE(binary_price);
+                return std::pair{*vanilla_price / scale, *binary_price};
+            };
+            const auto reference = prices(1.0), scaled = prices(1e306);
+            CHECK_THAT(scaled.first, Catch::Matchers::WithinAbs(reference.first, 1e-10));
+            CHECK_THAT(scaled.second, Catch::Matchers::WithinAbs(reference.second, 1e-12));
+        }
+}
+
 TEST_CASE("First-hit payments retain scaled far-tail prices", "[first-hit-scale]")
 {
     using namespace kiyosi;

@@ -35,10 +35,9 @@ Result<double> price_barrier(
     const auto& terms = option.barrier_terms();
     const bool upper = terms.is_up();
     const bool knock_in = terms.is_knock_in();
-    const auto shifted_barrier = analytic_barrier_level(terms, spot, sigma);
-    if (!shifted_barrier) return std::unexpected(shifted_barrier.error());
-    const double barrier = *shifted_barrier;
-    const bool strike_above_barrier = option.strike() > barrier;
+    const auto shift = analytic_barrier_log_shift(terms, spot, sigma);
+    if (!shift) return std::unexpected(shift.error());
+    const bool strike_above_barrier = log_price_ratio(option.strike(), terms.barrier_level()) > *shift;
     const bool payoff_requires_touch = terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
     const bool needs_vanilla = payoff_requires_touch ? knock_in : (knock_in ? upper == strike_above_barrier : upper != strike_above_barrier);
     double a = 0.0;
@@ -53,7 +52,7 @@ Result<double> price_barrier(
         return checked_price(knock_in ? option.rebate() : a);
     }
     const bool hit_rebate = option.rebate() != 0.0 && option.rebate_timing() == RebateTiming::at_hit;
-    const double log_ratio = log_price_ratio(barrier, spot);
+    const double log_ratio = log_price_ratio(terms.barrier_level(), spot) + *shift;
     double hit_rebate_value = 0.0;
     if (hit_rebate) {
         const double drift = rate - dividend - 0.5 * sigma * sigma;
@@ -77,7 +76,7 @@ Result<double> price_barrier(
     const auto reflected = [&](double amount, double discount, double argument, bool at_strike, bool asset) {
         const double exponent = 2.0 * (asset ? mu + 1.0 : mu) * log_ratio;
         return std::isfinite(exponent) ? scaled_normal_cdf(amount, discount + exponent, argument)
-                                       : scaled_barrier_reflection_tail(amount, discount, log_ratio, at_strike ? log_price_ratio(barrier, x) : 0.0,
+                                       : scaled_barrier_reflection_tail(amount, discount, log_ratio, at_strike ? log_price_ratio(terms.barrier_level(), x) + *shift : 0.0,
                                                                         carry, sigma, t, asset ? 0.5 : -0.5);
     };
     // Evaluate only the Reiner-Rubinstein terms needed by this contract.
@@ -106,11 +105,11 @@ Result<double> price_barrier(
     if (payoff_requires_touch) {
         value = knock_in ? a + e() : rebate();
     } else if (call) {
-        if (knock_in) value = upper ? (x > barrier ? a + e() : b() - c() + d() + e()) : (x > barrier ? c() + e() : a - b() + d() + e());
-        else value = upper ? (x > barrier ? rebate() : a - b() + c() - d() + rebate()) : (x > barrier ? a - c() + rebate() : b() - d() + rebate());
+        if (knock_in) value = upper ? (strike_above_barrier ? a + e() : b() - c() + d() + e()) : (strike_above_barrier ? c() + e() : a - b() + d() + e());
+        else value = upper ? (strike_above_barrier ? rebate() : a - b() + c() - d() + rebate()) : (strike_above_barrier ? a - c() + rebate() : b() - d() + rebate());
     } else {
-        if (knock_in) value = upper ? (x > barrier ? a - b() + d() + e() : c() + e()) : (x > barrier ? b() - c() + d() + e() : a + e());
-        else value = upper ? (x > barrier ? b() - d() + rebate() : a - c() + rebate()) : (x > barrier ? a - b() + c() - d() + rebate() : rebate());
+        if (knock_in) value = upper ? (strike_above_barrier ? a - b() + d() + e() : c() + e()) : (strike_above_barrier ? b() - c() + d() + e() : a + e());
+        else value = upper ? (strike_above_barrier ? b() - d() + rebate() : a - c() + rebate()) : (strike_above_barrier ? a - b() + c() - d() + rebate() : rebate());
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
