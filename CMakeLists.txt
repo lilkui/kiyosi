@@ -230,6 +230,9 @@ set_target_properties(kiyosi PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN YES
 )
+if(UNIX AND NOT APPLE AND BUILD_SHARED_LIBS)
+    set_property(TARGET kiyosi APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
+endif()
 
 if(KIYOSI_BUILD_DOCS)
     find_package(Doxygen REQUIRED COMPONENTS doxygen)

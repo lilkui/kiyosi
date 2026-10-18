@@ -51,11 +51,17 @@ jobs:
       - run: uv run --frozen --project tools/quantlib-oracle python tools/quantlib-oracle/check_generation.py
 
   test-core:
-    name: Test C++ core on ${{ matrix.os }}
+    name: Test C++ core on ${{ matrix.os }} (shared=${{ matrix.shared }})
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-26.04, windows-2025-vs2026]
+        include:
+          - os: ubuntu-26.04
+            shared: 'OFF'
+          - os: ubuntu-26.04
+            shared: 'ON'
+          - os: windows-2025-vs2026
+            shared: 'OFF'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -66,13 +72,13 @@ jobs:
           CC: gcc-15
           CXX: g++-15
         run: |
-          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON
+          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_SHARED_LIBS=${{ matrix.shared }}
           cmake --build --preset linux-release
           ctest --preset linux-release
           cmake --install out/build/linux-release --prefix "$PWD/out/install/core"
           cmake -S tests/install -B out/build/install-test -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/out/install/core"
           cmake --build out/build/install-test
-          LD_LIBRARY_PATH="$PWD/out/install/core/lib:$PWD/out/install/core/lib64:${LD_LIBRARY_PATH:-}" ctest --test-dir out/build/install-test --output-on-failure
+          env -u LD_LIBRARY_PATH ctest --test-dir out/build/install-test --output-on-failure
       - name: Build and test Windows core
         if: runner.os == 'Windows'
         shell: pwsh
