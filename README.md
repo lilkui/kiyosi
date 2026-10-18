@@ -29,7 +29,7 @@ kiyosi 是一个面向 Python 用户的金融衍生品定价库，支持 Black�
 python -m pip install kiyosi
 ```
 
-预编译 wheel 无需本地 C++ 工具链；从源码构建需要 C++23 编译器与 CMake 3.28+。
+预编译 wheel 无需本地 C++ 工具链；从源码构建需要 C++23 编译器、CMake 3.28+ 和 oneTBB 2023.1+（未安装时自动下载）。
 
 Windows 源码构建和 CMake 预设使用 clang-cl。请安装 Visual Studio C++ 工具及 C++ Clang 编译器组件，并在 Visual Studio Developer PowerShell 中运行构建命令。
 

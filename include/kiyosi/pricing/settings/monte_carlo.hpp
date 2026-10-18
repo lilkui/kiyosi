@@ -18,6 +18,11 @@ enum class MonteCarloBackend : unsigned char {
     cuda, ///< CUDA implementation, when built and available.
 };
 
+/// CPU calls own their parallel work and complete synchronously. Concurrent calls on distinct
+/// engines or const calls on a shared engine are safe without concurrent mutation. Thread caps
+/// apply per call, not process-wide. Fixed seeds reproduce results across thread counts within
+/// a library version, build and standard-library implementation; CUDA is a separate backend.
+/// Allocation and internal runtime exceptions propagate; no cancellation interface is provided.
 /// Vanilla simulation settings, validated when price() is called; an absent seed
 /// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
@@ -27,6 +32,7 @@ struct MonteCarloSettings {
     int step_count = 50;                                ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
     std::optional<std::uint64_t> seed{};                ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
+    int thread_count = 0;                               ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
 };
 
 /// Accumulator and autocallable products step the trading calendar directly, so no step
@@ -38,6 +44,7 @@ struct TradingDayMonteCarloSettings {
     int path_count = 20'000;                            ///< Number of simulated paths; 1..10,000,000.
     std::optional<std::uint64_t> seed = 1;              ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
+    int thread_count = 0;                               ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
 };
 
 namespace detail {
@@ -63,7 +70,7 @@ auto with_monte_carlo_seed(const Engine& engine, const Evaluate& evaluate)
 inline constexpr int maximum_monte_carlo_path_count = 10'000'000;
 inline constexpr int maximum_vanilla_monte_carlo_step_count = 10'000;
 
-/// Validates path count, uniform step count when present, and backend in that order.
+/// Validates path count, uniform step count when present, backend, and thread count in that order.
 template <typename Settings>
     requires(std::same_as<Settings, MonteCarloSettings> ||
              std::same_as<Settings, TradingDayMonteCarloSettings>)
@@ -81,6 +88,10 @@ template <typename Settings>
     if (settings.backend != MonteCarloBackend::cpu && settings.backend != MonteCarloBackend::cuda)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo backend is invalid"});
+    if (settings.thread_count < 0 ||
+        (settings.backend == MonteCarloBackend::cuda && settings.thread_count != 0))
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "Monte Carlo thread count is invalid for the backend"});
     return {};
 }
 } // namespace detail

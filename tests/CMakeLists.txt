@@ -41,7 +41,8 @@ add_executable(kiyosi_tests
     reference/parser_tests.cpp
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
-target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
+target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi TBB::tbb Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)
+kiyosi_copy_tbb_runtime(kiyosi_tests)
 if(KIYOSI_ENABLE_CUDA)
     target_link_libraries(kiyosi_tests PRIVATE CUDA::cudart_static)
     target_sources(kiyosi_tests PRIVATE pricing/engines/monte_carlo_cuda_tests.cu)

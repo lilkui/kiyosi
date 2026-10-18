@@ -1,0 +1,49 @@
+#pragma once
+
+#include <algorithm>
+#include <optional>
+#include <vector>
+
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/task_arena.h>
+#include <oneapi/tbb/task_group.h>
+#include <kiyosi/core/error.hpp>
+
+namespace kiyosi::detail {
+
+// Fixed blocks keep random streams and reduction order independent of concurrency.
+inline constexpr int monte_carlo_block_size = 256;
+
+inline int monte_carlo_block_count(int count)
+{
+    return (count + monte_carlo_block_size - 1) / monte_carlo_block_size;
+}
+
+template <typename Evaluate>
+Result<void> monte_carlo_blocks(int count, int thread_count, const Evaluate& evaluate)
+{
+    const int blocks = monte_carlo_block_count(count);
+    if (thread_count == 1 || blocks == 1) {
+        for (int block = 0; block < blocks; ++block) {
+            const auto result = evaluate(block, block * monte_carlo_block_size,
+                                         std::min(count, (block + 1) * monte_carlo_block_size));
+            if (!result) return std::unexpected(result.error());
+        }
+        return {};
+    }
+    std::vector<std::optional<Error>> errors(static_cast<std::size_t>(blocks));
+    oneapi::tbb::task_arena arena{thread_count == 0 ? oneapi::tbb::task_arena::automatic : thread_count};
+    arena.execute([&] {
+        // An embedding application's cancellation must not silently omit pricing work.
+        oneapi::tbb::task_group_context context{oneapi::tbb::task_group_context::isolated};
+        oneapi::tbb::parallel_for(0, blocks, [&](int block) {
+            const auto result = evaluate(block, block * monte_carlo_block_size,
+                                         std::min(count, (block + 1) * monte_carlo_block_size));
+            if (!result) errors[static_cast<std::size_t>(block)] = result.error(); }, context);
+    });
+    for (const auto& error : errors)
+        if (error) return std::unexpected(*error);
+    return {};
+}
+
+} // namespace kiyosi::detail

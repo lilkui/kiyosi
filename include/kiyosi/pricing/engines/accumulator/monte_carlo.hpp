@@ -17,18 +17,19 @@ class KIYOSI_EXPORT MonteCarloAccumulatorEngine {
 public:
     /// Creates an engine with aggregate trading-day simulation settings.
     explicit MonteCarloAccumulatorEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit path count, seed, and backend.
+    /// Creates an engine with explicit path count, seed, backend, and CPU concurrency cap.
     explicit MonteCarloAccumulatorEngine(
         int path_count, std::optional<std::uint64_t> seed = TradingDayMonteCarloSettings{}.seed,
-        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend)
-        : settings_{path_count, seed, backend} {}
+        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend,
+        int thread_count = TradingDayMonteCarloSettings{}.thread_count)
+        : settings_{path_count, seed, backend, thread_count} {}
 
     /// Prices an accumulator by Monte Carlo simulation.
     /// @return Price, or a contract, context, settings, or backend error.
     [[nodiscard]] Result<double> price(const Accumulator& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    /// CPU spot bumps share per-call random draws and growth factors with storage independent of path count.
+    /// CPU spot bumps share per-call random draws and growth factors with per-block reduction storage.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 

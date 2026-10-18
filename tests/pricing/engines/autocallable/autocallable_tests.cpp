@@ -936,10 +936,9 @@ double reference_binary_snowball_price(const kiyosi::BinarySnowballOption& note,
                terminal;
     };
 
-    std::mt19937_64 generator(settings.seed.value_or(0));
     double sum = 0.0;
     for (int path = 0; path < settings.path_count; ++path) {
-        kiyosi::detail::Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
+        kiyosi::detail::Pcg32 path_generator{settings.seed.value_or(0), static_cast<std::uint64_t>(path)};
         sum += path_payoff(path_generator);
     }
     return sum / static_cast<double>(settings.path_count);

@@ -29,7 +29,7 @@ Python 3.11 or later is required. Install from PyPI:
 python -m pip install kiyosi
 ```
 
-Prebuilt wheels require no local C++ toolchain. Source builds require a C++23 compiler and CMake 3.28+.
+Prebuilt wheels require no local C++ toolchain. Source builds require a C++23 compiler, CMake 3.28+, and oneTBB 2023.1+ (downloaded automatically if not installed).
 
 Windows source builds and CMake presets use clang-cl. Install the Visual Studio C++ tools and C++ Clang compiler component, and run build commands in a Visual Studio Developer PowerShell.
 

@@ -3607,7 +3607,7 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(
             repr(cuda),
             "MonteCarloVanillaEngine(path_count=100000, step_count=50, "
-            "seed=None, backend='cuda')",
+            "seed=None, backend='cuda', thread_count=0)",
         )
         self.assertNotEqual(
             kiyosi.ErrorCategory.BACKEND_UNAVAILABLE,
@@ -3634,7 +3634,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.assertEqual(cuda.backend, "cuda")
                 self.assertEqual(
                     repr(cuda),
-                    f"{engine_type.__name__}(path_count=20000, seed=1, backend='cuda')",
+                    f"{engine_type.__name__}(path_count=20000, seed=1, backend='cuda', thread_count=0)",
                 )
                 with self.assertRaises(TypeError):
                     engine_type(backend=True)

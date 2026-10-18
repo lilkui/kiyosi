@@ -1,7 +1,11 @@
 @PACKAGE_INIT@
 
+include(CMakeFindDependencyMacro)
+if(NOT "@BUILD_SHARED_LIBS@")
+    find_dependency(TBB 2023.1 CONFIG COMPONENTS tbb)
+endif()
+
 if(@KIYOSI_ENABLE_CUDA@ AND NOT "@BUILD_SHARED_LIBS@")
-    include(CMakeFindDependencyMacro)
     find_dependency(CUDAToolkit)
 endif()
 

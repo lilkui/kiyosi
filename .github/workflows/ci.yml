@@ -69,6 +69,10 @@ jobs:
           cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON
           cmake --build --preset linux-release
           ctest --preset linux-release
+          cmake --install out/build/linux-release --prefix "$PWD/out/install/core"
+          cmake -S tests/install -B out/build/install-test -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/out/install/core"
+          cmake --build out/build/install-test
+          LD_LIBRARY_PATH="$PWD/out/install/core/lib:$PWD/out/install/core/lib64:${LD_LIBRARY_PATH:-}" ctest --test-dir out/build/install-test --output-on-failure
       - name: Build and test Windows core
         if: runner.os == 'Windows'
         shell: pwsh
@@ -77,6 +81,11 @@ jobs:
           if (-not $vsInstallPath) { throw "Visual Studio C++ and clang-cl tools were not found" }
           & "$vsInstallPath\Common7\Tools\Launch-VsDevShell.ps1" -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
           cmake --workflow --preset windows-release
+          cmake --install out/build/windows-release --prefix "$PWD/out/install/core"
+          cmake -S tests/install -B out/build/install-test -G Ninja -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/out/install/core"
+          cmake --build out/build/install-test
+          $env:PATH = "$PWD/out/install/core/bin;$env:PATH"
+          ctest --test-dir out/build/install-test --output-on-failure
 
   test-cpu:
     name: Test Python with CUDA disabled
@@ -167,7 +176,11 @@ jobs:
           assert not oversized, f'distributions exceed PyPI size limit: {oversized}';
           bundled = [(wheel.name, member) for wheel in Path('wheelhouse').glob('*.whl')
           for member in ZipFile(wheel).namelist() if 'cudart' in member.lower()];
-          assert not bundled, f'wheels contain shared CUDA runtimes instead of static linkage: {bundled}'"
+          assert not bundled, f'wheels contain shared CUDA runtimes instead of static linkage: {bundled}';
+          missing_tbb = [wheel.name for wheel in Path('wheelhouse').glob('*.whl')
+          if not any('tbb' in member.lower() and ('.so' in member or member.endswith('.dll'))
+          for member in ZipFile(wheel).namelist())];
+          assert not missing_tbb, f'wheels lack the oneTBB runtime: {missing_tbb}'"
 
       - uses: actions/upload-artifact@v7
         with:

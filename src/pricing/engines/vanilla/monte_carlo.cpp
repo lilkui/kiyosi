@@ -1,3 +1,5 @@
+#include "../monte_carlo_parallel.hpp"
+#include "../monte_carlo_random.hpp"
 #include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
 
 #include <kiyosi/pricing/detail/numerical_greeks.hpp>
@@ -67,13 +69,7 @@ Result<void> simulate_paths(
     AmericanMonteCarloSamples* samples = nullptr)
 {
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
-    std::mt19937_64 generator = [&] {
-        if (settings.seed) return std::mt19937_64{*settings.seed};
-        std::random_device source;
-        std::seed_seq seed{source(), source(), source(), source()};
-        return std::mt19937_64{seed};
-    }();
-    std::normal_distribution<double> normal;
+    const auto seed = settings.seed ? *settings.seed : std::random_device{}();
     const int half_count = path_count / 2;
     const bool reuse = samples && samples->drift == parameters.drift &&
                        samples->diffusion == parameters.diffusion && samples->step_count == settings.step_count;
@@ -81,34 +77,35 @@ Result<void> simulate_paths(
         samples->step_count = 0;
         samples->growth.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
     }
-    constexpr int batch_size = 256;
-    std::array<double, batch_size> draws{};
-    for (int path = 0; path < half_count; ++path) {
-        // Separate terminal-only random generation from payoff arithmetic without changing draw order.
-        if (settings.step_count == 2 && !reuse && path % batch_size == 0)
-            for (int index = 0; index < std::min(batch_size, half_count - path); ++index)
-                draws[index] = normal(generator);
-        double positive_spot = parameters.spot;
-        double negative_spot = parameters.spot;
-        for (int step = 1; step < settings.step_count; ++step) {
-            const auto index = static_cast<std::size_t>(path) * (settings.step_count - 1) + step - 1;
-            const auto growth = [&] {
-                if (reuse) return samples->growth[index];
-                const double normal_draw = settings.step_count == 2 ? draws[path % batch_size] : normal(generator);
-                const std::array factors{std::exp(parameters.drift + parameters.diffusion * normal_draw),
-                                         std::exp(parameters.drift - parameters.diffusion * normal_draw)};
-                if (samples) samples->growth[index] = factors;
-                return factors;
-            }();
-            positive_spot *= growth[0];
-            negative_spot *= growth[1];
-            if (!std::isfinite(positive_spot) || positive_spot <= 0.0 ||
-                !std::isfinite(negative_spot) || negative_spot <= 0.0)
-                return std::unexpected(Error{ErrorCategory::invalid_result,
-                                             "Monte Carlo simulation produced a non-finite path"});
-            observe(path, path + half_count, step, positive_spot, negative_spot);
-        }
-    }
+    const auto simulated = detail::monte_carlo_blocks(half_count, settings.thread_count,
+                                                      [&](int block, int begin, int end) -> Result<void> {
+                                                          detail::Pcg32 generator{seed, static_cast<std::uint64_t>(block)};
+                                                          std::normal_distribution<double> normal;
+                                                          for (int path = begin; path < end; ++path) {
+                                                              double positive_spot = parameters.spot;
+                                                              double negative_spot = parameters.spot;
+                                                              for (int step = 1; step < settings.step_count; ++step) {
+                                                                  const auto index = static_cast<std::size_t>(path) * (settings.step_count - 1) + step - 1;
+                                                                  const auto growth = [&] {
+                                                                      if (reuse) return samples->growth[index];
+                                                                      const double normal_draw = normal(generator);
+                                                                      const std::array factors{std::exp(parameters.drift + parameters.diffusion * normal_draw),
+                                                                                               std::exp(parameters.drift - parameters.diffusion * normal_draw)};
+                                                                      if (samples) samples->growth[index] = factors;
+                                                                      return factors;
+                                                                  }();
+                                                                  positive_spot *= growth[0];
+                                                                  negative_spot *= growth[1];
+                                                                  if (!std::isfinite(positive_spot) || positive_spot <= 0.0 ||
+                                                                      !std::isfinite(negative_spot) || negative_spot <= 0.0)
+                                                                      return std::unexpected(Error{ErrorCategory::invalid_result,
+                                                                                                   "Monte Carlo simulation produced a non-finite path"});
+                                                                  observe(path, path + half_count, step, positive_spot, negative_spot);
+                                                              }
+                                                          }
+                                                          return {};
+                                                      });
+    if (!simulated) return std::unexpected(simulated.error());
     if (samples) {
         samples->drift = parameters.drift;
         samples->diffusion = parameters.diffusion;
@@ -192,12 +189,17 @@ Result<double> price_european(const EuropeanOption& option, const PricingContext
                                      "CUDA support is not enabled in this build"});
 #endif
     } else {
-        detail::MonteCarloMean payoffs{};
-        const auto simulated = simulate(*parameters, simulation, [&](int, int, int, double positive, double negative) {
-            payoffs.add(payoff(option.option_type(), positive, option.strike()));
-            payoffs.add(payoff(option.option_type(), negative, option.strike()));
+        std::vector<detail::MonteCarloMean> partials(static_cast<std::size_t>(
+            detail::monte_carlo_block_count((simulation.path_count + 1) / 2)));
+        const auto simulated = simulate(*parameters, simulation, [&](int path, int, int, double positive, double negative) {
+            auto& partial = partials[static_cast<std::size_t>(path / detail::monte_carlo_block_size)];
+            partial.add(payoff(option.option_type(), positive, option.strike()));
+            partial.add(payoff(option.option_type(), negative, option.strike()));
         });
         if (!simulated) return std::unexpected(simulated.error());
+        detail::MonteCarloMean payoffs{};
+        for (const auto& partial : partials)
+            payoffs.merge(partial);
         mean = payoffs.value();
     }
     const double discount = std::exp(-parameters->rate * *time);
@@ -222,32 +224,39 @@ public:
         workspace = &workspace_;
 #endif
         return price_european(option, context, settings_, [&](auto parameters, auto simulation, const auto& observe) {
-            if (normal_draws_.empty()) {
-                std::mt19937_64 generator{*simulation.seed};
-                std::normal_distribution<double> normal;
-                normal_draws_.resize(static_cast<std::size_t>((simulation.path_count + 1) / 2));
-                for (double& draw : normal_draws_)
-                    draw = normal(generator);
+            const int half_count = (simulation.path_count + 1) / 2;
+            const bool generate = normal_draws_.empty();
+            if (generate) {
+                normal_draws_.resize(static_cast<std::size_t>(half_count));
                 growth_.resize(normal_draws_.size());
             }
-            if (drift_ != parameters.drift || diffusion_ != parameters.diffusion) {
-                for (std::size_t path = 0; path < normal_draws_.size(); ++path) {
-                    growth_[path] = {std::exp(parameters.drift + parameters.diffusion * normal_draws_[path]),
-                                     std::exp(parameters.drift - parameters.diffusion * normal_draws_[path])};
-                }
-                drift_ = parameters.drift;
-                diffusion_ = parameters.diffusion;
+            const bool update = drift_ != parameters.drift || diffusion_ != parameters.diffusion;
+            const auto result = detail::monte_carlo_blocks(half_count, simulation.thread_count,
+                [&](int block, int begin, int end) -> Result<void> {
+                    detail::Pcg32 generator{*simulation.seed, static_cast<std::uint64_t>(block)};
+                    std::normal_distribution<double> normal;
+                    for (int path = begin; path < end; ++path) {
+                        const auto index = static_cast<std::size_t>(path);
+                        if (generate) normal_draws_[index] = normal(generator);
+                        if (update)
+                            growth_[index] = {std::exp(parameters.drift + parameters.diffusion * normal_draws_[index]),
+                                              std::exp(parameters.drift - parameters.diffusion * normal_draws_[index])};
+                        const double positive = parameters.spot * growth_[index][0];
+                        const double negative = parameters.spot * growth_[index][1];
+                        if (!std::isfinite(positive) || positive <= 0.0 || !std::isfinite(negative) || negative <= 0.0)
+                            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                                         "Monte Carlo simulation produced a non-finite path"});
+                        observe(path, path + half_count, 1, positive, negative);
+                    }
+                    return {};
+                });
+            if (!result) {
+                normal_draws_.clear();
+                drift_ = std::numeric_limits<double>::quiet_NaN();
+                return result;
             }
-            const int half_count = static_cast<int>(normal_draws_.size());
-            for (int path = 0; path < half_count; ++path) {
-                const auto& growth = growth_[static_cast<std::size_t>(path)];
-                const double positive = parameters.spot * growth[0];
-                const double negative = parameters.spot * growth[1];
-                if (!std::isfinite(positive) || positive <= 0.0 || !std::isfinite(negative) || negative <= 0.0)
-                    return Result<void>{std::unexpected(Error{ErrorCategory::invalid_result,
-                                                              "Monte Carlo simulation produced a non-finite path"})};
-                observe(path, path + half_count, 1, positive, negative);
-            }
+            drift_ = parameters.drift;
+            diffusion_ = parameters.diffusion;
             return Result<void>{}; }, workspace);
     }
 

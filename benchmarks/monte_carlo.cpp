@@ -1,4 +1,5 @@
 #include <chrono>
+#include <format>
 #include <initializer_list>
 #include <string>
 #include <utility>
@@ -331,5 +332,29 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
                              MonteCarloAutocallableEngine{{250'000, 42, backend}});
         register_monte_carlo("bm_monte_carlo_snowball" + suffix, snowball_scenario(),
                              MonteCarloAutocallableEngine{{250'000, 42, backend}});
+    }
+    for (const int threads : {1, 0}) {
+        const std::string mode = threads == 1 ? "/serial" : "/automatic";
+        const auto add = [&](const std::string& name, const auto& scenario, const auto& engine) {
+            const auto& [option, context] = scenario;
+            register_monte_carlo(std::format("parallel/{}{}/price", name, mode), scenario, engine);
+            register_calculation(std::format("parallel/{}{}/greeks", name, mode).c_str(), [=, option = option] { return engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::rho}); }, "price")->UseRealTime();
+        };
+        for (const int paths : {128, 250'000}) {
+            const auto size = std::to_string(paths);
+            const MonteCarloVanillaEngine vanilla{paths, 50, 42, MonteCarloBackend::cpu, threads};
+            add("european/" + size, monte_carlo_scenario(), vanilla);
+            add("american/" + size, american_monte_carlo_scenario(), vanilla);
+            add("accumulator/" + size, accumulator_scenario(),
+                MonteCarloAccumulatorEngine{paths, 42, MonteCarloBackend::cpu, threads});
+            const MonteCarloAutocallableEngine exotic{paths, 42, MonteCarloBackend::cpu, threads};
+            add("phoenix/" + size, phoenix_scenario(), exotic);
+            add("snowball/" + size, snowball_scenario(), exotic);
+            const auto [option, context] = monte_carlo_scenario();
+            const auto quote = vanilla.price(option, context);
+            register_calculation(std::format("parallel/european/{}{}/implied_volatility", size, mode).c_str(), [=, quote = quote]() -> Result<double> {
+                if (!quote) return std::unexpected(quote.error());
+                return implied_volatility(vanilla, option, context, *quote, {.lower_bound = 0.1, .upper_bound = 0.4}); }, "volatility")->UseRealTime();
+        }
     }
 }

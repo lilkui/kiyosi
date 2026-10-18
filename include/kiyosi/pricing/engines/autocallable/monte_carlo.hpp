@@ -30,11 +30,12 @@ class MonteCarloAutocallableEngine {
 public:
     /// Creates an engine with aggregate trading-day simulation settings.
     explicit MonteCarloAutocallableEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit path count, seed, and backend.
+    /// Creates an engine with explicit path count, seed, backend, and CPU concurrency cap.
     explicit MonteCarloAutocallableEngine(
         int path_count, std::optional<std::uint64_t> seed = TradingDayMonteCarloSettings{}.seed,
-        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend)
-        : settings_{path_count, seed, backend} {}
+        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend,
+        int thread_count = TradingDayMonteCarloSettings{}.thread_count)
+        : settings_{path_count, seed, backend, thread_count} {}
 
     /// Prices an autocallable note by Monte Carlo simulation.
     /// @return Price, or a contract, context, settings, or backend error.
@@ -42,7 +43,7 @@ public:
     [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
-    /// CPU spot sensitivities share per-path draws with separate event states and constant storage.
+    /// CPU spot sensitivities share per-path draws with separate event states and per-block reduction storage.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& option, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings = {}) const;

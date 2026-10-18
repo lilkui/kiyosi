@@ -23,11 +23,12 @@ class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
     /// Creates an engine with aggregate Monte Carlo settings.
     explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit path count, step count, seed, and backend.
+    /// Creates an engine with explicit path count, step count, seed, backend, and CPU concurrency cap.
     MonteCarloVanillaEngine(
         int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed,
-        MonteCarloBackend backend = MonteCarloSettings{}.backend)
-        : settings_{path_count, step_count, seed, backend} {}
+        MonteCarloBackend backend = MonteCarloSettings{}.backend,
+        int thread_count = MonteCarloSettings{}.thread_count)
+        : settings_{path_count, step_count, seed, backend, thread_count} {}
 
     /// Prices a European or American vanilla option.
     /// @return Price, or a contract, context, settings, or backend error.

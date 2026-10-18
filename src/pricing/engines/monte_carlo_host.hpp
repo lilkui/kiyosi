@@ -1,5 +1,7 @@
 #pragma once
 
+#include "monte_carlo_parallel.hpp"
+
 #include <array>
 #include <cmath>
 #include <new>
@@ -98,16 +100,27 @@ Result<PricingResult> complete_monte_carlo_greeks(
 template <std::size_t count, typename PathPayoffs>
 Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs)
 {
-    std::mt19937_64 generator(settings.seed ? *settings.seed : std::random_device{}());
+    const auto seed = settings.seed ? *settings.seed : std::random_device{}();
+    std::vector<std::array<MonteCarloMean, count>> partials(
+        static_cast<std::size_t>(monte_carlo_block_count(settings.path_count)));
+    const auto simulated = monte_carlo_blocks(settings.path_count, settings.thread_count,
+                                              [&](int block, int begin, int end) -> Result<void> {
+                                                  auto& means = partials[static_cast<std::size_t>(block)];
+                                                  for (int path = begin; path < end; ++path) {
+                                                      // Early termination must not change the random draws of later paths.
+                                                      Pcg32 path_generator{seed, static_cast<std::uint64_t>(path)};
+                                                      const auto payoffs = path_payoffs(path_generator);
+                                                      if (!payoffs) return std::unexpected(payoffs.error());
+                                                      for (std::size_t i = 0; i < count; ++i)
+                                                          means[i].add((*payoffs)[i]);
+                                                  }
+                                                  return {};
+                                              });
+    if (!simulated) return std::unexpected(simulated.error());
     std::array<MonteCarloMean, count> means{};
-    for (int path = 0; path < settings.path_count; ++path) {
-        // Early termination must not change the random draws of later paths.
-        Pcg32 path_generator{generator(), static_cast<std::uint64_t>(path)};
-        const auto payoffs = path_payoffs(path_generator);
-        if (!payoffs) return std::unexpected(payoffs.error());
+    for (const auto& partial : partials)
         for (std::size_t i = 0; i < count; ++i)
-            means[i].add((*payoffs)[i]);
-    }
+            means[i].merge(partial[i]);
     std::array<double, count> prices{};
     for (std::size_t i = 0; i < count; ++i)
         prices[i] = means[i].value();

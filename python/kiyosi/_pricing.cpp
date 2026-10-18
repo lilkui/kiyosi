@@ -285,14 +285,15 @@ nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, cons
 Settings are stored without domain validation and are validated when price() is called.
 Accumulator and autocallable engines accept 1..10,000,000 paths.)doc"};
     binding
-        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
+        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
                  return Engine{TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
-                     backend}};
+                     backend, integer(thread_count, "thread_count")}};
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
              "seed"_a.none() = TradingDayMonteCarloSettings{}.seed,
              "backend"_a = TradingDayMonteCarloSettings{}.backend,
+             "thread_count"_a = TradingDayMonteCarloSettings{}.thread_count,
              R"doc(Store Monte Carlo settings.
 
 Settings are validated when price() is called.
@@ -306,6 +307,9 @@ seed : int or None, optional
     CPU paths have separate random streams; early knock-out does not shift later paths' draws.
 backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
+thread_count : int, optional
+    Per-call CPU concurrency cap: 0 automatic, 1 serial. CUDA requires 0.
+    Seeded CPU results are identical across thread counts in the same build.
 
 Raises
 ------
@@ -315,9 +319,10 @@ OverflowError
     If an integer is outside its C++ representation range.)doc")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
-        .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
+        .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
+        .def_prop_ro("thread_count", [](const Engine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.");
     bind_repr(binding, name,
-              {"path_count", "seed", "backend"});
+              {"path_count", "seed", "backend", "thread_count"});
     return binding;
 }
 
@@ -612,15 +617,16 @@ American calls with nonpositive dividends and nonnegative rates use that distrib
 with an immediate-exercise lower bound. Rate stencils crossing zero retain exercise-grid
 simulations on both sides.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend) {
+                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
                                             return MonteCarloVanillaEngine{MonteCarloSettings{
                                                 integer(path_count, "path_count"), integer(step_count, "step_count"),
-                                                optional_seed(seed), backend}};
+                                                optional_seed(seed), backend, integer(thread_count, "thread_count")}};
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
                                         "seed"_a.none() = MonteCarloSettings{}.seed,
                                         "backend"_a = MonteCarloSettings{}.backend,
+                                        "thread_count"_a = MonteCarloSettings{}.thread_count,
                                         R"doc(Store Monte Carlo settings.
 
 Parameters
@@ -634,6 +640,9 @@ seed : int or None, optional
     Non-negative random seed, or ``None`` for nondeterministic seeding.
 backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
+thread_count : int, optional
+    Per-call CPU concurrency cap: 0 automatic, 1 serial. CUDA requires 0.
+    Seeded CPU results are identical across thread counts in the same build.
 
 Raises
 ------
@@ -648,9 +657,10 @@ Settings are validated when price() is called.)doc")
                                    .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
                                    .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "American time grid points; validated but unused for European pricing.")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
-                                   .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.");
+                                   .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
+                                   .def_prop_ro("thread_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
-              {"path_count", "step_count", "seed", "backend"});
+              {"path_count", "step_count", "seed", "backend", "thread_count"});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(module, monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(module, monte_carlo_vanilla);
 

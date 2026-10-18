@@ -18,6 +18,8 @@ option(KIYOSI_BUILD_BENCHMARKS "Build Google Benchmark targets" OFF)
 option(KIYOSI_BUILD_DOCS "Build Doxygen XML documentation" OFF)
 option(KIYOSI_ENABLE_CUDA "Build the optional CUDA Monte Carlo backend" OFF)
 
+include(cmake/OneTBB.cmake)
+
 if(KIYOSI_ENABLE_CUDA)
     include(CheckLanguage)
     check_language(CUDA)
@@ -102,6 +104,10 @@ endif()
 
 add_library(kiyosi)
 add_library(kiyosi::kiyosi ALIAS kiyosi)
+target_link_libraries(kiyosi PRIVATE TBB::tbb)
+if(BUILD_SHARED_LIBS)
+    kiyosi_copy_tbb_runtime(kiyosi)
+endif()
 generate_export_header(kiyosi
     EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/generated/kiyosi/kiyosi_export.h"
 )
@@ -323,6 +329,12 @@ if(KIYOSI_BUILD_PYTHON)
         python/kiyosi/_pricing.cpp
     )
     target_link_libraries(_native PRIVATE kiyosi::kiyosi)
+    kiyosi_copy_tbb_runtime(_native)
+    if(APPLE)
+        set_property(TARGET _native PROPERTY INSTALL_RPATH "@loader_path")
+    elseif(UNIX)
+        set_property(TARGET _native PROPERTY INSTALL_RPATH "$ORIGIN")
+    endif()
     if(KIYOSI_ENABLE_CLANG_TIDY)
         # Keep compile commands usable by clang-tidy before the first build creates module maps.
         set_target_properties(_native PROPERTIES
@@ -361,6 +373,14 @@ if(KIYOSI_BUILD_PYTHON)
         LIBRARY DESTINATION kiyosi
         RUNTIME DESTINATION kiyosi
     )
+    if(WIN32)
+        install(FILES $<TARGET_FILE:TBB::tbb> DESTINATION kiyosi)
+    else()
+        install(FILES $<TARGET_FILE:TBB::tbb> DESTINATION kiyosi
+            RENAME $<TARGET_SONAME_FILE_NAME:TBB::tbb>)
+    endif()
+    install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/licenses/oneTBB.txt"
+        DESTINATION kiyosi/licenses)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/_native.pyi"
         DESTINATION kiyosi
     )

@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <array>
+#include <bit>
 #include <chrono>
 #include <cmath>
 #include <future>
@@ -15,6 +16,99 @@
 #include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 #include "pricing/engines/monte_carlo_mean.hpp"
+
+TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel]")
+{
+    using namespace kiyosi;
+    const auto start = test::day(2025, 1, 1), end = test::day(2025, 1, 13);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+    for (const int paths : {513, 1025}) {
+        for (const int threads : {0, 1, 2, 4}) {
+            CAPTURE(paths, threads);
+            const auto check = [&](const auto& engine, const auto& option) {
+                auto settings = engine.settings();
+                settings.thread_count = 1;
+                const std::decay_t<decltype(engine)> serial{settings};
+                const auto expected = serial.price_with_greeks(option, context, true, {});
+                const auto actual = engine.price_with_greeks(option, context, true, {});
+                REQUIRE(expected);
+                REQUIRE(actual);
+                CHECK(std::bit_cast<std::uint64_t>(actual->price()) == std::bit_cast<std::uint64_t>(expected->price()));
+                CHECK(actual->values_view() == expected->values_view());
+                for (std::size_t index = 0; index < greek_count; ++index) {
+                    const auto value = actual->values_view()[index];
+                    const auto reference = expected->values_view()[index];
+                    REQUIRE(value.has_value() == reference.has_value());
+                    if (value)
+                        CHECK(std::bit_cast<std::uint64_t>(*value) == std::bit_cast<std::uint64_t>(*reference));
+                }
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK(*price == expected->price());
+                const auto expected_vol = implied_volatility(serial, option, context, *price, {.lower_bound = 0.15, .upper_bound = 0.25});
+                const auto actual_vol = implied_volatility(engine, option, context, *price, {.lower_bound = 0.15, .upper_bound = 0.25});
+                REQUIRE(expected_vol);
+                REQUIRE(actual_vol);
+                CHECK(std::bit_cast<std::uint64_t>(*actual_vol) == std::bit_cast<std::uint64_t>(*expected_vol));
+                auto pending = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true, {}); });
+                const auto concurrent = engine.price_with_greeks(option, context, true, {});
+                const auto background = pending.get();
+                REQUIRE(concurrent);
+                REQUIRE(background);
+                CHECK(concurrent->price() == expected->price());
+                CHECK(background->price() == expected->price());
+                CHECK(concurrent->values_view() == expected->values_view());
+                CHECK(background->values_view() == expected->values_view());
+            };
+            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_european_option(OptionType::call, 100.0, start, end));
+            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_american_option(OptionType::put, 100.0, start, end));
+            check(MonteCarloAccumulatorEngine{paths, 42, MonteCarloBackend::cpu, threads},
+                  *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
+            const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
+            const TradingDayMonteCarloSettings settings{paths, 42, MonteCarloBackend::cpu, threads};
+            check(MonteCarloAutocallableEngine{settings},
+                  *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
+            check(MonteCarloAutocallableEngine{settings},
+                  *make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
+            check(MonteCarloAutocallableEngine{settings},
+                  *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
+            check(MonteCarloAutocallableEngine{settings},
+                  *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
+        }
+    }
+}
+
+TEST_CASE("Monte Carlo rejects invalid thread counts before dispatch", "[mc-parallel]")
+{
+    using namespace kiyosi;
+    CHECK(MonteCarloSettings{}.thread_count == 0);
+    CHECK(TradingDayMonteCarloSettings{}.thread_count == 0);
+    const auto start = test::day(2025, 1, 1), end = test::day(2025, 1, 13);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto check = [&](const auto& engine, const auto& option) {
+        const auto result = engine.price(option, context);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_parameter);
+        const auto greeks = engine.price_with_greeks(option, context, true, {});
+        REQUIRE_FALSE(greeks);
+        CHECK(greeks.error().category == ErrorCategory::invalid_parameter);
+    };
+    for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
+        for (const int threads : {-1, 1, 4}) {
+            if (backend == MonteCarloBackend::cpu && threads > 0)
+                continue;
+            CAPTURE(backend, threads);
+            const MonteCarloVanillaEngine vanilla{513, 7, 42, backend, threads};
+            check(vanilla, *make_european_option(OptionType::call, 100.0, start, end));
+            check(vanilla, *make_american_option(OptionType::put, 100.0, start, end));
+            check(MonteCarloAccumulatorEngine{513, 42, backend, threads},
+                  *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
+            check(MonteCarloAutocallableEngine{513, 42, backend, threads},
+                  *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}));
+        }
+    }
+}
 
 #if KIYOSI_HAS_CUDA
 #include <cuda_runtime.h>
@@ -134,7 +228,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         std::vector<double> prefixes;
         prefixes.reserve(count);
         double squares = 0.0, products = 0.0;
-        const auto first = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
+        const auto first = kiyosi::detail::cpu_path_mean({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<double> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             const double next = normal(generator);
@@ -148,7 +242,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         CHECK_THAT(squares / count, Catch::Matchers::WithinAbs(1.0, 0.02));
         CHECK_THAT(products / count, Catch::Matchers::WithinAbs(0.0, 0.02));
         std::size_t path = 0;
-        const auto shortened = kiyosi::detail::cpu_path_mean({count, seed}, [&](auto& generator) -> kiyosi::Result<double> {
+        const auto shortened = kiyosi::detail::cpu_path_mean({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<double> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             REQUIRE(value == prefixes[path++]);
@@ -162,7 +256,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
 TEST_CASE("CPU path batches preserve scalar streams and propagate payoff failures", "[monte-carlo-performance]")
 {
     using namespace kiyosi;
-    const TradingDayMonteCarloSettings settings{16, 42};
+    const TradingDayMonteCarloSettings settings{16, 42, MonteCarloBackend::cpu, 1};
     const auto scalar = detail::cpu_path_mean(settings, [](auto& generator) -> Result<double> {
         return static_cast<double>(generator());
     });
@@ -538,12 +632,14 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
     const MonteCarloVanillaEngine engine{1001, 50, 42};
     const double quote = *engine.price(option, context);
-    const auto expected = implied_volatility(engine, option, context, quote);
+    // Sparse samples need a local bracket; high-volatility tails can miss the quote.
+    const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4};
+    const auto expected = implied_volatility(engine, option, context, quote, bounds);
     REQUIRE(expected);
     CHECK_THAT(*expected, Catch::Matchers::WithinAbs(0.2, 1e-8));
     std::array<std::future<Result<double>>, 2> concurrent;
     for (auto& task : concurrent)
-        task = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, quote); });
+        task = std::async(std::launch::async, [&] { return implied_volatility(engine, option, context, quote, bounds); });
     for (auto& task : concurrent) {
         const auto actual = task.get();
         REQUIRE(actual);
@@ -656,7 +752,7 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
-    const MonteCarloVanillaEngine engine{127, 50, 42};
+    const MonteCarloVanillaEngine engine{1025, 50, 42, MonteCarloBackend::cpu, 4};
     const auto invalid_context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 1000.0), 100.25, start);
     const auto invalid = engine.price_with_greeks(option, invalid_context, true);
     REQUIRE_FALSE(invalid);

@@ -36,6 +36,179 @@ GREEKS = (
 
 
 class SharedSampleTests(unittest.TestCase):
+    @staticmethod
+    def parallel_cases():
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100.25,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            calendar=all_days_calendar(),
+        )
+        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
+        knock_out_levels = [101, 100, 99]
+        common = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
+        coupons = {
+            "maturity_coupon_rate": 0.06,
+            "observations": autocallable_observations(
+                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
+            ),
+        }
+        downside = {
+            "initial_spot": 100,
+            "knock_in_level": 99,
+            "upper_strike": 100,
+            "lower_strike": 60,
+            "knock_in_observation_mode": "every_trading_day",
+        }
+        cases = (
+            (
+                Accumulator(
+                    strike=100,
+                    knock_out_level=115,
+                    daily_quantity=1,
+                    acceleration_factor=2,
+                    effective_date=start,
+                    expiry_date=end,
+                ),
+                pricing.MonteCarloAccumulatorEngine,
+            ),
+            (
+                SnowballOption(**common, **coupons, **downside),
+                pricing.MonteCarloAutocallableEngine,
+            ),
+            (
+                PhoenixOption(
+                    **common,
+                    **downside,
+                    coupon_rate=0.08,
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        coupon_barrier_levels=[100, 99, 98],
+                    ),
+                ),
+                pricing.MonteCarloAutocallableEngine,
+            ),
+            (
+                BinarySnowballOption(**common, **coupons),
+                pricing.MonteCarloAutocallableEngine,
+            ),
+            (
+                TernarySnowballOption(
+                    **common,
+                    **coupons,
+                    knock_in_level=99,
+                    minimum_coupon_rate=0.02,
+                    knock_in_observation_mode="every_trading_day",
+                ),
+                pricing.MonteCarloAutocallableEngine,
+            ),
+        )
+        cases += tuple(
+            (
+                option_type(
+                    option_type="put", strike=100, effective_date=start, expiry_date=end
+                ),
+                pricing.MonteCarloVanillaEngine,
+            )
+            for option_type in (EuropeanOption, AmericanOption)
+        )
+        return context, cases
+
+    def test_cpu_results_are_invariant_to_thread_count(self):
+        context, cases = self.parallel_cases()
+        for option, engine_type in cases:
+            for paths in (513, 1025):
+                serial = engine_type(path_count=paths, seed=42, thread_count=1)
+                expected = serial.price_with_greeks(option, context, GREEKS)
+                quote = serial.price(option, context)
+                bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
+                expected_vol = pricing.implied_volatility(
+                    serial, option, context, quote, **bounds
+                )
+                for threads in (0, 1, 2, 4):
+                    with self.subTest(
+                        option=type(option).__name__, paths=paths, threads=threads
+                    ):
+                        engine = engine_type(
+                            path_count=paths, seed=42, thread_count=threads
+                        )
+                        self.assertEqual(engine.price(option, context), quote)
+                        actual = engine.price_with_greeks(option, context, GREEKS)
+                        self.assertEqual(actual.price, expected.price)
+                        self.assertEqual(
+                            tuple(getattr(actual, name) for name in GREEKS),
+                            tuple(getattr(expected, name) for name in GREEKS),
+                        )
+                        self.assertEqual(
+                            pricing.implied_volatility(
+                                engine, option, context, quote, **bounds
+                            ),
+                            expected_vol,
+                        )
+                        with ThreadPoolExecutor(max_workers=2) as executor:
+                            tasks = [
+                                executor.submit(
+                                    engine.price_with_greeks, option, context, GREEKS
+                                )
+                                for _ in range(2)
+                            ]
+                            for task in tasks:
+                                concurrent = task.result()
+                                self.assertEqual(concurrent.price, expected.price)
+                                self.assertEqual(
+                                    tuple(getattr(concurrent, name) for name in GREEKS),
+                                    tuple(getattr(expected, name) for name in GREEKS),
+                                )
+
+    def test_thread_count_rejects_invalid_python_representations(self):
+        for engine_type in (
+            pricing.MonteCarloVanillaEngine,
+            pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloAutocallableEngine,
+        ):
+            self.assertEqual(engine_type().thread_count, 0)
+            self.assertEqual(engine_type(thread_count=4).thread_count, 4)
+            for threads in (True, False, 1.0, 1.5, 2**63):
+                with (
+                    self.subTest(engine=engine_type.__name__, threads=threads),
+                    self.assertRaises((TypeError, OverflowError)),
+                ):
+                    engine_type(thread_count=threads)
+
+    def test_thread_count_domain_validation_is_deferred_until_pricing(self):
+        context, cases = self.parallel_cases()
+        for option, engine_type in cases:
+            for backend, threads in (
+                ("cpu", -1),
+                ("cuda", -1),
+                ("cuda", 1),
+                ("cuda", 4),
+            ):
+                with self.subTest(
+                    option=type(option).__name__, backend=backend, threads=threads
+                ):
+                    engine = engine_type(
+                        path_count=513, seed=42, backend=backend, thread_count=threads
+                    )
+                    for operation in (
+                        lambda engine=engine, option=option: engine.price(
+                            option, context
+                        ),
+                        lambda engine=engine, option=option: engine.price_with_greeks(
+                            option, context, GREEKS
+                        ),
+                    ):
+                        with self.assertRaises(kiyosi.KiyosiError) as error:
+                            operation()
+                        self.assertEqual(
+                            error.exception.category,
+                            kiyosi.ErrorCategory.INVALID_PARAMETER,
+                        )
+
     def test_time_mixed_greeks_equal_seeded_scalar_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         parameters = BlackScholesMertonParameters(
@@ -611,12 +784,14 @@ class SharedSampleTests(unittest.TestCase):
         )
         engine = pricing.MonteCarloVanillaEngine(path_count=1001, seed=42)
         quote = engine.price(option, context)
-        expected = pricing.implied_volatility(engine, option, context, quote)
+        # Sparse samples need a local bracket; high-volatility tails can miss the quote.
+        bounds = {"lower_bound": 0.1, "upper_bound": 0.4}
+        expected = pricing.implied_volatility(engine, option, context, quote, **bounds)
         self.assertAlmostEqual(expected, 0.2, delta=1e-8)
         with ThreadPoolExecutor(max_workers=2) as executor:
             tasks = [
                 executor.submit(
-                    pricing.implied_volatility, engine, option, context, quote
+                    pricing.implied_volatility, engine, option, context, quote, **bounds
                 )
                 for _ in range(2)
             ]
@@ -645,7 +820,8 @@ class SharedSampleTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
         )
         self.assertEqual(
-            pricing.implied_volatility(engine, option, context, quote), expected
+            pricing.implied_volatility(engine, option, context, quote, **bounds),
+            expected,
         )
 
     def test_selected_greeks_match_all_requests(self):
@@ -1127,7 +1303,9 @@ class SharedSampleTests(unittest.TestCase):
             spot_price=100,
             valuation_time=start,
         )
-        engine = pricing.MonteCarloVanillaEngine(path_count=127, step_count=7, seed=42)
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=1025, step_count=7, seed=42, thread_count=4
+        )
         for direction in ("call", "put"):
             option = AmericanOption(
                 option_type=direction, strike=100, effective_date=start, expiry_date=end
@@ -1153,7 +1331,9 @@ class SharedSampleTests(unittest.TestCase):
             spot_price=100.25,
             valuation_time=start,
         )
-        engine = pricing.MonteCarloVanillaEngine(path_count=127, step_count=7, seed=42)
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=1025, step_count=7, seed=42, thread_count=4
+        )
         for option_class in (EuropeanOption, AmericanOption):
             option = option_class(
                 option_type="put", strike=100, effective_date=start, expiry_date=end
