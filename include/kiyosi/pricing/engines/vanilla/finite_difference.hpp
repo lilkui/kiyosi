@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -8,21 +10,19 @@
 
 namespace kiyosi {
 
+class KIYOSI_EXPORT FiniteDifferenceVanillaEngine;
+[[nodiscard]] Result<FiniteDifferenceVanillaEngine> make_finite_difference_vanilla_engine(FiniteDifferenceSettings settings);
+
 /// Uniform-grid finite-difference engine for vanilla European and American options.
 /// European upper-edge values include exact BSM time value; American edges also permit immediate exercise.
 /// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceVanillaEngine {
 public:
-    /// Creates an engine with aggregate finite-difference settings.
-    explicit FiniteDifferenceVanillaEngine(FiniteDifferenceSettings settings = {})
-        : settings_(settings) {}
-    /// Creates an engine with explicit grid dimensions and scheme.
-    FiniteDifferenceVanillaEngine(int asset_step_count, int time_step_count,
-                                  FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_step_count, time_step_count, scheme} {}
+    /// Creates an engine with valid default settings.
+    FiniteDifferenceVanillaEngine() = default;
 
     /// Prices a European or American vanilla option.
-    /// @return Price, or a contract, context, or settings error.
+    /// @return Price, or a contract, context, or numerical error.
     [[nodiscard]] Result<double> price(const EuropeanOption& option, const PricingContext& context) const;
     [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
@@ -37,8 +37,24 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit FiniteDifferenceVanillaEngine(FiniteDifferenceSettings settings) : settings_(settings) {}
+    friend Result<FiniteDifferenceVanillaEngine> make_finite_difference_vanilla_engine(FiniteDifferenceSettings);
+    friend Result<FiniteDifferenceVanillaEngine> make_engine(FiniteDifferenceSettings settings, std::type_identity<FiniteDifferenceVanillaEngine>)
+    {
+        return make_finite_difference_vanilla_engine(settings);
+    }
+
     FiniteDifferenceSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<FiniteDifferenceVanillaEngine> make_finite_difference_vanilla_engine(FiniteDifferenceSettings settings)
+{
+    const auto valid = detail::validate_finite_difference_settings(settings, detail::general_fd_max_asset_steps, detail::general_fd_max_time_steps);
+    if (!valid) return std::unexpected(valid.error());
+    return FiniteDifferenceVanillaEngine{settings};
+}
 
 namespace detail {
 template <typename Option>

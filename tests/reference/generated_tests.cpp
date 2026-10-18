@@ -110,8 +110,6 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                 }
             };
             constexpr bool american_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AmericanOption>;
-            using FiniteDifference = kiyosi::FiniteDifferenceVanillaEngine;
-            using MonteCarlo = kiyosi::MonteCarloVanillaEngine;
             constexpr bool digital_contract = std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::CashOrNothingOption> ||
                                               std::is_same_v<std::remove_cvref_t<decltype(option)>, kiyosi::AssetOrNothingOption>;
             if constexpr (digital_contract) {
@@ -122,8 +120,9 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                 else if (fixture.engine == "QuadratureDigitalEngine") check_engine(kiyosi::QuadratureDigitalEngine{});
                 else if (fixture.engine == "FiniteDifferenceDigitalEngine") {
                     REQUIRE(inputs.at("scheme") == "crank_nicolson");
-                    check_engine(kiyosi::FiniteDifferenceDigitalEngine{{static_cast<int>(number("asset_step_count")),
-                                                                        static_cast<int>(number("time_step_count")), kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")}});
+                    check_engine(kiyosi::make_finite_difference_digital_engine({static_cast<int>(number("asset_step_count")),
+                                                                                static_cast<int>(number("time_step_count")), kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")})
+                                     .value());
                 } else FAIL("Unknown digital engine: " << fixture.engine);
             } else {
                 if (fixture.engine == "AnalyticVanillaEngine") {
@@ -142,7 +141,7 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                     if constexpr (american_contract) check_engine(kiyosi::BjerksundStenslandVanillaEngine{});
                     else FAIL("BjerksundStenslandVanillaEngine requires an American contract");
                 } else if (fixture.engine == "CoxRossRubinsteinVanillaEngine") {
-                    check_engine(kiyosi::CoxRossRubinsteinVanillaEngine{static_cast<int>(number("steps"))});
+                    check_engine(kiyosi::make_cox_ross_rubinstein_vanilla_engine({static_cast<int>(number("steps"))}).value());
                 } else if (fixture.engine == "QuadratureVanillaEngine") {
                     if constexpr (!american_contract) check_engine(kiyosi::QuadratureVanillaEngine{});
                     else FAIL("QuadratureVanillaEngine requires a European contract");
@@ -152,13 +151,14 @@ TEST_CASE("QuantLib generated references match native and numerical Greeks")
                         {"implicit_euler", kiyosi::FiniteDifferenceScheme::implicit_euler},
                         {"crank_nicolson", kiyosi::FiniteDifferenceScheme::crank_nicolson}};
                     REQUIRE(schemes.contains(inputs.at("scheme")));
-                    check_engine(FiniteDifference{{static_cast<int>(number("asset_step_count")),
-                                                   static_cast<int>(number("time_step_count")), schemes.at(inputs.at("scheme")), number("asset_upper_boundary")}});
+                    check_engine(kiyosi::make_finite_difference_vanilla_engine({static_cast<int>(number("asset_step_count")),
+                                                                                static_cast<int>(number("time_step_count")), schemes.at(inputs.at("scheme")), number("asset_upper_boundary")})
+                                     .value());
                 } else if (fixture.engine == "MonteCarloVanillaEngine") {
-                    check_engine(MonteCarlo{
-                        kiyosi::test::detail::integer<int>(inputs.at("paths"), 0, "paths"),
-                        kiyosi::test::detail::integer<int>(inputs.at("steps"), 0, "steps"),
-                        kiyosi::test::detail::integer<std::uint64_t>(inputs.at("seed"), 0, "seed")});
+                    check_engine(kiyosi::make_monte_carlo_vanilla_engine({kiyosi::test::detail::integer<int>(inputs.at("paths"), 0, "paths"),
+                                                                          kiyosi::test::detail::integer<int>(inputs.at("steps"), 0, "steps"),
+                                                                          kiyosi::test::detail::integer<std::uint64_t>(inputs.at("seed"), 0, "seed")})
+                                     .value());
                 } else {
                     FAIL("Unknown generated engine: " << fixture.engine);
                 }

@@ -848,7 +848,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                     1,
                 )
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            pricing.MonteCarloAutocallableEngine(path_count=0).price(note, context)
+            pricing.MonteCarloAutocallableEngine(path_count=0)
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
@@ -856,9 +856,7 @@ class AutocallableRegressionTests(unittest.TestCase):
         result = engine.price_with_greeks(note, context, ["delta", "gamma"])
         self.assertEqual((result.price, result.delta, result.gamma), (1, 0, 0))
         with self.assertRaises(kiyosi.KiyosiError) as error:
-            pricing.FiniteDifferenceAutocallableEngine(time_step_count=0).price(
-                note, context
-            )
+            pricing.FiniteDifferenceAutocallableEngine(time_step_count=0)
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )

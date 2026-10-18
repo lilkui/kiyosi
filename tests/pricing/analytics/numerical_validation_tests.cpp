@@ -272,7 +272,7 @@ TEST_CASE("Numerical Greeks keep model and time spot stencils contiguous", "[mon
         {
             const auto& model = context.model_parameters();
             models.emplace_back(model.volatility(), model.risk_free_rate(), context.valuation_time());
-            return MonteCarloVanillaEngine{127, 2, 42}.price(option, context);
+            return make_monte_carlo_vanilla_engine({127, 2, 42}).value().price(option, context);
         }
     };
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
@@ -281,7 +281,7 @@ TEST_CASE("Numerical Greeks keep model and time spot stencils contiguous", "[mon
         const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
         const RecordingEngine engine;
         const auto result = detail::price_with_greeks(engine, option, context, true, {});
-        const auto expected = MonteCarloVanillaEngine{127, 2, 42}.price_with_greeks(option, context, true);
+        const auto expected = make_monte_carlo_vanilla_engine({127, 2, 42}).value().price_with_greeks(option, context, true);
         REQUIRE(result);
         REQUIRE(expected);
         CHECK(result->price() == expected->price());
@@ -301,15 +301,14 @@ TEST_CASE("Product finite-difference speed preserves shifted gamma and stencil e
     const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
     const auto valuation_time = start_of_day(start) + std::chrono::hours{12};
     const auto market = *make_pricing_context(parameters, 100.25, valuation_time, all_days_calendar());
-    const auto check = [&](const auto& option, const auto& prototype) {
-        using Engine = std::decay_t<decltype(prototype)>;
+    const auto check = [&](const auto& option, const auto make_engine) {
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             for (const auto upper : {std::optional<double>{}, std::optional{400.0}}) {
                 const FiniteDifferenceSettings settings{40, 400, scheme, upper};
-                const Engine engine{settings};
+                const auto engine = make_engine(settings).value();
                 auto fixed = settings;
                 fixed.asset_upper_boundary = upper.value_or(detail::default_finite_difference_upper_boundary(option, market));
-                const Engine shifted_engine{fixed};
+                const auto shifted_engine = make_engine(fixed).value();
                 const auto price = engine.price(option, market);
                 REQUIRE(price);
                 for (const double shift : {NumericalShiftSettings{}.spot_shift, 0.25}) {
@@ -330,7 +329,7 @@ TEST_CASE("Product finite-difference speed preserves shifted gamma and stencil e
                 }
             }
         }
-        const Engine engine{};
+        const auto engine = make_engine({}).value();
         for (const double shift : {1e-300, 200.0}) {
             const auto unavailable = engine.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = shift});
             REQUIRE(unavailable);
@@ -341,19 +340,19 @@ TEST_CASE("Product finite-difference speed preserves shifted gamma and stencil e
         REQUIRE(settled);
         CHECK_FALSE(settled->has(Greek::speed));
         const double upper = detail::highest_finite_difference_level(option, market) + 0.5;
-        const Engine narrow{FiniteDifferenceSettings{40, 400, FiniteDifferenceScheme::implicit_euler, upper}};
+        const auto narrow = make_engine({40, 400, FiniteDifferenceScheme::implicit_euler, upper}).value();
         const auto clipped = narrow.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = upper - market.spot_price()});
         REQUIRE_FALSE(clipped);
         CHECK(clipped.error().category == ErrorCategory::invalid_parameter);
     };
-    check(*make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, start, end), FiniteDifferenceDigitalEngine{});
-    check(*make_asset_or_nothing_option(OptionType::put, 100.0, start, end), FiniteDifferenceDigitalEngine{});
-    check(*make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}}), FiniteDifferenceBarrierEngine{});
-    check(*make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end}), FiniteDifferenceAccumulatorEngine{});
-    check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), FiniteDifferenceAutocallableEngine{});
-    check(*make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), FiniteDifferenceAutocallableEngine{});
-    check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.0, .knock_in_level = 75.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), FiniteDifferenceAutocallableEngine{});
-    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}}), FiniteDifferenceAutocallableEngine{});
+    check(*make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, start, end), make_finite_difference_digital_engine);
+    check(*make_asset_or_nothing_option(OptionType::put, 100.0, start, end), make_finite_difference_digital_engine);
+    check(*make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}}), make_finite_difference_barrier_engine);
+    check(*make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end}), make_finite_difference_accumulator_engine);
+    check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_finite_difference_autocallable_engine);
+    check(*make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_finite_difference_autocallable_engine);
+    check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.0, .knock_in_level = 75.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_finite_difference_autocallable_engine);
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}}), make_finite_difference_autocallable_engine);
 }
 
 TEST_CASE("Finite-difference speed validates bumped digital prices and event boundaries", "[fd-speed]")
@@ -363,7 +362,7 @@ TEST_CASE("Finite-difference speed validates bumped digital prices and event bou
     const auto parameters = *make_bsm_parameters(0.05, 0.02, 0.2);
     const auto market = *make_pricing_context(parameters, 99.75, start);
     const auto option = *make_cash_or_nothing_option(OptionType::call, 100.5, 100.0, start, end);
-    const FiniteDifferenceDigitalEngine engine{{10'000, 1, FiniteDifferenceScheme::crank_nicolson, 400.0}};
+    const auto engine = make_finite_difference_digital_engine({10'000, 1, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
     REQUIRE(engine.price(option, market));
     const auto rejected = engine.price_with_greeks(option, market, {Greek::speed}, {.spot_shift = 0.25});
     REQUIRE_FALSE(rejected);
@@ -563,7 +562,7 @@ TEST_CASE("Finite-difference spot Greeks remain accurate at and between grid nod
                                                       .expiry_date = expiry_date,
                                                       .barrier_level = 80.0,
                                                       .barrier_type = kiyosi::BarrierType::down_and_out});
-    const kiyosi::FiniteDifferenceBarrierEngine finite{800, 1000};
+    const auto finite = kiyosi::make_finite_difference_barrier_engine({800, 1000}).value();
     for (const double spot : {95.0, 95.1}) {
         CAPTURE(spot);
         const auto market = context(spot, 0.03, 0.02, 0.2);
@@ -583,7 +582,7 @@ TEST_CASE("Finite-difference spot Greeks remain accurate at and between grid nod
 TEST_CASE("Finite-difference numerical Greeks keep the automatic asset grid fixed")
 {
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::FiniteDifferenceVanillaEngine finite{800, 1000};
+    const auto finite = kiyosi::make_finite_difference_vanilla_engine({800, 1000}).value();
     for (const double spot : {95.0, 95.1, 100.0, 100.1, 110.0}) {
         CAPTURE(spot);
         const auto market = context(spot, 0.03, 0.02, 0.2);
@@ -964,17 +963,17 @@ TEST_CASE("Scheduled vanilla barriers validate events and refine")
     REQUIRE(in_checked);
     const auto& in = *in_checked;
     const auto market = context();
-    const auto coarse_checked = kiyosi::FiniteDifferenceBarrierEngine{80, 23}.price(out, market);
+    const auto coarse_checked = kiyosi::make_finite_difference_barrier_engine({80, 23}).value().price(out, market);
     REQUIRE(coarse_checked);
     const double coarse = *coarse_checked;
-    const auto fine_checked = kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(out, market);
+    const auto fine_checked = kiyosi::make_finite_difference_barrier_engine({240, 69}).value().price(out, market);
     REQUIRE(fine_checked);
     const double fine = *fine_checked;
     const auto analytic_checked = kiyosi::AnalyticBarrierEngine{}.price(out, market);
     REQUIRE(analytic_checked);
     const double analytic = *analytic_checked;
     CHECK(std::abs(fine - analytic) < std::abs(coarse - analytic));
-    CHECK(*kiyosi::FiniteDifferenceBarrierEngine{240, 69}.price(in, market) > 0.0);
+    CHECK(*kiyosi::make_finite_difference_barrier_engine({240, 69}).value().price(in, market) > 0.0);
 
     auto weekend_terms = terms;
     weekend_terms.observation_dates = {day(2025, 1, 11)};
@@ -1018,7 +1017,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     std::array<double, 4> tree_errors{};
     for (std::size_t index = 0; index < tree_errors.size(); ++index) {
         const int steps = 64 << static_cast<int>(index);
-        const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{steps}.price(american_call, market);
+        const auto result = kiyosi::make_cox_ross_rubinstein_vanilla_engine({steps}).value().price(american_call, market);
         REQUIRE(result.has_value());
         tree_errors[index] = difference(*result, reference);
     }
@@ -1030,7 +1029,7 @@ TEST_CASE("Binomial and finite-difference prices converge toward analytic values
     for (std::size_t index = 0; index < finite_difference_errors.size(); ++index) {
         // Keep the strike on a node so coarse-grid interpolation cannot cancel discretization error.
         const int steps = 64 << static_cast<int>(index);
-        const auto result = kiyosi::FiniteDifferenceVanillaEngine{steps, steps}.price(option, market);
+        const auto result = kiyosi::make_finite_difference_vanilla_engine({steps, steps}).value().price(option, market);
         REQUIRE(result.has_value());
         finite_difference_errors[index] = difference(*result, reference);
     }
@@ -1061,21 +1060,21 @@ TEST_CASE("Explicit finite-difference engines honor signed stability grids")
         const auto boundary = kiyosi::FiniteDifferenceSettings{4, 2, kiyosi::FiniteDifferenceScheme::explicit_euler};
         const auto unstable = kiyosi::FiniteDifferenceSettings{4, 1, kiyosi::FiniteDifferenceScheme::explicit_euler};
 
-        const auto vanilla_stable = kiyosi::FiniteDifferenceVanillaEngine{stable}.price(call, market);
+        const auto vanilla_stable = kiyosi::make_finite_difference_vanilla_engine(stable).value().price(call, market);
         CHECK(vanilla_stable.has_value());
-        const auto vanilla_boundary = kiyosi::FiniteDifferenceVanillaEngine{boundary}.price(call, market);
+        const auto vanilla_boundary = kiyosi::make_finite_difference_vanilla_engine(boundary).value().price(call, market);
         CHECK(vanilla_boundary.has_value());
-        CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{unstable}.price(call, market).has_value());
-        const auto digital_stable = kiyosi::FiniteDifferenceDigitalEngine{stable}.price(digital, market);
+        CHECK_FALSE(kiyosi::make_finite_difference_vanilla_engine(unstable).value().price(call, market).has_value());
+        const auto digital_stable = kiyosi::make_finite_difference_digital_engine(stable).value().price(digital, market);
         CHECK(digital_stable.has_value());
-        const auto digital_boundary = kiyosi::FiniteDifferenceDigitalEngine{boundary}.price(digital, market);
+        const auto digital_boundary = kiyosi::make_finite_difference_digital_engine(boundary).value().price(digital, market);
         CHECK(digital_boundary.has_value());
-        CHECK_FALSE(kiyosi::FiniteDifferenceDigitalEngine{unstable}.price(digital, market).has_value());
-        const auto barrier_stable = kiyosi::FiniteDifferenceBarrierEngine{stable}.price(barrier, market);
+        CHECK_FALSE(kiyosi::make_finite_difference_digital_engine(unstable).value().price(digital, market).has_value());
+        const auto barrier_stable = kiyosi::make_finite_difference_barrier_engine(stable).value().price(barrier, market);
         CHECK(barrier_stable.has_value());
-        const auto barrier_boundary = kiyosi::FiniteDifferenceBarrierEngine{boundary}.price(barrier, market);
+        const auto barrier_boundary = kiyosi::make_finite_difference_barrier_engine(boundary).value().price(barrier, market);
         CHECK(barrier_boundary.has_value());
-        CHECK_FALSE(kiyosi::FiniteDifferenceBarrierEngine{unstable}.price(barrier, market).has_value());
+        CHECK_FALSE(kiyosi::make_finite_difference_barrier_engine(unstable).value().price(barrier, market).has_value());
     }
 }
 

@@ -50,7 +50,7 @@ TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-c
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, calendar);
     const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
-    const MonteCarloAccumulatorEngine engine{31, 42};
+    const auto engine = make_monte_carlo_accumulator_engine({31, 42}).value();
     queries->store(0);
     const auto scalar = detail::price_with_greeks(engine, option, context, true, {});
     REQUIRE(scalar);
@@ -71,7 +71,7 @@ TEST_CASE("Accumulator spot and rate Greeks prepare the base trajectory once", "
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), 100.0,
                                                start_of_day(start) + std::chrono::hours{12}, calendar);
     const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
-    const MonteCarloAccumulatorEngine engine{31, 42};
+    const auto engine = make_monte_carlo_accumulator_engine({31, 42}).value();
     for (const double shift : {0.2, 60.0, 200.0}) {
         CAPTURE(shift);
         const NumericalShiftSettings shifts{.spot_shift = shift, .rate_shift = 0.25};
@@ -104,7 +104,7 @@ TEST_CASE("Accumulator Monte Carlo joint spot Greeks preserve scalar seeded valu
             for (const double spot : {95.0, 100.0, 114.9, 116.0})
                 for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
                     CAPTURE(seed, paths, spot, valuation.time_since_epoch().count());
-                    const MonteCarloAccumulatorEngine engine{paths, seed};
+                    const auto engine = make_monte_carlo_accumulator_engine({paths, seed}).value();
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, valuation, all_days_calendar());
                     const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                     REQUIRE(expected);
@@ -133,7 +133,7 @@ TEST_CASE("Accumulator Monte Carlo rate Greeks preserve independent seeded valua
                 for (const double spot : {95.0, 114.9, 116.0})
                     for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
                         CAPTURE(fixed, seed, paths, spot, valuation.time_since_epoch().count());
-                        const MonteCarloAccumulatorEngine engine{paths, seed};
+                        const auto engine = make_monte_carlo_accumulator_engine({paths, seed}).value();
                         const auto context = *make_pricing_context(parameters, spot, valuation, all_days_calendar());
                         for (const auto request : {GreeksRequest{Greek::rho}, GreeksRequest{Greek::delta, Greek::gamma, Greek::rho}}) {
                             const NumericalShiftSettings shifts{.rate_shift = 0.25};
@@ -148,7 +148,7 @@ TEST_CASE("Accumulator Monte Carlo rate Greeks preserve independent seeded valua
     }
     const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start_of_day(start) + std::chrono::hours{12});
-    const MonteCarloAccumulatorEngine engine{31, 42};
+    const auto engine = make_monte_carlo_accumulator_engine({31, 42}).value();
     const auto unavailable = engine.price_with_greeks(option, context, {Greek::rho}, {.rate_shift = 1e307});
     REQUIRE(unavailable);
     CHECK(unavailable->price() == *engine.price(option, context));
@@ -165,7 +165,7 @@ TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concur
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
     const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
-    const MonteCarloAccumulatorEngine engine{127, 42};
+    const auto engine = make_monte_carlo_accumulator_engine({127, 42}).value();
     auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
     auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
     const auto a = first.get(), b = second.get();
@@ -173,7 +173,7 @@ TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concur
     REQUIRE(b);
     CHECK(a->price() == b->price());
     CHECK(a->values_view() == b->values_view());
-    const auto bad_paths = MonteCarloAccumulatorEngine{0, 42}.price_with_greeks(option, context, true);
+    const auto bad_paths = make_monte_carlo_accumulator_engine({0, 42});
     REQUIRE_FALSE(bad_paths);
     CHECK(bad_paths.error().category == ErrorCategory::invalid_parameter);
     const auto bad_shifts = engine.price_with_greeks(option, context, true, {.spot_shift = 0.0});
@@ -183,7 +183,7 @@ TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concur
     const auto bad_time = engine.price_with_greeks(option, expired, true);
     REQUIRE_FALSE(bad_time);
     CHECK(bad_time.error().category == ErrorCategory::invalid_time_range);
-    const MonteCarloAccumulatorEngine unseeded{31, std::nullopt};
+    const auto unseeded = make_monte_carlo_accumulator_engine({31, std::nullopt}).value();
     const auto random = unseeded.price_with_greeks(option, context, true);
     REQUIRE(random);
     CHECK(random->all_finite());
@@ -204,7 +204,7 @@ TEST_CASE("Accumulator daily leap-year grids preserve settlement prices", "[fd-p
              std::tuple{FiniteDifferenceScheme::crank_nicolson, 200, -2058.336718606278},
              std::tuple{FiniteDifferenceScheme::implicit_euler, 200, -2048.4071966441415},
              std::tuple{FiniteDifferenceScheme::explicit_euler, 40, -2253.4061717943714}}) {
-        const auto price = FiniteDifferenceAccumulatorEngine{{nodes, 366, scheme}}.price(option, context);
+        const auto price = make_finite_difference_accumulator_engine({nodes, 366, scheme}).value().price(option, context);
         REQUIRE(price);
         CHECK(*price == Catch::Approx(expected).margin(1e-8));
     }
@@ -240,13 +240,13 @@ TEST_CASE("Zero-exposure accumulators skip numerical work after validation", "[f
                 REQUIRE_FALSE(invalid);
                 CHECK(invalid.error().category == ErrorCategory::invalid_time_range);
             };
-            check(MonteCarloAccumulatorEngine{2'000, 42});
-            check(MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda});
-            check(FiniteDifferenceAccumulatorEngine{{.asset_upper_boundary = 1.0}});
-            const auto invalid_mc = MonteCarloAccumulatorEngine{0, 42}.price(option, context);
+            check(make_monte_carlo_accumulator_engine({2'000, 42}).value());
+            check(make_monte_carlo_accumulator_engine({2'000, 42, MonteCarloBackend::cuda}).value());
+            check(make_finite_difference_accumulator_engine({.asset_upper_boundary = 1.0}).value());
+            const auto invalid_mc = make_monte_carlo_accumulator_engine({0, 42});
             REQUIRE_FALSE(invalid_mc);
             CHECK(invalid_mc.error().category == ErrorCategory::invalid_parameter);
-            const auto invalid_fd = FiniteDifferenceAccumulatorEngine{{.time_step_count = 0}}.price(option, context);
+            const auto invalid_fd = make_finite_difference_accumulator_engine({.time_step_count = 0});
             REQUIRE_FALSE(invalid_fd);
             CHECK(invalid_fd.error().category == ErrorCategory::invalid_parameter);
         }
@@ -289,7 +289,7 @@ TEST_CASE("Accumulator fixed-quantity finite differences preserve accrual linear
     for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
                               FiniteDifferenceScheme::crank_nicolson}) {
         CAPTURE(scheme);
-        const FiniteDifferenceAccumulatorEngine engine{{.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}};
+        const auto engine = make_finite_difference_accumulator_engine({.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}).value();
         const auto fixed = engine.price_with_greeks(option(0.0, 3.0), context, {Greek::delta, Greek::gamma});
         const auto with_purchases = engine.price_with_greeks(option(1.0, 3.0), context, {Greek::delta, Greek::gamma});
         const auto purchases_only = engine.price_with_greeks(option(1.0, 0.0), context, {Greek::delta, Greek::gamma});
@@ -316,7 +316,7 @@ TEST_CASE("Inactive accumulator accrual preserves fixed-position FD values", "[f
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
                                   FiniteDifferenceScheme::crank_nicolson}) {
             CAPTURE(strike, scheme);
-            const FiniteDifferenceAccumulatorEngine engine{{.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}};
+            const auto engine = make_finite_difference_accumulator_engine({.asset_step_count = 40, .time_step_count = 200, .scheme = scheme, .asset_upper_boundary = 440.0}).value();
             const auto inactive = engine.price_with_greeks(option(1.0), context, {Greek::delta, Greek::gamma});
             const auto fixed = engine.price_with_greeks(option(0.0), context, {Greek::delta, Greek::gamma});
             REQUIRE(inactive);
@@ -400,13 +400,13 @@ TEST_CASE("Fixed-position accumulators use exact zero-carry values", "[fd-perfor
                 CHECK(test::greek_value(*greeks, Greek::delta) == Catch::Approx(3.0).margin(1e-9));
                 CHECK(test::greek_value(*greeks, Greek::gamma) == Catch::Approx(0.0).margin(1e-8));
             };
-            check(MonteCarloAccumulatorEngine{32, 7});
-            check(MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda});
+            check(make_monte_carlo_accumulator_engine({32, 7}).value());
+            check(make_monte_carlo_accumulator_engine({2'000, 42, MonteCarloBackend::cuda}).value());
             check(FiniteDifferenceAccumulatorEngine{});
-            const auto invalid_mc = MonteCarloAccumulatorEngine{0, 42}.price(option, context);
+            const auto invalid_mc = make_monte_carlo_accumulator_engine({0, 42});
             REQUIRE_FALSE(invalid_mc);
             CHECK(invalid_mc.error().category == ErrorCategory::invalid_parameter);
-            const auto invalid_fd = FiniteDifferenceAccumulatorEngine{{.time_step_count = 0}}.price(option, context);
+            const auto invalid_fd = make_finite_difference_accumulator_engine({.time_step_count = 0});
             REQUIRE_FALSE(invalid_fd);
             CHECK(invalid_fd.error().category == ErrorCategory::invalid_parameter);
         }
@@ -424,7 +424,7 @@ TEST_CASE("Accumulator exact-value shortcut requires zero carry and no accrual")
         const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = daily, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = start, .expiry_date = end});
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2),
                                                    90.0, start_of_day(start) + std::chrono::hours{12});
-        const auto price = MonteCarloAccumulatorEngine{settings}.price(option, context);
+        const auto price = make_monte_carlo_accumulator_engine(settings).value().price(option, context);
         REQUIRE(price);
         CHECK(*price == Catch::Approx(reference_accumulator_price(option, context, settings)).margin(1e-12));
         CHECK(*price != -30.0);
@@ -451,7 +451,7 @@ TEST_CASE("Accumulator observation thresholds agree across pricing engines", "[a
              std::array{90.0, -50.0}, std::array{100.0, 0.0}, std::array{109.0, 36.0},
              std::array{110.0, 30.0}, std::array{111.0, 33.0}}) {
         CAPTURE(spot);
-        const auto monte_carlo = kiyosi::MonteCarloAccumulatorEngine{{32, 7}}.price(accumulator, market(spot));
+        const auto monte_carlo = kiyosi::make_monte_carlo_accumulator_engine({32, 7}).value().price(accumulator, market(spot));
         REQUIRE(monte_carlo);
         CHECK(*monte_carlo == Catch::Approx(expected));
         const auto finite_difference = kiyosi::FiniteDifferenceAccumulatorEngine{}.price(accumulator, market(spot));
@@ -473,7 +473,7 @@ TEST_CASE("Accumulator engines reject nominal weekend expiry and accept adjusted
     const auto adjusted_expiry = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);
     REQUIRE(adjusted_expiry);
     const auto adjusted = option(*adjusted_expiry);
-    const kiyosi::MonteCarloAccumulatorEngine mc{{32, 7}};
+    const auto mc = kiyosi::make_monte_carlo_accumulator_engine({32, 7}).value();
     const kiyosi::FiniteDifferenceAccumulatorEngine fd{};
     for (const auto& result : {mc.price(unadjusted, context), fd.price(unadjusted, context)}) {
         REQUIRE_FALSE(result);
@@ -511,7 +511,7 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
         const double expected = reference_accumulator_price(accumulator, context, settings);
         calls->store(0);
 
-        const auto result = kiyosi::MonteCarloAccumulatorEngine{settings}.price(accumulator, context);
+        const auto result = kiyosi::make_monte_carlo_accumulator_engine(settings).value().price(accumulator, context);
 
         REQUIRE(result);
         CHECK(*result == Catch::Approx(expected).epsilon(0.0).margin(1e-12));
@@ -519,7 +519,7 @@ TEST_CASE("Accumulator Monte Carlo prepares stable calendar inputs once")
     }
 
     const auto unseeded =
-        kiyosi::MonteCarloAccumulatorEngine{{32, std::nullopt}}.price(accumulator, context);
+        kiyosi::make_monte_carlo_accumulator_engine({32, std::nullopt}).value().price(accumulator, context);
     REQUIRE(unseeded);
     CHECK(std::isfinite(*unseeded));
 }
@@ -551,7 +551,7 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
     };
 
     const double large_payoff = std::numeric_limits<double>::max() / 64.0;
-    const auto immediate = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+    const auto immediate = kiyosi::make_monte_carlo_accumulator_engine({128, 7}).value().price(
         make_option(large_payoff), context(valuation, 101.0));
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
@@ -560,20 +560,19 @@ TEST_CASE("Accumulator Monte Carlo settles deterministic states before simulatio
     calls->store(0);
     const double expiry_quantity = std::numeric_limits<double>::max() / 640.0;
     const double expiry_payoff = expiry_quantity * -10.0;
-    const auto at_expiry = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+    const auto at_expiry = kiyosi::make_monte_carlo_accumulator_engine({128, 7}).value().price(
         make_option(expiry_quantity), context(expiry_date, 90.0));
     REQUIRE(at_expiry);
     CHECK(*at_expiry == expiry_payoff);
     CHECK(calls->load() == 2);
 
     calls->store(0);
-    const auto invalid_settings = kiyosi::MonteCarloAccumulatorEngine{{0, 7}}.price(
-        make_option(1.0), context(valuation, 101.0));
+    const auto invalid_settings = kiyosi::make_monte_carlo_accumulator_engine({0, 7});
     REQUIRE_FALSE(invalid_settings);
     CHECK(invalid_settings.error().category == kiyosi::ErrorCategory::invalid_parameter);
     CHECK(calls->load() == 0);
 
-    const auto non_finite = kiyosi::MonteCarloAccumulatorEngine{{128, 7}}.price(
+    const auto non_finite = kiyosi::make_monte_carlo_accumulator_engine({128, 7}).value().price(
         make_option(std::numeric_limits<double>::max()), context(valuation, 102.0));
     REQUIRE_FALSE(non_finite);
     CHECK(non_finite.error().category == kiyosi::ErrorCategory::invalid_result);
@@ -596,24 +595,21 @@ TEST_CASE("Accumulator CUDA selection validates and preserves deterministic sett
             *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), spot, valuation,
             kiyosi::all_days_calendar());
     };
-    const kiyosi::MonteCarloAccumulatorEngine cuda{{64, 7,
-                                                    kiyosi::MonteCarloBackend::cuda}};
+    const auto cuda = kiyosi::make_monte_carlo_accumulator_engine({64, 7,
+                                                                   kiyosi::MonteCarloBackend::cuda})
+                          .value();
     CHECK(cuda.settings().backend == kiyosi::MonteCarloBackend::cuda);
 
     const auto settled = cuda.price(option, context(110.0));
     REQUIRE(settled);
     CHECK(*settled == 30.0);
 
-    const auto invalid = kiyosi::MonteCarloAccumulatorEngine{
-        {0, 7, kiyosi::MonteCarloBackend::cuda}}
-                             .price(option, context(100.0));
+    const auto invalid = kiyosi::make_monte_carlo_accumulator_engine({0, 7, kiyosi::MonteCarloBackend::cuda});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
     const auto invalid_backend =
-        kiyosi::MonteCarloAccumulatorEngine{
-            {64, 7, static_cast<kiyosi::MonteCarloBackend>(255)}}
-            .price(option, context(110.0));
+        kiyosi::make_monte_carlo_accumulator_engine({64, 7, static_cast<kiyosi::MonteCarloBackend>(255)});
     REQUIRE_FALSE(invalid_backend);
     CHECK(invalid_backend.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
@@ -639,8 +635,7 @@ TEST_CASE("Accumulator CUDA Monte Carlo preserves accrual and seeded execution")
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-8), 90.0, effective_date,
         kiyosi::all_days_calendar());
-    const kiyosi::MonteCarloAccumulatorEngine engine{
-        {32'768, 73, kiyosi::MonteCarloBackend::cuda}};
+    const auto engine = kiyosi::make_monte_carlo_accumulator_engine({32'768, 73, kiyosi::MonteCarloBackend::cuda}).value();
 
     auto first_future = std::async(std::launch::async, [&] { return engine.price(option, context); });
     auto second_future = std::async(std::launch::async, [&] { return engine.price(option, context); });

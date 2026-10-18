@@ -221,22 +221,12 @@ struct AutocallableMonteCarloRequest {
 };
 
 template <AutocallableProduct Note>
-Result<void> validate_pricing(
-    AutocallableMonteCarloRequest<Note>& request, const PricingContext& context,
-    const TradingDayMonteCarloSettings& settings)
-{
-    const auto valid = request.contract.validate(context);
-    if (!valid) return valid;
-    return validate_monte_carlo_settings(settings);
-}
-
-template <AutocallableProduct Note>
 Result<double> price_autocallable(
     const PricingContext& context, const TradingDayMonteCarloSettings& settings,
     AutocallableMonteCarloRequest<Note>& request)
 {
     const auto& note = request.contract.note();
-    const auto valid = validate_pricing(request, context, settings);
+    const auto valid = request.contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
 
     const auto program = autocallable_program(note);
@@ -272,9 +262,9 @@ Result<double> price_autocallable(
 template <AutocallableProduct Note>
 Result<ImpliedVolatilitySettings> prepare_volatility_request(
     AutocallableMonteCarloRequest<Note>& request, const PricingContext& context,
-    const TradingDayMonteCarloSettings& simulation, ImpliedVolatilitySettings settings)
+    ImpliedVolatilitySettings settings)
 {
-    const auto valid = validate_pricing(request, context, simulation);
+    const auto valid = request.contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
     const auto& note = request.contract.note();
     const auto program = autocallable_program(note);
@@ -287,24 +277,13 @@ Result<ImpliedVolatilitySettings> prepare_volatility_request(
 
 } // namespace
 
-namespace detail {
-template <AutocallableProduct Note>
-static Result<void> validate_monte_carlo_autocallable(
-    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings)
-{
-    AutocallableMonteCarloRequest<Note> request{{note, context.calendar()}};
-    return validate_pricing(request, context, settings);
-}
-
-} // namespace detail
-
 template <AutocallableProduct Note>
 Result<ImpliedVolatilitySettings> detail::prepare_implied_volatility(
-    const MonteCarloAutocallableEngine& engine, const Note& option, const PricingContext& context,
+    const MonteCarloAutocallableEngine&, const Note& option, const PricingContext& context,
     ImpliedVolatilitySettings settings)
 {
     AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
-    return prepare_volatility_request(request, context, engine.settings(), settings);
+    return prepare_volatility_request(request, context, settings);
 }
 
 template <AutocallableProduct Note>
@@ -320,7 +299,7 @@ Result<double> implied_volatility(
     double observed_price, ImpliedVolatilitySettings settings)
 {
     AutocallableMonteCarloRequest<Note> request{{option, context.calendar()}};
-    return detail::solve_implied_volatility(engine, option, context, observed_price, settings, [&](const auto& seeded, const Note&, const PricingContext& shifted) { return price_autocallable(shifted, seeded.settings(), request); }, [&](const auto& seeded, ImpliedVolatilitySettings bounds) { return prepare_volatility_request(request, context, seeded.settings(), bounds); });
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings, [&](const auto& seeded, const Note&, const PricingContext& shifted) { return price_autocallable(shifted, seeded.settings(), request); }, [&](const auto&, ImpliedVolatilitySettings bounds) { return prepare_volatility_request(request, context, bounds); });
 }
 
 template <AutocallableProduct Note>
@@ -329,7 +308,8 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     const TradingDayMonteCarloSettings& settings)
 {
     for (const auto* note : {&lower, &upper}) {
-        const auto valid = validate_monte_carlo_autocallable(*note, context, settings);
+        AutocallableContract<Note> contract{*note, context.calendar()};
+        const auto valid = contract.validate(context);
         if (!valid) return std::unexpected(valid.error());
     }
     const auto program = autocallable_program(lower);
@@ -342,10 +322,11 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
     if (initial.settlement || alternate_initial.settlement ||
         autocallable_fixed_value(lower, context, program, initial) ||
         autocallable_fixed_value(upper, context, alternate_program, alternate_initial) || daily != alternate_daily) {
-        const MonteCarloAutocallableEngine engine{settings};
-        const auto first = engine.price(lower, context);
+        const auto engine = make_monte_carlo_autocallable_engine(settings);
+        if (!engine) return std::unexpected(engine.error());
+        const auto first = engine->price(lower, context);
         if (!first) return std::unexpected(first.error());
-        const auto second = engine.price(upper, context);
+        const auto second = engine->price(upper, context);
         if (!second) return std::unexpected(second.error());
         return std::array{*first, *second};
     }
@@ -389,7 +370,7 @@ Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note
             const auto prices = [&](const PricingContext& shifted) {
                 return price_autocallable(shifted, seeded.settings(), request);
             };
-            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(request, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, request.workspace()); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
+            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return request.contract.validate(shifted); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, request.workspace()); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
         });
 }
 

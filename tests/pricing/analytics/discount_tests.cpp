@@ -24,7 +24,7 @@ void check_accumulator_discounted_products(kiyosi::MonteCarloBackend backend)
                 *make_bsm_parameters(rate, rate - (early ? 365.0 : 0.0), 1e-20),
                 spot, start, all_days_calendar());
             const double terminal_spot = spot * std::exp(early ? 1.0 : 0.0);
-            const MonteCarloAccumulatorEngine engine{10, 42, backend};
+            const auto engine = make_monte_carlo_accumulator_engine({10, 42, backend}).value();
             for (const double strike_ratio : {0.5, 1.0, 4.0}) {
                 CAPTURE(backend, spot, quantity, rate, early, strike_ratio);
                 const double strike = spot * strike_ratio;
@@ -57,7 +57,7 @@ void check_accumulator_discounted_products(kiyosi::MonteCarloBackend backend)
     }
     const auto option = *make_accumulator({.strike = 1.0, .knock_out_level = 1000.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 1e308, .effective_date = start, .expiry_date = test::day(2025, 1, 2)});
     const auto context = *make_pricing_context(*make_bsm_parameters(365.0, 365.0, 1e-20), 100.0, start, all_days_calendar());
-    const auto overflow = MonteCarloAccumulatorEngine{10, 42, backend}.price(option, context);
+    const auto overflow = make_monte_carlo_accumulator_engine({10, 42, backend}).value().price(option, context);
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
 }
@@ -67,7 +67,7 @@ void check_monte_carlo_discount_scaling(kiyosi::MonteCarloBackend backend)
     using namespace kiyosi;
     const auto start = test::day(2025, 1, 1);
     const auto end = test::day(2026, 1, 1);
-    const MonteCarloVanillaEngine engine{10'000, 2, 42, backend};
+    const auto engine = make_monte_carlo_vanilla_engine({10'000, 2, 42, backend}).value();
     const auto unit_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 1.0, start);
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto unit = engine.price(*make_european_option(type, 1.0, start, end), unit_context);
@@ -103,7 +103,7 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
                 else terms.maturity_coupon_rate += amount;
                 const auto upper = make_binary_snowball_option(terms);
                 REQUIRE(upper);
-                const MonteCarloAutocallableEngine engine{10, 42, backend};
+                const auto engine = make_monte_carlo_autocallable_engine({10, 42, backend}).value();
                 const auto price = engine.price(*lower, context);
                 REQUIRE(price);
                 CHECK(*price == Catch::Approx(sign * discounted).epsilon(2e-12).margin(0.0));
@@ -115,7 +115,7 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
         }
         for (const double strike : {90.0, 110.0}) {
             const auto option = *make_accumulator({.strike = strike, .knock_out_level = 120.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = amount, .effective_date = start, .expiry_date = middle});
-            const MonteCarloAccumulatorEngine engine{10, 42, backend};
+            const auto engine = make_monte_carlo_accumulator_engine({10, 42, backend}).value();
             const double expected = (100.0 - strike) * discounted;
             const auto price = engine.price(option, context);
             REQUIRE(price);
@@ -127,14 +127,14 @@ void check_trading_day_discount_scaling(kiyosi::MonteCarloBackend backend)
         }
         if (rate > 0.0) {
             const auto phoenix = *make_phoenix_option({.coupon_rate = amount, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .principal_ratio = 0.0, .effective_date = start, .expiry_date = end, .observations = {{middle, 200.0, 0.0, 0.0}, {end, 200.0, 0.0, 0.0}}});
-            const auto price = MonteCarloAutocallableEngine{10, 42, backend}.price(phoenix, context);
+            const auto price = make_monte_carlo_autocallable_engine({10, 42, backend}).value().price(phoenix, context);
             REQUIRE(price);
             CHECK(*price == Catch::Approx(discounted).epsilon(2e-12).margin(0.0));
         }
     }
     const auto context = *make_pricing_context(*make_bsm_parameters(-750.0, -750.0, 1e-20), 100.0, start);
     const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .effective_date = start, .expiry_date = middle, .observations = {{middle, 200.0, 0.0}}});
-    const auto overflow = MonteCarloAutocallableEngine{10, 42, backend}.price(note, context);
+    const auto overflow = make_monte_carlo_autocallable_engine({10, 42, backend}).value().price(note, context);
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
 }
@@ -224,8 +224,8 @@ TEST_CASE("Finite-difference boundaries preserve extreme discount scales", "[dis
             const auto barrier = *make_barrier_option({.option_type = type, .strike = amount, .effective_date = start, .expiry_date = end, .barrier_level = amount * (call ? 0.5 : 3.0), .barrier_type = call ? BarrierType::down_and_out : BarrierType::up_and_out});
             // Approach the exact upper call or lower put boundary, independently of interior grid error.
             const double expected = std::exp(std::log(amount) - rate) * (call ? 3.0 : 1.0);
-            for (const auto& price : {FiniteDifferenceVanillaEngine{settings}.price(vanilla, context),
-                                      FiniteDifferenceBarrierEngine{settings}.price(barrier, context)}) {
+            for (const auto& price : {make_finite_difference_vanilla_engine(settings).value().price(vanilla, context),
+                                      make_finite_difference_barrier_engine(settings).value().price(barrier, context)}) {
                 REQUIRE(price);
                 CHECK(*price == Catch::Approx(expected).epsilon(1e-6).margin(0.0));
             }

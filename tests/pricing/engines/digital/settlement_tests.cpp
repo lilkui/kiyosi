@@ -144,7 +144,7 @@ TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[au
     const Date start{std::chrono::year{2025} / 1 / 6};
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     const auto expiry = start + std::chrono::days{365};
-    const FiniteDifferenceDigitalEngine engine{10'000, 1};
+    const auto engine = make_finite_difference_digital_engine({10'000, 1}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto cash = *make_cash_or_nothing_option(type, 100.5, 100.0, start, expiry);
         const auto asset = *make_asset_or_nothing_option(type, 100.5, start, expiry);
@@ -155,7 +155,7 @@ TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[au
             const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
             REQUIRE_FALSE(joint);
             CHECK(joint.error().category == ErrorCategory::invalid_result);
-            const auto stable = FiniteDifferenceDigitalEngine{10'000, 1, FiniteDifferenceScheme::implicit_euler}.price(option, context);
+            const auto stable = make_finite_difference_digital_engine({10'000, 1, FiniteDifferenceScheme::implicit_euler}).value().price(option, context);
             REQUIRE(stable);
             CHECK(*stable > 40.0);
             CHECK(*stable < 60.0);

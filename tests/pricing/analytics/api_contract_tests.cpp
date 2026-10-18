@@ -58,6 +58,109 @@ struct StatefulPriceEngine {
     }
 };
 
+TEST_CASE("Engine factories preserve defaults and validate configuration before pricing", "[pricing-api][engine-creation]")
+{
+    const auto rejected = [](const auto& result) {
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::invalid_parameter);
+    };
+    const auto check_fd = [&](const auto make_engine, const auto& default_engine, int max_assets, int max_times) {
+        using Engine = std::remove_cvref_t<decltype(default_engine)>;
+        static_assert(std::is_default_constructible_v<Engine>);
+        static_assert(!std::is_constructible_v<Engine, FiniteDifferenceSettings>);
+        static_assert(!std::is_constructible_v<Engine, int, int>);
+        const auto defaults = make_engine({});
+        REQUIRE(defaults);
+        const auto expected = default_engine.settings();
+        CHECK(defaults->settings().asset_step_count == expected.asset_step_count);
+        CHECK(defaults->settings().time_step_count == expected.time_step_count);
+        CHECK(defaults->settings().scheme == expected.scheme);
+        CHECK(defaults->settings().asset_upper_boundary == expected.asset_upper_boundary);
+        for (const auto settings : {FiniteDifferenceSettings{3, 1}, {max_assets, max_times}}) {
+            const auto result = make_engine(settings);
+            REQUIRE(result);
+            CHECK(result->settings().asset_step_count == settings.asset_step_count);
+            CHECK(result->settings().time_step_count == settings.time_step_count);
+        }
+        for (const auto settings : {FiniteDifferenceSettings{-1, 1}, {0, 1}, {2, 1}, {3, -1}, {3, 0}, {max_assets + 1, 1}, {3, max_times + 1}, {3, 1, static_cast<FiniteDifferenceScheme>(255)}})
+            rejected(make_engine(settings));
+        for (const double upper : {0.0, -1.0, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
+            rejected(make_engine({.asset_upper_boundary = upper}));
+        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
+            const auto result = make_engine({.scheme = scheme, .asset_upper_boundary = 123.0});
+            REQUIRE(result);
+            CHECK(result->settings().scheme == scheme);
+            CHECK(result->settings().asset_upper_boundary == 123.0);
+        }
+    };
+    check_fd(make_finite_difference_vanilla_engine, FiniteDifferenceVanillaEngine{}, 10'000, 100'000);
+    check_fd(make_finite_difference_digital_engine, FiniteDifferenceDigitalEngine{}, 10'000, 100'000);
+    check_fd(make_finite_difference_barrier_engine, FiniteDifferenceBarrierEngine{}, 10'000, 100'000);
+    check_fd(make_finite_difference_accumulator_engine, FiniteDifferenceAccumulatorEngine{}, 2'000, 2'000);
+    check_fd(make_finite_difference_autocallable_engine, FiniteDifferenceAutocallableEngine{}, 2'000, 2'000);
+
+    const auto check_mc = [&](const auto make_engine, const auto& default_engine) {
+        const auto expected = default_engine.settings();
+        using Settings = std::remove_cvref_t<decltype(expected)>;
+        using Engine = std::remove_cvref_t<decltype(default_engine)>;
+        static_assert(std::is_default_constructible_v<Engine>);
+        static_assert(!std::is_constructible_v<Engine, Settings>);
+        static_assert(!std::is_constructible_v<Engine, int>);
+        const auto defaults = make_engine({});
+        REQUIRE(defaults);
+        CHECK(defaults->settings().path_count == expected.path_count);
+        CHECK(defaults->settings().seed == expected.seed);
+        CHECK(defaults->settings().backend == expected.backend);
+        CHECK(defaults->settings().thread_count == expected.thread_count);
+        if constexpr (std::same_as<Settings, MonteCarloSettings>) {
+            CHECK(defaults->settings().step_count == expected.step_count);
+            for (const int steps : {2, 10'000}) {
+                const auto result = make_engine({.step_count = steps});
+                REQUIRE(result);
+                CHECK(result->settings().step_count == steps);
+            }
+            for (const int steps : {1, 10'001})
+                rejected(make_engine({.step_count = steps}));
+        }
+        for (const int paths : {1, 10'000'000}) {
+            const auto result = make_engine({.path_count = paths, .seed = 42});
+            REQUIRE(result);
+            CHECK(result->settings().path_count == paths);
+            CHECK(result->settings().seed == 42);
+        }
+        for (const int paths : {-1, 0, 10'000'001})
+            rejected(make_engine({.path_count = paths}));
+        rejected(make_engine({.backend = static_cast<MonteCarloBackend>(255)}));
+        rejected(make_engine({.thread_count = -1}));
+        rejected(make_engine({.backend = MonteCarloBackend::cuda, .thread_count = 1}));
+        for (const int threads : {0, 1, 4}) {
+            const auto result = make_engine({.thread_count = threads});
+            REQUIRE(result);
+            CHECK(result->settings().thread_count == threads);
+        }
+        const auto cuda = make_engine({.backend = MonteCarloBackend::cuda});
+        REQUIRE(cuda);
+        CHECK(cuda->settings().backend == MonteCarloBackend::cuda);
+    };
+    check_mc(make_monte_carlo_vanilla_engine, MonteCarloVanillaEngine{});
+    check_mc(make_monte_carlo_accumulator_engine, MonteCarloAccumulatorEngine{});
+    check_mc(make_monte_carlo_autocallable_engine, MonteCarloAutocallableEngine{});
+
+    static_assert(std::is_default_constructible_v<CoxRossRubinsteinVanillaEngine>);
+    static_assert(!std::is_constructible_v<CoxRossRubinsteinVanillaEngine, BinomialSettings>);
+    static_assert(!std::is_constructible_v<CoxRossRubinsteinVanillaEngine, int>);
+    const auto binomial = make_cox_ross_rubinstein_vanilla_engine({});
+    REQUIRE(binomial);
+    CHECK(binomial->settings().step_count == CoxRossRubinsteinVanillaEngine{}.settings().step_count);
+    for (const int steps : {1, 1'000'000}) {
+        const auto result = make_cox_ross_rubinstein_vanilla_engine({steps});
+        REQUIRE(result);
+        CHECK(result->settings().step_count == steps);
+    }
+    for (const int steps : {0, 1'000'001})
+        rejected(make_cox_ross_rubinstein_vanilla_engine({steps}));
+}
+
 TEST_CASE("Generic analytics preserve custom engine state", "[pricing-api][custom-engine]")
 {
     const auto context = market();
@@ -138,7 +241,7 @@ TEST_CASE("Irrelevant knock-in events preserve spot and time Greeks", "[pricing-
         }
     };
     check(FiniteDifferenceAutocallableEngine{});
-    check(MonteCarloAutocallableEngine{{64, 42}});
+    check(make_monte_carlo_autocallable_engine({64, 42}).value());
 }
 
 TEST_CASE("Completed knock-in preserves time Greeks without hiding live events", "[pricing-api][knock-in-greeks]")
@@ -156,7 +259,7 @@ TEST_CASE("Completed knock-in preserves time Greeks without hiding live events",
         }
     };
     check(FiniteDifferenceAutocallableEngine{});
-    check(MonteCarloAutocallableEngine{{64, 42}});
+    check(make_monte_carlo_autocallable_engine({64, 42}).value());
 }
 
 TEST_CASE("Resolved scheduled barriers retain time Greeks across inactive observations", "[pricing-api][resolved-events]")
@@ -208,9 +311,9 @@ TEST_CASE("Knocked-out autocallables retain zero time Greeks after valid history
     const auto snowball = *make_snowball_option(
         {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry, .observations = *kiyosi::make_autocallable_observations(binary.observation_dates() | std::ranges::to<std::vector<Date>>(), binary.knock_out_levels() | std::ranges::to<std::vector<double>>(), std::vector<double>{0.08, 0.08, 0.08})});
     check(binary, FiniteDifferenceAutocallableEngine{});
-    check(binary, MonteCarloAutocallableEngine{32, 42});
+    check(binary, make_monte_carlo_autocallable_engine({32, 42}).value());
     check(snowball, FiniteDifferenceAutocallableEngine{});
-    check(snowball, MonteCarloAutocallableEngine{32, 42});
+    check(snowball, make_monte_carlo_autocallable_engine({32, 42}).value());
 }
 
 TEST_CASE("Moved-from scheduled barriers reject pricing before accessing observations", "[pricing-api][audit-fixes]")
@@ -662,7 +765,7 @@ TEST_CASE("One-sided native time Greeks remain selective and accurate", "[pricin
                 const double reference = greek_value(*expected, greek);
                 CHECK(greek_value(*single, greek) == Catch::Approx(reference).epsilon(0.02).margin(1e-7));
             };
-            check(CoxRossRubinsteinVanillaEngine{1000});
+            check(make_cox_ross_rubinstein_vanilla_engine({1000}).value());
             check(FiniteDifferenceVanillaEngine{});
         }
     }
@@ -673,7 +776,7 @@ TEST_CASE("Finite-difference mixed Greeks track analytic sensitivities", "[prici
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const GreeksRequest request{Greek::vanna, Greek::zomma, Greek::charm, Greek::color};
     const auto expected = AnalyticVanillaEngine{}.price_with_greeks(option, market(), request);
-    const auto actual = FiniteDifferenceVanillaEngine{{400, 400}}.price_with_greeks(option, market(), request);
+    const auto actual = make_finite_difference_vanilla_engine({400, 400}).value().price_with_greeks(option, market(), request);
     REQUIRE(expected);
     REQUIRE(actual);
     for (const auto greek : {Greek::vanna, Greek::zomma, Greek::charm, Greek::color})
@@ -867,9 +970,9 @@ TEST_CASE("Expiry suppresses all requested Greeks", "[pricing-api]")
     };
     check(AnalyticVanillaEngine{});
     check(QuadratureVanillaEngine{});
-    check(CoxRossRubinsteinVanillaEngine{8});
-    check(FiniteDifferenceVanillaEngine{20, 20});
-    check(MonteCarloVanillaEngine{32, 2, 7});
+    check(make_cox_ross_rubinstein_vanilla_engine({8}).value());
+    check(make_finite_difference_vanilla_engine({20, 20}).value());
+    check(make_monte_carlo_vanilla_engine({32, 2, 7}).value());
 
     std::vector<PricingContext> calls;
     const RecordingPriceEngine engine{&calls};
@@ -924,7 +1027,7 @@ TEST_CASE("Extreme time shift is bounded before timestamp arithmetic", "[pricing
 TEST_CASE("Seeded Monte Carlo joint pricing is reproducible and matches scalar pricing", "[pricing-api]")
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
-    const MonteCarloVanillaEngine engine{256, 4, 73};
+    const auto engine = make_monte_carlo_vanilla_engine({256, 4, 73}).value();
     const auto scalar = engine.price(option, market());
     REQUIRE(scalar);
     for (const auto level : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{true}}) {
@@ -944,7 +1047,7 @@ TEST_CASE("Monte Carlo requests seed once without replacing configured engines",
 {
     const auto option = *make_european_option(OptionType::call, 100.0, effective, expiry);
     const auto context = market();
-    const MonteCarloVanillaEngine configured{{32, 4, 73}};
+    const auto configured = make_monte_carlo_vanilla_engine({32, 4, 73}).value();
     const auto expected = configured.price(option, context);
     REQUIRE(expected);
     const auto fixed = detail::with_monte_carlo_seed<MonteCarloVanillaEngine, EuropeanOption>(
@@ -955,7 +1058,7 @@ TEST_CASE("Monte Carlo requests seed once without replacing configured engines",
     REQUIRE(fixed);
     CHECK(*fixed == *expected);
 
-    const MonteCarloVanillaEngine unseeded{{32, 4, std::nullopt}};
+    const auto unseeded = make_monte_carlo_vanilla_engine({32, 4, std::nullopt}).value();
     const auto sampled = detail::with_monte_carlo_seed<MonteCarloVanillaEngine, EuropeanOption>(
         unseeded, [&](const MonteCarloVanillaEngine& request) {
             CHECK(request.settings().seed.has_value());
@@ -1111,7 +1214,7 @@ TEST_CASE("Implied volatility interpolates expensive price curves within the bra
     };
     check(AnalyticVanillaEngine{});
     check(FiniteDifferenceVanillaEngine{});
-    check(MonteCarloVanillaEngine{5'000, 10, 42});
+    check(make_monte_carlo_vanilla_engine({5'000, 10, 42}).value());
 }
 
 TEST_CASE("Brent safeguards flat steep and decreasing curves and propagates failures", "[pricing-api][implied-performance]")
@@ -1170,7 +1273,7 @@ TEST_CASE("Built-in implied coupons solve affine price curves directly", "[prici
             }
         }
     };
-    check(MonteCarloAutocallableEngine{{512, 42}});
+    check(make_monte_carlo_autocallable_engine({512, 42}).value());
     check(FiniteDifferenceAutocallableEngine{});
 }
 
@@ -1188,7 +1291,7 @@ TEST_CASE("Monte Carlo coupon bounds share paths without changing endpoint price
 #if !KIYOSI_HAS_CUDA
                     if (backend == MonteCarloBackend::cuda) continue;
 #endif
-                    const MonteCarloAutocallableEngine engine{{512, 42, backend}};
+                    const auto engine = make_monte_carlo_autocallable_engine({512, 42, backend}).value();
                     const auto replace = [&](double coupon) {
                         if constexpr (std::same_as<Note, PhoenixOption>) return detail::replace_coupon(note, coupon);
                         else return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon);
@@ -1240,7 +1343,7 @@ TEST_CASE("Finite difference coupon storage preserves independent prices and req
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             const auto check = [&](const auto& note) {
                 using Note = std::decay_t<decltype(note)>;
-                const FiniteDifferenceAutocallableEngine engine{{16, 8, scheme}};
+                const auto engine = make_finite_difference_autocallable_engine({16, 8, scheme}).value();
                 const auto quote = engine.price(note, context);
                 REQUIRE(quote);
                 for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
@@ -1301,7 +1404,7 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 71.46981808356617, start);
     const auto note = *make_snowball_option(
         {.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 72.54516454112279, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 7, 1), 93.43788934756687, 0.073}, {end, 93.43788934756687, 0.073}}});
-    const FiniteDifferenceAutocallableEngine engine{{5, 10}};
+    const auto engine = make_finite_difference_autocallable_engine({5, 10}).value();
     const auto quote = engine.price(note, context);
     REQUIRE(quote);
     const auto insufficient = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
@@ -1373,8 +1476,8 @@ TEST_CASE("Implied accumulator volatility rejects immediate knock-out settlement
             CHECK(*implied == 0.3);
         }
     };
-    check(MonteCarloAccumulatorEngine{{64, 7}});
-    check(FiniteDifferenceAccumulatorEngine{{.asset_step_count = 40, .time_step_count = 40}});
+    check(make_monte_carlo_accumulator_engine({64, 7}).value());
+    check(make_finite_difference_accumulator_engine({.asset_step_count = 40, .time_step_count = 40}).value());
 }
 
 TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility sensitivities", "[pricing-api]")
@@ -1400,8 +1503,8 @@ TEST_CASE("Event thresholds suppress spot Greeks but retain rate and volatility 
         CHECK(std::isfinite(greek_value(*after, kiyosi::Greek::delta)));
         CHECK(std::isfinite(greek_value(*after, kiyosi::Greek::gamma)));
     };
-    check(kiyosi::MonteCarloAccumulatorEngine{{64, 7}}, accumulator);
-    check(kiyosi::MonteCarloAutocallableEngine{{64, 7}}, snowball);
+    check(kiyosi::make_monte_carlo_accumulator_engine({64, 7}).value(), accumulator);
+    check(kiyosi::make_monte_carlo_autocallable_engine({64, 7}).value(), snowball);
 }
 
 TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-api]")
@@ -1436,12 +1539,12 @@ TEST_CASE("Spot Greeks omit bumps crossing current event thresholds", "[pricing-
     }
     const auto accumulator = *make_accumulator(
         {.strike = 90.0, .knock_out_level = 100.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 3.0, .effective_date = effective, .expiry_date = expiry});
-    check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 99.999);
-    check(MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 90.001);
+    check(make_monte_carlo_accumulator_engine({32, 7}).value(), accumulator, 99.999);
+    check(make_monte_carlo_accumulator_engine({32, 7}).value(), accumulator, 90.001);
     const auto note = *make_phoenix_option(
         {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.0, 90.0}, {expiry, 120.0, 0.0, 90.0}}});
     for (const double spot : {119.999, 89.999, 70.001})
-        check(MonteCarloAutocallableEngine{{32, 7}}, note, spot);
+        check(make_monte_carlo_autocallable_engine({32, 7}).value(), note, spot);
 }
 
 TEST_CASE("Time Greeks omit stencils requiring unavailable barrier history", "[pricing-api]")
@@ -1488,8 +1591,8 @@ TEST_CASE("Implied Phoenix coupon requires a payable coupon", "[pricing-api][aud
             }
         }
     };
-    check(kiyosi::MonteCarloAutocallableEngine{{64, 1}});
-    check(kiyosi::FiniteDifferenceAutocallableEngine{{.asset_step_count = 40, .time_step_count = 40, .asset_upper_boundary = 400.0}});
+    check(kiyosi::make_monte_carlo_autocallable_engine({64, 1}).value());
+    check(kiyosi::make_finite_difference_autocallable_engine({.asset_step_count = 40, .time_step_count = 40, .asset_upper_boundary = 400.0}).value());
 }
 
 TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote convention", "[pricing-api][audit-fixes]")
@@ -1518,8 +1621,8 @@ TEST_CASE("Implied Snowball coupon respects terminal knock-in and quote conventi
             }
         }
     };
-    check(kiyosi::MonteCarloAutocallableEngine{{64, 1}});
-    check(kiyosi::FiniteDifferenceAutocallableEngine{{40, 40}});
+    check(kiyosi::make_monte_carlo_autocallable_engine({64, 1}).value());
+    check(kiyosi::make_finite_difference_autocallable_engine({40, 40}).value());
 }
 
 TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replacement", "[pricing-api][audit-fixes]")
@@ -1553,11 +1656,11 @@ TEST_CASE("Implied Snowball coupon rejects moved-from schedules before replaceme
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
     const auto ternary = *make_ternary_snowball_option(
         {.maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
-    check(snowball, MonteCarloAutocallableEngine{32});
+    check(snowball, make_monte_carlo_autocallable_engine({32}).value());
     check(snowball, FiniteDifferenceAutocallableEngine{});
-    check(binary, MonteCarloAutocallableEngine{32});
+    check(binary, make_monte_carlo_autocallable_engine({32}).value());
     check(binary, FiniteDifferenceAutocallableEngine{});
-    check(ternary, MonteCarloAutocallableEngine{32});
+    check(ternary, make_monte_carlo_autocallable_engine({32}).value());
     check(ternary, FiniteDifferenceAutocallableEngine{});
 }
 
@@ -1599,7 +1702,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
             }
         }
     };
-    check(MonteCarloAutocallableEngine{{64, 73}});
+    check(make_monte_carlo_autocallable_engine({64, 73}).value());
     check(FiniteDifferenceAutocallableEngine{});
 
     const auto accumulator = *make_accumulator(
@@ -1610,7 +1713,7 @@ TEST_CASE("Implied volatility rejects fixed remaining cashflows", "[pricing-api]
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::unsupported_operation);
     };
-    check_accumulator(MonteCarloAccumulatorEngine{{64, 73}});
+    check_accumulator(make_monte_carlo_accumulator_engine({64, 73}).value());
     check_accumulator(FiniteDifferenceAccumulatorEngine{});
 }
 
@@ -1653,19 +1756,19 @@ TEST_CASE("Implied ternary volatility requires remaining cashflow exposure", "[p
             }
         }
     };
-    check(MonteCarloAutocallableEngine{{64, 73}});
+    check(make_monte_carlo_autocallable_engine({64, 73}).value());
     check(FiniteDifferenceAutocallableEngine{});
 }
 
 TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatility", "[pricing-api][audit-fixes]")
 {
-    const auto check = [&](const auto& option, const auto& monte_carlo, const auto& finite_difference) {
-        using Engine = std::remove_cvref_t<decltype(finite_difference)>;
+    const auto check = [&](const auto& option, const auto& monte_carlo, const auto make_engine) {
+        const auto finite_difference = make_engine({}).value();
         for (const Date date : {valuation, expiry}) {
             const auto context = market(1e308, date);
             const auto expected = monte_carlo.price(option, context);
             REQUIRE(expected);
-            for (const auto& engine : {finite_difference, Engine{{.asset_upper_boundary = 1.0}}}) {
+            for (const auto& engine : {finite_difference, make_engine({.asset_upper_boundary = 1.0}).value()}) {
                 const auto actual = engine.price(option, context);
                 REQUIRE(actual);
                 CHECK(*actual == *expected);
@@ -1675,29 +1778,29 @@ TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatili
                 REQUIRE_FALSE(implied);
                 CHECK(implied.error().category == ErrorCategory::unsupported_operation);
             }
-            const auto invalid = Engine{{.asset_step_count = 2}}.price(option, context);
+            const auto invalid = make_engine({.asset_step_count = 2});
             REQUIRE_FALSE(invalid);
             CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
         }
     };
     const auto accumulator = *make_accumulator(
         {.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 1.0, .effective_date = effective, .expiry_date = expiry});
-    check(accumulator, MonteCarloAccumulatorEngine{{64, 73}}, FiniteDifferenceAccumulatorEngine{});
+    check(accumulator, make_monte_carlo_accumulator_engine({64, 73}).value(), make_finite_difference_accumulator_engine);
     const auto binary = *make_binary_snowball_option(
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(binary, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
+    check(binary, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
     const auto ternary = *make_ternary_snowball_option(
         {.maturity_coupon_rate = 0.1, .minimum_coupon_rate = 0.0, .knock_in_level = 70.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(ternary, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
+    check(ternary, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
     const auto snowball = *make_snowball_option(
         {.maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(snowball, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
+    check(snowball, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
     const auto phoenix = *make_phoenix_option(
         {.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 70.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = effective, .expiry_date = expiry, .observations = {{valuation, 120.0, 0.0, 90.0}, {expiry, 120.0, 0.0, 90.0}}});
-    check(phoenix, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
+    check(phoenix, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
     const auto settled = *make_binary_snowball_option(
         {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::knocked_out, .effective_date = effective, .expiry_date = expiry, .observations = {{day(2025, 3, 3), 120.0, 0.1}, {expiry, 120.0, 0.1}}});
-    check(settled, MonteCarloAutocallableEngine{{64, 73}}, FiniteDifferenceAutocallableEngine{});
+    check(settled, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
 }
 
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
@@ -1714,13 +1817,13 @@ TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-ap
     const auto note = *kiyosi::make_binary_snowball_option(
         {.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::knocked_out, .effective_date = day(2025, 1, 1), .expiry_date = expiry, .observations = {{day(2025, 7, 1), 120.0, 0.1}, {expiry, 120.0, 0.1}}});
     const auto coupon = kiyosi::implied_coupon(
-        kiyosi::MonteCarloAutocallableEngine{{32, 1}}, note, market, 0.0,
+        kiyosi::make_monte_carlo_autocallable_engine({32, 1}).value(), note, market, 0.0,
         kiyosi::CouponQuoteConvention::shift_maturity_coupon);
     REQUIRE_FALSE(coupon);
     CHECK(coupon.error().category == kiyosi::ErrorCategory::unsupported_operation);
 
     const auto note_volatility = kiyosi::implied_volatility(
-        kiyosi::MonteCarloAutocallableEngine{{32, 1}}, note, market, 0.0);
+        kiyosi::make_monte_carlo_autocallable_engine({32, 1}).value(), note, market, 0.0);
     REQUIRE_FALSE(note_volatility);
     CHECK(note_volatility.error().category == kiyosi::ErrorCategory::unsupported_operation);
 

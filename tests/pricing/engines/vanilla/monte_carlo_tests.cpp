@@ -29,7 +29,9 @@ TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel
             const auto check = [&](const auto& engine, const auto& option) {
                 auto settings = engine.settings();
                 settings.thread_count = 1;
-                const std::decay_t<decltype(engine)> serial{settings};
+                const auto serial_engine = make_engine(settings, std::type_identity<std::decay_t<decltype(engine)>>{});
+                REQUIRE(serial_engine);
+                const auto& serial = *serial_engine;
                 const auto expected = serial.price_with_greeks(option, context, true, {});
                 const auto actual = engine.price_with_greeks(option, context, true, {});
                 REQUIRE(expected);
@@ -61,20 +63,20 @@ TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel
                 CHECK(concurrent->values_view() == expected->values_view());
                 CHECK(background->values_view() == expected->values_view());
             };
-            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_european_option(OptionType::call, 100.0, start, end));
-            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_american_option(OptionType::put, 100.0, start, end));
-            check(MonteCarloVanillaEngine{paths, 7, 42, MonteCarloBackend::cpu, threads}, *make_american_option(OptionType::call, 100.0, start, end));
-            check(MonteCarloAccumulatorEngine{paths, 42, MonteCarloBackend::cpu, threads},
+            check(make_monte_carlo_vanilla_engine({paths, 7, 42, MonteCarloBackend::cpu, threads}).value(), *make_european_option(OptionType::call, 100.0, start, end));
+            check(make_monte_carlo_vanilla_engine({paths, 7, 42, MonteCarloBackend::cpu, threads}).value(), *make_american_option(OptionType::put, 100.0, start, end));
+            check(make_monte_carlo_vanilla_engine({paths, 7, 42, MonteCarloBackend::cpu, threads}).value(), *make_american_option(OptionType::call, 100.0, start, end));
+            check(make_monte_carlo_accumulator_engine({paths, 42, MonteCarloBackend::cpu, threads}).value(),
                   *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
             const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
             const TradingDayMonteCarloSettings settings{paths, 42, MonteCarloBackend::cpu, threads};
-            check(MonteCarloAutocallableEngine{settings},
+            check(make_monte_carlo_autocallable_engine(settings).value(),
                   *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-            check(MonteCarloAutocallableEngine{settings},
+            check(make_monte_carlo_autocallable_engine(settings).value(),
                   *make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-            check(MonteCarloAutocallableEngine{settings},
+            check(make_monte_carlo_autocallable_engine(settings).value(),
                   *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-            check(MonteCarloAutocallableEngine{settings},
+            check(make_monte_carlo_autocallable_engine(settings).value(),
                   *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
         }
     }
@@ -87,47 +89,37 @@ TEST_CASE("Parallel American Monte Carlo agrees with finite differences", "[mc-p
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     for (const auto type : {OptionType::put, OptionType::call}) {
         const auto option = *make_american_option(type, 100.0, start, end);
-        const auto reference = FiniteDifferenceVanillaEngine{1200, 1200}.price(option, context);
-        const auto serial = MonteCarloVanillaEngine{100'000, 50, 42, MonteCarloBackend::cpu, 1}.price(option, context);
+        const auto reference = make_finite_difference_vanilla_engine({1200, 1200}).value().price(option, context);
+        const auto serial = make_monte_carlo_vanilla_engine({100'000, 50, 42, MonteCarloBackend::cpu, 1}).value().price(option, context);
         REQUIRE(reference);
         REQUIRE(serial);
         CHECK_THAT(*serial, Catch::Matchers::WithinAbs(*reference, 0.15));
         for (const int threads : {0, 2, 4}) {
             CAPTURE(type, threads);
-            const auto parallel = MonteCarloVanillaEngine{100'000, 50, 42, MonteCarloBackend::cpu, threads}.price(option, context);
+            const auto parallel = make_monte_carlo_vanilla_engine({100'000, 50, 42, MonteCarloBackend::cpu, threads}).value().price(option, context);
             REQUIRE(parallel);
             CHECK(std::bit_cast<std::uint64_t>(*parallel) == std::bit_cast<std::uint64_t>(*serial));
         }
     }
 }
 
-TEST_CASE("Monte Carlo rejects invalid thread counts before dispatch", "[mc-parallel]")
+TEST_CASE("Monte Carlo factories reject invalid thread counts", "[mc-parallel][engine-creation]")
 {
     using namespace kiyosi;
     CHECK(MonteCarloSettings{}.thread_count == 0);
     CHECK(TradingDayMonteCarloSettings{}.thread_count == 0);
-    const auto start = test::day(2025, 1, 1), end = test::day(2025, 1, 13);
-    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
-    const auto check = [&](const auto& engine, const auto& option) {
-        const auto result = engine.price(option, context);
+    const auto check = [](const auto& result) {
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_parameter);
-        const auto greeks = engine.price_with_greeks(option, context, true, {});
-        REQUIRE_FALSE(greeks);
-        CHECK(greeks.error().category == ErrorCategory::invalid_parameter);
     };
     for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
         for (const int threads : {-1, 1, 4}) {
             if (backend == MonteCarloBackend::cpu && threads > 0)
                 continue;
             CAPTURE(backend, threads);
-            const MonteCarloVanillaEngine vanilla{513, 7, 42, backend, threads};
-            check(vanilla, *make_european_option(OptionType::call, 100.0, start, end));
-            check(vanilla, *make_american_option(OptionType::put, 100.0, start, end));
-            check(MonteCarloAccumulatorEngine{513, 42, backend, threads},
-                  *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
-            check(MonteCarloAutocallableEngine{513, 42, backend, threads},
-                  *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}));
+            check(make_monte_carlo_vanilla_engine({513, 7, 42, backend, threads}));
+            check(make_monte_carlo_accumulator_engine({513, 42, backend, threads}));
+            check(make_monte_carlo_autocallable_engine({513, 42, backend, threads}));
         }
     }
 }
@@ -141,7 +133,7 @@ TEST_CASE("Unavailable European CUDA Greeks retain the scalar memory footprint",
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto option = *make_european_option(OptionType::put, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    const MonteCarloVanillaEngine engine{100'001, 50, 42, MonteCarloBackend::cuda};
+    const auto engine = make_monte_carlo_vanilla_engine({100'001, 50, 42, MonteCarloBackend::cuda}).value();
     REQUIRE(engine.price(option, context));
     int device = 0;
     cudaMemPool_t pool{};
@@ -188,20 +180,20 @@ TEST_CASE("CUDA Greek workspaces preserve scalar stencils and concurrent request
             CHECK(result->values_view() == scalar->values_view());
         }
     };
-    const MonteCarloVanillaEngine vanilla{{31, 5, 42, MonteCarloBackend::cuda}};
+    const auto vanilla = make_monte_carlo_vanilla_engine({31, 5, 42, MonteCarloBackend::cuda}).value();
     check(vanilla, *make_european_option(OptionType::call, 100.0, start, end));
     check(vanilla, *make_american_option(OptionType::put, 100.0, start, end));
-    check(MonteCarloAccumulatorEngine{31, 42, MonteCarloBackend::cuda},
+    check(make_monte_carlo_accumulator_engine({31, 42, MonteCarloBackend::cuda}).value(),
           *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
     const std::vector<Date> observations{test::day(2025, 1, 3), test::day(2025, 1, 8), end};
     const TradingDayMonteCarloSettings settings{31, 42, MonteCarloBackend::cuda};
-    check(MonteCarloAutocallableEngine{settings},
+    check(make_monte_carlo_autocallable_engine(settings).value(),
           *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloAutocallableEngine{settings},
+    check(make_monte_carlo_autocallable_engine(settings).value(),
           *make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloAutocallableEngine{settings},
+    check(make_monte_carlo_autocallable_engine(settings).value(),
           *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::vector<double>{0.08, 0.08, 0.08})}));
-    check(MonteCarloAutocallableEngine{settings},
+    check(make_monte_carlo_autocallable_engine(settings).value(),
           *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 110.0, 110.0}, std::nullopt, std::vector<double>{90.0, 90.0, 90.0})}));
 }
 
@@ -392,7 +384,7 @@ void check_american_currency_scale(kiyosi::MonteCarloBackend backend)
     const auto start = day(2025, 1, 1);
     const auto end = day(2026, 1, 1);
     const auto parameters = *make_bsm_parameters(0.1, 0.0, 0.3);
-    const MonteCarloVanillaEngine engine{20'000, 50, 47, backend};
+    const auto engine = make_monte_carlo_vanilla_engine({20'000, 50, 47, backend}).value();
     const auto base = engine.price(*make_american_option(OptionType::put, 100.0, start, end),
                                    *make_pricing_context(parameters, 90.0, start));
     REQUIRE(base);
@@ -411,7 +403,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
     const auto start = day(2025, 1, 1);
     const auto end = day(2026, 1, 1);
     const auto parameters = *make_bsm_parameters(0.0, 0.0, 0.2);
-    const MonteCarloVanillaEngine vanilla{100'000, 2, 42, backend};
+    const auto vanilla = make_monte_carlo_vanilla_engine({100'000, 2, 42, backend}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto price = [&](double scale) {
             return vanilla.price(*make_european_option(type, 100.0 * scale, start, end),
@@ -427,7 +419,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
         }
     }
     const auto next_day = start + std::chrono::days{1};
-    const MonteCarloAccumulatorEngine accumulator{{100'000, 42, backend}};
+    const auto accumulator = make_monte_carlo_accumulator_engine({100'000, 42, backend}).value();
     for (const double strike : {90.0, 110.0}) {
         const auto price = [&](double scale) {
             const auto option = *make_accumulator(
@@ -440,7 +432,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
         REQUIRE(scaled);
         CHECK_THAT(*scaled / 1e303, Catch::Matchers::WithinRel(*base, 1e-12));
     }
-    const MonteCarloAutocallableEngine autocallable{{100'000, 42, backend}};
+    const auto autocallable = make_monte_carlo_autocallable_engine({100'000, 42, backend}).value();
     for (const double principal : {1e305, std::numeric_limits<double>::denorm_min()}) {
         const auto option = *make_binary_snowball_option(
             {.maturity_coupon_rate = 0.0, .principal_ratio = principal, .effective_date = start, .expiry_date = next_day, .observations = {{next_day, 120.0, 0.0}}});
@@ -450,8 +442,7 @@ void check_finite_payoff_averages(kiyosi::MonteCarloBackend backend)
     }
     const auto overflow = *make_binary_snowball_option(
         {.maturity_coupon_rate = 1e308, .principal_ratio = 1e308, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 1e308}}});
-    const auto invalid = MonteCarloAutocallableEngine{{32, 42, backend}}.price(
-        overflow, *make_pricing_context(parameters, 100.0, start));
+    const auto invalid = make_monte_carlo_autocallable_engine({32, 42, backend}).value().price(overflow, *make_pricing_context(parameters, 100.0, start));
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_result);
 }
@@ -482,7 +473,7 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto american = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, valuation, expiry_date);
 
-    const kiyosi::MonteCarloVanillaEngine european{20'000, 2, 42};
+    const auto european = kiyosi::make_monte_carlo_vanilla_engine({20'000, 2, 42}).value();
     const auto first = european.price(call, context);
     const auto second = european.price(call, context);
     REQUIRE(first.has_value());
@@ -491,16 +482,16 @@ TEST_CASE("Monte Carlo engines are deterministic, validated, and price vanilla o
     CHECK(std::abs(*first -
                    *kiyosi::AnalyticVanillaEngine{}.price(call, context)) < 0.5);
 
-    const kiyosi::MonteCarloVanillaEngine american_engine{20'000, 20, 42};
+    const auto american_engine = kiyosi::make_monte_carlo_vanilla_engine({20'000, 20, 42}).value();
     const auto american_result = american_engine.price(american, context);
     REQUIRE(american_result.has_value());
     CHECK(*american_result >= 0.0);
 
-    CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{0, 2}.price(call, context).has_value());
-    CHECK_FALSE(kiyosi::MonteCarloVanillaEngine{20, 2}.price(american, context).has_value());
+    CHECK_FALSE(kiyosi::make_monte_carlo_vanilla_engine({0, 2}).has_value());
+    CHECK_FALSE(kiyosi::make_monte_carlo_vanilla_engine({20, 2}).value().price(american, context).has_value());
 }
 
-TEST_CASE("Vanilla Monte Carlo validates generic settings at expiry", "[audit-fixes]")
+TEST_CASE("Vanilla Monte Carlo validates generic settings at creation", "[audit-fixes]")
 {
     using namespace kiyosi;
     const auto effective = day(2025, 1, 1);
@@ -509,20 +500,13 @@ TEST_CASE("Vanilla Monte Carlo validates generic settings at expiry", "[audit-fi
     const auto check = [&](const auto& option) {
         for (const MonteCarloSettings settings : {
                  MonteCarloSettings{0, 2}, {-1, 2}, {10'000'001, 2}, {1, 0}, {1, 1}, {1, 10'001}, {1, 2, 1, static_cast<MonteCarloBackend>(255)}}) {
-            const MonteCarloVanillaEngine engine{settings};
-            for (const auto date : {effective, expiry}) {
-                const auto market = *make_pricing_context(parameters, 110.0, date);
-                const auto result = engine.price(option, market);
-                REQUIRE_FALSE(result);
-                CHECK(result.error().category == ErrorCategory::invalid_parameter);
-                const auto greeks = engine.price_with_greeks(option, market, GreeksRequest{true});
-                REQUIRE_FALSE(greeks);
-                CHECK(greeks.error().category == ErrorCategory::invalid_parameter);
-            }
+            const auto result = make_monte_carlo_vanilla_engine(settings);
+            REQUIRE_FALSE(result);
+            CHECK(result.error().category == ErrorCategory::invalid_parameter);
         }
         for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda})
             for (const auto settings : {MonteCarloSettings{1, 2, 1, backend}, {10'000'000, 10'000, 1, backend}}) {
-                const auto result = MonteCarloVanillaEngine{settings}.price(
+                const auto result = make_monte_carlo_vanilla_engine(settings).value().price(
                     option, *make_pricing_context(parameters, 110.0, expiry));
                 REQUIRE(result);
                 CHECK(*result == 10.0);
@@ -538,7 +522,7 @@ TEST_CASE("Monte Carlo engines return intrinsic value at expiry_date")
     const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
     const auto context = *kiyosi::make_pricing_context(parameters, 110.0, expiry_date);
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, expiry_date, expiry_date);
-    const auto result = kiyosi::MonteCarloVanillaEngine{10, 2, 1}.price(call, context);
+    const auto result = kiyosi::make_monte_carlo_vanilla_engine({10, 2, 1}).value().price(call, context);
     REQUIRE(result.has_value());
     CHECK(*result == 10.0);
 }
@@ -548,7 +532,7 @@ TEST_CASE("Monte Carlo engines preserve timestamp and supported date boundaries"
     const auto first = kiyosi::Date{std::chrono::year::min() / std::chrono::January / 1};
     const auto last = kiyosi::Date{std::chrono::year::max() / std::chrono::December / 31};
     const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
-    const kiyosi::MonteCarloVanillaEngine engine{32, 3, 7};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({32, 3, 7}).value();
     for (const auto effective : {first, day(2025, 1, 1), last - std::chrono::days{1}}) {
         const auto expiry = effective + std::chrono::days{1};
         const auto european = *kiyosi::make_european_option(
@@ -590,15 +574,15 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
         const auto option = *kiyosi::make_european_option(type, 100.0, valuation, expiry_date);
-        const auto baseline = kiyosi::MonteCarloVanillaEngine{20'000, 2, 42}.price(option, context);
+        const auto baseline = kiyosi::make_monte_carlo_vanilla_engine({20'000, 2, 42}).value().price(option, context);
         REQUIRE(baseline);
         CHECK_THAT(*baseline, Catch::Matchers::WithinAbs(*kiyosi::AnalyticVanillaEngine{}.price(option, context), 0.5));
-        const auto different_seed = kiyosi::MonteCarloVanillaEngine{20'000, 2, 43}.price(option, context);
+        const auto different_seed = kiyosi::make_monte_carlo_vanilla_engine({20'000, 2, 43}).value().price(option, context);
         REQUIRE(different_seed);
         CHECK(*different_seed != *baseline);
         for (const int step_count : {2, 7, 50, 10'000}) {
             CAPTURE(type, step_count);
-            const kiyosi::MonteCarloVanillaEngine engine{19'999, step_count, 42};
+            const auto engine = kiyosi::make_monte_carlo_vanilla_engine({19'999, step_count, 42}).value();
             const auto price = engine.price(option, context);
             REQUIRE(price);
             CHECK(*price == *baseline);
@@ -606,7 +590,7 @@ TEST_CASE("European Monte Carlo samples terminal prices independently of the tim
         }
         for (const auto backend : {kiyosi::MonteCarloBackend::cpu, kiyosi::MonteCarloBackend::cuda}) {
             for (const int step_count : {1, 10'001}) {
-                const auto invalid = kiyosi::MonteCarloVanillaEngine{10, step_count, 42, backend}.price(option, context);
+                const auto invalid = kiyosi::make_monte_carlo_vanilla_engine({10, step_count, 42, backend});
                 REQUIRE_FALSE(invalid);
                 CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
             }
@@ -631,7 +615,7 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
             for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
                 for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
                     CAPTURE(type, paths, seed, valuation.time_since_epoch().count());
-                    const MonteCarloVanillaEngine engine{paths, 50, seed};
+                    const auto engine = make_monte_carlo_vanilla_engine({paths, 50, seed}).value();
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
                     const auto quote = engine.price(option, context);
                     REQUIRE(quote);
@@ -652,7 +636,7 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
     }
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
-    const MonteCarloVanillaEngine engine{1001, 50, 42};
+    const auto engine = make_monte_carlo_vanilla_engine({1001, 50, 42}).value();
     const double quote = *engine.price(option, context);
     // Sparse samples need a local bracket; high-volatility tails can miss the quote.
     const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.4};
@@ -667,7 +651,7 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
         REQUIRE(actual);
         CHECK(*actual == *expected);
     }
-    const MonteCarloVanillaEngine unseeded{1001, 50};
+    const auto unseeded = make_monte_carlo_vanilla_engine({1001, 50}).value();
     const auto random = implied_volatility(unseeded, option, context, quote);
     // A fresh sampled curve need not bracket a quote from another seed.
     if (random)
@@ -675,7 +659,7 @@ TEST_CASE("European Monte Carlo implied volatility reuses samples without changi
     else
         CHECK(random.error().category == ErrorCategory::unbracketed_volatility);
     CHECK_FALSE(unseeded.settings().seed);
-    const auto invalid_paths = implied_volatility(MonteCarloVanillaEngine{0, 50, 42}, option, context, quote);
+    const auto invalid_paths = make_monte_carlo_vanilla_engine({0, 50, 42});
     REQUIRE_FALSE(invalid_paths);
     CHECK(invalid_paths.error().category == ErrorCategory::invalid_parameter);
     const auto invalid_settings = implied_volatility(engine, option, context, quote, {.lower_bound = 0.0});
@@ -705,7 +689,7 @@ TEST_CASE("American implied volatility retains scalar trials and request isolati
         for (const auto type : {OptionType::call, OptionType::put}) {
             const auto option = *make_american_option(type, 100.0, start, end);
             for (const int paths : {127, 128, 1001}) {
-                const MonteCarloVanillaEngine engine{paths, 7, 42, backend};
+                const auto engine = make_monte_carlo_vanilla_engine({paths, 7, 42, backend}).value();
                 const double quote = *engine.price(option, context);
                 for (const double observed : {quote, -1.0})
                     for (const auto settings : {ImpliedVolatilitySettings{},
@@ -732,7 +716,7 @@ TEST_CASE("American implied volatility retains scalar trials and request isolati
         }
     }
     const auto option = *make_american_option(OptionType::put, 100.0, start, end);
-    const MonteCarloVanillaEngine unseeded{1001, 7};
+    const auto unseeded = make_monte_carlo_vanilla_engine({1001, 7}).value();
     const auto random = implied_volatility(unseeded, option, context, 7.0);
     if (random) CHECK(std::isfinite(*random));
     else CHECK(random.error().category == ErrorCategory::unbracketed_volatility);
@@ -747,7 +731,7 @@ TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[
         const auto option = *make_european_option(type, 100.0, start, end);
         for (const int paths : {1, 127, 128, 510, 511, 512, 513, 1001, 1023, 1024, 1025}) {
             for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
-                const MonteCarloVanillaEngine engine{paths, 50, seed};
+                const auto engine = make_monte_carlo_vanilla_engine({paths, 50, seed}).value();
                 for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12},
                                              start_of_day(end) - std::chrono::microseconds{1}, start_of_day(end)}) {
                     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, valuation);
@@ -774,7 +758,7 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
-    const MonteCarloVanillaEngine engine{1025, 50, 42, MonteCarloBackend::cpu, 4};
+    const auto engine = make_monte_carlo_vanilla_engine({1025, 50, 42, MonteCarloBackend::cpu, 4}).value();
     const auto invalid_context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 1000.0), 100.25, start);
     const auto invalid = engine.price_with_greeks(option, invalid_context, true);
     REQUIRE_FALSE(invalid);
@@ -795,7 +779,7 @@ TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent 
         CHECK(result->price() == expected->price());
         CHECK(result->values_view() == expected->values_view());
     }
-    const MonteCarloVanillaEngine unseeded{127, 50};
+    const auto unseeded = make_monte_carlo_vanilla_engine({127, 50}).value();
     const auto result = unseeded.price_with_greeks(option, context, true);
     REQUIRE(result);
     CHECK(result->all_finite());
@@ -807,7 +791,7 @@ TEST_CASE("European Monte Carlo unavailable stencils retain scalar prices", "[mc
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    const MonteCarloVanillaEngine engine{513, 50, 42};
+    const auto engine = make_monte_carlo_vanilla_engine({513, 50, 42}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto option = *make_european_option(type, 100.0, start, end);
         const auto scalar = engine.price(option, context);
@@ -842,7 +826,7 @@ TEST_CASE("American Monte Carlo unavailable stencils retain scalar prices", "[mc
     using namespace kiyosi;
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    const MonteCarloVanillaEngine engine{127, 7, 42};
+    const auto engine = make_monte_carlo_vanilla_engine({127, 7, 42}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto option = *make_american_option(type, 100.0, start, end);
         const auto scalar = engine.price(option, context);
@@ -871,7 +855,7 @@ TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[
                         for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()}) {
                             CAPTURE(type, rate, dividend, steps, paths, seed);
                             const auto option = *make_american_option(type, 100.0, start, end);
-                            const MonteCarloVanillaEngine engine{paths, steps, seed};
+                            const auto engine = make_monte_carlo_vanilla_engine({paths, steps, seed}).value();
                             for (const auto valuation : {start_of_day(start) + std::chrono::hours{12}, start_of_day(end)})
                                 for (const auto shifts : {NumericalShiftSettings{}, NumericalShiftSettings{0.125, 0.02, 0.005, 2}}) {
                                     const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), 100.25, valuation);
@@ -894,7 +878,7 @@ TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent 
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_american_option(OptionType::put, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
-    const MonteCarloVanillaEngine engine{127, 7, 42};
+    const auto engine = make_monte_carlo_vanilla_engine({127, 7, 42}).value();
     for (const auto [volatility, rate_shift] : {std::pair{1000.0, 0.01}, std::pair{0.2, 1000.0}}) {
         const auto invalid = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, volatility), 100.25, start);
         const NumericalShiftSettings shifts{.rate_shift = rate_shift};
@@ -915,7 +899,7 @@ TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent 
         CHECK(actual->price() == expected->price());
         CHECK(actual->values_view() == expected->values_view());
     }
-    const MonteCarloVanillaEngine unseeded{127, 7};
+    const auto unseeded = make_monte_carlo_vanilla_engine({127, 7}).value();
     const auto random = unseeded.price_with_greeks(option, context, true);
     REQUIRE(random);
     CHECK(random->all_finite());
@@ -937,12 +921,12 @@ TEST_CASE("American Monte Carlo skips exercise grids only when early exercise ha
         for (const double rate : {0.0, 0.05}) {
             for (const double dividend : {-0.02, 0.0}) {
                 const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), 100.0, start);
-                const auto expected = MonteCarloVanillaEngine{20'000, 2, 42, backend}.price(european, context);
+                const auto expected = make_monte_carlo_vanilla_engine({20'000, 2, 42, backend}).value().price(european, context);
                 REQUIRE(expected);
                 CHECK_THAT(*expected, Catch::Matchers::WithinAbs(*AnalyticVanillaEngine{}.price(european, context), 0.5));
                 for (const int steps : {3, 50, 10'000}) {
                     CAPTURE(backend, rate, dividend, steps);
-                    const MonteCarloVanillaEngine engine{19'999, steps, 42, backend};
+                    const auto engine = make_monte_carlo_vanilla_engine({19'999, steps, 42, backend}).value();
                     const auto actual = engine.price(american, context);
                     REQUIRE(actual);
                     CHECK(*actual == *expected);
@@ -952,7 +936,7 @@ TEST_CASE("American Monte Carlo skips exercise grids only when early exercise ha
         }
         const auto deep = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 2000.0, start);
         for (const auto seed : {1, 42, 73}) {
-            const MonteCarloVanillaEngine engine{1, 3, seed, backend};
+            const auto engine = make_monte_carlo_vanilla_engine({1, 3, seed, backend}).value();
             const auto continuation = engine.price(european, deep);
             const auto actual = engine.price(american, deep);
             REQUIRE(continuation);
@@ -966,19 +950,26 @@ TEST_CASE("American Monte Carlo skips exercise grids only when early exercise ha
              std::tuple{OptionType::put, 0.1, 0.0, 50.0, 50.0}}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 1e-12), spot, start);
         const auto option = *make_american_option(type, 100.0, start, end);
-        const auto actual = MonteCarloVanillaEngine{64, 7, 42}.price(option, context);
+        const auto actual = make_monte_carlo_vanilla_engine({64, 7, 42}).value().price(option, context);
         REQUIRE(actual);
         CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, 1e-10));
     }
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 110.0, start);
     for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
         for (const auto settings : {MonteCarloSettings{0, 50, 42, backend}, MonteCarloSettings{16, 2, 42, backend}, MonteCarloSettings{16, 10'001, 42, backend}}) {
-            const auto invalid = MonteCarloVanillaEngine{settings}.price(american, context);
-            REQUIRE_FALSE(invalid);
-            CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+            const auto engine = make_monte_carlo_vanilla_engine(settings);
+            if (settings.path_count == 0 || settings.step_count > 10'000) {
+                REQUIRE_FALSE(engine);
+                CHECK(engine.error().category == ErrorCategory::invalid_parameter);
+            } else {
+                REQUIRE(engine);
+                const auto invalid = engine->price(american, context);
+                REQUIRE_FALSE(invalid);
+                CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
+            }
         }
         const auto expired = *make_pricing_context(context.model_parameters(), 110.0, end);
-        CHECK(*MonteCarloVanillaEngine{16, 2, 42, backend}.price(american, expired) == 10.0);
+        CHECK(*make_monte_carlo_vanilla_engine({16, 2, 42, backend}).value().price(american, expired) == 10.0);
     }
 }
 
@@ -987,7 +978,7 @@ TEST_CASE("American Monte Carlo rate Greeks retain one estimator across zero", "
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_american_option(OptionType::call, 100.0, start, end);
-    const MonteCarloVanillaEngine engine{20'000, 7, 42};
+    const auto engine = make_monte_carlo_vanilla_engine({20'000, 7, 42}).value();
     NumericalShiftSettings shifts;
     shifts.rate_shift = 1.0 / 8192.0;
     for (const double rate : {-1.0 / 16384.0, 0.0, 1.0 / 16384.0}) {
@@ -1026,15 +1017,14 @@ TEST_CASE("American Monte Carlo default spot Greeks converge across seeds and pr
     const auto model = *make_bsm_parameters(0.05, 0.02, 0.2);
     const auto reference_option = *make_american_option(OptionType::put, 100.0, start, end);
     const auto reference_context = *make_pricing_context(model, 100.0, start);
-    const auto reference = FiniteDifferenceVanillaEngine{1200, 1200}.price_with_greeks(
-        reference_option, reference_context, {Greek::delta, Greek::gamma});
+    const auto reference = make_finite_difference_vanilla_engine({1200, 1200}).value().price_with_greeks(reference_option, reference_context, {Greek::delta, Greek::gamma});
     REQUIRE(reference);
     for (const double scale : {0.01, 1.0, 100.0}) {
         const auto option = *make_american_option(OptionType::put, 100.0 * scale, start, end);
         const auto context = *make_pricing_context(model, 100.0 * scale, start);
         for (const std::uint64_t seed : {1, 7, 42}) {
             CAPTURE(scale, seed);
-            const MonteCarloVanillaEngine engine{100'000, 50, seed};
+            const auto engine = make_monte_carlo_vanilla_engine({100'000, 50, seed}).value();
             const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
             REQUIRE(result);
             CHECK_THAT(*result->require(Greek::delta), Catch::Matchers::WithinAbs(*reference->require(Greek::delta), 0.02));
@@ -1057,8 +1047,8 @@ TEST_CASE("American Monte Carlo preserves paired paths across time grids", "[mon
         for (const int steps : {3, 7, 50}) {
             for (const int paths : {1, 3, 19'999}) {
                 CAPTURE(type, steps, paths);
-                const auto odd = MonteCarloVanillaEngine{paths, steps, 42}.price(option, context);
-                const auto even = MonteCarloVanillaEngine{paths + 1, steps, 42}.price(option, context);
+                const auto odd = make_monte_carlo_vanilla_engine({paths, steps, 42}).value().price(option, context);
+                const auto even = make_monte_carlo_vanilla_engine({paths + 1, steps, 42}).value().price(option, context);
                 REQUIRE(odd);
                 REQUIRE(even);
                 CHECK(*odd == *even);
@@ -1074,7 +1064,7 @@ TEST_CASE("American Monte Carlo includes immediate exercise in the exercise wind
     const auto parameters = *kiyosi::make_bsm_parameters(0.10, 0.0, 0.10);
     const auto context = *kiyosi::make_pricing_context(parameters, 50.0, valuation);
     const auto put = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::MonteCarloVanillaEngine{20'000, 50, 42}.price(put, context);
+    const auto result = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42}).value().price(put, context);
     REQUIRE(result.has_value());
     CHECK_THAT(*result, Catch::Matchers::WithinAbs(50.0, 1e-10));
 }
@@ -1089,8 +1079,8 @@ TEST_CASE("American Monte Carlo preserves sparse and singular regression fallbac
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
 
-    const auto sparse = kiyosi::MonteCarloVanillaEngine{1, 5, 42}.price(put, context);
-    const auto singular = kiyosi::MonteCarloVanillaEngine{4, 5, 42}.price(put, context);
+    const auto sparse = kiyosi::make_monte_carlo_vanilla_engine({1, 5, 42}).value().price(put, context);
+    const auto singular = kiyosi::make_monte_carlo_vanilla_engine({4, 5, 42}).value().price(put, context);
 
     REQUIRE(sparse);
     REQUIRE(singular);
@@ -1107,9 +1097,8 @@ TEST_CASE("Monte Carlo defaults to CPU and preserves explicit CPU pricing")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine implicit_cpu{20'000, 50, 42};
-    const kiyosi::MonteCarloVanillaEngine explicit_cpu{
-        20'000, 50, 42, kiyosi::MonteCarloBackend::cpu};
+    const auto implicit_cpu = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42}).value();
+    const auto explicit_cpu = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42, kiyosi::MonteCarloBackend::cpu}).value();
 
     CHECK(implicit_cpu.settings().backend == kiyosi::MonteCarloBackend::cpu);
     const auto implicit_result = implicit_cpu.price(call, context);
@@ -1121,7 +1110,7 @@ TEST_CASE("Monte Carlo defaults to CPU and preserves explicit CPU pricing")
 
     auto invalid_settings = implicit_cpu.settings();
     invalid_settings.backend = static_cast<kiyosi::MonteCarloBackend>(255);
-    const auto invalid = kiyosi::MonteCarloVanillaEngine{invalid_settings}.price(call, context);
+    const auto invalid = kiyosi::make_monte_carlo_vanilla_engine(invalid_settings);
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
@@ -1135,8 +1124,7 @@ TEST_CASE("CUDA selection is deferred and unavailable builds do not fall back")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine engine{
-        20'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
 
     CHECK(engine.settings().backend == kiyosi::MonteCarloBackend::cuda);
     const auto result = engine.price(call, context);
@@ -1154,8 +1142,7 @@ TEST_CASE("CUDA American selection is deferred and unavailable builds do not fal
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine engine{
-        20'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
 
     const auto result = engine.price(put, context);
     REQUIRE_FALSE(result);
@@ -1177,9 +1164,16 @@ TEST_CASE("American Monte Carlo validates settings before CUDA availability")
 
     for (const auto settings : invalid_settings) {
         CAPTURE(settings.path_count, settings.step_count);
-        const auto result = kiyosi::MonteCarloVanillaEngine{settings}.price(put, context);
-        REQUIRE_FALSE(result);
-        CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
+        const auto engine = kiyosi::make_monte_carlo_vanilla_engine(settings);
+        if (settings.path_count == 0) {
+            REQUIRE_FALSE(engine);
+            CHECK(engine.error().category == kiyosi::ErrorCategory::invalid_parameter);
+        } else {
+            REQUIRE(engine);
+            const auto result = engine->price(put, context);
+            REQUIRE_FALSE(result);
+            CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
+        }
     }
 }
 #endif
@@ -1205,9 +1199,7 @@ TEST_CASE("CUDA American Monte Carlo returns intrinsic value at expiry_date with
         const auto context = *kiyosi::make_pricing_context(parameters, test.spot, expiry_date);
         const auto option = *kiyosi::make_american_option(
             test.type, 100.0, expiry_date, expiry_date);
-        const auto result = kiyosi::MonteCarloVanillaEngine{
-            20, 3, 42, kiyosi::MonteCarloBackend::cuda}
-                                .price(option, context);
+        const auto result = kiyosi::make_monte_carlo_vanilla_engine({20, 3, 42, kiyosi::MonteCarloBackend::cuda}).value().price(option, context);
         REQUIRE(result);
         CHECK(*result == test.expected);
     }
@@ -1239,9 +1231,9 @@ TEST_CASE("CUDA pricing preserves the caller's current device", "[cuda]")
     const auto american = *make_american_option(OptionType::put, 100.0, start, end);
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 120.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.1, .effective_date = start, .expiry_date = end, .observations = {{end, 120.0, 0.1}}});
-    const MonteCarloVanillaEngine vanilla{64, 4, 42, MonteCarloBackend::cuda};
-    const MonteCarloAccumulatorEngine accrual{{64, 42, MonteCarloBackend::cuda}};
-    const MonteCarloAutocallableEngine autocallable{{64, 42, MonteCarloBackend::cuda}};
+    const auto vanilla = make_monte_carlo_vanilla_engine({64, 4, 42, MonteCarloBackend::cuda}).value();
+    const auto accrual = make_monte_carlo_accumulator_engine({64, 42, MonteCarloBackend::cuda}).value();
+    const auto autocallable = make_monte_carlo_autocallable_engine({64, 42, MonteCarloBackend::cuda}).value();
     const auto unstable = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1000.0), 100.0, start);
     for (int device = 0; device < device_count; ++device) {
         CAPTURE(device);
@@ -1279,20 +1271,13 @@ TEST_CASE("CUDA European Monte Carlo is seeded and deterministic", "[cuda]")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine engine{
-        100'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
 
     const auto first = engine.price(call, context);
     const auto second = engine.price(call, context);
-    const auto different_seed = kiyosi::MonteCarloVanillaEngine{
-        100'000, 50, 43, kiyosi::MonteCarloBackend::cuda}
-                                    .price(call, context);
-    const auto repeated_different_seed = kiyosi::MonteCarloVanillaEngine{
-        100'000, 50, 43, kiyosi::MonteCarloBackend::cuda}
-                                             .price(call, context);
-    const auto different_path_count = kiyosi::MonteCarloVanillaEngine{
-        10'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                                          .price(call, context);
+    const auto different_seed = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 43, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
+    const auto repeated_different_seed = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 43, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
+    const auto different_path_count = kiyosi::make_monte_carlo_vanilla_engine({10'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
     REQUIRE(first);
     REQUIRE(second);
     REQUIRE(different_seed);
@@ -1331,12 +1316,8 @@ TEST_CASE("CUDA European Monte Carlo agrees with CPU and analytic prices", "[cud
         CAPTURE(test.type, test.strike);
         const auto option = *kiyosi::make_european_option(
             test.type, test.strike, valuation, expiry_date);
-        const auto cpu = kiyosi::MonteCarloVanillaEngine{
-            100'000, 50, 42, kiyosi::MonteCarloBackend::cpu}
-                             .price(option, context);
-        const auto cuda = kiyosi::MonteCarloVanillaEngine{
-            100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                              .price(option, context);
+        const auto cpu = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 42, kiyosi::MonteCarloBackend::cpu}).value().price(option, context);
+        const auto cuda = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(option, context);
         const auto analytic = kiyosi::AnalyticVanillaEngine{}.price(option, context);
         REQUIRE(cpu);
         REQUIRE(cuda);
@@ -1358,16 +1339,12 @@ TEST_CASE("CUDA European Monte Carlo rounds odd path counts for antithetic pairs
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
 
-    const auto baseline = kiyosi::MonteCarloVanillaEngine{10'000, 2, 42, kiyosi::MonteCarloBackend::cuda}.price(call, context);
+    const auto baseline = kiyosi::make_monte_carlo_vanilla_engine({10'000, 2, 42, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
     REQUIRE(baseline);
     for (const int step_count : {2, 7, 50, 10'000}) {
         CAPTURE(step_count);
-        const auto odd = kiyosi::MonteCarloVanillaEngine{
-            9'999, step_count, 42, kiyosi::MonteCarloBackend::cuda}
-                             .price(call, context);
-        const auto even = kiyosi::MonteCarloVanillaEngine{
-            10'000, step_count, 42, kiyosi::MonteCarloBackend::cuda}
-                              .price(call, context);
+        const auto odd = kiyosi::make_monte_carlo_vanilla_engine({9'999, step_count, 42, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
+        const auto even = kiyosi::make_monte_carlo_vanilla_engine({10'000, step_count, 42, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
         REQUIRE(odd);
         REQUIRE(even);
         CHECK(*odd ==
@@ -1384,8 +1361,7 @@ TEST_CASE("CUDA Monte Carlo supports concurrent const pricing", "[cuda]")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine engine{
-        20'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
     const auto baseline = engine.price(call, context);
     REQUIRE(baseline);
 
@@ -1421,8 +1397,7 @@ TEST_CASE("CUDA American Monte Carlo is seeded and deterministic", "[cuda]")
         const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
         const auto option = *kiyosi::make_american_option(
             test.type, 100.0, valuation, expiry_date);
-        const kiyosi::MonteCarloVanillaEngine engine{
-            50'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+        const auto engine = kiyosi::make_monte_carlo_vanilla_engine({50'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
         const auto first = engine.price(option, context);
         const auto second = engine.price(option, context);
         REQUIRE(first);
@@ -1435,18 +1410,10 @@ TEST_CASE("CUDA American Monte Carlo is seeded and deterministic", "[cuda]")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto baseline = kiyosi::MonteCarloVanillaEngine{
-        50'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                              .price(put, context);
-    const auto different_seed = kiyosi::MonteCarloVanillaEngine{
-        50'000, 50, 43, kiyosi::MonteCarloBackend::cuda}
-                                    .price(put, context);
-    const auto different_path_count = kiyosi::MonteCarloVanillaEngine{
-        40'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                                          .price(put, context);
-    const auto cpu = kiyosi::MonteCarloVanillaEngine{
-        50'000, 50, 42, kiyosi::MonteCarloBackend::cpu}
-                         .price(put, context);
+    const auto baseline = kiyosi::make_monte_carlo_vanilla_engine({50'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto different_seed = kiyosi::make_monte_carlo_vanilla_engine({50'000, 50, 43, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto different_path_count = kiyosi::make_monte_carlo_vanilla_engine({40'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto cpu = kiyosi::make_monte_carlo_vanilla_engine({50'000, 50, 42, kiyosi::MonteCarloBackend::cpu}).value().price(put, context);
     REQUIRE(baseline);
     REQUIRE(different_seed);
     REQUIRE(different_path_count);
@@ -1482,9 +1449,7 @@ TEST_CASE("CUDA American Monte Carlo prices early exercise for puts and dividend
             parameters, test.spot, valuation);
         const auto option = *kiyosi::make_american_option(
             test.type, 100.0, valuation, expiry_date);
-        const auto result = kiyosi::MonteCarloVanillaEngine{
-            100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                                .price(option, context);
+        const auto result = kiyosi::make_monte_carlo_vanilla_engine({100'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(option, context);
         REQUIRE(result);
         CHECK_THAT(*result,
                    Catch::Matchers::WithinAbs(50.0, 1e-10));
@@ -1515,18 +1480,10 @@ TEST_CASE("CUDA American Monte Carlo agrees with CPU and finite-difference price
             test.type, 100.0, valuation, expiry_date);
         const auto european_option = *kiyosi::make_european_option(
             test.type, 100.0, valuation, expiry_date);
-        const auto cpu = kiyosi::MonteCarloVanillaEngine{
-            200'000, 50, 42, kiyosi::MonteCarloBackend::cpu}
-                             .price(option, context);
-        const auto cuda = kiyosi::MonteCarloVanillaEngine{
-            200'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                              .price(option, context);
-        const auto european_cuda = kiyosi::MonteCarloVanillaEngine{
-            200'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                                       .price(european_option, context);
-        const auto finite_difference = kiyosi::FiniteDifferenceVanillaEngine{
-            {400, 800, kiyosi::FiniteDifferenceScheme::crank_nicolson}}
-                                           .price(option, context);
+        const auto cpu = kiyosi::make_monte_carlo_vanilla_engine({200'000, 50, 42, kiyosi::MonteCarloBackend::cpu}).value().price(option, context);
+        const auto cuda = kiyosi::make_monte_carlo_vanilla_engine({200'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(option, context);
+        const auto european_cuda = kiyosi::make_monte_carlo_vanilla_engine({200'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(european_option, context);
+        const auto finite_difference = kiyosi::make_finite_difference_vanilla_engine({400, 800, kiyosi::FiniteDifferenceScheme::crank_nicolson}).value().price(option, context);
         REQUIRE(cpu);
         REQUIRE(cuda);
         REQUIRE(european_cuda);
@@ -1549,12 +1506,8 @@ TEST_CASE("CUDA American Monte Carlo rounds odd path counts for antithetic pairs
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto odd = kiyosi::MonteCarloVanillaEngine{
-        9'999, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                         .price(put, context);
-    const auto even = kiyosi::MonteCarloVanillaEngine{
-        10'000, 50, 42, kiyosi::MonteCarloBackend::cuda}
-                          .price(put, context);
+    const auto odd = kiyosi::make_monte_carlo_vanilla_engine({9'999, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto even = kiyosi::make_monte_carlo_vanilla_engine({10'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
 
     REQUIRE(odd);
     REQUIRE(even);
@@ -1571,18 +1524,10 @@ TEST_CASE("CUDA American Monte Carlo preserves sparse and singular regression fa
     const auto context = *kiyosi::make_pricing_context(parameters, 50.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto sparse = kiyosi::MonteCarloVanillaEngine{
-        1, 5, 42, kiyosi::MonteCarloBackend::cuda}
-                            .price(put, context);
-    const auto singular = kiyosi::MonteCarloVanillaEngine{
-        4, 5, 42, kiyosi::MonteCarloBackend::cuda}
-                              .price(put, context);
-    const auto sparse_cpu = kiyosi::MonteCarloVanillaEngine{
-        1, 5, 42, kiyosi::MonteCarloBackend::cpu}
-                                .price(put, context);
-    const auto singular_cpu = kiyosi::MonteCarloVanillaEngine{
-        4, 5, 42, kiyosi::MonteCarloBackend::cpu}
-                                  .price(put, context);
+    const auto sparse = kiyosi::make_monte_carlo_vanilla_engine({1, 5, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto singular = kiyosi::make_monte_carlo_vanilla_engine({4, 5, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
+    const auto sparse_cpu = kiyosi::make_monte_carlo_vanilla_engine({1, 5, 42, kiyosi::MonteCarloBackend::cpu}).value().price(put, context);
+    const auto singular_cpu = kiyosi::make_monte_carlo_vanilla_engine({4, 5, 42, kiyosi::MonteCarloBackend::cpu}).value().price(put, context);
 
     REQUIRE(sparse);
     REQUIRE(singular);
@@ -1606,8 +1551,7 @@ TEST_CASE("CUDA American Monte Carlo supports concurrent const pricing", "[cuda]
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const kiyosi::MonteCarloVanillaEngine engine{
-        20'000, 50, 42, kiyosi::MonteCarloBackend::cuda};
+    const auto engine = kiyosi::make_monte_carlo_vanilla_engine({20'000, 50, 42, kiyosi::MonteCarloBackend::cuda}).value();
     const auto baseline = engine.price(put, context);
     REQUIRE(baseline);
 
@@ -1631,9 +1575,7 @@ TEST_CASE("CUDA American Monte Carlo discounts every exercise interval", "[cuda]
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::MonteCarloVanillaEngine{
-        1, 3, 42, kiyosi::MonteCarloBackend::cuda}
-                            .price(call, context);
+    const auto result = kiyosi::make_monte_carlo_vanilla_engine({1, 3, 42, kiyosi::MonteCarloBackend::cuda}).value().price(call, context);
 
     REQUIRE(result);
     CHECK_THAT(*result,
@@ -1648,9 +1590,7 @@ TEST_CASE("CUDA American Monte Carlo reports non-finite paths", "[cuda]")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto put = *kiyosi::make_american_option(
         kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto result = kiyosi::MonteCarloVanillaEngine{
-        20, 3, 42, kiyosi::MonteCarloBackend::cuda}
-                            .price(put, context);
+    const auto result = kiyosi::make_monte_carlo_vanilla_engine({20, 3, 42, kiyosi::MonteCarloBackend::cuda}).value().price(put, context);
 
     REQUIRE_FALSE(result);
     CHECK(result.error().category == kiyosi::ErrorCategory::invalid_result);

@@ -169,7 +169,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     }
                     CHECK(a->has(kiyosi::Greek::delta) == (test.expected.at("delta") == "available"));
                 };
-                check(kiyosi::MonteCarloAutocallableEngine{kiyosi::TradingDayMonteCarloSettings{64, 1}});
+                check(kiyosi::make_monte_carlo_autocallable_engine(kiyosi::TradingDayMonteCarloSettings{64, 1}).value());
                 check(kiyosi::FiniteDifferenceAutocallableEngine{});
             } else if (test.kind == "unidentifiable_touch") {
                 const auto start = parse_date(test.inputs.at("effective_date"));
@@ -208,7 +208,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                     REQUIRE(shifted);
                     CHECK_THAT(*shifted, Catch::Matchers::WithinAbs(0.1, 1e-6));
                 };
-                check(kiyosi::MonteCarloAutocallableEngine{{2, 1}});
+                check(kiyosi::make_monte_carlo_autocallable_engine({2, 1}).value());
                 check(kiyosi::FiniteDifferenceAutocallableEngine{});
             } else if (test.kind == "domain_error") {
                 const auto result = kiyosi::make_bsm_parameters(
@@ -236,8 +236,7 @@ TEST_CASE("C++ public API matches the shared language parity cases", "[api][pari
                 CHECK(context->valuation_date() == parse_date(test.expected.at("valuation_date")));
             } else if (test.kind == "numeric_boundary") {
                 const auto seed = std::stoull(test.inputs.at("seed"));
-                const kiyosi::MonteCarloVanillaEngine engine{
-                    kiyosi::MonteCarloSettings{100'000, 50, seed}};
+                const auto engine = kiyosi::make_monte_carlo_vanilla_engine(kiyosi::MonteCarloSettings{100'000, 50, seed}).value();
                 REQUIRE(engine.settings().seed);
                 CHECK(engine.settings().seed == std::stoull(test.expected.at("seed")));
             } else {

@@ -47,20 +47,20 @@ void check_known_price(const Instrument& instrument, const kiyosi::PricingContex
     if constexpr (std::is_same_v<Instrument, kiyosi::Accumulator>) {
         {
             INFO("FD");
-            check(kiyosi::FiniteDifferenceAccumulatorEngine{grid});
+            check(kiyosi::make_finite_difference_accumulator_engine(grid).value());
         }
         {
             INFO("MC");
-            check(kiyosi::MonteCarloAccumulatorEngine{{64, 73}});
+            check(kiyosi::make_monte_carlo_accumulator_engine({64, 73}).value());
         }
     } else {
         {
             INFO("FD");
-            check(kiyosi::FiniteDifferenceAutocallableEngine{grid});
+            check(kiyosi::make_finite_difference_autocallable_engine(grid).value());
         }
         {
             INFO("MC");
-            check(kiyosi::MonteCarloAutocallableEngine{{64, 73}});
+            check(kiyosi::make_monte_carlo_autocallable_engine({64, 73}).value());
         }
     }
 }
@@ -160,8 +160,7 @@ TEST_CASE("FD-MC historical knock-in survives recovery and knock-out extinguishe
     }
     const auto check_extinguished = [](const auto& result) {
         REQUIRE(result);
-        const auto before_first = kiyosi::MonteCarloAutocallableEngine{{64, 73}}
-                                      .price(*result, market(100.0, effective_date));
+        const auto before_first = kiyosi::make_monte_carlo_autocallable_engine({64, 73}).value().price(*result, market(100.0, effective_date));
         REQUIRE_FALSE(before_first);
         CHECK(before_first.error().category == kiyosi::ErrorCategory::invalid_option);
     };
@@ -239,9 +238,8 @@ TEST_CASE("FD-MC accumulator future knock-out settles on first trading day",
     // Monday's KO precedes its purchase and cancels Tuesday's purchase. Nothing
     // accrues over the weekend; existing holdings settle two days after valuation.
     const double discount = std::exp(-0.05 * 2.0 / 365.0);
-    const kiyosi::FiniteDifferenceAccumulatorEngine fd{
-        {400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}};
-    const kiyosi::MonteCarloAccumulatorEngine mc{{64, 73}};
+    const auto fd = kiyosi::make_finite_difference_accumulator_engine({400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+    const auto mc = kiyosi::make_monte_carlo_accumulator_engine({64, 73}).value();
     for (const double prior_quantity : {0.0, 3.0}) {
         CAPTURE(prior_quantity);
         const auto option = kiyosi::make_accumulator(
@@ -270,10 +268,8 @@ TEST_CASE("FD-MC phoenix pays its terminal observation coupon exactly once", "[c
     const auto context = market(100.0, start, 0.0, 1e-8);
     // 91/365 and this subdivision count previously introduced a second endpoint
     // nearly equal to maturity. One observation owes principal 1 plus the accrued coupon.
-    const auto fd = kiyosi::FiniteDifferenceAutocallableEngine{
-        {400, 1600, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}}
-                        .price(*note, context);
-    const auto mc = kiyosi::MonteCarloAutocallableEngine{{64, 73}}.price(*note, context);
+    const auto fd = kiyosi::make_finite_difference_autocallable_engine({400, 1600, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}).value().price(*note, context);
+    const auto mc = kiyosi::make_monte_carlo_autocallable_engine({64, 73}).value().price(*note, context);
     REQUIRE(fd);
     REQUIRE(mc);
     for (const auto& result : {*fd, *mc}) {
@@ -297,9 +293,8 @@ TEST_CASE("FD-MC phoenix coupons preserve price scale and annual accrual", "[cro
                 REQUIRE(result);
                 CHECK(*result == Catch::Approx(1.08).margin(1e-6).epsilon(0.0));
             };
-            check(kiyosi::FiniteDifferenceAutocallableEngine{
-                {400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 4.0 * scale}});
-            check(kiyosi::MonteCarloAutocallableEngine{{64, 73}});
+            check(kiyosi::make_finite_difference_autocallable_engine({400, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson, 4.0 * scale}).value());
+            check(kiyosi::make_monte_carlo_autocallable_engine({64, 73}).value());
         }
     }
 }
@@ -317,10 +312,10 @@ TEST_CASE("Finite-difference current events use the actual spot", "[audit-fixes]
             CAPTURE(spot, upper);
             const kiyosi::FiniteDifferenceSettings grid{
                 200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper};
-            const auto called = kiyosi::FiniteDifferenceAutocallableEngine{grid}.price(note, context);
+            const auto called = kiyosi::make_finite_difference_autocallable_engine(grid).value().price(note, context);
             REQUIRE(called);
             CHECK(*called == Catch::Approx(1.0 + 0.1 / 365.0).epsilon(0.0).margin(1e-12));
-            const auto settled = kiyosi::FiniteDifferenceAccumulatorEngine{grid}.price(accumulator, context);
+            const auto settled = kiyosi::make_finite_difference_accumulator_engine(grid).value().price(accumulator, context);
             REQUIRE(settled);
             CHECK(*settled == Catch::Approx(3.0 * (spot - 100.0)).epsilon(0.0).margin(1e-12));
         }
@@ -335,7 +330,7 @@ TEST_CASE("Finite-difference current accrual and knock-in precede continuation",
         [event](kiyosi::Date date) { return date != event && kiyosi::weekdays_calendar().is_trading_day(date); }, 252);
     const kiyosi::FiniteDifferenceSettings grid{
         200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0};
-    const kiyosi::FiniteDifferenceAccumulatorEngine accumulator_engine{grid};
+    const auto accumulator_engine = kiyosi::make_finite_difference_accumulator_engine(grid).value();
     for (const double spot : {99.9, 100.0, 100.1}) {
         CAPTURE(spot);
         const auto context = *kiyosi::make_pricing_context(parameters, spot, event);
@@ -354,7 +349,7 @@ TEST_CASE("Finite-difference current accrual and knock-in precede continuation",
         return *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = state, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 120.0, 0.1}}});
     };
     const auto context = *kiyosi::make_pricing_context(parameters, 79.9, event);
-    const kiyosi::FiniteDifferenceAutocallableEngine engine{grid};
+    const auto engine = kiyosi::make_finite_difference_autocallable_engine(grid).value();
     const auto current = engine.price(snowball(kiyosi::AutocallableBarrierState::none), context);
     const auto prior = engine.price(snowball(kiyosi::AutocallableBarrierState::knocked_in), context);
     REQUIRE(current);
@@ -370,8 +365,7 @@ TEST_CASE("Finite-difference current coupons use the actual barrier branch", "[a
     };
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 80.0, event);
-    const kiyosi::FiniteDifferenceAutocallableEngine engine{
-        {200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0}};
+    const auto engine = kiyosi::make_finite_difference_autocallable_engine({200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, 499.0}).value();
     const auto paid = engine.price(note(80.0), context);
     const auto missed = engine.price(note(80.1), context);
     REQUIRE(paid);

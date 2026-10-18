@@ -26,7 +26,7 @@ TEST_CASE("Binomial immediate exercise returns payoff Greeks", "[binomial-exerci
         const auto context = *make_pricing_context(parameters, spot, start);
         for (const int steps : {1, 2, 10, 256}) {
             CAPTURE(type, steps);
-            const CoxRossRubinsteinVanillaEngine engine{steps};
+            const auto engine = make_cox_ross_rubinstein_vanilla_engine({steps}).value();
             const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
             REQUIRE(result);
             CHECK(result->price() == 12.0);
@@ -46,7 +46,7 @@ TEST_CASE("Binomial speed tracks analytic sensitivity with default shifts", "[bi
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
-    const CoxRossRubinsteinVanillaEngine engine{1000};
+    const auto engine = make_cox_ross_rubinstein_vanilla_engine({1000}).value();
     for (const double dividend : {0.0, 0.01}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(0.04, dividend, 0.2), 100.0,
                                                    start_of_day(start) + std::chrono::hours{12});
@@ -78,7 +78,7 @@ TEST_CASE("Binomial mixed Greeks track analytic sensitivities", "[binomial-mixed
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const GreeksRequest request{Greek::vanna, Greek::zomma, Greek::charm, Greek::color};
-    const CoxRossRubinsteinVanillaEngine engine{1000};
+    const auto engine = make_cox_ross_rubinstein_vanilla_engine({1000}).value();
     for (const double dividend : {0.0, 0.01}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(0.04, dividend, 0.2), 100.0,
                                                    start_of_day(start) + std::chrono::hours{12});
@@ -113,7 +113,7 @@ TEST_CASE("Binomial rejects underflowed asset trees")
 {
     const auto start = day(2025, 1, 1);
     const auto end = day(2026, 1, 1);
-    const kiyosi::CoxRossRubinsteinVanillaEngine engine{1000};
+    const auto engine = kiyosi::make_cox_ross_rubinstein_vanilla_engine({1000}).value();
     for (const double volatility : {23.0, 25.0}) {
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.05, 0.02, volatility), 100.0, start);
@@ -141,11 +141,10 @@ TEST_CASE("Binomial American engine prices expiry_date and validates steps")
     REQUIRE(priced.has_value());
     CHECK(*priced == 10.0);
 
-    const auto invalid = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{0}}.price(option, context);
+    const auto invalid = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{0});
     REQUIRE_FALSE(invalid.has_value());
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    const auto too_many = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1'000'001}}
-                              .price(option, context);
+    const auto too_many = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{1'000'001});
     REQUIRE_FALSE(too_many.has_value());
     CHECK(too_many.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
@@ -159,7 +158,7 @@ TEST_CASE("Binomial American engine supplements gamma below two steps")
     const auto option = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
 
-    const auto result = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1}}.price_with_greeks(option, context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
+    const auto result = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{1}).value().price_with_greeks(option, context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
     REQUIRE(result.has_value());
     CHECK(std::isfinite(result->price()));
     CHECK(result->has(kiyosi::Greek::delta));
@@ -184,7 +183,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto american_call_option = *kiyosi::make_american_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::CoxRossRubinsteinVanillaEngine engine{kiyosi::BinomialSettings{400}};
+    const auto engine = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{400}).value();
 
     const auto american_put = engine.price(put, context);
     const auto european_put = kiyosi::AnalyticVanillaEngine{}.price(european_put_option, context);
@@ -203,8 +202,7 @@ TEST_CASE("Binomial American engine exercises puts and converges to European cal
     CHECK(std::isfinite(greek_value(*american_call, kiyosi::Greek::delta)));
     CHECK(std::isfinite(greek_value(*american_call, kiyosi::Greek::gamma)));
 
-    const auto high_resolution = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{1200}}
-                                     .price(american_call_option, at_the_money_context);
+    const auto high_resolution = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{1200}).value().price(american_call_option, at_the_money_context);
     REQUIRE(high_resolution.has_value());
     CHECK_THAT(*high_resolution,
                WithinAbs(*european_call, 0.01));
@@ -218,7 +216,7 @@ TEST_CASE("Binomial American call and put values are symmetric at zero carry")
     const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
     const auto call = *kiyosi::make_american_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto put = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const kiyosi::CoxRossRubinsteinVanillaEngine engine{kiyosi::BinomialSettings{200}};
+    const auto engine = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{200}).value();
 
     const auto call_result = engine.price(call, context);
     const auto put_result = engine.price(put, context);

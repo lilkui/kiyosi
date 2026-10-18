@@ -463,7 +463,9 @@ Result<PricingResult> evaluate_greeks(
                 const double upper = default_finite_difference_upper_boundary(option, context);
                 if (std::isfinite(upper)) {
                     grid.asset_upper_boundary = upper;
-                    return evaluate(Engine{grid});
+                    const auto fixed = make_engine(grid, std::type_identity<Engine>{});
+                    if (!fixed) return decltype(evaluate(seeded)){std::unexpected(fixed.error())};
+                    return evaluate(*fixed);
                 }
             }
         }

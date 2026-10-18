@@ -171,12 +171,12 @@ TEST_CASE("Autocallable records retain each date level and coupon association", 
     CHECK(detail::autocallable_event(*phoenix, 1).coupon == Catch::Approx(0.02));
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 106.0, end, all_days_calendar());
     for (const auto& price : {FiniteDifferenceAutocallableEngine{}.price(*snowball, context),
-                              MonteCarloAutocallableEngine{8, 7}.price(*snowball, context)}) {
+                              make_monte_carlo_autocallable_engine({8, 7}).value().price(*snowball, context)}) {
         REQUIRE(price);
         CHECK(*price == Catch::Approx(1.06));
     }
     for (const auto& price : {FiniteDifferenceAutocallableEngine{}.price(*phoenix, context),
-                              MonteCarloAutocallableEngine{8, 7}.price(*phoenix, context)}) {
+                              make_monte_carlo_autocallable_engine({8, 7}).value().price(*phoenix, context)}) {
         REQUIRE(price);
         CHECK(*price == Catch::Approx(1.02));
     }
@@ -595,8 +595,8 @@ TEST_CASE("Autocallable valuation requires possible explicit history")
         REQUIRE(result);
         return *result;
     };
-    const kiyosi::MonteCarloAutocallableEngine mc{{32, 1}};
-    const kiyosi::FiniteDifferenceAutocallableEngine fd{{40, 40}};
+    const auto mc = kiyosi::make_monte_carlo_autocallable_engine({32, 1}).value();
+    const auto fd = kiyosi::make_finite_difference_autocallable_engine({40, 40}).value();
     CHECK(mc.price(note(std::nullopt), market(effective)).has_value());
     const auto missing = mc.price(note(std::nullopt), market(day(2025, 1, 3)));
     REQUIRE_FALSE(missing);
@@ -630,7 +630,7 @@ TEST_CASE("Negative Binary Snowball coupon can be implied")
     REQUIRE(option);
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), 100.0, effective_date);
-    const kiyosi::MonteCarloAutocallableEngine engine{{32, 73}};
+    const auto engine = kiyosi::make_monte_carlo_autocallable_engine({32, 73}).value();
     const auto price = engine.price(*option, context);
     REQUIRE(price);
     const auto implied = kiyosi::implied_coupon(engine, *option, context, *price,

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include <array>
 
 #include <kiyosi/pricing/settings/implied.hpp>
@@ -24,21 +26,18 @@ template <AutocallableProduct Note>
     const TradingDayMonteCarloSettings& settings);
 } // namespace detail
 
+class MonteCarloAutocallableEngine;
+[[nodiscard]] Result<MonteCarloAutocallableEngine> make_monte_carlo_autocallable_engine(TradingDayMonteCarloSettings settings);
+
 /// Simulates observation dates and expiry, adding trading days for daily knock-in monitoring.
 /// Accepts 1..10,000,000 paths.
 class MonteCarloAutocallableEngine {
 public:
-    /// Creates an engine with aggregate trading-day simulation settings.
-    explicit MonteCarloAutocallableEngine(TradingDayMonteCarloSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit path count, seed, backend, and CPU concurrency cap.
-    explicit MonteCarloAutocallableEngine(
-        int path_count, std::optional<std::uint64_t> seed = TradingDayMonteCarloSettings{}.seed,
-        MonteCarloBackend backend = TradingDayMonteCarloSettings{}.backend,
-        int thread_count = TradingDayMonteCarloSettings{}.thread_count)
-        : settings_{path_count, seed, backend, thread_count} {}
+    /// Creates an engine with valid default settings.
+    MonteCarloAutocallableEngine() = default;
 
     /// Prices an autocallable note by Monte Carlo simulation.
-    /// @return Price, or a contract, context, settings, or backend error.
+    /// @return Price, or a contract, context, numerical, or backend error.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
@@ -52,8 +51,24 @@ public:
     TradingDayMonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit MonteCarloAutocallableEngine(TradingDayMonteCarloSettings settings) : settings_(settings) {}
+    friend Result<MonteCarloAutocallableEngine> make_monte_carlo_autocallable_engine(TradingDayMonteCarloSettings);
+    friend Result<MonteCarloAutocallableEngine> make_engine(TradingDayMonteCarloSettings settings, std::type_identity<MonteCarloAutocallableEngine>)
+    {
+        return make_monte_carlo_autocallable_engine(settings);
+    }
+
     TradingDayMonteCarloSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<MonteCarloAutocallableEngine> make_monte_carlo_autocallable_engine(TradingDayMonteCarloSettings settings)
+{
+    const auto valid = detail::validate_monte_carlo_settings(settings);
+    if (!valid) return std::unexpected(valid.error());
+    return MonteCarloAutocallableEngine{settings};
+}
 
 namespace detail {
 template <AutocallableProduct Note>

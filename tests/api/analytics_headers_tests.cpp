@@ -16,7 +16,7 @@ TEST_CASE("Analytics headers preserve product hooks when included before engines
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(1.0, 0.0, 1.0), 100.0, start);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
-    const CoxRossRubinsteinVanillaEngine engine{4};
+    const auto engine = make_cox_ross_rubinstein_vanilla_engine({4}).value();
     const auto quote = engine.price(option, context);
     REQUIRE(quote);
     // The default lower volatility lies outside this tree's admissible domain.

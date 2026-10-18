@@ -47,7 +47,7 @@ TEST_CASE("Continuous up-and-out rollback preserves full-grid prices and Greeks"
             return space.spacing * index >= barrier ? std::optional{rebate(tau)} : std::nullopt;
         });
     REQUIRE(marched);
-    const FiniteDifferenceBarrierEngine engine{settings};
+    const auto engine = make_finite_difference_barrier_engine(settings).value();
     const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed});
     REQUIRE(result);
     CHECK(result->price() == Catch::Approx(space.interpolate(full, context.spot_price())).epsilon(1e-12));
@@ -64,7 +64,7 @@ TEST_CASE("Continuous up-and-out trimming retains explicit stability validation"
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.1), 100.0, start);
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
-    const auto result = FiniteDifferenceBarrierEngine{200, 50, FiniteDifferenceScheme::explicit_euler}.price(option, context);
+    const auto result = make_finite_difference_barrier_engine({200, 50, FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
     REQUIRE_FALSE(result);
     CHECK(result.error().category == ErrorCategory::invalid_parameter);
 }

@@ -40,8 +40,8 @@ TEST_CASE("Autocallable engines reuse one instance across every product", "[auto
                                                       .observations = {{end, 110.0, 0.08}}});
     const auto ternary = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}});
     const auto phoenix = *make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}});
-    const FiniteDifferenceAutocallableEngine finite_difference{32, 2};
-    const MonteCarloAutocallableEngine monte_carlo{32, 7};
+    const auto finite_difference = make_finite_difference_autocallable_engine({32, 2}).value();
+    const auto monte_carlo = make_monte_carlo_autocallable_engine({32, 7}).value();
     const auto check = [&](const auto& note) {
         for (const auto& price : {finite_difference.price(note, market), monte_carlo.price(note, market)}) {
             REQUIRE(price);
@@ -66,7 +66,7 @@ TEST_CASE("Implied volatility request preparation runs once before seeded trials
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
-    const MonteCarloVanillaEngine engine{MonteCarloSettings{.path_count = 31, .step_count = 3}};
+    const auto engine = make_monte_carlo_vanilla_engine(MonteCarloSettings{.path_count = 31, .step_count = 3}).value();
     int preparations = 0, trials = 0;
     std::optional<std::uint64_t> seed;
     const auto price = [&](const auto& seeded, const auto&, const auto& market) -> Result<double> {
@@ -161,11 +161,11 @@ TEST_CASE("Unavailable speed retains structured Monte Carlo spot batching", "[au
         CHECK(mixed->has(Greek::gamma));
         CHECK_FALSE(mixed->has(Greek::speed));
     };
-    check(*make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}), MonteCarloAccumulatorEngine{31, 42});
-    check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), MonteCarloAutocallableEngine{31, 42});
-    check(*make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), MonteCarloAutocallableEngine{31, 42});
-    check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), MonteCarloAutocallableEngine{31, 42});
-    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}}), MonteCarloAutocallableEngine{31, 42});
+    check(*make_accumulator({.strike = 100.0, .knock_out_level = 110.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}), make_monte_carlo_accumulator_engine({31, 42}).value());
+    check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_monte_carlo_autocallable_engine({31, 42}).value());
+    check(*make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_monte_carlo_autocallable_engine({31, 42}).value());
+    check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.08}}}), make_monte_carlo_autocallable_engine({31, 42}).value());
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0, 90.0}}}), make_monte_carlo_autocallable_engine({31, 42}).value());
 }
 
 TEST_CASE("Autocallable requests validate immutable schedules once", "[autocallable-schedule]")
@@ -224,9 +224,9 @@ TEST_CASE("Autocallable requests validate immutable schedules once", "[autocalla
             REQUIRE_FALSE(engine.price_with_greeks(note, context, true, {.spot_shift = 0.0}));
             CHECK(queries == 0);
         };
-        const MonteCarloAutocallableEngine engine{31, 42};
+        const auto engine = make_monte_carlo_autocallable_engine({31, 42}).value();
         check_engine(engine);
-        check_engine(FiniteDifferenceAutocallableEngine{80, 1});
+        check_engine(make_finite_difference_autocallable_engine({80, 1}).value());
         const auto check_solver = [&](const auto& scalar) {
             const auto quote = scalar.price(note, context);
             REQUIRE(quote);
@@ -272,7 +272,7 @@ TEST_CASE("Autocallable requests validate immutable schedules once", "[autocalla
             CHECK(queries == 0);
         };
         check_solver(engine);
-        check_solver(FiniteDifferenceAutocallableEngine{80, 1});
+        check_solver(make_finite_difference_autocallable_engine({80, 1}).value());
     };
     const std::vector<double> coupons(dates.size(), 0.08), levels(dates.size(), 110.0);
     check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(dates, levels, coupons)}));
@@ -332,17 +332,17 @@ TEST_CASE("Trading-day implied volatility preserves scalar trials and isolated w
         }
     };
     check(*make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}),
-          [](auto settings) { return MonteCarloAccumulatorEngine{settings}; });
+          [](auto settings) { return make_monte_carlo_accumulator_engine(settings).value(); });
     for (const auto mode : {KnockInObservationMode::every_trading_day, KnockInObservationMode::at_expiry}) {
         check(*make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{101.0, 100.0, 99.0}, std::vector<double>{0.08, 0.08, 0.08})}),
-              [](auto settings) { return MonteCarloAutocallableEngine{settings}; });
+              [](auto settings) { return make_monte_carlo_autocallable_engine(settings).value(); });
         check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{101.0, 100.0, 99.0}, std::nullopt, std::vector<double>{100.0, 99.0, 98.0})}),
-              [](auto settings) { return MonteCarloAutocallableEngine{settings}; });
+              [](auto settings) { return make_monte_carlo_autocallable_engine(settings).value(); });
         check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 99.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{101.0, 100.0, 99.0}, std::vector<double>{0.08, 0.08, 0.08})}),
-              [](auto settings) { return MonteCarloAutocallableEngine{settings}; });
+              [](auto settings) { return make_monte_carlo_autocallable_engine(settings).value(); });
     }
     check(*make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{101.0, 100.0, 99.0}, std::vector<double>{0.08, 0.08, 0.08})}),
-          [](auto settings) { return MonteCarloAutocallableEngine{settings}; });
+          [](auto settings) { return make_monte_carlo_autocallable_engine(settings).value(); });
 }
 
 TEST_CASE("Autocallable FD volatility workspaces preserve independent trials", "[fd-implied-workspace]")
@@ -360,7 +360,7 @@ TEST_CASE("Autocallable FD volatility workspaces preserve independent trials", "
     const auto check = [&](const auto& note) {
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             CAPTURE(scheme);
-            const FiniteDifferenceAutocallableEngine engine{32, 64, scheme};
+            const auto engine = make_finite_difference_autocallable_engine({32, 64, scheme}).value();
             std::array<double, 2> quotes{}, solutions{};
             for (std::size_t index = 0; index < quotes.size(); ++index) {
                 const double volatility = index == 0 ? 0.17 : 0.33;
@@ -415,7 +415,7 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
                 for (const double spot : {98.0, 99.0, 100.25, 101.0, 103.0})
                     for (const auto valuation : {start_of_day(start), start_of_day(start) + std::chrono::hours{12}, start_of_day(end)}) {
                         CAPTURE(seed, paths, spot, valuation.time_since_epoch().count());
-                        const MonteCarloAutocallableEngine engine{paths, seed};
+                        const auto engine = make_monte_carlo_autocallable_engine({paths, seed}).value();
                         const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), spot, valuation, calendar);
                         queries->store(0);
                         const auto expected = detail::price_with_greeks(engine, note, context, true, shifts);
@@ -434,7 +434,7 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
                             CHECK(actual->values_view() == expected->selected(request).values_view());
                         }
                     }
-        const MonteCarloAutocallableEngine engine{127, 42};
+        const auto engine = make_monte_carlo_autocallable_engine({127, 42}).value();
         const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.8), 100.25, start_of_day(start) + std::chrono::hours{12}, calendar);
         auto first = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true, shifts); });
         auto second = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true, shifts); });
@@ -443,7 +443,7 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
         REQUIRE(b);
         CHECK(a->price() == b->price());
         CHECK(a->values_view() == b->values_view());
-        const auto bad_paths = MonteCarloAutocallableEngine{0, 42}.price_with_greeks(note, context, true);
+        const auto bad_paths = make_monte_carlo_autocallable_engine({0, 42});
         REQUIRE_FALSE(bad_paths);
         CHECK(bad_paths.error().category == ErrorCategory::invalid_parameter);
         const auto bad_shifts = engine.price_with_greeks(note, context, true, {.spot_shift = 0.0});
@@ -453,7 +453,7 @@ TEST_CASE("Autocallable joint Greeks preserve scalar seeded valuations", "[autoc
         const auto bad_time = engine.price_with_greeks(note, expired, true);
         REQUIRE_FALSE(bad_time);
         CHECK(bad_time.error().category == ErrorCategory::invalid_time_range);
-        const MonteCarloAutocallableEngine unseeded{31, std::nullopt};
+        const auto unseeded = make_monte_carlo_autocallable_engine({31, std::nullopt}).value();
         REQUIRE(unseeded.price_with_greeks(note, context, true));
         CHECK_FALSE(unseeded.settings().seed);
     };
@@ -470,7 +470,7 @@ TEST_CASE("Autocallable rate batches preserve fixed prices and unavailable stenc
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 7, 1), 101.0, 0.0}, {end, 101.0, 0.0}}});
-    const MonteCarloAutocallableEngine engine{31, 42};
+    const auto engine = make_monte_carlo_autocallable_engine({31, 42}).value();
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
     const NumericalShiftSettings shifts{.rate_shift = 0.25};
@@ -514,7 +514,7 @@ TEST_CASE("Autocallable FD event skipping preserves coupons knock-out and daily 
             {.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 4, 1), 110.0, 0.0, 90.0}, {day(2025, 7, 1), 108.0, 0.0, 90.0}, {day(2025, 10, 1), 106.0, 0.0, 90.0}, {end, 104.0, 0.0, 90.0}}});
         for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::explicit_euler}) {
             CAPTURE(mode, scheme);
-            const auto result = FiniteDifferenceAutocallableEngine{{200, 2000, scheme, 400.0}}.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+            const auto result = make_finite_difference_autocallable_engine({200, 2000, scheme, 400.0}).value().price_with_greeks(note, context, {Greek::delta, Greek::gamma});
             REQUIRE(result);
             CHECK(result->price() == Catch::Approx(expected[index][0]).margin(1e-12));
             CHECK(test::greek_value(*result, Greek::delta) == Catch::Approx(expected[index][1]).margin(1e-12));
@@ -543,7 +543,7 @@ TEST_CASE("Expiry-only knock-in layers reproduce analytic terminal portfolios", 
         {.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.02, .knock_in_level = 100.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.06}}});
     for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::explicit_euler}) {
         const auto check = [&](const auto& note, double expected) {
-            const FiniteDifferenceAutocallableEngine engine{{200, 2000, scheme, 400.0}};
+            const auto engine = make_finite_difference_autocallable_engine({200, 2000, scheme, 400.0}).value();
             const auto actual = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
             REQUIRE(actual);
             CHECK(actual->price() == Catch::Approx(expected).margin(0.002));
@@ -574,9 +574,9 @@ TEST_CASE("Autocallables omit daily monitoring only when knock-in cannot change 
             REQUIRE(expected);
             if (!affects_payoff) CHECK(*actual == *expected);
         };
-        check_engine(MonteCarloAutocallableEngine{2'000, 42});
+        check_engine(make_monte_carlo_autocallable_engine({2'000, 42}).value());
         for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler})
-            check_engine(FiniteDifferenceAutocallableEngine{{200, 200, scheme}});
+            check_engine(make_finite_difference_autocallable_engine({200, 200, scheme}).value());
     };
     for (const double lower : {60.0, 100.0})
         for (const double coupon : {0.0, 0.06}) {
@@ -606,10 +606,10 @@ TEST_CASE("Protected FD notes retain daily explicit stability subdivisions", "[f
     const auto daily = *make_snowball_option(terms);
     terms.knock_in_observation_mode = KnockInObservationMode::at_expiry;
     const auto expiry = *make_snowball_option(terms);
-    const FiniteDifferenceAutocallableEngine engine{{80, 200, FiniteDifferenceScheme::explicit_euler, 400.0}};
+    const auto engine = make_finite_difference_autocallable_engine({80, 200, FiniteDifferenceScheme::explicit_euler, 400.0}).value();
     const auto actual = engine.price(daily, context);
     REQUIRE(actual);
-    const auto reference = FiniteDifferenceAutocallableEngine{{80, 2000, FiniteDifferenceScheme::explicit_euler, 400.0}}.price(expiry, context);
+    const auto reference = make_finite_difference_autocallable_engine({80, 2000, FiniteDifferenceScheme::explicit_euler, 400.0}).value().price(expiry, context);
     REQUIRE(reference);
     CHECK(*actual == Catch::Approx(*reference).margin(0.0002));
     const auto unstable = engine.price(expiry, context);
@@ -642,7 +642,7 @@ TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downs
         for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler}) {
             const FiniteDifferenceSettings settings{.asset_step_count = 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 800.0};
             const auto check = [&](const auto& note, double expected) {
-                const FiniteDifferenceAutocallableEngine engine{settings};
+                const auto engine = make_finite_difference_autocallable_engine(settings).value();
                 queries->store(0);
                 const auto price = engine.price(note, context);
                 CHECK(queries->load() < 10);
@@ -659,9 +659,7 @@ TEST_CASE("Knocked-in finite-difference autocallables preserve coupons and downs
             check(phoenix, downside + coupons);
             check(ternary, 1.02 * discount(end));
         }
-        const auto explicit_price = FiniteDifferenceAutocallableEngine{
-            {80, 200, FiniteDifferenceScheme::explicit_euler, 800.0}}
-                                        .price(ternary, context);
+        const auto explicit_price = make_finite_difference_autocallable_engine({80, 200, FiniteDifferenceScheme::explicit_euler, 800.0}).value().price(ternary, context);
         REQUIRE(explicit_price);
         CHECK(*explicit_price == Catch::Approx(1.02 * discount(end)).margin(0.0002));
     }
@@ -677,7 +675,7 @@ TEST_CASE("Autocallable finite-difference spot Greeks reuse one solve", "[fd-per
                                                day(2025, 1, 2), calendar);
     const auto note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end, .observations = {{end, 200.0, 0.0}}});
-    const FiniteDifferenceAutocallableEngine engine{{.asset_step_count = 800, .time_step_count = 200, .asset_upper_boundary = 800.0}};
+    const auto engine = make_finite_difference_autocallable_engine({.asset_step_count = 800, .time_step_count = 200, .asset_upper_boundary = 800.0}).value();
     const auto price = engine.price(note, context);
     REQUIRE(price);
     const int price_queries = queries->exchange(0);
@@ -703,7 +701,7 @@ TEST_CASE("Knocked-in autocallables simulate only remaining observation dates", 
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 70.0, valuation, calendar);
     const auto note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 0.0, .barrier_state = AutocallableBarrierState::knocked_in, .effective_date = start, .expiry_date = end, .observations = {{end, 1e6, 0.0}}});
-    const auto actual = MonteCarloAutocallableEngine{{50'000, 42}}.price(note, context);
+    const auto actual = make_monte_carlo_autocallable_engine({50'000, 42}).value().price(note, context);
     REQUIRE(actual);
     // Calendar validation remains necessary; daily continuation queries do not.
     CHECK(queries->load() < 10);
@@ -722,15 +720,15 @@ TEST_CASE("Fixed autocallable implied volatility rejects before simulation", "[m
     const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, start, calendar);
     const auto note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0}}});
-    const MonteCarloAutocallableEngine engine{20'000, 42};
+    const auto engine = make_monte_carlo_autocallable_engine({20'000, 42}).value();
     const auto implied = implied_volatility(engine, note, context, 1.0);
     REQUIRE_FALSE(implied);
     CHECK(implied.error().category == ErrorCategory::unsupported_operation);
     CHECK(queries->exchange(0) < 20);
-    const auto cuda = implied_volatility(MonteCarloAutocallableEngine{20'000, 42, MonteCarloBackend::cuda}, note, context, 1.0);
+    const auto cuda = implied_volatility(make_monte_carlo_autocallable_engine({20'000, 42, MonteCarloBackend::cuda}).value(), note, context, 1.0);
     REQUIRE_FALSE(cuda);
     CHECK(cuda.error().category == ErrorCategory::unsupported_operation);
-    const auto invalid = implied_volatility(MonteCarloAutocallableEngine{0, 42}, note, context, 1.0);
+    const auto invalid = make_monte_carlo_autocallable_engine({0, 42});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
     const auto later = *make_pricing_context(context.model_parameters(), 100.0, start + std::chrono::days{1}, calendar);
@@ -755,13 +753,13 @@ TEST_CASE("Fixed autocallable prices skip numerical work after validation", "[mo
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = start, .expiry_date = end, .observations = {{end, 110.0, 0.0}}});
     for (const auto backend : {MonteCarloBackend::cpu, MonteCarloBackend::cuda}) {
         queries->store(0);
-        const auto price = MonteCarloAutocallableEngine{20'000, 42, backend}.price(note, context);
+        const auto price = make_monte_carlo_autocallable_engine({20'000, 42, backend}).value().price(note, context);
         REQUIRE(price);
         CHECK(*price == 1.0);
         CHECK(queries->load() < 10);
     }
     // A fixed payoff needs no spatial domain, even when a configured grid would clip it.
-    const FiniteDifferenceAutocallableEngine finite_difference{{.asset_upper_boundary = 1.0}};
+    const auto finite_difference = make_finite_difference_autocallable_engine({.asset_upper_boundary = 1.0}).value();
     queries->store(0);
     const auto fixed = finite_difference.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
     REQUIRE(fixed);
@@ -769,14 +767,14 @@ TEST_CASE("Fixed autocallable prices skip numerical work after validation", "[mo
     CHECK(test::greek_value(*fixed, Greek::delta) == 0.0);
     CHECK(test::greek_value(*fixed, Greek::gamma) == 0.0);
     CHECK(queries->load() < 10);
-    const auto invalid_grid = FiniteDifferenceAutocallableEngine{{.time_step_count = 0}}.price(note, context);
+    const auto invalid_grid = make_finite_difference_autocallable_engine({.time_step_count = 0});
     REQUIRE_FALSE(invalid_grid);
     CHECK(invalid_grid.error().category == ErrorCategory::invalid_parameter);
-    const auto invalid = MonteCarloAutocallableEngine{0, 42}.price(note, context);
+    const auto invalid = make_monte_carlo_autocallable_engine({0, 42});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
     const auto later = *make_pricing_context(context.model_parameters(), 100.0, start + std::chrono::days{1}, calendar);
-    const auto missing_history = MonteCarloAutocallableEngine{20'000, 42}.price(note, later);
+    const auto missing_history = make_monte_carlo_autocallable_engine({20'000, 42}).value().price(note, later);
     REQUIRE_FALSE(missing_history);
     CHECK(missing_history.error().category == ErrorCategory::invalid_parameter);
     const auto fd_missing_history = finite_difference.price(note, later);
@@ -810,7 +808,7 @@ TEST_CASE("Fixed autocallable implied volatility preserves non-finite pricing er
     REQUIRE(note);
     for (const Date date : {start, end}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, date);
-        const auto result = implied_volatility(MonteCarloAutocallableEngine{2, 1}, *note, context, 1.0);
+        const auto result = implied_volatility(make_monte_carlo_autocallable_engine({2, 1}).value(), *note, context, 1.0);
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_result);
     }
@@ -824,7 +822,7 @@ TEST_CASE("Seeded autocallable paths stay coupled when knock-out dates change")
     const auto parameters = *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2);
     for (const std::uint64_t seed : {std::uint64_t{1}, std::numeric_limits<std::uint64_t>::max()}) {
         CAPTURE(seed);
-        const kiyosi::MonteCarloAutocallableEngine engine{{2000, seed}};
+        const auto engine = kiyosi::make_monte_carlo_autocallable_engine({2000, seed}).value();
         double previous = 1.2;
         for (int bump = 0; bump <= 30; ++bump) {
             const double spot = 100.0 + 0.01 * bump;
@@ -849,8 +847,8 @@ TEST_CASE("Autocallable engines validate observation dates against each market c
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(0.01, 0.0, 0.2), 100.0, effective, calendar);
         for (const auto& result : {
-                 kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, context),
-                 kiyosi::FiniteDifferenceAutocallableEngine{{40, 40}}.price(note, context)}) {
+                 kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(note, context),
+                 kiyosi::make_finite_difference_autocallable_engine({40, 40}).value().price(note, context)}) {
             if (calendar.is_trading_day(day(2025, 1, 4))) {
                 REQUIRE(result);
                 CHECK(std::isfinite(*result));
@@ -876,7 +874,7 @@ TEST_CASE("Autocallable engines reject nominal weekend expiry and accept adjuste
     const auto adjusted_expiry = calendar.adjust(nominal, kiyosi::BusinessDayConvention::following);
     REQUIRE(adjusted_expiry);
     const auto adjusted = note(*adjusted_expiry);
-    const kiyosi::MonteCarloAutocallableEngine mc{{32, 7}};
+    const auto mc = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value();
     const kiyosi::FiniteDifferenceAutocallableEngine fd{};
     for (const auto& result : {mc.price(unadjusted, context), fd.price(unadjusted, context)}) {
         REQUIRE_FALSE(result);
@@ -954,7 +952,7 @@ TEST_CASE("Phoenix expiry_date settlement applies state and final observations")
                                              spot, expiry_date);
     };
     const auto price = [&](const auto& note, double spot) {
-        const auto result = kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, market(spot));
+        const auto result = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(note, market(spot));
         REQUIRE(result);
         return *result;
     };
@@ -976,7 +974,7 @@ TEST_CASE("Snowball expiry_date settlement applies state and final observations"
                                              spot, expiry_date);
     };
     const auto price = [&](const auto& note, double spot) {
-        const auto result = kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, market(spot));
+        const auto result = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(note, market(spot));
         REQUIRE(result);
         return *result;
     };
@@ -998,7 +996,7 @@ TEST_CASE("Autocallable Monte Carlo skips knock-in on a non-trading valuation da
     const auto saturday = kiyosi::start_of_day(day(2025, 1, 4));
     const auto midnight = *kiyosi::make_pricing_context(parameters, 79.0, saturday);
     const auto later = *kiyosi::make_pricing_context(parameters, 79.0, saturday + std::chrono::microseconds{1});
-    const kiyosi::MonteCarloAutocallableEngine engine{{20'000, 1}};
+    const auto engine = kiyosi::make_monte_carlo_autocallable_engine({20'000, 1}).value();
     const auto first = engine.price(note, midnight);
     const auto second = engine.price(note, later);
     REQUIRE(first);
@@ -1025,7 +1023,7 @@ TEST_CASE("Binary snowball expiry_date settlement applies final observations")
         CHECK(price(engine, binary, 100.0) == Catch::Approx(1.10));
         CHECK(price(engine, binary, 90.0) == Catch::Approx(1.05));
     };
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}});
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value());
     check(kiyosi::FiniteDifferenceAutocallableEngine{});
 }
 
@@ -1039,7 +1037,7 @@ TEST_CASE("Ternary snowball expiry_date settlement applies final observations")
                                              spot, expiry_date);
     };
     const auto price = [&](const auto& note, double spot) {
-        const auto result = kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, market(spot));
+        const auto result = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(note, market(spot));
         REQUIRE(result);
         return *result;
     };
@@ -1057,12 +1055,12 @@ TEST_CASE("Autocallable Monte Carlo processes valuation-date observation events 
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 1e-12), 100.0, valuation);
     const auto monte_carlo_price = [&](const auto& instrument) {
-        const auto result = kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(instrument, context);
+        const auto result = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(instrument, context);
         REQUIRE(result);
         return *result;
     };
     const auto note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{effective_date, 90.0, 99.0}, {valuation, 90.0, 10.0}, {expiry_date, 99.0, 0.10}}});
-    const kiyosi::MonteCarloAutocallableEngine engine{{32, 7}};
+    const auto engine = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value();
     const auto first = engine.price(note, context);
     const auto second = engine.price(note, context);
     REQUIRE(first);
@@ -1111,14 +1109,14 @@ TEST_CASE("Autocallable Monte Carlo settles deterministic states before simulati
     };
 
     const double large_payoff = std::numeric_limits<double>::max() / 64.0;
-    const auto immediate = kiyosi::MonteCarloAutocallableEngine{{128, 7}}.price(
+    const auto immediate = kiyosi::make_monte_carlo_autocallable_engine({128, 7}).value().price(
         make_note(kiyosi::AutocallableBarrierState::none, large_payoff), context);
     REQUIRE(immediate);
     CHECK(*immediate == large_payoff);
     CHECK(calls->load() == 3);
 
     calls->store(0);
-    const auto touched = kiyosi::MonteCarloAutocallableEngine{{128, 7}}.price(
+    const auto touched = kiyosi::make_monte_carlo_autocallable_engine({128, 7}).value().price(
         make_note(kiyosi::AutocallableBarrierState::knocked_out, 1.0), context);
     REQUIRE_FALSE(touched);
     CHECK(touched.error().category == kiyosi::ErrorCategory::invalid_option);
@@ -1128,20 +1126,19 @@ TEST_CASE("Autocallable Monte Carlo settles deterministic states before simulati
     const auto expiry_context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.0, 0.0, 0.2), 90.0, expiry_date, calendar);
     const auto expiry_note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.0, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = large_payoff, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.0}}});
-    const auto at_expiry = kiyosi::MonteCarloAutocallableEngine{{128, 7}}.price(
+    const auto at_expiry = kiyosi::make_monte_carlo_autocallable_engine({128, 7}).value().price(
         expiry_note, expiry_context);
     REQUIRE(at_expiry);
     CHECK(*at_expiry == large_payoff);
     CHECK(calls->load() == 2);
 
     calls->store(0);
-    const auto invalid_settings = kiyosi::MonteCarloAutocallableEngine{{0, 7}}.price(
-        make_note(kiyosi::AutocallableBarrierState::none, 1.0), context);
+    const auto invalid_settings = kiyosi::make_monte_carlo_autocallable_engine({0, 7});
     REQUIRE_FALSE(invalid_settings);
     CHECK(invalid_settings.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK(calls->load() == 3);
+    CHECK(calls->load() == 0);
 
-    const auto non_finite = kiyosi::MonteCarloAutocallableEngine{{128, 7}}.price(
+    const auto non_finite = kiyosi::make_monte_carlo_autocallable_engine({128, 7}).value().price(
         make_note(kiyosi::AutocallableBarrierState::none, std::numeric_limits<double>::max(),
                   std::numeric_limits<double>::max()),
         context);
@@ -1172,7 +1169,7 @@ TEST_CASE("Autocallable Monte Carlo prepares stable calendar inputs once")
         const double expected = reference_binary_snowball_price(note, context, settings);
         calls->store(0);
 
-        const auto result = kiyosi::MonteCarloAutocallableEngine{settings}.price(note, context);
+        const auto result = kiyosi::make_monte_carlo_autocallable_engine(settings).value().price(note, context);
 
         REQUIRE(result);
         CHECK(*result == Catch::Approx(expected).epsilon(0.0).margin(1e-12));
@@ -1180,7 +1177,7 @@ TEST_CASE("Autocallable Monte Carlo prepares stable calendar inputs once")
     }
 
     const auto unseeded =
-        kiyosi::MonteCarloAutocallableEngine{{32, std::nullopt}}.price(note, context);
+        kiyosi::make_monte_carlo_autocallable_engine({32, std::nullopt}).value().price(note, context);
     REQUIRE(unseeded);
     CHECK(std::isfinite(*unseeded));
 }
@@ -1195,8 +1192,7 @@ TEST_CASE("Autocallable CUDA selection validates and preserves deterministic set
     const auto context = *kiyosi::make_pricing_context(
         *kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), 100.0, effective_date,
         kiyosi::all_days_calendar());
-    const kiyosi::MonteCarloAutocallableEngine cuda{
-        {64, 7, kiyosi::MonteCarloBackend::cuda}};
+    const auto cuda = kiyosi::make_monte_carlo_autocallable_engine({64, 7, kiyosi::MonteCarloBackend::cuda}).value();
     CHECK(cuda.settings().backend == kiyosi::MonteCarloBackend::cuda);
 
     const auto settled_note = *kiyosi::make_binary_snowball_option(
@@ -1207,15 +1203,11 @@ TEST_CASE("Autocallable CUDA selection validates and preserves deterministic set
     REQUIRE(settled);
     CHECK(*settled == 0.0);
 
-    const auto invalid = kiyosi::MonteCarloAutocallableEngine{
-        {0, 7, kiyosi::MonteCarloBackend::cuda}}
-                             .price(make_note(kiyosi::AutocallableBarrierState::none), context);
+    const auto invalid = kiyosi::make_monte_carlo_autocallable_engine({0, 7, kiyosi::MonteCarloBackend::cuda});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
-    const auto invalid_backend = kiyosi::MonteCarloAutocallableEngine{
-        {64, 7, static_cast<kiyosi::MonteCarloBackend>(255)}}
-                                     .price(make_note(kiyosi::AutocallableBarrierState::none), context);
+    const auto invalid_backend = kiyosi::make_monte_carlo_autocallable_engine({64, 7, static_cast<kiyosi::MonteCarloBackend>(255)});
     REQUIRE_FALSE(invalid_backend);
     CHECK(invalid_backend.error().category == kiyosi::ErrorCategory::invalid_parameter);
 
@@ -1259,26 +1251,24 @@ TEST_CASE("Autocallable CUDA Monte Carlo prices every public autocallable engine
     };
 
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.002, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 105.0}, std::nullopt, std::vector<double>{95.0, 95.0, 95.0})});
-    check(phoenix, kiyosi::MonteCarloAutocallableEngine{cpu_settings},
-          kiyosi::MonteCarloAutocallableEngine{cuda_settings});
+    check(phoenix, kiyosi::make_monte_carlo_autocallable_engine(cpu_settings).value(),
+          kiyosi::make_monte_carlo_autocallable_engine(cuda_settings).value());
 
     const auto snowball = *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 105.0}, std::vector<double>{0.08, 0.08, 0.08})});
-    check(snowball, kiyosi::MonteCarloAutocallableEngine{cpu_settings},
-          kiyosi::MonteCarloAutocallableEngine{cuda_settings});
+    check(snowball, kiyosi::make_monte_carlo_autocallable_engine(cpu_settings).value(),
+          kiyosi::make_monte_carlo_autocallable_engine(cuda_settings).value());
 
     const auto binary = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 105.0}, std::vector<double>{0.08, 0.08, 0.08})});
-    check(binary, kiyosi::MonteCarloAutocallableEngine{cpu_settings},
-          kiyosi::MonteCarloAutocallableEngine{cuda_settings});
+    check(binary, kiyosi::make_monte_carlo_autocallable_engine(cpu_settings).value(),
+          kiyosi::make_monte_carlo_autocallable_engine(cuda_settings).value());
 
     const auto ternary = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.01, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observations, std::vector<double>{110.0, 108.0, 105.0}, std::vector<double>{0.08, 0.08, 0.08})});
-    check(ternary, kiyosi::MonteCarloAutocallableEngine{cpu_settings},
-          kiyosi::MonteCarloAutocallableEngine{cuda_settings});
+    check(ternary, kiyosi::make_monte_carlo_autocallable_engine(cpu_settings).value(),
+          kiyosi::make_monte_carlo_autocallable_engine(cuda_settings).value());
 
-    const auto different_seed = kiyosi::MonteCarloAutocallableEngine{
-        {32'768, 74, kiyosi::MonteCarloBackend::cuda}}
-                                    .price(phoenix, context);
+    const auto different_seed = kiyosi::make_monte_carlo_autocallable_engine({32'768, 74, kiyosi::MonteCarloBackend::cuda}).value().price(phoenix, context);
     const auto original_seed =
-        kiyosi::MonteCarloAutocallableEngine{cuda_settings}.price(phoenix, context);
+        kiyosi::make_monte_carlo_autocallable_engine(cuda_settings).value().price(phoenix, context);
     REQUIRE(different_seed);
     REQUIRE(original_seed);
     CHECK(*different_seed !=
@@ -1299,28 +1289,28 @@ TEST_CASE("Autocallable CUDA Monte Carlo preserves coupons and historical touch 
 
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.01, .initial_spot = 100.0, .knock_in_level = 50.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{day(2025, 1, 2), 200.0, 0.0, 90.0}, {day(2025, 1, 3), 200.0, 0.0, 90.0}, {expiry_date, 200.0, 0.0, 90.0}}});
     const auto phoenix_result =
-        kiyosi::MonteCarloAutocallableEngine{settings}.price(phoenix, context(100.0, effective_date));
+        kiyosi::make_monte_carlo_autocallable_engine(settings).value().price(phoenix, context(100.0, effective_date));
     REQUIRE(phoenix_result);
     CHECK(*phoenix_result ==
           Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).margin(1e-10).epsilon(0.0));
 
     const auto snowball = *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 200.0, 0.08}}});
     const auto snowball_result =
-        kiyosi::MonteCarloAutocallableEngine{settings}.price(snowball, context(70.0, day(2025, 1, 2)));
+        kiyosi::make_monte_carlo_autocallable_engine(settings).value().price(snowball, context(70.0, day(2025, 1, 2)));
     REQUIRE(snowball_result);
     CHECK(*snowball_result ==
           Catch::Approx(0.7).epsilon(0.0).margin(1e-8));
 
     const auto ternary = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.06, .minimum_coupon_rate = 0.01, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::knocked_in, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 200.0, 0.08}}});
     const auto ternary_result =
-        kiyosi::MonteCarloAutocallableEngine{settings}.price(ternary, context(100.0, day(2025, 1, 2)));
+        kiyosi::make_monte_carlo_autocallable_engine(settings).value().price(ternary, context(100.0, day(2025, 1, 2)));
     REQUIRE(ternary_result);
     CHECK(*ternary_result ==
           Catch::Approx(1.0 + 0.01 * 3.0 / 365.0).epsilon(0.0).margin(1e-12));
 
     const auto binary = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 200.0, 0.08}}});
     const auto binary_result =
-        kiyosi::MonteCarloAutocallableEngine{settings}.price(binary, context(100.0, effective_date));
+        kiyosi::make_monte_carlo_autocallable_engine(settings).value().price(binary, context(100.0, effective_date));
     REQUIRE(binary_result);
     CHECK(*binary_result ==
           Catch::Approx(1.0 + 0.06 * 3.0 / 365.0).epsilon(0.0).margin(1e-12));
@@ -1339,7 +1329,7 @@ TEST_CASE("Autocallable finite difference preserves future observation indices")
         kiyosi::start_of_day(valuation_date) + std::chrono::hours{12},
         kiyosi::all_days_calendar());
 
-    const auto result = kiyosi::FiniteDifferenceAutocallableEngine{{100, 3}}.price(note, context);
+    const auto result = kiyosi::make_finite_difference_autocallable_engine({100, 3}).value().price(note, context);
 
     REQUIRE(result);
     const double expected = 1.0 + 0.2 * *kiyosi::year_fraction(effective_date, future_observation);
@@ -1362,7 +1352,7 @@ TEST_CASE("Binary snowball finite difference prices active and knocked-out state
                               kiyosi::FiniteDifferenceScheme::implicit_euler,
                               kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
         CAPTURE(scheme);
-        const kiyosi::FiniteDifferenceAutocallableEngine engine{{80, 512, scheme, 500.0}};
+        const auto engine = kiyosi::make_finite_difference_autocallable_engine({80, 512, scheme, 500.0}).value();
         const auto untouched = engine.price(note(kiyosi::AutocallableBarrierState::none), context);
         const auto up_touched = engine.price(note(kiyosi::AutocallableBarrierState::knocked_out), context);
 
@@ -1387,8 +1377,8 @@ TEST_CASE("Autocallable engines enumerate dates only for daily monitoring")
     CAPTURE(monte_carlo);
     const auto price = [&](const auto& note, const auto& market) {
         if (monte_carlo)
-            return kiyosi::MonteCarloAutocallableEngine{{32, 7}}.price(note, market);
-        return kiyosi::FiniteDifferenceAutocallableEngine{{40, 40}}.price(note, market);
+            return kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value().price(note, market);
+        return kiyosi::make_finite_difference_autocallable_engine({40, 40}).value().price(note, market);
     };
     const auto context = [&](kiyosi::TradingCalendar calendar) {
         // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext is returned by value.
@@ -1451,8 +1441,7 @@ TEST_CASE("Finite-difference binary snowball engine rejects unstable explicit gr
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const std::vector<double> coupons{0.02, 0.04, 0.06, 0.08};
     const auto binary = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.08, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observation_dates, knock_outs, coupons)});
-    CHECK_FALSE(kiyosi::FiniteDifferenceAutocallableEngine{{40, 1, kiyosi::FiniteDifferenceScheme::explicit_euler}}
-                    .price(binary, context));
+    CHECK_FALSE(kiyosi::make_finite_difference_autocallable_engine({40, 1, kiyosi::FiniteDifferenceScheme::explicit_euler}).value().price(binary, context));
 }
 
 TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
@@ -1465,8 +1454,7 @@ TEST_CASE("Finite-difference phoenix engine rejects domains below the barrier")
         *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2), 100.0, effective_date);
     const std::vector<double> knock_outs{110.0, 108.0, 106.0, 104.0};
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.02, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = *kiyosi::make_autocallable_observations(observation_dates, knock_outs, std::nullopt, std::vector<double>{90.0, 90.0, 90.0, 90.0})});
-    CHECK_FALSE(kiyosi::FiniteDifferenceAutocallableEngine{{40, 512, kiyosi::FiniteDifferenceScheme::crank_nicolson, 110.0}}
-                    .price(phoenix, context));
+    CHECK_FALSE(kiyosi::make_finite_difference_autocallable_engine({40, 512, kiyosi::FiniteDifferenceScheme::crank_nicolson, 110.0}).value().price(phoenix, context));
 }
 
 } // namespace

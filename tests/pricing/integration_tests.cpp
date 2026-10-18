@@ -80,8 +80,8 @@ TEST_CASE("Trading Monte Carlo rejects invalid simulation paths")
         const auto context = *kiyosi::make_pricing_context(
             *kiyosi::make_bsm_parameters(rate, 0.02, volatility), 100.0, start);
         for (const auto& price : {
-                 kiyosi::MonteCarloAccumulatorEngine{2, 1}.price(accumulator, context),
-                 kiyosi::MonteCarloAutocallableEngine{2, 1}.price(note, context)}) {
+                 kiyosi::make_monte_carlo_accumulator_engine({2, 1}).value().price(accumulator, context),
+                 kiyosi::make_monte_carlo_autocallable_engine({2, 1}).value().price(note, context)}) {
             REQUIRE_FALSE(price);
             CHECK(price.error().category == kiyosi::ErrorCategory::invalid_result);
         }
@@ -184,7 +184,7 @@ TEST_CASE("Deferred CPU instruments expose validated pricing paths")
 
     auto note = kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = valuation, .expiry_date = expiry_date, .observations = {{expiry_date, 110.0, 0.1}}});
     REQUIRE(note);
-    const kiyosi::MonteCarloAutocallableEngine engine{{128, 7}};
+    const auto engine = kiyosi::make_monte_carlo_autocallable_engine({128, 7}).value();
     auto note_result = engine.price(*note, *context);
     REQUIRE(note_result.has_value());
     CHECK(*note_result > 0.0);
@@ -200,7 +200,7 @@ TEST_CASE("Numerical analytics expose shared Greeks")
     auto option = kiyosi::make_european_option(
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     REQUIRE(option.has_value());
-    auto analytics = kiyosi::CoxRossRubinsteinVanillaEngine{64}.price_with_greeks(*option, *context, true);
+    auto analytics = kiyosi::make_cox_ross_rubinstein_vanilla_engine({64}).value().price_with_greeks(*option, *context, true);
     REQUIRE(analytics.has_value());
     CHECK(analytics->has(kiyosi::Greek::speed));
     CHECK(analytics->has(kiyosi::Greek::rho));

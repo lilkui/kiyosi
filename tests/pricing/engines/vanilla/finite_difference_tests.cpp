@@ -22,12 +22,12 @@ TEST_CASE("Vanilla finite-difference speed reuses fixed-grid gamma with custom s
     for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler,
                               FiniteDifferenceScheme::crank_nicolson}) {
         for (const auto upper : {std::optional<double>{}, std::optional{410.0}}) {
-            const FiniteDifferenceVanillaEngine engine{{80, 500, scheme, upper}};
+            const auto engine = make_finite_difference_vanilla_engine({80, 500, scheme, upper}).value();
             for (const auto type : {OptionType::call, OptionType::put}) {
                 const auto check = [&](const auto& option) {
                     auto fixed = engine.settings();
                     fixed.asset_upper_boundary = upper.value_or(detail::default_finite_difference_upper_boundary(option, context));
-                    const FiniteDifferenceVanillaEngine shifted_engine{fixed};
+                    const auto shifted_engine = make_finite_difference_vanilla_engine(fixed).value();
                     for (const double shift : {NumericalShiftSettings{}.spot_shift, 0.25}) {
                         CAPTURE(scheme, upper, type, shift);
                         const double h = detail::symmetric_shift(context.spot_price(), shift);
@@ -58,7 +58,7 @@ TEST_CASE("Vanilla finite-difference speed preserves unavailable and clipped ste
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    const FiniteDifferenceVanillaEngine engine{{.asset_upper_boundary = 100.5}};
+    const auto engine = make_finite_difference_vanilla_engine({.asset_upper_boundary = 100.5}).value();
     const auto check = [&](const auto& option) {
         for (const double shift : {1e-300, 100.0}) {
             const auto unavailable = engine.price_with_greeks(option, context, {Greek::speed}, {.spot_shift = shift});
@@ -88,13 +88,13 @@ TEST_CASE("Finite-difference European engines track analytic prices")
     const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto analytic = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const kiyosi::FiniteDifferenceSettings settings{200, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson};
-    const auto european = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(call, context);
+    const auto european = kiyosi::make_finite_difference_vanilla_engine(settings).value().price(call, context);
     REQUIRE(european.has_value());
     CHECK_THAT(*european,
                WithinAbs(analytic, 0.05));
     for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
                               kiyosi::FiniteDifferenceScheme::implicit_euler}) {
-        const auto result = kiyosi::FiniteDifferenceVanillaEngine{{200, 2000, scheme}}.price(call, context);
+        const auto result = kiyosi::make_finite_difference_vanilla_engine({200, 2000, scheme}).value().price(call, context);
         REQUIRE(result.has_value());
         CHECK_THAT(*result,
                    WithinAbs(analytic, 0.15));
@@ -111,7 +111,7 @@ TEST_CASE("Finite-difference prices respect payoff bounds just before expiry", "
     for (const auto scheme : {kiyosi::FiniteDifferenceScheme::explicit_euler,
                               kiyosi::FiniteDifferenceScheme::implicit_euler,
                               kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
-        const kiyosi::FiniteDifferenceVanillaEngine engine{{200, 200, scheme}};
+        const auto engine = kiyosi::make_finite_difference_vanilla_engine({200, 200, scheme}).value();
         for (const auto type : {kiyosi::OptionType::call, kiyosi::OptionType::put}) {
             CAPTURE(scheme, type);
             const auto european = engine.price(*kiyosi::make_european_option(type, 100.0, start, end), context);
@@ -134,7 +134,7 @@ TEST_CASE("Finite-difference prices reject an underflowed asset spacing", "[audi
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.05, 0.02, 0.2), tiny, start);
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::call, tiny, start, end);
     for (const auto upper : {std::optional<double>{}, std::optional{4.0 * tiny}}) {
-        const kiyosi::FiniteDifferenceVanillaEngine engine{{.asset_upper_boundary = upper}};
+        const auto engine = kiyosi::make_finite_difference_vanilla_engine({.asset_upper_boundary = upper}).value();
         const auto result = engine.price(option, context);
         REQUIRE_FALSE(result);
         CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
@@ -153,13 +153,13 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
         kiyosi::OptionType::call, 100.0, valuation, expiry_date);
     const auto analytic = *kiyosi::AnalyticVanillaEngine{}.price(call, context);
     const kiyosi::FiniteDifferenceSettings settings{200, 400, kiyosi::FiniteDifferenceScheme::crank_nicolson};
-    const auto american = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(american_call, context);
+    const auto american = kiyosi::make_finite_difference_vanilla_engine(settings).value().price(american_call, context);
     REQUIRE(american.has_value());
     CHECK_THAT(*american,
                WithinAbs(analytic, 0.05));
     const auto put = *kiyosi::make_american_option(kiyosi::OptionType::put, 100.0, valuation, expiry_date);
-    const auto finite_put = kiyosi::FiniteDifferenceVanillaEngine{settings}.price(put, context);
-    const auto tree_put = kiyosi::CoxRossRubinsteinVanillaEngine{kiyosi::BinomialSettings{400}}.price(put, context);
+    const auto finite_put = kiyosi::make_finite_difference_vanilla_engine(settings).value().price(put, context);
+    const auto tree_put = kiyosi::make_cox_ross_rubinstein_vanilla_engine(kiyosi::BinomialSettings{400}).value().price(put, context);
     REQUIRE(finite_put.has_value());
     REQUIRE(tree_put.has_value());
     CHECK_THAT(*finite_put,
@@ -182,14 +182,14 @@ TEST_CASE("Finite-difference boundaries preserve long-expiry volatility tails")
                 CAPTURE(upper.has_value());
                 // A narrow domain needs finer time steps to damp the terminal strike kink.
                 const int time_steps = upper ? 2000 : steps;
-                const auto actual = kiyosi::FiniteDifferenceVanillaEngine{{steps, time_steps, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper}}.price(option, context);
+                const auto actual = kiyosi::make_finite_difference_vanilla_engine({steps, time_steps, kiyosi::FiniteDifferenceScheme::crank_nicolson, upper}).value().price(option, context);
                 REQUIRE(actual);
                 CHECK_THAT(*actual, Catch::Matchers::WithinAbs(*expected, 0.01));
             }
         }
         const auto cash = *kiyosi::make_cash_or_nothing_option(type, 100.0, 10.0, start, end);
         const auto asset = *kiyosi::make_asset_or_nothing_option(type, 100.0, start, end);
-        const kiyosi::FiniteDifferenceDigitalEngine digital{800, 1000};
+        const auto digital = kiyosi::make_finite_difference_digital_engine({800, 1000}).value();
         const auto cash_price = digital.price(cash, context);
         const auto asset_price = digital.price(asset, context);
         REQUIRE(cash_price);
@@ -203,7 +203,7 @@ TEST_CASE("American finite-difference boundaries preserve continuation value", "
 {
     const auto valuation = day(2025, 1, 1);
     const auto expiry = day(2026, 1, 1);
-    const kiyosi::FiniteDifferenceVanillaEngine engine{{800, 800, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}};
+    const auto engine = kiyosi::make_finite_difference_vanilla_engine({800, 800, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
     for (const bool call : {true, false}) {
         CAPTURE(call);
         const auto type = call ? kiyosi::OptionType::call : kiyosi::OptionType::put;
@@ -230,7 +230,7 @@ TEST_CASE("American finite-difference domains preserve long-expiry exercise valu
     // QuantLib 1.43 FdBlackScholesVanillaEngine, 3200 time and asset steps, 2 damping steps.
     constexpr double reference = 69.73204196706111;
     const auto coarse = kiyosi::FiniteDifferenceVanillaEngine{}.price(option, context);
-    const kiyosi::FiniteDifferenceVanillaEngine fine{{800, 1600}};
+    const auto fine = kiyosi::make_finite_difference_vanilla_engine({800, 1600}).value();
     const auto refined = fine.price(option, context);
     REQUIRE(coarse);
     REQUIRE(refined);
@@ -248,7 +248,7 @@ TEST_CASE("Implicit Euler vanilla prices preserve large finite currency scales",
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
-    const FiniteDifferenceVanillaEngine engine{{200, 200, FiniteDifferenceScheme::implicit_euler}};
+    const auto engine = make_finite_difference_vanilla_engine({200, 200, FiniteDifferenceScheme::implicit_euler}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto base = engine.price(*make_european_option(type, 100.0, start, end),
                                        *make_pricing_context(parameters, 100.0, start));
@@ -264,21 +264,14 @@ TEST_CASE("Implicit Euler vanilla prices preserve large finite currency scales",
 
 TEST_CASE("Finite-difference engines reject invalid grids")
 {
-    const auto valuation = day(2025, 1, 1);
-    const auto expiry_date = valuation + std::chrono::days{365};
-    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.0, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto call = *kiyosi::make_european_option(kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const kiyosi::FiniteDifferenceVanillaEngine invalid_engine{
-        {0, 10, kiyosi::FiniteDifferenceScheme::implicit_euler}};
-    CHECK(invalid_engine.settings().asset_step_count == 0);
-    const auto invalid_grid = invalid_engine.price(call, context);
+    const auto invalid_grid = kiyosi::make_finite_difference_vanilla_engine(
+        {0, 10, kiyosi::FiniteDifferenceScheme::implicit_euler});
     REQUIRE_FALSE(invalid_grid);
     CHECK(invalid_grid.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    CHECK_FALSE(kiyosi::FiniteDifferenceVanillaEngine{{200, 200,
-                                                       kiyosi::FiniteDifferenceScheme::crank_nicolson, -1.0}}
-                    .price(call, context)
-                    .has_value());
+    const auto invalid_boundary = kiyosi::make_finite_difference_vanilla_engine(
+        {200, 200, kiyosi::FiniteDifferenceScheme::crank_nicolson, -1.0});
+    REQUIRE_FALSE(invalid_boundary);
+    CHECK(invalid_boundary.error().category == kiyosi::ErrorCategory::invalid_parameter);
     CHECK_FALSE(kiyosi::FiniteDifferenceSettings{}.asset_upper_boundary.has_value());
 }
 
@@ -309,8 +302,8 @@ TEST_CASE("Finite-difference low-volatility prices remain bounded")
                                       kiyosi::FiniteDifferenceScheme::implicit_euler,
                                       kiyosi::FiniteDifferenceScheme::crank_nicolson}) {
                 CAPTURE(call, volatility, scheme);
-                const auto coarse = kiyosi::FiniteDifferenceVanillaEngine{{200, 2000, scheme}}.price(option, context);
-                const auto fine = kiyosi::FiniteDifferenceVanillaEngine{{800, 2000, scheme}}.price(option, context);
+                const auto coarse = kiyosi::make_finite_difference_vanilla_engine({200, 2000, scheme}).value().price(option, context);
+                const auto fine = kiyosi::make_finite_difference_vanilla_engine({800, 2000, scheme}).value().price(option, context);
                 REQUIRE(coarse);
                 REQUIRE(fine);
                 CHECK(*coarse >= 0.0);
@@ -327,7 +320,7 @@ TEST_CASE("Explicit finite-difference stability includes drift")
     const auto start = day(2025, 1, 1);
     const auto option = *kiyosi::make_european_option(kiyosi::OptionType::put, 100.0, start, day(2026, 1, 1));
     const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(2.0, 0.0, 0.001), 95.0, start);
-    const auto result = kiyosi::FiniteDifferenceVanillaEngine{{200, 200, kiyosi::FiniteDifferenceScheme::explicit_euler}}.price(option, context);
+    const auto result = kiyosi::make_finite_difference_vanilla_engine({200, 200, kiyosi::FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
     REQUIRE_FALSE(result);
     CHECK(result.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }

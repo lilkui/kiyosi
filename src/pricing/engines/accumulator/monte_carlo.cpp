@@ -67,13 +67,10 @@ Result<std::array<double, count>> path_payoffs(
     return payoffs;
 }
 
-Result<void> validate_pricing(const Accumulator& option, const PricingContext& context,
-                              const TradingDayMonteCarloSettings& settings)
+Result<void> validate_pricing(const Accumulator& option, const PricingContext& context)
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    const auto settings_valid = validate_monte_carlo_settings(settings);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
     return validate_trading_expiry(context.calendar(), option.expiry_date());
 }
 
@@ -142,7 +139,7 @@ Result<double> price_accumulator(
     const Accumulator& option, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
 {
-    const auto valid = validate_pricing(option, context, settings);
+    const auto valid = validate_pricing(option, context);
     if (!valid) return std::unexpected(valid.error());
 
     const auto initial = accumulator_initial_state(option, context);
@@ -208,7 +205,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
             const auto price = [&](const PricingContext& shifted) {
                 return price_accumulator(option, shifted, seeded.settings(), workspace);
             };
-            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted, seeded.settings()); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
+            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
         });
 }
 

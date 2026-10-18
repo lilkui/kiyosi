@@ -21,25 +21,23 @@ inline Result<double> binomial_time_step(const PricingContext& context, Date eff
 {
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), effective_date, expiry_date);
     if (!valid) return std::unexpected(valid.error());
-    if (settings.step_count <= 0 || settings.step_count > 1'000'000)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "binomial step count must be between 1 and 1000000"});
     return actual_365_fixed_year_fraction(context.valuation_time(), expiry_date) / static_cast<double>(settings.step_count);
 }
 } // namespace detail
+
+class KIYOSI_EXPORT CoxRossRubinsteinVanillaEngine;
+[[nodiscard]] Result<CoxRossRubinsteinVanillaEngine> make_cox_ross_rubinstein_vanilla_engine(BinomialSettings settings);
 
 /// Cox-Ross-Rubinstein binomial-tree engine for vanilla European and American options.
 /// Value is tree-derived; delta and gamma are numerical tree estimates; higher Greeks use numerical differences.
 /// Before expiry, volatility must be at least abs(r - q) * sqrt(T / step_count).
 class KIYOSI_EXPORT CoxRossRubinsteinVanillaEngine {
 public:
-    /// Creates an engine with aggregate binomial settings.
-    explicit CoxRossRubinsteinVanillaEngine(BinomialSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with an explicit tree step count.
-    explicit CoxRossRubinsteinVanillaEngine(int step_count) : settings_{step_count} {}
+    /// Creates an engine with valid default settings.
+    CoxRossRubinsteinVanillaEngine() = default;
 
     /// Prices a European or American vanilla option.
-    /// @return Price, or a contract, context, or settings error.
+    /// @return Price, or a contract, context, or numerical error.
     [[nodiscard]] Result<double> price(const EuropeanOption& option, const PricingContext& context) const;
     [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
@@ -53,8 +51,20 @@ public:
     BinomialSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit CoxRossRubinsteinVanillaEngine(BinomialSettings settings) : settings_(settings) {}
+    friend Result<CoxRossRubinsteinVanillaEngine> make_cox_ross_rubinstein_vanilla_engine(BinomialSettings);
+
     BinomialSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<CoxRossRubinsteinVanillaEngine> make_cox_ross_rubinstein_vanilla_engine(BinomialSettings settings)
+{
+    const auto valid = validate_binomial_settings(settings);
+    if (!valid) return std::unexpected(valid.error());
+    return CoxRossRubinsteinVanillaEngine{settings};
+}
 
 namespace detail {
 template <typename Option>

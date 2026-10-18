@@ -227,9 +227,12 @@ class SharedSampleTests(unittest.TestCase):
                 ):
                     engine_type(thread_count=threads)
 
-    def test_thread_count_domain_validation_is_deferred_until_pricing(self):
-        context, cases = self.parallel_cases()
-        for option, engine_type in cases:
+    def test_thread_count_domain_validation_at_construction(self):
+        for engine_type in (
+            pricing.MonteCarloVanillaEngine,
+            pricing.MonteCarloAccumulatorEngine,
+            pricing.MonteCarloAutocallableEngine,
+        ):
             for backend, threads in (
                 ("cpu", -1),
                 ("cuda", -1),
@@ -237,25 +240,18 @@ class SharedSampleTests(unittest.TestCase):
                 ("cuda", 4),
             ):
                 with self.subTest(
-                    option=type(option).__name__, backend=backend, threads=threads
+                    engine=engine_type.__name__, backend=backend, threads=threads
                 ):
-                    engine = engine_type(
-                        path_count=513, seed=42, backend=backend, thread_count=threads
-                    )
-                    for operation in (
-                        lambda engine=engine, option=option: engine.price(
-                            option, context
-                        ),
-                        lambda engine=engine, option=option: engine.price_with_greeks(
-                            option, context, GREEKS
-                        ),
-                    ):
-                        with self.assertRaises(kiyosi.KiyosiError) as error:
-                            operation()
-                        self.assertEqual(
-                            error.exception.category,
-                            kiyosi.ErrorCategory.INVALID_PARAMETER,
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine_type(
+                            path_count=513,
+                            seed=42,
+                            backend=backend,
+                            thread_count=threads,
                         )
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                    )
 
     def test_time_mixed_greeks_equal_seeded_scalar_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)

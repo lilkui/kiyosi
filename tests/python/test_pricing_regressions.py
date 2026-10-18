@@ -1435,15 +1435,14 @@ class PricingRegressionTests(unittest.TestCase):
                 engine.price(american, deep), max(engine.price(european, deep), 1900)
             )
         for backend in ("cpu", "cuda"):
-            for paths, steps in ((0, 50), (16, 2), (16, 10001)):
-                engine = pricing.MonteCarloVanillaEngine(
-                    path_count=paths, step_count=steps, seed=42, backend=backend
-                )
-                with self.assertRaises(kiyosi.KiyosiError) as error:
-                    engine.price(american, context)
-                self.assertEqual(
-                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-                )
+            engine = pricing.MonteCarloVanillaEngine(
+                path_count=16, step_count=2, seed=42, backend=backend
+            )
+            with self.assertRaises(kiyosi.KiyosiError) as error:
+                engine.price(american, context)
+            self.assertEqual(
+                error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+            )
             expired = PricingContext(
                 model_parameters=context.model_parameters,
                 spot_price=110,
@@ -1557,15 +1556,6 @@ class PricingRegressionTests(unittest.TestCase):
                         error.exception.category,
                         kiyosi.ErrorCategory.INVALID_TIME_RANGE,
                     )
-            for engine in (
-                pricing.MonteCarloAccumulatorEngine(path_count=0),
-                pricing.FiniteDifferenceAccumulatorEngine(time_step_count=0),
-            ):
-                with self.assertRaises(kiyosi.KiyosiError) as error:
-                    engine.price(option, context)
-                self.assertEqual(
-                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-                )
 
     def test_structured_finite_difference_spot_greeks_reuse_native_layers(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

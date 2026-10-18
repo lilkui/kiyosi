@@ -25,9 +25,6 @@ Result<PricingResult> price_finite_difference(
     constexpr bool american = std::same_as<Option, AmericanOption>;
     const auto valid_expiry = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid_expiry) return std::unexpected(valid_expiry.error());
-    auto settings_valid = detail::validate_finite_difference_settings(
-        settings, general_fd_max_asset_steps, general_fd_max_time_steps);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();

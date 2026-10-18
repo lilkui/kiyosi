@@ -24,9 +24,6 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     constexpr bool asset = std::same_as<Option, AssetOrNothingOption>;
     const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
-    auto settings_valid = detail::validate_finite_difference_settings(
-        settings, general_fd_max_asset_steps, general_fd_max_time_steps);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
 
     const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price();

@@ -170,8 +170,6 @@ Result<double> price_european(const EuropeanOption& option, const PricingContext
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
-    const auto valid = detail::validate_monte_carlo_settings(settings);
-    if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
         return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
     auto simulation = settings;
@@ -302,8 +300,6 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
 {
     const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!time) return std::unexpected(time.error());
-    const auto valid = detail::validate_monte_carlo_settings(settings);
-    if (!valid) return std::unexpected(valid.error());
     if (*time == 0.0)
         return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
     if (settings.step_count < 3)

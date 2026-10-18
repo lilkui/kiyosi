@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include <kiyosi/pricing/settings/implied.hpp>
 
 #include <kiyosi/instruments/autocallable/phoenix.hpp>
@@ -11,20 +13,19 @@
 
 namespace kiyosi {
 
+class FiniteDifferenceAutocallableEngine;
+[[nodiscard]] Result<FiniteDifferenceAutocallableEngine> make_finite_difference_autocallable_engine(FiniteDifferenceSettings settings);
+
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
 /// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 class FiniteDifferenceAutocallableEngine {
 public:
-    /// Creates an engine with aggregate finite-difference settings.
-    explicit FiniteDifferenceAutocallableEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit grid dimensions and scheme.
-    FiniteDifferenceAutocallableEngine(int asset_step_count, int time_step_count,
-                                       FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_step_count, time_step_count, scheme} {}
+    /// Creates an engine with valid default settings.
+    FiniteDifferenceAutocallableEngine() = default;
 
     /// Prices an autocallable note by finite differences.
-    /// @return Price, or a contract, context, or settings error.
+    /// @return Price, or a contract, context, or numerical error.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
@@ -39,8 +40,24 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit FiniteDifferenceAutocallableEngine(FiniteDifferenceSettings settings) : settings_(settings) {}
+    friend Result<FiniteDifferenceAutocallableEngine> make_finite_difference_autocallable_engine(FiniteDifferenceSettings);
+    friend Result<FiniteDifferenceAutocallableEngine> make_engine(FiniteDifferenceSettings settings, std::type_identity<FiniteDifferenceAutocallableEngine>)
+    {
+        return make_finite_difference_autocallable_engine(settings);
+    }
+
     FiniteDifferenceSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<FiniteDifferenceAutocallableEngine> make_finite_difference_autocallable_engine(FiniteDifferenceSettings settings)
+{
+    const auto valid = detail::validate_finite_difference_settings(settings, detail::trading_fd_max_steps, detail::trading_fd_max_steps);
+    if (!valid) return std::unexpected(valid.error());
+    return FiniteDifferenceAutocallableEngine{settings};
+}
 
 namespace detail {
 template <AutocallableProduct Note>

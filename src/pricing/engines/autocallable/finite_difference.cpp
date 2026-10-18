@@ -165,9 +165,6 @@ Result<PricingResult> price_autocallable(
 {
     const auto valid = request.contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
-    auto settings_valid = detail::validate_finite_difference_settings(
-        settings, trading_fd_max_steps, trading_fd_max_steps);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
 
     auto& workspace = request.workspace;
     const auto program = autocallable_program(note);

@@ -10,8 +10,8 @@ TEST_CASE("Autocallable engines share domain validation precedence", "[autocalla
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2025, 1, 4);
-    const FiniteDifferenceAutocallableEngine finite_difference{32, 2};
-    const MonteCarloAutocallableEngine monte_carlo{2, 7};
+    const auto finite_difference = make_finite_difference_autocallable_engine({32, 2}).value();
+    const auto monte_carlo = make_monte_carlo_autocallable_engine({2, 7}).value();
     for (const bool known_history : {false, true}) {
         const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.05,
                                                         .barrier_state = known_history ? std::optional{AutocallableBarrierState::none} : std::nullopt,

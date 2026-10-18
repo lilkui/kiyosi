@@ -41,7 +41,7 @@ TEST_CASE("Scheduled finite-difference Greeks share calendar validation", "[fd-s
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, calendar);
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = is_up_barrier(kind) ? 120.0 : 80.0, .barrier_type = kind, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched});
-    const FiniteDifferenceBarrierEngine engine{80, 1, scheme};
+    const auto engine = make_finite_difference_barrier_engine({80, 1, scheme}).value();
     const GreeksRequest request{Greek::vega, Greek::rho, Greek::vanna, Greek::zomma};
     const auto price = engine.price(option, context);
     REQUIRE(price);
@@ -60,7 +60,7 @@ TEST_CASE("Scheduled finite-difference Greeks share calendar validation", "[fd-s
         // NOLINTNEXTLINE(clang-analyzer-core.StackAddressEscape): PricingContext owns its calendar and is returned by value.
         return *make_pricing_context(*make_bsm_parameters(rate, 0.01, volatility), context.spot_price(), context.valuation_time(), calendar);
     };
-    const FiniteDifferenceBarrierEngine fixed{{80, 1, scheme, 4.0 * context.spot_price()}};
+    const auto fixed = make_finite_difference_barrier_engine({80, 1, scheme, 4.0 * context.spot_price()}).value();
     const auto high = fixed.price_with_greeks(option, shifted(0.2 + vol_shift, 0.04), {Greek::delta, Greek::gamma});
     const auto low = fixed.price_with_greeks(option, shifted(0.2 - vol_shift, 0.04), {Greek::delta, Greek::gamma});
     REQUIRE(high);
@@ -107,7 +107,7 @@ TEST_CASE("Scheduled finite-difference Greeks retain shifted validation", "[fd-s
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {start, end}, .touch_state = BarrierTouchState::untouched});
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(end) - std::chrono::hours{12}, all_days_calendar());
-    const FiniteDifferenceBarrierEngine engine{80, 1, FiniteDifferenceScheme::explicit_euler};
+    const auto engine = make_finite_difference_barrier_engine({80, 1, FiniteDifferenceScheme::explicit_euler}).value();
     const auto price = engine.price(option, context);
     REQUIRE(price);
     const auto rejected = engine.price_with_greeks(option, context, {Greek::vega}, {.volatility_shift = 0.19});
@@ -135,7 +135,7 @@ TEST_CASE("Continuous up barriers preserve put boundaries and rebate timing", "[
              std::tuple{FiniteDifferenceScheme::explicit_euler, RebateTiming::at_expiry, 5.966461797161821, -0.46434696546546267, 0.011874135281227763, -0.0007244912412884592}}) {
         CAPTURE(scheme, timing);
         const auto option = *make_barrier_option({.option_type = OptionType::put, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0, .rebate_timing = timing});
-        const FiniteDifferenceBarrierEngine engine{{80, 1000, scheme, 400.0}};
+        const auto engine = make_finite_difference_barrier_engine({80, 1000, scheme, 400.0}).value();
         const auto result = engine.price_with_greeks(option, context, request);
         REQUIRE(result);
         for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed})
@@ -160,7 +160,7 @@ TEST_CASE("Continuous barrier fixed edges retain off-node prices and Greeks", "[
              std::tuple{FiniteDifferenceScheme::implicit_euler, 1.374383050055775, 0.057379104672503844, 6.7888065698046285e-6, -9.315599817910664e-5},
              std::tuple{FiniteDifferenceScheme::explicit_euler, 1.3747121867706569, 0.057338758234461294, 8.050051664994229e-6, -9.301081278631506e-5}}) {
         CAPTURE(scheme);
-        const FiniteDifferenceBarrierEngine engine{{200, scheme == FiniteDifferenceScheme::explicit_euler ? 2000 : 200, scheme, 400.0}};
+        const auto engine = make_finite_difference_barrier_engine({200, scheme == FiniteDifferenceScheme::explicit_euler ? 2000 : 200, scheme, 400.0}).value();
         const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma, Greek::speed});
         REQUIRE(result);
         for (const auto greek : {Greek::delta, Greek::gamma, Greek::speed})
@@ -180,9 +180,9 @@ TEST_CASE("Scheduled finite-difference knock-in layers preserve rebate parity", 
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, all_days_calendar());
     for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
         const FiniteDifferenceSettings settings{80, 400, scheme, 400.0};
-        const FiniteDifferenceBarrierEngine engine{settings};
+        const auto engine = make_finite_difference_barrier_engine(settings).value();
         for (const auto type : {OptionType::call, OptionType::put}) {
-            const auto vanilla = FiniteDifferenceVanillaEngine{settings}.price_with_greeks(
+            const auto vanilla = make_finite_difference_vanilla_engine(settings).value().price_with_greeks(
                 *make_european_option(type, 100.0, start, end), context, {Greek::delta, Greek::gamma});
             REQUIRE(vanilla);
             for (const bool up : {false, true})
@@ -220,7 +220,7 @@ TEST_CASE("Finite-difference barrier spot Greeks reuse one solve", "[fd-performa
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, calendar);
     const auto option = *make_barrier_option(
         {.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 80.0, .barrier_type = BarrierType::down_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}});
-    const FiniteDifferenceBarrierEngine engine{800, 400};
+    const auto engine = make_finite_difference_barrier_engine({800, 400}).value();
     const auto price = engine.price(option, context);
     REQUIRE(price);
     const int price_queries = std::exchange(*queries, 0);
@@ -245,7 +245,7 @@ TEST_CASE("Finite-difference barrier native Greeks respect monitored boundaries"
     using namespace kiyosi;
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
     const auto parameters = *make_bsm_parameters(0.04, 0.01, 0.2);
-    const FiniteDifferenceBarrierEngine engine{800, 400};
+    const auto engine = make_finite_difference_barrier_engine({800, 400}).value();
     for (const auto kind : {BarrierType::down_and_in, BarrierType::down_and_out, BarrierType::up_and_in, BarrierType::up_and_out}) {
         const bool up = kind == BarrierType::up_and_in || kind == BarrierType::up_and_out;
         const double barrier = up ? 120.0 : 80.0;
@@ -278,7 +278,7 @@ TEST_CASE("Finite-difference barrier rebates preserve payment timing and discoun
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
     const auto scheme = GENERATE(FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson);
     const bool explicit_scheme = scheme == FiniteDifferenceScheme::explicit_euler;
-    const FiniteDifferenceBarrierEngine engine{{.asset_step_count = explicit_scheme ? 80 : 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 400.0}};
+    const auto engine = make_finite_difference_barrier_engine({.asset_step_count = explicit_scheme ? 80 : 800, .time_step_count = 400, .scheme = scheme, .asset_upper_boundary = 400.0}).value();
     for (const double rate : {-0.04, 0.04}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.01, 0.2), 100.0, start);
         for (const auto kind : {BarrierType::down_and_out, BarrierType::up_and_out}) {
@@ -313,7 +313,7 @@ TEST_CASE("Finite-difference knock-in prices preserve small positive values", "[
         REQUIRE(expected);
         for (const int steps : {200, 800}) {
             CAPTURE(type, steps);
-            const FiniteDifferenceBarrierEngine engine{{steps, 200}};
+            const auto engine = make_finite_difference_barrier_engine({steps, 200}).value();
             const auto price = engine.price(option, context);
             REQUIRE(price);
             CHECK(*price > 0.0);
@@ -322,7 +322,7 @@ TEST_CASE("Finite-difference knock-in prices preserve small positive values", "[
             REQUIRE(joint);
             CHECK(joint->price() == *price);
         }
-        const auto coarse = FiniteDifferenceBarrierEngine{{3, 200}}.price(option, context);
+        const auto coarse = make_finite_difference_barrier_engine({3, 200}).value().price(option, context);
         REQUIRE(coarse);
         CHECK(*coarse >= 0.0);
     }
@@ -341,7 +341,7 @@ TEST_CASE("Finite-difference barriers preserve long-expiry volatility tails")
         REQUIRE(expected);
         for (const auto settings : {kiyosi::FiniteDifferenceSettings{}, kiyosi::FiniteDifferenceSettings{800, 1000}}) {
             CAPTURE(mode, settings.asset_step_count, settings.time_step_count);
-            const auto price = kiyosi::FiniteDifferenceBarrierEngine{settings}.price(option, context);
+            const auto price = kiyosi::make_finite_difference_barrier_engine(settings).value().price(option, context);
             REQUIRE(price);
             CHECK_THAT(*price, Catch::Matchers::WithinAbs(*expected, 0.02));
         }
@@ -359,7 +359,7 @@ TEST_CASE("Finite-difference automatic domains include distant barriers")
                                                       .expiry_date = end,
                                                       .barrier_level = 500.0,
                                                       .barrier_type = kiyosi::BarrierType::up_and_out});
-    const kiyosi::FiniteDifferenceBarrierEngine finite{800, 1000};
+    const auto finite = kiyosi::make_finite_difference_barrier_engine({800, 1000}).value();
     const auto price = finite.price(option, context);
     REQUIRE(price);
     CHECK_THAT(*price, Catch::Matchers::WithinAbs(*kiyosi::AnalyticBarrierEngine{}.price(option, context), 0.03));
@@ -369,7 +369,7 @@ TEST_CASE("Finite-difference automatic domains include distant barriers")
     const auto joint = finite.price_with_greeks(option, context, {kiyosi::Greek::gamma});
     REQUIRE(joint);
     CHECK(joint->price() == *price);
-    const auto clipped = kiyosi::FiniteDifferenceBarrierEngine{{800, 1000, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}}.price(option, context);
+    const auto clipped = kiyosi::make_finite_difference_barrier_engine({800, 1000, kiyosi::FiniteDifferenceScheme::crank_nicolson, 400.0}).value().price(option, context);
     REQUIRE_FALSE(clipped);
     CHECK(clipped.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
@@ -429,9 +429,9 @@ TEST_CASE("QuantLib continuous barrier portfolios validate prices and numerical 
         else {
             REQUIRE(fixture.engine == "FiniteDifferenceBarrierEngine");
             REQUIRE(inputs.at("scheme") == "crank_nicolson");
-            check(kiyosi::FiniteDifferenceBarrierEngine{
-                {static_cast<int>(number("asset_step_count")), static_cast<int>(number("time_step_count")),
-                 kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")}});
+            check(kiyosi::make_finite_difference_barrier_engine({static_cast<int>(number("asset_step_count")), static_cast<int>(number("time_step_count")),
+                                                                 kiyosi::FiniteDifferenceScheme::crank_nicolson, number("asset_upper_boundary")})
+                      .value());
         }
     }
     REQUIRE(generated.size() == 2);

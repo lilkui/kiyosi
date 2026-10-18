@@ -107,12 +107,12 @@ void kiyosi::benchmark_support::register_analytics_cases()
         base_context.valuation_time() + std::chrono::hours{12}, base_context.calendar());
     const auto accumulator = accumulator_scenario().first;
     const auto snowball = snowball_scenario().first;
-    const MonteCarloAutocallableEngine snowball_monte_carlo{20'000, 42};
+    const auto snowball_monte_carlo = make_monte_carlo_autocallable_engine({20'000, 42}).value();
     register_price("analytics/kiyosi/snowball/mc/price", snowball, snowball_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_unavailable_speed", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
     const FiniteDifferenceAccumulatorEngine accumulator_engine{};
-    const MonteCarloAccumulatorEngine accumulator_monte_carlo{20'000, 42};
+    const auto accumulator_monte_carlo = make_monte_carlo_accumulator_engine({20'000, 42}).value();
     register_price("analytics/kiyosi/accumulator/mc/price", accumulator, accumulator_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma_unavailable_speed", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
@@ -120,8 +120,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/accumulator/mc/delta_gamma_rho", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma, Greek::rho}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc/all", [=] { return accumulator_monte_carlo.price_with_greeks(accumulator, context, true); }, "price")->UseRealTime();
 #if KIYOSI_HAS_CUDA
-    const MonteCarloAccumulatorEngine cuda_accumulator{250'000, 42, MonteCarloBackend::cuda};
-    const MonteCarloAutocallableEngine cuda_snowball{250'000, 42, MonteCarloBackend::cuda};
+    const auto cuda_accumulator = make_monte_carlo_accumulator_engine({250'000, 42, MonteCarloBackend::cuda}).value();
+    const auto cuda_snowball = make_monte_carlo_autocallable_engine({250'000, 42, MonteCarloBackend::cuda}).value();
     register_price("analytics/kiyosi/accumulator/mc_cuda/price", accumulator, cuda_accumulator, context)->UseRealTime();
     register_calculation("analytics/kiyosi/accumulator/mc_cuda/delta_gamma", [=] { return cuda_accumulator.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     register_price("analytics/kiyosi/snowball/mc_cuda/price", snowball, cuda_snowball, context)->UseRealTime();
@@ -137,12 +137,12 @@ void kiyosi::benchmark_support::register_analytics_cases()
 #endif
     const auto daily_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), all_days_calendar());
     register_price("analytics/kiyosi/accumulator/fd/calendar_daily/price", accumulator,
-                   FiniteDifferenceAccumulatorEngine{{.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}}, daily_context);
+                   make_finite_difference_accumulator_engine({.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}).value(), daily_context);
     register_price("analytics/kiyosi/accumulator/fd/calendar_daily/split_grid/price", accumulator,
                    FiniteDifferenceAccumulatorEngine{}, daily_context);
     const auto weekday_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), weekdays_calendar());
     register_price("analytics/kiyosi/accumulator/fd/calendar_weekdays/price", accumulator,
-                   FiniteDifferenceAccumulatorEngine{{.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}}, weekday_context);
+                   make_finite_difference_accumulator_engine({.asset_step_count = 80, .time_step_count = 1, .asset_upper_boundary = 400.0}).value(), weekday_context);
     register_price("analytics/kiyosi/accumulator/fd/calendar_weekdays/split_grid/price", accumulator,
                    FiniteDifferenceAccumulatorEngine{}, weekday_context);
     const FiniteDifferenceAutocallableEngine snowball_engine{};
@@ -161,12 +161,12 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto dense_snowball = *make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = european.effective_date(), .expiry_date = dense_expiry, .observations = *kiyosi::make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 1'000.0), std::vector<double>(dense_dates.size(), 0.08))});
     const auto dense_context = *make_pricing_context(base_context.model_parameters(), 100.0, start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const auto dense_barrier_context = *make_pricing_context(base_context.model_parameters(), 100.25, dense_context.valuation_time(), weekdays_calendar());
-    const FiniteDifferenceBarrierEngine dense_barrier_engine{80, 1};
+    const auto dense_barrier_engine = make_finite_difference_barrier_engine({80, 1}).value();
     register_price("analytics/kiyosi/barrier/fd/scheduled_dense/price", dense_barrier, dense_barrier_engine, dense_barrier_context);
     register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/vega_rho", [=, dense_barrier = dense_barrier] { return dense_barrier_engine.price_with_greeks(dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}); }, "price");
     register_calculation("analytics/kiyosi/barrier/fd/scheduled_dense/scalar_stencils", [=, dense_barrier = dense_barrier] { return detail::price_with_greeks(dense_barrier_engine, dense_barrier, dense_barrier_context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price");
-    const MonteCarloAutocallableEngine dense_monte_carlo{1, 42};
-    const FiniteDifferenceAutocallableEngine dense_finite_difference{80, 1};
+    const auto dense_monte_carlo = make_monte_carlo_autocallable_engine({1, 42}).value();
+    const auto dense_finite_difference = make_finite_difference_autocallable_engine({80, 1}).value();
     register_price("analytics/kiyosi/snowball/mc/scheduled_dense/price", dense_snowball, dense_monte_carlo, dense_context);
     register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
@@ -183,7 +183,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto upper_barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out});
     register_price("analytics/kiyosi/barrier/fd/continuous_up_and_out/price", upper_barrier, barrier_engine, base_context);
     const FiniteDifferenceVanillaEngine vanilla_engine{};
-    const MonteCarloVanillaEngine monte_carlo_engine{100'000, 50, 42};
+    const auto monte_carlo_engine = make_monte_carlo_vanilla_engine({100'000, 50, 42}).value();
     const auto american_put = *make_american_option(OptionType::put, 100.0, european.effective_date(), european.expiry_date());
     register_price("analytics/kiyosi/american/mc/price", american_put, monte_carlo_engine, context)->UseRealTime();
     const double american_quote = *monte_carlo_engine.price(american_put, context);
@@ -193,7 +193,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/american/mc/unavailable_speed", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/american/mc/unavailable_vanna", [=] { return monte_carlo_engine.price_with_greeks(american_put, context, {Greek::vanna}, {.volatility_shift = 0.3}); }, "price")->UseRealTime();
 #if KIYOSI_HAS_CUDA
-    const MonteCarloVanillaEngine cuda_american{100'000, 50, 42, MonteCarloBackend::cuda};
+    const auto cuda_american = make_monte_carlo_vanilla_engine({100'000, 50, 42, MonteCarloBackend::cuda}).value();
     register_price("analytics/kiyosi/european/mc_cuda/price", european, cuda_american, context)->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc_cuda/unavailable_delta", [=] { return cuda_american.price_with_greeks(european, context, {Greek::delta}, {.spot_shift = 200.0}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc_cuda/unavailable_speed", [=] { return cuda_american.price_with_greeks(european, context, {Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
@@ -211,11 +211,11 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/european/mc/unavailable_vanna", [=] { return monte_carlo_engine.price_with_greeks(european, context, {Greek::vanna}, {.volatility_shift = 0.3}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/european/mc/all", [=] { return monte_carlo_engine.price_with_greeks(european, context, true); }, "price");
     register_price("analytics/kiyosi/european/fd/exact_node/fine_space/price", european,
-                   FiniteDifferenceVanillaEngine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}}, base_context);
+                   make_finite_difference_vanilla_engine({.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}).value(), base_context);
     const auto off_node_context = *make_pricing_context(base_context.model_parameters(), 100.25, base_context.valuation_time(), base_context.calendar());
-    const FiniteDifferenceVanillaEngine fine_space_engine{{.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}};
+    const auto fine_space_engine = make_finite_difference_vanilla_engine({.asset_step_count = 10'000, .time_step_count = 1, .asset_upper_boundary = 400.0}).value();
     register_calculation("analytics/kiyosi/european/fd/off_node/fine_space/speed", [=] { return fine_space_engine.price_with_greeks(european, off_node_context, {Greek::speed}); }, "price");
-    const CoxRossRubinsteinVanillaEngine binomial_engine{1'000};
+    const auto binomial_engine = make_cox_ross_rubinstein_vanilla_engine({1'000}).value();
     register_calculation("analytics/kiyosi/european/crr/speed", [=] { return binomial_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     register_calculation("analytics/kiyosi/european/fd/speed", [=] { return vanilla_engine.price_with_greeks(european, context, {Greek::speed}); }, "price");
     const auto digital = *make_cash_or_nothing_option(OptionType::call, 100.0, 10.0, european.effective_date(), european.expiry_date());
@@ -247,22 +247,22 @@ void kiyosi::benchmark_support::register_analytics_cases()
         {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = leap_start, .expiry_date = leap_end});
     const auto leap_context = *make_pricing_context(base_context.model_parameters(), 100.0, leap_start, all_days_calendar());
     register_price("analytics/kiyosi/accumulator/fd/leap_year/daily_grid/price", leap_accumulator,
-                   FiniteDifferenceAccumulatorEngine{{200, 366}}, leap_context);
+                   make_finite_difference_accumulator_engine({200, 366}).value(), leap_context);
     const auto fixed_accumulator = *make_accumulator(
         {.strike = 50.0, .knock_out_level = 200.0, .daily_quantity = 0.0, .acceleration_factor = 1.0, .accumulated_quantity = 3.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/fixed_quantity/price", fixed_accumulator, accumulator_engine, context);
     const auto zero_carry_context = *make_pricing_context(
         *make_bsm_parameters(0.0, 0.0, 0.2), context.spot_price(), context.valuation_time(), context.calendar());
     register_price("analytics/kiyosi/accumulator/fd/zero_carry/price", fixed_accumulator, accumulator_engine, zero_carry_context);
-    register_price("analytics/kiyosi/accumulator/mc/zero_carry/price", fixed_accumulator, MonteCarloAccumulatorEngine{20'000, 42}, zero_carry_context);
+    register_price("analytics/kiyosi/accumulator/mc/zero_carry/price", fixed_accumulator, make_monte_carlo_accumulator_engine({20'000, 42}).value(), zero_carry_context);
     const auto empty_accumulator = *make_accumulator(
         {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 0.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/zero_exposure/price", empty_accumulator, accumulator_engine, context);
-    register_price("analytics/kiyosi/accumulator/mc/zero_exposure/price", empty_accumulator, MonteCarloAccumulatorEngine{2'000, 42}, context);
+    register_price("analytics/kiyosi/accumulator/mc/zero_exposure/price", empty_accumulator, make_monte_carlo_accumulator_engine({2'000, 42}).value(), context);
     const auto inactive_accumulator = *make_accumulator(
         {.strike = 110.0, .knock_out_level = 105.0, .daily_quantity = 1.0, .acceleration_factor = 0.0, .accumulated_quantity = 0.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/zero_acceleration/price", inactive_accumulator, accumulator_engine, context);
-    register_price("analytics/kiyosi/accumulator/mc/zero_acceleration/price", inactive_accumulator, MonteCarloAccumulatorEngine{20'000, 42}, context);
+    register_price("analytics/kiyosi/accumulator/mc/zero_acceleration/price", inactive_accumulator, make_monte_carlo_accumulator_engine({20'000, 42}).value(), context);
     const auto inactive_fixed_accumulator = *make_accumulator(
         {.strike = 110.0, .knock_out_level = 105.0, .daily_quantity = 1.0, .acceleration_factor = 0.0, .accumulated_quantity = 3.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date()});
     register_price("analytics/kiyosi/accumulator/fd/inactive_accrual/price", inactive_fixed_accumulator, accumulator_engine, context);
@@ -277,7 +277,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
                              if (!coupon_quote) return std::unexpected(coupon_quote.error());
                              return detail::solve_implied_coupon(snowball_engine, snowball, context, *coupon_quote, ImpliedCouponSettings{},
                                                                  [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
-    const MonteCarloAutocallableEngine coupon_engine{20'000, 42};
+    const auto coupon_engine = make_monte_carlo_autocallable_engine({20'000, 42}).value();
     const auto monte_carlo_quote = coupon_engine.price(snowball, context);
     register_calculation("analytics/kiyosi/snowball/mc/implied_coupon", [=, snowball = snowball, monte_carlo_quote = monte_carlo_quote]() -> Result<double> {
                              if (!monte_carlo_quote) return std::unexpected(monte_carlo_quote.error());
@@ -289,20 +289,20 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto expiry_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.08}}});
     register_price("analytics/kiyosi/snowball/fd/expiry_only/price", expiry_note, snowball_engine, base_context);
-    register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, FiniteDifferenceAutocallableEngine{{200, 1000}}, base_context);
+    register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, make_finite_difference_autocallable_engine({200, 1000}).value(), base_context);
     const auto fixed_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.0}}});
     const auto fixed_context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 0.2), 100.0, european.effective_date());
-    register_price("analytics/kiyosi/snowball/mc/fixed/price", fixed_note, MonteCarloAutocallableEngine{20'000, 42}, fixed_context);
+    register_price("analytics/kiyosi/snowball/mc/fixed/price", fixed_note, make_monte_carlo_autocallable_engine({20'000, 42}).value(), fixed_context);
     register_price("analytics/kiyosi/snowball/fd/fixed/price", fixed_note, snowball_engine, fixed_context);
     const auto protected_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{Date{std::chrono::year{2025} / 7 / 1}, 110.0, 0.08}, {european.expiry_date(), 104.0, 0.08}}});
-    register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, MonteCarloAutocallableEngine{20'000, 42}, base_context);
+    register_price("analytics/kiyosi/snowball/mc/protected/price", protected_note, make_monte_carlo_autocallable_engine({20'000, 42}).value(), base_context);
     register_price("analytics/kiyosi/snowball/fd/protected/price", protected_note, snowball_engine, base_context);
-    const MonteCarloVanillaEngine monte_carlo{{5'000, 10, 42}};
+    const auto monte_carlo = make_monte_carlo_vanilla_engine({5'000, 10, 42}).value();
     const auto no_dividend = *make_pricing_context(*make_bsm_parameters(0.05, 0.0, 0.2), 100.0, european.effective_date());
     const auto american_call = *make_american_option(OptionType::call, 100.0, european.effective_date(), european.expiry_date());
-    register_price("analytics/kiyosi/american/mc/no_dividend/price", american_call, MonteCarloVanillaEngine{100'000, 50, 42}, no_dividend);
+    register_price("analytics/kiyosi/american/mc/no_dividend/price", american_call, make_monte_carlo_vanilla_engine({100'000, 50, 42}).value(), no_dividend);
     const auto fd_quote = vanilla_engine.price(european, context);
     register_calculation("analytics/kiyosi/european/fd/implied_volatility", [=, fd_quote = fd_quote]() -> Result<double> {
                              if (!fd_quote) return std::unexpected(fd_quote.error());
@@ -322,7 +322,7 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
                 register_monte_carlo(
                     std::format("american_lsm/{}/{}/threads:{}", type == OptionType::put ? "put" : "call", paths, threads),
                     american_monte_carlo_scenario(type),
-                    MonteCarloVanillaEngine{paths, 50, 42, MonteCarloBackend::cpu, threads});
+                    make_monte_carlo_vanilla_engine({paths, 50, 42, MonteCarloBackend::cpu, threads}).value());
     for (const auto backend : {MonteCarloBackend::cpu
 #if KIYOSI_HAS_CUDA
                                ,
@@ -330,15 +330,15 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
 #endif
          }) {
         const std::string suffix = backend == MonteCarloBackend::cpu ? "_cpu" : "_cuda";
-        const MonteCarloVanillaEngine vanilla{{1'000'000, 50, 42, backend}};
+        const auto vanilla = make_monte_carlo_vanilla_engine({1'000'000, 50, 42, backend}).value();
         register_monte_carlo("bm_monte_carlo_european" + suffix, monte_carlo_scenario(), vanilla);
         register_monte_carlo("bm_monte_carlo_american" + suffix, american_monte_carlo_scenario(), vanilla);
         register_monte_carlo("bm_monte_carlo_accumulator" + suffix, accumulator_scenario(),
-                             MonteCarloAccumulatorEngine{{250'000, 42, backend}});
+                             make_monte_carlo_accumulator_engine({250'000, 42, backend}).value());
         register_monte_carlo("bm_monte_carlo_phoenix" + suffix, phoenix_scenario(),
-                             MonteCarloAutocallableEngine{{250'000, 42, backend}});
+                             make_monte_carlo_autocallable_engine({250'000, 42, backend}).value());
         register_monte_carlo("bm_monte_carlo_snowball" + suffix, snowball_scenario(),
-                             MonteCarloAutocallableEngine{{250'000, 42, backend}});
+                             make_monte_carlo_autocallable_engine({250'000, 42, backend}).value());
     }
     for (const int threads : {1, 0}) {
         const std::string mode = threads == 1 ? "/serial" : "/automatic";
@@ -349,12 +349,12 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
         };
         for (const int paths : {128, 250'000}) {
             const auto size = std::to_string(paths);
-            const MonteCarloVanillaEngine vanilla{paths, 50, 42, MonteCarloBackend::cpu, threads};
+            const auto vanilla = make_monte_carlo_vanilla_engine({paths, 50, 42, MonteCarloBackend::cpu, threads}).value();
             add("european/" + size, monte_carlo_scenario(), vanilla);
             add("american/" + size, american_monte_carlo_scenario(), vanilla);
             add("accumulator/" + size, accumulator_scenario(),
-                MonteCarloAccumulatorEngine{paths, 42, MonteCarloBackend::cpu, threads});
-            const MonteCarloAutocallableEngine exotic{paths, 42, MonteCarloBackend::cpu, threads};
+                make_monte_carlo_accumulator_engine({paths, 42, MonteCarloBackend::cpu, threads}).value());
+            const auto exotic = make_monte_carlo_autocallable_engine({paths, 42, MonteCarloBackend::cpu, threads}).value();
             add("phoenix/" + size, phoenix_scenario(), exotic);
             add("snowball/" + size, snowball_scenario(), exotic);
             const auto [option, context] = monte_carlo_scenario();

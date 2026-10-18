@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include <cstdint>
 #include <optional>
 
@@ -11,6 +13,9 @@
 
 namespace kiyosi {
 
+class KIYOSI_EXPORT MonteCarloVanillaEngine;
+[[nodiscard]] Result<MonteCarloVanillaEngine> make_monte_carlo_vanilla_engine(MonteCarloSettings settings);
+
 /// Monte Carlo valuation for vanilla European and American options.
 /// Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before expiry needs 3 steps.
 /// European prices sample the exact terminal distribution; the validated step count has no effect.
@@ -21,17 +26,11 @@ namespace kiyosi {
 /// on CPU and device workspaces on CUDA; every trial recomputes its exercise decisions.
 class KIYOSI_EXPORT MonteCarloVanillaEngine {
 public:
-    /// Creates an engine with aggregate Monte Carlo settings.
-    explicit MonteCarloVanillaEngine(MonteCarloSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit path count, step count, seed, backend, and CPU concurrency cap.
-    MonteCarloVanillaEngine(
-        int path_count, int step_count, std::optional<std::uint64_t> seed = MonteCarloSettings{}.seed,
-        MonteCarloBackend backend = MonteCarloSettings{}.backend,
-        int thread_count = MonteCarloSettings{}.thread_count)
-        : settings_{path_count, step_count, seed, backend, thread_count} {}
+    /// Creates an engine with valid default settings.
+    MonteCarloVanillaEngine() = default;
 
     /// Prices a European or American vanilla option.
-    /// @return Price, or a contract, context, settings, or backend error.
+    /// @return Price, or a contract, context, numerical, or backend error.
     [[nodiscard]] Result<double> price(const EuropeanOption& option, const PricingContext& context) const;
     [[nodiscard]] Result<double> price(const AmericanOption& option, const PricingContext& context) const;
 
@@ -65,8 +64,24 @@ public:
     [[nodiscard]] MonteCarloSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit MonteCarloVanillaEngine(MonteCarloSettings settings) : settings_(settings) {}
+    friend Result<MonteCarloVanillaEngine> make_monte_carlo_vanilla_engine(MonteCarloSettings);
+    friend Result<MonteCarloVanillaEngine> make_engine(MonteCarloSettings settings, std::type_identity<MonteCarloVanillaEngine>)
+    {
+        return make_monte_carlo_vanilla_engine(settings);
+    }
+
     MonteCarloSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<MonteCarloVanillaEngine> make_monte_carlo_vanilla_engine(MonteCarloSettings settings)
+{
+    const auto valid = detail::validate_monte_carlo_settings(settings);
+    if (!valid) return std::unexpected(valid.error());
+    return MonteCarloVanillaEngine{settings};
+}
 
 namespace detail {
 template <typename Option>

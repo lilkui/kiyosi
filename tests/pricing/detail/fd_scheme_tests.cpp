@@ -340,11 +340,10 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
     using namespace kiyosi;
     const Date start{std::chrono::year{2024} / 1 / 1}, end{std::chrono::year{2025} / 1 / 1};
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start, all_days_calendar());
-    const auto check = [&](const auto& option, const auto& engine_type, const std::array<std::array<double, 3>, 3>& expected) {
+    const auto check = [&](const auto& option, const auto make_engine, const std::array<std::array<double, 3>, 3>& expected) {
         std::size_t index = 0;
         for (const auto scheme : {FiniteDifferenceScheme::crank_nicolson, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::explicit_euler}) {
-            using Engine = std::decay_t<decltype(engine_type)>;
-            const Engine engine{{.asset_step_count = 80, .time_step_count = 1, .scheme = scheme, .asset_upper_boundary = 400.0}};
+            const auto engine = make_engine({.asset_step_count = 80, .time_step_count = 1, .scheme = scheme, .asset_upper_boundary = 400.0}).value();
             const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
             REQUIRE(result);
             REQUIRE(result->has(Greek::delta));
@@ -357,14 +356,14 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
         }
     };
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
-    check(accumulator, FiniteDifferenceAccumulatorEngine{}, {{{-2125.177940477314, 314.25537377676187, -24.53113696074924}, {-2120.221666260853, 314.4815991820858, -24.573439894742528}, {-2130.1933395583947, 314.0331999420339, -24.487720823425548}}});
+    check(accumulator, make_finite_difference_accumulator_engine, {{{-2125.177940477314, 314.25537377676187, -24.53113696074924}, {-2120.221666260853, 314.4815991820858, -24.573439894742528}, {-2130.1933395583947, 314.0331999420339, -24.487720823425548}}});
     const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{Date{std::chrono::year{2024} / 4 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2024} / 7 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2024} / 10 / 1}, 110.0, 0.08}, {end, 110.0, 0.08}}});
-    check(snowball, FiniteDifferenceAutocallableEngine{}, {{{0.9956959342110923, 0.002334647538852612, -0.00027779493631300466}, {0.9957679329994007, 0.002325382664906021, -0.00027718976198143775}, {0.9956225895060031, 0.0023440665260287138, -0.0002784043202963022}}});
+    check(snowball, make_finite_difference_autocallable_engine, {{{0.9956959342110923, 0.002334647538852612, -0.00027779493631300466}, {0.9957679329994007, 0.002325382664906021, -0.00027718976198143775}, {0.9956225895060031, 0.0023440665260287138, -0.0002784043202963022}}});
     std::vector<Date> observations;
     for (int day = 1; day <= 366; ++day)
         observations.push_back(start + std::chrono::days{day});
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = observations});
-    check(barrier, FiniteDifferenceBarrierEngine{}, {{{1.349334949897279, 0.05874014816127894, 0.00011939130239541559}, {1.3468904122711003, 0.058637636418814774, 0.00012654044204111787}, {1.3518636988741737, 0.0588457671037437, 0.00011178373357470883}}});
+    check(barrier, make_finite_difference_barrier_engine, {{{1.349334949897279, 0.05874014816127894, 0.00011939130239541559}, {1.3468904122711003, 0.058637636418814774, 0.00012654044204111787}, {1.3518636988741737, 0.0588457671037437, 0.00011178373357470883}}});
 }
 
 TEST_CASE("Finite-difference merging preserves adjacent events and later uniform widths", "[fd-performance]")

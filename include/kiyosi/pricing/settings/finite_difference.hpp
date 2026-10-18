@@ -14,7 +14,7 @@ enum class FiniteDifferenceScheme : unsigned char {
     crank_nicolson, ///< Second-order Crank-Nicolson scheme.
 };
 
-/// Aggregate configuration validated by finite-difference engines when price() is called.
+/// Aggregate configuration validated when creating a finite-difference engine.
 /// The shared validator checks asset steps >= 3 and time steps >= 1. Vanilla, digital, and
 /// barrier engines accept at most 10,000 asset and 100,000 time steps; accumulator and
 /// autocallable engines accept at most 2,000 of each. An explicit scheme may impose a
@@ -40,7 +40,7 @@ inline constexpr int trading_fd_max_steps = 2'000;
 
 } // namespace detail
 
-/// Validates shared finite-difference grid settings; engine-specific limits are checked by price().
+/// Validates shared finite-difference grid settings; engine-specific limits are checked by engine factories.
 /// @param settings Settings to validate.
 /// @return Success, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<void> validate_finite_difference_settings(

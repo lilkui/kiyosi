@@ -37,7 +37,7 @@ TEST_CASE("Finite-difference digital prices preserve scaled discount factors", "
     const auto end = day(2026, 1, 1);
     constexpr double payout = 1e-308;
     const auto context = *make_pricing_context(*make_bsm_parameters(-710.0, -710.0, 0.2), 100.0, start);
-    const FiniteDifferenceDigitalEngine engine{100, 100'000};
+    const auto engine = make_finite_difference_digital_engine({100, 100'000}).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
         CAPTURE(type);
         const auto option = *make_cash_or_nothing_option(type, 100.0, payout, start, end);

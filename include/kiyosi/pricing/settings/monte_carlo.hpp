@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <optional>
 #include <random>
+#include <type_traits>
 
 #include <kiyosi/core/error.hpp>
 
@@ -23,7 +24,7 @@ enum class MonteCarloBackend : unsigned char {
 /// apply per call, not process-wide. Fixed seeds reproduce results across thread counts within
 /// a library version, build and standard-library implementation; CUDA is a separate backend.
 /// Allocation and internal runtime exceptions propagate; no cancellation interface is provided.
-/// Vanilla simulation settings, validated when price() is called; an absent seed
+/// Vanilla simulation settings, validated when creating an engine; an absent seed
 /// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
 /// European pricing samples the exact terminal distribution without intermediate steps.
@@ -36,7 +37,7 @@ struct MonteCarloSettings {
 };
 
 /// Accumulator and autocallable products step the trading calendar directly, so no step
-/// count is needed; settings are validated when price() is called. These engines accept
+/// count is needed; settings are validated when creating an engine. These engines accept
 /// 1..10,000,000 paths.
 /// CPU paths use separate PCG32 streams, so early knock-out cannot shift later paths' draws.
 /// Seeded prices are reproducible within a library version, standard-library implementation and backend.
@@ -61,7 +62,9 @@ auto with_monte_carlo_seed(const Engine& engine, const Evaluate& evaluate)
         auto settings = engine.settings();
         if (!settings.seed) {
             settings.seed = std::random_device{}();
-            return evaluate(Engine{settings});
+            const auto seeded = make_engine(settings, std::type_identity<Engine>{});
+            if (!seeded) return decltype(evaluate(engine)){std::unexpected(seeded.error())};
+            return evaluate(*seeded);
         }
     }
     return evaluate(engine);

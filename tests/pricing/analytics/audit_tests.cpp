@@ -101,7 +101,7 @@ TEST_CASE("Binomial implied volatility respects the tree domain", "[audit-fixes]
     for (const double rate : {-0.01, 0.02, 0.05}) {
         const auto context = *make_pricing_context(*make_bsm_parameters(rate, 0.02, 0.2), 100.0, start);
         for (const int steps : {1, BinomialSettings{}.step_count}) {
-            const CoxRossRubinsteinVanillaEngine engine{steps};
+            const auto engine = make_cox_ross_rubinstein_vanilla_engine({steps}).value();
             for (const auto type : {OptionType::call, OptionType::put}) {
                 CAPTURE(rate, steps, type);
                 const auto check = [&](const auto& option) {
@@ -126,10 +126,9 @@ TEST_CASE("Binomial implied volatility respects the tree domain", "[audit-fixes]
             }
         }
     }
-    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
     const auto option = *make_european_option(OptionType::call, 100.0, start, end);
     for (const int steps : {0, 1'000'001}) {
-        const auto invalid = implied_volatility(CoxRossRubinsteinVanillaEngine{steps}, option, context, 10.0);
+        const auto invalid = make_cox_ross_rubinstein_vanilla_engine({steps});
         REQUIRE_FALSE(invalid);
         CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
     }
@@ -382,7 +381,7 @@ void check_rank_deficient_american_continuation(MonteCarloBackend backend)
         const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.2, sigma), 30.0, start);
         for (const int paths : {1, 2, 4, 2000}) {
             CAPTURE(sigma, paths);
-            const auto price = MonteCarloVanillaEngine{paths, 50, 42, backend}.price(option, context);
+            const auto price = make_monte_carlo_vanilla_engine({paths, 50, 42, backend}).value().price(option, context);
             REQUIRE(price);
             CHECK(*price == Catch::Approx(expected).epsilon(0.0).margin(sigma == 1e-8 ? 1e-6 : 0.02));
         }
@@ -620,7 +619,7 @@ TEST_CASE("Implied volatility rejects unconditional fixed Phoenix cashflows", "[
                             CHECK(result.error().category == ErrorCategory::unsupported_operation);
                         }
                     };
-                    check(MonteCarloAutocallableEngine{{64, 73}});
+                    check(make_monte_carlo_autocallable_engine({64, 73}).value());
                     check(FiniteDifferenceAutocallableEngine{});
                 }
             }
@@ -707,11 +706,11 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 const bool exposed = rate != 0.0 || lower != 100.0 || coupon != 0.0;
                 const auto snowball = *make_snowball_option(
                     {.maturity_coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, coupon}, {end, 120.0, coupon}}});
-                check(MonteCarloAutocallableEngine{{64, 73}}, snowball, context, exposed);
+                check(make_monte_carlo_autocallable_engine({64, 73}).value(), snowball, context, exposed);
                 check(FiniteDifferenceAutocallableEngine{}, snowball, context, exposed);
                 const auto phoenix = *make_phoenix_option(
                     {.coupon_rate = coupon, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = lower, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0, 90.0}, {end, 120.0, 0.0, 90.0}}});
-                check(MonteCarloAutocallableEngine{{64, 73}}, phoenix, context, exposed);
+                check(make_monte_carlo_autocallable_engine({64, 73}).value(), phoenix, context, exposed);
                 check(FiniteDifferenceAutocallableEngine{}, phoenix, context, exposed);
             }
         }
@@ -721,7 +720,7 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                                                    historical ? fixing : start);
         const auto note = *make_snowball_option(
             {.maturity_coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = historical ? AutocallableBarrierState::knocked_in : AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 120.0, 0.0}, {end, 120.0, 0.0}}});
-        check(MonteCarloAutocallableEngine{{64, 73}}, note, context, false);
+        check(make_monte_carlo_autocallable_engine({64, 73}).value(), note, context, false);
         check(FiniteDifferenceAutocallableEngine{}, note, context, false);
     }
     for (const double knock_out : {90.0, 100.0, 120.0}) {
@@ -732,7 +731,7 @@ TEST_CASE("Implied volatility rejects fixed participation and zero accrual", "[p
                 const auto option = *make_accumulator(
                     {.strike = 100.0, .knock_out_level = knock_out, .daily_quantity = 1.0, .acceleration_factor = acceleration, .accumulated_quantity = quantity, .effective_date = start, .expiry_date = end});
                 const bool exposed = acceleration != 0.0 || knock_out > 100.0;
-                check(MonteCarloAccumulatorEngine{{64, 73}}, option, context, exposed);
+                check(make_monte_carlo_accumulator_engine({64, 73}).value(), option, context, exposed);
                 check(FiniteDifferenceAccumulatorEngine{}, option, context, exposed);
             }
         }
@@ -764,8 +763,8 @@ TEST_CASE("Implied volatility rejects volatility independent accumulated forward
                             CHECK(result.error().category == ErrorCategory::unsupported_operation);
                         }
                     };
-                    check(FiniteDifferenceAccumulatorEngine{{400, 400}});
-                    check(MonteCarloAccumulatorEngine{{64, 42}});
+                    check(make_finite_difference_accumulator_engine({400, 400}).value());
+                    check(make_monte_carlo_accumulator_engine({64, 42}).value());
                 }
             }
         }
@@ -797,7 +796,7 @@ TEST_CASE("Implied volatility counts only future Phoenix coupons", "[pricing-api
                     CHECK(result.error().category == ErrorCategory::unsupported_operation);
                 }
             };
-            check(MonteCarloAutocallableEngine{{64, 73}});
+            check(make_monte_carlo_autocallable_engine({64, 73}).value());
             check(FiniteDifferenceAutocallableEngine{});
         }
     }

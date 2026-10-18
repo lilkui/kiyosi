@@ -43,12 +43,12 @@ TEST_CASE("Pricing reference public properties cover payoff, in-out, convergence
     CHECK(std::abs(barrier_in +
                    barrier_out - call_price) < 2e-5);
 
-    const auto coarse = *kiyosi::CoxRossRubinsteinVanillaEngine{32}.price(call, context);
-    const auto fine = *kiyosi::CoxRossRubinsteinVanillaEngine{128}.price(call, context);
+    const auto coarse = *kiyosi::make_cox_ross_rubinstein_vanilla_engine({32}).value().price(call, context);
+    const auto fine = *kiyosi::make_cox_ross_rubinstein_vanilla_engine({128}).value().price(call, context);
     CHECK(std::abs(fine - call_price) <
           std::abs(coarse - call_price));
 
-    const kiyosi::MonteCarloVanillaEngine monte_carlo{20000, 2, 42};
+    const auto monte_carlo = kiyosi::make_monte_carlo_vanilla_engine({20000, 2, 42}).value();
     const auto first = *monte_carlo.price(call, context);
     const auto second = *monte_carlo.price(call, context);
     CHECK(first == second);
@@ -79,10 +79,10 @@ TEST_CASE("Seeded Monte Carlo engines execute repeatably")
         CHECK(*first == *second);
         CHECK(std::isfinite(*first));
     };
-    require_repeatable(call, kiyosi::MonteCarloVanillaEngine{20000, 252, 42});
-    require_repeatable(put, kiyosi::MonteCarloVanillaEngine{20000, 50, 42});
-    require_repeatable(phoenix, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
-    require_repeatable(snowball, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
-    require_repeatable(binary, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
-    require_repeatable(ternary, kiyosi::MonteCarloAutocallableEngine{{1000, 42}});
+    require_repeatable(call, kiyosi::make_monte_carlo_vanilla_engine({20000, 252, 42}).value());
+    require_repeatable(put, kiyosi::make_monte_carlo_vanilla_engine({20000, 50, 42}).value());
+    require_repeatable(phoenix, kiyosi::make_monte_carlo_autocallable_engine({1000, 42}).value());
+    require_repeatable(snowball, kiyosi::make_monte_carlo_autocallable_engine({1000, 42}).value());
+    require_repeatable(binary, kiyosi::make_monte_carlo_autocallable_engine({1000, 42}).value());
+    require_repeatable(ternary, kiyosi::make_monte_carlo_autocallable_engine({1000, 42}).value());
 }

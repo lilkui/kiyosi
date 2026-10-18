@@ -1,5 +1,7 @@
 #pragma once
 
+#include <type_traits>
+
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -8,19 +10,18 @@
 
 namespace kiyosi {
 
+class KIYOSI_EXPORT FiniteDifferenceBarrierEngine;
+[[nodiscard]] Result<FiniteDifferenceBarrierEngine> make_finite_difference_barrier_engine(FiniteDifferenceSettings settings);
+
 /// Uniform-grid finite-difference engine for barrier options.
 /// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceBarrierEngine {
 public:
-    /// Creates an engine with aggregate finite-difference settings.
-    explicit FiniteDifferenceBarrierEngine(FiniteDifferenceSettings settings = {}) : settings_(settings) {}
-    /// Creates an engine with explicit grid dimensions and scheme.
-    FiniteDifferenceBarrierEngine(int asset_step_count, int time_step_count,
-                                  FiniteDifferenceScheme scheme = FiniteDifferenceSettings{}.scheme)
-        : settings_{asset_step_count, time_step_count, scheme} {}
+    /// Creates an engine with valid default settings.
+    FiniteDifferenceBarrierEngine() = default;
 
     /// Prices a barrier option by finite differences.
-    /// @return Price, or a contract, context, or settings error.
+    /// @return Price, or a contract, context, or numerical error.
     [[nodiscard]] Result<double> price(const BarrierOption& option, const PricingContext& context) const;
 
     /// Prices with the explicitly requested Greeks; unavailable measures remain empty.
@@ -34,8 +35,24 @@ public:
     FiniteDifferenceSettings settings() const noexcept { return settings_; }
 
 private:
+    explicit FiniteDifferenceBarrierEngine(FiniteDifferenceSettings settings) : settings_(settings) {}
+    friend Result<FiniteDifferenceBarrierEngine> make_finite_difference_barrier_engine(FiniteDifferenceSettings);
+    friend Result<FiniteDifferenceBarrierEngine> make_engine(FiniteDifferenceSettings settings, std::type_identity<FiniteDifferenceBarrierEngine>)
+    {
+        return make_finite_difference_barrier_engine(settings);
+    }
+
     FiniteDifferenceSettings settings_;
 };
+
+/// Creates an engine after validating its configuration.
+/// @return The engine, or an `invalid_parameter` error.
+[[nodiscard]] inline Result<FiniteDifferenceBarrierEngine> make_finite_difference_barrier_engine(FiniteDifferenceSettings settings)
+{
+    const auto valid = detail::validate_finite_difference_settings(settings, detail::general_fd_max_asset_steps, detail::general_fd_max_time_steps);
+    if (!valid) return std::unexpected(valid.error());
+    return FiniteDifferenceBarrierEngine{settings};
+}
 
 namespace detail {
 template <typename Option>

@@ -220,33 +220,35 @@ pricing engine
 }
 
 template <typename Engine>
-nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char* name)
+nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char* name,
+                                                 Result<Engine> (*factory)(FiniteDifferenceSettings))
 {
     nb::class_<Engine> binding{
         module, name,
         R"doc(Finite-difference pricing engine with immutable configuration.
 
-Settings are stored without domain validation and are validated when price() is called.
+Configuration is validated at construction. Contract, market, and backend availability
+are checked when pricing.
 Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
 time steps. Accumulator and autocallable engines accept 3..2,000 asset steps and
-1..2,000 time steps. The shared validator checks only the common lower bounds.)doc"};
+1..2,000 time steps.)doc"};
     binding
-        .def(nb::new_([](PythonInteger asset_step_count, PythonInteger time_step_count,
-                         PythonChoice<FiniteDifferenceScheme> scheme, PythonReal asset_upper_boundary) {
+        .def(nb::new_([factory](PythonInteger asset_step_count, PythonInteger time_step_count,
+                                PythonChoice<FiniteDifferenceScheme> scheme, PythonReal asset_upper_boundary) {
                  std::optional<double> boundary;
                  if (!asset_upper_boundary.is_none())
                      boundary = real_number(asset_upper_boundary, "asset_upper_boundary");
-                 return Engine{FiniteDifferenceSettings{
+                 return unwrap(factory(FiniteDifferenceSettings{
                      integer(asset_step_count, "asset_step_count"), integer(time_step_count, "time_step_count"),
-                     scheme, boundary}};
+                     scheme, boundary}));
              }),
              nb::kw_only(), "asset_step_count"_a = FiniteDifferenceSettings{}.asset_step_count,
              "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
              "scheme"_a = FiniteDifferenceSettings{}.scheme,
              "asset_upper_boundary"_a.none() = FiniteDifferenceSettings{}.asset_upper_boundary,
-             R"doc(Store finite-difference settings.
+             R"doc(Create an engine with validated finite-difference settings.
 
-Settings are validated when price() is called.
+Settings are validated at construction.
 The engine-specific ranges are listed in the engine class documentation.
 
 Parameters
@@ -265,7 +267,9 @@ Raises
 TypeError
     If a setting has an incompatible representation.
 OverflowError
-    If an integer setting is outside the C++ ``int`` range.)doc")
+    If an integer setting is outside the C++ ``int`` range.
+KiyosiError
+    INVALID_PARAMETER if the core rejects the configuration.)doc")
         .def_prop_ro("asset_step_count", [](const Engine& engine) { return engine.settings().asset_step_count; }, "Number of spatial grid steps.")
         .def_prop_ro("time_step_count", [](const Engine& engine) { return engine.settings().time_step_count; }, "Number of time grid steps.")
         .def_prop_ro("scheme", [](const Engine& engine) { return engine.settings().scheme; }, "Finite-difference time-stepping scheme.")
@@ -276,27 +280,29 @@ OverflowError
 }
 
 template <typename Engine>
-nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, const char* name)
+nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, const char* name,
+                                                       Result<Engine> (*factory)(TradingDayMonteCarloSettings))
 {
     nb::class_<Engine> binding{
         module, name,
         R"doc(Trading-day Monte Carlo engine with immutable configuration.
 
-Settings are stored without domain validation and are validated when price() is called.
+Configuration is validated at construction. Contract, market, and backend availability
+are checked when pricing.
 Accumulator and autocallable engines accept 1..10,000,000 paths.)doc"};
     binding
-        .def(nb::new_([](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
-                 return Engine{TradingDayMonteCarloSettings{
+        .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
+                 return unwrap(factory(TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
-                     backend, integer(thread_count, "thread_count")}};
+                     backend, integer(thread_count, "thread_count")}));
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
              "seed"_a.none() = TradingDayMonteCarloSettings{}.seed,
              "backend"_a = TradingDayMonteCarloSettings{}.backend,
              "thread_count"_a = TradingDayMonteCarloSettings{}.thread_count,
-             R"doc(Store Monte Carlo settings.
+             R"doc(Create an engine with validated Monte Carlo settings.
 
-Settings are validated when price() is called.
+Settings are validated at construction.
 
 Parameters
 ----------
@@ -316,7 +322,9 @@ Raises
 TypeError
     If a setting has an incompatible representation.
 OverflowError
-    If an integer is outside its C++ representation range.)doc")
+    If an integer is outside its C++ representation range.
+KiyosiError
+    INVALID_PARAMETER if the core rejects the configuration.)doc")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
         .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
@@ -571,13 +579,13 @@ void bind_engines(nb::module_& module)
                    module, "CoxRossRubinsteinVanillaEngine",
                    R"doc(Cox-Ross-Rubinstein binomial vanilla-option engine.
 
-Configuration is immutable. Settings are stored without domain validation and
-are validated when price() is called.)doc")
+Configuration is immutable and validated at construction. Market-dependent tree
+constraints are checked when pricing.)doc")
                    .def(nb::new_([](PythonInteger step_count) {
-                            return CoxRossRubinsteinVanillaEngine{integer(step_count, "step_count")};
+                            return unwrap(make_cox_ross_rubinstein_vanilla_engine({integer(step_count, "step_count")}));
                         }),
                         "step_count"_a = BinomialSettings{}.step_count,
-                        R"doc(Store Cox-Ross-Rubinstein settings.
+                        R"doc(Create an engine with validated Cox-Ross-Rubinstein settings.
 
 Parameters
 ----------
@@ -590,10 +598,12 @@ TypeError
     If ``step_count`` is not an integer.
 OverflowError
     If ``step_count`` is outside the C++ ``int`` range.
+KiyosiError
+    INVALID_PARAMETER if the step count is outside 1..1,000,000.
 
 Notes
 -----
-The setting is validated when price() is called.)doc")
+The step count is validated at construction; accepted range is 1..1,000,000.)doc")
                    .def_prop_ro("step_count", [](const CoxRossRubinsteinVanillaEngine& engine) { return engine.settings().step_count; }, "Number of binomial time steps.");
     bind_repr(crr, "CoxRossRubinsteinVanillaEngine", {"step_count"});
     bind_engine_price<CoxRossRubinsteinVanillaEngine, EuropeanOption>(module, crr);
@@ -602,14 +612,15 @@ The setting is validated when price() is called.)doc")
         module, "BjerksundStenslandVanillaEngine");
     bind_engine_price<BjerksundStenslandVanillaEngine, AmericanOption>(module, bjerksund);
     auto finite_vanilla = bind_finite_difference_engine<FiniteDifferenceVanillaEngine>(
-        module, "FiniteDifferenceVanillaEngine");
+        module, "FiniteDifferenceVanillaEngine", &make_finite_difference_vanilla_engine);
     bind_engine_price<FiniteDifferenceVanillaEngine, EuropeanOption>(module, finite_vanilla);
     bind_engine_price<FiniteDifferenceVanillaEngine, AmericanOption>(module, finite_vanilla);
     auto monte_carlo_vanilla = nb::class_<MonteCarloVanillaEngine>(
                                    module, "MonteCarloVanillaEngine",
                                    R"doc(Monte Carlo vanilla-option engine with immutable configuration.
 
-Settings are stored without domain validation and are validated when price() is called.
+Configuration is validated at construction. Contract, market, and backend availability
+are checked when pricing.
 Accepts 1..10,000,000 paths and 2..10,000 steps; American pricing before
 expiry requires at least 3 steps.
 European prices sample the exact terminal distribution; valid step counts do not affect them.
@@ -618,16 +629,16 @@ with an immediate-exercise lower bound. Rate stencils crossing zero retain exerc
 simulations on both sides.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
                                                     PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
-                                            return MonteCarloVanillaEngine{MonteCarloSettings{
+                                            return unwrap(make_monte_carlo_vanilla_engine(MonteCarloSettings{
                                                 integer(path_count, "path_count"), integer(step_count, "step_count"),
-                                                optional_seed(seed), backend, integer(thread_count, "thread_count")}};
+                                                optional_seed(seed), backend, integer(thread_count, "thread_count")}));
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
                                         "seed"_a.none() = MonteCarloSettings{}.seed,
                                         "backend"_a = MonteCarloSettings{}.backend,
                                         "thread_count"_a = MonteCarloSettings{}.thread_count,
-                                        R"doc(Store Monte Carlo settings.
+                                        R"doc(Create an engine with validated Monte Carlo settings.
 
 Parameters
 ----------
@@ -650,10 +661,12 @@ TypeError
     If a setting has an incompatible representation.
 OverflowError
     If an integer is outside its C++ representation range.
+KiyosiError
+    INVALID_PARAMETER if the core rejects the configuration.
 
 Notes
 -----
-Settings are validated when price() is called.)doc")
+Settings are validated at construction.)doc")
                                    .def_prop_ro("path_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
                                    .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "American time grid points; validated but unused for European pricing.")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
@@ -673,7 +686,7 @@ Settings are validated when price() is called.)doc")
     bind_engine_price<QuadratureDigitalEngine, CashOrNothingOption>(module, integral_digital);
     bind_engine_price<QuadratureDigitalEngine, AssetOrNothingOption>(module, integral_digital);
     auto finite_digital = bind_finite_difference_engine<FiniteDifferenceDigitalEngine>(
-        module, "FiniteDifferenceDigitalEngine");
+        module, "FiniteDifferenceDigitalEngine", &make_finite_difference_digital_engine);
     bind_engine_price<FiniteDifferenceDigitalEngine, CashOrNothingOption>(module, finite_digital);
     bind_engine_price<FiniteDifferenceDigitalEngine, AssetOrNothingOption>(module, finite_digital);
 
@@ -681,7 +694,7 @@ Settings are validated when price() is called.)doc")
         module, "AnalyticBarrierEngine");
     bind_engine_price<AnalyticBarrierEngine, BarrierOption>(module, analytic_barrier);
     auto finite_barrier = bind_finite_difference_engine<FiniteDifferenceBarrierEngine>(
-        module, "FiniteDifferenceBarrierEngine");
+        module, "FiniteDifferenceBarrierEngine", &make_finite_difference_barrier_engine);
     bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(module, finite_barrier);
     auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
         module, "AnalyticBinaryBarrierEngine");
@@ -696,19 +709,19 @@ Settings are validated when price() is called.)doc")
     bind_engine_price<TurnbullWakemanArithmeticAveragePriceEngine, ArithmeticAveragePriceOption>(module, arithmetic);
 
     auto finite_accumulator = bind_finite_difference_engine<FiniteDifferenceAccumulatorEngine>(
-        module, "FiniteDifferenceAccumulatorEngine");
+        module, "FiniteDifferenceAccumulatorEngine", &make_finite_difference_accumulator_engine);
     bind_engine_price<FiniteDifferenceAccumulatorEngine, Accumulator>(module, finite_accumulator);
     auto monte_carlo_accumulator = bind_trading_day_monte_carlo_engine<MonteCarloAccumulatorEngine>(
-        module, "MonteCarloAccumulatorEngine");
+        module, "MonteCarloAccumulatorEngine", &make_monte_carlo_accumulator_engine);
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
-    auto finite_autocallable = bind_finite_difference_engine<FiniteDifferenceAutocallableEngine>(module, "FiniteDifferenceAutocallableEngine");
+    auto finite_autocallable = bind_finite_difference_engine<FiniteDifferenceAutocallableEngine>(module, "FiniteDifferenceAutocallableEngine", &make_finite_difference_autocallable_engine);
     bind_engine_price<FiniteDifferenceAutocallableEngine, SnowballOption>(module, finite_autocallable);
     bind_engine_price<FiniteDifferenceAutocallableEngine, BinarySnowballOption>(module, finite_autocallable);
     bind_engine_price<FiniteDifferenceAutocallableEngine, TernarySnowballOption>(module, finite_autocallable);
     bind_engine_price<FiniteDifferenceAutocallableEngine, PhoenixOption>(module, finite_autocallable);
 
-    auto monte_carlo_autocallable = bind_trading_day_monte_carlo_engine<MonteCarloAutocallableEngine>(module, "MonteCarloAutocallableEngine");
+    auto monte_carlo_autocallable = bind_trading_day_monte_carlo_engine<MonteCarloAutocallableEngine>(module, "MonteCarloAutocallableEngine", &make_monte_carlo_autocallable_engine);
     bind_engine_price<MonteCarloAutocallableEngine, SnowballOption>(module, monte_carlo_autocallable);
     bind_engine_price<MonteCarloAutocallableEngine, BinarySnowballOption>(module, monte_carlo_autocallable);
     bind_engine_price<MonteCarloAutocallableEngine, TernarySnowballOption>(module, monte_carlo_autocallable);

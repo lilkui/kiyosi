@@ -39,12 +39,12 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
         kiyosi::OptionType::call, 100.0, effective_date, expiry_date);
     check(kiyosi::AnalyticVanillaEngine{}, european, 10.0);
     check(kiyosi::QuadratureVanillaEngine{}, european, 10.0);
-    check(kiyosi::CoxRossRubinsteinVanillaEngine{32}, european, 10.0);
-    check(kiyosi::CoxRossRubinsteinVanillaEngine{32}, american, 10.0);
+    check(kiyosi::make_cox_ross_rubinstein_vanilla_engine({32}).value(), european, 10.0);
+    check(kiyosi::make_cox_ross_rubinstein_vanilla_engine({32}).value(), american, 10.0);
     check(kiyosi::FiniteDifferenceVanillaEngine{}, european, 10.0);
     check(kiyosi::FiniteDifferenceVanillaEngine{}, american, 10.0);
-    check(kiyosi::MonteCarloVanillaEngine{{32, 4, 7}}, european, 10.0);
-    check(kiyosi::MonteCarloVanillaEngine{{32, 4, 7}}, american, 10.0);
+    check(kiyosi::make_monte_carlo_vanilla_engine({32, 4, 7}).value(), european, 10.0);
+    check(kiyosi::make_monte_carlo_vanilla_engine({32, 4, 7}).value(), american, 10.0);
     check(kiyosi::BjerksundStenslandVanillaEngine{}, american, 10.0);
     const auto digital = *kiyosi::make_cash_or_nothing_option(
         kiyosi::OptionType::call, 100.0, 7.0, effective_date, expiry_date);
@@ -73,7 +73,7 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
     check(kiyosi::AnalyticGeometricAveragePriceEngine{}, *kiyosi::make_geometric_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
     check(kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{}, *kiyosi::make_arithmetic_average_option(kiyosi::OptionType::call, 100.0, effective_date, effective_date, expiry_date, 110.0), 10.0);
     const auto note = *kiyosi::make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}}, note, 1.1);
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value(), note, 1.1);
     check(kiyosi::FiniteDifferenceAutocallableEngine{}, note, 1.1);
     const auto accumulator = *kiyosi::make_accumulator({.strike = 100.0,
                                                         .knock_out_level = 120.0,
@@ -82,16 +82,16 @@ TEST_CASE("Every engine treats Date expiry_date as a midnight instant", "[archit
                                                         .accumulated_quantity = 0.0,
                                                         .effective_date = effective_date,
                                                         .expiry_date = expiry_date});
-    check(kiyosi::MonteCarloAccumulatorEngine{{32, 7}}, accumulator, 10.0);
+    check(kiyosi::make_monte_carlo_accumulator_engine({32, 7}).value(), accumulator, 10.0);
     check(kiyosi::FiniteDifferenceAccumulatorEngine{}, accumulator, 10.0);
     const auto snowball = *kiyosi::make_snowball_option({.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}}, snowball, 1.1);
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value(), snowball, 1.1);
     check(kiyosi::FiniteDifferenceAutocallableEngine{}, snowball, 1.1);
     const auto ternary = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.1}}});
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}}, ternary, 1.1);
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value(), ternary, 1.1);
     check(kiyosi::FiniteDifferenceAutocallableEngine{}, ternary, 1.1);
     const auto phoenix = *kiyosi::make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::at_expiry, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 100.0, 0.0, 90.0}}});
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}}, phoenix, 1.08);
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value(), phoenix, 1.08);
     check(kiyosi::FiniteDifferenceAutocallableEngine{}, phoenix, 1.08);
 }
 
@@ -111,9 +111,9 @@ TEST_CASE("Vanilla engines price the remaining half day", "[architecture]")
     };
     check(kiyosi::AnalyticVanillaEngine{}, 1e-10);
     check(kiyosi::QuadratureVanillaEngine{}, 1e-6);
-    check(kiyosi::CoxRossRubinsteinVanillaEngine{400}, 0.003);
-    check(kiyosi::FiniteDifferenceVanillaEngine{{1000, 100}}, 0.02);
-    check(kiyosi::MonteCarloVanillaEngine{{20000, 2, 7}}, 0.02);
+    check(kiyosi::make_cox_ross_rubinstein_vanilla_engine({400}).value(), 0.003);
+    check(kiyosi::make_finite_difference_vanilla_engine({1000, 100}).value(), 0.02);
+    check(kiyosi::make_monte_carlo_vanilla_engine({20000, 2, 7}).value(), 0.02);
 }
 
 struct RecordingEngine {
@@ -183,8 +183,8 @@ TEST_CASE("Autocallable observations occur at midnight only", "[architecture]")
             CHECK(*priced == Catch::Approx(expected).epsilon(0.0).margin(1e-8));
         }
     };
-    check(kiyosi::MonteCarloAutocallableEngine{{32, 7}});
-    check(kiyosi::FiniteDifferenceAutocallableEngine{{100, 100}});
+    check(kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value());
+    check(kiyosi::make_finite_difference_autocallable_engine({100, 100}).value());
 }
 
 TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architecture]")
@@ -193,7 +193,7 @@ TEST_CASE("Daily knock-in observes midnight but not intraday spot", "[architectu
     const auto observation_date = day(2025, 1, 2);
     const auto expiry_date = day(2025, 1, 3);
     const auto note = *kiyosi::make_ternary_snowball_option({.maturity_coupon_rate = 0.8, .minimum_coupon_rate = 0.2, .knock_in_level = 80.0, .knock_in_observation_mode = kiyosi::KnockInObservationMode::every_trading_day, .barrier_state = kiyosi::AutocallableBarrierState::none, .principal_ratio = 1.0, .effective_date = effective_date, .expiry_date = expiry_date, .observations = {{expiry_date, 1000.0, 0.1}}});
-    const kiyosi::MonteCarloAutocallableEngine engine{{32, 7}};
+    const auto engine = kiyosi::make_monte_carlo_autocallable_engine({32, 7}).value();
     for (const int hour : {0, 12}) {
         const auto context = *kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(400.0, 0.0, 1e-12),
                                                            50.0, kiyosi::start_of_day(observation_date) + std::chrono::hours{hour});

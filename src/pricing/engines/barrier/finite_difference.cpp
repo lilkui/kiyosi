@@ -141,9 +141,6 @@ Result<PricingResult> price_barrier(
     const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings,
     bool& schedule_validated, GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift)
 {
-    auto settings_valid = detail::validate_finite_difference_settings(
-        settings, general_fd_max_asset_steps, general_fd_max_time_steps);
-    if (!settings_valid) return std::unexpected(settings_valid.error());
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
     if (!schedule_validated && option.observation_mode() == ObservationMode::scheduled) {

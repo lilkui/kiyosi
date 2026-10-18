@@ -1257,7 +1257,7 @@ class KiyosiPythonTests(unittest.TestCase):
                         result.color, after.gamma - before.gamma, delta=1e-6
                     )
 
-    def test_vanilla_monte_carlo_validates_generic_settings_at_expiry(self):
+    def test_vanilla_monte_carlo_accepts_minimum_settings_at_expiry(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
             risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
@@ -1266,45 +1266,6 @@ class KiyosiPythonTests(unittest.TestCase):
             option = option_class(
                 option_type="call", strike=100, effective_date=start, expiry_date=end
             )
-            for paths, steps in (
-                (0, 2),
-                (-1, 2),
-                (10_000_001, 2),
-                (1, 0),
-                (1, 1),
-                (1, 10_001),
-            ):
-                for time in (start, end):
-                    with self.subTest(
-                        option=option_class.__name__,
-                        paths=paths,
-                        steps=steps,
-                        time=time,
-                    ):
-                        engine = pricing.MonteCarloVanillaEngine(
-                            path_count=paths, step_count=steps
-                        )
-                        context = PricingContext(
-                            model_parameters=parameters,
-                            spot_price=110,
-                            valuation_time=time,
-                        )
-                        for operation in (
-                            lambda engine=engine, option=option, context=context: (
-                                engine.price(option, context)
-                            ),
-                            lambda engine=engine, option=option, context=context: (
-                                engine.price_with_greeks(
-                                    option, context, greeks=["delta", "gamma"]
-                                )
-                            ),
-                        ):
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
-                                operation()
-                            self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.INVALID_PARAMETER,
-                            )
             for backend in ("cpu", "cuda"):
                 engine = pricing.MonteCarloVanillaEngine(
                     path_count=1, step_count=2, backend=backend
@@ -2131,11 +2092,13 @@ class KiyosiPythonTests(unittest.TestCase):
                     with self.subTest(
                         direction=direction, steps=steps, backend=backend
                     ):
-                        engine = pricing.MonteCarloVanillaEngine(
-                            path_count=10, step_count=steps, seed=42, backend=backend
-                        )
                         with self.assertRaises(kiyosi.KiyosiError) as error:
-                            engine.price(option, self.context)
+                            pricing.MonteCarloVanillaEngine(
+                                path_count=10,
+                                step_count=steps,
+                                seed=42,
+                                backend=backend,
+                            )
                         self.assertEqual(
                             error.exception.category,
                             kiyosi.ErrorCategory.INVALID_PARAMETER,
@@ -3744,19 +3707,14 @@ class KiyosiPythonTests(unittest.TestCase):
             effective_date=date(2025, 1, 1),
             expiry_date=date(2026, 1, 1),
         )
-        for path_count, step_count in ((0, 50), (20, 2)):
-            with self.subTest(path_count=path_count, step_count=step_count):
-                engine = pricing.MonteCarloVanillaEngine(
-                    path_count=path_count,
-                    step_count=step_count,
-                    seed=42,
-                    backend="cuda",
-                )
-                with self.assertRaises(kiyosi.KiyosiError) as error:
-                    engine.price(option, self.context)
-                self.assertEqual(
-                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-                )
+        engine = pricing.MonteCarloVanillaEngine(
+            path_count=20, step_count=2, seed=42, backend="cuda"
+        )
+        with self.assertRaises(kiyosi.KiyosiError) as error:
+            engine.price(option, self.context)
+        self.assertEqual(
+            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+        )
 
         expiry_date = date(2026, 1, 1)
         expiry_option = AmericanOption(
@@ -4325,33 +4283,99 @@ class KiyosiPythonTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
         )
 
-    def test_engine_settings_are_validated_when_pricing(self):
-        configured_engines = (
-            pricing.CoxRossRubinsteinVanillaEngine,
-            pricing.FiniteDifferenceVanillaEngine,
+    def test_finite_difference_settings_are_validated_at_construction(self):
+        for engine_type, max_assets, max_times in (
+            (pricing.FiniteDifferenceVanillaEngine, 10_000, 100_000),
+            (pricing.FiniteDifferenceDigitalEngine, 10_000, 100_000),
+            (pricing.FiniteDifferenceBarrierEngine, 10_000, 100_000),
+            (pricing.FiniteDifferenceAccumulatorEngine, 2_000, 2_000),
+            (pricing.FiniteDifferenceAutocallableEngine, 2_000, 2_000),
+        ):
+            for settings in (
+                {"asset_step_count": -1},
+                {"asset_step_count": 0},
+                {"asset_step_count": 2},
+                {"asset_step_count": max_assets + 1},
+                {"time_step_count": -1},
+                {"time_step_count": 0},
+                {"time_step_count": max_times + 1},
+                *(
+                    {"asset_upper_boundary": value}
+                    for value in (0, -1, math.inf, math.nan)
+                ),
+            ):
+                with self.subTest(engine=engine_type.__name__, settings=settings):
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine_type(**settings)
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                    )
+            default = engine_type()
+            self.assertEqual(
+                (default.asset_step_count, default.time_step_count), (200, 200)
+            )
+            self.assertEqual(default.scheme, "crank_nicolson")
+            self.assertIsNone(default.asset_upper_boundary)
+            for assets, times in ((3, 1), (max_assets, max_times)):
+                with self.subTest(
+                    engine=engine_type.__name__, assets=assets, times=times
+                ):
+                    engine = engine_type(
+                        asset_step_count=assets,
+                        time_step_count=times,
+                        asset_upper_boundary=1,
+                    )
+                    self.assertEqual(
+                        (
+                            engine.asset_step_count,
+                            engine.time_step_count,
+                            engine.asset_upper_boundary,
+                        ),
+                        (assets, times, 1),
+                    )
+
+    def test_monte_carlo_settings_are_validated_at_construction(self):
+        for engine_type in (
             pricing.MonteCarloVanillaEngine,
+            pricing.MonteCarloAccumulatorEngine,
             pricing.MonteCarloAutocallableEngine,
-        )
-        for engine_type in configured_engines:
-            with self.subTest(engine=engine_type.__name__):
-                self.assertIn("validated when price() is called", engine_type.__doc__)
-                self.assertIn(
-                    "validated when price() is called", engine_type.__init__.__doc__
+        ):
+            for paths in (-1, 0, 10_000_001):
+                with self.subTest(engine=engine_type.__name__, paths=paths):
+                    with self.assertRaises(kiyosi.KiyosiError) as error:
+                        engine_type(path_count=paths)
+                    self.assertEqual(
+                        error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                    )
+            for paths in (1, 10_000_000):
+                with self.subTest(engine=engine_type.__name__, paths=paths):
+                    self.assertEqual(engine_type(path_count=paths).path_count, paths)
+        for steps in (0, 1, 10_001):
+            with self.subTest(steps=steps):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    pricing.MonteCarloVanillaEngine(step_count=steps)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
                 )
+        for steps in (2, 10_000):
+            self.assertEqual(
+                pricing.MonteCarloVanillaEngine(step_count=steps).step_count, steps
+            )
 
-        engine = pricing.FiniteDifferenceVanillaEngine(asset_step_count=0)
-        self.assertEqual(engine.asset_step_count, 0)
-
-        with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price(self.option, self.context)
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-        )
-        with self.assertRaises(kiyosi.KiyosiError) as error:
-            engine.price_with_greeks(self.option, self.context, ["delta", "gamma"])
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
-        )
+    def test_binomial_settings_are_validated_at_construction(self):
+        self.assertEqual(pricing.CoxRossRubinsteinVanillaEngine().step_count, 256)
+        for steps in (-1, 0, 1_000_001):
+            with self.subTest(steps=steps):
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    pricing.CoxRossRubinsteinVanillaEngine(step_count=steps)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
+                )
+        for steps in (1, 1_000_000):
+            self.assertEqual(
+                pricing.CoxRossRubinsteinVanillaEngine(step_count=steps).step_count,
+                steps,
+            )
 
     def test_numerical_fallback_retains_valid_boundary_results(self):
         engine = pricing.QuadratureVanillaEngine()
