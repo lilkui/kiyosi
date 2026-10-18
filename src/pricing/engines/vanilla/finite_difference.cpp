@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cmath>
 #include <concepts>
-#include <numbers>
 #include <vector>
 
 #include "../../detail/black_scholes.hpp"
@@ -38,35 +37,14 @@ Result<PricingResult> price_finite_difference(
     const double dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility();
     const int asset_step_count = settings.asset_step_count;
-    const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike});
+    const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike}, american ? strike : 0.0);
     if (!space) return std::unexpected(space.error());
     const double upper = space->upper;
-    // S = strike * sinh(x) keeps the zero boundary and concentrates nodes near the strike.
-    const auto coordinate_of = [&](double asset) {
-        const double ratio = asset / strike;
-        return std::isfinite(ratio) ? std::asinh(ratio) : log_price_ratio(asset, strike) + std::numbers::ln2;
-    };
-    const double coordinate_upper = american ? coordinate_of(upper) : upper;
-    const double spacing = coordinate_upper / asset_step_count;
-    const SpatialGrid coordinate{coordinate_upper, spacing, asset_step_count};
-    const double coordinate_spot = american ? coordinate_of(spot) : spot;
-    const auto asset = [&](int index) {
-        if (!american) return spacing * index;
-        const double x = spacing * index;
-        return x > 700.0 ? std::exp(std::log(strike) + x - std::numbers::ln2) : strike * std::sinh(x);
-    };
     const int time_step_count = settings.time_step_count;
     const auto grid = make_finite_difference_time_grid(time, time_step_count);
     const double theta = scheme_theta(settings.scheme);
-    const DiffusionParameters parameters{rate, dividend, volatility, theta, american ? spacing : 0.0};
-    if (american && settings.scheme == FiniteDifferenceScheme::explicit_euler) {
-        double maximum_decay = 0.0;
-        for (int index = 1; index < asset_step_count; ++index)
-            maximum_decay = std::max(maximum_decay, -diffusion_coefficients(index, parameters)[1]);
-        if (time / time_step_count * maximum_decay > 1.0)
-            return std::unexpected(Error{ErrorCategory::invalid_parameter, "explicit finite-difference grid is unstable"});
-    } else if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, asset_step_count);
-               !stable) {
+    const DiffusionParameters parameters{rate, dividend, volatility, theta, american ? space->spacing : 0.0};
+    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, asset_step_count); !stable) {
         return std::unexpected(stable.error());
     }
 
@@ -88,7 +66,7 @@ Result<PricingResult> price_finite_difference(
 
     std::vector<double> old(space->size());
     for (int index = 0; index <= asset_step_count; ++index)
-        old[static_cast<std::size_t>(index)] = intrinsic(asset(index));
+        old[static_cast<std::size_t>(index)] = intrinsic(space->asset_at(static_cast<std::size_t>(index)));
     const auto exercise = american ? old : std::vector<double>{};
 
     const auto marched = march_backward(
@@ -102,29 +80,8 @@ Result<PricingResult> price_finite_difference(
     if (!marched) return std::unexpected(marched.error());
 
     std::vector<double> curvature;
-    const double value = std::max(coordinate.interpolate(old, coordinate_spot, curvature), american ? intrinsic(spot) : 0.0);
-    const double derivative = requested_output.has(Greek::delta) || requested_output.has(Greek::gamma)
-                                  ? coordinate.delta(old, coordinate_spot)
-                                  : 0.0;
-    const double jacobian = american ? std::hypot(strike, spot) : 1.0;
-    const double gamma = requested_output.has(Greek::gamma)
-                             ? (coordinate.gamma(old, coordinate_spot) -
-                                (american ? derivative * std::tanh(coordinate_spot) : 0.0)) /
-                                   jacobian / jacobian
-                             : 0.0;
-    const double h = requested_output.has(Greek::speed) ? symmetric_shift(spot, spot_shift) : 0.0;
-    const auto speed = finite_difference_speed(spot, h, upper, [&](double shifted_spot) {
-            const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
-            return checked_price(std::max(coordinate.interpolate(old, x, curvature), american ? intrinsic(shifted_spot) : 0.0)); }, [&](double shifted_spot) {
-            const double x = american ? coordinate_of(shifted_spot) : shifted_spot;
-            const double scale = american ? std::hypot(strike, shifted_spot) : 1.0;
-            return (coordinate.gamma(old, x) -
-                    (american ? coordinate.delta(old, x) * std::tanh(x) : 0.0)) /
-                   scale / scale; });
-    if (!speed) return std::unexpected(speed.error());
-    return make_pricing_result(value, {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{derivative / jacobian} : std::nullopt},
-                                       {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{gamma} : std::nullopt},
-                                       {Greek::speed, *speed}});
+    const double value = std::max(space->interpolate(old, spot, curvature), american ? intrinsic(spot) : 0.0);
+    return finite_difference_result(value, spot, upper, requested_output, spot_shift, [&](double shifted_spot) { return checked_price(std::max(space->interpolate(old, shifted_spot, curvature), american ? intrinsic(shifted_spot) : 0.0)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
 }
 } // namespace
 

@@ -4,6 +4,7 @@
 #include <cmath>
 #include <initializer_list>
 #include <limits>
+#include <numbers>
 #include <optional>
 #include <ranges>
 #include <span>
@@ -155,13 +156,29 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(
     return {};
 }
 
-/// Uniform asset grid over [0, upper] with spot lookup and node-difference sensitivities.
+/// Uniform S or asinh(S / sinh_scale) grid with sensitivities in asset-price units.
 struct SpatialGrid {
     double upper;
     double spacing;
     int asset_step_count;
+    double sinh_scale = 0.0;
 
     [[nodiscard]] std::size_t size() const noexcept { return static_cast<std::size_t>(asset_step_count) + 1; }
+
+    [[nodiscard]] double coordinate_of(double asset) const
+    {
+        if (sinh_scale == 0.0) return asset;
+        const double ratio = asset / sinh_scale;
+        return std::isfinite(ratio) ? std::asinh(ratio) : std::log(asset) - std::log(sinh_scale) + std::numbers::ln2;
+    }
+
+    [[nodiscard]] double asset_at(std::size_t index) const
+    {
+        if (std::cmp_equal(index, asset_step_count)) return upper;
+        const double x = spacing * static_cast<double>(index);
+        if (sinh_scale == 0.0) return x;
+        return x > 700.0 ? std::exp(std::log(sinh_scale) + x - std::numbers::ln2) : sinh_scale * std::sinh(x);
+    }
 
     [[nodiscard]] double interpolate(std::span<const double> values, double spot) const
     {
@@ -202,23 +219,32 @@ struct SpatialGrid {
 
     [[nodiscard]] double delta(std::span<const double> values, double spot) const
     {
+        const double derivative = coordinate_delta(values, spot);
+        return sinh_scale == 0.0 ? derivative : derivative / std::hypot(sinh_scale, spot);
+    }
+
+    [[nodiscard]] double gamma(std::span<const double> values, double spot) const
+    {
+        const double curvature = blend(spot, [&](std::size_t index) {
+            // Divide separately so squared spacing cannot overflow or underflow.
+            return ((values[index + 1] - values[index]) - (values[index] - values[index - 1])) / spacing / spacing;
+        });
+        if (sinh_scale == 0.0) return curvature;
+        const double jacobian = std::hypot(sinh_scale, spot);
+        return (curvature - coordinate_delta(values, spot) * std::tanh(coordinate_of(spot))) / jacobian / jacobian;
+    }
+
+private:
+    [[nodiscard]] double coordinate_delta(std::span<const double> values, double spot) const
+    {
         return blend(spot, [&](std::size_t index) {
             return (values[index + 1] - values[index - 1]) / (2.0 * spacing);
         });
     }
 
-    [[nodiscard]] double gamma(std::span<const double> values, double spot) const
-    {
-        return blend(spot, [&](std::size_t index) {
-            // Divide separately so squared spacing cannot overflow or underflow.
-            return ((values[index + 1] - values[index]) - (values[index] - values[index - 1])) / spacing / spacing;
-        });
-    }
-
-private:
     [[nodiscard]] std::pair<std::size_t, double> locate(double spot) const noexcept
     {
-        const double position = spot / spacing;
+        const double position = coordinate_of(spot) / spacing;
         const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_step_count - 1);
         return {static_cast<std::size_t>(index), position - static_cast<double>(index)};
     }
@@ -238,17 +264,19 @@ private:
 /// Resolves the upper boundary from settings or the product default, rejecting grids that clip a product level.
 [[nodiscard]] inline Result<SpatialGrid> make_spatial_grid(
     const FiniteDifferenceSettings& settings, double default_upper,
-    std::initializer_list<double> must_exceed)
+    std::initializer_list<double> must_exceed, double sinh_scale = 0.0)
 {
     const double upper = settings.asset_upper_boundary.value_or(default_upper);
     if (!std::isfinite(upper) || upper <= std::ranges::max(must_exceed))
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference upper boundary must exceed every product level"});
-    const double spacing = upper / static_cast<double>(settings.asset_step_count);
+    SpatialGrid grid{upper, 0.0, settings.asset_step_count, sinh_scale};
+    const double spacing = grid.coordinate_of(upper) / static_cast<double>(settings.asset_step_count);
     if (!std::isfinite(spacing) || spacing <= 0.0)
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "finite-difference spacing must be finite and positive"});
-    return SpatialGrid{upper, spacing, settings.asset_step_count};
+    grid.spacing = spacing;
+    return grid;
 }
 
 } // namespace kiyosi::detail

@@ -27,6 +27,59 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Autocallable automatic domains converge to volatile terminal portfolios", "[autocallable-domain]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, 2.0), 100.0, start);
+    const auto digital = *make_cash_or_nothing_option(OptionType::call, 100.0, 0.1, start, end);
+    const double expected_binary = 1.0 + *AnalyticDigitalEngine{}.price(digital, context);
+    const auto binary = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.1}}});
+    for (const int steps : {200, 2000}) {
+        const auto engine = *make_finite_difference_autocallable_engine({steps, 2000});
+        const auto result = engine.price(binary, context);
+        REQUIRE(result);
+        CAPTURE(steps);
+        CHECK(*result == Catch::Approx(expected_binary).margin(0.0003));
+    }
+    const auto engine = *make_finite_difference_autocallable_engine({2000, 2000});
+    const auto put = [&](double strike) {
+        return *AnalyticVanillaEngine{}.price(*make_european_option(OptionType::put, strike, start, end), context);
+    };
+    const double expected_downside = expected_binary - (put(100.0) - put(60.0)) / 100.0;
+    const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 100.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.1}}});
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 100.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.0, 100.0}}});
+    const auto ternary = *make_ternary_snowball_option({.maturity_coupon_rate = 0.1, .knock_in_level = 100.0, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.1}}});
+    CHECK(*engine.price(snowball, context) == Catch::Approx(expected_downside).margin(0.0003));
+    CHECK(*engine.price(phoenix, context) == Catch::Approx(expected_downside).margin(0.0003));
+    CHECK(*engine.price(ternary, context) == Catch::Approx(expected_binary).margin(0.0003));
+    const auto actual = engine.price_with_greeks(binary, context, {Greek::delta, Greek::gamma, Greek::vega, Greek::rho});
+    const auto expected = AnalyticDigitalEngine{}.price_with_greeks(digital, context, {Greek::delta, Greek::gamma, Greek::vega, Greek::rho});
+    REQUIRE(actual);
+    REQUIRE(expected);
+    for (const auto greek : {Greek::delta, Greek::gamma, Greek::vega, Greek::rho}) {
+        const double reference = test::greek_value(*expected, greek) - (greek == Greek::rho ? 0.01 : 0.0);
+        CHECK(test::greek_value(*actual, greek) == Catch::Approx(reference).margin(std::abs(reference) * 0.02 + 1e-8));
+    }
+    const auto fixed = *make_finite_difference_autocallable_engine({2000, 2000, FiniteDifferenceScheme::crank_nicolson, 1e6});
+    const auto high = *make_pricing_context(context.model_parameters(), 100.1, start);
+    const auto low = *make_pricing_context(context.model_parameters(), 99.9, start);
+    const double delta = (*fixed.price(binary, high) - *fixed.price(binary, low)) / 0.2;
+    const auto native_delta = fixed.price_with_greeks(binary, context, {Greek::delta});
+    REQUIRE(native_delta);
+    CHECK(test::greek_value(*native_delta, Greek::delta) == Catch::Approx(delta).margin(std::abs(delta) * 0.02));
+    const auto quote = *engine.price(binary, context);
+    const auto volatility = implied_volatility(engine, binary, context, quote,
+                                               {.lower_bound = 1.5, .upper_bound = 2.5, .price_tolerance = 1e-10, .parameter_tolerance = 1e-10});
+    REQUIRE(volatility);
+    const auto recovered = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, *volatility), 100.0, start);
+    CHECK(*engine.price(binary, recovered) == Catch::Approx(quote).margin(1e-8));
+    const auto explicit_engine = *make_finite_difference_autocallable_engine({200, 2000, FiniteDifferenceScheme::explicit_euler});
+    const auto explicit_price = explicit_engine.price(binary, context);
+    REQUIRE(explicit_price);
+    CHECK(*explicit_price == Catch::Approx(expected_binary).margin(0.0003));
+}
+
 TEST_CASE("Autocallable engines reuse one instance across every product", "[autocallable-engine]")
 {
     using namespace kiyosi;

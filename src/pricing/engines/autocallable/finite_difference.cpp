@@ -30,13 +30,14 @@ struct ObservationEvent {
 
 // Reuse only across coupon or volatility changes; all other inputs must stay fixed.
 struct AutocallableFiniteDifferenceWorkspace {
+    double contract_level{};
     std::optional<SpatialGrid> space;
     std::optional<LinearBoundaryStepper> stepper;
     std::optional<bool> daily_grid;
     FiniteDifferenceTimeGrid grid;
     std::vector<ObservationEvent> observation_events;
     std::vector<double> trading_times;
-    std::vector<double> alive, next_alive, knocked_in, next_knocked_in, curvature;
+    std::vector<double> assets, alive, next_alive, knocked_in, next_knocked_in, curvature;
 };
 
 template <AutocallableProduct Note>
@@ -63,7 +64,8 @@ Result<PricingResult> rollback_autocallable(
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, dividend, settings.asset_step_count);
+    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings.scheme), space->sinh_scale == 0.0 ? 0.0 : space->spacing};
+    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 
@@ -75,7 +77,7 @@ Result<PricingResult> rollback_autocallable(
     };
 
     const std::size_t size = space->size();
-    const auto asset = [&](std::size_t index) { return space->spacing * static_cast<double>(index); };
+    const auto& assets = workspace.assets;
     auto& alive = workspace.alive;
     auto& next_alive = workspace.next_alive;
     auto& knocked_in = workspace.knocked_in;
@@ -88,7 +90,7 @@ Result<PricingResult> rollback_autocallable(
     }
     const auto expiry_event = event_at(time_to_expiry);
     for (std::size_t index = 0; index < size; ++index) {
-        const double value = asset(index);
+        const double value = assets[index];
         const bool ki = program_knocked_in(program, value, initial.path.knocked_in, true);
         if (expiry_event.active && program_knocked_out(expiry_event, value)) {
             alive[index] = program.principal_ratio +
@@ -105,10 +107,9 @@ Result<PricingResult> rollback_autocallable(
     }
 
     if (!workspace.stepper)
-        workspace.stepper.emplace(size, space->upper, space->spacing,
-                                  DiffusionParameters{rate, dividend, sigma, scheme_theta(settings.scheme)});
+        workspace.stepper.emplace(size, space->upper, assets.back() - assets[size - 2], parameters);
     auto& stepper = *workspace.stepper;
-    stepper.set_parameters({rate, dividend, sigma, scheme_theta(settings.scheme)});
+    stepper.set_parameters(parameters);
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double dt = grid.time_steps[step];
         const bool advanced = [&] {
@@ -125,7 +126,7 @@ Result<PricingResult> rollback_autocallable(
                            std::ranges::binary_search(trading_times, grid.times[step]);
         if (event.active || (needs_knock_in_layer && daily)) {
             for (std::size_t index = 0; index < size; ++index) {
-                const double value = asset(index);
+                const double value = assets[index];
                 const bool transitioned = needs_knock_in_layer && daily && program_knocked_in(program, value, false, false);
                 if (event.active && program_knocked_out(event, value)) {
                     next_alive[index] = program.principal_ratio +
@@ -176,10 +177,20 @@ Result<PricingResult> price_autocallable(
                                    {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
                                     {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
 
-    if (!workspace.space) {
-        const double relevant = highest_finite_difference_level(note, context);
-        const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(note, context), {relevant});
+    if (!workspace.space || !settings.asset_upper_boundary) {
+        if (workspace.contract_level == 0.0)
+            workspace.contract_level = highest_finite_difference_level(note);
+        const double relevant = std::max(context.spot_price(), workspace.contract_level);
+        const double upper = settings.asset_upper_boundary ? *settings.asset_upper_boundary
+                                                           : volatility_adjusted_upper_boundary(relevant, note.expiry_date(), context);
+        const auto space = make_spatial_grid(settings, upper, {relevant}, upper > 4.0 * workspace.contract_level ? workspace.contract_level : 0.0);
         if (!space) return std::unexpected(space.error());
+        if (!workspace.space || workspace.space->upper != space->upper || workspace.space->sinh_scale != space->sinh_scale) {
+            workspace.stepper.reset();
+            workspace.assets.resize(space->size());
+            for (std::size_t index = 0; index < workspace.assets.size(); ++index)
+                workspace.assets[index] = space->asset_at(index);
+        }
         workspace.space = *space;
     }
 

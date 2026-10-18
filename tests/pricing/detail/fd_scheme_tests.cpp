@@ -118,6 +118,24 @@ TEST_CASE("Finite-difference results select measures and preserve shifted failur
     }
 }
 
+TEST_CASE("Stretched finite-difference grids preserve asset derivative units", "[autocallable-domain]")
+{
+    using namespace kiyosi;
+    const auto grid = detail::make_spatial_grid({800, 200}, 1e6, {100.0}, 100.0);
+    REQUIRE(grid);
+    std::vector<double> values(grid->size());
+    for (std::size_t index = 0; index < values.size(); ++index)
+        values[index] = grid->asset_at(index);
+    CHECK(values.front() == 0.0);
+    CHECK(values.back() == 1e6);
+    for (const double spot : {50.0, 100.0, 200.0}) {
+        CAPTURE(spot);
+        CHECK_THAT(grid->interpolate(values, spot), Catch::Matchers::WithinAbs(spot, 1e-5));
+        CHECK_THAT(grid->delta(values, spot), Catch::Matchers::WithinAbs(1.0, 0.0001));
+        CHECK_THAT(grid->gamma(values, spot), Catch::Matchers::WithinAbs(0.0, 1e-6));
+    }
+}
+
 TEST_CASE("Finite-difference spline interpolation preserves nodes and affine values")
 {
     for (const int steps : {3, 8}) {

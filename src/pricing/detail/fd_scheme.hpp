@@ -52,6 +52,21 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
     return {diffusion - 0.5 * drift, -2.0 * diffusion - rate, diffusion + 0.5 * drift};
 }
 
+[[nodiscard]] inline Result<void> check_explicit_stability(
+    FiniteDifferenceScheme scheme, const FiniteDifferenceTimeGrid& grid,
+    const DiffusionParameters& parameters, int asset_step_count)
+{
+    if (parameters.sinh_spacing == 0.0)
+        return check_explicit_stability(scheme, grid, parameters.volatility, parameters.rate, parameters.dividend, asset_step_count);
+    if (scheme != FiniteDifferenceScheme::explicit_euler) return {};
+    double maximum_decay = 0.0;
+    for (int index = 1; index < asset_step_count; ++index)
+        maximum_decay = std::max(maximum_decay, -diffusion_coefficients(index, parameters)[1]);
+    if (std::ranges::max(grid.time_steps) * maximum_decay > 1.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter, "explicit finite-difference grid is unstable"});
+    return {};
+}
+
 /// One theta-weighted Black-Scholes time step solved with the Thomas algorithm.
 /// Reuses buffers and three factorizations for recurring time steps and constraint masks.
 class FiniteDifferenceStep {

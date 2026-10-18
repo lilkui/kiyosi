@@ -22,6 +22,129 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_automatic_domains_converge_to_volatile_terminal_portfolios(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0, dividend_yield=0, volatility=2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        binary = BinarySnowballOption(
+            maturity_coupon_rate=0,
+            effective_date=start,
+            expiry_date=end,
+            observations=autocallable_observations(
+                [end], [100], knock_out_coupon_rates=[0.1]
+            ),
+        )
+        digital = CashOrNothingOption(
+            option_type="call",
+            strike=100,
+            payout=0.1,
+            effective_date=start,
+            expiry_date=end,
+        )
+        expected = 1 + pricing.AnalyticDigitalEngine().price(digital, context)
+        for steps in (200, 2000):
+            engine = pricing.FiniteDifferenceAutocallableEngine(
+                asset_step_count=steps, time_step_count=2000
+            )
+            with self.subTest(steps=steps):
+                self.assertAlmostEqual(
+                    engine.price(binary, context), expected, delta=0.0003
+                )
+        common = {
+            "effective_date": start,
+            "expiry_date": end,
+            "knock_in_level": 100,
+            "knock_in_observation_mode": "every_trading_day",
+        }
+        downside = {"initial_spot": 100, "upper_strike": 100, "lower_strike": 60}
+        put = lambda strike: pricing.AnalyticVanillaEngine().price(
+            EuropeanOption(
+                option_type="put", strike=strike, effective_date=start, expiry_date=end
+            ),
+            context,
+        )
+        expected_downside = expected - (put(100) - put(60)) / 100
+        for note, value in (
+            (
+                SnowballOption(
+                    **common,
+                    **downside,
+                    maturity_coupon_rate=0,
+                    observations=binary.observations,
+                ),
+                expected_downside,
+            ),
+            (
+                PhoenixOption(
+                    **common,
+                    **downside,
+                    coupon_rate=0.1,
+                    observations=autocallable_observations(
+                        [end], [100], coupon_barrier_levels=[100]
+                    ),
+                ),
+                expected_downside,
+            ),
+            (
+                TernarySnowballOption(
+                    **common,
+                    maturity_coupon_rate=0.1,
+                    minimum_coupon_rate=0,
+                    observations=binary.observations,
+                ),
+                expected,
+            ),
+        ):
+            with self.subTest(product=type(note).__name__):
+                self.assertAlmostEqual(engine.price(note, context), value, delta=0.0003)
+        result = engine.price_with_greeks(
+            binary, context, ["delta", "gamma", "vega", "rho"]
+        )
+        reference = pricing.AnalyticDigitalEngine().price_with_greeks(
+            digital, context, ["delta", "gamma", "vega", "rho"]
+        )
+        for greek in ("delta", "gamma", "vega", "rho"):
+            value = getattr(reference, greek) - (0.01 if greek == "rho" else 0)
+            self.assertAlmostEqual(
+                getattr(result, greek), value, delta=abs(value) * 0.02 + 1e-8
+            )
+        quote = engine.price(binary, context)
+        fixed = pricing.FiniteDifferenceAutocallableEngine(
+            asset_step_count=2000, time_step_count=2000, asset_upper_boundary=1e6
+        )
+        delta = (
+            fixed.price(binary, context.replace(spot_price=100.1))
+            - fixed.price(binary, context.replace(spot_price=99.9))
+        ) / 0.2
+        self.assertAlmostEqual(
+            fixed.price_with_greeks(binary, context, "delta").delta,
+            delta,
+            delta=abs(delta) * 0.02,
+        )
+        volatility = pricing.implied_volatility(
+            engine,
+            binary,
+            context,
+            quote,
+            lower_bound=1.5,
+            upper_bound=2.5,
+            price_tolerance=1e-10,
+            parameter_tolerance=1e-10,
+        )
+        recovered = context.replace(
+            model_parameters=context.model_parameters.replace(volatility=volatility)
+        )
+        self.assertAlmostEqual(engine.price(binary, recovered), quote, delta=1e-8)
+        explicit = pricing.FiniteDifferenceAutocallableEngine(
+            asset_step_count=200, time_step_count=2000, scheme="explicit_euler"
+        )
+        self.assertAlmostEqual(explicit.price(binary, context), expected, delta=0.0003)
+
     def test_finite_difference_volatility_trials_refresh_operators_and_isolate_requests(
         self,
     ):

@@ -19,8 +19,9 @@ enum class FiniteDifferenceScheme : unsigned char {
 /// barrier engines accept at most 10,000 asset and 100,000 time steps; accumulator and
 /// autocallable engines accept at most 2,000 of each. An explicit scheme may impose a
 /// further stability constraint for the chosen market and grid.
-/// American vanilla engines stretch the asset grid and widen automatic domains with volatility
-/// and maturity. Explicit upper boundaries still require a domain-convergence check.
+/// American vanilla and autocallable engines widen automatic domains with volatility and maturity.
+/// American grids and wide autocallable grids use sinh coordinates to retain asset resolution.
+/// Explicit upper boundaries still require a domain-convergence check.
 struct FiniteDifferenceSettings {
     int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.
     int time_step_count = 200;                                              ///< Number of time steps; must be positive.
