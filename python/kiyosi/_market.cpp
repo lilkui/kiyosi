@@ -132,7 +132,7 @@ The original parameters remain unchanged on success or failure.)doc");
                         R"doc(Read-only trading-day calendar.
 
 Instances are created by :func:`all_days_calendar`, :func:`weekdays_calendar`,
-or :func:`sse_calendar`.)doc")
+:func:`sse_calendar`, or :func:`custom_calendar`.)doc")
                         .def("is_trading_day", [](const TradingCalendar& calendar, PythonDate value) { return calendar.is_trading_day(calendar_date(value, "value")); }, "value"_a, R"doc(Return whether a date is a trading day.
 
 Parameters
@@ -280,6 +280,48 @@ The original context remains unchanged on success or failure.
 To change volatility, replace model_parameters with a modified parameter copy.)doc");
     bind_repr(context, "PricingContext",
               {"model_parameters", "spot_price", "valuation_time", "calendar"});
+
+    module.def(
+        "custom_calendar",
+        [](const TradingCalendar& base, PythonDateSequence closed_dates, PythonDateSequence open_dates,
+           PythonInteger trading_days_per_year) {
+            auto closed = date_sequence(closed_dates, "closed_dates");
+            auto open = date_sequence(open_dates, "open_dates");
+            const auto basis = trading_days_per_year.is_none()
+                                   ? std::optional<int>{}
+                                   : std::optional{integer(trading_days_per_year, "trading_days_per_year")};
+            return unwrap(make_custom_calendar(base, std::move(closed), std::move(open), basis));
+        },
+        nb::kw_only(), "base"_a, "closed_dates"_a = nb::tuple(), "open_dates"_a = nb::tuple(),
+        "trading_days_per_year"_a.none() = nb::none(),
+        R"doc(Create an immutable calendar by overriding dates in a base calendar.
+
+Parameters
+----------
+base : TradingCalendar
+    Calendar used for all dates without an override.
+closed_dates, open_dates : iterable[datetime.date], optional
+    Explicit closures and openings. Order is irrelevant; duplicates are removed.
+    Inputs are copied, so later changes to them do not affect the calendar.
+trading_days_per_year : int or None, optional
+    Positive annualization basis. None inherits the base's basis; adding or removing
+    trading dates never recalculates it.
+
+Returns
+-------
+TradingCalendar
+    Owning calendar, safe for concurrent reads and pricing without Python callbacks.
+
+Raises
+------
+TypeError
+    If a date is not datetime.date (datetime is rejected), or the basis is not an
+    integer or None. Booleans and fractional numbers are rejected.
+OverflowError
+    If the basis is outside the C++ int range.
+KiyosiError
+    INVALID_CALENDAR for conflicting overrides or a nonpositive basis;
+    INVALID_DATE for unsupported dates.)doc");
 
     module.def("all_days_calendar", &all_days_calendar, R"doc(Return a calendar in which every day is a trading day.
 

@@ -1,10 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <cstdint>
 
 #include <chrono>
 #include <functional>
+#include <optional>
 #include <utility>
+#include <vector>
 
 #include <kiyosi/core/error.hpp>
 #include <kiyosi/core/time.hpp>
@@ -126,6 +129,36 @@ private:
                                      "annual trading-day count must be positive"});
     }
     return detail::make_calendar(std::move(predicate), trading_days_per_year);
+}
+
+/// Creates an owning calendar with explicit open/closed dates overriding a base calendar.
+/// Dates may be unordered or repeated. A date in both lists returns `invalid_calendar`;
+/// unsupported dates return `invalid_date`. The optional positive annualization basis defaults
+/// to the base's basis; overrides never recalculate it. A nonpositive basis returns `invalid_calendar`.
+/// Inputs are copied or moved into the result; later changes to input containers have no effect.
+/// Concurrent reads follow the base calendar's thread-safety contract.
+[[nodiscard]] inline Result<TradingCalendar> make_custom_calendar(
+    TradingCalendar base, std::vector<Date> closed_dates = {}, std::vector<Date> open_dates = {},
+    std::optional<int> trading_days_per_year = std::nullopt)
+{
+    for (auto* dates : {&closed_dates, &open_dates}) {
+        for (const auto date : *dates)
+            if (!is_supported_date(date))
+                return std::unexpected(Error{ErrorCategory::invalid_date, "calendar override date is unsupported"});
+        std::ranges::sort(*dates);
+        dates->erase(std::ranges::unique(*dates).begin(), dates->end());
+    }
+    for (const auto date : closed_dates)
+        if (std::ranges::binary_search(open_dates, date))
+            return std::unexpected(Error{ErrorCategory::invalid_calendar, "calendar override date is both open and closed"});
+    const int basis = trading_days_per_year.value_or(base.trading_days_per_year());
+    return make_trading_calendar(
+        [base = std::move(base), closed_dates = std::move(closed_dates), open_dates = std::move(open_dates)](Date date) {
+            if (std::ranges::binary_search(closed_dates, date)) return false;
+            if (std::ranges::binary_search(open_dates, date)) return true;
+            return base.is_trading_day(date);
+        },
+        basis);
 }
 
 /// Creates a calendar in which every supported date is a trading day.

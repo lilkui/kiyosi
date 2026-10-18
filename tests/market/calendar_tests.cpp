@@ -14,6 +14,61 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Custom calendars own overrides and preserve unmodified dates", "[custom_calendar]")
+{
+    const auto base = kiyosi::weekdays_calendar();
+    std::vector closed{day(2026, 10, 2), day(2026, 10, 1), day(2026, 10, 1)};
+    const std::vector open{day(2026, 10, 10), day(2026, 10, 10)};
+    const auto calendar = kiyosi::make_custom_calendar(base, closed, open);
+    REQUIRE(calendar);
+    closed.clear();
+    CHECK_FALSE(calendar->is_trading_day(day(2026, 10, 1)));
+    CHECK_FALSE(calendar->is_trading_day(day(2026, 10, 2)));
+    CHECK(calendar->is_trading_day(day(2026, 10, 10)));
+    CHECK(calendar->is_trading_day(day(2026, 10, 9)));
+    CHECK_FALSE(calendar->is_trading_day(day(2026, 10, 11)));
+    CHECK(base.is_trading_day(day(2026, 10, 1)));
+    CHECK_FALSE(base.is_trading_day(day(2026, 10, 10)));
+    CHECK(calendar->trading_days_per_year() == 252);
+    CHECK(calendar->trading_days_between(day(2026, 10, 1), day(2026, 10, 12)) == 6);
+    CHECK(calendar->adjust(day(2026, 10, 1), kiyosi::BusinessDayConvention::following) == day(2026, 10, 5));
+    const auto fraction = calendar->trading_year_fraction(day(2026, 10, 1), day(2026, 10, 12));
+    REQUIRE(fraction);
+    CHECK(*fraction == Catch::Approx(6.0 / 252));
+    const auto schedule = kiyosi::make_fixed_interval_schedule(day(2026, 10, 9), day(2026, 10, 11), std::chrono::days{1}, *calendar);
+    REQUIRE(schedule);
+    CHECK(schedule->dates() == std::vector{day(2026, 10, 10)});
+    const auto layered = kiyosi::make_custom_calendar(*calendar, {day(2026, 10, 10)}, {day(2026, 10, 1)}, 365);
+    REQUIRE(layered);
+    CHECK(layered->is_trading_day(day(2026, 10, 1)));
+    CHECK_FALSE(layered->is_trading_day(day(2026, 10, 10)));
+    CHECK(layered->trading_days_per_year() == 365);
+    const auto empty = kiyosi::make_custom_calendar(kiyosi::sse_calendar());
+    REQUIRE(empty);
+    CHECK(empty->trading_days_per_year() == kiyosi::sse_calendar().trading_days_per_year());
+    CHECK(empty->is_trading_day(day(2026, 10, 1)) == kiyosi::sse_calendar().is_trading_day(day(2026, 10, 1)));
+}
+
+TEST_CASE("Custom calendars reject conflicts unsupported dates and invalid bases", "[custom_calendar]")
+{
+    const auto base = kiyosi::weekdays_calendar();
+    const auto conflict = kiyosi::make_custom_calendar(base, {day(2026, 10, 1)}, {day(2026, 10, 1)});
+    REQUIRE_FALSE(conflict);
+    CHECK(conflict.error().category == kiyosi::ErrorCategory::invalid_calendar);
+    for (const int basis : {0, -1}) {
+        const auto invalid = kiyosi::make_custom_calendar(base, {}, {}, basis);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_calendar);
+    }
+    for (const bool closed : {false, true}) {
+        const std::vector invalid_dates{kiyosi::Date::max()};
+        const auto invalid = kiyosi::make_custom_calendar(base, closed ? invalid_dates : std::vector<kiyosi::Date>{}, closed ? std::vector<kiyosi::Date>{} : invalid_dates);
+        REQUIRE_FALSE(invalid);
+        CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_date);
+    }
+    CHECK(base.is_trading_day(day(2026, 10, 1)));
+}
+
 TEST_CASE("Dates, calendars, and observation schedules are value-safe")
 {
     const auto valuation = day(2025, 1, 1);
