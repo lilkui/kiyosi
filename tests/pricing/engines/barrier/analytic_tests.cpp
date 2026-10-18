@@ -18,6 +18,22 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Analytic barrier prices remain nonnegative after cancellation", "[barrier-roundoff]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 2, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.01, 0.0, 0.09), 100.0, start);
+    const auto option = *make_barrier_option({.option_type = OptionType::put, .strike = 187.0, .effective_date = start, .expiry_date = end, .barrier_level = 127.0, .barrier_type = BarrierType::up_and_in});
+    const AnalyticBarrierEngine engine;
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    CHECK(*price >= 0.0);
+    CHECK_THAT(*price, Catch::Matchers::WithinAbs(0.0, 1e-10));
+    const auto result = engine.price_with_greeks(option, context, {Greek::delta});
+    REQUIRE(result);
+    CHECK(result->price() == *price);
+}
+
 TEST_CASE("Scheduled analytic barriers preserve excluded terminal payoffs", "[barrier-payoff-exclusion]")
 {
     using namespace kiyosi;

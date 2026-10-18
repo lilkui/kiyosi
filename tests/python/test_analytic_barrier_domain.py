@@ -29,6 +29,31 @@ from price_differences import price_differences
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_analytic_barrier_prices_remain_nonnegative_after_cancellation(self):
+        start, end = date(2025, 1, 1), date(2025, 2, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.01, dividend_yield=0, volatility=0.09
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        option = BarrierOption(
+            option_type="put",
+            strike=187,
+            effective_date=start,
+            expiry_date=end,
+            barrier_level=127,
+            barrier_type="up_and_in",
+        )
+        engine = pricing.AnalyticBarrierEngine()
+        price = engine.price(option, context)
+        self.assertGreaterEqual(price, 0)
+        self.assertAlmostEqual(price, 0, delta=1e-10)
+        self.assertEqual(
+            engine.price_with_greeks(option, context, "delta").price, price
+        )
+
     def test_scheduled_barrier_prices_survive_shifted_level_overflow(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         observations = [date(2025, 4, 1), date(2025, 7, 1), date(2025, 10, 1), end]

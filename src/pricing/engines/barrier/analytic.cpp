@@ -113,7 +113,7 @@ Result<double> price_barrier(
     }
     if (!std::isfinite(value))
         return std::unexpected(Error{ErrorCategory::invalid_result, "analytic pricing produced a non-finite result"});
-    return value;
+    return std::max(value, 0.0);
 }
 
 struct BarrierPricer {
