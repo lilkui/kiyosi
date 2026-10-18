@@ -13,12 +13,12 @@ namespace {
 
 template <typename Option, typename Engine>
 void register_kiyosi(const char* name, Option option, Engine engine, kiyosi::PricingContext context,
-                     bool comparable = true, bool use_real_time = false)
+                     bool comparable = true)
 {
     const std::string full_name = std::string{comparable ? "matrix/kiyosi/" : "matrix/kiyosi_only/"} + name;
-    auto* registered = kiyosi::benchmark_support::register_price(
-        full_name.c_str(), std::move(option), std::move(engine), std::move(context));
-    if (use_real_time) registered->UseRealTime();
+    kiyosi::benchmark_support::register_price(
+        full_name.c_str(), std::move(option), std::move(engine), std::move(context))
+        ->UseRealTime();
 }
 
 void register_matrix()
@@ -103,13 +103,13 @@ void register_matrix()
     register_kiyosi("ternary_snowball/fd", ternary_snowball, FiniteDifferenceAutocallableEngine{80, 80}, context, false);
     register_kiyosi("ternary_snowball/mc", ternary_snowball, MonteCarloAutocallableEngine{2'000, 42}, context, false);
 #if KIYOSI_HAS_CUDA
-    register_kiyosi("european/mc_cuda", european, MonteCarloVanillaEngine{5'000, 10, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("american/mc_cuda", american, MonteCarloVanillaEngine{5'000, 20, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("accumulator/mc_cuda", accumulator, MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("phoenix/mc_cuda", phoenix, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("snowball/mc_cuda", snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("binary_snowball/mc_cuda", binary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
-    register_kiyosi("ternary_snowball/mc_cuda", ternary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false, true);
+    register_kiyosi("european/mc_cuda", european, MonteCarloVanillaEngine{5'000, 10, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("american/mc_cuda", american, MonteCarloVanillaEngine{5'000, 20, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("accumulator/mc_cuda", accumulator, MonteCarloAccumulatorEngine{2'000, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("phoenix/mc_cuda", phoenix, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("snowball/mc_cuda", snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("binary_snowball/mc_cuda", binary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false);
+    register_kiyosi("ternary_snowball/mc_cuda", ternary_snowball, MonteCarloAutocallableEngine{2'000, 42, MonteCarloBackend::cuda}, context, false);
 #endif
 }
 

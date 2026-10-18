@@ -52,7 +52,7 @@ void register_quantlib(const char* name, Price price)
         } catch (const std::exception& error) {
             state.SkipWithError(error.what());
         }
-    });
+    })->UseRealTime();
 }
 
 template <typename Instrument>

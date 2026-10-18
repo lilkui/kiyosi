@@ -20,7 +20,7 @@ python benchmarks/compare.py out/build/windows-release/benchmarks.json
 
 For a manually installed QuantLib package, replace the toolchain and triplet arguments with `-DQuantLib_DIR=C:/path/to/QuantLib/lib/cmake/QuantLib`. Add `--benchmark_filter=^matrix/` to the benchmark command for a matrix-only run.
 
-On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_benchmarks`, omitting the Windows-specific CMake options. Without a QuantLib C++ package, CMake builds the Kiyosi cases alone. `compare.py` accepts either aggregate or individual Google Benchmark JSON results and prints median times, `QuantLib / Kiyosi` ratios, and warmup price differences. A ratio above 1 means Kiyosi took less CPU time in a paired case.
+On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_benchmarks`, omitting the Windows-specific CMake options. Without a QuantLib C++ package, CMake builds the Kiyosi cases alone. `compare.py` accepts either aggregate or individual Google Benchmark JSON results and prints median elapsed times, `QuantLib / Kiyosi` ratios, and warmup price differences. All matrix cases use elapsed (wall) time, including CPU Monte Carlo worker execution. A ratio above 1 means Kiyosi completed the paired case faster. Archived reports retain the timing convention stated in each report.
 
 ## Scenario and interpretation
 

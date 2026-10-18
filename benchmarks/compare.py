@@ -32,13 +32,12 @@ def report(path: Path) -> str:
     if not cases:
         raise ValueError("JSON contains no matrix benchmarks")
 
-    def measurement(rows: list[dict], wall_time: bool = False) -> tuple[float, float]:
+    def measurement(rows: list[dict]) -> tuple[float, float]:
         iterations = [row for row in rows if row.get("run_type") != "aggregate"]
         selected = iterations or rows
         units = {"ns": 1.0, "us": 1e3, "ms": 1e6, "s": 1e9}
-        clock = "real_time" if wall_time else "cpu_time"
         return (
-            median(row[clock] * units[row["time_unit"]] for row in selected),
+            median(row["real_time"] * units[row["time_unit"]] for row in selected),
             median(row["price"] for row in selected),
         )
 
@@ -50,7 +49,7 @@ def report(path: Path) -> str:
         own = libraries.get("kiyosi") or libraries.get("kiyosi_only")
         if not own:
             raise ValueError(f"QuantLib case has no Kiyosi counterpart: {name}")
-        own_ns, own_price = measurement(own, name.endswith("_cuda"))
+        own_ns, own_price = measurement(own)
         other = libraries.get("quantlib")
         label = f"{name} (Kiyosi only)" if "kiyosi_only" in libraries else name
         if other:
