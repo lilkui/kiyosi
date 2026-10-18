@@ -18,6 +18,47 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Scheduled analytic barriers preserve excluded terminal payoffs", "[barrier-payoff-exclusion]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.01, 0.2), 100.0, start);
+    for (const bool up : {true, false}) {
+        const auto direction = up ? OptionType::call : OptionType::put;
+        const double barrier = up ? 110.0 : 90.0;
+        for (const double strike : {barrier, up ? 115.0 : 85.0}) {
+            const auto vanilla = *make_european_option(direction, strike, start, end);
+            for (const bool knock_in : {false, true}) {
+                const auto type = up ? (knock_in ? BarrierType::up_and_in : BarrierType::up_and_out)
+                                     : (knock_in ? BarrierType::down_and_in : BarrierType::down_and_out);
+                const BinaryBarrierTerms terms{.option_type = direction, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = type, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}};
+                const auto cash = *make_cash_binary_barrier_option(terms, 10.0);
+                const auto asset = *make_asset_binary_barrier_option(terms);
+                CAPTURE(up, strike, knock_in);
+                CHECK(*AnalyticBinaryBarrierEngine{}.price(cash, context) ==
+                      (knock_in ? *AnalyticDigitalEngine{}.price(*make_cash_or_nothing_option(direction, strike, 10.0, start, end), context) : 0.0));
+                CHECK(*AnalyticBinaryBarrierEngine{}.price(asset, context) ==
+                      (knock_in ? *AnalyticDigitalEngine{}.price(*make_asset_or_nothing_option(direction, strike, start, end), context) : 0.0));
+                for (const double rebate : {0.0, 3.0}) {
+                    const auto option = *make_barrier_option({.option_type = direction, .strike = strike, .effective_date = start, .expiry_date = end, .barrier_level = barrier, .barrier_type = type, .rebate = rebate, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}});
+                    double expected = knock_in ? *AnalyticVanillaEngine{}.price(vanilla, context) : 0.0;
+                    if (rebate != 0.0) {
+                        const auto touch = detail::make_cash_touch_option(start, end, barrier, rebate,
+                                                                          up ? (knock_in ? BarrierType::up_and_out : BarrierType::up_and_in)
+                                                                             : (knock_in ? BarrierType::down_and_out : BarrierType::down_and_in),
+                                                                          SettlementTiming::at_expiry, ObservationMode::scheduled, {end}, std::nullopt);
+                        REQUIRE(touch);
+                        expected += *AnalyticBinaryBarrierEngine{}.price(*touch, context);
+                    }
+                    const auto result = AnalyticBarrierEngine{}.price(option, context);
+                    REQUIRE(result);
+                    CHECK_THAT(*result, Catch::Matchers::WithinAbs(expected, 1e-12));
+                }
+            }
+        }
+    }
+}
+
 TEST_CASE("Analytic barriers preserve small-volatility prices with nonzero carry", "[barrier-carry]")
 {
     using namespace kiyosi;

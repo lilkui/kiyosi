@@ -5,7 +5,10 @@ from datetime import UTC, date, datetime, timedelta
 import kiyosi
 from kiyosi import pricing
 from kiyosi.instruments import (
+    AssetOrNothingOption,
     BarrierOption,
+    CashOrNothingOption,
+    EuropeanOption,
     asset_binary_barrier_option,
     asset_no_touch_down,
     asset_no_touch_up,
@@ -26,6 +29,111 @@ from price_differences import price_differences
 
 
 class AnalyticBarrierDomainTests(unittest.TestCase):
+    def test_scheduled_analytic_barriers_preserve_excluded_terminal_payoffs(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.03, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        for up, direction, barrier in ((True, "call", 110), (False, "put", 90)):
+            for strike in (barrier, barrier + (5 if up else -5)):
+                vanilla_terms = {
+                    "option_type": direction,
+                    "strike": strike,
+                    "effective_date": start,
+                    "expiry_date": end,
+                }
+                for knock_in in (False, True):
+                    terms = dict(
+                        vanilla_terms,
+                        barrier_level=barrier,
+                        barrier_type=("up" if up else "down")
+                        + "_and_"
+                        + ("in" if knock_in else "out"),
+                        observation_mode="scheduled",
+                        observation_dates=[end],
+                    )
+                    for factory, vanilla in (
+                        (
+                            cash_binary_barrier_option,
+                            CashOrNothingOption(**vanilla_terms, payout=10),
+                        ),
+                        (
+                            asset_binary_barrier_option,
+                            AssetOrNothingOption(**vanilla_terms),
+                        ),
+                    ):
+                        binary = factory(
+                            **terms,
+                            **(
+                                {"payout": 10}
+                                if factory is cash_binary_barrier_option
+                                else {}
+                            ),
+                        )
+                        expected = (
+                            pricing.AnalyticDigitalEngine().price(vanilla, context)
+                            if knock_in
+                            else 0
+                        )
+                        with self.subTest(
+                            direction=direction,
+                            strike=strike,
+                            knock_in=knock_in,
+                            factory=factory,
+                        ):
+                            self.assertEqual(
+                                pricing.AnalyticBinaryBarrierEngine().price(
+                                    binary, context
+                                ),
+                                expected,
+                            )
+                    for rebate in (0, 3):
+                        expected = (
+                            pricing.AnalyticVanillaEngine().price(
+                                EuropeanOption(**vanilla_terms), context
+                            )
+                            if knock_in
+                            else 0
+                        )
+                        if rebate:
+                            factory = (
+                                (cash_no_touch_up if knock_in else cash_one_touch_up)
+                                if up
+                                else (
+                                    cash_no_touch_down
+                                    if knock_in
+                                    else cash_one_touch_down
+                                )
+                            )
+                            touch = factory(
+                                effective_date=start,
+                                expiry_date=end,
+                                barrier_level=barrier,
+                                payout=rebate,
+                                observation_mode="scheduled",
+                                observation_dates=[end],
+                            )
+                            expected += pricing.AnalyticBinaryBarrierEngine().price(
+                                touch, context
+                            )
+                        with self.subTest(
+                            direction=direction,
+                            strike=strike,
+                            knock_in=knock_in,
+                            rebate=rebate,
+                        ):
+                            self.assertAlmostEqual(
+                                pricing.AnalyticBarrierEngine().price(
+                                    BarrierOption(**terms, rebate=rebate), context
+                                ),
+                                expected,
+                                delta=1e-12,
+                            )
+
     def test_small_volatility_barriers_with_nonzero_carry(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for sigma in (1e-160, 1e-200):

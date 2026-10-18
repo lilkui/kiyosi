@@ -39,7 +39,8 @@ Result<double> price_barrier(
     if (!shifted_barrier) return std::unexpected(shifted_barrier.error());
     const double barrier = *shifted_barrier;
     const bool strike_above_barrier = option.strike() > barrier;
-    const bool needs_vanilla = knock_in ? upper == strike_above_barrier : upper != strike_above_barrier;
+    const bool payoff_requires_touch = terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
+    const bool needs_vanilla = payoff_requires_touch ? knock_in : (knock_in ? upper == strike_above_barrier : upper != strike_above_barrier);
     double a = 0.0;
     if (t == 0.0 || needs_vanilla) {
         const auto vanilla = price_at_volatility(
@@ -102,7 +103,9 @@ Result<double> price_barrier(
                          reflected(option.rebate(), -rate * t, eta * y2 - eta * root_time, false, false);
     };
     double value = 0.0;
-    if (call) {
+    if (payoff_requires_touch) {
+        value = knock_in ? a + e() : rebate();
+    } else if (call) {
         if (knock_in) value = upper ? (x > barrier ? a + e() : b() - c() + d() + e()) : (x > barrier ? c() + e() : a - b() + d() + e());
         else value = upper ? (x > barrier ? rebate() : a - b() + c() - d() + rebate()) : (x > barrier ? a - c() + rebate() : b() - d() + rebate());
     } else {

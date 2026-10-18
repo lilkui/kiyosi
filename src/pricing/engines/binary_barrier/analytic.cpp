@@ -10,6 +10,7 @@
 #include <variant>
 
 #include "../../detail/analytic_barrier.hpp"
+#include "../../detail/barrier_settlement.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
@@ -94,6 +95,8 @@ Result<double> price_contract(const BinaryBarrierContractView& option, const Pri
     }
     if (state->finished)
         return knock_in ? 0.0 : vanilla_digital(option, context, time);
+    if (option.option_type && terminal_payoff_requires_barrier_touch(terms, *option.option_type, option.strike))
+        return knock_in ? vanilla_digital(option, context, time) : Result<double>{0.0};
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield();
     const double volatility = context.model_parameters().volatility(), volatility_time = volatility * std::sqrt(time);
     const auto shifted_barrier = analytic_barrier_level(terms, spot, volatility);

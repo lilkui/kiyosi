@@ -9,6 +9,14 @@
 
 namespace kiyosi::detail {
 
+// A terminal in-the-money fixing necessarily touches this barrier when expiry is monitored.
+inline bool terminal_payoff_requires_barrier_touch(const BarrierTerms& terms, OptionType type, double strike)
+{
+    const bool monitors_expiry = terms.is_continuous() || terms.observation_dates().back() == terms.expiry_date();
+    return monitors_expiry && (terms.is_up() ? type == OptionType::call && strike >= terms.barrier_level()
+                                             : type == OptionType::put && strike <= terms.barrier_level());
+}
+
 // Callers validate instrument life and scheduled observation dates before resolving history.
 inline std::optional<Result<double>> resolved_barrier_price(
     const BarrierOption& option, const PricingContext& context)
@@ -23,7 +31,9 @@ inline std::optional<Result<double>> resolved_barrier_price(
                                  : scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
     if (!state->touched && state->finished && terms.is_knock_in())
         return checked_price(scaled_exponential(option.rebate(), -context.model_parameters().risk_free_rate() * time));
-    if (state->touched || state->finished) {
+    const bool fixed_payoff = option.rebate() == 0.0 && terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
+    if (fixed_payoff && !terms.is_knock_in()) return 0.0;
+    if (state->touched || state->finished || fixed_payoff) {
         const auto vanilla = price_at_volatility(
             *make_european_option(option.option_type(), option.strike(), option.effective_date(), option.expiry_date()),
             context, context.model_parameters().volatility(), GreeksRequest{});

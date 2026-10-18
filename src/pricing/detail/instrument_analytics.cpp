@@ -8,6 +8,7 @@
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/pricing/detail/accumulator_program.hpp>
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
+#include "barrier_settlement.hpp"
 
 namespace kiyosi::detail {
 
@@ -93,10 +94,7 @@ bool volatility_affects_price(const Option& option, const PricingContext& contex
         return !state.touched && !state.finished;
     } else {
         if ((state.touched && !terms.is_knock_in()) || (!state.touched && state.finished && terms.is_knock_in())) return false;
-        const bool monitors_expiry = terms.is_continuous() || terms.observation_dates().back() == option.expiry_date();
-        const bool payoff_excluded = !terms.is_knock_in() && monitors_expiry &&
-                                     (terms.is_up() ? option.option_type() == OptionType::call && option.strike() >= terms.barrier_level()
-                                                    : option.option_type() == OptionType::put && option.strike() <= terms.barrier_level());
+        const bool payoff_excluded = !terms.is_knock_in() && terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
         if constexpr (std::same_as<Option, BarrierOption>) return !payoff_excluded || option.rebate() != 0.0;
         else return !payoff_excluded;
     }
