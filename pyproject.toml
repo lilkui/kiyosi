@@ -57,5 +57,5 @@ test-command = [
 ]
 
 [tool.cibuildwheel.linux]
-manylinux-x86_64-image = "quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda12_9@sha256:48722ca4ea6d167f99e9dc4fe7a4cc50ebc3b3320d480fc2ad780f99b145200b"
+manylinux-x86_64-image = "quay.io/manylinux_cuda/manylinux_2_28_x86_64_cuda12_9:2026.10.15-1@sha256:06c1fca2d7e2a9ada0e4d31f30c94ff8b4efeeed9599e72f8678c8a75342b1d5"
 before-all = "dnf install -y cuda-cuobjdump-12-9"
