@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <optional>
 #include <utility>
 
 #include <kiyosi/core/time.hpp>
@@ -11,12 +12,25 @@ namespace kiyosi {
 
 class PricingContext;
 
+/// Fields to replace; absent fields retain their current values, including the calendar.
+struct PricingContextChanges {
+    std::optional<BlackScholesMertonParameters> model_parameters;
+    std::optional<double> spot_price;
+    std::optional<Timestamp> valuation_time;
+    std::optional<TradingCalendar> calendar;
+};
+
 [[nodiscard]] Result<PricingContext> make_pricing_context(
     BlackScholesMertonParameters, double, Timestamp, TradingCalendar);
 
 /// Valuation-time snapshot: model parameters, the observable spot, and the trading calendar.
 class PricingContext {
 public:
+    /// Returns a validated owning copy with the supplied fields replaced.
+    /// Uses make_pricing_context validation and error categories; never changes this object.
+    /// Concurrent calls and reads follow the calendar contract, without concurrent assignment.
+    [[nodiscard]] Result<PricingContext> replace(const PricingContextChanges& changes = {}) const;
+
     /// Returns the Black-Scholes-Merton model parameters.
     const BlackScholesMertonParameters& model_parameters() const noexcept { return model_parameters_; }
     /// Returns the positive observable spot price.
@@ -86,6 +100,14 @@ private:
     BlackScholesMertonParameters model_parameters, double spot_price, Date valuation_date)
 {
     return make_pricing_context(std::move(model_parameters), spot_price, valuation_date, weekdays_calendar());
+}
+
+inline Result<PricingContext> PricingContext::replace(const PricingContextChanges& changes) const
+{
+    return make_pricing_context(changes.model_parameters.value_or(model_parameters_),
+                                changes.spot_price.value_or(spot_price_),
+                                changes.valuation_time.value_or(valuation_time_),
+                                changes.calendar ? *changes.calendar : calendar_);
 }
 
 } // namespace kiyosi

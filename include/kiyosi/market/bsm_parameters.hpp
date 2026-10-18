@@ -1,14 +1,27 @@
 #pragma once
 
 #include <cmath>
+#include <optional>
 
 #include <kiyosi/core/error.hpp>
 
 namespace kiyosi {
 
+/// Fields to replace; absent fields retain their current values.
+struct BlackScholesMertonParameterChanges {
+    std::optional<double> risk_free_rate;
+    std::optional<double> dividend_yield;
+    std::optional<double> volatility;
+};
+
 /// Black-Scholes-Merton model parameters: continuously compounded rates and a flat volatility.
 class BlackScholesMertonParameters {
 public:
+    /// Returns a validated owning copy with the supplied fields replaced.
+    /// Uses make_bsm_parameters validation and error categories; never changes this object.
+    /// Concurrent calls and reads are safe without concurrent assignment to this object.
+    [[nodiscard]] Result<BlackScholesMertonParameters> replace(BlackScholesMertonParameterChanges changes = {}) const;
+
     /// Returns the continuously compounded risk-free rate as a decimal.
     double risk_free_rate() const noexcept { return risk_free_rate_; }
     /// Returns the continuously compounded dividend yield as a decimal.
@@ -44,6 +57,14 @@ private:
                                      "volatility must be finite and positive"});
     }
     return BlackScholesMertonParameters{risk_free_rate, dividend_yield, volatility};
+}
+
+inline Result<BlackScholesMertonParameters> BlackScholesMertonParameters::replace(
+    BlackScholesMertonParameterChanges changes) const
+{
+    return make_bsm_parameters(changes.risk_free_rate.value_or(risk_free_rate_),
+                               changes.dividend_yield.value_or(dividend_yield_),
+                               changes.volatility.value_or(volatility_));
 }
 
 } // namespace kiyosi

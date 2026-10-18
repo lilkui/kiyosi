@@ -14,6 +14,66 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Market replace preserves omitted fields and validates copies", "[market-replace]")
+{
+    const auto parameters = kiyosi::make_bsm_parameters(0.03, 0.01, 0.2);
+    REQUIRE(parameters);
+    const auto changed = parameters->replace({.volatility = 0.25});
+    REQUIRE(changed);
+    CHECK(changed->risk_free_rate() == 0.03);
+    CHECK(changed->dividend_yield() == 0.01);
+    CHECK(changed->volatility() == 0.25);
+    CHECK(parameters->replace() == parameters);
+    const auto zero_rates = changed->replace({.risk_free_rate = 0, .dividend_yield = 0});
+    REQUIRE(zero_rates);
+    CHECK(zero_rates->risk_free_rate() == 0);
+    CHECK(zero_rates->dividend_yield() == 0);
+    CHECK(zero_rates->volatility() == 0.25);
+
+    const auto time = kiyosi::start_of_day(day(2025, 1, 3)) + std::chrono::microseconds{45001123456};
+    const auto context = kiyosi::make_pricing_context(*parameters, 100, time, kiyosi::all_days_calendar());
+    REQUIRE(context);
+    const auto copy = context->replace();
+    REQUIRE(copy);
+    CHECK(copy->spot_price() == 100);
+    CHECK(copy->model_parameters() == *parameters);
+    CHECK(copy->valuation_time() == time);
+    CHECK(copy->calendar().trading_days_per_year() == 365);
+    const auto bumped = context->replace({.spot_price = 105});
+    REQUIRE(bumped);
+    CHECK(bumped->spot_price() == 105);
+    CHECK(bumped->model_parameters() == *parameters);
+    CHECK(bumped->valuation_time() == time);
+    CHECK(bumped->calendar().is_trading_day(day(2025, 1, 4)));
+    const auto new_time = kiyosi::start_of_day(day(2025, 1, 6)) + std::chrono::hours{1};
+    const auto replaced = context->replace({.model_parameters = *changed, .spot_price = 110, .valuation_time = new_time, .calendar = kiyosi::weekdays_calendar()});
+    REQUIRE(replaced);
+    CHECK(replaced->model_parameters() == *changed);
+    CHECK(replaced->spot_price() == 110);
+    CHECK(replaced->valuation_time() == new_time);
+    CHECK_FALSE(replaced->calendar().is_trading_day(day(2025, 1, 4)));
+
+    const auto invalid_rate = parameters->replace({.risk_free_rate = std::numeric_limits<double>::quiet_NaN()});
+    REQUIRE_FALSE(invalid_rate);
+    CHECK(invalid_rate.error().category == kiyosi::ErrorCategory::invalid_risk_free_rate);
+    const auto invalid_yield = parameters->replace({.dividend_yield = std::numeric_limits<double>::infinity()});
+    REQUIRE_FALSE(invalid_yield);
+    CHECK(invalid_yield.error().category == kiyosi::ErrorCategory::invalid_dividend_yield);
+    const auto invalid_volatility = parameters->replace({.volatility = 0});
+    REQUIRE_FALSE(invalid_volatility);
+    CHECK(invalid_volatility.error().category == kiyosi::ErrorCategory::invalid_volatility);
+    const auto invalid_spot = context->replace({.spot_price = 0, .calendar = kiyosi::weekdays_calendar()});
+    REQUIRE_FALSE(invalid_spot);
+    CHECK(invalid_spot.error().category == kiyosi::ErrorCategory::invalid_spot_price);
+    CHECK(parameters->risk_free_rate() == 0.03);
+    CHECK(parameters->dividend_yield() == 0.01);
+    CHECK(parameters->volatility() == 0.2);
+    CHECK(context->model_parameters() == *parameters);
+    CHECK(context->spot_price() == 100);
+    CHECK(context->valuation_time() == time);
+    CHECK(context->calendar().is_trading_day(day(2025, 1, 4)));
+}
+
 TEST_CASE("BSM parameters and pricing contexts reject invalid market inputs")
 {
     auto valid = kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);

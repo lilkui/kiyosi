@@ -73,6 +73,7 @@ UNSUPPORTED_OPERATION
 
 void bind_market(nb::module_& module)
 {
+    const auto omitted = nb::module_::import_("builtins").attr("object")();
     auto parameters = nb::class_<BlackScholesMertonParameters>(
                           module, "BlackScholesMertonParameters", R"doc(Immutable validated Black-Scholes-Merton market parameters.)doc")
                           .def(nb::new_([](PythonReal risk_free_rate, PythonReal dividend_yield,
@@ -108,6 +109,18 @@ KiyosiError
                                        "Continuously compounded annual dividend yield.")
                           .def_prop_ro("volatility", &BlackScholesMertonParameters::volatility,
                                        "Positive annualized volatility.");
+    parameters.def("replace", [omitted](const BlackScholesMertonParameters& self, PythonReal risk_free_rate, PythonReal dividend_yield, PythonReal volatility) {
+        BlackScholesMertonParameterChanges changes;
+        if (!risk_free_rate.is(omitted)) changes.risk_free_rate = real_number(risk_free_rate, "risk_free_rate");
+        if (!dividend_yield.is(omitted)) changes.dividend_yield = real_number(dividend_yield, "dividend_yield");
+        if (!volatility.is(omitted)) changes.volatility = real_number(volatility, "volatility");
+        return unwrap(self.replace(changes)); }, nb::kw_only(), "risk_free_rate"_a.sig("...") = omitted, "dividend_yield"_a.sig("...") = omitted, "volatility"_a.sig("...") = omitted,
+                   R"doc(Return a validated copy with the supplied fields replaced.
+
+Omitted fields retain their current values; no arguments returns an equal value.
+Arguments use the constructor's units, conversion rules and domain validation.
+Explicit None and unknown fields raise TypeError. Domain errors raise KiyosiError.
+The original parameters remain unchanged on success or failure.)doc");
     bind_value_equality(parameters);
     bind_repr(parameters, "BlackScholesMertonParameters",
               {"risk_free_rate",
@@ -243,6 +256,28 @@ KiyosiError
                        .def_prop_ro("valuation_date", [](const PricingContext& context) { return python_date(context.valuation_date()); }, "UTC date containing the valuation instant.")
                        .def_prop_ro("valuation_time", [](const PricingContext& context) { return python_timestamp(context.valuation_time()); }, "Timezone-aware valuation timestamp normalized to UTC.")
                        .def_prop_ro("calendar", &PricingContext::calendar, nb::rv_policy::reference_internal, "Read-only calendar view that keeps this context alive; concurrent reads are safe.");
+    context.def("replace", [omitted](const PricingContext& self, nb::typed<nb::handle, BlackScholesMertonParameters> model_parameters, PythonReal spot_price, PythonValuationTime time, nb::typed<nb::handle, TradingCalendar> calendar) {
+        PricingContextChanges changes;
+        if (!model_parameters.is(omitted)) {
+            if (!nb::isinstance<BlackScholesMertonParameters>(model_parameters))
+                type_error("model_parameters", "BlackScholesMertonParameters");
+            changes.model_parameters = nb::cast<BlackScholesMertonParameters>(model_parameters);
+        }
+        if (!spot_price.is(omitted)) changes.spot_price = real_number(spot_price, "spot_price");
+        if (!time.is(omitted)) changes.valuation_time = valuation_time(time);
+        if (!calendar.is(omitted)) {
+            if (!nb::isinstance<TradingCalendar>(calendar)) type_error("calendar", "TradingCalendar");
+            changes.calendar = nb::cast<TradingCalendar>(calendar);
+        }
+        return unwrap(self.replace(changes)); }, nb::kw_only(), "model_parameters"_a.sig("...") = omitted, "spot_price"_a.sig("...") = omitted, "valuation_time"_a.sig("...") = omitted, "calendar"_a.sig("...") = omitted,
+                R"doc(Return a validated copy with the supplied fields replaced.
+
+Omitted fields retain their current values, including the calendar and exact
+valuation timestamp. No arguments returns an equivalent snapshot. Arguments use
+the constructor's conversion rules and domain validation, including UTC conversion.
+Explicit None and unknown fields raise TypeError. Domain errors raise KiyosiError.
+The original context remains unchanged on success or failure.
+To change volatility, replace model_parameters with a modified parameter copy.)doc");
     bind_repr(context, "PricingContext",
               {"model_parameters", "spot_price", "valuation_time", "calendar"});
 
