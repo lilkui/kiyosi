@@ -89,14 +89,19 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (active(time_to_expiry))
         for (int index = 0; index <= asset_step_count; ++index)
             if (knocked(spacing * index)) old[index] = option.rebate();
-    const auto boundary = [&](double tau) {
+    const auto boundary = [&](double time, double tau) {
         if (!scheduled && upper_barrier)
             return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
                               rebate_value(tau)};
         Boundaries edges = vanilla_boundary(tau);
-        if (!scheduled) {
-            if (knocked(0.0)) edges.lower = rebate_value(tau);
-            if (knocked(upper)) edges.upper = rebate_value(tau);
+        const auto observation = std::ranges::lower_bound(observation_times, time);
+        if (!scheduled || observation != observation_times.end()) {
+            // Scheduled edges settle at the next observation, not between observations.
+            const double rebate = scheduled && option.rebate_timing() == RebateTiming::at_hit
+                                      ? scaled_exponential(option.rebate(), -rate * (*observation - time))
+                                      : rebate_value(tau);
+            if (knocked(0.0)) edges.lower = rebate;
+            if (knocked(upper)) edges.upper = rebate;
         }
         return edges;
     };
@@ -110,9 +115,9 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const DiffusionParameters parameters{rate, dividend, volatility, theta};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double tau = time_to_expiry - grid.times[step];
-        const Boundaries edges = boundary(tau);
+        const Boundaries edges = boundary(grid.times[step], tau);
         const bool advanced = paired
-                                  ? stepper.advance_pair(vanilla, next_vanilla, old, next, grid.time_steps[step], parameters, edges, edges)
+                                  ? stepper.advance_pair(vanilla, next_vanilla, old, next, grid.time_steps[step], parameters, vanilla_boundary(tau), edges)
                               : scheduled
                                   ? stepper.advance(old, next, grid.time_steps[step], parameters, edges.lower, edges.upper)
                                   : stepper.advance(old, next, grid.time_steps[step], parameters, edges.lower, edges.upper,

@@ -1,6 +1,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -67,4 +68,26 @@ TEST_CASE("Continuous up-and-out trimming retains explicit stability validation"
     const auto result = make_finite_difference_barrier_engine({200, 50, FiniteDifferenceScheme::explicit_euler}).value().price(option, context);
     REQUIRE_FALSE(result);
     CHECK(result.error().category == ErrorCategory::invalid_parameter);
+}
+
+TEST_CASE("Scheduled barrier edges retain the next observation settlement", "[fd-barrier-edges]")
+{
+    using namespace kiyosi;
+    const auto scheme = GENERATE(FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson);
+    const bool up = GENERATE(false, true);
+    const auto timing = GENERATE(RebateTiming::at_hit, RebateTiming::at_expiry);
+    const double rebate = GENERATE(0.0, 2.0);
+    const bool observes_expiry = GENERATE(false, true);
+    const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);
+    const auto valuation = start_of_day(start) + std::chrono::hours{12};
+    std::vector<Date> dates{start + std::chrono::days{1}};
+    if (observes_expiry) dates.push_back(end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), up ? 150.0 : 1.0, valuation, all_days_calendar());
+    const auto option = *make_barrier_option({.option_type = up ? OptionType::call : OptionType::put, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = up ? 110.0 : 90.0, .barrier_type = up ? BarrierType::up_and_out : BarrierType::down_and_out, .rebate = rebate, .rebate_timing = timing, .observation_mode = ObservationMode::scheduled, .observation_dates = dates});
+    const auto engine = *make_finite_difference_barrier_engine({200, scheme == FiniteDifferenceScheme::explicit_euler ? 2'000 : 200, scheme, up ? std::optional{151.0} : std::nullopt});
+    const auto price = engine.price(option, context);
+    REQUIRE(price);
+    const auto payment_date = timing == RebateTiming::at_hit ? dates.front() : end;
+    const double expected = rebate * std::exp(-0.04 * *year_fraction(valuation, start_of_day(payment_date)));
+    CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected, 1e-6));
 }
