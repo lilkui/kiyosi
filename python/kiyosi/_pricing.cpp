@@ -242,10 +242,10 @@ time steps. Accumulator and autocallable engines accept 3..2,000 asset steps and
                      integer(asset_step_count, "asset_step_count"), integer(time_step_count, "time_step_count"),
                      scheme, boundary}));
              }),
-             nb::kw_only(), "asset_step_count"_a = FiniteDifferenceSettings{}.asset_step_count,
-             "time_step_count"_a = FiniteDifferenceSettings{}.time_step_count,
-             "scheme"_a = FiniteDifferenceSettings{}.scheme,
-             "asset_upper_boundary"_a.none() = FiniteDifferenceSettings{}.asset_upper_boundary,
+             nb::kw_only(), "asset_step_count"_a = Engine{}.settings().asset_step_count,
+             "time_step_count"_a = Engine{}.settings().time_step_count,
+             "scheme"_a = Engine{}.settings().scheme,
+             "asset_upper_boundary"_a.none() = Engine{}.settings().asset_upper_boundary,
              R"doc(Create an engine with validated finite-difference settings.
 
 Settings are validated at construction.

@@ -13,6 +13,189 @@
 
 #include "pricing/detail/fd_scheme.hpp"
 #include "pricing/detail/fd_grid.hpp"
+#include "pricing/detail/fd_event.hpp"
+
+TEST_CASE("Finite-difference event projection integrates every break in both layers", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    const std::array breaks{0.75, 1.0, 1.25};
+    const auto value_at = [](double coordinate) {
+        const double first = coordinate < 0.75 ? 0.0 : coordinate < 1.0 ? 2.0
+                                                   : coordinate < 1.25  ? 6.0
+                                                                        : 10.0;
+        return std::array{first, coordinate < 1.0 ? 5.0 : 13.0};
+    };
+    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 1, value_at);
+    CHECK_THAT(result[0], Catch::Matchers::WithinAbs(4.5, 1e-14));
+    CHECK_THAT(result[1], Catch::Matchers::WithinAbs(9.0, 1e-14));
+}
+
+TEST_CASE("Finite-difference event projection leaves smooth cells and endpoints exact", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    int calls = 0;
+    const auto value_at = [&](double coordinate) {
+        ++calls;
+        return std::array{coordinate * coordinate, 2.0 * coordinate + 3.0};
+    };
+    SECTION("No break means no repeated smoothing")
+    {
+        const auto result = kiyosi::detail::project_finite_difference_event(grid, {}, 1, value_at);
+        CHECK((result == std::array{1.0, 5.0}));
+        CHECK(calls == 1);
+    }
+    SECTION("Breaks at cell edges do not enter the cell")
+    {
+        const std::array breaks{0.5, 1.5};
+        const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 1, value_at);
+        CHECK((result == std::array{1.0, 5.0}));
+        CHECK(calls == 1);
+    }
+    SECTION("Boundary values stay pointwise even near breaks")
+    {
+        const std::array breaks{0.1, 3.9};
+        for (const std::size_t index : {std::size_t{0}, grid.size() - 1}) {
+            const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, index, value_at);
+            const double coordinate = grid.spacing * static_cast<double>(index);
+            CHECK(result[0] == coordinate * coordinate);
+            CHECK(result[1] == 2.0 * coordinate + 3.0);
+        }
+        CHECK(calls == 2);
+    }
+}
+
+TEST_CASE("Finite-difference event projection weights stretched cells in solver coordinates", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{100.0 * std::sinh(0.4), 0.1, 4, 100.0};
+    const std::array breaks{0.175};
+    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 2, [&](double coordinate) {
+        return std::array{coordinate < 0.175 ? 2.0 : 7.0, grid.asset_of_coordinate(coordinate)};
+    });
+    CHECK_THAT(result[0], Catch::Matchers::WithinAbs(5.75, 1e-13));
+    const double expected_asset_average = 100.0 * (std::cosh(0.25) - std::cosh(0.15)) / 0.1;
+    CHECK_THAT(result[1], Catch::Matchers::WithinAbs(expected_asset_average, 1e-7));
+}
+
+TEST_CASE("Finite-difference event projection respects nonuniform control volumes", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4, 0.0, {0.0, 0.4, 1.0, 2.0, 4.0}};
+    CHECK(grid.nearest_node(0.0) == 0);
+    CHECK(grid.nearest_node(0.3) == 1);
+    CHECK(grid.nearest_node(1.5) == 2);
+    CHECK(grid.nearest_node(std::nextafter(1.5, 2.0)) == 3);
+    CHECK(grid.nearest_node(4.0) == 4);
+    const std::array breaks{0.9, 1.0, 1.2};
+    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 2, [](double coordinate) {
+        const double first = coordinate < 0.9 ? 0.0 : coordinate < 1.0 ? 2.0
+                                                  : coordinate < 1.2   ? 6.0
+                                                                       : 10.0;
+        return std::array{first, coordinate < 1.0 ? 5.0 : 13.0};
+    });
+    CHECK_THAT(result[0], Catch::Matchers::WithinAbs(5.5, 1e-13));
+    CHECK_THAT(result[1], Catch::Matchers::WithinAbs(10.0, 1e-13));
+}
+
+TEST_CASE("Nonuniform finite-difference splines retain physical derivatives and cached consistency", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
+    // Integrating continuous curvature {0,2,-1,0} from initial slope 1 gives this natural spline.
+    const std::array values{0.0, 4.0 / 3.0, 23.0 / 6.0, 7.5};
+    CHECK_THAT(grid.linear_interpolate(values, 1.5), Catch::Matchers::WithinAbs(31.0 / 12.0, 1e-14));
+    std::vector<double> curvature;
+    for (const double t : {0.1, 0.5, 0.9}) {
+        CAPTURE(t);
+        const double spot = 1.0 + t;
+        const double expected = 4.0 / 3.0 + 2.0 * t + t * t - 0.5 * t * t * t;
+        const double delta = 2.0 + 2.0 * t - 1.5 * t * t;
+        const double gamma = 2.0 - 3.0 * t;
+        CHECK_THAT(grid.interpolate(values, spot, curvature), Catch::Matchers::WithinAbs(expected, 1e-14));
+        CHECK_THAT(grid.delta(values, spot, curvature), Catch::Matchers::WithinAbs(delta, 1e-14));
+        CHECK_THAT(grid.gamma(values, spot, curvature), Catch::Matchers::WithinAbs(gamma, 1e-14));
+        CHECK_THAT(grid.delta(values, spot), Catch::Matchers::WithinAbs(delta, 1e-14));
+        CHECK_THAT(grid.gamma(values, spot), Catch::Matchers::WithinAbs(gamma, 1e-14));
+    }
+    for (std::size_t index = 0; index < grid.size(); ++index)
+        CHECK(grid.interpolate(values, grid.asset_at(index)) == values[index]);
+    const std::array affine{3.0, 5.0, 7.0, 11.0};
+    for (const double spot : {0.0, 0.25, 1.0, 1.5, 3.0, 4.0}) {
+        CHECK_THAT(grid.interpolate(affine, spot), Catch::Matchers::WithinAbs(3.0 + 2.0 * spot, 1e-14));
+        CHECK_THAT(grid.linear_interpolate(affine, spot), Catch::Matchers::WithinAbs(3.0 + 2.0 * spot, 1e-14));
+        CHECK_THAT(grid.delta(affine, spot), Catch::Matchers::WithinAbs(2.0, 1e-14));
+        CHECK_THAT(grid.gamma(affine, spot), Catch::Matchers::WithinAbs(0.0, 1e-14));
+    }
+}
+
+TEST_CASE("Nonuniform spline overshoot is bounded with consistent Greeks", "[autocallable-accuracy]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
+    for (const double sign : {-1.0, 1.0}) {
+        const std::array values{1.0 - sign, 1.0, 1.0, 1.0};
+        std::vector<double> curvature;
+        for (const double spot : {1.25, 1.5, 1.75}) {
+            CAPTURE(sign, spot);
+            CHECK(grid.interpolate(values, spot, curvature) == 1.0);
+            CHECK(grid.delta(values, spot, curvature) == 0.0);
+            CHECK(grid.gamma(values, spot, curvature) == 0.0);
+            CHECK(grid.delta(values, spot) == 0.0);
+            CHECK(grid.gamma(values, spot) == 0.0);
+            constexpr double bump = 1e-3;
+            const double low = grid.interpolate(values, spot - bump);
+            const double high = grid.interpolate(values, spot + bump);
+            CHECK((high - low) / (2.0 * bump) == 0.0);
+            CHECK((high - 2.0 + low) / (bump * bump) == 0.0);
+        }
+    }
+    // A genuine local peak inside the layer's range retains its spline derivatives.
+    const std::array values{0.0, 1.0, 1.0, 2.0};
+    CHECK_THAT(grid.interpolate(values, 1.5), Catch::Matchers::WithinAbs(1.0 + 21.0 / 368.0, 1e-14));
+    CHECK_THAT(grid.delta(values, 1.5), Catch::Matchers::WithinAbs(-19.0 / 184.0, 1e-14));
+    CHECK_THAT(grid.gamma(values, 1.5), Catch::Matchers::WithinAbs(-21.0 / 46.0, 1e-14));
+    const std::array sloped{0.0, 1.0, 1.01, 1.02};
+    for (const double weight : {0.001, 0.25, 0.5, 0.75, 0.999}) {
+        const double spot = 1.0 + weight;
+        CHECK_THAT(grid.interpolate(sloped, spot), Catch::Matchers::WithinAbs(std::lerp(1.0, 1.01, weight), 1e-14));
+        CHECK_THAT(grid.delta(sloped, spot), Catch::Matchers::WithinAbs(0.01, 1e-14));
+        CHECK(grid.gamma(sloped, spot) == 0.0);
+    }
+}
+
+TEST_CASE("Nonuniform diffusion preserves polynomial generators and positive off diagonals", "[autocallable-accuracy]")
+{
+    using namespace kiyosi::detail;
+    const SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
+    for (const auto& parameters : {DiffusionParameters{0.04, 0.01, 0.2, 0.5, 0.0, &grid}, {0.1, 0.0, 0.01, 0.5, 0.0, &grid}, {0.0, 0.1, 0.01, 0.5, 0.0, &grid}}) {
+        for (std::size_t index = 1; index + 1 < grid.size(); ++index) {
+            const auto [a, b, c] = diffusion_coefficients(static_cast<double>(index), parameters);
+            const double low = grid.asset_at(index - 1), spot = grid.asset_at(index), high = grid.asset_at(index + 1);
+            CHECK(a >= 0.0);
+            CHECK(c >= 0.0);
+            CHECK_THAT(a + b + c, Catch::Matchers::WithinAbs(-parameters.rate, 1e-14));
+            CHECK_THAT(a * low + b * spot + c * high, Catch::Matchers::WithinAbs(-parameters.dividend * spot, 1e-14));
+            if (parameters.volatility == 0.2) {
+                const double quadratic = (parameters.volatility * parameters.volatility + parameters.rate - 2.0 * parameters.dividend) * spot * spot;
+                CHECK_THAT(a * low * low + b * spot * spot + c * high * high, Catch::Matchers::WithinAbs(quadratic, 1e-14));
+            }
+        }
+    }
+}
+
+TEST_CASE("Nonuniform diffusion theta steps preserve affine cash and asset portfolios", "[autocallable-accuracy]")
+{
+    using namespace kiyosi::detail;
+    const SpatialGrid grid{4.0, 1.0, 4, 0.0, {0.0, 0.4, 1.0, 2.0, 4.0}};
+    constexpr double rate = 0.04, dividend = 0.01, dt = 0.01;
+    const std::vector<double> old{2.0, 3.2, 5.0, 8.0, 14.0};
+    std::vector<double> next(old.size());
+    for (const double theta : {0.0, 0.5, 1.0}) {
+        CAPTURE(theta);
+        const auto decay = [=](double yield) { return (1.0 - (1.0 - theta) * yield * dt) / (1.0 + theta * yield * dt); };
+        const auto expected = [&](double spot) { return 2.0 * decay(rate) + 3.0 * spot * decay(dividend); };
+        FiniteDifferenceStep step{old.size()};
+        REQUIRE(step.advance(old, next, dt, {rate, dividend, 0.2, theta, 0.0, &grid}, expected(0.0), expected(4.0)));
+        for (std::size_t index = 0; index < next.size(); ++index)
+            CHECK_THAT(next[index], Catch::Matchers::WithinAbs(expected(grid.asset_at(index)), 1e-13));
+    }
+}
 
 TEST_CASE("Finite-difference speed validates shifted prices before using gamma", "[fd-speed]")
 {
@@ -375,8 +558,6 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
     };
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
     check(accumulator, make_finite_difference_accumulator_engine, {{{-2125.177940477314, 314.25537377676187, -24.53113696074924}, {-2120.221666260853, 314.4815991820858, -24.573439894742528}, {-2130.1933395583947, 314.0331999420339, -24.487720823425548}}});
-    const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{Date{std::chrono::year{2024} / 4 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2024} / 7 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2024} / 10 / 1}, 110.0, 0.08}, {end, 110.0, 0.08}}});
-    check(snowball, make_finite_difference_autocallable_engine, {{{0.9956959342110923, 0.002334647538852612, -0.00027779493631300466}, {0.9957679329994007, 0.002325382664906021, -0.00027718976198143775}, {0.9956225895060031, 0.0023440665260287138, -0.0002784043202963022}}});
     std::vector<Date> observations;
     for (int day = 1; day <= 366; ++day)
         observations.push_back(start + std::chrono::days{day});

@@ -402,7 +402,7 @@ class AuditFixTests(unittest.TestCase):
                                 )
                                 self.assertAlmostEqual(solved, 0.073, delta=1e-10)
 
-    def test_finite_difference_implied_coupons_retain_nonlinear_interpolation(self):
+    def test_finite_difference_implied_coupons_reprice_after_one_iteration(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -435,21 +435,17 @@ class AuditFixTests(unittest.TestCase):
             asset_step_count=5, time_step_count=10
         )
         quote = engine.price(note, context)
-        with self.assertRaises(kiyosi.KiyosiError) as error:
-            pricing.implied_coupon(
-                engine,
-                note,
-                context,
-                quote,
-                quote_convention="shift_maturity_coupon",
-                lower_bound=-1,
-                upper_bound=2,
-                price_tolerance=1e-10,
-                parameter_tolerance=1e-12,
-                max_iterations=1,
-            )
-        self.assertEqual(
-            error.exception.category, kiyosi.ErrorCategory.SOLVER_NON_CONVERGENCE
+        single_iteration = pricing.implied_coupon(
+            engine,
+            note,
+            context,
+            quote,
+            quote_convention="shift_maturity_coupon",
+            lower_bound=-1,
+            upper_bound=2,
+            price_tolerance=1e-10,
+            parameter_tolerance=1e-12,
+            max_iterations=1,
         )
         solved = pricing.implied_coupon(
             engine,
@@ -462,17 +458,21 @@ class AuditFixTests(unittest.TestCase):
             price_tolerance=1e-10,
             parameter_tolerance=1e-12,
         )
-        self.assertAlmostEqual(solved, 0.073, delta=1e-9)
-        repriced = SnowballOption(
-            **terms,
-            maturity_coupon_rate=solved,
-            observations=autocallable_observations(
-                observation_dates,
-                knock_out_levels,
-                knock_out_coupon_rates=[solved, solved],
-            ),
-        )
-        self.assertAlmostEqual(engine.price(repriced, context), quote, delta=1e-10)
+        for label, coupon in (("single_iteration", single_iteration), ("full", solved)):
+            with self.subTest(solve=label):
+                self.assertAlmostEqual(coupon, 0.073, delta=1e-9)
+                repriced = SnowballOption(
+                    **terms,
+                    maturity_coupon_rate=coupon,
+                    observations=autocallable_observations(
+                        observation_dates,
+                        knock_out_levels,
+                        knock_out_coupon_rates=[coupon, coupon],
+                    ),
+                )
+                self.assertAlmostEqual(
+                    engine.price(repriced, context), quote, delta=1e-10
+                )
 
     def test_touch_prices_survive_volatility_variance_underflow(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

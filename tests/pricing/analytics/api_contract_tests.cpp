@@ -71,7 +71,7 @@ TEST_CASE("Engine factories preserve defaults and validate configuration before 
         static_assert(!std::is_constructible_v<Engine, int, int>);
         const auto defaults = make_engine({});
         REQUIRE(defaults);
-        const auto expected = default_engine.settings();
+        const FiniteDifferenceSettings expected;
         CHECK(defaults->settings().asset_step_count == expected.asset_step_count);
         CHECK(defaults->settings().time_step_count == expected.time_step_count);
         CHECK(defaults->settings().scheme == expected.scheme);
@@ -1338,7 +1338,8 @@ TEST_CASE("Finite difference coupon storage preserves independent prices and req
     const auto allowed = std::make_shared<std::atomic<bool>>(true);
     const auto calendar = *make_trading_calendar([queries, allowed](Date) { ++*queries; return allowed->load(); }, 365);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.25, start, calendar);
-    const ImpliedCouponSettings bounds{.lower_bound = 0.0, .upper_bound = 0.2, .price_tolerance = 1e-12, .parameter_tolerance = 1e-12};
+    // Weak coupon exposure needs a tighter price tolerance to recover the quoted parameter.
+    const ImpliedCouponSettings bounds{.lower_bound = 0.0, .upper_bound = 0.2, .price_tolerance = 1e-14, .parameter_tolerance = 1e-12};
     for (const auto mode : {KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day}) {
         for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
             const auto check = [&](const auto& note) {
@@ -1398,7 +1399,7 @@ TEST_CASE("Finite difference coupon storage preserves independent prices and req
     }
 }
 
-TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[pricing-api][audit-fixes]")
+TEST_CASE("Finite difference implied coupons reprice accurately after one iteration", "[pricing-api][audit-fixes]")
 {
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 71.46981808356617, start);
@@ -1407,17 +1408,19 @@ TEST_CASE("Finite difference implied coupons retain nonlinear interpolation", "[
     const auto engine = make_finite_difference_autocallable_engine({5, 10}).value();
     const auto quote = engine.price(note, context);
     REQUIRE(quote);
-    const auto insufficient = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
-                                             {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
-    REQUIRE_FALSE(insufficient);
-    CHECK(insufficient.error().category == ErrorCategory::solver_non_convergence);
+    const auto single_iteration = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
+                                                 {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12, .max_iterations = 1});
+    REQUIRE(single_iteration);
+    CHECK(*single_iteration == Catch::Approx(0.073).epsilon(0.0).margin(1e-9));
     const auto solved = implied_coupon(engine, note, context, *quote, CouponQuoteConvention::shift_maturity_coupon,
                                        {.lower_bound = -1.0, .upper_bound = 2.0, .price_tolerance = 1e-10, .parameter_tolerance = 1e-12});
     REQUIRE(solved);
     CHECK(*solved == Catch::Approx(0.073).epsilon(0.0).margin(1e-9));
-    const auto repriced = engine.price(*detail::replace_coupon(note, *solved, CouponQuoteConvention::shift_maturity_coupon), context);
-    REQUIRE(repriced);
-    CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(1e-10));
+    for (const double coupon : {*single_iteration, *solved}) {
+        const auto repriced = engine.price(*detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon), context);
+        REQUIRE(repriced);
+        CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(1e-10));
+    }
 }
 
 TEST_CASE("Implied solvers preserve custom engine seeds for every trial", "[pricing-api]")

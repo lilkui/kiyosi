@@ -22,6 +22,7 @@ struct DiffusionParameters {
     double volatility;
     double theta;
     double sinh_spacing = 0.0;
+    const SpatialGrid* space = nullptr; // Optional nonuniform grid, owned by the request for the stepper lifetime.
     friend bool operator==(const DiffusionParameters&, const DiffusionParameters&) = default;
 };
 
@@ -43,6 +44,20 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
     const double rate = parameters.rate;
     const double dividend = parameters.dividend;
     const double volatility = parameters.volatility;
+    if (parameters.space) {
+        const auto index = static_cast<std::size_t>(node);
+        const auto& assets = parameters.space->nodes;
+        const double asset = assets[index];
+        const double left = asset - assets[index - 1];
+        const double right = assets[index + 1] - asset;
+        const double total = assets[index + 1] - assets[index - 1];
+        const double drift = rate - dividend;
+        const double variance = std::max(volatility * volatility,
+                                         drift >= 0.0 ? drift * (right / asset) : -drift * (left / asset));
+        const double a = (asset / left) * (variance * (asset / total) - drift * (right / total));
+        const double c = (asset / right) * (variance * (asset / total) + drift * (left / total));
+        return {a, -a - c - rate, c};
+    }
     const double spacing = parameters.sinh_spacing;
     if (spacing == 0.0) return diffusion_coefficients(node, rate, dividend, volatility);
     const double tangent = std::tanh(node * spacing);
@@ -56,7 +71,7 @@ inline std::array<double, 3> diffusion_coefficients(double node, const Diffusion
     FiniteDifferenceScheme scheme, const FiniteDifferenceTimeGrid& grid,
     const DiffusionParameters& parameters, int asset_step_count)
 {
-    if (parameters.sinh_spacing == 0.0)
+    if (parameters.sinh_spacing == 0.0 && !parameters.space)
         return check_explicit_stability(scheme, grid, parameters.volatility, parameters.rate, parameters.dividend, asset_step_count);
     if (scheme != FiniteDifferenceScheme::explicit_euler) return {};
     double maximum_decay = 0.0;
@@ -145,11 +160,13 @@ private:
             layer.next.back() = layer.boundaries.upper;
         }
         const int asset_step_count = static_cast<int>(layers.front().old.size()) - 1;
-        if (cached_parameters_ != parameters) {
+        auto operator_parameters = parameters;
+        operator_parameters.theta = 0.0;
+        if (cached_parameters_ != operator_parameters) {
             coefficients_.resize(rhs_.size());
             for (int index = 1; index < asset_step_count; ++index)
                 coefficients_[static_cast<std::size_t>(index - 1)] = diffusion_coefficients(index, parameters);
-            cached_parameters_ = parameters;
+            cached_parameters_ = operator_parameters;
         }
         std::size_t first = rhs_.size(), last = 0;
         for (int index = 1; index < asset_step_count; ++index) {

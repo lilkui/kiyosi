@@ -18,6 +18,10 @@ class FiniteDifferenceAutocallableEngine;
 
 /// One- or two-layer backward induction, depending on whether the note has knock-in state, with
 /// knock-out and coupon events anchored onto the time grid.
+/// Uses concentrated contract-level grids, projected future events and Crank-Nicolson
+/// with four implicit-Euler half steps after non-smooth events. Explicit Euler retains
+/// uniform/sinh grids and the corresponding stability checks. Defaults are 800 asset
+/// and 2,000 time steps; they target the documented fixed accuracy scenarios, not all contracts.
 /// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 class FiniteDifferenceAutocallableEngine {
 public:
@@ -47,7 +51,7 @@ private:
         return make_finite_difference_autocallable_engine(settings);
     }
 
-    FiniteDifferenceSettings settings_;
+    FiniteDifferenceSettings settings_{800, 2000};
 };
 
 /// Creates an engine after validating its configuration.

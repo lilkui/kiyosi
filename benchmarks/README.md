@@ -26,7 +26,8 @@ On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_b
 
 The `analytics/kiyosi/` cases measure accumulator and snowball finite-difference
 delta/gamma requests beside price-only baselines using the same contracts and
-default 200-by-200 grids. They value at noon on 2025-01-01 to avoid a current
+default grids: 200-by-200 for accumulator and 800-by-2000 for Autocallable.
+They value at noon on 2025-01-01 to avoid a current
 observation discontinuity. A European Monte Carlo implied-volatility case uses
 5,000 paths, seed 42, and the default solver settings; the input quote is prepared
 before timing. The `volatility` counter records the solved value. Each timed

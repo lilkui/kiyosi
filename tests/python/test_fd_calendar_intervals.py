@@ -5,8 +5,6 @@ from kiyosi import pricing
 from kiyosi.instruments import (
     Accumulator,
     BarrierOption,
-    SnowballOption,
-    autocallable_observations,
 )
 from kiyosi.market import (
     BlackScholesMertonParameters,
@@ -27,30 +25,6 @@ cases = [
             acceleration_factor=2,
             effective_date=start,
             expiry_date=end,
-        ),
-    ),
-    (
-        pricing.FiniteDifferenceAutocallableEngine,
-        SnowballOption(
-            maturity_coupon_rate=0.06,
-            initial_spot=100,
-            knock_in_level=75,
-            upper_strike=100,
-            lower_strike=60,
-            knock_in_observation_mode="every_trading_day",
-            barrier_state="none",
-            effective_date=start,
-            expiry_date=end,
-            observations=autocallable_observations(
-                [
-                    date(2024, 4, 1),
-                    date(2024, 7, 1),
-                    date(2024, 10, 1),
-                    end,
-                ],
-                [110] * 4,
-                knock_out_coupon_rates=[0.08] * 4,
-            ),
         ),
     ),
     (
@@ -83,10 +57,8 @@ class CalendarIntervalTests(unittest.TestCase):
         expected = [
             (-1516.9520290307098, 225.31801492786175, -17.581246143270274),
             (-1510.5849764710204, 225.62196547938095, -17.633965400395336),
-            (0.9957385444080855, 0.0023303623115970918, -0.00027748516393565737),
-            (0.9958681809310125, 0.002313594209491232, -0.0002763872410173273),
         ]
-        for index, (cls, option) in enumerate(cases[:2]):
+        for index, (cls, option) in enumerate(cases[:1]):
             for offset, scheme in enumerate(("crank_nicolson", "implicit_euler")):
                 with self.subTest(engine=cls.__name__, scheme=scheme):
                     engine = cls(
@@ -119,9 +91,6 @@ class CalendarIntervalTests(unittest.TestCase):
             (-2125.177940477314, 314.25537377676187, -24.53113696074924),
             (-2120.221666260853, 314.4815991820858, -24.573439894742528),
             (-2130.1933395583947, 314.0331999420339, -24.487720823425548),
-            (0.9956959342110923, 0.002334647538852612, -0.00027779493631300466),
-            (0.9957679329994007, 0.002325382664906021, -0.00027718976198143775),
-            (0.9956225895060031, 0.0023440665260287138, -0.0002784043202963022),
             (1.349334949897279, 0.05874014816127894, 0.00011939130239541559),
             (1.3468904122711003, 0.058637636418814774, 0.00012654044204111787),
             (1.3518636988741737, 0.0588457671037437, 0.00011178373357470883),

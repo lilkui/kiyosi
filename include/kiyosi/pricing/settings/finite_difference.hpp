@@ -21,6 +21,8 @@ enum class FiniteDifferenceScheme : unsigned char {
 /// further stability constraint for the chosen market and grid.
 /// American vanilla and autocallable engines widen automatic domains with volatility and maturity.
 /// American grids and wide autocallable grids use sinh coordinates to retain asset resolution.
+/// Autocallable implicit grids concentrate around contract levels; their engine's default
+/// configuration is 800 asset and 2,000 time steps, overriding this shared aggregate's defaults.
 /// Explicit upper boundaries still require a domain-convergence check.
 struct FiniteDifferenceSettings {
     int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.

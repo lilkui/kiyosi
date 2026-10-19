@@ -4311,8 +4311,13 @@ class KiyosiPythonTests(unittest.TestCase):
                         error.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
                     )
             default = engine_type()
+            expected_steps = (
+                (800, 2000)
+                if engine_type is pricing.FiniteDifferenceAutocallableEngine
+                else (200, 200)
+            )
             self.assertEqual(
-                (default.asset_step_count, default.time_step_count), (200, 200)
+                (default.asset_step_count, default.time_step_count), expected_steps
             )
             self.assertEqual(default.scheme, "crank_nicolson")
             self.assertIsNone(default.asset_upper_boundary)

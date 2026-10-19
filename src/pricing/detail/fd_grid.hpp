@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <limits>
@@ -162,6 +163,7 @@ struct SpatialGrid {
     double spacing;
     int asset_step_count;
     double sinh_scale = 0.0;
+    std::vector<double> nodes{};
 
     [[nodiscard]] std::size_t size() const noexcept { return static_cast<std::size_t>(asset_step_count) + 1; }
 
@@ -174,10 +176,32 @@ struct SpatialGrid {
 
     [[nodiscard]] double asset_at(std::size_t index) const
     {
+        if (!nodes.empty()) return nodes[index];
         if (std::cmp_equal(index, asset_step_count)) return upper;
-        const double x = spacing * static_cast<double>(index);
+        return asset_of_coordinate(spacing * static_cast<double>(index));
+    }
+
+    [[nodiscard]] double asset_of_coordinate(double x) const
+    {
         if (sinh_scale == 0.0) return x;
         return x > 700.0 ? std::exp(std::log(sinh_scale) + x - std::numbers::ln2) : sinh_scale * std::sinh(x);
+    }
+
+    [[nodiscard]] double coordinate_at(std::size_t index) const
+    {
+        return nodes.empty() ? spacing * static_cast<double>(index) : nodes[index];
+    }
+
+    [[nodiscard]] double linear_interpolate(std::span<const double> values, double spot) const
+    {
+        const auto [index, weight] = locate(spot);
+        return std::lerp(values[index], values[index + 1], weight);
+    }
+
+    [[nodiscard]] std::size_t nearest_node(double spot) const noexcept
+    {
+        const auto [index, weight] = locate(spot);
+        return index + (weight > 0.5 ? 1 : 0);
     }
 
     [[nodiscard]] double interpolate(std::span<const double> values, double spot) const
@@ -189,6 +213,7 @@ struct SpatialGrid {
     /// Reuse curvature only for the same grid and unchanged values; start with an empty buffer.
     [[nodiscard]] double interpolate(std::span<const double> values, double spot, std::vector<double>& curvature) const
     {
+        if (!nodes.empty()) return sample(values, spot, curvature)[0];
         const auto [index, weight] = locate(spot);
         if (weight == 0.0) return values[index];
         if (weight == 1.0) return values[index + 1];
@@ -219,12 +244,20 @@ struct SpatialGrid {
 
     [[nodiscard]] double delta(std::span<const double> values, double spot) const
     {
+        if (!nodes.empty()) {
+            std::vector<double> curvature;
+            return sample(values, spot, curvature)[1];
+        }
         const double derivative = coordinate_delta(values, spot);
         return sinh_scale == 0.0 ? derivative : derivative / std::hypot(sinh_scale, spot);
     }
 
     [[nodiscard]] double gamma(std::span<const double> values, double spot) const
     {
+        if (!nodes.empty()) {
+            std::vector<double> curvature;
+            return sample(values, spot, curvature)[2];
+        }
         const double curvature = blend(spot, [&](std::size_t index) {
             // Divide separately so squared spacing cannot overflow or underflow.
             return ((values[index + 1] - values[index]) - (values[index] - values[index - 1])) / spacing / spacing;
@@ -234,7 +267,64 @@ struct SpatialGrid {
         return (curvature - coordinate_delta(values, spot) * std::tanh(coordinate_of(spot))) / jacobian / jacobian;
     }
 
+    [[nodiscard]] double delta(std::span<const double> values, double spot, std::vector<double>& curvature) const
+    {
+        return nodes.empty() ? delta(values, spot) : sample(values, spot, curvature)[1];
+    }
+
+    [[nodiscard]] double gamma(std::span<const double> values, double spot, std::vector<double>& curvature) const
+    {
+        return nodes.empty() ? gamma(values, spot) : sample(values, spot, curvature)[2];
+    }
+
 private:
+    [[nodiscard]] std::array<double, 3> sample(std::span<const double> values, double spot,
+                                               std::vector<double>& curvature) const
+    {
+        if (curvature.empty()) {
+            curvature.assign(values.size(), 0.0);
+            std::vector<double> factors(values.size());
+            for (std::size_t node = 1; node + 1 < values.size(); ++node) {
+                const double left = nodes[node] - nodes[node - 1];
+                const double right = nodes[node + 1] - nodes[node];
+                const double total = nodes[node + 1] - nodes[node - 1];
+                const double a = left / total;
+                const double diagonal = 2.0 - a * factors[node - 1];
+                factors[node] = (right / total) / diagonal;
+                curvature[node] = (6.0 * (((values[node + 1] - values[node]) / right -
+                                           (values[node] - values[node - 1]) / left) /
+                                          total) -
+                                   a * curvature[node - 1]) /
+                                  diagonal;
+            }
+            for (std::size_t node = values.size() - 2; node > 0; --node)
+                curvature[node] -= factors[node] * curvature[node + 1];
+        }
+        const auto [index, weight] = locate(spot);
+        const double h = nodes[index + 1] - nodes[index];
+        const double left = 1.0 - weight;
+        const double correction = ((left * left * left - left) * curvature[index] +
+                                   (weight * weight * weight - weight) * curvature[index + 1]) /
+                                  6.0;
+        const double linear = std::lerp(values[index], values[index + 1], weight);
+        const double first_control = std::lerp(values[index], values[index + 1], 1.0 / 3.0) -
+                                     ((2.0 * curvature[index] + curvature[index + 1]) * h) * h / 18.0;
+        const double second_control = std::lerp(values[index], values[index + 1], 2.0 / 3.0) -
+                                      ((curvature[index] + 2.0 * curvature[index + 1]) * h) * h / 18.0;
+        const auto [control_lower, control_upper] = std::minmax(first_control, second_control);
+        const auto [minimum, maximum] = std::minmax(values[index], values[index + 1]);
+        if (control_lower < minimum || control_upper > maximum) {
+            const auto [lower, upper] = std::ranges::minmax(values);
+            // Bezier control points bound the whole cell; keep unsafe cells linear and continuous.
+            if (control_lower < lower || control_upper > upper)
+                return {linear, (values[index + 1] - values[index]) / h, 0.0};
+        }
+        return {linear + (correction * h) * h,
+                (values[index + 1] - values[index]) / h +
+                    h * ((1.0 - 3.0 * left * left) * curvature[index] + (3.0 * weight * weight - 1.0) * curvature[index + 1]) / 6.0,
+                std::lerp(curvature[index], curvature[index + 1], weight)};
+    }
+
     [[nodiscard]] double coordinate_delta(std::span<const double> values, double spot) const
     {
         return blend(spot, [&](std::size_t index) {
@@ -244,6 +334,12 @@ private:
 
     [[nodiscard]] std::pair<std::size_t, double> locate(double spot) const noexcept
     {
+        if (!nodes.empty()) {
+            const auto found = std::ranges::upper_bound(nodes, spot);
+            const auto index = static_cast<std::size_t>(std::clamp(found - nodes.begin() - 1,
+                                                                   std::ptrdiff_t{0}, static_cast<std::ptrdiff_t>(nodes.size() - 2)));
+            return {index, (spot - nodes[index]) / (nodes[index + 1] - nodes[index])};
+        }
         const double position = coordinate_of(spot) / spacing;
         const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_step_count - 1);
         return {static_cast<std::size_t>(index), position - static_cast<double>(index)};
