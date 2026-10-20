@@ -64,7 +64,7 @@ TEST_CASE("Engine factories preserve defaults and validate configuration before 
         REQUIRE_FALSE(result);
         CHECK(result.error().category == ErrorCategory::invalid_parameter);
     };
-    const auto check_fd = [&](const auto make_engine, const auto& default_engine, int max_assets, int max_times) {
+    const auto check_fd = [&](const auto make_engine, const auto& default_engine) {
         using Engine = std::remove_cvref_t<decltype(default_engine)>;
         static_assert(std::is_default_constructible_v<Engine>);
         static_assert(!std::is_constructible_v<Engine, FiniteDifferenceSettings>);
@@ -76,13 +76,13 @@ TEST_CASE("Engine factories preserve defaults and validate configuration before 
         CHECK(defaults->settings().time_step_count == expected.time_step_count);
         CHECK(defaults->settings().scheme == expected.scheme);
         CHECK(defaults->settings().asset_upper_boundary == expected.asset_upper_boundary);
-        for (const auto settings : {FiniteDifferenceSettings{3, 1}, {max_assets, max_times}}) {
+        for (const auto settings : {FiniteDifferenceSettings{3, 1}, {std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}}) {
             const auto result = make_engine(settings);
             REQUIRE(result);
             CHECK(result->settings().asset_step_count == settings.asset_step_count);
             CHECK(result->settings().time_step_count == settings.time_step_count);
         }
-        for (const auto settings : {FiniteDifferenceSettings{-1, 1}, {0, 1}, {2, 1}, {3, -1}, {3, 0}, {max_assets + 1, 1}, {3, max_times + 1}, {3, 1, static_cast<FiniteDifferenceScheme>(255)}})
+        for (const auto settings : {FiniteDifferenceSettings{-1, 1}, {0, 1}, {2, 1}, {3, -1}, {3, 0}, {3, 1, static_cast<FiniteDifferenceScheme>(255)}})
             rejected(make_engine(settings));
         for (const double upper : {0.0, -1.0, std::numeric_limits<double>::infinity(), std::numeric_limits<double>::quiet_NaN()})
             rejected(make_engine({.asset_upper_boundary = upper}));
@@ -93,11 +93,11 @@ TEST_CASE("Engine factories preserve defaults and validate configuration before 
             CHECK(result->settings().asset_upper_boundary == 123.0);
         }
     };
-    check_fd(make_finite_difference_vanilla_engine, FiniteDifferenceVanillaEngine{}, 10'000, 100'000);
-    check_fd(make_finite_difference_digital_engine, FiniteDifferenceDigitalEngine{}, 10'000, 100'000);
-    check_fd(make_finite_difference_barrier_engine, FiniteDifferenceBarrierEngine{}, 10'000, 100'000);
-    check_fd(make_finite_difference_accumulator_engine, FiniteDifferenceAccumulatorEngine{}, 2'000, 2'000);
-    check_fd(make_finite_difference_autocallable_engine, FiniteDifferenceAutocallableEngine{}, 2'000, 2'000);
+    check_fd(make_finite_difference_vanilla_engine, FiniteDifferenceVanillaEngine{});
+    check_fd(make_finite_difference_digital_engine, FiniteDifferenceDigitalEngine{});
+    check_fd(make_finite_difference_barrier_engine, FiniteDifferenceBarrierEngine{});
+    check_fd(make_finite_difference_accumulator_engine, FiniteDifferenceAccumulatorEngine{});
+    check_fd(make_finite_difference_autocallable_engine, FiniteDifferenceAutocallableEngine{});
 
     const auto check_mc = [&](const auto make_engine, const auto& default_engine) {
         const auto expected = default_engine.settings();
