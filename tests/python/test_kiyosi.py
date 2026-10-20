@@ -1379,7 +1379,9 @@ class KiyosiPythonTests(unittest.TestCase):
             valuation_time=datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC),
         )
         for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
-            engine = pricing.FiniteDifferenceVanillaEngine(scheme=scheme)
+            engine = pricing.FiniteDifferenceVanillaEngine(
+                asset_step_count=200, time_step_count=200, scheme=scheme
+            )
             for option_type in ("call", "put"):
                 with self.subTest(scheme=scheme, option_type=option_type):
                     terms = {
@@ -4312,7 +4314,7 @@ class KiyosiPythonTests(unittest.TestCase):
             expected_steps = (
                 (800, 2000)
                 if engine_type is pricing.FiniteDifferenceAutocallableEngine
-                else (200, 200)
+                else (800, 200)
             )
             self.assertEqual(
                 (default.asset_step_count, default.time_step_count), expected_steps

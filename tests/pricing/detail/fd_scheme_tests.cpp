@@ -415,10 +415,11 @@ TEST_CASE("Finite-difference grids reject zero spacing while preserving small po
     const auto invalid = kiyosi::detail::make_spatial_grid({}, 4.0 * tiny, {tiny});
     REQUIRE_FALSE(invalid);
     CHECK(invalid.error().category == kiyosi::ErrorCategory::invalid_parameter);
-    for (const double upper : {400.0 * tiny, 400.0}) {
+    const kiyosi::FiniteDifferenceSettings settings;
+    for (const double upper : {2.0 * settings.asset_step_count * tiny, 400.0}) {
         const auto valid = kiyosi::detail::make_spatial_grid({}, upper, {tiny});
         REQUIRE(valid);
-        CHECK(valid->spacing == upper / 200.0);
+        CHECK(valid->spacing == upper / settings.asset_step_count);
         CHECK(valid->spacing > 0.0);
         CHECK(std::isfinite(valid->spacing));
     }

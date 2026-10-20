@@ -1,6 +1,6 @@
 case_id	kind	inputs	expected	tolerance
 european-call-construction	construction	type=call;strike=100;effective_date=2025-01-01;expiry_date=2026-01-01	type=call;strike=100;effective_date=2025-01-01;expiry_date=2026-01-01	-
-finite-difference-defaults	defaults	-	asset_step_count=200;time_step_count=200;scheme=crank_nicolson;asset_upper_boundary=none	-
+finite-difference-defaults	defaults	-	asset_step_count=800;time_step_count=200;scheme=crank_nicolson;asset_upper_boundary=none	-
 analytic-european-call	pricing	type=call;strike=100;effective_date=2024-12-30;expiry_date=2026-01-06;risk_free_rate=0.04;dividend_yield=0.01;volatility=0.3;spot_price=100;valuation_date=2025-01-06	price=13.151137270960923	1e-10
 invalid-volatility	domain_error	risk_free_rate=0.05;dividend_yield=0.02;volatility=0	category=invalid_volatility	-
 geometric-average-dates	date_round_trip	type=call;strike=100;averaging_start_date=2025-02-01;effective_date=2025-01-01;expiry_date=2026-01-01	averaging_start_date=2025-02-01;effective_date=2025-01-01;expiry_date=2026-01-01	-

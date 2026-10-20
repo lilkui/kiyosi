@@ -25,7 +25,7 @@ enum class FiniteDifferenceScheme : unsigned char {
 /// configuration is 800 asset and 2,000 time steps, overriding this shared aggregate's defaults.
 /// Explicit upper boundaries still require a domain-convergence check.
 struct FiniteDifferenceSettings {
-    int asset_step_count = 200;                                             ///< Number of spatial grid steps; must be at least three.
+    int asset_step_count = 800;                                             ///< Number of spatial grid steps; must be at least three.
     int time_step_count = 200;                                              ///< Number of time steps; must be positive.
     FiniteDifferenceScheme scheme = FiniteDifferenceScheme::crank_nicolson; ///< Time-marching scheme.
     std::optional<double> asset_upper_boundary{};                           ///< Positive upper spot boundary, or automatic when absent.

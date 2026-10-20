@@ -125,7 +125,7 @@ static_assert(kiyosi::TernarySnowballTerms{}.principal_ratio == 1.0);
 static_assert(!kiyosi::PhoenixTerms{}.barrier_state);
 static_assert(kiyosi::PhoenixTerms{}.principal_ratio == 1.0);
 
-static_assert(kiyosi::FiniteDifferenceSettings{}.asset_step_count == 200);
+static_assert(kiyosi::FiniteDifferenceSettings{}.asset_step_count == 800);
 static_assert(kiyosi::FiniteDifferenceSettings{}.time_step_count == 200);
 static_assert(kiyosi::FiniteDifferenceSettings{}.scheme ==
               kiyosi::FiniteDifferenceScheme::crank_nicolson);

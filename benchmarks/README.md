@@ -26,7 +26,7 @@ On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_b
 
 The `analytics/kiyosi/` cases measure accumulator and snowball finite-difference
 delta/gamma requests beside price-only baselines using the same contracts and
-default grids: 200-by-200 for accumulator and 800-by-2000 for Autocallable.
+default grids: 800-by-200 for accumulator and 800-by-2000 for Autocallable.
 They value at noon on 2025-01-01 to avoid a current
 observation discontinuity. A European Monte Carlo implied-volatility case uses
 5,000 paths, seed 42, and the default solver settings; the input quote is prepared
@@ -87,9 +87,10 @@ retain event merging and deduplication.
 FD factor caching retains three exact step-width/parameter combinations so
 calendar splits can reuse a matrix beyond the immediately previous slot. The
 `accumulator/fd/calendar_daily/split_grid/price` and `calendar_weekdays/split_grid/price`
-analytics cases use the default 200-by-200 grid, spot 100.25, and the common market
-below. On 2026-10-12, Release MSVC 19.51 on a Ryzen 7 3700X measured median wall
-time falling from 2.462 ms to 2.269 ms for all days and from 2.071 ms to 1.912 ms
+analytics cases use the default grid, spot 100.25, and the common market
+below. On 2026-10-12, using the then-default 200-by-200 grid, Release MSVC 19.51
+on a Ryzen 7 3700X measured median wall time falling from 2.462 ms to 2.269 ms
+for all days and from 2.071 ms to 1.912 ms
 for weekdays (five repetitions, 0.15 s minimum). Prices were exactly unchanged
 across these and eight existing FD cases, including accumulator delta/gamma,
 snowball and scheduled knock-in barriers. Constraint masks still invalidate

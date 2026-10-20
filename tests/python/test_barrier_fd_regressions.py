@@ -54,6 +54,7 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
                     observation_dates=dates,
                 )
                 engine = pricing.FiniteDifferenceBarrierEngine(
+                    asset_step_count=200,
                     time_step_count=2000 if scheme == "explicit_euler" else 200,
                     scheme=scheme,
                     asset_upper_boundary=151 if up else None,
