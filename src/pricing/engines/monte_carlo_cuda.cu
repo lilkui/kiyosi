@@ -360,8 +360,7 @@ __global__ void simulate_accumulator_paths(
             return;
         }
         discount = step.discount;
-        if (accumulator_knocked_out(spot, request.knock_out)) break;
-        quantity += accumulator_purchase_quantity(spot, request.strike, request.daily_quantity, request.acceleration);
+        if (observe_accumulator_path(spot, request.strike, request.knock_out, request.daily_quantity, request.acceleration, quantity)) break;
     }
     const double payoff = discount.apply(quantity, spot - request.strike);
     if (!isfinite(payoff)) {
@@ -464,12 +463,10 @@ __global__ void simulate_accumulator_spot_paths(
                     requests.payoffs[output][path] = 0.0;
                 return;
             }
-            if (accumulator_knocked_out(spots[bump], request.knock_out)) {
+            if (observe_accumulator_path(spots[bump], request.strike, request.knock_out, request.daily_quantity, request.acceleration, quantities[bump])) {
                 write_spot_payoff(requests, bump, path, discount.apply(quantities[bump], spots[bump] - request.strike));
                 done[bump] = true;
                 --remaining;
-            } else {
-                quantities[bump] += accumulator_purchase_quantity(spots[bump], request.strike, request.daily_quantity, request.acceleration);
             }
         }
         if (remaining == 0) break;

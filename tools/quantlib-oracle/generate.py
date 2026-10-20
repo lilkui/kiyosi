@@ -14,6 +14,7 @@ import barrier
 import binary
 import digital
 import oracle as g
+import structured
 
 FIXTURE = g.PROJECT.parents[1] / "tests/fixtures/pricing_reference.tsv"
 NUMERICAL_ENGINES = {
@@ -274,3 +275,4 @@ def regenerate(
 
 if __name__ == "__main__":
     regenerate()
+    structured.regenerate()

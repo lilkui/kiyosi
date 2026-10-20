@@ -14,6 +14,7 @@ import binary
 import digital
 import generate
 import oracle as g
+import structured
 
 
 def check_reference_rows():
@@ -63,6 +64,7 @@ def check_manifest_explanations():
 
 
 def check_generation():
+    structured.check_generation()
     check_reference_rows()
     check_manifest_explanations()
     barrier.check_bindings()

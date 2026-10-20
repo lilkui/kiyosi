@@ -20,6 +20,16 @@ KIYOSI_ACCUMULATOR_HOST_DEVICE inline double accumulator_purchase_quantity(
     return spot < strike ? daily_quantity * acceleration_factor : daily_quantity;
 }
 
+// Returns true on termination; the knock-out observation never purchases units.
+KIYOSI_ACCUMULATOR_HOST_DEVICE inline bool observe_accumulator_path(
+    double spot, double strike, double knock_out_level, double daily_quantity,
+    double acceleration_factor, double& quantity)
+{
+    if (accumulator_knocked_out(spot, knock_out_level)) return true;
+    quantity += accumulator_purchase_quantity(spot, strike, daily_quantity, acceleration_factor);
+    return false;
+}
+
 } // namespace kiyosi::detail
 
 #undef KIYOSI_ACCUMULATOR_HOST_DEVICE

@@ -55,10 +55,8 @@ Result<std::array<double, count>> path_payoffs(
     const auto simulated = simulate_path_batch<shared_steps>(steps, states, generator,
                                                              [&](auto& state, const auto& step) {
                                                                  state.discount = step.discount;
-                                                                 if (accumulator_knocked_out(state.spot, option.knock_out_level()))
+                                                                 if (observe_accumulator_path(state.spot, option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity))
                                                                      state.payoff = state.discount.apply(state.quantity, state.spot - option.strike());
-                                                                 else
-                                                                     state.quantity += accumulator_purchase_quantity(state.spot, option.strike(), option.daily_quantity(), option.acceleration_factor());
                                                              });
     if (!simulated) return std::unexpected(simulated.error());
     std::array<double, count> payoffs{};

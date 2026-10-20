@@ -23,6 +23,7 @@ add_executable(kiyosi_tests
     pricing/detail/fd_scheme_tests.cpp
     pricing/detail/fd_event_tests.cpp
     pricing/engines/accumulator/engine_tests.cpp
+    pricing/engines/accumulator/cashflow_tests.cpp
     pricing/engines/accumulator/quadrature_tests.cpp
     pricing/engines/asian/reference_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
@@ -33,6 +34,7 @@ add_executable(kiyosi_tests
     pricing/engines/digital/settlement_tests.cpp
     pricing/engines/digital/overflow_tests.cpp
     pricing/engines/autocallable/autocallable_tests.cpp
+    pricing/engines/autocallable/cashflow_tests.cpp
     pricing/engines/autocallable/quadrature_tests.cpp
     pricing/engines/autocallable/accuracy_tests.cpp
     pricing/engines/autocallable/validation_tests.cpp
@@ -41,6 +43,7 @@ add_executable(kiyosi_tests
     pricing/engines/vanilla/finite_difference_tests.cpp
     pricing/engines/vanilla/monte_carlo_tests.cpp
     reference/generated_tests.cpp
+    reference/structured_tests.cpp
     reference/parser_tests.cpp
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
