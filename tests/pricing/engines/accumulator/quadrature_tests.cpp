@@ -184,18 +184,78 @@ TEST_CASE("Accumulator quadrature agrees with independently refined finite diffe
     const auto option = contract(end);
     const auto context = market(100.25, start_of_day(day(2025, 1, 1)) + std::chrono::hours{12});
     const auto integral = QuadratureAccumulatorEngine{}.price(option, context);
-    // Event jumps give FD a first-order spatial bias; align both thresholds before extrapolating.
-    const auto finite = make_finite_difference_accumulator_engine({8800, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
-    const auto finer = make_finite_difference_accumulator_engine({17600, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
-    const auto finest = make_finite_difference_accumulator_engine({35200, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
+    const auto finite = make_finite_difference_accumulator_engine({3200, 2000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
+    const auto finer = make_finite_difference_accumulator_engine({6400, 2000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
+    const auto finest = make_finite_difference_accumulator_engine({6400, 4000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price(option, context);
     REQUIRE(integral);
     REQUIRE(finite);
     REQUIRE(finer);
     REQUIRE(finest);
-    const double coarse_reference = 2.0 * *finer - *finite;
-    const double fine_reference = 2.0 * *finest - *finer;
-    CHECK(std::abs(coarse_reference - fine_reference) / exposure(option, context) <= 1e-6);
-    CHECK(std::abs(*integral - fine_reference) / exposure(option, context) <= 1e-6);
+    CHECK(std::abs(*finite - *finer) / exposure(option, context) <= 1e-6);
+    CHECK(std::abs(*finer - *finest) / exposure(option, context) <= 1e-6);
+    CHECK(std::abs(*integral - *finite) / exposure(option, context) <= 1e-6);
+    CHECK(std::abs(*integral - *finest) / exposure(option, context) <= 1e-6);
+}
+
+TEST_CASE("Accumulator FD terminal averaging converges against analytic prices and Greeks", "[fd-accumulator-accuracy]")
+{
+    const auto end = day(2025, 1, 6);
+    const auto context = market(100.25, start_of_day(day(2025, 1, 3)) + std::chrono::hours{12});
+    for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson})
+        for (const double knock_out : {99.7, 100.0, 100.3, 109.75, 110.0, 110.25}) {
+            CAPTURE(scheme, knock_out);
+            const auto option = contract(end, knock_out);
+            const auto reference = test::price_differences(TerminalReference{}, option, context);
+            REQUIRE(reference);
+            double coarse_error = 0.0;
+            for (const int nodes : {400, 800, 1600}) {
+                CAPTURE(nodes);
+                const auto engine = make_finite_difference_accumulator_engine({nodes, 2000, scheme, 440.0}).value();
+                const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                REQUIRE(actual);
+                const double error = std::abs(actual->price() - reference->price());
+                CHECK(error < 0.01);
+                if (nodes == 400) coarse_error = error;
+                if (nodes == 1600) {
+                    CHECK(error < coarse_error);
+                    CHECK(error < 0.001);
+                    CHECK(std::abs(test::greek_value(*actual, Greek::delta) - test::greek_value(*reference, Greek::delta)) < 0.002);
+                    CHECK(std::abs(test::greek_value(*actual, Greek::gamma) - test::greek_value(*reference, Greek::gamma)) < 0.002);
+                }
+            }
+        }
+}
+
+TEST_CASE("Accumulator FD daily event averaging and damping stabilize prices and Greeks", "[fd-accumulator-accuracy]")
+{
+    const auto context = market(100.25, start_of_day(day(2025, 1, 1)) + std::chrono::hours{12});
+    for (const double knock_out : {109.75, 110.0, 110.25}) {
+        CAPTURE(knock_out);
+        const auto option = contract(day(2025, 4, 1), knock_out);
+        const auto reference = make_quadrature_accumulator_engine({1024, 8.0}).value().price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        REQUIRE(reference);
+        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler}) {
+            CAPTURE(scheme);
+            const auto actual = make_finite_difference_accumulator_engine({400, 2000, scheme, 440.0}).value().price(option, context);
+            REQUIRE(actual);
+            CHECK(std::abs(*actual - reference->price()) / exposure(option, context) < 1e-4);
+        }
+        const auto coarse = make_finite_difference_accumulator_engine({800, 2000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        const auto fine = make_finite_difference_accumulator_engine({3200, 2000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+        REQUIRE(coarse);
+        REQUIRE(fine);
+        CHECK(std::abs(coarse->price() - reference->price()) / exposure(option, context) < 2e-5);
+        CHECK(std::abs(fine->price() - reference->price()) / exposure(option, context) < 1e-6);
+        for (const auto greek : {Greek::delta, Greek::gamma}) {
+            const double coarse_error = std::abs(test::greek_value(*coarse, greek) - test::greek_value(*reference, greek));
+            const double fine_error = std::abs(test::greek_value(*fine, greek) - test::greek_value(*reference, greek));
+            CHECK(fine_error < coarse_error);
+            CHECK(fine_error < 0.01);
+        }
+        const auto short_grid = make_finite_difference_accumulator_engine({1600, 200, FiniteDifferenceScheme::crank_nicolson, 440.0}).value().price_with_greeks(option, context, {Greek::gamma});
+        REQUIRE(short_grid);
+        CHECK(std::abs(test::greek_value(*short_grid, Greek::gamma) - test::greek_value(*reference, Greek::gamma)) < 0.15);
+    }
 }
 
 TEST_CASE("Accumulator quadrature lies within Monte Carlo batch sampling uncertainty", "[accumulator-quadrature]")

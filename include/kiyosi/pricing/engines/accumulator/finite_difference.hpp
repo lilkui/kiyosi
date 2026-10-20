@@ -15,6 +15,9 @@ class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine;
 
 /// Marches the accrual value back as an affine function of the accumulated quantity, so a single
 /// sweep prices every opening position.
+/// Terminal payoffs and observation changes are locally averaged at strike and knock-out levels.
+/// Crank-Nicolson restarts with two intervals of implicit half-steps after each observation and expiry.
+/// Current observations and expiry settlements use the actual spot without averaging.
 class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine {
 public:
     /// Creates an engine with valid default settings.

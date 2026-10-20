@@ -975,9 +975,9 @@ class PricingRegressionTests(unittest.TestCase):
             calendar=all_days_calendar(),
         )
         for scheme, nodes, expected in (
-            ("crank_nicolson", 200, -2058.336718606278),
-            ("implicit_euler", 200, -2048.4071966441415),
-            ("explicit_euler", 40, -2253.4061717943714),
+            ("crank_nicolson", 200, -2160.414826198844),
+            ("implicit_euler", 200, -2157.150729478969),
+            ("explicit_euler", 40, -2248.038835478244),
         ):
             with self.subTest(scheme=scheme):
                 engine = pricing.FiniteDifferenceAccumulatorEngine(

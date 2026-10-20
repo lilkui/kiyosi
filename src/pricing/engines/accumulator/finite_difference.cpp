@@ -3,38 +3,21 @@
 #include <kiyosi/pricing/detail/numerical_greeks.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <optional>
 #include <vector>
 
 #include "../../detail/accumulator_state.hpp"
 #include "../../detail/calendar_dates.hpp"
+#include "../../detail/fd_damping.hpp"
+#include "../../detail/fd_event.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
 
 namespace kiyosi {
 using namespace detail;
-
-namespace {
-
-/// Value at expiry_date per unit of the affine decomposition: `slope` multiplies the quantity already
-/// accumulated, `intercept` holds the value of the quantity still to be bought.
-void seed_expiry_layers(const Accumulator& option, const SpatialGrid& space, std::vector<double>& slope,
-                        std::vector<double>& intercept)
-{
-    for (std::size_t index = 0; index < space.size(); ++index) {
-        const double asset = space.spacing * static_cast<double>(index);
-        slope[index] = asset - option.strike();
-        if (accumulator_knocked_out(asset, option.knock_out_level())) {
-            intercept[index] = 0.0;
-            continue;
-        }
-        const double bought = accumulator_purchase_quantity(asset, option.strike(), option.daily_quantity(), option.acceleration_factor());
-        intercept[index] = slope[index] * bought;
-    }
-}
-
-} // namespace
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const Accumulator& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
@@ -71,36 +54,69 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
 
     const std::size_t size = space->size();
     std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
-    seed_expiry_layers(option, *space, slope, intercept);
     const bool has_future_purchases = accumulator_accrues(option);
+    std::vector<double> breaks{option.strike(), option.knock_out_level()};
+    std::ranges::sort(breaks);
+    breaks.erase(std::ranges::unique(breaks).begin(), breaks.end());
+    const auto event_value = [&](double asset, double continuation_slope, double continuation_intercept) {
+        if (accumulator_knocked_out(asset, option.knock_out_level()))
+            return std::array{asset - option.strike(), 0.0};
+        const double bought = accumulator_purchase_quantity(asset, option.strike(), option.daily_quantity(), option.acceleration_factor());
+        return std::array{continuation_slope, continuation_intercept + continuation_slope * bought};
+    };
+    for (std::size_t index = 0; index < size; ++index) {
+        const auto projected = project_finite_difference_event<2>(*space, breaks, index, [&](double asset) {
+            return event_value(asset, asset - option.strike(), 0.0);
+        });
+        slope[index] = projected[0];
+        intercept[index] = projected[1];
+    }
 
+    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings_.scheme)};
     LinearBoundaryStepper stepper(
-        size, space->upper, space->spacing,
-        DiffusionParameters{rate, dividend, sigma, scheme_theta(settings_.scheme)});
+        size, space->upper, space->spacing, parameters);
+    RannacherDamping damping{2};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
-        const double dt = grid.time_steps[step];
-        const bool advanced = has_future_purchases
-                                  ? stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt)
-                                  : stepper.advance(slope, next_slope, dt);
-        if (!advanced)
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "finite-difference system is numerically unstable"});
+        const auto substeps = damping.next(parameters.theta);
+        auto step_parameters = parameters;
+        step_parameters.theta = substeps.theta;
+        stepper.set_parameters(step_parameters);
+        const double dt = grid.time_steps[step] / substeps.count;
+        for (int substep = 0; substep < substeps.count; ++substep) {
+            const bool advanced = has_future_purchases
+                                      ? stepper.advance_pair(slope, next_slope, intercept, next_intercept, dt)
+                                      : stepper.advance(slope, next_slope, dt);
+            if (!advanced)
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "finite-difference system is numerically unstable"});
+            slope.swap(next_slope);
+            if (has_future_purchases) intercept.swap(next_intercept);
+        }
         if (std::ranges::binary_search(trading_times, grid.times[step])) {
             for (std::size_t index = 0; index < size; ++index) {
-                const double asset = space->spacing * static_cast<double>(index);
-                if (accumulator_knocked_out(asset, option.knock_out_level())) {
-                    // Knock-out settles every unit accumulated up to this event immediately.
-                    // The affine value is quantity * (asset - strike), with no future purchases.
-                    next_slope[index] = asset - option.strike();
-                    next_intercept[index] = 0.0;
-                } else {
-                    next_intercept[index] +=
-                        next_slope[index] * accumulator_purchase_quantity(asset, option.strike(), option.daily_quantity(), option.acceleration_factor());
-                }
+                const auto value = event_value(space->asset_at(index), slope[index], intercept[index]);
+                next_slope[index] = value[0];
+                next_intercept[index] = value[1];
             }
+            std::optional<std::size_t> previous;
+            for (const double level : breaks) {
+                const std::size_t index = space->nearest_node(level);
+                if (previous == index) continue;
+                previous = index;
+                // Average only the event change, preserving smooth continuation between observations.
+                const auto correction = project_finite_difference_event<2>(*space, breaks, index, [&](double asset) {
+                    const double continuation_slope = space->linear_interpolate(slope, asset);
+                    const double continuation_intercept = space->linear_interpolate(intercept, asset);
+                    const auto value = event_value(asset, continuation_slope, continuation_intercept);
+                    return std::array{value[0] - continuation_slope, value[1] - continuation_intercept};
+                });
+                next_slope[index] = slope[index] + correction[0];
+                next_intercept[index] = intercept[index] + correction[1];
+            }
+            slope.swap(next_slope);
+            if (has_future_purchases) intercept.swap(next_intercept);
+            damping.restart();
         }
-        slope.swap(next_slope);
-        intercept.swap(next_intercept);
     }
 
     std::vector<double> slope_curvature, intercept_curvature;

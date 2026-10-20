@@ -96,6 +96,32 @@ across these and eight existing FD cases, including accumulator delta/gamma,
 snowball and scheduled knock-in barriers. Constraint masks still invalidate
 changed matrices; the extra factor storage is allocated only when needed.
 
+Accumulator FD locally averages terminal payoffs and observation changes at the
+strike and knock-out levels for all schemes. Crank-Nicolson uses two intervals
+of implicit half-steps after expiry and each observation. Current observations
+and settlements still use the actual spot. The `accuracy/kiyosi/accumulator/1e-6/fd`
+case now uses a direct 3,200-by-2,000 grid, replacing first-order extrapolation
+from 17,600- and 35,200-by-8,000 grids. C++ tests independently refine space and
+time and compare against converged quadrature without assuming an error order.
+
+On 2026-10-20, Release clang-cl 22.1 with IPO, CPython 3.14, and a Ryzen 9 5900X
+measured the following wall times using isolated Python packages built before
+and after the change. The contract runs from 2025-01-01 to 2025-04-01, with
+strike 100, knock-out 110, daily quantity 1, acceleration 2, and opening quantity
+3. Valuation is 2025-01-01 at noon, spot 100.25, on the weekdays calendar, with
+rates 4% and 1% and volatility 20%. Errors are relative to 1,024-node quadrature
+and divided by exposure 13,100.
+
+| Configuration | Before median | After median | Before normalized error | After normalized error |
+| --- | ---: | ---: | ---: | ---: |
+| Default 800-by-200 grid | 2.722 ms | 3.884 ms | 2.587e-4 | 7.699e-6 |
+| Existing accuracy configuration to direct grid, both within 1e-6 | 5.317 s | 80.656 ms | 7.691e-8 | 2.015e-7 |
+
+Default timings use five samples of 20 calls; accuracy timings use three samples
+of one call, after warmup. The roughly 66x accuracy-path ratio compares these
+configurations at the stated tolerance, not identical errors or a general
+speedup. Default pricing is about 43% slower in this scenario.
+
 The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
 prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
 the interpolated coupon with a separate price. Bounds that require different

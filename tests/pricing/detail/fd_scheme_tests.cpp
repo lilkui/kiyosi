@@ -722,7 +722,7 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
         }
     };
     const auto accumulator = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end});
-    check(accumulator, make_finite_difference_accumulator_engine, {{{-2125.177940477314, 314.25537377676187, -24.53113696074924}, {-2120.221666260853, 314.4815991820858, -24.573439894742528}, {-2130.1933395583947, 314.0331999420339, -24.487720823425548}}});
+    check(accumulator, make_finite_difference_accumulator_engine, {{{-2097.8369545877604, 314.8258247821256, -25.16084216695802}, {-2095.426480852846, 314.9393707855528, -25.18852830232388}, {-2105.2103901681744, 314.4883320755036, -25.075183399852207}}});
     std::vector<Date> observations;
     for (int day = 1; day <= 366; ++day)
         observations.push_back(start + std::chrono::days{day});

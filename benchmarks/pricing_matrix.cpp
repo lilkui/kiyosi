@@ -104,14 +104,8 @@ void register_matrix()
     const auto accumulator_accuracy = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, Date{std::chrono::year{2025} / 4 / 1}});
     const auto accumulator_context = *make_pricing_context(context.model_parameters(), 100.25, start_of_day(start) + std::chrono::hours{12}, weekdays_calendar());
     kiyosi::benchmark_support::register_price("accuracy/kiyosi/accumulator/1e-6/quadrature", accumulator_accuracy, QuadratureAccumulatorEngine{}, accumulator_context)->UseRealTime();
-    const auto coarse_fd = make_finite_difference_accumulator_engine({17600, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value();
-    const auto fine_fd = make_finite_difference_accumulator_engine({35200, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value();
-    kiyosi::benchmark_support::register_calculation("accuracy/kiyosi/accumulator/1e-6/fd_extrapolated", [=]() -> Result<double> {
-        const auto coarse = coarse_fd.price(accumulator_accuracy, accumulator_context);
-        if (!coarse) return coarse;
-        const auto fine = fine_fd.price(accumulator_accuracy, accumulator_context);
-        if (!fine) return fine;
-        return 2.0 * *fine - *coarse; }, "price")->UseRealTime();
+    const auto accuracy_fd = make_finite_difference_accumulator_engine({3200, 2000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value();
+    kiyosi::benchmark_support::register_price("accuracy/kiyosi/accumulator/1e-6/fd", accumulator_accuracy, accuracy_fd, accumulator_context)->UseRealTime();
     const auto greek_accumulator = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, Date{std::chrono::year{2025} / 2 / 3}});
     const auto greek_context = *make_pricing_context(context.model_parameters(), 100.25,
                                                      start_of_day(Date{std::chrono::year{2025} / 1 / 4}) + std::chrono::hours{12}, weekdays_calendar());
