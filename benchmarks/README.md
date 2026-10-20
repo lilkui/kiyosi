@@ -6,7 +6,7 @@ Latest report: [Windows CPU results, 2026-09-26](results/2026-09-26-windows.md),
 
 ## Build and run
 
-Install QuantLib C++ with its CMake package, then configure a Release build. CMake adds QuantLib comparisons automatically when it finds the package. QuantLib 1.43 matches the version used by the repository's reference tooling.
+Install QuantLib C++ with its CMake package, then configure a Release build. CMake adds QuantLib comparisons automatically when it finds the package. QuantLib 1.43 matches the version pinned by the Python reference tests.
 
 On Windows with vcpkg `QuantLib:x64-windows-static`, run these commands from the repository root in a Visual Studio Developer PowerShell. They build and run every registered CPU benchmark, including the QuantLib comparisons. CUDA benchmarks require a separate CUDA-enabled build.
 

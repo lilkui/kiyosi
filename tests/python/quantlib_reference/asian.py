@@ -4,7 +4,7 @@ import math
 from datetime import date, timedelta
 from types import SimpleNamespace
 
-import oracle as g
+from . import oracle as g
 
 ql = g.ql
 INSTRUMENTS = {
@@ -192,9 +192,9 @@ def rows():
             volatility_shift=0.0001,
             rate_shift=0.0001,
             time_shift_days=1,
-            wrapper=str(not exclusions(inputs)).lower(),
+            wrapper=not exclusions(inputs),
         )
-        yield g.serialize_row(row)
+        yield row
 
 
 def check_bindings():

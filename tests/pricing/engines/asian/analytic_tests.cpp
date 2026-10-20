@@ -6,16 +6,9 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
-#include <string>
 #include <utility>
 
-#include "support/reference_harness.hpp"
-#include "support/numerical.hpp"
-
-using kiyosi::test::check_price;
-using kiyosi::test::fixture_date;
-using kiyosi::test::fixture_number;
-using kiyosi::test::measures;
+#include <kiyosi/kiyosi.hpp>
 
 TEST_CASE("Accrued arithmetic Asian calls retain representable discounted prices", "[audit-fixes]")
 {
@@ -147,86 +140,6 @@ TEST_CASE("Asian analytic prices retain scaled normal tails", "[audit-fixes]")
                        call ? 3.859991844527151e-40 : 2.369019512512863e-42);
         }
     }
-}
-
-TEST_CASE("Asian QuantLib references reconstruct averaging contracts and approximate Greeks")
-{
-    std::size_t generated = 0;
-    std::size_t wrapped = 0;
-    for (const auto& fixture : kiyosi::test::load_reference_cases(kiyosi::test::fixture_path())) {
-        if (fixture.instrument != "GeometricAveragePriceOption" &&
-            fixture.instrument != "ArithmeticAveragePriceOption")
-            continue;
-        const auto& inputs = fixture.inputs;
-        INFO("case=" << fixture.case_id);
-        REQUIRE(inputs.at("owner") == "QuantLib");
-        REQUIRE(fixture.case_id.starts_with("ql-asian-"));
-        const auto number = [&](const std::string& key) { return fixture_number(fixture, key); };
-        const auto date = [&](const std::string& key) { return fixture_date(fixture, key); };
-        const bool geometric = fixture.instrument == "GeometricAveragePriceOption";
-        REQUIRE(inputs.at("averaging") == (geometric ? "geometric" : "arithmetic"));
-        REQUIRE(inputs.at("monitoring") == "continuous");
-        REQUIRE(inputs.at("settlement") == "expiry_date");
-        REQUIRE(inputs.at("date_roll") == "none");
-        REQUIRE(fixture.provenance.convention == "Actual/365 Fixed, continuously compounded BSM");
-        REQUIRE(inputs.at("calendar") == "weekends_only");
-        REQUIRE((inputs.at("option") == "call" || inputs.at("option") == "put"));
-        const auto type = inputs.at("option") == "call" ? kiyosi::OptionType::call : kiyosi::OptionType::put;
-        REQUIRE(date("effective_date") <= date("valuation"));
-        REQUIRE(date("averaging_start_date") <= date("valuation"));
-        REQUIRE(date("valuation") <= date("expiry_date"));
-        const bool terminal = date("valuation") == date("expiry_date");
-        REQUIRE(fixture.provenance.source_symbol ==
-                (terminal    ? "QuantLib.PlainVanillaPayoff"
-                 : geometric ? "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine"
-                             : "QuantLib.ContinuousArithmeticAsianLevyEngine"));
-        REQUIRE(fixture.provenance.reference_kind == (!geometric && !terminal ? "approximate" : "analytic"));
-        if (geometric) {
-            REQUIRE(date("averaging_start_date") == date("valuation"));
-            REQUIRE(number("realized_average") == 0);
-        }
-        const auto parameters = kiyosi::make_bsm_parameters(number("rate"), number("dividend"), number("volatility"));
-        REQUIRE(parameters.has_value());
-        const auto context = kiyosi::make_pricing_context(
-            *parameters, number("spot"), date("valuation"), kiyosi::weekdays_calendar());
-        REQUIRE(context.has_value());
-        const auto check = [&](const auto& option, const auto& engine) {
-            REQUIRE(option.has_value());
-            const auto native = engine.price(*option, *context);
-            check_price(fixture, native);
-            ++generated;
-            const bool smooth = !terminal && (date("valuation") - date("averaging_start_date")).count() > 2 &&
-                                (date("expiry_date") - date("valuation")).count() > 2;
-            REQUIRE(inputs.at("wrapper") == (smooth ? "true" : "false"));
-            if (!smooth) {
-                REQUIRE(fixture.outputs.size() == 1);
-                return;
-            }
-            ++wrapped;
-            REQUIRE(fixture.outputs.size() == measures.size() + 1);
-            const auto numerical = kiyosi::test::price_differences(
-                engine, *option, *context,
-                kiyosi::NumericalShiftSettings{number("spot_shift"), number("volatility_shift"),
-                                               number("rate_shift"),
-                                               static_cast<int>(number("time_shift_days"))});
-            kiyosi::test::check_numerical_result(fixture, numerical);
-        };
-        if (geometric) {
-            REQUIRE(fixture.engine == "AnalyticGeometricAveragePriceEngine");
-            check(kiyosi::make_geometric_average_option(type, number("strike"), date("effective_date"),
-                                                        date("averaging_start_date"), date("expiry_date"),
-                                                        number("realized_average")),
-                  kiyosi::AnalyticGeometricAveragePriceEngine{});
-        } else {
-            REQUIRE(fixture.engine == "TurnbullWakemanArithmeticAveragePriceEngine");
-            check(kiyosi::make_arithmetic_average_option(type, number("strike"), date("effective_date"),
-                                                         date("averaging_start_date"), date("expiry_date"),
-                                                         number("realized_average")),
-                  kiyosi::TurnbullWakemanArithmeticAveragePriceEngine{});
-        }
-    }
-    CHECK(generated == 24);
-    CHECK(wrapped == 6);
 }
 
 TEST_CASE("Geometric Asian pricing uses the realized and remaining averaging periods")

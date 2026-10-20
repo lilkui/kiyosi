@@ -1,7 +1,6 @@
-import csv
 import unittest
 from datetime import UTC, date, datetime, timedelta
-from pathlib import Path
+from functools import cache
 
 from kiyosi import instruments, pricing
 from kiyosi.market import (
@@ -9,24 +8,12 @@ from kiyosi.market import (
     PricingContext,
     weekdays_calendar,
 )
+from quantlib_reference import structured
 
 
+@cache
 def references():
-    path = Path(__file__).parents[1] / "fixtures" / "structured_reference.tsv"
-    with path.open(encoding="utf-8", newline="") as stream:
-        rows = csv.DictReader(
-            (line for line in stream if not line.startswith("#")), delimiter="\t"
-        )
-        return [
-            {
-                **row,
-                **{
-                    key: dict(item.split("=", 1) for item in row[key].split(";"))
-                    for key in ("inputs", "outputs", "tolerances")
-                },
-            }
-            for row in rows
-        ]
+    return tuple(structured.rows())
 
 
 def contract(row):
@@ -119,8 +106,12 @@ def settings(row):
 
 
 class StructuredReferenceTests(unittest.TestCase):
+    def test_terminal_portfolio_payoffs(self):
+        structured.check_portfolios()
+
     def test_terminal_prices_match_independent_quantlib_payoff_portfolios(self):
         rows = references()
+        self.assertEqual(len(rows), 78)
         self.assertEqual(
             {row["instrument"] for row in rows},
             {
@@ -151,7 +142,7 @@ class StructuredReferenceTests(unittest.TestCase):
             row
             for row in references()
             if row["engine"].startswith("FiniteDifference")
-            and row["inputs"]["convergence"] == "true"
+            and row["inputs"]["convergence"]
         ]
         self.assertEqual(len(rows), 7)
         for row in rows:

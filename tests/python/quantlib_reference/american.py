@@ -6,7 +6,7 @@ import re
 from datetime import date
 from functools import lru_cache
 
-import oracle as g
+from . import oracle as g
 
 GRIDS = ((800, 800), (1600, 1600), (3200, 3200))
 STABILITY = {
@@ -120,6 +120,13 @@ def reference(inputs):
                 f"stability_limit_{name}": STABILITY[name],
             }
         )
+    if metadata["refinement_price"] > max(1e-9, metadata["coarse_refinement_price"]):
+        # Grid alignment can hide convergence; verify another grid without enlarging uncertainty.
+        refined = measure(inputs, "price", (6400, 6400))
+        g.require(
+            abs(refined - outputs["price"]) <= metadata["uncertainty_price"],
+            f"unstable American final refinement: inputs={inputs}",
+        )
     return outputs, metadata
 
 
@@ -138,7 +145,7 @@ def provenance():
 
 
 def rows():
-    data = json.loads((g.PROJECT / "american.json").read_text())
+    data = json.loads((g.DATA_DIR / "american.json").read_text())
     g.require(
         set(data) == {"scenarios", "profiles", "profile_defaults"},
         "invalid American configuration",
@@ -187,7 +194,7 @@ def rows():
             attributes.update(profile["settings"])
             attributes.update(profile["shifts"])
             attributes.update(
-                wrapper=str(scenario["wrapper"]).lower(),
-                tolerance_rationale="separate discretization, BS2002 approximation or LSM sampling budgets: GENERATION.md",
+                wrapper=scenario["wrapper"],
+                tolerance_rationale="separate discretization, BS2002 approximation or LSM sampling budgets",
             )
-            yield g.serialize_row(row)
+            yield row

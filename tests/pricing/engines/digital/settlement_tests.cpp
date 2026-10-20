@@ -6,10 +6,8 @@
 #include <cmath>
 #include <limits>
 
-#include "support/reference_harness.hpp"
+#include <kiyosi/kiyosi.hpp>
 #include "pricing/detail/math.hpp"
-
-using kiyosi::test::measures;
 
 TEST_CASE("Digital and binary barrier terminal payoffs share strict strike boundaries", "[binary-terminal-payoff]")
 {
@@ -249,7 +247,6 @@ TEST_CASE("Digital expiry_date settlement uses strict strikes without smooth Gre
         double cash;
         double asset;
     };
-    // These exact settlement values are also checked against QuantLib payoff bindings.
     const std::array cases{
         Settlement{kiyosi::OptionType::call, 99, 0, 0}, Settlement{kiyosi::OptionType::call, 100, 0, 0},
         Settlement{kiyosi::OptionType::call, 101, 10, 101}, Settlement{kiyosi::OptionType::put, 99, 10, 99},
@@ -265,8 +262,8 @@ TEST_CASE("Digital expiry_date settlement uses strict strikes without smooth Gre
             REQUIRE(result.has_value());
 
             CHECK(result->price() == expected);
-            for (const auto& [name, measure] : measures)
-                if (name != "price") CHECK_FALSE(result->has(measure));
+            for (std::size_t i = 0; i < kiyosi::greek_count; ++i)
+                CHECK_FALSE(result->has(static_cast<kiyosi::Greek>(i)));
         };
         const auto check_engine = [&](const auto& engine) {
             check(engine, cash, item.cash);

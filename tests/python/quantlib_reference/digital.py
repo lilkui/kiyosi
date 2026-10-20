@@ -4,7 +4,7 @@ import json
 import math
 from datetime import date, timedelta
 
-import oracle as g
+from . import oracle as g
 
 INSTRUMENTS = {
     "cash": "CashOrNothingOption",
@@ -32,7 +32,7 @@ STABILITY = dict(
 
 
 def configuration():
-    config = json.loads((g.PROJECT / "digital.json").read_text(encoding="utf-8"))
+    config = json.loads((g.DATA_DIR / "digital.json").read_text(encoding="utf-8"))
     g.require(
         set(config) == {"inputs", "payout", "profiles", "profile_defaults"},
         "invalid digital configuration",
@@ -137,17 +137,14 @@ def rows():
             ).days > 2
             if not smooth:
                 metadata.update(profile["boundary_settings"])
-            metadata["wrapper"] = str(
-                smooth
-                and (
-                    profile["engine"] != "FiniteDifferenceDigitalEngine"
-                    or inputs["spot"] == 100
-                    and inputs["expiry_date"] == "2026-01-06"
-                )
-            ).lower()
+            metadata["wrapper"] = smooth and (
+                profile["engine"] != "FiniteDifferenceDigitalEngine"
+                or inputs["spot"] == 100
+                and inputs["expiry_date"] == "2026-01-06"
+            )
             metadata.update(
                 payoff_condition="strict ITM, zero at strike",
                 settlement="expiry_date",
-                tolerance_rationale="digital quadrature or grid and bump truncation, see GENERATION.md",
+                tolerance_rationale="digital quadrature or grid and bump truncation",
             )
-            yield g.serialize_row(row)
+            yield row

@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from functools import lru_cache
 from types import SimpleNamespace
 
-import oracle as g
+from . import oracle as g
 
 ql = g.ql
 KINDS = {
@@ -174,7 +174,7 @@ def metadata():
         "decomposition": "KI or KO-hit direct,KO-expiry_date=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
         "measure_sources": "central differences of QuantLib portfolio prices, no native Greeks",
         "numerical_settings": "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
-        "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation, see GENERATION.md",
+        "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation",
     }
 
 
@@ -200,10 +200,9 @@ def rows():
                 rate_shift=0.0001 if engine == ENGINES[0] else 0.001,
                 time_shift_days=1,
             )
-            terms["wrapper"] = str(
-                inputs["expiry_date"] != "2025-01-07"
-                and (engine == ENGINES[0] or inputs["spot"] == 100)
-            ).lower()
+            terms["wrapper"] = inputs["expiry_date"] != "2025-01-07" and (
+                engine == ENGINES[0] or inputs["spot"] == 100
+            )
             if engine == ENGINES[1]:
                 terms.update(
                     asset_step_count=1600,
@@ -211,7 +210,7 @@ def rows():
                     asset_upper_boundary=400,
                     scheme="crank_nicolson",
                 )
-            yield g.serialize_row(row)
+            yield row
 
 
 def check_bindings():
@@ -287,4 +286,3 @@ def check_bindings():
             }
             rebate = measure(inputs, "price") - measure(dict(inputs, rebate=0), "price")
             assert abs(rebate - touch.NPV()) < 1e-11
-    print("QuantLib continuous barrier binding and rebate decomposition checks passed")

@@ -1,4 +1,4 @@
-"""Shared QuantLib calculations and fixture encoding; no product-module dependencies."""
+"""Shared independent QuantLib calculations; no product-module dependencies."""
 
 import math
 from datetime import date, timedelta
@@ -7,16 +7,7 @@ from pathlib import Path
 
 import QuantLib as ql
 
-PROJECT = Path(__file__).resolve().parent
-HEADER = [
-    "case_id",
-    "instrument",
-    "engine",
-    "variant",
-    "inputs",
-    "outputs",
-    "tolerances",
-]
+DATA_DIR = Path(__file__).resolve().parent
 INPUTS = {
     "option",
     "strike",
@@ -84,21 +75,10 @@ def require(condition, message):
         raise ValueError(message)
 
 
-def attributes(text):
-    result = {}
-    if text == "-":
-        return result
-    for item in text.split(";"):
-        key, value = item.split("=", 1)
-        require(key and value and key not in result, "invalid or duplicate attribute")
-        result[key] = value
-    return result
-
-
-def encode(values):
-    return ";".join(
-        f"{key}={format(value, '.17g') if isinstance(value, float) else value}"
-        for key, value in sorted(values.items())
+def require_version():
+    require(
+        version("QuantLib") == ql.__version__ == "1.43",
+        "QuantLib 1.43 is required for pricing reference tests",
     )
 
 
@@ -358,12 +338,6 @@ def reference_row(
         "outputs": dict(outputs),
         "tolerances": {name: tolerances[name] for name in outputs},
     }
-
-
-def serialize_row(row):
-    return "\t".join(
-        encode(row[key]) if isinstance(row[key], dict) else row[key] for key in HEADER
-    )
 
 
 def validate_settings(settings, expected):

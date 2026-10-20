@@ -5,8 +5,8 @@ from datetime import date, timedelta
 from functools import lru_cache
 from types import SimpleNamespace
 
-import barrier
-import oracle as g
+from . import barrier
+from . import oracle as g
 
 ql = g.ql
 SOURCE = "QuantLib.AnalyticBinaryBarrierEngine+QuantLib.AnalyticDigitalAmericanEngine+QuantLib.AnalyticEuropeanEngine"
@@ -51,11 +51,11 @@ def make_contract(inputs):
         inputs["monitoring"] == "continuous",
         "scheduled binary monitoring has no matching reference",
     )
-    g.require(inputs["asset_settlement"] in {"true", "false"}, "unknown binary payoff")
+    g.require(type(inputs["asset_settlement"]) is bool, "unknown binary payoff")
     g.require(
         inputs["settlement"] in {"at_hit", "at_expiry"}, "unknown binary settlement"
     )
-    asset = inputs["asset_settlement"] == "true"
+    asset = inputs["asset_settlement"]
     knock_in, up = kind.endswith("_in"), kind.startswith("up")
     at_hit = inputs["settlement"] == "at_hit"
     g.require(
@@ -188,7 +188,7 @@ def scenarios():
                             "BarrierType": kind,
                             "barrier": 100 if days == 0 and spot == strike else level,
                             "payout": level if asset and settlement == "at_hit" else 10,
-                            "asset_settlement": str(asset).lower(),
+                            "asset_settlement": asset,
                             "settlement": settlement,
                             "monitoring": "continuous",
                         }
@@ -206,7 +206,7 @@ def metadata():
         "decomposition": "expiry_date: binary American deferred,unconditional: call+put,hit: cash American digital (asset pays H),already-hit: European or immediate cash",
         "measure_sources": "native American digital or European Greeks where supplied,otherwise central QuantLib price differences",
         "numerical_settings": "central prices: spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
-        "tolerance_rationale": "analytic roundoff and finite-stencil truncation, see GENERATION.md",
+        "tolerance_rationale": "analytic roundoff and finite-stencil truncation",
     }
 
 
@@ -233,9 +233,9 @@ def rows():
             volatility_shift=0.0001,
             rate_shift=0.0001,
             time_shift_days=1,
-            wrapper=str(not exclusions(inputs)).lower(),
+            wrapper=not exclusions(inputs),
         )
-        yield g.serialize_row(row)
+        yield row
 
 
 def check_bindings():
@@ -318,7 +318,7 @@ def check_bindings():
                     "barrier": level,
                     "BarrierType": kind,
                     "payout": payout,
-                    "asset_settlement": str(asset).lower(),
+                    "asset_settlement": asset,
                     "monitoring": "continuous",
                     "settlement": "at_expiry" if deferred else "at_hit",
                 }
@@ -374,4 +374,3 @@ def check_bindings():
                             abs(measure(touched, name, price_only=True) - direct)
                             < STABILITY[name]
                         )
-    print("QuantLib binary barrier and American digital binding checks passed")

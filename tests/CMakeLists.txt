@@ -2,6 +2,7 @@ add_executable(kiyosi_tests
     api/analytics_headers_tests.cpp
     api/header_tests.cpp
     api/parity_tests.cpp
+    api/fixture_tests.cpp
     instruments/history_replace_tests.cpp
     instruments/accumulator_tests.cpp
     instruments/asian_tests.cpp
@@ -25,12 +26,11 @@ add_executable(kiyosi_tests
     pricing/engines/accumulator/engine_tests.cpp
     pricing/engines/accumulator/cashflow_tests.cpp
     pricing/engines/accumulator/quadrature_tests.cpp
-    pricing/engines/asian/reference_tests.cpp
+    pricing/engines/asian/analytic_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
     pricing/engines/barrier/finite_difference_tests.cpp
-    pricing/engines/barrier/reference_tests.cpp
+    pricing/engines/barrier/accuracy_tests.cpp
     pricing/engines/binary_barrier/analytic_tests.cpp
-    pricing/engines/binary_barrier/reference_tests.cpp
     pricing/engines/digital/settlement_tests.cpp
     pricing/engines/digital/overflow_tests.cpp
     pricing/engines/autocallable/autocallable_tests.cpp
@@ -42,9 +42,6 @@ add_executable(kiyosi_tests
     pricing/engines/vanilla/binomial_tests.cpp
     pricing/engines/vanilla/finite_difference_tests.cpp
     pricing/engines/vanilla/monte_carlo_tests.cpp
-    reference/generated_tests.cpp
-    reference/structured_tests.cpp
-    reference/parser_tests.cpp
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
 target_link_libraries(kiyosi_tests PRIVATE kiyosi::kiyosi TBB::tbb Catch2::Catch2WithMain kiyosi::warnings kiyosi::sanitizers)

@@ -10,7 +10,7 @@
 #include <string>
 #include <vector>
 
-#include "support/reference_fixture.hpp"
+#include "support/parity_fixture.hpp"
 
 namespace {
 
