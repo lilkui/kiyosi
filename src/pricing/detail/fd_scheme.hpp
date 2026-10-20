@@ -159,7 +159,7 @@ private:
             layer.next.front() = layer.boundaries.lower;
             layer.next.back() = layer.boundaries.upper;
         }
-        const int asset_step_count = static_cast<int>(layers.front().old.size()) - 1;
+        const int asset_step_count = static_cast<int>(layers.front().old.size() - 1);
         auto operator_parameters = parameters;
         operator_parameters.theta = 0.0;
         if (cached_parameters_ != operator_parameters) {

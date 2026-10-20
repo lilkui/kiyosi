@@ -229,9 +229,9 @@ nb::class_<Engine> bind_finite_difference_engine(nb::module_& module, const char
 
 Configuration is validated at construction. Contract, market, and backend availability
 are checked when pricing.
-Vanilla, digital, and barrier engines accept 3..10,000 asset steps and 1..100,000
-time steps. Accumulator and autocallable engines accept 3..2,000 asset steps and
-1..2,000 time steps.)doc"};
+Asset steps must be at least 3 and time steps at least 1, within the C++ int range.
+Pricing is subject to available memory and runtime; allocation failures raise
+MemoryError. Explicit Euler also requires a stable grid for the chosen market.)doc"};
     binding
         .def(nb::new_([factory](PythonInteger asset_step_count, PythonInteger time_step_count,
                                 PythonChoice<FiniteDifferenceScheme> scheme, PythonReal asset_upper_boundary) {

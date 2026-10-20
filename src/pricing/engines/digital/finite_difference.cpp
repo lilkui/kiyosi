@@ -72,8 +72,8 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     };
 
     std::vector<double> old(space->size());
-    for (int index = 0; index <= asset_step_count; ++index)
-        old[static_cast<std::size_t>(index)] = terminal(spacing * index);
+    for (std::size_t index = 0; index < old.size(); ++index)
+        old[index] = terminal(spacing * static_cast<double>(index));
 
     const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta},
                                         old, boundary);

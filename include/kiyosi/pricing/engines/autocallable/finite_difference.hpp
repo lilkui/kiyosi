@@ -22,7 +22,6 @@ class FiniteDifferenceAutocallableEngine;
 /// with four implicit-Euler half steps after non-smooth events. Explicit Euler retains
 /// uniform/sinh grids and the corresponding stability checks. Defaults are 800 asset
 /// and 2,000 time steps; they target the documented fixed accuracy scenarios, not all contracts.
-/// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 class FiniteDifferenceAutocallableEngine {
 public:
     /// Creates an engine with valid default settings.
@@ -58,7 +57,7 @@ private:
 /// @return The engine, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<FiniteDifferenceAutocallableEngine> make_finite_difference_autocallable_engine(FiniteDifferenceSettings settings)
 {
-    const auto valid = detail::validate_finite_difference_settings(settings, detail::trading_fd_max_steps, detail::trading_fd_max_steps);
+    const auto valid = validate_finite_difference_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     return FiniteDifferenceAutocallableEngine{settings};
 }

@@ -73,7 +73,7 @@ void compare(const Instrument& instrument, const PricingContext& market,
     const int fine_steps = extended ? 1600 : 1200;
     const int time_step_count = extended ? 1600 : 960;
     // Daily KO confines accumulator continuation. A denser domain resolves the
-    // current-day jump near 110 within the engine's 2000-node limit.
+    // current-day jump near 110 with the validation's fixed node budget.
     const double upper = extended && std::is_same_v<Instrument, Accumulator> ? 128.0 : 300.0;
     constexpr auto scheme = FiniteDifferenceScheme::crank_nicolson;
     CAPTURE(fine_steps, time_step_count, upper);

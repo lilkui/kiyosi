@@ -15,7 +15,6 @@ class KIYOSI_EXPORT FiniteDifferenceDigitalEngine;
 
 /// Uniform-grid finite-difference engine for European digital options.
 /// Upper-edge values use BSM exercise probabilities at each time step.
-/// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 /// Prices materially outside the non-negative payoff bounds return `invalid_result`.
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
@@ -52,7 +51,7 @@ private:
 /// @return The engine, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<FiniteDifferenceDigitalEngine> make_finite_difference_digital_engine(FiniteDifferenceSettings settings)
 {
-    const auto valid = detail::validate_finite_difference_settings(settings, detail::general_fd_max_asset_steps, detail::general_fd_max_time_steps);
+    const auto valid = validate_finite_difference_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     return FiniteDifferenceDigitalEngine{settings};
 }

@@ -65,8 +65,8 @@ Result<PricingResult> price_finite_difference(
     };
 
     std::vector<double> old(space->size());
-    for (int index = 0; index <= asset_step_count; ++index)
-        old[static_cast<std::size_t>(index)] = intrinsic(space->asset_at(static_cast<std::size_t>(index)));
+    for (std::size_t index = 0; index < old.size(); ++index)
+        old[index] = intrinsic(space->asset_at(index));
     const auto exercise = american ? old : std::vector<double>{};
 
     const auto marched = march_backward(

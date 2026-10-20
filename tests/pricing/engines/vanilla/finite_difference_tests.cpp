@@ -275,6 +275,48 @@ TEST_CASE("Finite-difference engines reject invalid grids")
     CHECK_FALSE(kiyosi::FiniteDifferenceSettings{}.asset_upper_boundary.has_value());
 }
 
+TEST_CASE("Finite-difference engines validate shared settings without grid caps")
+{
+    using namespace kiyosi;
+    const auto check = [](auto factory) {
+        for (const auto settings : {FiniteDifferenceSettings{3, 1}, {2001, 2001}, {10'001, 100'001}, {std::numeric_limits<int>::max(), std::numeric_limits<int>::max()}}) {
+            CAPTURE(settings.asset_step_count, settings.time_step_count);
+            const auto engine = factory(settings);
+            REQUIRE(engine);
+            CHECK(engine->settings().asset_step_count == settings.asset_step_count);
+            CHECK(engine->settings().time_step_count == settings.time_step_count);
+        }
+        for (const auto settings : {FiniteDifferenceSettings{-1, 1}, {0, 1}, {2, 1}, {3, -1}, {3, 0}, {3, 1, static_cast<FiniteDifferenceScheme>(255)}, {3, 1, FiniteDifferenceScheme::crank_nicolson, 0.0}, {3, 1, FiniteDifferenceScheme::crank_nicolson, -1.0}, {3, 1, FiniteDifferenceScheme::crank_nicolson, std::numeric_limits<double>::infinity()}, {3, 1, FiniteDifferenceScheme::crank_nicolson, std::numeric_limits<double>::quiet_NaN()}}) {
+            const auto engine = factory(settings);
+            REQUIRE_FALSE(engine);
+            CHECK(engine.error().category == ErrorCategory::invalid_parameter);
+        }
+    };
+    check(make_finite_difference_vanilla_engine);
+    check(make_finite_difference_digital_engine);
+    check(make_finite_difference_barrier_engine);
+    check(make_finite_difference_accumulator_engine);
+    check(make_finite_difference_autocallable_engine);
+}
+
+TEST_CASE("Finite-difference prices exceed former grid caps")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
+    const auto expected = AnalyticVanillaEngine{}.price(option, context);
+    REQUIRE(expected);
+    for (const auto settings : {FiniteDifferenceSettings{10'001, 200}, {200, 100'001}}) {
+        CAPTURE(settings.asset_step_count, settings.time_step_count);
+        const auto engine = make_finite_difference_vanilla_engine(settings);
+        REQUIRE(engine);
+        const auto actual = engine->price(option, context);
+        REQUIRE(actual);
+        CHECK_THAT(*actual, Catch::Matchers::WithinAbs(*expected, 0.03));
+    }
+}
+
 TEST_CASE("Finite-difference American engine returns intrinsic value at expiry_date")
 {
     const auto expiry_date = day(2026, 1, 1);

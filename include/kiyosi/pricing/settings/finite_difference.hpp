@@ -15,10 +15,10 @@ enum class FiniteDifferenceScheme : unsigned char {
 };
 
 /// Aggregate configuration validated when creating a finite-difference engine.
-/// The shared validator checks asset steps >= 3 and time steps >= 1. Vanilla, digital, and
-/// barrier engines accept at most 10,000 asset and 100,000 time steps; accumulator and
-/// autocallable engines accept at most 2,000 of each. An explicit scheme may impose a
-/// further stability constraint for the chosen market and grid.
+/// Asset steps must be >= 3 and time steps >= 1, within the int representation.
+/// Pricing remains subject to available memory and runtime;
+/// allocation failures propagate as std::bad_alloc. An explicit scheme may impose a
+/// stability constraint for the chosen market and grid.
 /// American vanilla and autocallable engines widen automatic domains with volatility and maturity.
 /// American grids and wide autocallable grids use sinh coordinates to retain asset resolution.
 /// Autocallable implicit grids concentrate around contract levels; their engine's default
@@ -37,13 +37,9 @@ namespace detail {
 template <typename Engine, typename Option>
 inline constexpr bool is_builtin_finite_difference_engine = false;
 
-inline constexpr int general_fd_max_asset_steps = 10'000;
-inline constexpr int general_fd_max_time_steps = 100'000;
-inline constexpr int trading_fd_max_steps = 2'000;
-
 } // namespace detail
 
-/// Validates shared finite-difference grid settings; engine-specific limits are checked by engine factories.
+/// Validates finite-difference settings shared by all engine factories.
 /// @param settings Settings to validate.
 /// @return Success, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<void> validate_finite_difference_settings(
@@ -63,21 +59,5 @@ inline constexpr int trading_fd_max_steps = 2'000;
                                      "finite-difference scheme is invalid"});
     return {};
 }
-
-namespace detail {
-
-/// Validates shared settings before applying the engine-specific grid limits.
-[[nodiscard]] inline Result<void> validate_finite_difference_settings(
-    const FiniteDifferenceSettings& settings, int max_asset_steps, int max_time_steps)
-{
-    auto valid = kiyosi::validate_finite_difference_settings(settings);
-    if (!valid) return valid;
-    if (settings.asset_step_count > max_asset_steps || settings.time_step_count > max_time_steps)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "finite-difference grid dimensions are out of range"});
-    return {};
-}
-
-} // namespace detail
 
 } // namespace kiyosi

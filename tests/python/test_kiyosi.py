@@ -4284,21 +4284,19 @@ class KiyosiPythonTests(unittest.TestCase):
         )
 
     def test_finite_difference_settings_are_validated_at_construction(self):
-        for engine_type, max_assets, max_times in (
-            (pricing.FiniteDifferenceVanillaEngine, 10_000, 100_000),
-            (pricing.FiniteDifferenceDigitalEngine, 10_000, 100_000),
-            (pricing.FiniteDifferenceBarrierEngine, 10_000, 100_000),
-            (pricing.FiniteDifferenceAccumulatorEngine, 2_000, 2_000),
-            (pricing.FiniteDifferenceAutocallableEngine, 2_000, 2_000),
+        for engine_type in (
+            pricing.FiniteDifferenceVanillaEngine,
+            pricing.FiniteDifferenceDigitalEngine,
+            pricing.FiniteDifferenceBarrierEngine,
+            pricing.FiniteDifferenceAccumulatorEngine,
+            pricing.FiniteDifferenceAutocallableEngine,
         ):
             for settings in (
                 {"asset_step_count": -1},
                 {"asset_step_count": 0},
                 {"asset_step_count": 2},
-                {"asset_step_count": max_assets + 1},
                 {"time_step_count": -1},
                 {"time_step_count": 0},
-                {"time_step_count": max_times + 1},
                 *(
                     {"asset_upper_boundary": value}
                     for value in (0, -1, math.inf, math.nan)
@@ -4321,7 +4319,12 @@ class KiyosiPythonTests(unittest.TestCase):
             )
             self.assertEqual(default.scheme, "crank_nicolson")
             self.assertIsNone(default.asset_upper_boundary)
-            for assets, times in ((3, 1), (max_assets, max_times)):
+            for assets, times in (
+                (3, 1),
+                (2001, 2001),
+                (10_001, 100_001),
+                (2**31 - 1, 2**31 - 1),
+            ):
                 with self.subTest(
                     engine=engine_type.__name__, assets=assets, times=times
                 ):
@@ -4338,6 +4341,45 @@ class KiyosiPythonTests(unittest.TestCase):
                         ),
                         (assets, times, 1),
                     )
+            for name in ("asset_step_count", "time_step_count"):
+                for value in (True, 1.5):
+                    with (
+                        self.subTest(
+                            engine=engine_type.__name__, name=name, value=value
+                        ),
+                        self.assertRaises(TypeError),
+                    ):
+                        engine_type(**{name: value})
+                for value in (-(2**31) - 1, 2**31):
+                    with (
+                        self.subTest(
+                            engine=engine_type.__name__, name=name, value=value
+                        ),
+                        self.assertRaises(OverflowError),
+                    ):
+                        engine_type(**{name: value})
+
+    def test_finite_difference_prices_exceed_former_grid_caps(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        option = EuropeanOption(
+            option_type="call", strike=100, effective_date=start, expiry_date=end
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=0.2
+            ),
+            spot_price=100,
+            valuation_time=start,
+        )
+        expected = AnalyticVanillaEngine().price(option, context)
+        for assets, times in ((10_001, 200), (200, 100_001)):
+            with self.subTest(assets=assets, times=times):
+                engine = pricing.FiniteDifferenceVanillaEngine(
+                    asset_step_count=assets, time_step_count=times
+                )
+                self.assertAlmostEqual(
+                    engine.price(option, context), expected, delta=0.03
+                )
 
     def test_monte_carlo_settings_are_validated_at_construction(self):
         for engine_type in (

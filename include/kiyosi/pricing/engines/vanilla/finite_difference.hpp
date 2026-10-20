@@ -15,7 +15,6 @@ class KIYOSI_EXPORT FiniteDifferenceVanillaEngine;
 
 /// Uniform-grid finite-difference engine for vanilla European and American options.
 /// European upper-edge values include exact BSM time value; American edges also permit immediate exercise.
-/// Accepts 3..10,000 asset steps and 1..100,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceVanillaEngine {
 public:
     /// Creates an engine with valid default settings.
@@ -51,7 +50,7 @@ private:
 /// @return The engine, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<FiniteDifferenceVanillaEngine> make_finite_difference_vanilla_engine(FiniteDifferenceSettings settings)
 {
-    const auto valid = detail::validate_finite_difference_settings(settings, detail::general_fd_max_asset_steps, detail::general_fd_max_time_steps);
+    const auto valid = validate_finite_difference_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     return FiniteDifferenceVanillaEngine{settings};
 }

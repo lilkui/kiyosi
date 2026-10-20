@@ -101,7 +101,7 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(double maturity
         }
         // Subtraction rounds equal uniform intervals differently and defeats factor reuse.
         grid.time_steps.push_back(start == uniform_start && end == uniform_end ? uniform_dt : end - start);
-        if (end == uniform_end) {
+        if (end == uniform_end && uniform_index < steps) {
             uniform_start = uniform_end;
             ++uniform_index;
         }
@@ -341,7 +341,7 @@ private:
             return {index, (spot - nodes[index]) / (nodes[index + 1] - nodes[index])};
         }
         const double position = coordinate_of(spot) / spacing;
-        const int index = std::clamp(static_cast<int>(std::floor(position)), 0, asset_step_count - 1);
+        const auto index = static_cast<int>(std::clamp(std::floor(position), 0.0, static_cast<double>(asset_step_count - 1)));
         return {static_cast<std::size_t>(index), position - static_cast<double>(index)};
     }
 

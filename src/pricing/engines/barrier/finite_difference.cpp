@@ -50,7 +50,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         return std::unexpected(stable.error());
     const int asset_step_count = [&] {
         if (scheduled || knock_in || !upper_barrier) return settings.asset_step_count;
-        int first_fixed = std::clamp(static_cast<int>(std::ceil(barrier / spacing)), 3, settings.asset_step_count);
+        auto first_fixed = static_cast<int>(std::clamp(std::ceil(barrier / spacing), 3.0, static_cast<double>(settings.asset_step_count)));
         if (first_fixed < settings.asset_step_count && spacing * first_fixed < barrier) ++first_fixed;
         return first_fixed;
     }();
@@ -67,8 +67,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         return cached_rebate;
     };
     std::vector<double> old(static_cast<std::size_t>(asset_step_count) + 1);
-    for (int index = 0; index <= asset_step_count; ++index)
-        old[index] = payoff(spacing * index);
+    for (std::size_t index = 0; index < old.size(); ++index)
+        old[index] = payoff(spacing * static_cast<double>(index));
     const auto vanilla_boundary = [&](double tau) {
         const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
@@ -87,8 +87,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         }
     }
     if (active(time_to_expiry))
-        for (int index = 0; index <= asset_step_count; ++index)
-            if (knocked(spacing * index)) old[index] = option.rebate();
+        for (std::size_t index = 0; index < old.size(); ++index)
+            if (knocked(spacing * static_cast<double>(index))) old[index] = option.rebate();
     const auto boundary = [&](double time, double tau) {
         if (!scheduled && upper_barrier)
             return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
@@ -126,8 +126,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference system is numerically unstable"});
         if (scheduled && active(grid.times[step]))
-            for (int index = 0; index <= asset_step_count; ++index)
-                if (knocked(spacing * index)) next[index] = rebate_value(tau);
+            for (std::size_t index = 0; index < next.size(); ++index)
+                if (knocked(spacing * static_cast<double>(index))) next[index] = rebate_value(tau);
         old.swap(next);
         if (paired) vanilla.swap(next_vanilla);
     }

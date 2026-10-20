@@ -82,7 +82,7 @@ inline SpatialGrid concentrate_autocallable_grid(SpatialGrid grid, std::vector<d
             if (value > grid.nodes.back()) grid.nodes.push_back(value);
         }
     }
-    grid.asset_step_count = static_cast<int>(grid.nodes.size()) - 1;
+    grid.asset_step_count = static_cast<int>(grid.nodes.size() - 1);
     grid.spacing = 1.0;
     grid.sinh_scale = 0.0;
     return grid;

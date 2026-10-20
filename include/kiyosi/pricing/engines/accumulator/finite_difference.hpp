@@ -15,7 +15,6 @@ class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine;
 
 /// Marches the accrual value back as an affine function of the accumulated quantity, so a single
 /// sweep prices every opening position.
-/// Accepts 3..2,000 asset steps and 1..2,000 time steps.
 class KIYOSI_EXPORT FiniteDifferenceAccumulatorEngine {
 public:
     /// Creates an engine with valid default settings.
@@ -52,7 +51,7 @@ private:
 /// @return The engine, or an `invalid_parameter` error.
 [[nodiscard]] inline Result<FiniteDifferenceAccumulatorEngine> make_finite_difference_accumulator_engine(FiniteDifferenceSettings settings)
 {
-    const auto valid = detail::validate_finite_difference_settings(settings, detail::trading_fd_max_steps, detail::trading_fd_max_steps);
+    const auto valid = validate_finite_difference_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     return FiniteDifferenceAccumulatorEngine{settings};
 }
