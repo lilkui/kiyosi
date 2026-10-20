@@ -14,6 +14,140 @@
 #include "pricing/detail/fd_scheme.hpp"
 #include "pricing/detail/fd_grid.hpp"
 #include "pricing/detail/fd_event.hpp"
+#include "pricing/detail/fd_concentrated_grid.hpp"
+#include "pricing/detail/fd_damping.hpp"
+
+TEST_CASE("Finite-difference projection supports one and three independent layers", "[fd-components]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 4};
+    const std::array breaks{0.75, 1.0, 1.25};
+    const auto value_at = [](double coordinate) {
+        const double first = coordinate < 0.75 ? 0.0 : coordinate < 1.0 ? 2.0
+                                                   : coordinate < 1.25  ? 6.0
+                                                                        : 10.0;
+        return std::array{first, coordinate < 1.0 ? 5.0 : 13.0, 2.0 * coordinate + 3.0};
+    };
+    const auto single = kiyosi::detail::project_finite_difference_event<1>(grid, breaks, 1, [&](double coordinate) {
+        return std::array{value_at(coordinate)[0]};
+    });
+    CHECK_THAT(single[0], Catch::Matchers::WithinAbs(4.5, 1e-14));
+    const auto triple = kiyosi::detail::project_finite_difference_event<3>(grid, breaks, 1, value_at);
+    CHECK_THAT(triple[0], Catch::Matchers::WithinAbs(4.5, 1e-14));
+    CHECK_THAT(triple[1], Catch::Matchers::WithinAbs(9.0, 1e-14));
+    CHECK_THAT(triple[2], Catch::Matchers::WithinAbs(5.0, 1e-14));
+    const auto smooth = kiyosi::detail::project_finite_difference_event<3>(grid, {}, 1, value_at);
+    CHECK((smooth == std::array{6.0, 13.0, 5.0}));
+}
+
+TEST_CASE("Concentrated finite-difference grids preserve anchors and resolution", "[fd-components]")
+{
+    using namespace kiyosi::detail;
+    const SpatialGrid original{400.0, 400.0 / 128.0, 128};
+    const auto grid = concentrate_spatial_grid(original, {110.0, 80.0, 100.0}, 0.1);
+    REQUIRE(grid.nodes.size() == 129);
+    CHECK(grid.size() == grid.nodes.size());
+    CHECK(grid.asset_step_count == 128);
+    CHECK(grid.upper == original.upper);
+    CHECK(grid.nodes.front() == 0.0);
+    CHECK(grid.nodes.back() == 400.0);
+    CHECK(grid.sinh_scale == 0.0);
+    for (std::size_t index = 1; index < grid.nodes.size(); ++index) {
+        CHECK(std::isfinite(grid.nodes[index]));
+        CHECK(grid.nodes[index] > grid.nodes[index - 1]);
+        CHECK(grid.asset_at(index) == grid.nodes[index]);
+    }
+    for (const double level : {80.0, 100.0, 110.0}) {
+        const auto anchor = std::ranges::lower_bound(grid.nodes, level);
+        REQUIRE(anchor != grid.nodes.end());
+        REQUIRE(*anchor == level);
+        const double left = *anchor - *(anchor - 1), right = *(anchor + 1) - *anchor;
+        CHECK(left < original.spacing);
+        CHECK_THAT(left, Catch::Matchers::WithinAbs(right, 1e-12));
+    }
+    const auto filtered = concentrate_spatial_grid(original,
+                                                   {-1.0, 0.0, std::nextafter(0.0, 1.0), 80.0, 80.0, std::nextafter(80.0, 100.0), 100.0, 110.0, std::nextafter(400.0, 0.0), 400.0, 401.0}, 0.1);
+    CHECK(filtered.nodes == grid.nodes);
+}
+
+TEST_CASE("Concentrated finite-difference grids retain the original when anchors cannot fit", "[fd-components]")
+{
+    using namespace kiyosi::detail;
+    const SpatialGrid original{4.0, 1.0, 4, 0.5};
+    for (const auto& levels : {std::vector<double>{}, {-1.0, 0.0, 4.0, 5.0}, {1.0, 2.0, 3.0}}) {
+        const auto grid = concentrate_spatial_grid(original, levels, 0.1);
+        CHECK(grid.nodes.empty());
+        CHECK(grid.upper == original.upper);
+        CHECK(grid.spacing == original.spacing);
+        CHECK(grid.asset_step_count == original.asset_step_count);
+        CHECK(grid.sinh_scale == original.sinh_scale);
+    }
+}
+
+TEST_CASE("Rannacher damping consumes intervals and restarts independently", "[fd-components]")
+{
+    using namespace kiyosi;
+    detail::RannacherDamping damping{2};
+    for (int interval = 0; interval < 2; ++interval) {
+        const auto substeps = damping.next(0.5);
+        CHECK(substeps.count == 2);
+        CHECK(substeps.theta == 1.0);
+    }
+    const auto normal = damping.next(0.5);
+    CHECK(normal.count == 1);
+    CHECK(normal.theta == 0.5);
+    damping.restart();
+    CHECK(damping.next(0.5).count == 2);
+    damping.restart();
+    CHECK(damping.next(0.5).count == 2);
+    CHECK(damping.next(0.5).count == 2);
+    CHECK(damping.next(0.5).count == 1);
+    detail::RannacherDamping independent{1};
+    CHECK(independent.next(0.5).count == 2);
+    CHECK(independent.next(0.5).count == 1);
+}
+
+TEST_CASE("Rannacher damping preserves Euler schemes and can be disabled", "[fd-components]")
+{
+    using namespace kiyosi;
+    for (const double theta : {0.0, 1.0}) {
+        detail::RannacherDamping damping{2};
+        for (int interval = 0; interval < 4; ++interval) {
+            const auto substeps = damping.next(theta);
+            CHECK(substeps.count == 1);
+            CHECK(substeps.theta == theta);
+        }
+        damping.restart();
+        CHECK(damping.next(theta).count == 1);
+    }
+    detail::RannacherDamping disabled{0};
+    for (int interval = 0; interval < 3; ++interval) {
+        const auto substeps = disabled.next(0.5);
+        CHECK(substeps.count == 1);
+        CHECK(substeps.theta == 0.5);
+        disabled.restart();
+    }
+}
+
+TEST_CASE("Initial finite-difference time refinement preserves exact event suffixes", "[fd-components]")
+{
+    using namespace kiyosi::detail;
+    const double adjacent = std::nextafter(0.25, 1.0);
+    const FiniteDifferenceTimeGrid original{{0.0, 0.25, adjacent, 1.0}, {0.25, adjacent - 0.25, 1.0 - adjacent}};
+    auto grid = original;
+    refine_initial_finite_difference_time_grid(grid, 0.25, 4);
+    CHECK(grid.times == std::vector<double>{0.0, 0.0625, 0.125, 0.1875, 0.25, adjacent, 1.0});
+    CHECK(grid.time_steps == std::vector<double>{0.0625, 0.0625, 0.0625, 0.0625, adjacent - 0.25, 1.0 - adjacent});
+    for (const int minimum : {1, 3, 4}) {
+        const auto refined = grid;
+        refine_initial_finite_difference_time_grid(grid, 0.25, minimum);
+        CHECK(grid.times == refined.times);
+        CHECK(grid.time_steps == refined.time_steps);
+    }
+    grid = {{0.0, 0.5, 1.0}, {0.5, 0.5}};
+    refine_initial_finite_difference_time_grid(grid, 1.0, 4);
+    CHECK(grid.times == std::vector<double>{0.0, 0.25, 0.5, 0.75, 1.0});
+    CHECK(grid.time_steps == std::vector<double>{0.25, 0.25, 0.25, 0.25});
+}
 
 TEST_CASE("Finite-difference event projection integrates every break in both layers", "[autocallable-accuracy]")
 {
@@ -25,7 +159,7 @@ TEST_CASE("Finite-difference event projection integrates every break in both lay
                                                                         : 10.0;
         return std::array{first, coordinate < 1.0 ? 5.0 : 13.0};
     };
-    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 1, value_at);
+    const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, breaks, 1, value_at);
     CHECK_THAT(result[0], Catch::Matchers::WithinAbs(4.5, 1e-14));
     CHECK_THAT(result[1], Catch::Matchers::WithinAbs(9.0, 1e-14));
 }
@@ -40,14 +174,14 @@ TEST_CASE("Finite-difference event projection leaves smooth cells and endpoints 
     };
     SECTION("No break means no repeated smoothing")
     {
-        const auto result = kiyosi::detail::project_finite_difference_event(grid, {}, 1, value_at);
+        const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, {}, 1, value_at);
         CHECK((result == std::array{1.0, 5.0}));
         CHECK(calls == 1);
     }
     SECTION("Breaks at cell edges do not enter the cell")
     {
         const std::array breaks{0.5, 1.5};
-        const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 1, value_at);
+        const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, breaks, 1, value_at);
         CHECK((result == std::array{1.0, 5.0}));
         CHECK(calls == 1);
     }
@@ -55,7 +189,7 @@ TEST_CASE("Finite-difference event projection leaves smooth cells and endpoints 
     {
         const std::array breaks{0.1, 3.9};
         for (const std::size_t index : {std::size_t{0}, grid.size() - 1}) {
-            const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, index, value_at);
+            const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, breaks, index, value_at);
             const double coordinate = grid.spacing * static_cast<double>(index);
             CHECK(result[0] == coordinate * coordinate);
             CHECK(result[1] == 2.0 * coordinate + 3.0);
@@ -68,7 +202,7 @@ TEST_CASE("Finite-difference event projection weights stretched cells in solver 
 {
     const kiyosi::detail::SpatialGrid grid{100.0 * std::sinh(0.4), 0.1, 4, 100.0};
     const std::array breaks{0.175};
-    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 2, [&](double coordinate) {
+    const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, breaks, 2, [&](double coordinate) {
         return std::array{coordinate < 0.175 ? 2.0 : 7.0, grid.asset_of_coordinate(coordinate)};
     });
     CHECK_THAT(result[0], Catch::Matchers::WithinAbs(5.75, 1e-13));
@@ -85,7 +219,7 @@ TEST_CASE("Finite-difference event projection respects nonuniform control volume
     CHECK(grid.nearest_node(std::nextafter(1.5, 2.0)) == 3);
     CHECK(grid.nearest_node(4.0) == 4);
     const std::array breaks{0.9, 1.0, 1.2};
-    const auto result = kiyosi::detail::project_finite_difference_event(grid, breaks, 2, [](double coordinate) {
+    const auto result = kiyosi::detail::project_finite_difference_event<2>(grid, breaks, 2, [](double coordinate) {
         const double first = coordinate < 0.9 ? 0.0 : coordinate < 1.0 ? 2.0
                                                   : coordinate < 1.2   ? 6.0
                                                                        : 10.0;

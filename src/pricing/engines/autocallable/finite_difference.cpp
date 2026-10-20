@@ -13,7 +13,8 @@
 
 #include "../../detail/calendar_dates.hpp"
 #include "../../detail/autocallable_pricer.hpp"
-#include "../../detail/fd_autocallable_grid.hpp"
+#include "../../detail/fd_concentrated_grid.hpp"
+#include "../../detail/fd_damping.hpp"
 #include "../../detail/fd_event.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
@@ -132,7 +133,7 @@ Result<PricingResult> rollback_autocallable(
     const auto expiry_event = event_at(time_to_expiry);
     const auto& terminal_breaks = breaks_at(expiry_event, true, true);
     for (std::size_t index = 0; index < size; ++index) {
-        const auto projected = project_finite_difference_event(space, terminal_breaks, index, [&](double coordinate) {
+        const auto projected = project_finite_difference_event<2>(space, terminal_breaks, index, [&](double coordinate) {
             return event_value(expiry_event, true, true, space.asset_of_coordinate(coordinate), 0.0, 0.0);
         });
         alive[index] = projected[0];
@@ -142,15 +143,15 @@ Result<PricingResult> rollback_autocallable(
     if (!workspace.stepper)
         workspace.stepper.emplace(size, space.upper, assets.back() - assets[size - 2], parameters);
     auto& stepper = *workspace.stepper;
-    int damping_intervals = 2;
+    RannacherDamping damping{2};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const double dt = grid.time_steps[step];
-        const int substeps = settings.scheme == FiniteDifferenceScheme::crank_nicolson && damping_intervals > 0 ? 2 : 1;
+        const auto substeps = damping.next(parameters.theta);
         auto step_parameters = parameters;
-        if (substeps == 2) step_parameters.theta = 1.0;
+        step_parameters.theta = substeps.theta;
         stepper.set_parameters(step_parameters);
-        for (int substep = 0; substep < substeps; ++substep) {
-            const double width = dt / substeps;
+        for (int substep = 0; substep < substeps.count; ++substep) {
+            const double width = dt / substeps.count;
             const bool advanced = needs_knock_in_layer
                                       ? stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, width)
                                       : stepper.advance(alive, next_alive, width);
@@ -160,14 +161,13 @@ Result<PricingResult> rollback_autocallable(
             alive.swap(next_alive);
             if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
         }
-        if (damping_intervals > 0) --damping_intervals;
         const auto event = event_at(grid.times[step]);
         const bool daily = monitors_daily &&
                            std::ranges::binary_search(trading_times, grid.times[step]);
         if (event.active || (needs_knock_in_layer && daily)) {
             const auto& event_breaks = breaks_at(event, daily, false);
             const auto project_at = [&](std::size_t index) {
-                return project_finite_difference_event(space, event_breaks, index, [&](double coordinate) {
+                return project_finite_difference_event<2>(space, event_breaks, index, [&](double coordinate) {
                     const double asset = space.asset_of_coordinate(coordinate);
                     const double continuation = space.linear_interpolate(alive, asset);
                     const double continuation_in = needs_knock_in_layer ? space.linear_interpolate(knocked_in, asset) : 0.0;
@@ -184,7 +184,7 @@ Result<PricingResult> rollback_autocallable(
                 });
                 std::copy_n(knocked_in.begin(), end - assets.begin(), alive.begin());
                 alive[index] = projected;
-                damping_intervals = 2;
+                damping.restart();
                 continue;
             }
             for (std::size_t index = 0; index < size; ++index) {
@@ -203,7 +203,7 @@ Result<PricingResult> rollback_autocallable(
             }
             alive.swap(next_alive);
             if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
-            damping_intervals = 2;
+            damping.restart();
         }
     }
 
@@ -268,21 +268,9 @@ Result<PricingResult> price_autocallable(
         double nearest = grid.times.back();
         if (!observation_events.empty()) nearest = std::min(nearest, observation_events.front().time);
         if (!trading_times.empty()) nearest = std::min(nearest, trading_times.front());
-        const auto first_event = std::ranges::lower_bound(grid.times, nearest);
-        const auto intervals = first_event - grid.times.begin();
         const int near_event_steps = daily_grid ? 64 : 128;
-        if (intervals < near_event_steps) {
-            // The global year step budget must still resolve an observation one hour from valuation.
-            FiniteDifferenceTimeGrid refined;
-            const double width = nearest / near_event_steps;
-            refined.times.reserve(grid.times.size() + near_event_steps);
-            refined.time_steps.assign(near_event_steps, width);
-            for (int step = 0; step < near_event_steps; ++step)
-                refined.times.push_back(nearest * step / near_event_steps);
-            refined.times.insert(refined.times.end(), first_event, grid.times.end());
-            refined.time_steps.insert(refined.time_steps.end(), grid.time_steps.begin() + intervals, grid.time_steps.end());
-            grid = std::move(refined);
-        }
+        // The global year step budget must still resolve an observation one hour from valuation.
+        refine_initial_finite_difference_time_grid(grid, nearest, near_event_steps);
         workspace.daily_grid = daily_grid;
     }
 
@@ -309,7 +297,7 @@ Result<PricingResult> price_autocallable(
             const double days = std::min(1.0, nearest * 365.0);
             // Follow diffusion width near events without introducing nearly coincident nodes.
             const double scale = workspace.contract_level * std::max(0.001 * std::sqrt(days), 64.0 * std::numeric_limits<double>::epsilon());
-            *space = concentrate_autocallable_grid(std::move(*space), std::move(levels), scale);
+            *space = concentrate_spatial_grid(std::move(*space), std::move(levels), scale);
         }
         if (!workspace.space || workspace.space->upper != space->upper || workspace.space->sinh_scale != space->sinh_scale || workspace.space->nodes != space->nodes) {
             workspace.stepper.reset();

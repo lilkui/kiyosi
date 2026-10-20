@@ -12,8 +12,9 @@
 namespace kiyosi::detail {
 
 /// Project only cells containing a break; smooth continuation must not be averaged every day.
-template <typename Value>
-std::array<double, 2> project_finite_difference_event(
+/// Requires sorted breaks in solver coordinates and a callback returning every layer's value.
+template <std::size_t layer_count, typename Value>
+std::array<double, layer_count> project_finite_difference_event(
     const SpatialGrid& space, std::span<const double> breaks, std::size_t index, const Value& value_at)
 {
     const double center = space.coordinate_at(index);
@@ -23,7 +24,7 @@ std::array<double, 2> project_finite_difference_event(
     const auto first = std::ranges::upper_bound(breaks, lower);
     if (first == breaks.end() || *first >= upper) return value_at(center);
 
-    std::array<double, 2> integral{};
+    std::array<double, layer_count> integral{};
     auto next_break = first;
     double left = lower;
     while (left < upper) {

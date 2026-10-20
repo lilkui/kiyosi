@@ -9,8 +9,9 @@
 
 namespace kiyosi::detail {
 
-/// Sinh half-intervals share a physical concentration scale at every contractual level.
-inline SpatialGrid concentrate_autocallable_grid(SpatialGrid grid, std::vector<double> levels, double scale)
+/// Sinh half-intervals share a physical concentration scale at every anchor.
+/// Requires a grid without explicit nodes, finite levels and a finite positive scale.
+inline SpatialGrid concentrate_spatial_grid(SpatialGrid grid, std::vector<double> levels, double scale)
 {
     std::erase_if(levels, [&](double level) { return level <= 0.0 || level >= grid.upper; });
     std::ranges::sort(levels);

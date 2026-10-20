@@ -136,6 +136,25 @@ inline FiniteDifferenceTimeGrid make_finite_difference_time_grid(
     return grid;
 }
 
+/// Uniformly replaces [0, end] when it has fewer than minimum_steps intervals, preserving the suffix exactly.
+/// Requires a positive existing end, no required events before end, and positive minimum_steps.
+inline void refine_initial_finite_difference_time_grid(
+    FiniteDifferenceTimeGrid& grid, double end, int minimum_steps)
+{
+    const auto first_event = std::ranges::lower_bound(grid.times, end);
+    const auto intervals = first_event - grid.times.begin();
+    if (intervals >= minimum_steps) return;
+    FiniteDifferenceTimeGrid refined;
+    const double width = end / minimum_steps;
+    refined.times.reserve(grid.times.size() + minimum_steps);
+    refined.time_steps.assign(minimum_steps, width);
+    for (int step = 0; step < minimum_steps; ++step)
+        refined.times.push_back(end * step / minimum_steps);
+    refined.times.insert(refined.times.end(), first_event, grid.times.end());
+    refined.time_steps.insert(refined.time_steps.end(), grid.time_steps.begin() + intervals, grid.time_steps.end());
+    grid = std::move(refined);
+}
+
 [[nodiscard]] inline double scheme_theta(FiniteDifferenceScheme scheme) noexcept
 {
     return scheme == FiniteDifferenceScheme::explicit_euler   ? 0.0
