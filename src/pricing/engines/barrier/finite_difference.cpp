@@ -3,10 +3,12 @@
 #include <kiyosi/pricing/detail/numerical_greeks.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 
 #include "../../detail/barrier_settlement.hpp"
+#include "../../detail/fd_event.hpp"
 #include "../../detail/fd_grid.hpp"
 #include "../../detail/fd_scheme.hpp"
 #include "../../detail/math.hpp"
@@ -22,7 +24,6 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
     const bool knock_in = option.barrier_terms().is_knock_in();
-    const bool paired = knock_in && scheduled;
     if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
     const double barrier = option.barrier_level();
@@ -36,7 +37,8 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     std::vector<Date> observation_dates;
     if (scheduled) {
         for (auto value : option.observation_dates()) {
-            if (value < context.valuation_time()) continue;
+            // Current observations have already been resolved against the actual spot.
+            if (value <= context.valuation_time()) continue;
             const double event_time = actual_365_fixed_year_fraction(context.valuation_time(), value);
             observation_times.push_back(event_time);
             observation_dates.push_back(value);
@@ -79,16 +81,34 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     };
     std::vector<double> vanilla;
     if (knock_in) {
-        // In/out parity must use the same space and time grids before interpolation.
+        // Keep the vanilla reference on its original schedule when barrier events restart damping.
         vanilla = old;
-        if (!paired) {
-            const auto marched = march_backward<true>(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
-            if (!marched) return std::unexpected(marched.error());
-        }
+        const auto marched = march_backward<true>(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
+        if (!marched) return std::unexpected(marched.error());
     }
-    if (active(time_to_expiry))
+    const std::array event_breaks{barrier};
+    const std::array terminal_breaks{std::min(strike, barrier), std::max(strike, barrier)};
+    const auto observe = [&](double tau, bool terminal) {
+        const std::size_t cut = space->nearest_node(barrier);
+        const double rebate = rebate_value(tau);
+        const double projected = terminal
+                                     ? project_finite_difference_event<1>(*space, terminal_breaks, cut, [&](double asset) {
+                                           return std::array{knocked(asset) ? rebate : payoff(asset)};
+                                       })[0]
+                                     : old[cut] + project_finite_difference_event<1>(*space, event_breaks, cut, [&](double asset) {
+                                           return std::array{knocked(asset) ? rebate - space->linear_interpolate(old, asset) : 0.0};
+                                       })[0];
         for (std::size_t index = 0; index < old.size(); ++index)
-            if (knocked(spacing * static_cast<double>(index))) old[index] = option.rebate();
+            if (knocked(space->asset_at(index))) old[index] = rebate;
+        // Average only the event change, using continuation before the in-place overwrite.
+        old[cut] = projected;
+    };
+    if (active(time_to_expiry)) {
+        if (scheduled) observe(0.0, true);
+        else
+            for (std::size_t index = 0; index < old.size(); ++index)
+                if (knocked(spacing * static_cast<double>(index))) old[index] = option.rebate();
+    }
     const auto boundary = [&](double time, double tau) {
         if (!scheduled && upper_barrier)
             return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
@@ -110,7 +130,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             return rebate_value(tau);
         return std::nullopt;
     };
-    std::vector<double> next(old.size()), next_vanilla(paired ? old.size() : 0);
+    std::vector<double> next(old.size());
     FiniteDifferenceStep stepper(old.size());
     const DiffusionParameters parameters{rate, dividend, volatility, theta};
     RannacherDamping damping{2};
@@ -124,9 +144,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             const double time = grid.times[step] + offset;
             const double tau = time_to_expiry - grid.times[step] - offset;
             const Boundaries edges = boundary(time, tau);
-            const bool advanced = paired
-                                      ? stepper.advance_pair(vanilla, next_vanilla, old, next, dt, step_parameters, vanilla_boundary(tau), edges)
-                                  : scheduled
+            const bool advanced = scheduled
                                       ? stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper)
                                       : stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper,
                                                         [&](int index) { return constraint(index, tau); });
@@ -134,11 +152,11 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "finite-difference system is numerically unstable"});
             old.swap(next);
-            if (paired) vanilla.swap(next_vanilla);
         }
-        if (scheduled && active(grid.times[step]))
-            for (std::size_t index = 0; index < old.size(); ++index)
-                if (knocked(spacing * static_cast<double>(index))) old[index] = rebate_value(time_to_expiry - grid.times[step]);
+        if (scheduled && active(grid.times[step])) {
+            observe(time_to_expiry - grid.times[step], false);
+            damping.restart();
+        }
     }
     if (knock_in) {
         const double rebate = scaled_exponential(option.rebate(), -rate * time_to_expiry);

@@ -122,6 +122,37 @@ of one call, after warmup. The roughly 66x accuracy-path ratio compares these
 configurations at the stated tolerance, not identical errors or a general
 speedup. Default pricing is about 43% slower in this scenario.
 
+Scheduled barrier FD now averages only cells crossed by observation events and
+restarts two intervals of Crank-Nicolson damping after each future observation.
+The knock-in vanilla reference retains its original startup-only damping on the
+same grids, preserving in/out parity without making the vanilla reference depend
+on the barrier's damping restarts. Current observations use the actual spot.
+The `barrier/fd/observations_monthly/` and `observations_daily/` analytics cases
+compare knock-in and knock-out pricing at the default 800-by-200 grid. They use
+the common market below, an up barrier at 110, and an expiry-paid rebate of 2;
+daily observations follow the trading calendar.
+
+On 2026-10-21, Release clang-cl 22.1.3 on a Ryzen 9 5900X measured these median
+wall times (five repetitions, 0.15 s minimum; baseline revision `39384ba`):
+
+| Observations | Contract | Before (ms) | After (ms) |
+| --- | --- | ---: | ---: |
+| Monthly | Knock-out | 1.612 | 1.865 |
+| Monthly | Knock-in | 1.849 | 3.416 |
+| Trading days | Knock-out | 5.186 | 7.991 |
+| Trading days | Knock-in | 5.650 | 12.873 |
+
+These are fixed-grid costs, not accuracy-normalized speedups. Restarts add
+implicit half-steps, and the independent vanilla solve costs more than paired
+rollback. The existing continuous-barrier control remained 1.567 versus 1.556 ms.
+For a separate two-observation up-and-out case (days 180 and 365, spot 100.25,
+barrier 110.125, 800 asset and 2,000 time steps, fixed upper boundary 400), absolute
+price error against conditional analytic-payoff integration fell from 0.01160 to
+0.0004821. The [C++ event tests](../tests/pricing/engines/barrier/finite_difference_tests.cpp)
+and [Python event tests](../tests/python/test_barrier_fd_events.py) also check
+price/delta/gamma convergence, barrier placement, rebate timing and exact current
+observations; the Python reference checks integration and derivative refinement.
+
 The snowball MC implied-coupon case uses 20,000 paths and seed 42. The solver
 prices both coupon bounds on shared asset paths on CPU and CUDA, then verifies
 the interpolated coupon with a separate price. Bounds that require different

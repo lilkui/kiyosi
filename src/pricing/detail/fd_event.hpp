@@ -38,7 +38,7 @@ std::array<double, layer_count> project_finite_difference_event(
         const auto low = value_at(middle - gauss * radius);
         const auto high = value_at(middle + gauss * radius);
         for (std::size_t layer = 0; layer < integral.size(); ++layer)
-            integral[layer] += radius / (upper - lower) * (low[layer] + high[layer]);
+            integral[layer] += (right - left) / (upper - lower) * std::midpoint(low[layer], high[layer]);
         left = right;
         while (next_break != breaks.end() && *next_break <= left)
             ++next_break;

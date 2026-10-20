@@ -15,8 +15,11 @@ class KIYOSI_EXPORT FiniteDifferenceBarrierEngine;
 
 /// Uniform-grid finite-difference engine for barrier options.
 /// Crank-Nicolson uses two implicit Euler half-steps per interval for up to two
-/// initial intervals, shared by the knock-in vanilla reference and knock-out layers.
+/// initial intervals. Scheduled observations locally average the barrier event and
+/// restart this damping for the barrier layer; the knock-in vanilla reference keeps
+/// its original time-marching schedule on the same space and time grids.
 /// Scheduled observations are applied only at their original time-grid endpoints.
+/// Current observations and expiry settlement use the actual spot without averaging.
 class KIYOSI_EXPORT FiniteDifferenceBarrierEngine {
 public:
     /// Creates an engine with valid default settings.

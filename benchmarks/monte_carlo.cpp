@@ -241,6 +241,20 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto scheduled_knock_in = *make_barrier_option(
         {.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 80.0, .barrier_type = BarrierType::down_and_in, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = make_monthly_schedule(european.effective_date(), european.expiry_date(), 1, base_context.calendar())->dates()});
     register_price("analytics/kiyosi/barrier/fd/scheduled_knock_in/price", scheduled_knock_in, barrier_engine, base_context);
+    for (const bool daily : {false, true}) {
+        auto dates = scheduled_knock_in.observation_dates();
+        if (daily) {
+            dates.clear();
+            for (auto date = european.effective_date() + std::chrono::days{1}; date <= european.expiry_date(); date += std::chrono::days{1})
+                if (base_context.calendar().is_trading_day(date)) dates.push_back(date);
+        }
+        for (const bool knock_in : {false, true}) {
+            const auto monitored = *make_barrier_option(
+                {.option_type = OptionType::call, .strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .barrier_level = 110.0, .barrier_type = knock_in ? BarrierType::up_and_in : BarrierType::up_and_out, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = dates});
+            const auto name = std::format("analytics/kiyosi/barrier/fd/observations_{}/{}/price", daily ? "daily" : "monthly", knock_in ? "knock_in" : "knock_out");
+            register_price(name.c_str(), monitored, barrier_engine, base_context);
+        }
+    }
     register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);
     const Date leap_start{std::chrono::year{2024} / 1 / 1}, leap_end{std::chrono::year{2025} / 1 / 1};
     const auto leap_accumulator = *make_accumulator(

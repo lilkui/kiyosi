@@ -39,6 +39,17 @@ TEST_CASE("Finite-difference projection supports one and three independent layer
     CHECK((smooth == std::array{6.0, 13.0, 5.0}));
 }
 
+TEST_CASE("Finite-difference event projection preserves large finite payoff scales", "[fd-components]")
+{
+    const kiyosi::detail::SpatialGrid space{4.0, 1.0, 4};
+    const std::array breaks{2.0};
+    const auto value = kiyosi::detail::project_finite_difference_event<2>(space, breaks, 2, [](double asset) {
+        return std::array{1e308, asset < 2.0 ? -1e308 : 1e308};
+    });
+    CHECK(value[0] == 1e308);
+    CHECK(value[1] == 0.0);
+}
+
 TEST_CASE("Concentrated finite-difference grids preserve anchors and resolution", "[fd-components]")
 {
     using namespace kiyosi::detail;
@@ -727,7 +738,7 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
     for (int day = 1; day <= 366; ++day)
         observations.push_back(start + std::chrono::days{day});
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = observations});
-    check(barrier, make_finite_difference_barrier_engine, {{{1.3493499685691974, 0.05873892375941932, 0.00011930380980306406}, {1.3468904122711003, 0.058637636418814774, 0.00012654044204111787}, {1.3518636988741737, 0.0588457671037437, 0.00011178373357470883}}});
+    check(barrier, make_finite_difference_barrier_engine, {{{1.345246429852062, 0.05792262103575991, 0.00009838859139939656}, {1.344154307931301, 0.057881760992376526, 0.00010186382979049045}, {1.3486651458094419, 0.05805587440018555, 0.00008867242167450131}}});
 }
 
 TEST_CASE("Finite-difference merging preserves adjacent events and later uniform widths", "[fd-performance]")
