@@ -13,6 +13,7 @@
 #include <kiyosi/core/error.hpp>
 
 #include "fd_grid.hpp"
+#include "fd_damping.hpp"
 
 namespace kiyosi::detail {
 
@@ -316,7 +317,8 @@ private:
 };
 
 /// Marches one value layer from expiry_date back to valuation; `tau` is the time remaining to expiry_date.
-template <typename BoundaryValues,
+/// damp_start replaces the first two CN intervals with implicit half-steps, including boundary and event updates.
+template <bool damp_start = false, typename BoundaryValues,
           typename Event = decltype([](std::vector<double>&, double, double) {}),
           typename Constraint = std::nullptr_t>
 [[nodiscard]] inline Result<void> march_backward(
@@ -326,22 +328,30 @@ template <typename BoundaryValues,
     const double maturity = grid.times.back();
     std::vector<double> next(layer.size());
     FiniteDifferenceStep stepper(layer.size());
+    RannacherDamping damping{damp_start ? 2 : 0};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
-        const double dt = grid.time_steps[step];
-        const double tau = maturity - grid.times[step];
-        const Boundaries edges = boundaries(tau);
-        const bool advanced = [&] {
-            if constexpr (std::same_as<Constraint, std::nullptr_t>)
-                return stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper);
-            else
-                return stepper.advance(layer, next, dt, parameters, edges.lower, edges.upper,
-                                       [&](int index) { return constraint(index, tau); });
-        }();
-        if (!advanced)
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "finite-difference system is numerically unstable"});
-        event(next, tau, grid.times[step]);
-        layer.swap(next);
+        const auto substeps = damping.next(parameters.theta);
+        auto step_parameters = parameters;
+        step_parameters.theta = substeps.theta;
+        const double dt = grid.time_steps[step] / substeps.count;
+        for (int substep = 0; substep < substeps.count; ++substep) {
+            const double offset = dt * (substeps.count - substep - 1);
+            const double time = grid.times[step] + offset;
+            const double tau = maturity - grid.times[step] - offset;
+            const Boundaries edges = boundaries(tau);
+            const bool advanced = [&] {
+                if constexpr (std::same_as<Constraint, std::nullptr_t>)
+                    return stepper.advance(layer, next, dt, step_parameters, edges.lower, edges.upper);
+                else
+                    return stepper.advance(layer, next, dt, step_parameters, edges.lower, edges.upper,
+                                           [&](int index) { return constraint(index, tau); });
+            }();
+            if (!advanced)
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "finite-difference system is numerically unstable"});
+            event(next, tau, time);
+            layer.swap(next);
+        }
     }
     return {};
 }

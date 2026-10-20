@@ -75,17 +75,37 @@ Result<PricingResult> price_digital_fd(const Option& option, const PricingContex
     for (std::size_t index = 0; index < old.size(); ++index)
         old[index] = terminal(spacing * static_cast<double>(index));
 
-    const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta},
-                                        old, boundary);
+    const auto marched = march_backward<true>(grid, DiffusionParameters{rate, dividend, volatility, theta},
+                                              old, boundary);
     if (!marched) return std::unexpected(marched.error());
 
+    const double carry = asset ? dividend : rate;
+    const double relative_carry_error = [&] {
+        if (theta != 0.5) return 0.0;
+        RannacherDamping damping{2};
+        double log_error = 0.0;
+        for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+            const auto substeps = damping.next(theta);
+            // CN's scalar factor is no larger than exact for nonnegative carry.
+            if (substeps.theta == 0.5 && carry >= 0.0) continue;
+            const double exponent = carry * (grid.time_steps[step] / substeps.count);
+            const double implicit = substeps.theta * exponent;
+            const double explicit_part = -(1.0 - substeps.theta) * exponent;
+            if (!std::isfinite(exponent) || implicit <= -1.0 || explicit_part <= -1.0) return 0.0;
+            log_error += substeps.count * std::max(0.0, exponent + std::log1p(explicit_part) - std::log1p(implicit));
+        }
+        const double error = std::expm1(log_error);
+        return std::isfinite(error) ? error : 0.0;
+    }();
     std::vector<double> curvature;
     const auto price_at = [&](double shifted_spot) -> Result<double> {
         const double value = space->interpolate(old, shifted_spot, curvature);
         const double upper_bound = scaled_exponential(asset ? shifted_spot : payout, -(asset ? dividend : rate) * time);
-        // Allow floating-point roundoff, but reject oscillations that violate the payoff bounds.
+        // Separate known scalar carry truncation from oscillations; negative prices allow only roundoff.
         const double tolerance = 64.0 * std::numeric_limits<double>::epsilon() * upper_bound;
-        if (!std::isfinite(value) || value < -tolerance || value - upper_bound > tolerance)
+        const double carry_error = upper_bound * relative_carry_error;
+        const double upper_tolerance = tolerance + (std::isfinite(carry_error) ? carry_error : 0.0);
+        if (!std::isfinite(value) || value < -tolerance || value - upper_bound > upper_tolerance)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "finite-difference digital price violates payoff bounds"});
         return std::clamp(value, 0.0, upper_bound);

@@ -78,6 +78,63 @@ TEST_CASE("Vanilla finite-difference speed preserves unavailable and clipped ste
     check(*make_american_option(OptionType::put, 100.0, start, end));
 }
 
+TEST_CASE("Vanilla and digital CN startup matches implicit half-steps on short time grids", "[fd-rannacher]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.12, 0.02, 0.3), 99.25, start);
+    for (const int steps : {1, 2}) {
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            const auto check = [&](const auto& option, const auto& factory) {
+                const auto engine = factory(FiniteDifferenceSettings{400, steps, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+                const auto reference = factory(FiniteDifferenceSettings{400, 2 * steps, FiniteDifferenceScheme::implicit_euler, 400.0}).value();
+                const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                const auto expected = reference.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                CAPTURE(steps, type);
+                REQUIRE(actual);
+                REQUIRE(expected);
+                CHECK(actual->price() == expected->price());
+                CHECK(actual->price() == *engine.price(option, context));
+                for (const auto greek : {Greek::delta, Greek::gamma})
+                    CHECK(test::greek_value(*actual, greek) == test::greek_value(*expected, greek));
+                CHECK(engine.settings().time_step_count == steps);
+                CHECK(engine.settings().scheme == FiniteDifferenceScheme::crank_nicolson);
+            };
+            check(*make_european_option(type, 100.0, start, end), make_finite_difference_vanilla_engine);
+            check(*make_american_option(type, 100.0, start, end), make_finite_difference_vanilla_engine);
+            check(*make_cash_or_nothing_option(type, 100.0, 10.0, start, end), make_finite_difference_digital_engine);
+            check(*make_asset_or_nothing_option(type, 100.0, start, end), make_finite_difference_digital_engine);
+        }
+    }
+}
+
+TEST_CASE("Vanilla and digital damped CN coarse time grids track analytic Greeks", "[fd-rannacher]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
+    for (const int steps : {8, 32}) {
+        const auto vanilla = make_finite_difference_vanilla_engine({1600, steps, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+        const auto digital = make_finite_difference_digital_engine({1600, steps, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            const auto check = [&](const auto& option, const auto& engine, const auto& analytic,
+                                   double price_tolerance, double delta_tolerance, double gamma_tolerance) {
+                const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                const auto expected = analytic.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                CAPTURE(steps, type);
+                REQUIRE(actual);
+                REQUIRE(expected);
+                CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(expected->price(), price_tolerance));
+                CHECK_THAT(test::greek_value(*actual, Greek::delta), Catch::Matchers::WithinAbs(test::greek_value(*expected, Greek::delta), delta_tolerance));
+                CHECK_THAT(test::greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs(test::greek_value(*expected, Greek::gamma), gamma_tolerance));
+            };
+            check(*make_european_option(type, 100.0, start, end), vanilla, AnalyticVanillaEngine{}, 0.02, 0.001, 0.0005);
+            check(*make_cash_or_nothing_option(type, 100.0, 10.0, start, end), digital, AnalyticDigitalEngine{}, 0.02, 0.002, 0.0002);
+            check(*make_asset_or_nothing_option(type, 100.0, start, end), digital, AnalyticDigitalEngine{}, 0.1, 0.02, 0.002);
+        }
+    }
+}
+
 TEST_CASE("Finite-difference European engines track analytic prices")
 {
     using Catch::Matchers::WithinAbs;

@@ -39,7 +39,7 @@ TEST_CASE("Continuous up-and-out rollback preserves full-grid prices and Greeks"
         return timing == RebateTiming::at_hit ? option.rebate() : scaled_exponential(option.rebate(), -0.04 * tau);
     };
     // Keep the original full solve as the reference for pruning fixed rows.
-    const auto marched = march_backward(
+    const auto marched = march_backward<true>(
         make_finite_difference_time_grid(1.0, settings.time_step_count),
         DiffusionParameters{0.04, 0.01, 0.2, scheme_theta(scheme)}, full,
         [&](double tau) { return Boundaries{type == OptionType::put ? 100.0 * std::exp(-0.04 * tau) : 0.0, rebate(tau)}; },

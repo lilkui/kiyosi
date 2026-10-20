@@ -697,18 +697,12 @@ class KiyosiPythonTests(unittest.TestCase):
                 with self.subTest(
                     option=type(option).__name__, option_type=option_type
                 ):
-                    for value in (
-                        lambda option=option: engine.price(option, context),
-                        lambda option=option: engine.price_with_greeks(
-                            option, context, greeks="delta"
-                        ),
-                    ):
-                        with self.assertRaises(kiyosi.KiyosiError) as error:
-                            value()
-                        self.assertEqual(
-                            error.exception.category,
-                            kiyosi.ErrorCategory.INVALID_RESULT,
-                        )
+                    price = engine.price(option, context)
+                    joint = engine.price_with_greeks(option, context, greeks="delta")
+                    self.assertEqual(joint.price, price)
+                    self.assertTrue(math.isfinite(joint.delta))
+                    self.assertGreater(price, 40)
+                    self.assertLess(price, 60)
                     self.assertGreater(stable.price(option, context), 40)
                     self.assertLess(stable.price(option, context), 60)
         volatile_context = PricingContext(
@@ -727,13 +721,11 @@ class KiyosiPythonTests(unittest.TestCase):
                 expiry_date=start + timedelta(days=1825),
             )
             with self.subTest(default_grid=option_type):
-                with self.assertRaises(kiyosi.KiyosiError) as error:
-                    pricing.FiniteDifferenceDigitalEngine().price(
-                        option, volatile_context
-                    )
-                self.assertEqual(
-                    error.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
+                price = pricing.FiniteDifferenceDigitalEngine().price(
+                    option, volatile_context
                 )
+                self.assertGreaterEqual(price, 0)
+                self.assertLessEqual(price, 100 * math.exp(-0.05 * 5))
         option = CashOrNothingOption(
             option_type="call",
             strike=20,

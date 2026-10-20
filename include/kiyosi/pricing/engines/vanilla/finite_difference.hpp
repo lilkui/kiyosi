@@ -15,6 +15,8 @@ class KIYOSI_EXPORT FiniteDifferenceVanillaEngine;
 
 /// Uniform-grid finite-difference engine for vanilla European and American options.
 /// European upper-edge values include exact BSM time value; American edges also permit immediate exercise.
+/// Crank-Nicolson starts with two implicit Euler half-steps per initial interval,
+/// for up to two intervals. American exercise is applied after every substep.
 class KIYOSI_EXPORT FiniteDifferenceVanillaEngine {
 public:
     /// Creates an engine with valid default settings.

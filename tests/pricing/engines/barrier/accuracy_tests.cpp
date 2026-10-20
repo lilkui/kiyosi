@@ -117,10 +117,10 @@ TEST_CASE("Continuous up barriers preserve put boundaries and rebate timing", "[
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start, all_days_calendar());
     const GreeksRequest request{Greek::delta, Greek::gamma, Greek::speed};
-    // References before skipping the upper boundary's discarded vanilla formula.
+    // Fixed-grid references include CN startup damping.
     for (const auto& [scheme, timing, price, delta, gamma, speed] : {
-             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_hit, 6.001295273660669, -0.46100327414769354, 0.012094195366788239, -0.000720165080800371},
-             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_expiry, 5.965452933440826, -0.46428370491099064, 0.01188517039188602, -0.0007257293326437646},
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_hit, 6.001294270333644, -0.46100321142270584, 0.012094206387263214, -0.0007201663153294298},
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, RebateTiming::at_expiry, 5.9654519235374055, -0.46428364164012226, 0.011885181449706947, -0.0007257305720597129},
              std::tuple{FiniteDifferenceScheme::implicit_euler, RebateTiming::at_hit, 6.000291212030822, -0.46094055012576535, 0.012105234989577161, -0.0007214011673570921},
              std::tuple{FiniteDifferenceScheme::implicit_euler, RebateTiming::at_expiry, 5.964442597640509, -0.46422044616223535, 0.011896243851421412, -0.0007269705471180208},
              std::tuple{FiniteDifferenceScheme::explicit_euler, RebateTiming::at_hit, 6.002297864958332, -0.4610659998773655, 0.012083194022974213, -0.0007189321115608181},
@@ -146,9 +146,9 @@ TEST_CASE("Continuous barrier fixed edges retain off-node prices and Greeks", "[
     const Date start{std::chrono::year{2025} / 1 / 1}, end{std::chrono::year{2026} / 1 / 1};
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25, start);
     const auto option = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0});
-    // Full-grid results before restricting the solve to unconstrained interior rows.
+    // Fixed-grid references include CN startup damping.
     for (const auto& [scheme, price, delta, gamma, speed] : {
-             std::tuple{FiniteDifferenceScheme::crank_nicolson, 1.374681875919217, 0.057342386651520846, 7.95571374527515e-6, -9.302439092745403e-5},
+             std::tuple{FiniteDifferenceScheme::crank_nicolson, 1.374680358041093, 0.0573425702598429, 7.950455663936762e-6, -9.302505214689444e-5},
              std::tuple{FiniteDifferenceScheme::implicit_euler, 1.374383050055775, 0.057379104672503844, 6.7888065698046285e-6, -9.315599817910664e-5},
              std::tuple{FiniteDifferenceScheme::explicit_euler, 1.3747121867706569, 0.057338758234461294, 8.050051664994229e-6, -9.301081278631506e-5}}) {
         CAPTURE(scheme);
@@ -365,4 +365,3 @@ TEST_CASE("Finite-difference automatic domains include distant barriers")
     REQUIRE_FALSE(clipped);
     CHECK(clipped.error().category == kiyosi::ErrorCategory::invalid_parameter);
 }
-

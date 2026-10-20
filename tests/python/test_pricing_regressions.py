@@ -459,23 +459,23 @@ class PricingRegressionTests(unittest.TestCase):
             valuation_time=start,
             calendar=all_days_calendar(),
         )
-        # References before skipping the discarded vanilla upper-boundary formula.
+        # Fixed-grid references include CN startup damping.
         cases = (
             (
                 "crank_nicolson",
                 "at_hit",
-                6.001295273660669,
-                -0.46100327414769354,
-                0.012094195366788239,
-                -0.000720165080800371,
+                6.001294270333644,
+                -0.46100321142270584,
+                0.012094206387263214,
+                -0.0007201663153294298,
             ),
             (
                 "crank_nicolson",
                 "at_expiry",
-                5.965452933440826,
-                -0.46428370491099064,
-                0.01188517039188602,
-                -0.0007257293326437646,
+                5.9654519235374055,
+                -0.46428364164012226,
+                0.011885181449706947,
+                -0.0007257305720597129,
             ),
             (
                 "implicit_euler",
@@ -823,8 +823,36 @@ class PricingRegressionTests(unittest.TestCase):
             asset_step_count=10000, time_step_count=1, asset_upper_boundary=400
         )
         self.assertTrue(math.isfinite(engine.price(option, context)))
+        result = engine.price_with_greeks(option, context, ["speed"], spot_shift=0.25)
+        self.assertEqual(result.price, engine.price(option, context))
+        shifted = [
+            PricingContext(
+                model_parameters=parameters,
+                spot_price=context.spot_price + shift,
+                valuation_time=start,
+            )
+            for shift in (-0.25, 0.25)
+        ]
+        low, high = [
+            engine.price_with_greeks(option, market, ["gamma"]).gamma
+            for market in shifted
+        ]
+        self.assertAlmostEqual(result.speed, (high - low) / 0.5, delta=1e-12)
+        volatile_context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.05, dividend_yield=0.02, volatility=10
+            ),
+            spot_price=399,
+            valuation_time=start,
+        )
+        coarse = pricing.FiniteDifferenceDigitalEngine(
+            asset_step_count=1000, time_step_count=3, asset_upper_boundary=400
+        )
+        self.assertTrue(math.isfinite(coarse.price(option, volatile_context)))
         with self.assertRaises(kiyosi.KiyosiError) as rejected:
-            engine.price_with_greeks(option, context, ["speed"], spot_shift=0.25)
+            coarse.price_with_greeks(
+                option, volatile_context, ["speed"], spot_shift=0.25
+            )
         self.assertEqual(
             rejected.exception.category, kiyosi.ErrorCategory.INVALID_RESULT
         )
@@ -1016,11 +1044,11 @@ class PricingRegressionTests(unittest.TestCase):
         )
         # Numerical regression values from the unchanged spline implementation.
         for spot, expected in (
-            (99.99, 9.252556506551684),
-            (math.nextafter(100, 0), 9.258487593783041),
-            (100, 9.258487593783052),
-            (math.nextafter(100, math.inf), 9.258487593783062),
-            (100.01, 9.264420627312544),
+            (99.99, 9.25238419180772),
+            (math.nextafter(100, 0), 9.258315258670022),
+            (100, 9.258315258670033),
+            (math.nextafter(100, math.inf), 9.258315258670043),
+            (100.01, 9.264248271960529),
         ):
             with self.subTest(spot=spot):
                 context = PricingContext(

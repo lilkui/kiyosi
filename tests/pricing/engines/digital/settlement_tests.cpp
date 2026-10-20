@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <array>
 #include <chrono>
@@ -8,6 +9,7 @@
 
 #include <kiyosi/kiyosi.hpp>
 #include "pricing/detail/math.hpp"
+#include "support/common.hpp"
 
 TEST_CASE("Digital and binary barrier terminal payoffs share strict strike boundaries", "[binary-terminal-payoff]")
 {
@@ -136,7 +138,7 @@ TEST_CASE("Analytic digital prices preserve extreme spot-strike ratios", "[audit
     check(*make_asset_or_nothing_option(OptionType::call, 1e200, start, expiry), 1e-200, 1e-200);
 }
 
-TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[audit-fixes]")
+TEST_CASE("Digital CN startup preserves payoff bounds with one time interval", "[fd-rannacher]")
 {
     using namespace kiyosi;
     const Date start{std::chrono::year{2025} / 1 / 6};
@@ -148,11 +150,13 @@ TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[au
         const auto asset = *make_asset_or_nothing_option(type, 100.5, start, expiry);
         const auto check = [&](const auto& option) {
             const auto price = engine.price(option, context);
-            REQUIRE_FALSE(price);
-            CHECK(price.error().category == ErrorCategory::invalid_result);
+            REQUIRE(price);
+            CHECK(*price > 40.0);
+            CHECK(*price < 60.0);
             const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
-            REQUIRE_FALSE(joint);
-            CHECK(joint.error().category == ErrorCategory::invalid_result);
+            REQUIRE(joint);
+            CHECK(joint->price() == *price);
+            CHECK(joint->all_finite());
             const auto stable = make_finite_difference_digital_engine({10'000, 1, FiniteDifferenceScheme::implicit_euler}).value().price(option, context);
             REQUIRE(stable);
             CHECK(*stable > 40.0);
@@ -161,12 +165,58 @@ TEST_CASE("Digital finite differences reject prices outside payoff bounds", "[au
         check(cash);
         check(asset);
     }
+}
+
+TEST_CASE("Digital damped CN preserves high-volatility payoff bounds", "[fd-rannacher]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 6};
     const auto volatile_context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 3.0), 100.0, start);
     for (const auto type : {OptionType::call, OptionType::put}) {
         const auto cash = *make_cash_or_nothing_option(type, 110.0, 100.0, start, start + std::chrono::days{1825});
         const auto price = FiniteDifferenceDigitalEngine{}.price(cash, volatile_context);
-        REQUIRE_FALSE(price);
-        CHECK(price.error().category == ErrorCategory::invalid_result);
+        REQUIRE(price);
+        CHECK(*price >= 0.0);
+        CHECK(*price <= 100.0 * std::exp(-0.05 * 5.0));
+    }
+}
+
+TEST_CASE("Digital damped CN still rejects oscillatory prices", "[fd-rannacher]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    const auto expiry = start + std::chrono::days{365};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 10.0), 20.0, start);
+    const auto option = *make_cash_or_nothing_option(OptionType::call, 100.5, 100.0, start, expiry);
+    const auto engine = make_finite_difference_digital_engine({1000, 3, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+    const auto price = engine.price(option, context);
+    REQUIRE_FALSE(price);
+    CHECK(price.error().category == ErrorCategory::invalid_result);
+}
+
+TEST_CASE("Digital damped CN bounds allow known positive and negative carry truncation", "[fd-rannacher]")
+{
+    using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 6};
+    const auto expiry = start + std::chrono::days{365};
+    for (const double rate : {-0.05, 0.05}) {
+        const double dividend = 0.4 * rate;
+        const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), 100.0, start);
+        for (const int steps : {1, 200}) {
+            const auto engine = make_finite_difference_digital_engine({800, steps}).value();
+            const auto check = [&](const auto& option, double upper, double delta) {
+                const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                CAPTURE(rate, steps);
+                REQUIRE(actual);
+                CHECK(actual->price() >= 0.0);
+                CHECK(actual->price() <= upper);
+                CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(upper, 1e-8));
+                CHECK_THAT(test::greek_value(*actual, Greek::delta), Catch::Matchers::WithinAbs(delta, 0.001));
+                CHECK_THAT(test::greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs(0.0, 1e-8));
+            };
+            check(*make_cash_or_nothing_option(OptionType::call, 1.0, 100.0, start, expiry), 100.0 * std::exp(-rate), 0.0);
+            check(*make_asset_or_nothing_option(OptionType::call, 1.0, start, expiry), 100.0 * std::exp(-dividend), std::exp(-dividend));
+        }
     }
 }
 

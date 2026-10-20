@@ -78,7 +78,7 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
             spot_price=119.25,
             valuation_time=start,
         )
-        # Full-grid rollback values before pruning fixed nodes.
+        # Fixed-grid references include CN startup damping.
         cases = (
             (
                 "explicit_euler",
@@ -115,18 +115,18 @@ class BarrierFiniteDifferenceRegressionTests(unittest.TestCase):
             (
                 "crank_nicolson",
                 "at_hit",
-                2.000271802991153,
-                -0.16253929287199972,
-                0.0040166270935115345,
-                -0.0006703970085115406,
+                2.000271714064386,
+                -0.16253926539453362,
+                0.0040166272883063155,
+                -0.0006703971894075506,
             ),
             (
                 "crank_nicolson",
                 "at_expiry",
-                1.9526864412157319,
-                -0.16580556454205944,
-                0.0038682568893013626,
-                -0.0006726254592109876,
+                1.952686351908745,
+                -0.16580553694657235,
+                0.003868257084583246,
+                -0.0006726256407586465,
             ),
         )
         for scheme, timing, price, delta, gamma, speed in cases:

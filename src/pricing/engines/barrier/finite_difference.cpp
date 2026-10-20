@@ -82,7 +82,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
         // In/out parity must use the same space and time grids before interpolation.
         vanilla = old;
         if (!paired) {
-            const auto marched = march_backward(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
+            const auto marched = march_backward<true>(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
             if (!marched) return std::unexpected(marched.error());
         }
     }
@@ -113,23 +113,32 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     std::vector<double> next(old.size()), next_vanilla(paired ? old.size() : 0);
     FiniteDifferenceStep stepper(old.size());
     const DiffusionParameters parameters{rate, dividend, volatility, theta};
+    RannacherDamping damping{2};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
-        const double tau = time_to_expiry - grid.times[step];
-        const Boundaries edges = boundary(grid.times[step], tau);
-        const bool advanced = paired
-                                  ? stepper.advance_pair(vanilla, next_vanilla, old, next, grid.time_steps[step], parameters, vanilla_boundary(tau), edges)
-                              : scheduled
-                                  ? stepper.advance(old, next, grid.time_steps[step], parameters, edges.lower, edges.upper)
-                                  : stepper.advance(old, next, grid.time_steps[step], parameters, edges.lower, edges.upper,
-                                                    [&](int index) { return constraint(index, tau); });
-        if (!advanced)
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "finite-difference system is numerically unstable"});
+        const auto substeps = damping.next(theta);
+        auto step_parameters = parameters;
+        step_parameters.theta = substeps.theta;
+        const double dt = grid.time_steps[step] / substeps.count;
+        for (int substep = 0; substep < substeps.count; ++substep) {
+            const double offset = dt * (substeps.count - substep - 1);
+            const double time = grid.times[step] + offset;
+            const double tau = time_to_expiry - grid.times[step] - offset;
+            const Boundaries edges = boundary(time, tau);
+            const bool advanced = paired
+                                      ? stepper.advance_pair(vanilla, next_vanilla, old, next, dt, step_parameters, vanilla_boundary(tau), edges)
+                                  : scheduled
+                                      ? stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper)
+                                      : stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper,
+                                                        [&](int index) { return constraint(index, tau); });
+            if (!advanced)
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "finite-difference system is numerically unstable"});
+            old.swap(next);
+            if (paired) vanilla.swap(next_vanilla);
+        }
         if (scheduled && active(grid.times[step]))
-            for (std::size_t index = 0; index < next.size(); ++index)
-                if (knocked(spacing * static_cast<double>(index))) next[index] = rebate_value(tau);
-        old.swap(next);
-        if (paired) vanilla.swap(next_vanilla);
+            for (std::size_t index = 0; index < old.size(); ++index)
+                if (knocked(spacing * static_cast<double>(index))) old[index] = rebate_value(time_to_expiry - grid.times[step]);
     }
     if (knock_in) {
         const double rebate = scaled_exponential(option.rebate(), -rate * time_to_expiry);

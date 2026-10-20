@@ -128,6 +128,48 @@ TEST_CASE("Rannacher damping preserves Euler schemes and can be disabled", "[fd-
     }
 }
 
+TEST_CASE("Damped finite-difference marching updates boundaries constraints and events at substep endpoints", "[fd-rannacher]")
+{
+    using namespace kiyosi::detail;
+    const FiniteDifferenceTimeGrid grid{{0.0, 0.125, 0.375, 0.875}, {0.125, 0.25, 0.5}};
+    std::vector<double> values(5, 0.0);
+    const std::array expected_tau{0.25, 0.5, 0.625, 0.75, 0.875};
+    std::size_t updates = 0;
+    const auto marched = march_backward<true>(grid, {0.04, 0.01, 0.2, 0.5}, values, [](double tau) { return Boundaries{2.0 + tau, 3.0 + tau}; }, [&](std::vector<double>& layer, double tau, double time) {
+            REQUIRE(updates < expected_tau.size());
+            CHECK(tau == expected_tau[updates]);
+            CHECK(time == 0.875 - tau);
+            CHECK(layer.front() == 2.0 + tau);
+            CHECK(layer.back() == 3.0 + tau);
+            CHECK(layer[1] == 4.0 + tau);
+            ++updates; }, [](int index, double tau) -> std::optional<double> { return index == 1 ? std::optional{4.0 + tau} : std::nullopt; });
+    REQUIRE(marched);
+    CHECK(updates == expected_tau.size());
+}
+
+TEST_CASE("Damped finite-difference marching preserves Euler results and event timing", "[fd-rannacher]")
+{
+    using namespace kiyosi::detail;
+    const auto grid = make_finite_difference_time_grid(1.0, 8);
+    for (const double theta : {0.0, 1.0}) {
+        auto original = std::vector{0.0, 1.0, 2.0, 1.0, 0.0};
+        auto damped = original;
+        const DiffusionParameters parameters{0.04, 0.01, 0.2, theta};
+        const auto boundary = [](double tau) { return Boundaries{tau, 2.0 * tau}; };
+        REQUIRE(march_backward(grid, parameters, original, boundary));
+        std::size_t updates = 0;
+        const auto marched = march_backward<true>(grid, parameters, damped, boundary,
+                                                  [&](std::vector<double>&, double tau, double time) {
+                                                      CHECK(time == grid.times[grid.time_steps.size() - updates - 1]);
+                                                      CHECK(tau == 1.0 - time);
+                                                      ++updates;
+                                                  });
+        REQUIRE(marched);
+        CHECK(updates == grid.time_steps.size());
+        CHECK(damped == original);
+    }
+}
+
 TEST_CASE("Initial finite-difference time refinement preserves exact event suffixes", "[fd-components]")
 {
     using namespace kiyosi::detail;
@@ -685,7 +727,7 @@ TEST_CASE("Calendar finite-difference prices retain daily reference values", "[f
     for (int day = 1; day <= 366; ++day)
         observations.push_back(start + std::chrono::days{day});
     const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .barrier_level = 110.0, .barrier_type = BarrierType::up_and_out, .rebate = 2.0, .observation_mode = ObservationMode::scheduled, .observation_dates = observations});
-    check(barrier, make_finite_difference_barrier_engine, {{{1.349334949897279, 0.05874014816127894, 0.00011939130239541559}, {1.3468904122711003, 0.058637636418814774, 0.00012654044204111787}, {1.3518636988741737, 0.0588457671037437, 0.00011178373357470883}}});
+    check(barrier, make_finite_difference_barrier_engine, {{{1.3493499685691974, 0.05873892375941932, 0.00011930380980306406}, {1.3468904122711003, 0.058637636418814774, 0.00012654044204111787}, {1.3518636988741737, 0.0588457671037437, 0.00011178373357470883}}});
 }
 
 TEST_CASE("Finite-difference merging preserves adjacent events and later uniform widths", "[fd-performance]")

@@ -15,7 +15,11 @@ class KIYOSI_EXPORT FiniteDifferenceDigitalEngine;
 
 /// Uniform-grid finite-difference engine for European digital options.
 /// Upper-edge values use BSM exercise probabilities at each time step.
-/// Prices materially outside the non-negative payoff bounds return `invalid_result`.
+/// Crank-Nicolson starts with two implicit Euler half-steps per initial interval,
+/// for up to two intervals. Euler schemes retain their configured time steps.
+/// Returned prices stay within theoretical payoff bounds. CN upper-bound checks allow
+/// scalar carry discretization error from startup and negative carry; other violations
+/// beyond roundoff return `invalid_result`.
 class KIYOSI_EXPORT FiniteDifferenceDigitalEngine {
 public:
     /// Creates an engine with valid default settings.

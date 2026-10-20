@@ -69,7 +69,7 @@ Result<PricingResult> price_finite_difference(
         old[index] = intrinsic(space->asset_at(index));
     const auto exercise = american ? old : std::vector<double>{};
 
-    const auto marched = march_backward(
+    const auto marched = march_backward<true>(
         grid, parameters, old, boundary,
         [&](std::vector<double>& layer, double, double) {
             if (!american) return;
