@@ -53,6 +53,13 @@ void register_matrix()
     const auto binary_snowball = *make_binary_snowball_option({.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
     const auto ternary_snowball = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
 
+    const auto accuracy_note = *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
+        .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = Date{std::chrono::year{2025} / 4 / 1},
+        .observations = {{Date{std::chrono::year{2025} / 2 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2025} / 3 / 1}, 108.0, 0.08}, {Date{std::chrono::year{2025} / 4 / 1}, 105.0, 0.08}}});
+    const auto accuracy_context = *make_pricing_context(*make_bsm_parameters(0.03, 0.01, 0.2), 100.0, start, all_days_calendar());
+    kiyosi::benchmark_support::register_price("accuracy/kiyosi/snowball/1bp/quadrature", accuracy_note, QuadratureAutocallableEngine{}, accuracy_context)->UseRealTime();
+    kiyosi::benchmark_support::register_price("accuracy/kiyosi/snowball/1bp/fd", accuracy_note, make_finite_difference_autocallable_engine({2000, 4000}).value(), accuracy_context)->UseRealTime();
+
     register_kiyosi("european/analytic", european, AnalyticVanillaEngine{}, context);
     const auto up_and_out = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out});
     register_kiyosi("up_and_out/fd_200", up_and_out, make_finite_difference_barrier_engine({200, 200}).value(), context);
@@ -95,12 +102,16 @@ void register_matrix()
     register_kiyosi("accumulator/fd", accumulator, make_finite_difference_accumulator_engine({80, 80}).value(), context, false);
     register_kiyosi("accumulator/mc", accumulator, make_monte_carlo_accumulator_engine({2'000, 42}).value(), context, false);
     register_kiyosi("phoenix/fd", phoenix, make_finite_difference_autocallable_engine({80, 80}).value(), context, false);
+    register_kiyosi("phoenix/quadrature", phoenix, QuadratureAutocallableEngine{}, context, false);
     register_kiyosi("phoenix/mc", phoenix, make_monte_carlo_autocallable_engine({2'000, 42}).value(), context, false);
     register_kiyosi("snowball/fd", snowball, make_finite_difference_autocallable_engine({80, 80}).value(), context, false);
+    register_kiyosi("snowball/quadrature", snowball, QuadratureAutocallableEngine{}, context, false);
     register_kiyosi("snowball/mc", snowball, make_monte_carlo_autocallable_engine({2'000, 42}).value(), context, false);
     register_kiyosi("binary_snowball/fd", binary_snowball, make_finite_difference_autocallable_engine({80, 80}).value(), context, false);
+    register_kiyosi("binary_snowball/quadrature", binary_snowball, QuadratureAutocallableEngine{}, context, false);
     register_kiyosi("binary_snowball/mc", binary_snowball, make_monte_carlo_autocallable_engine({2'000, 42}).value(), context, false);
     register_kiyosi("ternary_snowball/fd", ternary_snowball, make_finite_difference_autocallable_engine({80, 80}).value(), context, false);
+    register_kiyosi("ternary_snowball/quadrature", ternary_snowball, QuadratureAutocallableEngine{}, context, false);
     register_kiyosi("ternary_snowball/mc", ternary_snowball, make_monte_carlo_autocallable_engine({2'000, 42}).value(), context, false);
 #if KIYOSI_HAS_CUDA
     register_kiyosi("european/mc_cuda", european, make_monte_carlo_vanilla_engine({5'000, 10, 42, MonteCarloBackend::cuda}).value(), context, false);

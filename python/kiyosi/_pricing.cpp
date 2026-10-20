@@ -721,6 +721,23 @@ Settings are validated at construction.)doc")
     bind_engine_price<FiniteDifferenceAutocallableEngine, TernarySnowballOption>(module, finite_autocallable);
     bind_engine_price<FiniteDifferenceAutocallableEngine, PhoenixOption>(module, finite_autocallable);
 
+    nb::class_<QuadratureAutocallableEngine> quadrature_autocallable{module, "QuadratureAutocallableEngine",
+        "Event-date BSM integration with immutable settings. Check space and domain convergence separately; concurrent calls are safe."};
+    quadrature_autocallable
+        .def(nb::new_([](PythonInteger asset_step_count, PythonReal integration_standard_deviations) {
+            return unwrap(make_quadrature_autocallable_engine({integer(asset_step_count, "asset_step_count"),
+                real_number(integration_standard_deviations, "integration_standard_deviations")}));
+        }), nb::kw_only(), "asset_step_count"_a = AutocallableQuadratureSettings{}.asset_step_count,
+            "integration_standard_deviations"_a = AutocallableQuadratureSettings{}.integration_standard_deviations,
+            "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
+        .def_prop_ro("asset_step_count", [](const QuadratureAutocallableEngine& engine) { return engine.settings().asset_step_count; })
+        .def_prop_ro("integration_standard_deviations", [](const QuadratureAutocallableEngine& engine) { return engine.settings().integration_standard_deviations; });
+    bind_repr(quadrature_autocallable, "QuadratureAutocallableEngine", {"asset_step_count", "integration_standard_deviations"});
+    bind_engine_price<QuadratureAutocallableEngine, SnowballOption>(module, quadrature_autocallable);
+    bind_engine_price<QuadratureAutocallableEngine, BinarySnowballOption>(module, quadrature_autocallable);
+    bind_engine_price<QuadratureAutocallableEngine, TernarySnowballOption>(module, quadrature_autocallable);
+    bind_engine_price<QuadratureAutocallableEngine, PhoenixOption>(module, quadrature_autocallable);
+
     auto monte_carlo_autocallable = bind_trading_day_monte_carlo_engine<MonteCarloAutocallableEngine>(module, "MonteCarloAutocallableEngine", &make_monte_carlo_autocallable_engine);
     bind_engine_price<MonteCarloAutocallableEngine, SnowballOption>(module, monte_carlo_autocallable);
     bind_engine_price<MonteCarloAutocallableEngine, BinarySnowballOption>(module, monte_carlo_autocallable);
@@ -730,6 +747,10 @@ Settings are validated at construction.)doc")
 
 void bind_analytics(nb::module_& module)
 {
+    bind_snowball_implied_coupon_pair<QuadratureAutocallableEngine, SnowballOption>(module);
+    bind_snowball_implied_coupon_pair<QuadratureAutocallableEngine, BinarySnowballOption>(module);
+    bind_snowball_implied_coupon_pair<QuadratureAutocallableEngine, TernarySnowballOption>(module);
+    bind_implied_coupon_pair<QuadratureAutocallableEngine, PhoenixOption>(module);
     bind_snowball_implied_coupon_pair<FiniteDifferenceAutocallableEngine, SnowballOption>(module);
     bind_snowball_implied_coupon_pair<MonteCarloAutocallableEngine, SnowballOption>(module);
     bind_snowball_implied_coupon_pair<FiniteDifferenceAutocallableEngine, BinarySnowballOption>(module);

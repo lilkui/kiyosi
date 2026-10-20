@@ -111,6 +111,12 @@ void compare(const Instrument& instrument, const PricingContext& market,
     CHECK(uncertainty <= mc_budget);
     CHECK(discrepancy <= fd_budget + uncertainty);
     CHECK(discrepancy <= std::abs(coarse - mean) + uncertainty);
+    if constexpr (AutocallableProduct<Instrument>) {
+        const double integrated = price(QuadratureAutocallableEngine{}.price(instrument, market));
+        CAPTURE(integrated);
+        CHECK(std::abs(integrated - mean) <= 1e-4 + uncertainty);
+        CHECK(std::abs(integrated - fine) <= 1e-4 + fd_budget);
+    }
 }
 
 template <typename Terms>

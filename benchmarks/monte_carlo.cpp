@@ -289,6 +289,16 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto expiry_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.08}}});
     register_price("analytics/kiyosi/snowball/fd/expiry_only/price", expiry_note, snowball_engine, base_context);
+    const QuadratureAutocallableEngine quadrature;
+    register_price("analytics/kiyosi/snowball/quadrature/price", snowball, quadrature, context);
+    register_price("analytics/kiyosi/snowball/quadrature/knocked_in/price", knocked_in, quadrature, context);
+    register_price("analytics/kiyosi/snowball/quadrature/expiry_only/price", expiry_note, quadrature, base_context);
+    register_calculation("analytics/kiyosi/snowball/quadrature/delta_gamma", [=, snowball = snowball] { return quadrature.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/quadrature/speed", [=, snowball = snowball] { return quadrature.price_with_greeks(snowball, context, {Greek::speed}); }, "price");
+    register_calculation("analytics/kiyosi/snowball/quadrature/all_greeks", [=, snowball = snowball] { return quadrature.price_with_greeks(snowball, context, GreeksRequest{true}); }, "price");
+    const double quadrature_quote = quadrature.price(snowball, context).value();
+    register_calculation("analytics/kiyosi/snowball/quadrature/implied_volatility", [=, snowball = snowball] { return implied_volatility(quadrature, snowball, context, quadrature_quote, {.lower_bound = 0.1, .upper_bound = 0.4}); }, "volatility");
+    register_calculation("analytics/kiyosi/snowball/quadrature/implied_coupon", [=, snowball = snowball] { return implied_coupon(quadrature, snowball, context, quadrature_quote, CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
     register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, make_finite_difference_autocallable_engine({200, 1000}).value(), base_context);
     const auto fixed_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.0}}});

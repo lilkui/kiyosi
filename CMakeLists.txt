@@ -143,6 +143,7 @@ target_sources(kiyosi
         src/pricing/engines/digital/finite_difference.cpp
         src/pricing/engines/digital/integral.cpp
         src/pricing/engines/autocallable/finite_difference.cpp
+        src/pricing/engines/autocallable/integral.cpp
         src/pricing/engines/autocallable/monte_carlo.cpp
         src/pricing/engines/vanilla/analytic.cpp
         src/pricing/engines/vanilla/binomial.cpp
@@ -189,6 +190,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/detail/accumulator_program.hpp
             include/kiyosi/pricing/detail/finite_difference_domain.hpp
             include/kiyosi/pricing/settings/binomial.hpp
+            include/kiyosi/pricing/settings/autocallable_quadrature.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp
             include/kiyosi/pricing/settings/monte_carlo.hpp
@@ -203,6 +205,7 @@ target_sources(kiyosi
             include/kiyosi/pricing/engines/digital/finite_difference.hpp
             include/kiyosi/pricing/engines/digital/integral.hpp
             include/kiyosi/pricing/engines/autocallable/finite_difference.hpp
+            include/kiyosi/pricing/engines/autocallable/integral.hpp
             include/kiyosi/pricing/engines/autocallable/monte_carlo.hpp
             include/kiyosi/pricing/engines/vanilla/analytic.hpp
             include/kiyosi/pricing/engines/vanilla/binomial.hpp
