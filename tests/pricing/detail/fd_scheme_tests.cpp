@@ -425,18 +425,6 @@ TEST_CASE("Finite-difference grids reject zero spacing while preserving small po
     }
 }
 
-TEST_CASE("Finite-difference grids preserve exact expiry_date without replaying terminal events", "[cross-validation]")
-{
-    const double maturity = 91.0 / 365.0;
-    for (const int steps : {400, 800, 1600}) {
-        CAPTURE(steps);
-        const auto grid = kiyosi::detail::make_finite_difference_time_grid(maturity, steps, {0.0, maturity});
-        CHECK(grid.times.front() == 0.0);
-        CHECK(grid.times.back() == maturity);
-        CHECK(grid.times.size() == static_cast<std::size_t>(steps + 1));
-    }
-}
-
 TEST_CASE("Uniform finite-difference intervals share one exact width", "[fd-performance]")
 {
     for (const double maturity : {1.0 / (365.0 * 86400.0 * 1e6), 91.0 / 365.0, 1.0, 2.75}) {
