@@ -13,4 +13,6 @@ The extra pins QuantLib 1.43. It is required: missing QuantLib fails discovery r
 
 The references use Actual/365 Fixed, continuously compounded BSM parameters, `WeekendsOnly` matched to Kiyosi's `weekdays_calendar`, and unrolled contract dates. Reference uncertainty checks are independent of Kiyosi engine error budgets. American references refine 800, 1600 and 3200 point grids and check bump stability, so full test runs take longer than snapshot comparisons. Arithmetic Asian checks compare the same Levy approximation, not the true arithmetic-average value. Structured checks use basic-payoff portfolios, not native structured-product engines.
 
-The QuantLib calculations change a global evaluation date. Tests restore settings with `SavedSettings`; run comparisons serially within a process, or use separate processes for parallel runs. `api_parity.tsv` remains a shared C++/Python API contract fixture.
+The QuantLib calculations change a global evaluation date. Tests restore settings with `SavedSettings`; run comparisons serially within a process, or use separate processes for parallel runs.
+
+C++ and Python API contract tests cover equivalent domain scenarios in their respective suites, including defaults, representation boundaries, event-sensitive history and implied-parameter identifiability.

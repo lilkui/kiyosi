@@ -1,8 +1,6 @@
 add_executable(kiyosi_tests
     api/analytics_headers_tests.cpp
     api/header_tests.cpp
-    api/parity_tests.cpp
-    api/fixture_tests.cpp
     instruments/history_replace_tests.cpp
     instruments/accumulator_tests.cpp
     instruments/asian_tests.cpp
@@ -52,7 +50,6 @@ if(KIYOSI_ENABLE_CUDA)
 endif()
 target_include_directories(kiyosi_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/src")
 target_compile_definitions(kiyosi_tests PRIVATE
-    KIYOSI_SOURCE_DIR="${PROJECT_SOURCE_DIR}"
     KIYOSI_HAS_CUDA=$<BOOL:${KIYOSI_ENABLE_CUDA}>
 )
 # Only set when FetchContent built Catch2 from source; an installed package ships Catch.cmake itself.

@@ -1,5 +1,4 @@
 import ast
-import csv
 import math
 import numbers
 import os
@@ -60,29 +59,6 @@ from kiyosi.pricing import (
     implied_volatility,
 )
 from price_differences import price_differences
-
-
-def parity_fields(value):
-    if value == "-":
-        return {}
-    return dict(item.split("=", 1) for item in value.split(";"))
-
-
-def parity_cases():
-    path = Path(__file__).parents[1] / "fixtures" / "api_parity.tsv"
-    with path.open(newline="", encoding="utf-8") as stream:
-        return [
-            {
-                **row,
-                "inputs": parity_fields(row["inputs"]),
-                "expected": parity_fields(row["expected"]),
-            }
-            for row in csv.DictReader(stream, delimiter="\t")
-        ]
-
-
-def utc_timestamp(value):
-    return datetime.fromisoformat(value)
 
 
 class KiyosiPythonTests(unittest.TestCase):
@@ -4734,258 +4710,126 @@ class KiyosiPythonTests(unittest.TestCase):
             self.assertIsNone(getattr(tiny, name))
         self.assertIsNotNone(tiny.delta)
 
-    def test_public_api_matches_shared_language_parity_cases(self):
-        cases = parity_cases()
-        self.assertTrue(cases)
-        for case in cases:
-            with self.subTest(case=case["case_id"]):
-                values = case["inputs"]
-                expected = case["expected"]
-                kind = case["kind"]
-                if kind == "construction":
-                    option = EuropeanOption(
-                        option_type=values["type"],
-                        strike=float(values["strike"]),
-                        effective_date=date.fromisoformat(values["effective_date"]),
-                        expiry_date=date.fromisoformat(values["expiry_date"]),
+    def test_initial_snowball_history_preserves_event_sensitive_greeks(self):
+        end = date(2026, 1, 1)
+        for start, valuation, delta_available in (
+            (date(2025, 1, 1), date(2025, 1, 1), False),
+            (date(2025, 1, 4), date(2025, 1, 4), True),
+            (date(2025, 1, 1), date(2025, 1, 2), False),
+        ):
+            terms = {
+                "coupon_rate": 0.1,
+                "initial_spot": 100,
+                "knock_in_level": 80,
+                "knock_out_level": 110,
+                "observation_dates": [end],
+                "effective_date": start,
+                "expiry_date": end,
+            }
+            absent = standard_snowball(**terms)
+            explicit_none = standard_snowball(**terms, barrier_state="none")
+            context = PricingContext(
+                model_parameters=self.parameters,
+                spot_price=80,
+                valuation_time=valuation,
+            )
+            for engine in (
+                pricing.MonteCarloAutocallableEngine(path_count=64, seed=1),
+                pricing.FiniteDifferenceAutocallableEngine(),
+            ):
+                with self.subTest(
+                    start=start, valuation=valuation, engine=type(engine).__name__
+                ):
+                    expected = engine.price_with_greeks(
+                        explicit_none, context, all_greeks=True
                     )
-                    self.assertEqual(option.option_type, expected["type"])
-                    self.assertEqual(option.strike, float(expected["strike"]))
-                    self.assertEqual(
-                        option.effective_date,
-                        date.fromisoformat(expected["effective_date"]),
-                    )
-                    self.assertEqual(
-                        option.expiry_date, date.fromisoformat(expected["expiry_date"])
-                    )
-                elif kind == "defaults":
-                    engine = pricing.FiniteDifferenceVanillaEngine()
-                    self.assertEqual(
-                        engine.asset_step_count, int(expected["asset_step_count"])
-                    )
-                    self.assertEqual(
-                        engine.time_step_count, int(expected["time_step_count"])
-                    )
-                    self.assertEqual(engine.scheme, expected["scheme"])
-                    self.assertEqual(expected["asset_upper_boundary"], "none")
-                    self.assertIsNone(engine.asset_upper_boundary)
-                elif kind in ("pricing", "pricing_greeks"):
-                    parameters = BlackScholesMertonParameters(
-                        risk_free_rate=float(values["risk_free_rate"]),
-                        dividend_yield=float(values["dividend_yield"]),
-                        volatility=float(values["volatility"]),
-                    )
-                    context = PricingContext(
-                        model_parameters=parameters,
-                        spot_price=float(values["spot_price"]),
-                        valuation_time=date.fromisoformat(values["valuation_date"]),
-                    )
-                    option = EuropeanOption(
-                        option_type=values["type"],
-                        strike=float(values["strike"]),
-                        effective_date=date.fromisoformat(values["effective_date"]),
-                        expiry_date=date.fromisoformat(values["expiry_date"]),
-                    )
-                    result = AnalyticVanillaEngine().price(option, context)
-                    self.assertAlmostEqual(
-                        result, float(expected["price"]), delta=float(case["tolerance"])
-                    )
-                    if kind == "pricing_greeks":
-                        kwargs = (
-                            {"all_greeks": True}
-                            if values.get("all_greeks") == "true"
-                            else {"greeks": values["greeks"].split(",")}
-                        )
-                        result = AnalyticVanillaEngine().price_with_greeks(
-                            option, context, **kwargs
-                        )
-                        for name, value in expected.items():
-                            with self.subTest(measure=name):
-                                if value == "none":
-                                    self.assertIsNone(getattr(result, name))
-                                else:
-                                    self.assertAlmostEqual(
-                                        getattr(result, name),
-                                        float(value),
-                                        delta=float(case["tolerance"]),
-                                    )
-                elif kind == "initial_snowball_history":
-                    terms = {
-                        "coupon_rate": 0.1,
-                        "initial_spot": 100,
-                        "knock_in_level": 80,
-                        "knock_out_level": 110,
-                        "observation_dates": [
-                            date.fromisoformat(values["expiry_date"])
-                        ],
-                        "effective_date": date.fromisoformat(values["effective_date"]),
-                        "expiry_date": date.fromisoformat(values["expiry_date"]),
-                    }
-                    absent = standard_snowball(**terms)
-                    explicit_none = standard_snowball(**terms, barrier_state="none")
-                    context = PricingContext(
-                        model_parameters=self.parameters,
-                        spot_price=80,
-                        valuation_time=date.fromisoformat(values["valuation_date"]),
-                    )
-                    for engine in (
-                        pricing.MonteCarloAutocallableEngine(path_count=64, seed=1),
-                        pricing.FiniteDifferenceAutocallableEngine(),
-                    ):
-                        b = engine.price_with_greeks(
-                            explicit_none, context, all_greeks=True
-                        )
-                        if "category" in expected:
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
-                                engine.price_with_greeks(
-                                    absent, context, all_greeks=True
-                                )
-                            self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.INVALID_PARAMETER,
-                            )
-                            continue
-                        a = engine.price_with_greeks(absent, context, all_greeks=True)
-                        for name in (
-                            "price",
-                            "delta",
-                            "gamma",
-                            "speed",
-                            "theta",
-                            "charm",
-                            "color",
-                            "vega",
-                            "vanna",
-                            "zomma",
-                            "rho",
-                        ):
-                            self.assertEqual(getattr(a, name), getattr(b, name))
-                        self.assertEqual(
-                            a.delta is not None, expected["delta"] == "available"
-                        )
-                elif kind in ("unidentifiable_touch", "unidentifiable_coupon"):
-                    start = date.fromisoformat(values["effective_date"])
-                    end = date.fromisoformat(values["expiry_date"])
-                    context = PricingContext(
-                        model_parameters=self.parameters,
-                        spot_price=100,
-                        valuation_time=date.fromisoformat(values["valuation_date"]),
-                    )
-                    if kind == "unidentifiable_touch":
-                        option = cash_one_touch_up(
-                            effective_date=start,
-                            expiry_date=end,
-                            barrier_level=90,
-                            payout=10,
-                            touch_state=None
-                            if values["history"] == "absent"
-                            else "touched",
-                        )
-                        engine = AnalyticBinaryBarrierEngine()
+                    if valuation > start:
                         with self.assertRaises(kiyosi.KiyosiError) as error:
-                            implied_volatility(
-                                engine, option, context, engine.price(option, context)
-                            )
+                            engine.price_with_greeks(absent, context, all_greeks=True)
                         self.assertEqual(
                             error.exception.category,
-                            kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                            kiyosi.ErrorCategory.INVALID_PARAMETER,
                         )
-                    else:
-                        option = BinarySnowballOption(
-                            maturity_coupon_rate=0.1,
-                            barrier_state="none",
-                            effective_date=start,
-                            expiry_date=end,
-                            observations=autocallable_observations(
-                                [date.fromisoformat(values["observation_date"])],
-                                [110],
-                                knock_out_coupon_rates=[0.1],
-                            ),
-                        )
-                        for engine in (
-                            pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
-                            pricing.FiniteDifferenceAutocallableEngine(),
-                        ):
-                            price = engine.price(option, context)
-                            with self.assertRaises(kiyosi.KiyosiError) as error:
-                                implied_coupon(
-                                    engine,
-                                    option,
-                                    context,
-                                    price,
-                                    quote_convention="preserve_maturity_coupon",
-                                )
+                        continue
+                    actual = engine.price_with_greeks(absent, context, all_greeks=True)
+                    for name in ("price", *get_args(kiyosi.Greek)):
+                        with self.subTest(measure=name):
                             self.assertEqual(
-                                error.exception.category,
-                                kiyosi.ErrorCategory.UNSUPPORTED_OPERATION,
+                                getattr(actual, name), getattr(expected, name)
                             )
-                            self.assertAlmostEqual(
-                                implied_coupon(
-                                    engine,
-                                    option,
-                                    context,
-                                    price,
-                                    quote_convention="shift_maturity_coupon",
-                                ),
-                                0.1,
-                                delta=1e-6,
-                            )
-                elif kind == "domain_error":
-                    with self.assertRaises(kiyosi.KiyosiError) as error:
-                        BlackScholesMertonParameters(
-                            risk_free_rate=float(values["risk_free_rate"]),
-                            dividend_yield=float(values["dividend_yield"]),
-                            volatility=float(values["volatility"]),
-                        )
-                    self.assertEqual(
-                        error.exception.category,
-                        getattr(kiyosi.ErrorCategory, expected["category"].upper()),
+                    self.assertEqual(actual.delta is not None, delta_available)
+
+    def test_implied_touch_volatility_rejects_current_and_historical_fixed_settlements(
+        self,
+    ):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        engine = AnalyticBinaryBarrierEngine()
+        for valuation, history in ((start, None), (date(2025, 7, 1), "touched")):
+            with self.subTest(valuation=valuation, history=history):
+                context = PricingContext(
+                    model_parameters=self.parameters,
+                    spot_price=100,
+                    valuation_time=valuation,
+                )
+                option = cash_one_touch_up(
+                    effective_date=start,
+                    expiry_date=end,
+                    barrier_level=90,
+                    payout=10,
+                    touch_state=history,
+                )
+                price = engine.price(option, context)
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    implied_volatility(engine, option, context, price)
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+                )
+
+    def test_implied_coupon_requires_remaining_exposure_under_its_quote_convention(
+        self,
+    ):
+        option = BinarySnowballOption(
+            maturity_coupon_rate=0.1,
+            barrier_state="none",
+            effective_date=date(2025, 1, 1),
+            expiry_date=date(2026, 1, 1),
+            observations=autocallable_observations(
+                [date(2025, 6, 2)], [110], knock_out_coupon_rates=[0.1]
+            ),
+        )
+        context = PricingContext(
+            model_parameters=self.parameters,
+            spot_price=100,
+            valuation_time=date(2025, 7, 1),
+        )
+        for engine in (
+            pricing.MonteCarloAutocallableEngine(path_count=2, seed=1),
+            pricing.FiniteDifferenceAutocallableEngine(),
+        ):
+            with self.subTest(engine=type(engine).__name__):
+                price = engine.price(option, context)
+                with self.assertRaises(kiyosi.KiyosiError) as error:
+                    implied_coupon(
+                        engine,
+                        option,
+                        context,
+                        price,
+                        quote_convention="preserve_maturity_coupon",
                     )
-                elif kind == "date_round_trip":
-                    option = GeometricAveragePriceOption(
-                        option_type=values["type"],
-                        strike=float(values["strike"]),
-                        averaging_start_date=date.fromisoformat(
-                            values["averaging_start_date"]
-                        ),
-                        effective_date=date.fromisoformat(values["effective_date"]),
-                        expiry_date=date.fromisoformat(values["expiry_date"]),
-                    )
-                    self.assertEqual(
-                        option.averaging_start_date,
-                        date.fromisoformat(expected["averaging_start_date"]),
-                    )
-                    self.assertEqual(
-                        option.effective_date,
-                        date.fromisoformat(expected["effective_date"]),
-                    )
-                    self.assertEqual(
-                        option.expiry_date, date.fromisoformat(expected["expiry_date"])
-                    )
-                elif kind == "timestamp_round_trip":
-                    parameters = BlackScholesMertonParameters(
-                        risk_free_rate=float(values["risk_free_rate"]),
-                        dividend_yield=float(values["dividend_yield"]),
-                        volatility=float(values["volatility"]),
-                    )
-                    context = PricingContext(
-                        model_parameters=parameters,
-                        spot_price=float(values["spot_price"]),
-                        valuation_time=utc_timestamp(values["valuation_time"]),
-                    )
-                    self.assertEqual(
-                        context.valuation_time,
-                        utc_timestamp(expected["valuation_time"]),
-                    )
-                    self.assertEqual(
-                        context.valuation_date,
-                        date.fromisoformat(expected["valuation_date"]),
-                    )
-                elif kind == "numeric_boundary":
-                    engine = pricing.MonteCarloVanillaEngine(seed=int(values["seed"]))
-                    self.assertEqual(engine.seed, int(expected["seed"]))
-                else:
-                    self.fail(f"unknown parity case kind: {kind}")
+                self.assertEqual(
+                    error.exception.category, kiyosi.ErrorCategory.UNSUPPORTED_OPERATION
+                )
+                self.assertAlmostEqual(
+                    implied_coupon(
+                        engine,
+                        option,
+                        context,
+                        price,
+                        quote_convention="shift_maturity_coupon",
+                    ),
+                    0.1,
+                    delta=1e-6,
+                )
 
 
 if __name__ == "__main__":

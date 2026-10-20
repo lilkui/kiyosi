@@ -1806,6 +1806,87 @@ TEST_CASE("Determined cashflows bypass spatial grids and reject implied volatili
     check(settled, make_monte_carlo_autocallable_engine({64, 73}).value(), make_finite_difference_autocallable_engine);
 }
 
+TEST_CASE("Initial Snowball history preserves event-sensitive Greeks", "[pricing-api]")
+{
+    const auto end = day(2026, 1, 1);
+    for (const auto& [start, date] : std::array{
+             std::pair{day(2025, 1, 1), day(2025, 1, 1)},
+             std::pair{day(2025, 1, 4), day(2025, 1, 4)},
+             std::pair{day(2025, 1, 1), day(2025, 1, 2)}}) {
+        CAPTURE(start, date);
+        auto terms = StandardSnowballTerms{
+            .coupon_rate = 0.1, .initial_spot = 100.0, .knock_in_level = 80.0, .knock_out_level = 110.0, .observation_dates = {end}, .effective_date = start, .expiry_date = end};
+        const auto absent = make_standard_snowball(terms);
+        terms.barrier_state = AutocallableBarrierState::none;
+        const auto explicit_none = make_standard_snowball(terms);
+        const auto context = make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 80.0, date);
+        REQUIRE(absent);
+        REQUIRE(explicit_none);
+        REQUIRE(context);
+        const auto check = [&](const auto& engine) {
+            const auto expected = engine.price_with_greeks(*explicit_none, *context, true);
+            REQUIRE(expected);
+            const auto actual = engine.price_with_greeks(*absent, *context, true);
+            if (date > start) {
+                REQUIRE_FALSE(actual);
+                CHECK(actual.error().category == ErrorCategory::invalid_parameter);
+                return;
+            }
+            REQUIRE(actual);
+            CHECK(actual->price() == expected->price());
+            for (std::size_t i = 0; i < greek_count; ++i) {
+                const auto greek = static_cast<Greek>(i);
+                CAPTURE(i);
+                CHECK(actual->get(greek) == expected->get(greek));
+            }
+            CHECK(actual->has(Greek::delta) == (start == day(2025, 1, 4)));
+        };
+        check(make_monte_carlo_autocallable_engine({64, 1}).value());
+        check(FiniteDifferenceAutocallableEngine{});
+    }
+}
+
+TEST_CASE("Implied touch volatility rejects current and historical fixed settlements", "[pricing-api]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    for (const bool historical : {false, true}) {
+        CAPTURE(historical);
+        const auto context = *make_pricing_context(
+            *make_bsm_parameters(0.05, 0.02, 0.2), 100.0, historical ? day(2025, 7, 1) : start);
+        const auto history = historical ? std::optional{BarrierTouchState::touched} : std::nullopt;
+        const auto option = *make_cash_one_touch_up(
+            start, end, 90.0, 10.0, SettlementTiming::at_expiry, ObservationMode::continuous, {}, history);
+        const AnalyticBinaryBarrierEngine engine;
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        const auto result = implied_volatility(engine, option, context, *price);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().category == ErrorCategory::unsupported_operation);
+    }
+}
+
+TEST_CASE("Implied coupon requires remaining exposure under its quote convention", "[pricing-api]")
+{
+    const auto start = day(2025, 1, 1);
+    const auto end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, day(2025, 7, 1));
+    const auto option = *make_binary_snowball_option(
+        {.maturity_coupon_rate = 0.1, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 6, 2), 110.0, 0.1}}});
+    const auto check = [&](const auto& engine) {
+        const auto price = engine.price(option, context);
+        REQUIRE(price);
+        const auto fixed = implied_coupon(engine, option, context, *price, CouponQuoteConvention::preserve_maturity_coupon);
+        REQUIRE_FALSE(fixed);
+        CHECK(fixed.error().category == ErrorCategory::unsupported_operation);
+        const auto shifted = implied_coupon(engine, option, context, *price, CouponQuoteConvention::shift_maturity_coupon);
+        REQUIRE(shifted);
+        CHECK(*shifted == Catch::Approx(0.1).epsilon(0.0).margin(1e-6));
+    };
+    check(make_monte_carlo_autocallable_engine({2, 1}).value());
+    check(FiniteDifferenceAutocallableEngine{});
+}
+
 TEST_CASE("Implied solvers reject known unidentifiable parameters", "[pricing-api]")
 {
     const auto market = *kiyosi::make_pricing_context(
