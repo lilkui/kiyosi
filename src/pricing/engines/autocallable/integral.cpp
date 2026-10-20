@@ -97,7 +97,7 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
 
 template <AutocallableProduct Note>
 Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
-                                      const AutocallableQuadratureSettings& settings)
+                                      const QuadratureSettings& settings)
 {
     AutocallableContract<Note> contract{note, context.calendar()};
     const auto valid = contract.validate(context);

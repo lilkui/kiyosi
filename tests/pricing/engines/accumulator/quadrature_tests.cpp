@@ -109,8 +109,8 @@ TEST_CASE("Accumulator quadrature preserves observation boundaries and validated
     const auto overflow = engine.price(contract(end, 110.0, 2.0, 1.0, std::numeric_limits<double>::max()), market(111.0, start_of_day(end)));
     REQUIRE_FALSE(overflow);
     CHECK(overflow.error().category == ErrorCategory::invalid_result);
-    for (const auto settings : {AccumulatorQuadratureSettings{3, 8.0}, AccumulatorQuadratureSettings{512, 0.0},
-                                AccumulatorQuadratureSettings{512, std::numeric_limits<double>::infinity()}}) {
+    for (const auto settings : {QuadratureSettings{3, 8.0}, QuadratureSettings{512, 0.0},
+                                QuadratureSettings{512, std::numeric_limits<double>::infinity()}}) {
         const auto invalid = make_quadrature_accumulator_engine(settings);
         REQUIRE_FALSE(invalid);
         CHECK(invalid.error().category == ErrorCategory::invalid_parameter);

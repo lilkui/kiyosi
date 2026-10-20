@@ -3,13 +3,13 @@
 #include <kiyosi/instruments/accumulator.hpp>
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
-#include <kiyosi/pricing/settings/accumulator_quadrature.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
+#include <kiyosi/pricing/settings/quadrature.hpp>
 
 namespace kiyosi {
 
 class QuadratureAccumulatorEngine;
-[[nodiscard]] Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(AccumulatorQuadratureSettings settings);
+[[nodiscard]] Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(QuadratureSettings settings);
 
 /// Event-date BSM integration of the two affine accumulated-quantity layers.
 /// Splits contract events exactly and integrates cash/asset settlement pieces directly.
@@ -27,17 +27,17 @@ public:
     [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(
         const Accumulator& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
 
-    AccumulatorQuadratureSettings settings() const noexcept { return settings_; }
+    QuadratureSettings settings() const noexcept { return settings_; }
 
 private:
-    explicit QuadratureAccumulatorEngine(AccumulatorQuadratureSettings settings) : settings_(settings) {}
-    friend Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(AccumulatorQuadratureSettings);
-    AccumulatorQuadratureSettings settings_{};
+    explicit QuadratureAccumulatorEngine(QuadratureSettings settings) : settings_(settings) {}
+    friend Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(QuadratureSettings);
+    QuadratureSettings settings_{};
 };
 
-[[nodiscard]] inline Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(AccumulatorQuadratureSettings settings)
+[[nodiscard]] inline Result<QuadratureAccumulatorEngine> make_quadrature_accumulator_engine(QuadratureSettings settings)
 {
-    const auto valid = validate_accumulator_quadrature_settings(settings);
+    const auto valid = validate_quadrature_settings(settings);
     if (!valid) return std::unexpected(valid.error());
     return QuadratureAccumulatorEngine{settings};
 }

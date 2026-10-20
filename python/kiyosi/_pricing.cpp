@@ -722,8 +722,8 @@ Settings are validated at construction.)doc")
                  return unwrap(make_quadrature_accumulator_engine({integer(asset_step_count, "asset_step_count"),
                                                                    real_number(integration_standard_deviations, "integration_standard_deviations")}));
              }),
-             nb::kw_only(), "asset_step_count"_a = AccumulatorQuadratureSettings{}.asset_step_count,
-             "integration_standard_deviations"_a = AccumulatorQuadratureSettings{}.integration_standard_deviations,
+             nb::kw_only(), "asset_step_count"_a = QuadratureSettings{}.asset_step_count,
+             "integration_standard_deviations"_a = QuadratureSettings{}.integration_standard_deviations,
              "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
         .def_prop_ro("asset_step_count", [](const QuadratureAccumulatorEngine& engine) { return engine.settings().asset_step_count; })
         .def_prop_ro("integration_standard_deviations", [](const QuadratureAccumulatorEngine& engine) { return engine.settings().integration_standard_deviations; });
@@ -743,8 +743,8 @@ Settings are validated at construction.)doc")
                  return unwrap(make_quadrature_autocallable_engine({integer(asset_step_count, "asset_step_count"),
                                                                     real_number(integration_standard_deviations, "integration_standard_deviations")}));
              }),
-             nb::kw_only(), "asset_step_count"_a = AutocallableQuadratureSettings{}.asset_step_count,
-             "integration_standard_deviations"_a = AutocallableQuadratureSettings{}.integration_standard_deviations,
+             nb::kw_only(), "asset_step_count"_a = QuadratureSettings{}.asset_step_count,
+             "integration_standard_deviations"_a = QuadratureSettings{}.integration_standard_deviations,
              "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
         .def_prop_ro("asset_step_count", [](const QuadratureAutocallableEngine& engine) { return engine.settings().asset_step_count; })
         .def_prop_ro("integration_standard_deviations", [](const QuadratureAutocallableEngine& engine) { return engine.settings().integration_standard_deviations; });

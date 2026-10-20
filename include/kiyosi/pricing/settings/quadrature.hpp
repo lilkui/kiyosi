@@ -6,13 +6,13 @@
 
 namespace kiyosi {
 
-/// Fixed spatial budget; check space and domain convergence separately.
-struct AccumulatorQuadratureSettings {
+/// Fixed spatial budget for event-date integration; check space and domain convergence separately.
+struct QuadratureSettings {
     int asset_step_count = 512;
     double integration_standard_deviations = 8.0;
 };
 
-[[nodiscard]] inline Result<void> validate_accumulator_quadrature_settings(const AccumulatorQuadratureSettings& settings)
+[[nodiscard]] inline Result<void> validate_quadrature_settings(const QuadratureSettings& settings)
 {
     if (settings.asset_step_count < 4 || !std::isfinite(settings.integration_standard_deviations) ||
         settings.integration_standard_deviations <= 0.0)

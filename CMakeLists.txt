@@ -191,12 +191,11 @@ target_sources(kiyosi
             include/kiyosi/pricing/detail/accumulator_program.hpp
             include/kiyosi/pricing/detail/finite_difference_domain.hpp
             include/kiyosi/pricing/settings/binomial.hpp
-            include/kiyosi/pricing/settings/autocallable_quadrature.hpp
-            include/kiyosi/pricing/settings/accumulator_quadrature.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp
             include/kiyosi/pricing/settings/monte_carlo.hpp
             include/kiyosi/pricing/settings/numerical_shift.hpp
+            include/kiyosi/pricing/settings/quadrature.hpp
             include/kiyosi/pricing/engines/accumulator/finite_difference.hpp
             include/kiyosi/pricing/engines/accumulator/integral.hpp
             include/kiyosi/pricing/engines/accumulator/monte_carlo.hpp

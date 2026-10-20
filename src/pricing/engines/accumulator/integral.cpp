@@ -59,7 +59,7 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
 }
 
 Result<double> integrate_accumulator(const Accumulator& option, const PricingContext& context,
-                                     const AccumulatorQuadratureSettings& settings)
+                                     const QuadratureSettings& settings)
 {
     if (const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date()); !valid)
         return std::unexpected(valid.error());

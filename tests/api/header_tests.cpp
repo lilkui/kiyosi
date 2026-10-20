@@ -37,6 +37,7 @@
 #include <kiyosi/pricing/settings/implied.hpp>
 #include <kiyosi/pricing/settings/monte_carlo.hpp>
 #include <kiyosi/pricing/settings/numerical_shift.hpp>
+#include <kiyosi/pricing/settings/quadrature.hpp>
 
 #include <concepts>
 
@@ -117,8 +118,8 @@ static_assert(kiyosi::SettlementTiming::at_expiry != kiyosi::SettlementTiming::a
 static_assert(kiyosi::default_touch_observation_mode == kiyosi::ObservationMode::continuous);
 static_assert(kiyosi::default_one_touch_settlement_timing == kiyosi::SettlementTiming::at_expiry);
 static_assert(kiyosi::AccumulatorTerms{}.accumulated_quantity == 0.0);
-static_assert(kiyosi::AccumulatorQuadratureSettings{}.asset_step_count == 512);
-static_assert(kiyosi::AccumulatorQuadratureSettings{}.integration_standard_deviations == 8.0);
+static_assert(kiyosi::QuadratureSettings{}.asset_step_count == 512);
+static_assert(kiyosi::QuadratureSettings{}.integration_standard_deviations == 8.0);
 static_assert(!kiyosi::SnowballTerms{}.barrier_state);
 static_assert(kiyosi::SnowballTerms{}.principal_ratio == 1.0);
 static_assert(!kiyosi::BinarySnowballTerms{}.barrier_state);
