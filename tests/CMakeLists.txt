@@ -23,6 +23,7 @@ add_executable(kiyosi_tests
     pricing/detail/fd_scheme_tests.cpp
     pricing/detail/fd_event_tests.cpp
     pricing/engines/accumulator/engine_tests.cpp
+    pricing/engines/accumulator/quadrature_tests.cpp
     pricing/engines/asian/reference_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
     pricing/engines/barrier/finite_difference_tests.cpp

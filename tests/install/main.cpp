@@ -14,6 +14,12 @@ try {
     if (!option || !parameters) return 1;
     const auto context = make_pricing_context(*parameters, 100.0, start);
     if (!context) return 1;
+    const auto accumulator = make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
+    if (!accumulator) return 1;
+    const auto settled_context = make_pricing_context(*parameters, 110.0, end);
+    if (!settled_context) return 1;
+    const auto integral = QuadratureAccumulatorEngine{}.price(*accumulator, *settled_context);
+    if (!integral || *integral != 30.0) return 1;
     const auto serial = make_monte_carlo_vanilla_engine({4097, 50, 42, MonteCarloBackend::cpu, 1}).value().price(*option, *context);
     const auto parallel = make_monte_carlo_vanilla_engine({4097, 50, 42, MonteCarloBackend::cpu, 4}).value().price(*option, *context);
     if (!serial || !parallel) return 1;

@@ -53,9 +53,7 @@ void register_matrix()
     const auto binary_snowball = *make_binary_snowball_option({.maturity_coupon_rate = 0.05, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
     const auto ternary_snowball = *make_ternary_snowball_option({.maturity_coupon_rate = 0.05, .minimum_coupon_rate = 0.02, .knock_in_level = 80.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
 
-    const auto accuracy_note = *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0,
-        .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = Date{std::chrono::year{2025} / 4 / 1},
-        .observations = {{Date{std::chrono::year{2025} / 2 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2025} / 3 / 1}, 108.0, 0.08}, {Date{std::chrono::year{2025} / 4 / 1}, 105.0, 0.08}}});
+    const auto accuracy_note = *make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = Date{std::chrono::year{2025} / 4 / 1}, .observations = {{Date{std::chrono::year{2025} / 2 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2025} / 3 / 1}, 108.0, 0.08}, {Date{std::chrono::year{2025} / 4 / 1}, 105.0, 0.08}}});
     const auto accuracy_context = *make_pricing_context(*make_bsm_parameters(0.03, 0.01, 0.2), 100.0, start, all_days_calendar());
     kiyosi::benchmark_support::register_price("accuracy/kiyosi/snowball/1bp/quadrature", accuracy_note, QuadratureAutocallableEngine{}, accuracy_context)->UseRealTime();
     kiyosi::benchmark_support::register_price("accuracy/kiyosi/snowball/1bp/fd", accuracy_note, make_finite_difference_autocallable_engine({2000, 4000}).value(), accuracy_context)->UseRealTime();
@@ -100,7 +98,30 @@ void register_matrix()
     register_kiyosi("arithmetic_asian/approximation", arithmetic,
                     TurnbullWakemanArithmeticAveragePriceEngine{}, context);
     register_kiyosi("accumulator/fd", accumulator, make_finite_difference_accumulator_engine({80, 80}).value(), context, false);
+    register_kiyosi("accumulator/quadrature", accumulator, QuadratureAccumulatorEngine{}, context, false);
     register_kiyosi("accumulator/mc", accumulator, make_monte_carlo_accumulator_engine({2'000, 42}).value(), context, false);
+
+    const auto accumulator_accuracy = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, Date{std::chrono::year{2025} / 4 / 1}});
+    const auto accumulator_context = *make_pricing_context(context.model_parameters(), 100.25, start_of_day(start) + std::chrono::hours{12}, weekdays_calendar());
+    kiyosi::benchmark_support::register_price("accuracy/kiyosi/accumulator/1e-6/quadrature", accumulator_accuracy, QuadratureAccumulatorEngine{}, accumulator_context)->UseRealTime();
+    const auto coarse_fd = make_finite_difference_accumulator_engine({17600, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value();
+    const auto fine_fd = make_finite_difference_accumulator_engine({35200, 8000, FiniteDifferenceScheme::crank_nicolson, 440.0}).value();
+    kiyosi::benchmark_support::register_calculation("accuracy/kiyosi/accumulator/1e-6/fd_extrapolated", [=]() -> Result<double> {
+        const auto coarse = coarse_fd.price(accumulator_accuracy, accumulator_context);
+        if (!coarse) return coarse;
+        const auto fine = fine_fd.price(accumulator_accuracy, accumulator_context);
+        if (!fine) return fine;
+        return 2.0 * *fine - *coarse; }, "price")->UseRealTime();
+    const auto greek_accumulator = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, Date{std::chrono::year{2025} / 2 / 3}});
+    const auto greek_context = *make_pricing_context(context.model_parameters(), 100.25,
+                                                     start_of_day(Date{std::chrono::year{2025} / 1 / 4}) + std::chrono::hours{12}, weekdays_calendar());
+    const auto register_greeks = [&](const char* price_name, const char* spot_name, const char* all_name, QuadratureAccumulatorEngine engine) {
+        kiyosi::benchmark_support::register_price(price_name, greek_accumulator, engine, greek_context)->UseRealTime();
+        kiyosi::benchmark_support::register_calculation(spot_name, [=] { return engine.price_with_greeks(greek_accumulator, greek_context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+        kiyosi::benchmark_support::register_calculation(all_name, [=] { return engine.price_with_greeks(greek_accumulator, greek_context, true); }, "price")->UseRealTime();
+    };
+    register_greeks("accuracy/kiyosi/accumulator/greeks/512/price", "accuracy/kiyosi/accumulator/greeks/512/delta_gamma", "accuracy/kiyosi/accumulator/greeks/512/all", QuadratureAccumulatorEngine{});
+    register_greeks("accuracy/kiyosi/accumulator/greeks/1024/price", "accuracy/kiyosi/accumulator/greeks/1024/delta_gamma", "accuracy/kiyosi/accumulator/greeks/1024/all", make_quadrature_accumulator_engine({1024, 8.0}).value());
     register_kiyosi("phoenix/fd", phoenix, make_finite_difference_autocallable_engine({80, 80}).value(), context, false);
     register_kiyosi("phoenix/quadrature", phoenix, QuadratureAutocallableEngine{}, context, false);
     register_kiyosi("phoenix/mc", phoenix, make_monte_carlo_autocallable_engine({2'000, 42}).value(), context, false);
