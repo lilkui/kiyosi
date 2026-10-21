@@ -6,7 +6,7 @@ function(kiyosi_find_xsimd)
         set(XSIMD_SKIP_INSTALL ON)
         FetchContent_Declare(xsimd
             GIT_REPOSITORY https://github.com/xtensor-stack/xsimd.git
-            GIT_TAG v14.3.0
+            GIT_TAG 14.3.0
             SYSTEM
             EXCLUDE_FROM_ALL
         )

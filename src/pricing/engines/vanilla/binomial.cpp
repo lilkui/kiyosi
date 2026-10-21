@@ -10,9 +10,25 @@
 #include <vector>
 
 #include "../../detail/math.hpp"
+#include "../../detail/binomial.hpp"
+
+#if KIYOSI_HAS_AVX2
+#include <xsimd/config/xsimd_cpu_features.hpp>
+#endif
 
 namespace kiyosi {
 using namespace detail;
+
+namespace detail {
+BinomialRollback binomial_rollback(bool american)
+{
+#if KIYOSI_HAS_AVX2
+    static const bool has_avx2 = xsimd::cpu_features{}.avx2();
+    if (has_avx2) return binomial_rollback_avx2(american);
+#endif
+    return american ? &binomial_rollback_scalar<true> : &binomial_rollback_scalar<false>;
+}
+} // namespace detail
 
 namespace {
 template <typename Option>
@@ -20,7 +36,6 @@ Result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, GreeksRequest requested_output)
 {
     constexpr bool american = std::same_as<Option, AmericanOption>;
-    // ponytail: O(N²) rollback with O(N) memory; optimize to a recombining index kernel if profiling requires it.
     const auto step = binomial_time_step(context, option.effective_date(), option.expiry_date(), settings);
     if (!step) return std::unexpected(step.error());
 
@@ -69,26 +84,23 @@ Result<PricingResult> price_binomial(
     if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
     if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
     node_spot = spot * std::pow(down, settings.step_count - 1);
+    const auto rollback = binomial_rollback(american);
     for (int level = settings.step_count - 1; level >= 0; --level) {
         if (level < settings.step_count - 1) node_spot *= up;
-        double level_node_spot = node_spot;
-        for (int node = 0; node <= level; ++node) {
-            const std::size_t index = static_cast<std::size_t>(node);
-            const double continuation = discount *
-                                        (probability * values[index + 1] + (1.0 - probability) * values[index]);
-            if constexpr (american) {
+        if constexpr (american) {
+            if (level == 0) {
+                const double continuation = discount * (probability * values[1] + (1.0 - probability) * values[0]);
                 const double exercise = sign * (spot - strike);
-                if (level == 0 && exercise > 0.0 && exercise > continuation)
+                if (exercise > 0.0 && exercise > continuation)
                     return make_pricing_result(exercise,
                                                {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{sign} : std::nullopt},
                                                 {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
             }
-            values[index] = american ? std::max(continuation, sign * (level_node_spot - strike)) : continuation;
-            if (!std::isfinite(values[index])) {
-                return std::unexpected(Error{ErrorCategory::invalid_result,
-                                             "binomial pricing produced a non-finite result"});
-            }
-            level_node_spot *= up_squared;
+        }
+        if (!rollback(std::span{values}.first(static_cast<std::size_t>(level) + 2), discount, probability,
+                      node_spot, up_squared, strike, sign)) {
+            return std::unexpected(Error{ErrorCategory::invalid_result,
+                                         "binomial pricing produced a non-finite result"});
         }
         if (requested_output.has(Greek::gamma) && level == 2) {
             level_two = {values[0], values[1], values[2]};

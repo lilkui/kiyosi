@@ -77,7 +77,7 @@ class PricingRegressionTests(unittest.TestCase):
                     model_parameters=parameters, spot_price=value, valuation_time=start
                 )
 
-            for steps in (1, 2, 10, 256):
+            for steps in (1, 2, 3, 4, 5, 6, 7, 8, 10, 255, 256, 257):
                 with self.subTest(direction=direction, steps=steps):
                     engine = pricing.CoxRossRubinsteinVanillaEngine(steps)
                     result = engine.price_with_greeks(

@@ -24,7 +24,7 @@ TEST_CASE("Binomial immediate exercise returns payoff Greeks", "[binomial-exerci
         const auto parameters = *make_bsm_parameters(put ? 0.15 : 0.0, put ? 0.0 : 0.15, 0.2);
         const auto option = *make_american_option(type, put ? 100.0 : 88.0, start, end);
         const auto context = *make_pricing_context(parameters, spot, start);
-        for (const int steps : {1, 2, 10, 256}) {
+        for (const int steps : {1, 2, 3, 4, 5, 6, 7, 8, 10, 255, 256, 257}) {
             CAPTURE(type, steps);
             const auto engine = make_cox_ross_rubinstein_vanilla_engine({steps}).value();
             const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});

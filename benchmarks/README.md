@@ -24,6 +24,17 @@ On Linux, use `linux-release` and `./out/build/linux-release/benchmarks/kiyosi_b
 
 ## Scenario and interpretation
 
+The `binomial/` cases measure European calls and American puts at 128, 256,
+1,000 and 4,096 CRR steps, using the matrix market below. Each size measures
+price, joint delta/gamma, and a joint vanna/zomma/charm/color request. Run with
+`--benchmark_filter=^binomial/`. AVX2 is selected automatically on supported
+CPUs; other CPUs use scalar rollback. The [numerical contract](../docs/adr/0001-crr-simd-numerical-equivalence.md)
+requires scalar-equivalent bits, including American asset-price recurrence and
+scalar remainder handling. Compare before and after builds with the same MSVC
+Release settings; the existing matrix cases alone cover only 128 steps.
+The [2026-10-21 MSVC comparison](results/2026-10-21-crr-simd.md) records
+before/after timings and numerical validation.
+
 The `analytics/kiyosi/` cases measure accumulator and snowball finite-difference
 delta/gamma requests beside price-only baselines using the same contracts and
 default grids: 800-by-200 for accumulator and 800-by-2000 for Autocallable.

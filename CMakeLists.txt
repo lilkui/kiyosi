@@ -106,29 +106,31 @@ add_library(kiyosi)
 add_library(kiyosi::kiyosi ALIAS kiyosi)
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(AMD64|amd64|x86_64)$")
     include(cmake/Xsimd.cmake)
-    add_library(kiyosi_quadrature_avx2 OBJECT src/pricing/detail/quadrature_avx2.cpp)
-    target_compile_features(kiyosi_quadrature_avx2 PRIVATE cxx_std_23)
-    target_include_directories(kiyosi_quadrature_avx2 PRIVATE
+    add_library(kiyosi_avx2 OBJECT
+        src/pricing/detail/quadrature_avx2.cpp
+        src/pricing/detail/binomial_avx2.cpp)
+    target_compile_features(kiyosi_avx2 PRIVATE cxx_std_23)
+    target_include_directories(kiyosi_avx2 PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/include" "${CMAKE_CURRENT_BINARY_DIR}/generated")
-    target_link_libraries(kiyosi_quadrature_avx2 PRIVATE xsimd kiyosi::warnings kiyosi::sanitizers)
+    target_link_libraries(kiyosi_avx2 PRIVATE xsimd kiyosi::warnings kiyosi::sanitizers)
     if(NOT BUILD_SHARED_LIBS)
-        target_compile_definitions(kiyosi_quadrature_avx2 PRIVATE KIYOSI_STATIC_DEFINE)
+        target_compile_definitions(kiyosi_avx2 PRIVATE KIYOSI_STATIC_DEFINE)
     endif()
     if(CMAKE_CXX_COMPILER_FRONTEND_VARIANT STREQUAL "MSVC")
-        target_compile_options(kiyosi_quadrature_avx2 PRIVATE /arch:AVX2 /fp:precise)
+        target_compile_options(kiyosi_avx2 PRIVATE /arch:AVX2 /fp:precise)
         if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-            target_compile_options(kiyosi_quadrature_avx2 PRIVATE /clang:-ffp-contract=off)
+            target_compile_options(kiyosi_avx2 PRIVATE /clang:-ffp-contract=off)
         endif()
     else()
-        target_compile_options(kiyosi_quadrature_avx2 PRIVATE -mavx2 -ffp-contract=off)
+        target_compile_options(kiyosi_avx2 PRIVATE -mavx2 -ffp-contract=off)
     endif()
     # Keep ISA-specific code out of baseline translation units, including during IPO.
-    set_target_properties(kiyosi_quadrature_avx2 PROPERTIES
+    set_target_properties(kiyosi_avx2 PROPERTIES
         POSITION_INDEPENDENT_CODE ON INTERPROCEDURAL_OPTIMIZATION OFF CXX_SCAN_FOR_MODULES OFF CXX_EXTENSIONS OFF
         INTERPROCEDURAL_OPTIMIZATION_RELEASE OFF INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO OFF
         INTERPROCEDURAL_OPTIMIZATION_MINSIZEREL OFF INTERPROCEDURAL_OPTIMIZATION_DEBUG OFF
         CXX_VISIBILITY_PRESET hidden VISIBILITY_INLINES_HIDDEN YES)
-    target_sources(kiyosi PRIVATE $<TARGET_OBJECTS:kiyosi_quadrature_avx2>)
+    target_sources(kiyosi PRIVATE $<TARGET_OBJECTS:kiyosi_avx2>)
     target_link_libraries(kiyosi PRIVATE $<BUILD_INTERFACE:xsimd>)
     target_compile_definitions(kiyosi PRIVATE KIYOSI_HAS_AVX2=1)
 else()
@@ -327,8 +329,8 @@ endif()
 
 if(KIYOSI_ENABLE_CLANG_TIDY)
     set(KIYOSI_TIDY_TARGETS kiyosi)
-    if(TARGET kiyosi_quadrature_avx2)
-        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_quadrature_avx2)
+    if(TARGET kiyosi_avx2)
+        list(APPEND KIYOSI_TIDY_TARGETS kiyosi_avx2)
     endif()
     if(TARGET kiyosi_benchmarks)
         list(APPEND KIYOSI_TIDY_TARGETS kiyosi_benchmarks)

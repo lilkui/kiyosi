@@ -15,6 +15,9 @@ try {
     if (!option || !parameters) return 1;
     const auto context = make_pricing_context(*parameters, 100.0, start);
     if (!context) return 1;
+    const auto binomial = CoxRossRubinsteinVanillaEngine{}.price(*option, *context);
+    const auto analytic = AnalyticVanillaEngine{}.price(*option, *context);
+    if (!binomial || !analytic || std::abs(*binomial - *analytic) > 0.02) return 1;
     const auto accumulator = make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
     if (!accumulator) return 1;
     const auto settled_context = make_pricing_context(*parameters, 110.0, end);
