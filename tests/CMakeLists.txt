@@ -63,3 +63,9 @@ catch_discover_tests(kiyosi_tests
     DISCOVERY_MODE PRE_TEST
     DL_PATHS $<TARGET_FILE_DIR:kiyosi>
 )
+
+add_executable(kiyosi_barrier_assignment_tests instruments/barrier/assignment_tests.cpp)
+set_target_properties(kiyosi_barrier_assignment_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
+target_link_libraries(kiyosi_barrier_assignment_tests PRIVATE kiyosi::kiyosi kiyosi::warnings kiyosi::sanitizers)
+kiyosi_copy_tbb_runtime(kiyosi_barrier_assignment_tests)
+add_test(NAME barrier-copy-assignment COMMAND kiyosi_barrier_assignment_tests)

@@ -69,6 +69,7 @@ namespace detail {
 }
 
 /// Trigger level, knock direction, and monitoring schedule shared by every barrier contract.
+/// Copy assignment preserves the original value if schedule allocation fails.
 class BarrierTerms {
 public:
     /// Returns the positive barrier level.
@@ -155,14 +156,15 @@ private:
     BarrierTerms(double barrier_level, BarrierType barrier_type, kiyosi::ObservationMode observation_mode,
                  ObservationSchedule observation_dates, Date effective_date, Date expiry_date,
                  std::optional<BarrierTouchState> touch_state)
-        : barrier_level_(barrier_level), barrier_type_(barrier_type), observation_mode_(observation_mode),
-          observation_dates_(std::move(observation_dates)), effective_date_(effective_date), expiry_date_(expiry_date),
+        : observation_dates_(std::move(observation_dates)), barrier_level_(barrier_level),
+          barrier_type_(barrier_type), observation_mode_(observation_mode), effective_date_(effective_date), expiry_date_(expiry_date),
           touch_state_(touch_state) {}
 
+    // Copy the allocating member before committing any dependent terms.
+    ObservationSchedule observation_dates_;
     double barrier_level_;
     BarrierType barrier_type_;
     kiyosi::ObservationMode observation_mode_;
-    ObservationSchedule observation_dates_;
     Date effective_date_;
     Date expiry_date_;
     std::optional<BarrierTouchState> touch_state_;

@@ -43,6 +43,7 @@ namespace detail {
 }
 
 /// Strike-based binary option whose payoff also depends on a barrier_level event.
+/// Copy assignment preserves the original value if schedule allocation fails.
 class BinaryBarrierOption {
 public:
     /// Returns a validated owning copy with only the supplied history replaced.
@@ -95,11 +96,12 @@ public:
 
 private:
     BinaryBarrierOption(OptionTerms terms, BinaryPayoff payoff, BarrierTerms barrier_terms)
-        : terms_(std::move(terms)), payoff_(std::move(payoff)), barrier_(std::move(barrier_terms)) {}
+        : barrier_(std::move(barrier_terms)), terms_(std::move(terms)), payoff_(std::move(payoff)) {}
 
+    // Copy the allocating member before committing any dependent terms.
+    BarrierTerms barrier_;
     OptionTerms terms_;
     BinaryPayoff payoff_;
-    BarrierTerms barrier_;
 
     friend Result<BinaryBarrierOption> make_cash_binary_barrier_option(
         BinaryBarrierTerms, double);
@@ -143,6 +145,7 @@ namespace detail {
 }
 
 /// Strike-free one-touch or no-touch contract paying cash or the asset.
+/// Copy assignment preserves the original value if schedule allocation fails.
 class TouchOption {
 public:
     /// Returns a validated owning copy with only the supplied history replaced.
@@ -196,14 +199,14 @@ public:
 private:
     TouchOption(BinaryPayoff payoff, kiyosi::SettlementTiming settlement_timing,
                 BarrierTerms barrier_terms)
-        : payoff_(std::move(payoff)), settlement_timing_(settlement_timing),
-          barrier_(std::move(barrier_terms))
+        : barrier_(std::move(barrier_terms)), payoff_(std::move(payoff)), settlement_timing_(settlement_timing)
     {
     }
 
+    // Copy the allocating member before committing any dependent terms.
+    BarrierTerms barrier_;
     BinaryPayoff payoff_;
     kiyosi::SettlementTiming settlement_timing_;
-    BarrierTerms barrier_;
 
     friend Result<TouchOption> detail::make_touch_option(
         Date, Date, double, BinaryPayoff, BarrierType, kiyosi::SettlementTiming,

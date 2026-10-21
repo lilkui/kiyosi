@@ -31,6 +31,7 @@ struct BarrierOptionTerms {
 [[nodiscard]] Result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 
 /// Knock-in or knock-out vanilla payoff with an optional rebate.
+/// Copy assignment preserves the original value if schedule allocation fails.
 class BarrierOption {
 public:
     /// Returns a validated owning copy with only the supplied history replaced.
@@ -85,16 +86,16 @@ private:
     BarrierOption(OptionType option_type, double strike, double rebate,
                   kiyosi::RebateTiming rebate_timing,
                   BarrierTerms barrier)
-        : option_type_(option_type), strike_(strike), rebate_(rebate), rebate_timing_(rebate_timing),
-          barrier_(std::move(barrier))
+        : barrier_(std::move(barrier)), option_type_(option_type), strike_(strike), rebate_(rebate), rebate_timing_(rebate_timing)
     {
     }
 
+    // Copy the allocating member before committing any dependent terms.
+    BarrierTerms barrier_;
     OptionType option_type_;
     double strike_;
     double rebate_;
     kiyosi::RebateTiming rebate_timing_;
-    BarrierTerms barrier_;
 
     friend Result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 };
