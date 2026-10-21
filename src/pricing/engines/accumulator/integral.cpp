@@ -146,13 +146,15 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
             auto found = transitions.find(time);
             if (found == transitions.end()) found = transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
             transition = &found->second;
+            for (std::size_t layer = 0; layer < layers.size(); ++layer)
+                integrate_curves(layers[layer].continuation, *transition, discount, values[layer]);
         }
         for (std::size_t target = 0; target < nodes.size(); ++target) {
-            const auto weights = final ? std::span<const IntervalMoments>{}
-                                       : std::span{transition->weights}.subspan(target * (nodes.size() - 1), nodes.size() - 1);
-            const auto tails = final ? std::array<double, 2>{} : transition->tails[target];
             for (std::size_t layer = 0; layer < layers.size(); ++layer) {
-                values[layer][target] = integrate(layers[layer], nodes[target], drift, deviation, discount, weights, tails);
+                Sum sum;
+                sum.add(integrate_terminal(layers[layer].exact, nodes[target], strike, drift, deviation, discount));
+                if (!final) sum.add(values[layer][target]);
+                values[layer][target] = sum.total();
                 if (!std::isfinite(values[layer][target]))
                     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
             }

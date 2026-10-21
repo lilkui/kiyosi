@@ -14,6 +14,9 @@ namespace kiyosi::detail::quadrature {
 
 using Polynomial = std::array<double, 4>;
 inline constexpr double infinity = std::numeric_limits<double>::infinity();
+// Their product exp(underflow_log_mass) * underflow_mean_limit rounds to zero.
+inline constexpr double underflow_mean_limit = 1e20;
+inline constexpr double underflow_log_mass = -800.0;
 
 inline double signed_exponential(double value, double exponent)
 {
@@ -57,6 +60,7 @@ struct IntervalMoments {
         if (log_mass < -1500.0) return 0.0;
         const double mean = polynomial[0] + polynomial[1] * conditional[0] +
                             polynomial[2] * conditional[1] + polynomial[3] * conditional[2];
+        if (mass == 0.0 && std::abs(mean) < underflow_mean_limit && log_mass < underflow_log_mass) return 0.0;
         return mass > 0.0 ? mean * mass : signed_exponential(mean, log_mass);
     }
 };
@@ -94,16 +98,16 @@ inline IntervalMoments cell_moments(double left, double right, double mean, doub
         result.log_mass = log_interval_mass(lower, upper);
         // Even a largest finite coefficient cannot recover a representable contribution here.
         if (result.log_mass < -1500.0) return result;
-        const auto weighted_density = [&](double z, int order) {
-            if (!std::isfinite(z)) return 0.0;
+        const auto weighted_density = [&](double z) {
+            if (!std::isfinite(z)) return std::array<double, 3>{};
             const double density = std::exp(-0.5 * z * z + std::log(inverse_sqrt_two_pi) - result.log_mass);
-            if (order == 0) return density;
-            if (order == 1) return z * density;
-            return (z * z + 2.0) * density;
+            return std::array{density, z * density, (z * z + 2.0) * density};
         };
-        const double first = weighted_density(lower, 0) - weighted_density(upper, 0);
-        const double second = 1.0 + weighted_density(lower, 1) - weighted_density(upper, 1);
-        const double third = weighted_density(lower, 2) - weighted_density(upper, 2);
+        const auto lower_density = weighted_density(lower);
+        const auto upper_density = weighted_density(upper);
+        const double first = lower_density[0] - upper_density[0];
+        const double second = 1.0 + lower_density[1] - upper_density[1];
+        const double third = lower_density[2] - upper_density[2];
         const double offset = (mean - left) / width;
         const double scale = deviation / width;
         result.conditional = {
@@ -164,26 +168,54 @@ inline Curve interpolate(const std::vector<double>& nodes, const std::vector<dou
     return curve;
 }
 
+inline constexpr std::size_t transition_lanes = 4;
+
+struct MomentBlock {
+    std::array<double, transition_lanes> mass{};
+    std::array<double, transition_lanes> log_mass{};
+    std::array<std::array<double, transition_lanes>, 3> conditional{};
+
+    IntervalMoments lane(std::size_t index) const
+    {
+        return {mass[index], log_mass[index], {conditional[0][index], conditional[1][index], conditional[2][index]}};
+    }
+
+    void set_lane(std::size_t index, const IntervalMoments& moments)
+    {
+        mass[index] = moments.mass;
+        log_mass[index] = moments.log_mass;
+        for (std::size_t power = 0; power < moments.conditional.size(); ++power)
+            conditional[power][index] = moments.conditional[power];
+    }
+};
+
 struct Transition {
-    std::vector<IntervalMoments> weights;
+    // Four targets share contiguous moment components without duplicating the matrix.
+    std::vector<MomentBlock> weights;
     std::vector<std::array<double, 2>> tails;
 };
 
-inline Transition transition_weights(const std::vector<double>& nodes, double drift, double deviation)
+inline Transition transition_weights_scalar(const std::vector<double>& nodes, double drift, double deviation)
 {
     Transition transition;
     const std::size_t cells = nodes.size() - 1;
-    transition.weights.reserve(nodes.size() * cells);
+    transition.weights.resize(((nodes.size() + transition_lanes - 1) / transition_lanes) * cells);
     transition.tails.reserve(nodes.size());
-    for (const double node : nodes) {
-        const double mean = node + drift;
+    for (std::size_t target = 0; target < nodes.size(); ++target) {
+        const double mean = nodes[target] + drift;
         transition.tails.push_back({log_normal_cdf((nodes.front() - mean) / deviation),
                                     log_normal_cdf((mean - nodes.back()) / deviation)});
-        for (std::size_t cell = 0; cell < cells; ++cell)
-            transition.weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], mean, deviation));
+        for (std::size_t cell = 0; cell < cells; ++cell) {
+            const auto moments = cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
+            auto& block = transition.weights[(target / transition_lanes) * cells + cell];
+            block.set_lane(target % transition_lanes, moments);
+        }
     }
     return transition;
 }
+
+KIYOSI_EXPORT Transition transition_weights(const std::vector<double>& nodes, double drift, double deviation);
+Transition transition_weights_avx2(const std::vector<double>& nodes, double drift, double deviation);
 
 inline double integrate_curve(const Curve& curve, std::span<const IntervalMoments> weights,
                               const std::array<double, 2>& tails, double log_discount)
@@ -196,6 +228,29 @@ inline double integrate_curve(const Curve& curve, std::span<const IntervalMoment
         sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[cell]) * discount : signed_exponential(weights[cell].integrate(curve.cells[cell]), log_discount));
     return sum.total();
 }
+
+inline void integrate_curves_scalar(const Curve& curve, const Transition& transition, double log_discount,
+                                    std::span<double> values, std::size_t first_target = 0)
+{
+    const double discount = std::exp(log_discount);
+    for (std::size_t target = first_target; target < values.size(); ++target) {
+        Sum sum;
+        sum.add(signed_exponential(curve.low, transition.tails[target][0] + log_discount));
+        sum.add(signed_exponential(curve.high, transition.tails[target][1] + log_discount));
+        for (std::size_t cell = 0; cell < curve.cells.size(); ++cell) {
+            const auto weight = transition.weights[(target / transition_lanes) * curve.cells.size() + cell].lane(target % transition_lanes);
+            const double term = weight.integrate(curve.cells[cell]);
+            sum.add(std::isnormal(discount) ? term * discount : signed_exponential(term, log_discount));
+        }
+        values[target] = sum.total();
+    }
+}
+
+KIYOSI_EXPORT void integrate_curves(const Curve& curve, const Transition& transition, double log_discount,
+                                    std::span<double> values);
+
+void integrate_curves_avx2(const Curve& curve, const Transition& transition, double log_discount,
+                           std::span<double> values);
 
 // The terminal function is affine in S on each exact contractual interval.
 struct TerminalPiece {

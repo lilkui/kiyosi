@@ -197,15 +197,13 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
             auto found = transitions.find(time);
             if (found == transitions.end()) found = transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
             transition = &found->second;
+            integrate_curves(alive, *transition, discount, values);
+            if (layers) integrate_curves(knocked_in, *transition, discount, values_in);
         }
         for (std::size_t target = 0; target < nodes.size(); ++target) {
             if (final) {
                 values[target] = integrate_terminal(terminal, nodes[target], anchor, drift, deviation, discount);
                 if (layers) values_in[target] = integrate_terminal(terminal_in, nodes[target], anchor, drift, deviation, discount);
-            } else {
-                const auto weights = std::span{transition->weights}.subspan(target * alive.cells.size(), alive.cells.size());
-                values[target] = integrate_curve(alive, weights, transition->tails[target], discount);
-                if (layers) values_in[target] = integrate_curve(knocked_in, weights, transition->tails[target], discount);
             }
             if (!std::isfinite(values[target]) || (layers && !std::isfinite(values_in[target])))
                 return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});

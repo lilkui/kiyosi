@@ -1,10 +1,12 @@
 add_executable(kiyosi_benchmarks
     monte_carlo.cpp
     pricing_matrix.cpp
+    quadrature.cpp
 )
 set_target_properties(kiyosi_benchmarks PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)
 target_compile_definitions(kiyosi_benchmarks PRIVATE KIYOSI_HAS_CUDA=$<BOOL:${KIYOSI_ENABLE_CUDA}>)
 target_link_libraries(kiyosi_benchmarks PRIVATE kiyosi::kiyosi benchmark::benchmark kiyosi::warnings kiyosi::sanitizers)
+target_include_directories(kiyosi_benchmarks PRIVATE "${PROJECT_SOURCE_DIR}/src")
 kiyosi_copy_tbb_runtime(kiyosi_benchmarks)
 if(TARGET kiyosi_tests)
     target_sources(kiyosi_tests PRIVATE "${PROJECT_SOURCE_DIR}/tests/benchmarks/pricing_tests.cpp")

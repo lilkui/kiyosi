@@ -10,6 +10,7 @@ namespace kiyosi::benchmark_support {
 
 void register_monte_carlo_cases();
 void register_analytics_cases();
+void register_quadrature_cases();
 #if KIYOSI_HAS_QUANTLIB
 void register_quantlib_matrix();
 #endif

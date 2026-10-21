@@ -20,6 +20,7 @@ add_executable(kiyosi_tests
     pricing/analytics/architecture_tests.cpp
     pricing/analytics/numerical_validation_tests.cpp
     pricing/detail/fd_scheme_tests.cpp
+    pricing/detail/quadrature_tests.cpp
     pricing/detail/fd_event_tests.cpp
     pricing/engines/accumulator/engine_tests.cpp
     pricing/engines/accumulator/cashflow_tests.cpp
