@@ -16,6 +16,38 @@ namespace {
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Vanilla engines preserve positive small-volatility tail prices", "[small-volatility-tail]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    struct Reference {
+        OptionType type;
+        double strike;
+        double volatility;
+        double price;
+    };
+    // Independent 100-digit Black-Scholes evaluations, including both sides of the tail cutoff.
+    for (const auto row : {Reference{OptionType::call, 100.00000000013, 1e-13, 4.6459080591698985e-51},
+                           Reference{OptionType::put, 99.99999999987, 1e-13, 4.6459080581312582e-51},
+                           Reference{OptionType::call, 100.00099900499002, 1e-6, 8.2763746965085081e-29},
+                           Reference{OptionType::call, 100.00100100501001, 1e-6, 6.7498304307870833e-29},
+                           Reference{OptionType::put, 99.99700004499955, 1e-6, 1.6319322561070434e-203}}) {
+        CAPTURE(row.type, row.strike, row.volatility);
+        const auto option = *make_european_option(row.type, row.strike, start, end);
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.0, 0.0, row.volatility), 100.0, start);
+        const auto check = [&](const auto& engine) {
+            const auto value = engine.price(option, context);
+            REQUIRE(value);
+            CHECK_THAT(*value, Catch::Matchers::WithinRel(row.price, 1e-10));
+            const auto joint = engine.price_with_greeks(option, context, {Greek::delta});
+            REQUIRE(joint);
+            CHECK(joint->price() == *value);
+        };
+        check(AnalyticVanillaEngine{});
+        check(QuadratureVanillaEngine{});
+    }
+}
+
 TEST_CASE("Analytic rho preserves finite large-scale sensitivities", "[rho-scaling]")
 {
     using namespace kiyosi;

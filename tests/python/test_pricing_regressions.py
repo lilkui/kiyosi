@@ -31,6 +31,40 @@ from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_vanilla_small_volatility_tail_prices(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        # Independent 100-digit Black-Scholes evaluations of the exact float inputs.
+        for direction, strike, volatility, expected in (
+            ("call", 100.00000000013, 1e-13, 4.6459080591698985e-51),
+            ("put", 99.99999999987, 1e-13, 4.6459080581312582e-51),
+            ("call", 100.00099900499002, 1e-6, 8.2763746965085081e-29),
+            ("call", 100.00100100501001, 1e-6, 6.7498304307870833e-29),
+            ("put", 99.99700004499955, 1e-6, 1.6319322561070434e-203),
+        ):
+            option = EuropeanOption(
+                option_type=direction,
+                strike=strike,
+                effective_date=start,
+                expiry_date=end,
+            )
+            context = PricingContext(
+                model_parameters=BlackScholesMertonParameters(
+                    risk_free_rate=0, dividend_yield=0, volatility=volatility
+                ),
+                spot_price=100,
+                valuation_time=start,
+            )
+            for engine in (
+                pricing.AnalyticVanillaEngine(),
+                pricing.QuadratureVanillaEngine(),
+            ):
+                with self.subTest(direction=direction, strike=strike, engine=engine):
+                    value = engine.price(option, context)
+                    self.assertTrue(math.isclose(value, expected, rel_tol=1e-10))
+                    self.assertEqual(
+                        engine.price_with_greeks(option, context, "delta").price, value
+                    )
+
     def test_quadrature_greeks_preserve_prices_near_the_numeric_limit(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(

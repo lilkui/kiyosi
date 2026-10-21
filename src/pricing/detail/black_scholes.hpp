@@ -111,7 +111,23 @@ inline Result<PricingResult> price_at_volatility(
     const double cash_value = values.cash;
     double value = values.price;
     const double standardized_forward = d1 - 0.5 * volatility_time;
-    if (volatility_time < 1e-5 && std::abs(standardized_forward) < 10.0) {
+    if (volatility_time < 1e-5 && std::isfinite(standardized_forward) && sign * standardized_forward <= -10.0) {
+        // Expand the tail difference together so its nearly equal asset and cash legs never cancel.
+        const double distance = std::abs(standardized_forward);
+        const double inverse_square = (1.0 / distance) / distance;
+        double term = 1.0;
+        double sum = 1.0;
+        double correction = -3.0;
+        for (int order = 1; order <= 20; ++order) {
+            term *= -(2.0 * order + 1.0) * inverse_square;
+            sum += term;
+            correction -= (2.0 * order + 3.0) * term;
+        }
+        value = std::exp(std::log(spot) - dividend * year_fraction - 0.5 * standardized_forward * volatility_time +
+                         std::log(volatility) + std::log(sqrt_time) - 0.5 * distance * distance +
+                         std::log(inverse_sqrt_two_pi) - 2.0 * std::log(distance) +
+                         std::log(sum + volatility_time * volatility_time * correction / 24.0));
+    } else if (volatility_time < 1e-5 && std::abs(standardized_forward) < 10.0) {
         // Expand the CDF difference before scaling to preserve time value at tiny positive volatility.
         const double squared_forward = standardized_forward * standardized_forward;
         const double time_value = std::exp(std::log(spot) - dividend * year_fraction +
