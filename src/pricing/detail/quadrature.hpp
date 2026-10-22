@@ -18,6 +18,25 @@ inline constexpr double infinity = std::numeric_limits<double>::infinity();
 inline constexpr double underflow_mean_limit = 1e20;
 inline constexpr double underflow_log_mass = -800.0;
 
+// Requires a validated asset step count and finite contract breaks.
+inline Result<std::vector<double>> integration_nodes(double lower, double upper, int asset_step_count,
+                                                     std::span<const double> breaks)
+{
+    if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper)
+        return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature integration domain is not representable"});
+    std::vector<double> nodes;
+    const auto steps = static_cast<std::size_t>(asset_step_count);
+    nodes.reserve(steps + 1 + breaks.size());
+    for (std::size_t index = 0; index <= steps; ++index)
+        nodes.push_back(std::lerp(lower, upper, static_cast<double>(index) / static_cast<double>(steps)));
+    nodes.insert(nodes.end(), breaks.begin(), breaks.end());
+    std::ranges::sort(nodes);
+    nodes.erase(std::ranges::unique(nodes).begin(), nodes.end());
+    if (nodes.size() < 4)
+        return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature grid has insufficient representable nodes"});
+    return nodes;
+}
+
 inline double signed_exponential(double value, double exponent)
 {
     if (value == 0.0) return 0.0;

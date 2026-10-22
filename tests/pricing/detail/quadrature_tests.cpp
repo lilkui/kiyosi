@@ -42,6 +42,27 @@ void set_weight(Transition& transition, std::size_t cells, std::size_t target, s
 }
 } // namespace
 
+TEST_CASE("Quadrature grid preserves exact breaks and removes duplicate nodes", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 4, std::array{0.25, -0.5, 0.25});
+    REQUIRE(nodes);
+    CHECK(*nodes == std::vector<double>{-1.0, -0.5, 0.0, 0.25, 0.5, 1.0});
+}
+
+TEST_CASE("Quadrature grid rejects unrepresentable domains and collapsed nodes", "[quadrature-kernel]")
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    for (const auto bounds : {std::array{-infinity, 1.0}, std::array{0.0, infinity},
+                              std::array{nan, 1.0}, std::array{0.0, nan},
+                              std::array{1.0, 1.0}, std::array{1.0, 0.0},
+                              std::array{1.0, std::nextafter(1.0, 2.0)}}) {
+        CAPTURE(bounds);
+        const auto nodes = integration_nodes(bounds[0], bounds[1], 4, {});
+        REQUIRE_FALSE(nodes);
+        CHECK(nodes.error().category == kiyosi::ErrorCategory::invalid_result);
+    }
+}
+
 TEST_CASE("Quadrature broad-cell moments match symmetric Gaussian identities", "[quadrature-kernel]")
 {
     const double mass = std::erf(1.0 / std::numbers::sqrt2);

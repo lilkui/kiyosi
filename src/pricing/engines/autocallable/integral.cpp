@@ -153,18 +153,9 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double lower = std::min(0.0, breaks.empty() ? 0.0 : breaks.front()) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max(0.0, breaks.empty() ? 0.0 : breaks.back()) + std::max(0.0, drift_rate * horizon) + extent;
-    if (!std::isfinite(lower) || !std::isfinite(upper) || lower >= upper)
-        return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature integration domain is not representable"});
-    std::vector<double> nodes;
-    const auto steps = static_cast<std::size_t>(settings.asset_step_count);
-    nodes.reserve(steps + 1 + breaks.size());
-    for (std::size_t i = 0; i <= steps; ++i)
-        nodes.push_back(std::lerp(lower, upper, static_cast<double>(i) / static_cast<double>(steps)));
-    nodes.insert(nodes.end(), breaks.begin(), breaks.end());
-    std::ranges::sort(nodes);
-    nodes.erase(std::ranges::unique(nodes).begin(), nodes.end());
-    if (nodes.size() < 4)
-        return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature grid has insufficient representable nodes"});
+    const auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
+    if (!grid) return std::unexpected(grid.error());
+    const auto& nodes = *grid;
     std::map<double, Transition> transitions;
     Curve alive, knocked_in;
     std::vector<double> values(nodes.size()), values_in(layers ? nodes.size() : 0);
