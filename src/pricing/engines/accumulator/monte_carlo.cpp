@@ -161,11 +161,11 @@ Result<double> price_accumulator(
                                      "CUDA support is not enabled in this build"});
 #endif
     }
-    return cpu_path_mean(settings, [&](auto& generator) -> Result<double> {
-        const auto payoffs = path_payoffs(option, *steps, std::array{PathState{context.spot_price(), initial.quantity, {}}}, generator);
-        if (!payoffs) return std::unexpected(payoffs.error());
-        return (*payoffs)[0];
+    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) {
+        return path_payoffs(option, *steps, std::array{PathState{context.spot_price(), initial.quantity, {}}}, generator);
     });
+    if (!prices) return std::unexpected(prices.error());
+    return checked_price((*prices)[0]);
 }
 
 } // namespace

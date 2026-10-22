@@ -246,11 +246,11 @@ Result<double> price_autocallable(
 #endif
     }
 
-    return cpu_path_mean(settings, [&](auto& generator) -> Result<double> {
-        const auto payoff = path_payoffs(program, *inputs, std::array{PathState{context.spot_price(), initial.path, {}}}, generator);
-        if (!payoff) return std::unexpected(payoff.error());
-        return (*payoff)[0];
+    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) {
+        return path_payoffs(program, *inputs, std::array{PathState{context.spot_price(), initial.path, {}}}, generator);
     });
+    if (!prices) return std::unexpected(prices.error());
+    return checked_price((*prices)[0]);
 }
 
 template <AutocallableProduct Note>

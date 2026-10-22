@@ -225,18 +225,6 @@ __forceinline
     return {};
 }
 
-template <typename PathPayoff>
-Result<double> cpu_path_mean(const TradingDayMonteCarloSettings& settings, PathPayoff path_payoff)
-{
-    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) -> Result<std::array<double, 1>> {
-        const auto payoff = path_payoff(generator);
-        if (!payoff) return std::unexpected(payoff.error());
-        return std::array{*payoff};
-    });
-    if (!prices) return std::unexpected(prices.error());
-    return checked_price((*prices)[0]);
-}
-
 inline Result<SimulationStep> simulation_step(const PricingContext& context, Timestamp previous, Date current)
 {
     const double rate = context.model_parameters().risk_free_rate();

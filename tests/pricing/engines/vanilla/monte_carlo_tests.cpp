@@ -242,25 +242,25 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         std::vector<double> prefixes;
         prefixes.reserve(count);
         double squares = 0.0, products = 0.0;
-        const auto first = kiyosi::detail::cpu_path_mean({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<double> {
+        const auto first = kiyosi::detail::cpu_path_means<1>({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<std::array<double, 1>> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             const double next = normal(generator);
             prefixes.push_back(value);
             squares += value * value;
             products += value * next;
-            return value;
+            return std::array{value};
         });
         REQUIRE(first);
-        CHECK_THAT(*first, Catch::Matchers::WithinAbs(0.0, 0.02));
+        CHECK_THAT((*first)[0], Catch::Matchers::WithinAbs(0.0, 0.02));
         CHECK_THAT(squares / count, Catch::Matchers::WithinAbs(1.0, 0.02));
         CHECK_THAT(products / count, Catch::Matchers::WithinAbs(0.0, 0.02));
         std::size_t path = 0;
-        const auto shortened = kiyosi::detail::cpu_path_mean({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<double> {
+        const auto shortened = kiyosi::detail::cpu_path_means<1>({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<std::array<double, 1>> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
             const double value = normal(generator);
             REQUIRE(value == prefixes[path++]);
-            return value;
+            return std::array{value};
         });
         REQUIRE(shortened);
         CHECK(*shortened == *first);
@@ -271,8 +271,8 @@ TEST_CASE("CPU path batches preserve scalar streams and propagate payoff failure
 {
     using namespace kiyosi;
     const TradingDayMonteCarloSettings settings{16, 42, MonteCarloBackend::cpu, 1};
-    const auto scalar = detail::cpu_path_mean(settings, [](auto& generator) -> Result<double> {
-        return static_cast<double>(generator());
+    const auto scalar = detail::cpu_path_means<1>(settings, [](auto& generator) -> Result<std::array<double, 1>> {
+        return std::array{static_cast<double>(generator())};
     });
     const auto batch = detail::cpu_path_means<2>(settings, [](auto& generator) -> Result<std::array<double, 2>> {
         const auto first = generator();
@@ -282,7 +282,7 @@ TEST_CASE("CPU path batches preserve scalar streams and propagate payoff failure
     });
     REQUIRE(scalar);
     REQUIRE(batch);
-    CHECK((*batch)[0] == *scalar);
+    CHECK((*batch)[0] == (*scalar)[0]);
     CHECK((*batch)[1] == 10.0);
 
     int calls = 0;
