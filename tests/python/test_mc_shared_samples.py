@@ -672,74 +672,11 @@ class SharedSampleTests(unittest.TestCase):
                         )
 
     def test_trading_day_implied_volatility_uses_isolated_workspaces(self):
-        start, end = date(2025, 1, 1), date(2025, 1, 13)
-        context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-            ),
-            spot_price=100.25,
-            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
-            calendar=all_days_calendar(),
-        )
-        observation_dates = [date(2025, 1, 3), date(2025, 1, 8), end]
-        knock_out_levels = [101, 100, 99]
-        common = {"barrier_state": "none", "effective_date": start, "expiry_date": end}
-        coupons = {
-            "maturity_coupon_rate": 0.06,
-            "observations": autocallable_observations(
-                observation_dates, knock_out_levels, knock_out_coupon_rates=[0.08] * 3
-            ),
-        }
-        downside = {
-            "initial_spot": 100,
-            "knock_in_level": 99,
-            "upper_strike": 100,
-            "lower_strike": 60,
-            "knock_in_observation_mode": "every_trading_day",
-        }
-        cases = (
-            (
-                Accumulator(
-                    strike=100,
-                    knock_out_level=115,
-                    daily_quantity=1,
-                    acceleration_factor=2,
-                    effective_date=start,
-                    expiry_date=end,
-                ),
-                pricing.MonteCarloAccumulatorEngine,
-            ),
-            (
-                SnowballOption(**common, **coupons, **downside),
-                pricing.MonteCarloAutocallableEngine,
-            ),
-            (
-                PhoenixOption(
-                    **common,
-                    **downside,
-                    coupon_rate=0.08,
-                    observations=autocallable_observations(
-                        observation_dates,
-                        knock_out_levels,
-                        coupon_barrier_levels=[100, 99, 98],
-                    ),
-                ),
-                pricing.MonteCarloAutocallableEngine,
-            ),
-            (
-                BinarySnowballOption(**common, **coupons),
-                pricing.MonteCarloAutocallableEngine,
-            ),
-            (
-                TernarySnowballOption(
-                    **common,
-                    **coupons,
-                    knock_in_level=99,
-                    minimum_coupon_rate=0.02,
-                    knock_in_observation_mode="every_trading_day",
-                ),
-                pricing.MonteCarloAutocallableEngine,
-            ),
+        context, cases = self.parallel_cases()
+        cases = tuple(
+            (option, engine_type)
+            for option, engine_type in cases
+            if engine_type is not pricing.MonteCarloVanillaEngine
         )
         cases += tuple(
             (
