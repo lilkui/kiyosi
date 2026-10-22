@@ -1,13 +1,11 @@
 """Compare fixed-work Asian Greek requests with one and four Python workers."""
 
-import statistics
-import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from kiyosi import pricing
 from kiyosi.instruments import ArithmeticAveragePriceOption, GeometricAveragePriceOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from python_threads import median_thread_time
 
 
 def main():
@@ -49,19 +47,10 @@ def main():
                 assert result.gamma == expected.gamma and result.vega == expected.vega
 
             for workers in (1, 4):
-                samples = []
-                with ThreadPoolExecutor(max_workers=workers) as pool:
-                    for _ in range(5):
-                        started = time.perf_counter()
-                        futures = [
-                            pool.submit(run, 80_000 // workers) for _ in range(workers)
-                        ]
-                        for future in futures:
-                            future.result()
-                        samples.append((time.perf_counter() - started) * 1000)
+                elapsed = median_thread_time(run, 80_000, workers)
                 print(
                     f"{kind.__name__}: {selection}, workers={workers}, calls=80000, "
-                    f"median={statistics.median(samples):.2f} ms",
+                    f"median={elapsed:.2f} ms",
                     flush=True,
                 )
 

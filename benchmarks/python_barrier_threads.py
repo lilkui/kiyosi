@@ -1,13 +1,11 @@
 """Compare fixed-work barrier pricing with one and four Python workers."""
 
-import statistics
-import time
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 
 from kiyosi import pricing
 from kiyosi.instruments import BarrierOption
 from kiyosi.market import BlackScholesMertonParameters, PricingContext
+from python_threads import median_thread_time
 
 
 def main():
@@ -26,10 +24,6 @@ def main():
     )
     engine = pricing.AnalyticBarrierEngine()
 
-    def run(option, count, expected):
-        for _ in range(count):
-            assert engine.price(option, context) == expected
-
     for mode, count in (("continuous", 100_000), ("scheduled", 20_000)):
         option = BarrierOption(
             option_type="call",
@@ -42,21 +36,16 @@ def main():
             observation_dates=dates if mode == "scheduled" else [],
         )
         expected = engine.price(option, context)
+
+        def run(count, option=option, expected=expected):
+            for _ in range(count):
+                assert engine.price(option, context) == expected
+
         for workers in (1, 4):
-            samples = []
-            with ThreadPoolExecutor(max_workers=workers) as pool:
-                for _ in range(5):
-                    started = time.perf_counter()
-                    futures = [
-                        pool.submit(run, option, count // workers, expected)
-                        for _ in range(workers)
-                    ]
-                    for future in futures:
-                        future.result()
-                    samples.append((time.perf_counter() - started) * 1000)
+            elapsed = median_thread_time(run, count, workers)
             print(
                 f"{mode}: workers={workers}, calls={count}, "
-                f"median={statistics.median(samples):.2f} ms, price={expected:.17g}",
+                f"median={elapsed:.2f} ms, price={expected:.17g}",
                 flush=True,
             )
 
