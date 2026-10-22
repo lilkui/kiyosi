@@ -3,7 +3,7 @@
     {
       "engine": "CoxRossRubinsteinVanillaEngine",
       "settings": {
-        "steps": 800
+        "step_count": 800
       }
     },
     {
@@ -58,8 +58,8 @@
       "engine": "MonteCarloVanillaEngine",
       "settings": {
         "seed": 42,
-        "paths": 200000,
-        "steps": 2
+        "path_count": 200000,
+        "step_count": 2
       },
       "tolerances": {
         "price": 0.5,

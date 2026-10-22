@@ -23,7 +23,7 @@ STABILITY = {
     "rho": 0.001,
 }
 ENGINES = {
-    "CoxRossRubinsteinVanillaEngine": {"steps"},
+    "CoxRossRubinsteinVanillaEngine": {"step_count"},
     "FiniteDifferenceVanillaEngine": {
         "asset_step_count",
         "time_step_count",
@@ -31,7 +31,7 @@ ENGINES = {
         "asset_upper_boundary",
     },
     "BjerksundStenslandVanillaEngine": set(),
-    "MonteCarloVanillaEngine": {"seed", "paths", "steps"},
+    "MonteCarloVanillaEngine": {"seed", "path_count", "step_count"},
 }
 EXPIRY_REASON = "whole-day stability stencil touches expiry_date"
 EXERCISE_REASON = "whole-day stability stencil precedes exercise window"

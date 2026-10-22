@@ -7,7 +7,7 @@ from . import american, asian, barrier, binary, digital
 from . import oracle as g
 
 NUMERICAL_ENGINES = {
-    "CoxRossRubinsteinVanillaEngine": {"steps"},
+    "CoxRossRubinsteinVanillaEngine": {"step_count"},
     "QuadratureVanillaEngine": set(),
     "FiniteDifferenceVanillaEngine": {
         "asset_step_count",
@@ -15,7 +15,7 @@ NUMERICAL_ENGINES = {
         "scheme",
         "asset_upper_boundary",
     },
-    "MonteCarloVanillaEngine": {"seed", "paths", "steps"},
+    "MonteCarloVanillaEngine": {"seed", "path_count", "step_count"},
 }
 
 

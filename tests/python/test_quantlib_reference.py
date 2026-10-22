@@ -98,13 +98,9 @@ def engine(row):
             )
         }
     elif name == "CoxRossRubinsteinVanillaEngine":
-        settings["step_count"] = inputs["steps"]
+        settings["step_count"] = inputs["step_count"]
     elif name == "MonteCarloVanillaEngine":
-        settings = {
-            "path_count": inputs["paths"],
-            "step_count": inputs["steps"],
-            "seed": inputs["seed"],
-        }
+        settings = {key: inputs[key] for key in ("path_count", "step_count", "seed")}
     return getattr(pricing, name)(**settings)
 
 

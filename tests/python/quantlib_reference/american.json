@@ -155,7 +155,7 @@
     {
       "engine": "CoxRossRubinsteinVanillaEngine",
       "settings": {
-        "steps": 800
+        "step_count": 800
       }
     },
     {
@@ -204,8 +204,8 @@
       "engine": "MonteCarloVanillaEngine",
       "settings": {
         "seed": 42,
-        "paths": 40000,
-        "steps": 50
+        "path_count": 40000,
+        "step_count": 50
       },
       "shifts": {
         "spot_shift": 8,
