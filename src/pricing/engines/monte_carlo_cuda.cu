@@ -339,38 +339,6 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
         cash_flows[path] = intrinsic;
 }
 
-__global__ void simulate_accumulator_paths(
-    CudaAccumulatorRequest request, const SimulationStep* steps, std::size_t step_count,
-    double* payoffs, int* invalid)
-{
-    const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (path >= request.path_count) return;
-
-    curandStatePhilox4_32_10_t generator;
-    curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
-    double spot = request.spot;
-    double quantity = request.initial_quantity;
-    MonteCarloDiscount discount;
-    for (std::size_t index = 0; index < step_count; ++index) {
-        const auto step = steps[index];
-        spot *= exp(step.drift + step.diffusion * curand_normal_double(&generator));
-        if (!isfinite(spot) || spot <= 0.0) {
-            atomicExch(invalid, 1);
-            payoffs[path] = 0.0;
-            return;
-        }
-        discount = step.discount;
-        if (observe_accumulator_path(spot, request.strike, request.knock_out, request.daily_quantity, request.acceleration, quantity)) break;
-    }
-    const double payoff = discount.apply(quantity, spot - request.strike);
-    if (!isfinite(payoff)) {
-        atomicExch(invalid, 1);
-        payoffs[path] = 0.0;
-        return;
-    }
-    payoffs[path] = payoff;
-}
-
 template <bool paired>
 __global__ void simulate_autocallable_paths(
     CudaAutocallableRequest request, const AutocallableStep* steps, std::size_t step_count,
@@ -434,6 +402,7 @@ __device__ void write_spot_payoff(const SpotRequests<Request>& requests, int bum
     requests.payoffs[bump][path] = isfinite(value) ? value : 0.0;
 }
 
+template <bool single>
 __global__ void simulate_accumulator_spot_paths(
     SpotRequests<CudaAccumulatorRequest> requests, const SimulationStep* steps, std::size_t step_count)
 {
@@ -441,10 +410,12 @@ __global__ void simulate_accumulator_spot_paths(
     if (path >= requests.values[0].path_count) return;
     curandStatePhilox4_32_10_t generator;
     curand_init(requests.values[0].seed, static_cast<unsigned long long>(path), 0, &generator);
-    double spots[5], quantities[5]; // NOLINT(modernize-avoid-c-arrays)
-    bool done[5]{};                 // NOLINT(modernize-avoid-c-arrays)
-    int remaining = requests.count;
-    for (int bump = 0; bump < requests.count; ++bump) {
+    constexpr int capacity = single ? 1 : 5;
+    const int count = single ? 1 : requests.count;
+    double spots[capacity], quantities[capacity]; // NOLINT(modernize-avoid-c-arrays)
+    bool done[capacity]{};                        // NOLINT(modernize-avoid-c-arrays)
+    int remaining = count;
+    for (int bump = 0; bump < count; ++bump) {
         spots[bump] = requests.values[bump].spot;
         quantities[bump] = requests.values[bump].initial_quantity;
     }
@@ -453,13 +424,13 @@ __global__ void simulate_accumulator_spot_paths(
         const auto step = steps[index];
         const double growth = exp(step.drift + step.diffusion * curand_normal_double(&generator));
         discount = step.discount;
-        for (int bump = 0; bump < requests.count; ++bump) {
+        for (int bump = 0; bump < count; ++bump) {
             if (done[bump]) continue;
             const auto request = requests.values[bump];
             spots[bump] *= growth;
             if (!isfinite(spots[bump]) || spots[bump] <= 0.0) {
                 atomicExch(requests.invalid, 1);
-                for (int output = 0; output < requests.count; ++output)
+                for (int output = 0; output < count; ++output)
                     requests.payoffs[output][path] = 0.0;
                 return;
             }
@@ -471,7 +442,7 @@ __global__ void simulate_accumulator_spot_paths(
         }
         if (remaining == 0) break;
     }
-    for (int bump = 0; bump < requests.count; ++bump)
+    for (int bump = 0; bump < count; ++bump)
         if (!done[bump])
             write_spot_payoff(requests, bump, path, discount.apply(quantities[bump], spots[bump] - requests.values[bump].strike));
 }
@@ -675,7 +646,10 @@ CudaSpotPricingResult cuda_accumulator_spot_prices(
     std::span<const CudaAccumulatorRequest> requests, std::span<const SimulationStep> steps, CudaWorkspace* workspace)
 {
     return spot_prices(requests, steps, workspace, [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
-        simulate_accumulator_spot_paths<<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
+        if (batch.count == 1)
+            simulate_accumulator_spot_paths<true><<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
+        else
+            simulate_accumulator_spot_paths<false><<<blocks, threads_per_block, 0, stream>>>(batch, device_steps, step_count);
     });
 }
 
@@ -831,28 +805,7 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
 CudaPricingResult cuda_accumulator_price(
     CudaAccumulatorRequest request, std::span<const SimulationStep> steps, CudaWorkspace* workspace)
 {
-    CudaWorkspace local;
-    auto& storage = (workspace ? *workspace : local).storage();
-    const auto created = storage.prepare();
-    if (created.status != CudaPricingStatus::success) return created;
-    const auto stream = storage.owned_stream.get();
-    const RequestCompletion completion{stream};
-
-    auto& device_steps = storage.steps;
-    auto result = upload_steps(device_steps, steps, stream);
-    if (result.status != CudaPricingStatus::success) return result;
-    auto& outputs = storage.outputs[0];
-    result = allocate_path_outputs(request.path_count, outputs, stream);
-    if (result.status != CudaPricingStatus::success) return result;
-
-    const int block_count =
-        (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_accumulator_paths<<<block_count, threads_per_block, 0, stream>>>(
-        request, static_cast<const SimulationStep*>(device_steps.get()), steps.size(),
-        outputs.payoffs, &outputs.result->invalid);
-    const cudaError_t status = cudaGetLastError();
-    if (status != cudaSuccess) return error_result(status);
-    return finish_path_simulation(outputs, request.path_count, stream);
+    return cuda_accumulator_spot_prices(std::span{&request, 1}, steps, workspace).result;
 }
 
 template <bool paired>

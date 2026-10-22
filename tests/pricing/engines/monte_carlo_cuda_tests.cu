@@ -181,6 +181,34 @@ TEST_CASE("CUDA American growth caches preserve scalar prices and recover from f
     }
 }
 
+TEST_CASE("CUDA accumulator scalar and batch prices match exact settlements", "[cuda][cuda-spot-samples]")
+{
+    using namespace kiyosi::detail;
+    const std::array<SimulationStep, 3> steps{{{0.0, 0.0, {0.5}}, {0.0, 0.0, {0.25}}, {0.0, 0.0, {0.125}}}};
+    const std::array<double, 5> spots{90.0, 100.0, 110.0, 115.0, 120.0};
+    // Three purchases accrue below knock-out; a hit settles the opening quantity on the first step.
+    const std::array<double, 5> expected{-10.0, 0.0, 6.25, 15.0, 20.0};
+    CudaWorkspace workspace;
+    for (const int paths : {1, 257}) {
+        CAPTURE(paths);
+        std::array<CudaAccumulatorRequest, 5> requests{};
+        for (std::size_t index = 0; index < requests.size(); ++index) {
+            CAPTURE(index);
+            requests[index] = {paths, 42, spots[index], 100.0, 115.0, 1.0, 2.0, 2.0};
+            const auto scalar = cuda_accumulator_price(requests[index], steps, &workspace);
+            REQUIRE(scalar.status == CudaPricingStatus::success);
+            CHECK(scalar.payoff_mean == expected[index]);
+        }
+        for (const std::size_t count : {1, 2, 3, 4, 5}) {
+            CAPTURE(count);
+            const auto batch = cuda_accumulator_spot_prices(std::span{requests}.first(count), steps, &workspace);
+            REQUIRE(batch.result.status == CudaPricingStatus::success);
+            for (std::size_t index = 0; index < count; ++index)
+                CHECK(batch.payoff_means[index] == expected[index]);
+        }
+    }
+}
+
 TEST_CASE("CUDA shared spot paths preserve independent settlements and recover from failures", "[cuda][cuda-spot-samples]")
 {
     using namespace kiyosi::detail;
