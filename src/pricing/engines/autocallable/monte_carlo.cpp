@@ -38,13 +38,7 @@ Result<SimulationInputs> prepare_simulation(
 {
     const double rate = context.model_parameters().risk_free_rate();
     const Timestamp valuation = context.valuation_time();
-    const auto dates = [&] {
-        if (daily_knock_in) return trading_dates(context.calendar(), valuation, note.expiry_date());
-        const auto observations = note.observations_view() | std::views::transform(&AutocallableObservation::date);
-        std::vector<Date> events(observations.begin() + static_cast<std::ptrdiff_t>(next_observation), observations.end());
-        if (events.empty() || events.back() != note.expiry_date()) events.push_back(note.expiry_date());
-        return events;
-    }();
+    const auto dates = autocallable_event_dates(note, context, next_observation, daily_knock_in);
     std::vector<AutocallableStep> steps;
     steps.reserve(dates.size());
     auto previous = valuation;
@@ -207,7 +201,7 @@ template <AutocallableProduct Note>
 struct AutocallableMonteCarloRequest {
     AutocallableContract<Note> contract;
 #if KIYOSI_HAS_CUDA
-    CudaWorkspace storage;
+    CudaWorkspace storage{};
 #endif
 
     CudaWorkspace* workspace()

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <cstddef>
 #include <functional>
+#include <vector>
 
 #include <kiyosi/market/context.hpp>
 #include <kiyosi/pricing/result.hpp>
@@ -9,6 +11,19 @@
 #include "calendar_dates.hpp"
 
 namespace kiyosi::detail {
+
+// Requires a validated schedule/calendar and resolved valuation-time events.
+template <AutocallableProduct Note>
+std::vector<Date> autocallable_event_dates(
+    const Note& note, const PricingContext& context, std::size_t next_observation, bool daily_knock_in)
+{
+    if (daily_knock_in) return trading_dates(context.calendar(), context.valuation_time(), note.expiry_date());
+    const auto observations = note.observations_view().subspan(next_observation) |
+                              std::views::transform(&AutocallableObservation::date);
+    std::vector<Date> dates(observations.begin(), observations.end());
+    if (dates.empty() || dates.back() != note.expiry_date()) dates.push_back(note.expiry_date());
+    return dates;
+}
 
 // One request binds the immutable contract and calendar whose validation it reuses.
 template <AutocallableProduct Note>

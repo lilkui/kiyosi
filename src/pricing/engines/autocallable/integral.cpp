@@ -107,13 +107,8 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     if (initial.settlement) return checked_price(*initial.settlement);
     if (const auto fixed = autocallable_fixed_value(note, context, program, initial)) return checked_price(*fixed);
     const bool layers = program.daily_knock_in && !initial.path.knocked_in && program_knock_in_affects_payoff(program);
-    std::vector<Date> dates = layers ? trading_dates(context.calendar(), context.valuation_time(), note.expiry_date()) : std::vector<Date>{};
+    const auto dates = autocallable_event_dates(note, context, initial.next_observation, layers);
     const auto observations = note.observations_view();
-    for (std::size_t i = initial.next_observation; i < observations.size(); ++i)
-        dates.push_back(observations[i].date);
-    dates.push_back(note.expiry_date());
-    std::ranges::sort(dates);
-    dates.erase(std::ranges::unique(dates).begin(), dates.end());
     std::vector<Event> events;
     std::size_t observation = initial.next_observation;
     for (const auto date : dates) {

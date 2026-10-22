@@ -14,6 +14,7 @@
 #include <kiyosi/kiyosi.hpp>
 #include <kiyosi/pricing/engines/autocallable/integral.hpp>
 
+#include "pricing/detail/autocallable_pricer.hpp"
 #include "support/common.hpp"
 
 namespace {
@@ -44,6 +45,31 @@ void check_quadrature_convergence(const Note& note, const PricingContext& contex
     CHECK(std::abs(*refined - *expanded) <= 1e-4);
     // Fine FD error was measured below 2e-6 on these scenarios, inside the 1bp price budget.
     CHECK(std::abs(*normal - *finite_difference) <= 1e-4);
+}
+
+TEST_CASE("Autocallable event dates preserve future observations and include expiry once", "[autocallable-event-dates]")
+{
+    const auto start = day(2025, 1, 6), observation = day(2025, 1, 8), end = day(2025, 1, 10);
+    const auto parameters = *make_bsm_parameters(0.03, 0.01, 0.2);
+    for (const bool observes_expiry : {false, true}) {
+        std::vector<AutocallableObservation> observations{{start, 120.0, 0.1}, {observation, 115.0, 0.2}};
+        if (observes_expiry) observations.push_back({end, 110.0, 0.3});
+        const auto note = make_snowball_option({.maturity_coupon_rate = 0.05, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = observations});
+        REQUIRE(note);
+        for (const Date valuation : {start, observation})
+            for (const int hour : {0, 12}) {
+                CAPTURE(observes_expiry, valuation, hour);
+                const auto context = *make_pricing_context(parameters, 100.0, start_of_day(valuation) + std::chrono::hours{hour});
+                detail::AutocallableContract<SnowballOption> contract{*note, context.calendar()};
+                REQUIRE(contract.validate(context));
+                const std::size_t next = valuation == start ? 1 : 2;
+                const std::vector<Date> scheduled = valuation == start ? std::vector{observation, end} : std::vector{end};
+                const std::vector<Date> daily = valuation == start ? std::vector{day(2025, 1, 7), observation, day(2025, 1, 9), end}
+                                                                   : std::vector{day(2025, 1, 9), end};
+                CHECK(detail::autocallable_event_dates(*note, context, next, false) == scheduled);
+                CHECK(detail::autocallable_event_dates(*note, context, next, true) == daily);
+            }
+    }
 }
 
 TEST_CASE("Quadrature multi-event defaults converge across four products and monitoring modes", "[autocallable-quadrature]")
@@ -181,7 +207,7 @@ TEST_CASE("Quadrature retains affine terminal tails with zero lower strike and n
     const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 100.0, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .principal_ratio = 0.25, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.0}}});
     const auto phoenix = *make_phoenix_option({.coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 100.0, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .principal_ratio = 0.25, .effective_date = start, .expiry_date = end, .observations = {{end, 100.0, 0.0, 0.0}}});
     const QuadratureAutocallableEngine engine;
-    for (const auto actual : {engine.price(snowball, context), engine.price(phoenix, context)}) {
+    for (const auto& actual : {engine.price(snowball, context), engine.price(phoenix, context)}) {
         REQUIRE(actual);
         CHECK(*actual == Catch::Approx(expected).margin(1e-10));
     }
