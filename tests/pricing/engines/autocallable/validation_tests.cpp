@@ -2,6 +2,7 @@
 
 #include <kiyosi/kiyosi.hpp>
 
+#include "pricing/detail/autocallable_pricer.hpp"
 #include "support/common.hpp"
 
 using kiyosi::test::day;
@@ -37,5 +38,39 @@ TEST_CASE("Autocallable engines share domain validation precedence", "[autocalla
             check(finite_difference);
             check(monte_carlo);
         }
+    }
+}
+
+TEST_CASE("Autocallable requests recheck valuation and history after validation", "[autocallable-validation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 6), observation = day(2025, 1, 8), end = day(2025, 1, 10);
+    const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.05,
+                                                    .barrier_state = std::nullopt,
+                                                    .effective_date = start,
+                                                    .expiry_date = end,
+                                                    .observations = {{observation, 110.0, 0.08}}});
+    const auto parameters = *make_bsm_parameters(0.03, 0.0, 0.2);
+    for (const bool trading_days : {true, false}) {
+        CAPTURE(trading_days);
+        const auto calendar = trading_days ? weekdays_calendar() : *make_trading_calendar([](Date) { return false; }, 252);
+        detail::AutocallableContract<BinarySnowballOption> contract{note, calendar};
+        const auto check = [&](Date valuation, std::optional<ErrorCategory> expected) {
+            CAPTURE(valuation);
+            const auto context = *make_pricing_context(parameters, 100.0, valuation, calendar);
+            const auto valid = contract.validate(context);
+            if (expected) {
+                REQUIRE_FALSE(valid);
+                CHECK(valid.error().category == *expected);
+            } else {
+                REQUIRE(valid);
+            }
+        };
+        const std::optional<ErrorCategory> initial_error = trading_days ? std::nullopt : std::optional{ErrorCategory::invalid_date};
+        check(day(2025, 1, 5), ErrorCategory::invalid_time_range);
+        check(start, initial_error);
+        check(day(2025, 1, 9), trading_days ? ErrorCategory::invalid_parameter : ErrorCategory::invalid_date);
+        check(day(2025, 1, 11), ErrorCategory::invalid_time_range);
+        check(start, initial_error);
     }
 }
