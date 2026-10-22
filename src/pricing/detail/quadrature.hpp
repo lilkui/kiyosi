@@ -37,14 +37,6 @@ inline Result<std::vector<double>> integration_nodes(double lower, double upper,
     return nodes;
 }
 
-inline double signed_exponential(double value, double exponent)
-{
-    if (value == 0.0) return 0.0;
-    const double weight = std::exp(exponent);
-    if (std::isnormal(weight) && std::isfinite(value * weight)) return value * weight;
-    return std::copysign(std::exp(std::log(std::abs(value)) + exponent), value);
-}
-
 inline double log_interval_mass(double lower, double upper)
 {
     if (lower >= upper) return -infinity;
@@ -80,7 +72,7 @@ struct IntervalMoments {
         const double mean = polynomial[0] + polynomial[1] * conditional[0] +
                             polynomial[2] * conditional[1] + polynomial[3] * conditional[2];
         if (mass == 0.0 && std::abs(mean) < underflow_mean_limit && log_mass < underflow_log_mass) return 0.0;
-        return mass > 0.0 ? mean * mass : signed_exponential(mean, log_mass);
+        return mass > 0.0 ? mean * mass : scaled_exponential(mean, log_mass);
     }
 };
 
@@ -240,11 +232,11 @@ inline double integrate_curve(const Curve& curve, std::span<const IntervalMoment
                               const std::array<double, 2>& tails, double log_discount)
 {
     Sum sum;
-    sum.add(signed_exponential(curve.low, tails[0] + log_discount));
-    sum.add(signed_exponential(curve.high, tails[1] + log_discount));
+    sum.add(scaled_exponential(curve.low, tails[0] + log_discount));
+    sum.add(scaled_exponential(curve.high, tails[1] + log_discount));
     const double discount = std::exp(log_discount);
     for (std::size_t cell = 0; cell < curve.cells.size(); ++cell)
-        sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[cell]) * discount : signed_exponential(weights[cell].integrate(curve.cells[cell]), log_discount));
+        sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[cell]) * discount : scaled_exponential(weights[cell].integrate(curve.cells[cell]), log_discount));
     return sum.total();
 }
 
@@ -254,12 +246,12 @@ inline void integrate_curves_scalar(const Curve& curve, const Transition& transi
     const double discount = std::exp(log_discount);
     for (std::size_t target = first_target; target < values.size(); ++target) {
         Sum sum;
-        sum.add(signed_exponential(curve.low, transition.tails[target][0] + log_discount));
-        sum.add(signed_exponential(curve.high, transition.tails[target][1] + log_discount));
+        sum.add(scaled_exponential(curve.low, transition.tails[target][0] + log_discount));
+        sum.add(scaled_exponential(curve.high, transition.tails[target][1] + log_discount));
         for (std::size_t cell = 0; cell < curve.cells.size(); ++cell) {
             const auto weight = transition.weights[(target / transition_lanes) * curve.cells.size() + cell].lane(target % transition_lanes);
             const double term = weight.integrate(curve.cells[cell]);
-            sum.add(std::isnormal(discount) ? term * discount : signed_exponential(term, log_discount));
+            sum.add(std::isnormal(discount) ? term * discount : scaled_exponential(term, log_discount));
         }
         values[target] = sum.total();
     }
@@ -287,9 +279,9 @@ inline double integrate_terminal(const std::vector<TerminalPiece>& pieces, doubl
     for (const auto& piece : pieces) {
         const double lower = (piece.lower - mean) / deviation;
         const double upper = (piece.upper - mean) / deviation;
-        sum.add(signed_exponential(piece.cash, log_discount + log_interval_mass(lower, upper)));
+        sum.add(scaled_exponential(piece.cash, log_discount + log_interval_mass(lower, upper)));
         if (piece.asset != 0.0)
-            sum.add(signed_exponential(piece.asset, std::log(anchor) + mean + 0.5 * deviation * deviation +
+            sum.add(scaled_exponential(piece.asset, std::log(anchor) + mean + 0.5 * deviation * deviation +
                                                         log_discount + log_interval_mass(lower - deviation, upper - deviation)));
     }
     return sum.total();

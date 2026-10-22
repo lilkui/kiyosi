@@ -196,11 +196,11 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         }
         const double low = final ? terminal.front().cash : alive.low;
         const double high = final ? terminal.back().cash : alive.high;
-        alive = interpolate(nodes, values, signed_exponential(low, discount), signed_exponential(high, discount));
+        alive = interpolate(nodes, values, scaled_exponential(low, discount), scaled_exponential(high, discount));
         if (layers) {
             const double low_in = final ? terminal_in.front().cash : knocked_in.low;
             const double high_in = final ? terminal_in.back().cash : knocked_in.high;
-            knocked_in = interpolate(nodes, values_in, signed_exponential(low_in, discount), signed_exponential(high_in, discount));
+            knocked_in = interpolate(nodes, values_in, scaled_exponential(low_in, discount), scaled_exponential(high_in, discount));
         }
     }
     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature has no future event"});

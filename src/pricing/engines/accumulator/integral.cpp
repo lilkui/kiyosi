@@ -29,7 +29,7 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
 {
     const double strike = option.strike();
     const double knock_out = log_price_ratio(option.knock_out_level(), strike);
-    const double low_cash = signed_exponential(-strike, -rate * remaining_time);
+    const double low_cash = scaled_exponential(-strike, -rate * remaining_time);
     const double low_asset = std::exp(-dividend * remaining_time);
     // The low-price limit keeps the stock term as well as the cash from all remaining purchases.
     const double low_quantity = static_cast<double>(remaining_observations) *

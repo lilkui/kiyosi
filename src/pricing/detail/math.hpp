@@ -72,7 +72,7 @@ inline double scaled_exponential(double amount, double exponent) noexcept
     const double result = amount * weight;
     return std::isnormal(weight) && std::isfinite(result)
                ? result
-               : std::exp(std::log(amount) + exponent);
+               : std::copysign(std::exp(std::log(std::abs(amount)) + exponent), amount);
 }
 
 inline double scaled_normal_cdf(double amount, double log_weight, double value) noexcept

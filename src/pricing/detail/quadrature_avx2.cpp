@@ -79,8 +79,8 @@ void integrate_curves_avx2(const Curve& curve, const Transition& transition, dou
         std::array<double, Batch::size> initial{}, corrections{};
         for (std::size_t lane = 0; lane < Batch::size; ++lane) {
             Sum sum;
-            sum.add(signed_exponential(curve.low, transition.tails[target + lane][0] + log_discount));
-            sum.add(signed_exponential(curve.high, transition.tails[target + lane][1] + log_discount));
+            sum.add(scaled_exponential(curve.low, transition.tails[target + lane][0] + log_discount));
+            sum.add(scaled_exponential(curve.high, transition.tails[target + lane][1] + log_discount));
             initial[lane] = sum.value;
             corrections[lane] = sum.correction;
         }

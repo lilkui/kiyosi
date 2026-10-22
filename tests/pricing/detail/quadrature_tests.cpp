@@ -11,22 +11,23 @@
 #include "pricing/detail/quadrature.hpp"
 
 namespace {
+using kiyosi::detail::scaled_exponential;
 using namespace kiyosi::detail::quadrature;
 
 double reference_integral(const Curve& curve, const std::vector<IntervalMoments>& weights,
                           const std::array<double, 2>& tails, double log_discount)
 {
     Sum sum;
-    sum.add(signed_exponential(curve.low, tails[0] + log_discount));
-    sum.add(signed_exponential(curve.high, tails[1] + log_discount));
+    sum.add(scaled_exponential(curve.low, tails[0] + log_discount));
+    sum.add(scaled_exponential(curve.high, tails[1] + log_discount));
     const double discount = std::exp(log_discount);
     for (std::size_t cell = 0; cell < weights.size(); ++cell) {
         const auto& w = weights[cell];
         const auto& p = curve.cells[cell];
         const double mean = p[0] + p[1] * w.conditional[0] + p[2] * w.conditional[1] + p[3] * w.conditional[2];
         const double term = w.log_mass < -1500.0 ? 0.0 : w.mass > 0.0 ? mean * w.mass
-                                                                      : signed_exponential(mean, w.log_mass);
-        sum.add(std::isnormal(discount) ? term * discount : signed_exponential(term, log_discount));
+                                                                      : scaled_exponential(mean, w.log_mass);
+        sum.add(std::isnormal(discount) ? term * discount : scaled_exponential(term, log_discount));
     }
     return sum.total();
 }
