@@ -24,24 +24,21 @@ void register_quadrature_cases()
         }
         const double deviation = 0.2 / std::sqrt(365.0);
         const std::string prefix = "quadrature/kernel/" + std::to_string(steps);
-        for (const bool scalar : {false, true}) {
-            benchmark::RegisterBenchmark(prefix + (scalar ? "/weights_scalar" : "/weights"), [nodes, deviation, scalar](benchmark::State& state) {
-                for (auto _ : state) {
-                    auto transition = scalar ? transition_weights_scalar(nodes, 0.0, deviation) : transition_weights(nodes, 0.0, deviation);
-                    benchmark::DoNotOptimize(transition);
-                }
-            })->UseRealTime();
-            benchmark::RegisterBenchmark(prefix + (scalar ? "/integrate_scalar" : "/integrate"), [nodes, values, deviation, scalar](benchmark::State& state) {
-                const auto transition = transition_weights(nodes, 0.0, deviation);
-                const auto curve = interpolate(nodes, values, 0.0, 0.0);
-                std::vector<double> integrated(nodes.size());
-                for (auto _ : state) {
-                    if (scalar) integrate_curves_scalar(curve, transition, -0.03 / 365.0, integrated);
-                    else integrate_curves(curve, transition, -0.03 / 365.0, integrated);
-                    benchmark::DoNotOptimize(integrated);
-                }
-            })->UseRealTime();
-        }
+        benchmark::RegisterBenchmark(prefix + "/weights", [nodes, deviation](benchmark::State& state) {
+            for (auto _ : state) {
+                auto transition = transition_weights(nodes, 0.0, deviation);
+                benchmark::DoNotOptimize(transition);
+            }
+        })->UseRealTime();
+        benchmark::RegisterBenchmark(prefix + "/integrate", [nodes, values, deviation](benchmark::State& state) {
+            const auto transition = transition_weights(nodes, 0.0, deviation);
+            const auto curve = interpolate(nodes, values, 0.0, 0.0);
+            std::vector<double> integrated(nodes.size());
+            for (auto _ : state) {
+                integrate_curves(curve, transition, -0.03 / 365.0, integrated);
+                benchmark::DoNotOptimize(integrated);
+            }
+        })->UseRealTime();
     }
 
     const Date start{std::chrono::year{2025} / 1 / 1};
