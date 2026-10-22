@@ -9,7 +9,7 @@
 #include <vector>
 
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include "../../detail/autocallable_pricer.hpp"
 #include "../../detail/calendar_dates.hpp"

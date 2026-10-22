@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include <algorithm>
 #include <array>

@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/accumulator/monte_carlo.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 #include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>

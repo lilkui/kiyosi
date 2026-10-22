@@ -7,7 +7,7 @@
 
 #include <benchmark/benchmark.h>
 #include <kiyosi/kiyosi.hpp>
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "pricing/detail/numerical_greeks.hpp"
 
 #include "pricing.hpp"
 

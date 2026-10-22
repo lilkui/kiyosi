@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "pricing/detail/numerical_greeks.hpp"
 
 namespace kiyosi::test {
 

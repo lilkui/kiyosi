@@ -18,6 +18,8 @@ try {
     const auto binomial = CoxRossRubinsteinVanillaEngine{}.price(*option, *context);
     const auto analytic = AnalyticVanillaEngine{}.price(*option, *context);
     if (!binomial || !analytic || std::abs(*binomial - *analytic) > 0.02) return 1;
+    const auto volatility = implied_volatility(AnalyticVanillaEngine{}, *option, *context, *analytic);
+    if (!volatility || std::abs(*volatility - parameters->volatility()) > 1e-8) return 1;
     const auto accumulator = make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
     if (!accumulator) return 1;
     const auto settled_context = make_pricing_context(*parameters, 110.0, end);

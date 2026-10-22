@@ -8,6 +8,7 @@
 #include <type_traits>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
+#include "pricing/detail/finite_difference_domain.hpp"
 #include "support/common.hpp"
 
 namespace {

@@ -7,7 +7,7 @@
 #include <numeric>
 #include <vector>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include "../../detail/accumulator_state.hpp"
 #include "../../detail/calendar_dates.hpp"

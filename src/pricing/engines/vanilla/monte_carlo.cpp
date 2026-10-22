@@ -2,7 +2,7 @@
 #include "../monte_carlo_random.hpp"
 #include <kiyosi/pricing/engines/vanilla/monte_carlo.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 #include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>

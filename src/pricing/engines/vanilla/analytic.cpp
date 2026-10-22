@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/vanilla/analytic.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include "../../detail/black_scholes.hpp"
 

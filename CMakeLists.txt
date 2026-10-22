@@ -216,13 +216,12 @@ target_sources(kiyosi
             include/kiyosi/market/schedule_builders.hpp
             include/kiyosi/market/calendars/sse.hpp
             include/kiyosi/pricing/implied.hpp
-            include/kiyosi/pricing/detail/numerical_greeks.hpp
+            include/kiyosi/pricing/detail/pricing.hpp
             include/kiyosi/pricing/result.hpp
             include/kiyosi/pricing/detail/autocallable_program.hpp
             include/kiyosi/pricing/detail/instrument_analytics.hpp
             include/kiyosi/pricing/detail/autocallable_traits.hpp
             include/kiyosi/pricing/detail/accumulator_program.hpp
-            include/kiyosi/pricing/detail/finite_difference_domain.hpp
             include/kiyosi/pricing/settings/binomial.hpp
             include/kiyosi/pricing/settings/finite_difference.hpp
             include/kiyosi/pricing/settings/implied.hpp

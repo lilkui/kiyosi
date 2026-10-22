@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include <cmath>
 #include <numbers>

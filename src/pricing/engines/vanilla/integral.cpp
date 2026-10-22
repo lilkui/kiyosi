@@ -1,6 +1,6 @@
 #include <kiyosi/pricing/engines/vanilla/integral.hpp>
 
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include "../../detail/numerical_greeks.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -8,8 +8,11 @@
 #include <numeric>
 #include <utility>
 
+#include <kiyosi/instruments/vanilla.hpp>
 #include <kiyosi/market/context.hpp>
-#include <kiyosi/pricing/detail/numerical_greeks.hpp>
+#include <kiyosi/pricing/detail/instrument_analytics.hpp>
+#include <kiyosi/pricing/detail/pricing.hpp>
+#include <kiyosi/pricing/settings/monte_carlo.hpp>
 #include <kiyosi/pricing/result.hpp>
 #include <kiyosi/pricing/settings/implied.hpp>
 
