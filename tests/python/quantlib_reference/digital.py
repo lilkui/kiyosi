@@ -125,7 +125,6 @@ def rows():
                 profile["numerical_tolerances"],
                 instrument=INSTRUMENTS[inputs["payoff"]],
                 engine=profile["engine"],
-                provenance=g.EUROPEAN_PROVENANCE,
             )
             metadata = row["inputs"]
             metadata.update(profile["settings"])
@@ -141,10 +140,5 @@ def rows():
                 profile["engine"] != "FiniteDifferenceDigitalEngine"
                 or inputs["spot"] == 100
                 and inputs["expiry_date"] == "2026-01-06"
-            )
-            metadata.update(
-                payoff_condition="strict ITM, zero at strike",
-                settlement="expiry_date",
-                tolerance_rationale="digital quadrature or grid and bump truncation",
             )
             yield row

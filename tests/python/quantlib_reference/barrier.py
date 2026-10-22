@@ -45,7 +45,6 @@ FD = {
     "zomma": 0.0002,
     "rho": 0.005,
 }
-SOURCE = "QuantLib.AnalyticBarrierEngine+QuantLib.DiscountingBondEngine+QuantLib.AnalyticEuropeanEngine"
 
 
 def option(inputs):
@@ -166,18 +165,6 @@ def scenarios():
                     )
 
 
-def metadata():
-    return {
-        "source_symbol": SOURCE,
-        "reference_kind": "analytic",
-        "reference_classification": "independent-analytic",
-        "decomposition": "KI or KO-hit direct,KO-expiry_date=KO-zero+bond-(KI-rebate-KI-zero),already-hit=vanilla or cash",
-        "measure_sources": "central differences of QuantLib portfolio prices, no native Greeks",
-        "numerical_settings": "central prices: spot 0.03/0.06,volatility and rate 0.0001/0.0002,time 1/2 calendar days",
-        "tolerance_rationale": "analytic roundoff or fixed-grid discretization and bump truncation",
-    }
-
-
 def rows():
     for identifier, inputs in scenarios():
         reference = g.reference(inputs, STABILITY, measure_fn=measure)
@@ -191,7 +178,6 @@ def rows():
                 budget,
                 instrument="BarrierOption",
                 engine=engine,
-                provenance=metadata(),
             )
             terms = row["inputs"]
             terms.update(

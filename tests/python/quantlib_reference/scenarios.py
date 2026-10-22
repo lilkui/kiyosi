@@ -59,7 +59,6 @@ def numerical_row(scenario, profile, reference):
         profile["numerical_tolerances"],
         instrument="EuropeanOption",
         engine=profile["engine"],
-        provenance=g.EUROPEAN_PROVENANCE,
     )
     inputs = row["inputs"]
     inputs.update(profile["settings"])
@@ -68,7 +67,6 @@ def numerical_row(scenario, profile, reference):
         scenario["inputs"]["spot"] == 100
         and scenario["inputs"]["expiry_date"] == "2026-01-06"
     )
-    inputs["tolerance_rationale"] = "engine-specific discretization or sampling budget"
     return row
 
 
@@ -121,7 +119,6 @@ def rows():
                     item["numerical_tolerances"],
                     instrument="EuropeanOption",
                     engine="AnalyticVanillaEngine",
-                    provenance=g.EUROPEAN_PROVENANCE,
                 )
             )
             if not g.exclusions(item["inputs"]):

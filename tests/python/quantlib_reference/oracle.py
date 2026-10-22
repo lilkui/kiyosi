@@ -61,13 +61,6 @@ STABILITY = {
     "rho": 1e-6,
 }
 CONVENTION = "Actual/365 Fixed, continuously compounded BSM"
-EUROPEAN_PROVENANCE = {
-    "source_symbol": "QuantLib.AnalyticEuropeanEngine",
-    "reference_kind": "analytic",
-    "reference_classification": "independent-analytic",
-    "numerical_settings": "central differences: spot 0.01/0.02 (0.001/0.002 within 2 days of expiry_date),volatility and rate 0.0001/0.0002,time 1/2 calendar days",
-    "measure_sources": "price/delta/gamma/theta/vega/rho native with price fallback,others central delta/gamma differences with price fallback",
-}
 
 
 def require(condition, message):
@@ -310,22 +303,15 @@ def reference_row(
     *,
     instrument,
     engine,
-    provenance,
 ):
-    """Attach explicit product identity, provenance and budgets without mutating inputs."""
+    """Attach product identity and comparison budgets without mutating inputs."""
     outputs, metadata = reference
     attributes = dict(
         inputs,
-        owner="QuantLib",
-        source_revision=f"QuantLib-{ql.__version__}",
         convention=CONVENTION,
         calendar="weekends_only",
-        quantlib=version("QuantLib"),
-        reference_uncertainty="per-measure maximum bump discrepancy, not a rigorous bound",
-        tolerance=tolerances["price"],
     )
     attributes.update(metadata)
-    attributes.update(provenance)
     attributes.update(
         {f"numerical_tolerance_{name}": numerical_tolerances[name] for name in outputs}
     )
@@ -333,7 +319,6 @@ def reference_row(
         "case_id": identifier,
         "instrument": instrument,
         "engine": engine,
-        "variant": inputs["option"],
         "inputs": attributes,
         "outputs": dict(outputs),
         "tolerances": {name: tolerances[name] for name in outputs},

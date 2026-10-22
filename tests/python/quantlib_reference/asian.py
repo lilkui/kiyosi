@@ -15,10 +15,6 @@ ENGINES = {
     "geometric": "AnalyticGeometricAveragePriceEngine",
     "arithmetic": "TurnbullWakemanArithmeticAveragePriceEngine",
 }
-SOURCES = {
-    "geometric": "QuantLib.AnalyticContinuousGeometricAveragePriceAsianEngine",
-    "arithmetic": "QuantLib.ContinuousArithmeticAsianLevyEngine",
-}
 STABILITY = dict(g.STABILITY, gamma=1e-6, speed=1e-6, vanna=1e-6, zomma=1e-6)
 BUDGET = {
     "price": 1e-9,
@@ -149,28 +145,6 @@ def scenarios():
                     yield f"ql-asian-{kind}-{direction}-expiry_date-{average}", inputs
 
 
-def metadata(inputs):
-    terminal = inputs["valuation"] == inputs["expiry_date"]
-    approximate = inputs["averaging"] == "arithmetic" and not terminal
-    return {
-        "source_symbol": "QuantLib.PlainVanillaPayoff"
-        if terminal
-        else SOURCES[inputs["averaging"]],
-        "reference_kind": "approximate" if approximate else "analytic",
-        "reference_classification": "independent-Levy-lognormal-moment-approximation"
-        if approximate
-        else "independent-analytic",
-        "measure_sources": "Levy price differences: sensitivities of approximation"
-        if approximate
-        else "QuantLib contractual price",
-        "numerical_settings": "spot 0.02/0.04,volatility and rate 0.0001/0.0002,time 1/2 calendar days,contract dates and running average fixed",
-        "tolerance_rationale": "same moment approximation: roundoff and stencil budgets only, no bound on true arithmetic value error",
-        "averaging_semantics": "continuous time average over averaging_start_date to expiry_date,realized_average is elapsed-period average",
-        "settlement": "expiry_date",
-        "date_roll": "none",
-    }
-
-
 def rows():
     for identifier, inputs in scenarios():
         reference = g.reference(
@@ -184,7 +158,6 @@ def rows():
             BUDGET,
             instrument=INSTRUMENTS[inputs["averaging"]],
             engine=ENGINES[inputs["averaging"]],
-            provenance=metadata(inputs),
         )
         terms = row["inputs"]
         terms.update(

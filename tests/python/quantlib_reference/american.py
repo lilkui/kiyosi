@@ -130,20 +130,6 @@ def reference(inputs):
     return outputs, metadata
 
 
-def provenance():
-    return {
-        "source_symbol": "QuantLib.FdBlackScholesVanillaEngine",
-        "reference_kind": "discretized",
-        "reference_classification": "convergence-verified-contract",
-        "exercise": "AmericanExercise(effective_date,expiry_date,payoffAtExpiry=false)",
-        "reference_grids": "800x800,1600x1600,3200x3200 time-by-space",
-        "reference_scheme": "Douglas with 2 damping steps, localVol=false, continuous dividend yield",
-        "numerical_settings": "spot 0.5/1,volatility 0.002/0.004,rate 0.001/0.002,time 1/2 calendar days",
-        "measure_sources": "price/delta/gamma native,others central differences of price/delta/gamma",
-        "reference_uncertainty": "maximum final-grid and bump discrepancy, not a rigorous bound",
-    }
-
-
 def rows():
     data = json.loads((g.DATA_DIR / "american.json").read_text())
     g.require(
@@ -188,13 +174,9 @@ def rows():
                 profile["numerical_tolerances"],
                 instrument="AmericanOption",
                 engine=engine,
-                provenance=provenance(),
             )
             attributes = row["inputs"]
             attributes.update(profile["settings"])
             attributes.update(profile["shifts"])
-            attributes.update(
-                wrapper=scenario["wrapper"],
-                tolerance_rationale="separate discretization, BS2002 approximation or LSM sampling budgets",
-            )
+            attributes["wrapper"] = scenario["wrapper"]
             yield row
