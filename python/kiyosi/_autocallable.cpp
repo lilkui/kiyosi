@@ -422,7 +422,7 @@ KiyosiError
                                                      .effective_date = calendar_date(effective_date, "effective_date"),
                                                      .expiry_date = calendar_date(expiry_date, "expiry_date")};
                                  terms.observations = observation_sequence(observations);
-                                 return unwrap(make_snowball_option(terms));
+                                 return unwrap(make_snowball_option(std::move(terms)));
                              }),
                              nb::kw_only(), "maturity_coupon_rate"_a,
                              "initial_spot"_a, "knock_in_level"_a, "upper_strike"_a, "lower_strike"_a, "knock_in_observation_mode"_a,
@@ -487,7 +487,7 @@ KiyosiError
                                                          .effective_date = calendar_date(effective_date, "effective_date"),
                                                          .expiry_date = calendar_date(expiry_date, "expiry_date")};
                                terms.observations = observation_sequence(observations);
-                               return unwrap(make_binary_snowball_option(terms));
+                               return unwrap(make_binary_snowball_option(std::move(terms)));
                            }),
                            nb::kw_only(), "maturity_coupon_rate"_a,
                            "barrier_state"_a = BinarySnowballTerms{}.barrier_state,
@@ -543,7 +543,7 @@ KiyosiError
                                                            .effective_date = calendar_date(effective_date, "effective_date"),
                                                            .expiry_date = calendar_date(expiry_date, "expiry_date")};
                                 terms.observations = observation_sequence(observations);
-                                return unwrap(make_ternary_snowball_option(terms));
+                                return unwrap(make_ternary_snowball_option(std::move(terms)));
                             }),
                             nb::kw_only(), "maturity_coupon_rate"_a,
                             "minimum_coupon_rate"_a, "knock_in_level"_a,
@@ -613,7 +613,7 @@ KiyosiError
                                                    .effective_date = calendar_date(effective_date, "effective_date"),
                                                    .expiry_date = calendar_date(expiry_date, "expiry_date")};
                                 terms.observations = observation_sequence(observations);
-                                return unwrap(make_phoenix_option(terms));
+                                return unwrap(make_phoenix_option(std::move(terms)));
                             }),
                             nb::kw_only(), "coupon_rate"_a, "initial_spot"_a, "knock_in_level"_a,
                             "upper_strike"_a,
