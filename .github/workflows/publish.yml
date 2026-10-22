@@ -62,8 +62,7 @@ jobs:
       - name: Download Windows distributions
         uses: actions/download-artifact@v8
         with:
-          pattern: distributions-windows-2025-vs2026-*
-          merge-multiple: true
+          name: distributions-windows-2025-vs2026
           run-id: ${{ steps.ci.outputs.run-id }}
           github-token: ${{ github.token }}
           path: dist

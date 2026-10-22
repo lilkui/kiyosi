@@ -37,17 +37,11 @@ jobs:
         run: cmake --build --preset quality --parallel 2
 
   test-core:
-    name: Test C++ core on ${{ matrix.os }} (shared=${{ matrix.shared }})
+    name: Test C++ core on ${{ matrix.os }} (static)
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-26.04
-            shared: 'OFF'
-          - os: ubuntu-26.04
-            shared: 'ON'
-          - os: windows-2025-vs2026
-            shared: 'OFF'
+        os: [ubuntu-26.04, windows-2025-vs2026]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -58,7 +52,7 @@ jobs:
           CC: gcc-15
           CXX: g++-15
         run: |
-          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_SHARED_LIBS=${{ matrix.shared }}
+          cmake --preset linux-release -DKIYOSI_BUILD_BENCHMARKS=ON -DBUILD_SHARED_LIBS=OFF
           cmake --build --preset linux-release
           ctest --preset linux-release
           cmake --install out/build/linux-release --prefix "$PWD/out/install/core"
@@ -98,23 +92,11 @@ jobs:
       - run: python -m unittest discover -s tests/python -p 'test_*.py'
 
   build:
-    name: Build wheels on ${{ matrix.os }} ${{ matrix.wheel }}
+    name: Build wheels on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        include:
-          - os: ubuntu-26.04
-            wheel: ''
-          - os: windows-2025-vs2026
-            wheel: cp311-win_amd64
-          - os: windows-2025-vs2026
-            wheel: cp312-win_amd64
-          - os: windows-2025-vs2026
-            wheel: cp313-win_amd64
-          - os: windows-2025-vs2026
-            wheel: cp314-win_amd64
-          - os: windows-2025-vs2026
-            wheel: cp315-win_amd64
+        os: [ubuntu-26.04, windows-2025-vs2026]
 
     steps:
       - uses: actions/checkout@v7
@@ -139,20 +121,17 @@ jobs:
           foreach ($name in 'PATH', 'INCLUDE', 'LIB', 'LIBPATH') {
             "$name=$([Environment]::GetEnvironmentVariable($name))" >> $env:GITHUB_ENV
           }
-          "CMAKE_GENERATOR=Ninja" >> $env:GITHUB_ENV
 
       - name: Cache cibuildwheel tools
         uses: actions/cache@v5
         with:
           path: ${{ runner.temp }}/cibw-cache
-          key: cibw-${{ matrix.os }}-${{ matrix.wheel }}-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
+          key: cibw-${{ matrix.os }}-${{ hashFiles('pyproject.toml', '.github/workflows/ci.yml') }}
           restore-keys: |
-            cibw-${{ matrix.os }}-${{ matrix.wheel }}-
+            cibw-${{ matrix.os }}-
 
       - name: Build wheels
         uses: pypa/cibuildwheel@v4.3.1
-        with:
-          only: ${{ matrix.wheel }}
         env:
           CIBW_CACHE_PATH: ${{ runner.temp }}/cibw-cache
 
@@ -175,7 +154,9 @@ jobs:
           assert not missing_tbb, f'wheels lack the oneTBB runtime: {missing_tbb}'"
 
       - uses: actions/upload-artifact@v7
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         with:
-          name: distributions-${{ matrix.os }}${{ matrix.wheel && format('-{0}', matrix.wheel) || '' }}
+          name: distributions-${{ matrix.os }}
           path: wheelhouse/*
+          retention-days: 14
           if-no-files-found: error
