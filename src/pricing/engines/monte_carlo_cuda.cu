@@ -812,39 +812,18 @@ template <bool paired>
 static CudaPricingResult autocallable_prices(
     CudaAutocallableRequest request, std::span<const AutocallableStep> steps, CudaWorkspace* workspace)
 {
-    CudaWorkspace local;
-    auto& storage = (workspace ? *workspace : local).storage();
-    const auto created = storage.prepare();
-    if (created.status != CudaPricingStatus::success) return created;
-    const auto stream = storage.owned_stream.get();
-    const RequestCompletion completion{stream};
-
-    auto& device_steps = storage.steps;
-    auto result = upload_steps(device_steps, steps, stream);
+    std::array<CudaAutocallableRequest, paired ? 2 : 1> requests;
+    requests.fill(request);
+    const auto prices = spot_prices(std::span<const CudaAutocallableRequest>{requests}, steps, workspace,
+                                    [](const auto& batch, auto* device_steps, auto step_count, int blocks, cudaStream_t stream) {
+                                        simulate_autocallable_paths<paired><<<blocks, threads_per_block, 0, stream>>>(
+                                            batch.values[0], device_steps, step_count, batch.payoffs[0],
+                                            paired ? batch.payoffs[1] : nullptr, batch.invalid);
+                                    });
+    auto result = prices.result;
     if (result.status != CudaPricingStatus::success) return result;
-    auto& outputs = storage.outputs[0];
-    result = allocate_path_outputs(request.path_count, outputs, stream);
-    if (result.status != CudaPricingStatus::success) return result;
-
-    auto& alternate_outputs = storage.outputs[1];
-    if constexpr (paired) {
-        result = allocate_path_outputs(request.path_count, alternate_outputs, stream);
-        if (result.status != CudaPricingStatus::success) return result;
-    }
-    const int block_count =
-        (request.path_count + threads_per_block - 1) / threads_per_block;
-    simulate_autocallable_paths<paired><<<block_count, threads_per_block, 0, stream>>>(
-        request, static_cast<const AutocallableStep*>(device_steps.get()), steps.size(),
-        outputs.payoffs, alternate_outputs.payoffs, &outputs.result->invalid);
-    const cudaError_t status = cudaGetLastError();
-    if (status != cudaSuccess) return error_result(status);
-    result = finish_path_simulation(outputs, request.path_count, stream);
-    if (result.status != CudaPricingStatus::success) return result;
-    if constexpr (paired) {
-        const auto alternate = finish_path_simulation(alternate_outputs, request.path_count, stream);
-        if (alternate.status != CudaPricingStatus::success) return alternate;
-        result.alternate_payoff_mean = alternate.payoff_mean;
-    }
+    result.payoff_mean = prices.payoff_means[0];
+    if constexpr (paired) result.alternate_payoff_mean = prices.payoff_means[1];
     return result;
 }
 

@@ -209,6 +209,38 @@ TEST_CASE("CUDA accumulator scalar and batch prices match exact settlements", "[
     }
 }
 
+TEST_CASE("CUDA autocallable coupon outputs preserve ordering and recover from alternate failures", "[cuda][cuda-coupon-samples]")
+{
+    using namespace kiyosi::detail;
+    const std::array<AutocallableStep, 3> steps{{{{0.0, 0.0, {0.5}}, {115.0, 0.125, 0.0, false, true}, 0.25},
+                                                 {{0.0, 0.0, {0.25}}, {}, 0.0},
+                                                 {{0.0, 0.0, {0.125}}, {}, 0.0}}};
+    const AutocallableProgram program{1.0, 0.0, 0.0, 0.0, 0.0, 0.25, 0.25,
+                                      AutocallableTerminalKind::fixed, false, false, false};
+    auto alternate = program;
+    alternate.intact_terminal_coupon = 0.5;
+    CudaWorkspace workspace;
+    for (const int paths : {1, 257})
+        for (const double spot : {100.0, 120.0}) {
+            CAPTURE(paths, spot);
+            const CudaAutocallableRequest request{paths, 42, spot, {0.125}, program, {}, alternate, {}};
+            const auto check = [&] {
+                const auto result = cuda_autocallable_coupon_prices(request, steps, &workspace);
+                REQUIRE(result.status == CudaPricingStatus::success);
+                CHECK(result.payoff_mean == (spot < 115.0 ? 0.15625 : 0.5625));
+                CHECK(result.alternate_payoff_mean == (spot < 115.0 ? 0.1875 : 0.625));
+                const auto scalar = cuda_autocallable_price(request, steps, &workspace);
+                REQUIRE(scalar.status == CudaPricingStatus::success);
+                CHECK(scalar.payoff_mean == (spot < 115.0 ? 0.15625 : 0.5625));
+            };
+            check();
+            auto invalid = request;
+            invalid.alternate_program.principal_ratio = std::numeric_limits<double>::infinity();
+            CHECK(cuda_autocallable_coupon_prices(invalid, steps, &workspace).status == CudaPricingStatus::invalid_result);
+            check();
+        }
+}
+
 TEST_CASE("CUDA shared spot paths preserve independent settlements and recover from failures", "[cuda][cuda-spot-samples]")
 {
     using namespace kiyosi::detail;
