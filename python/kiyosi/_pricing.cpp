@@ -280,6 +280,26 @@ KiyosiError
 }
 
 template <typename Engine>
+nb::class_<Engine> bind_quadrature_engine(nb::module_& module, const char* name,
+                                          Result<Engine> (*factory)(QuadratureSettings))
+{
+    nb::class_<Engine> binding{module, name,
+                               "Event-date BSM integration with immutable settings. Check space and domain convergence separately; concurrent calls are safe. Calls are synchronous without cancellation; allocation failures raise MemoryError."};
+    binding
+        .def(nb::new_([factory](PythonInteger asset_step_count, PythonReal integration_standard_deviations) {
+                 return unwrap(factory({integer(asset_step_count, "asset_step_count"),
+                                        real_number(integration_standard_deviations, "integration_standard_deviations")}));
+             }),
+             nb::kw_only(), "asset_step_count"_a = QuadratureSettings{}.asset_step_count,
+             "integration_standard_deviations"_a = QuadratureSettings{}.integration_standard_deviations,
+             "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
+        .def_prop_ro("asset_step_count", [](const Engine& engine) { return engine.settings().asset_step_count; })
+        .def_prop_ro("integration_standard_deviations", [](const Engine& engine) { return engine.settings().integration_standard_deviations; });
+    bind_repr(binding, name, {"asset_step_count", "integration_standard_deviations"});
+    return binding;
+}
+
+template <typename Engine>
 nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, const char* name,
                                                        Result<Engine> (*factory)(TradingDayMonteCarloSettings))
 {
@@ -715,19 +735,7 @@ Settings are validated at construction.)doc")
         module, "MonteCarloAccumulatorEngine", &make_monte_carlo_accumulator_engine);
     bind_engine_price<MonteCarloAccumulatorEngine, Accumulator>(module, monte_carlo_accumulator);
 
-    nb::class_<QuadratureAccumulatorEngine> quadrature_accumulator{module, "QuadratureAccumulatorEngine",
-                                                                   "Event-date BSM integration with immutable settings. Check space and domain convergence separately; concurrent calls are safe. Calls are synchronous without cancellation; allocation failures raise MemoryError."};
-    quadrature_accumulator
-        .def(nb::new_([](PythonInteger asset_step_count, PythonReal integration_standard_deviations) {
-                 return unwrap(make_quadrature_accumulator_engine({integer(asset_step_count, "asset_step_count"),
-                                                                   real_number(integration_standard_deviations, "integration_standard_deviations")}));
-             }),
-             nb::kw_only(), "asset_step_count"_a = QuadratureSettings{}.asset_step_count,
-             "integration_standard_deviations"_a = QuadratureSettings{}.integration_standard_deviations,
-             "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
-        .def_prop_ro("asset_step_count", [](const QuadratureAccumulatorEngine& engine) { return engine.settings().asset_step_count; })
-        .def_prop_ro("integration_standard_deviations", [](const QuadratureAccumulatorEngine& engine) { return engine.settings().integration_standard_deviations; });
-    bind_repr(quadrature_accumulator, "QuadratureAccumulatorEngine", {"asset_step_count", "integration_standard_deviations"});
+    auto quadrature_accumulator = bind_quadrature_engine<QuadratureAccumulatorEngine>(module, "QuadratureAccumulatorEngine", &make_quadrature_accumulator_engine);
     bind_engine_price<QuadratureAccumulatorEngine, Accumulator>(module, quadrature_accumulator);
 
     auto finite_autocallable = bind_finite_difference_engine<FiniteDifferenceAutocallableEngine>(module, "FiniteDifferenceAutocallableEngine", &make_finite_difference_autocallable_engine);
@@ -736,19 +744,7 @@ Settings are validated at construction.)doc")
     bind_engine_price<FiniteDifferenceAutocallableEngine, TernarySnowballOption>(module, finite_autocallable);
     bind_engine_price<FiniteDifferenceAutocallableEngine, PhoenixOption>(module, finite_autocallable);
 
-    nb::class_<QuadratureAutocallableEngine> quadrature_autocallable{module, "QuadratureAutocallableEngine",
-                                                                     "Event-date BSM integration with immutable settings. Check space and domain convergence separately; concurrent calls are safe."};
-    quadrature_autocallable
-        .def(nb::new_([](PythonInteger asset_step_count, PythonReal integration_standard_deviations) {
-                 return unwrap(make_quadrature_autocallable_engine({integer(asset_step_count, "asset_step_count"),
-                                                                    real_number(integration_standard_deviations, "integration_standard_deviations")}));
-             }),
-             nb::kw_only(), "asset_step_count"_a = QuadratureSettings{}.asset_step_count,
-             "integration_standard_deviations"_a = QuadratureSettings{}.integration_standard_deviations,
-             "Create an engine with at least four spatial steps and a finite positive integration extent. Representation errors raise TypeError/OverflowError; core configuration rejections raise KiyosiError.")
-        .def_prop_ro("asset_step_count", [](const QuadratureAutocallableEngine& engine) { return engine.settings().asset_step_count; })
-        .def_prop_ro("integration_standard_deviations", [](const QuadratureAutocallableEngine& engine) { return engine.settings().integration_standard_deviations; });
-    bind_repr(quadrature_autocallable, "QuadratureAutocallableEngine", {"asset_step_count", "integration_standard_deviations"});
+    auto quadrature_autocallable = bind_quadrature_engine<QuadratureAutocallableEngine>(module, "QuadratureAutocallableEngine", &make_quadrature_autocallable_engine);
     bind_engine_price<QuadratureAutocallableEngine, SnowballOption>(module, quadrature_autocallable);
     bind_engine_price<QuadratureAutocallableEngine, BinarySnowballOption>(module, quadrature_autocallable);
     bind_engine_price<QuadratureAutocallableEngine, TernarySnowballOption>(module, quadrature_autocallable);
