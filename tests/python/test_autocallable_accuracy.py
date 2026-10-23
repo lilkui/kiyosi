@@ -7,6 +7,7 @@ from kiyosi.instruments import (
     BinarySnowballOption,
     CashOrNothingOption,
     PhoenixOption,
+    SnowballOption,
     TernarySnowballOption,
     autocallable_observations,
 )
@@ -14,6 +15,8 @@ from kiyosi.market import (
     BlackScholesMertonParameters,
     PricingContext,
     all_days_calendar,
+    monthly_schedule,
+    sse_calendar,
     weekdays_calendar,
 )
 
@@ -117,6 +120,69 @@ class AutocallableAccuracyTests(unittest.TestCase):
                                 reference,
                                 delta=absolute + 0.005 * abs(reference),
                             )
+
+    def test_snowball_greeks_preserve_smooth_price_maximum_between_grid_nodes(self):
+        start, end = date(2025, 10, 23), date(2026, 10, 23)
+        calendar = sse_calendar()
+        dates = list(
+            monthly_schedule(
+                start=start, end=end, first_observation_month=1, calendar=calendar
+            ).dates
+        )
+        if dates[-1] != end:
+            dates.append(end)
+        note = SnowballOption(
+            maturity_coupon_rate=0.2,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=0,
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="none",
+            effective_date=start,
+            expiry_date=end,
+            observations=autocallable_observations(
+                dates, [103] * len(dates), knock_out_coupon_rates=[0.2] * len(dates)
+            ),
+        )
+        model = BlackScholesMertonParameters(
+            risk_free_rate=0.02, dividend_yield=0, volatility=0.2
+        )
+        engine = pricing.FiniteDifferenceAutocallableEngine(
+            asset_step_count=1600, time_step_count=1600, asset_upper_boundary=300
+        )
+
+        def context(spot):
+            return PricingContext(
+                model_parameters=model,
+                spot_price=spot,
+                valuation_time=start,
+                calendar=calendar,
+            )
+
+        # Dealer-normalized Gamma references from an independent quadrature solve.
+        for spot, expected, tolerance in (
+            (82.0, 2.61633362, 0.03),
+            (107.49, 0.93813253, 0.01),
+            (107.5, 0.93813253, 0.01),
+            (107.51, 0.93813253, 0.01),
+        ):
+            with self.subTest(spot=spot):
+                result = engine.price_with_greeks(
+                    note, context(spot), ["delta", "gamma"]
+                )
+                self.assertAlmostEqual(-10000 * result.gamma, expected, delta=tolerance)
+                bump = 0.005
+                low = engine.price(note, context(spot - bump))
+                high = engine.price(note, context(spot + bump))
+                self.assertAlmostEqual(
+                    100 * result.delta, 100 * (high - low) / (2 * bump), delta=1e-5
+                )
+                self.assertAlmostEqual(
+                    10000 * result.gamma,
+                    10000 * (high - 2 * result.price + low) / bump**2,
+                    delta=0.002,
+                )
 
     def test_coarse_grids_preserve_positive_payoff_bounds_and_flat_greeks(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

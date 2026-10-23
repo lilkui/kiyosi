@@ -333,10 +333,19 @@ private:
         const auto [control_lower, control_upper] = std::minmax(first_control, second_control);
         const auto [minimum, maximum] = std::minmax(values[index], values[index + 1]);
         if (control_lower < minimum || control_upper > maximum) {
-            const auto [lower, upper] = std::ranges::minmax(values);
-            // Bezier control points bound the whole cell; keep unsafe cells linear and continuous.
-            if (control_lower < lower || control_upper > upper)
-                return {linear, (values[index + 1] - values[index]) / h, 0.0};
+            const double slope = (values[index + 1] - values[index]) / h;
+            const double before = index > 0 ? (values[index] - values[index - 1]) / (nodes[index] - nodes[index - 1]) : slope;
+            const double after = index + 2 < nodes.size() ? (values[index + 2] - values[index + 1]) / (nodes[index + 2] - nodes[index + 1]) : slope;
+            const double left_derivative = slope - h * (2.0 * curvature[index] + curvature[index + 1]) / 6.0;
+            const double right_derivative = slope + h * (curvature[index] + 2.0 * curvature[index + 1]) / 6.0;
+            // Preserve extrema only when spline derivatives agree with the surrounding convexity.
+            const bool maximum_turn = before > 0.0 && after < 0.0 && curvature[index] <= 0.0 && curvature[index + 1] <= 0.0 && left_derivative <= before && right_derivative >= after;
+            const bool minimum_turn = before < 0.0 && after > 0.0 && curvature[index] >= 0.0 && curvature[index + 1] >= 0.0 && left_derivative >= before && right_derivative <= after;
+            if (!maximum_turn && !minimum_turn) {
+                const auto [global_minimum, global_maximum] = std::ranges::minmax(values);
+                if (control_lower < global_minimum || control_upper > global_maximum)
+                    return {linear, slope, 0.0};
+            }
         }
         return {linear + (correction * h) * h,
                 (values[index + 1] - values[index]) / h +

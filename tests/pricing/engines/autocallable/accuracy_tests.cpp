@@ -76,6 +76,35 @@ TEST_CASE("Autocallable near-expiry Greeks match an analytic digital", "[autocal
     }
 }
 
+TEST_CASE("Snowball Greeks preserve a smooth price maximum between grid nodes", "[autocallable-accuracy][fd-extrema]")
+{
+    const auto start = test::day(2025, 10, 23), end = test::day(2026, 10, 23);
+    const auto calendar = sse_calendar();
+    const auto schedule = make_monthly_schedule(start, end, 1, calendar).value();
+    std::vector<AutocallableObservation> observations;
+    for (const auto day : schedule.dates())
+        observations.push_back({day, 103.0, 0.2});
+    if (observations.back().date != end) observations.push_back({end, 103.0, 0.2});
+    const auto note = make_snowball_option({.maturity_coupon_rate = 0.2, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 0.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = std::move(observations)}).value();
+    const auto model = make_bsm_parameters(0.02, 0.0, 0.2).value();
+    const auto engine = make_finite_difference_autocallable_engine({1600, 1600, FiniteDifferenceScheme::crank_nicolson, 300.0}).value();
+    // Dealer-normalized Gamma references from an independent 2048-step quadrature solve.
+    for (const auto& [spot, expected, tolerance] : std::array<std::array<double, 3>, 4>{{{82.0, 2.61633362, 0.03}, {107.49, 0.93813253, 0.01}, {107.5, 0.93813253, 0.01}, {107.51, 0.93813253, 0.01}}}) {
+        CAPTURE(spot);
+        const auto context = make_pricing_context(model, spot, start, calendar).value();
+        const auto result = engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma});
+        REQUIRE(result);
+        CHECK(std::abs(-10000.0 * test::greek_value(*result, Greek::gamma) - expected) <= tolerance);
+        constexpr double bump = 0.005;
+        const auto low = engine.price(note, make_pricing_context(model, spot - bump, start, calendar).value());
+        const auto high = engine.price(note, make_pricing_context(model, spot + bump, start, calendar).value());
+        REQUIRE(low);
+        REQUIRE(high);
+        CHECK(std::abs(100.0 * (test::greek_value(*result, Greek::delta) - (*high - *low) / (2.0 * bump))) <= 1e-5);
+        CHECK(std::abs(10000.0 * (test::greek_value(*result, Greek::gamma) - (*high - 2.0 * result->price() + *low) / (bump * bump))) <= 0.002);
+    }
+}
+
 TEST_CASE("Autocallable coarse grids preserve positive payoff bounds and flat Greeks", "[autocallable-accuracy]")
 {
     const auto start = test::day(2025, 1, 1), end = test::day(2026, 1, 1);

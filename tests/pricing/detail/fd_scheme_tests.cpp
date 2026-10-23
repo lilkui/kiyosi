@@ -312,6 +312,30 @@ TEST_CASE("Nonuniform finite-difference splines retain physical derivatives and 
     }
 }
 
+TEST_CASE("Nonuniform splines preserve smooth global extrema", "[autocallable-accuracy][fd-extrema]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
+    for (const double sign : {-1.0, 1.0}) {
+        // This natural spline is sign * (3/4 + t - t^2) on the middle cell.
+        const std::array values{-sign * 11.0 / 12.0, sign * 0.75, sign * 0.75, -sign * 47.0 / 12.0};
+        std::vector<double> curvature;
+        for (const double t : {0.1, 0.5, 0.9}) {
+            CAPTURE(sign, t);
+            const double spot = 1.0 + t;
+            CHECK_THAT(grid.interpolate(values, spot, curvature), Catch::Matchers::WithinAbs(sign * (0.75 + t - t * t), 1e-14));
+            CHECK_THAT(grid.delta(values, spot, curvature), Catch::Matchers::WithinAbs(sign * (1.0 - 2.0 * t), 1e-14));
+            CHECK_THAT(grid.gamma(values, spot, curvature), Catch::Matchers::WithinAbs(-2.0 * sign, 1e-14));
+            CHECK_THAT(grid.delta(values, spot), Catch::Matchers::WithinAbs(sign * (1.0 - 2.0 * t), 1e-14));
+            CHECK_THAT(grid.gamma(values, spot), Catch::Matchers::WithinAbs(-2.0 * sign, 1e-14));
+        }
+        for (const double node : {1.0, 2.0}) {
+            constexpr double epsilon = 1e-7;
+            CHECK_THAT(grid.delta(values, node - epsilon), Catch::Matchers::WithinAbs(grid.delta(values, node + epsilon), 1e-6));
+            CHECK_THAT(grid.gamma(values, node - epsilon), Catch::Matchers::WithinAbs(grid.gamma(values, node + epsilon), 1e-6));
+        }
+    }
+}
+
 TEST_CASE("Nonuniform spline overshoot is bounded with consistent Greeks", "[autocallable-accuracy]")
 {
     const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
@@ -344,6 +368,14 @@ TEST_CASE("Nonuniform spline overshoot is bounded with consistent Greeks", "[aut
         CHECK_THAT(grid.delta(sloped, spot), Catch::Matchers::WithinAbs(0.01, 1e-14));
         CHECK(grid.gamma(sloped, spot) == 0.0);
     }
+}
+
+TEST_CASE("Nonuniform spline protection rejects unresolved near-flat turns", "[autocallable-accuracy][fd-extrema]")
+{
+    const kiyosi::detail::SpatialGrid grid{4.0, 1.0, 3, 0.0, {0.0, 1.0, 2.0, 4.0}};
+    const std::array values{0.0, 1.0, 1.0 + 1e-14, 1.0};
+    CHECK(grid.interpolate(values, 1.5) == std::lerp(values[1], values[2], 0.5));
+    CHECK(grid.gamma(values, 1.5) == 0.0);
 }
 
 TEST_CASE("Nonuniform diffusion preserves polynomial generators and positive off diagonals", "[autocallable-accuracy]")
