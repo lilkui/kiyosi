@@ -16,8 +16,12 @@ class QuadratureAccumulatorEngine;
 /// Finite-domain continuation tails use the contract's affine low-price limits.
 /// Defaults target documented scenarios, not arbitrary-contract error bounds; check space and
 /// integration-domain convergence separately. Shared finite-bump Greek conventions apply.
-/// Concurrent const calls on distinct or shared instances are safe; workspaces are request-local.
-/// Calls are synchronous with no cancellation; allocation failures propagate std::bad_alloc.
+/// Concurrent const calls on distinct or shared instances are safe without concurrent assignment;
+/// workspaces are request-local.
+/// Spot shifts reuse the two future curves within each model/date scenario of a Greek request.
+/// Large transition grids execute target rows in parallel using the available TBB arena.
+/// Calls complete synchronously and ignore outer task cancellation; allocation and internal
+/// runtime exceptions propagate. No cancellation interface is provided.
 class QuadratureAccumulatorEngine {
 public:
     QuadratureAccumulatorEngine() = default;

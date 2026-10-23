@@ -8,6 +8,10 @@
 #include <span>
 #include <vector>
 
+#include <oneapi/tbb/blocked_range.h>
+#include <oneapi/tbb/parallel_for.h>
+#include <oneapi/tbb/task_group.h>
+
 #include "math.hpp"
 
 namespace kiyosi::detail::quadrature {
@@ -17,6 +21,22 @@ inline constexpr double infinity = std::numeric_limits<double>::infinity();
 // Their product exp(underflow_log_mass) * underflow_mean_limit rounds to zero.
 inline constexpr double underflow_mean_limit = 1e20;
 inline constexpr double underflow_log_mass = -800.0;
+
+template <typename Evaluate>
+void for_each_target(std::size_t count, const Evaluate& evaluate)
+{
+    constexpr std::size_t parallel_threshold = 128;
+    constexpr std::size_t grain_size = 16;
+    if (count < parallel_threshold) {
+        for (std::size_t target = 0; target < count; ++target)
+            evaluate(target);
+        return;
+    }
+    // Outer task cancellation must not silently omit pricing rows.
+    oneapi::tbb::task_group_context context{oneapi::tbb::task_group_context::isolated};
+    oneapi::tbb::parallel_for(oneapi::tbb::blocked_range<std::size_t>{0, count, grain_size}, [&](const auto& range) {
+                                for (auto target = range.begin(); target != range.end(); ++target) evaluate(target); }, context);
+}
 
 // Requires a validated asset step count and finite contract breaks.
 inline Result<std::vector<double>> integration_nodes(double lower, double upper, int asset_step_count,
@@ -188,15 +208,15 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
 {
     Transition transition;
     const std::size_t cells = nodes.size() - 1;
-    transition.weights.reserve(nodes.size() * cells);
-    transition.tails.reserve(nodes.size());
-    for (std::size_t target = 0; target < nodes.size(); ++target) {
+    transition.weights.resize(nodes.size() * cells);
+    transition.tails.resize(nodes.size());
+    for_each_target(nodes.size(), [&](std::size_t target) {
         const double mean = nodes[target] + drift;
-        transition.tails.push_back({log_normal_cdf((nodes.front() - mean) / deviation),
-                                    log_normal_cdf((mean - nodes.back()) / deviation)});
+        transition.tails[target] = {log_normal_cdf((nodes.front() - mean) / deviation),
+                                    log_normal_cdf((mean - nodes.back()) / deviation)};
         for (std::size_t cell = 0; cell < cells; ++cell)
-            transition.weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], mean, deviation));
-    }
+            transition.weights[target * cells + cell] = cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
+    });
     return transition;
 }
 
@@ -215,9 +235,10 @@ inline double integrate_curve(const Curve& curve, std::span<const IntervalMoment
 inline void integrate_curves(const Curve& curve, const Transition& transition, double log_discount,
                              std::span<double> values)
 {
-    for (std::size_t target = 0; target < values.size(); ++target)
+    for_each_target(values.size(), [&](std::size_t target) {
         values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(target * curve.cells.size(), curve.cells.size()),
                                          transition.tails[target], log_discount);
+    });
 }
 
 // The terminal function is affine in S on each exact contractual interval.

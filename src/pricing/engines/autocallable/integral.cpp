@@ -6,6 +6,8 @@
 #include <limits>
 #include <map>
 #include <numeric>
+#include <optional>
+#include <tuple>
 #include <vector>
 
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
@@ -24,6 +26,31 @@ struct Event {
     Date date;
     double time;
     AutocallableEvent terms{};
+};
+
+using Scenario = std::tuple<Timestamp, BlackScholesMertonParameters, bool, std::size_t>;
+
+struct PreparedCurve {
+    Scenario scenario;
+    std::vector<double> nodes;
+    Curve continuation;
+    double anchor;
+    double drift;
+    double deviation;
+    double discount;
+
+    double evaluate(double spot) const
+    {
+        const double current = log_price_ratio(spot, anchor);
+        std::vector<IntervalMoments> weights;
+        weights.reserve(nodes.size() - 1);
+        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+            weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
+        return integrate_curve(continuation, weights,
+                               {log_normal_cdf((nodes.front() - current - drift) / deviation),
+                                log_normal_cdf((current + drift - nodes.back()) / deviation)},
+                               discount);
+    }
 };
 
 double event_coupon(const AutocallableProgram& program, const AutocallableEvent& event, double asset)
@@ -97,7 +124,7 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
 
 template <AutocallableProduct Note>
 Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
-                                      const QuadratureSettings& settings)
+                                      const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared)
 {
     AutocallableContract<Note> contract{note, context.calendar()};
     const auto valid = contract.validate(context);
@@ -106,6 +133,10 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     const auto initial = autocallable_initial_state(note, context, program);
     if (initial.settlement) return checked_price(*initial.settlement);
     if (const auto fixed = autocallable_fixed_value(note, context, program, initial)) return checked_price(*fixed);
+    const Scenario scenario{context.valuation_time(), context.model_parameters(), initial.path.knocked_in, initial.next_observation};
+    // The request fixes the contract and calendar; only these scenario fields change the future curve.
+    if (prepared && prepared->scenario == scenario)
+        return checked_price(initial.path.coupons + prepared->evaluate(context.spot_price()));
     const bool layers = program.daily_knock_in && !initial.path.knocked_in && program_knock_in_affects_payoff(program);
     const auto dates = autocallable_event_dates(note, context, initial.next_observation, layers);
     const auto observations = note.observations_view();
@@ -148,9 +179,9 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double lower = std::min(0.0, breaks.empty() ? 0.0 : breaks.front()) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max(0.0, breaks.empty() ? 0.0 : breaks.back()) + std::max(0.0, drift_rate * horizon) + extent;
-    const auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
+    auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
     if (!grid) return std::unexpected(grid.error());
-    const auto& nodes = *grid;
+    auto nodes = std::move(*grid);
     std::map<double, Transition> transitions;
     Curve alive, knocked_in;
     std::vector<double> values(nodes.size()), values_in(layers ? nodes.size() : 0);
@@ -169,14 +200,8 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         if (event_index == 0) {
-            std::vector<IntervalMoments> weights;
-            weights.reserve(nodes.size() - 1);
-            for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
-                weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
-            return checked_price(initial.path.coupons + integrate_curve(alive, weights,
-                                                                        {log_normal_cdf((nodes.front() - current - drift) / deviation),
-                                                                         log_normal_cdf((current + drift - nodes.back()) / deviation)},
-                                                                        discount));
+            prepared = PreparedCurve{scenario, std::move(nodes), std::move(alive), anchor, drift, deviation, discount};
+            return checked_price(initial.path.coupons + prepared->evaluate(context.spot_price()));
         }
         const Transition* transition = nullptr;
         if (!final) {
@@ -210,14 +235,24 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
 template <AutocallableProduct Note>
 Result<double> QuadratureAutocallableEngine::price(const Note& note, const PricingContext& context) const
 {
-    return integrate_autocallable(note, context, settings_);
+    std::optional<PreparedCurve> prepared;
+    return integrate_autocallable(note, context, settings_, prepared);
 }
 
 template <AutocallableProduct Note>
 Result<PricingResult> QuadratureAutocallableEngine::price_with_greeks(const Note& note, const PricingContext& context,
                                                                       GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, note, context, greeks, settings);
+    return detail::evaluate_greeks(*this, note, context, greeks, settings,
+                                   [&](const auto& engine) -> Result<PricingResult> {
+                                       std::optional<PreparedCurve> prepared;
+                                       const auto price = [&](const PricingContext& shifted) {
+                                           return integrate_autocallable(note, shifted, engine.settings(), prepared);
+                                       };
+                                       const auto value = price(context);
+                                       if (!value) return std::unexpected(value.error());
+                                       return detail::complete_greeks(price, note, context, greeks, settings, *make_pricing_result(*value));
+                                   });
 }
 
 template KIYOSI_EXPORT Result<double> QuadratureAutocallableEngine::price(const PhoenixOption&, const PricingContext&) const;

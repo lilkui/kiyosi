@@ -16,8 +16,11 @@ class QuadratureAutocallableEngine;
 /// Event-date BSM integration of piecewise cubic smooth continuation, split at contract events.
 /// Terminal cash/asset pieces are integrated directly. Finite-domain continuation tails use
 /// contract limits; defaults target documented scenarios, not arbitrary-contract error bounds.
-/// Concurrent const calls on distinct or shared instances are safe; workspaces are request-local.
-/// Calls are synchronous with no cancellation; allocation failures propagate std::bad_alloc.
+/// Concurrent const calls on distinct or shared instances are safe without concurrent assignment;
+/// workspaces are request-local.
+/// Large transition grids execute target rows in parallel using the available TBB arena.
+/// Calls complete synchronously and ignore outer task cancellation; allocation and internal
+/// runtime exceptions propagate. No cancellation interface is provided.
 class QuadratureAutocallableEngine {
 public:
     QuadratureAutocallableEngine() = default;
@@ -25,7 +28,8 @@ public:
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<double> price(const Note& note, const PricingContext& context) const;
 
-    /// Uses the shared finite-bump Greek conventions and unavailable-measure rules.
+    /// Uses shared finite-bump conventions and unavailable-measure rules, reusing future curves
+    /// across spot shifts within each model/date/state scenario of this request.
     template <AutocallableProduct Note>
     [[nodiscard]] KIYOSI_EXPORT Result<PricingResult> price_with_greeks(const Note& note, const PricingContext& context,
                                                                         GreeksRequest greeks, NumericalShiftSettings settings = {}) const;

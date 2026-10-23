@@ -5,6 +5,8 @@
 #include <cmath>
 #include <map>
 #include <numeric>
+#include <optional>
+#include <tuple>
 #include <vector>
 
 #include "../../detail/numerical_greeks.hpp"
@@ -21,6 +23,40 @@ using namespace detail::quadrature;
 struct Layer {
     Curve continuation;
     std::vector<TerminalPiece> exact;
+
+    double integrate(double log_spot, double strike, double drift, double deviation, double discount,
+                     std::span<const IntervalMoments> weights, const std::array<double, 2>& tails) const
+    {
+        Sum sum;
+        sum.add(integrate_terminal(exact, log_spot, strike, drift, deviation, discount));
+        if (!continuation.cells.empty()) sum.add(integrate_curve(continuation, weights, tails, discount));
+        return sum.total();
+    }
+};
+
+using Scenario = std::tuple<Timestamp, BlackScholesMertonParameters>;
+
+struct PreparedCurve {
+    Scenario scenario;
+    std::vector<double> nodes;
+    std::array<Layer, 2> layers;
+    double strike;
+    double drift;
+    double deviation;
+    double discount;
+
+    double evaluate(double spot, double quantity) const
+    {
+        const double current = log_price_ratio(spot, strike);
+        std::vector<IntervalMoments> weights;
+        weights.reserve(nodes.size() - 1);
+        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+            weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
+        const std::array tails{log_normal_cdf((nodes.front() - current - drift) / deviation),
+                               log_normal_cdf((current + drift - nodes.back()) / deviation)};
+        return quantity * layers[0].integrate(current, strike, drift, deviation, discount, weights, tails) +
+               layers[1].integrate(current, strike, drift, deviation, discount, weights, tails);
+    }
 };
 
 std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vector<double>& nodes,
@@ -59,7 +95,7 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
 }
 
 Result<double> integrate_accumulator(const Accumulator& option, const PricingContext& context,
-                                     const QuadratureSettings& settings)
+                                     const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared)
 {
     if (const auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date()); !valid)
         return std::unexpected(valid.error());
@@ -67,6 +103,10 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
         return std::unexpected(valid.error());
     const auto initial = accumulator_initial_state(option, context);
     if (initial.settlement) return checked_price(*initial.settlement);
+    const Scenario scenario{context.valuation_time(), context.model_parameters()};
+    // Quantity is resolved for each spot; both future affine layers are independent of it.
+    if (prepared && prepared->scenario == scenario)
+        return checked_price(prepared->evaluate(context.spot_price(), initial.quantity));
 
     const auto dates = trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
     const double strike = option.strike();
@@ -84,28 +124,21 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     if (knock_out > 0.0)
         layers[1].exact.push_back({0.0, knock_out, -strike * option.daily_quantity(), option.daily_quantity()});
 
-    const auto integrate = [&](const Layer& layer, double log_spot, double drift, double deviation, double discount,
-                               std::span<const IntervalMoments> weights, const std::array<double, 2>& tails) {
-        Sum sum;
-        sum.add(integrate_terminal(layer.exact, log_spot, strike, drift, deviation, discount));
-        if (!layer.continuation.cells.empty()) sum.add(integrate_curve(layer.continuation, weights, tails, discount));
-        return sum.total();
-    };
     if (dates.size() == 1) {
         const double deviation = sigma * std::sqrt(horizon);
         const double drift = drift_rate * horizon;
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
-        return checked_price(initial.quantity * integrate(layers[0], current, drift, deviation, -rate * horizon, {}, {}) +
-                             integrate(layers[1], current, drift, deviation, -rate * horizon, {}, {}));
+        return checked_price(initial.quantity * layers[0].integrate(current, strike, drift, deviation, -rate * horizon, {}, {}) +
+                             layers[1].integrate(current, strike, drift, deviation, -rate * horizon, {}, {}));
     }
 
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double lower = std::min(0.0, knock_out) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max(0.0, knock_out) + std::max(0.0, drift_rate * horizon) + extent;
-    const auto grid = integration_nodes(lower, upper, settings.asset_step_count, std::array{0.0, knock_out});
+    auto grid = integration_nodes(lower, upper, settings.asset_step_count, std::array{0.0, knock_out});
     if (!grid) return std::unexpected(grid.error());
-    const auto& nodes = *grid;
+    auto nodes = std::move(*grid);
 
     std::map<double, Transition> transitions;
     std::array<Curve, 2> continuation;
@@ -123,14 +156,8 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         if (event == 0) {
-            std::vector<IntervalMoments> weights;
-            weights.reserve(nodes.size() - 1);
-            for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
-                weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
-            const std::array tails{log_normal_cdf((nodes.front() - current - drift) / deviation),
-                                   log_normal_cdf((current + drift - nodes.back()) / deviation)};
-            return checked_price(initial.quantity * integrate(layers[0], current, drift, deviation, discount, weights, tails) +
-                                 integrate(layers[1], current, drift, deviation, discount, weights, tails));
+            prepared = PreparedCurve{scenario, std::move(nodes), std::move(layers), strike, drift, deviation, discount};
+            return checked_price(prepared->evaluate(context.spot_price(), initial.quantity));
         }
         const Transition* transition = nullptr;
         if (!final) {
@@ -160,13 +187,23 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
 
 Result<double> QuadratureAccumulatorEngine::price(const Accumulator& option, const PricingContext& context) const
 {
-    return integrate_accumulator(option, context, settings_);
+    std::optional<PreparedCurve> prepared;
+    return integrate_accumulator(option, context, settings_, prepared);
 }
 
 Result<PricingResult> QuadratureAccumulatorEngine::price_with_greeks(
     const Accumulator& option, const PricingContext& context, GreeksRequest greeks, NumericalShiftSettings settings) const
 {
-    return detail::price_with_greeks(*this, option, context, greeks, settings);
+    return detail::evaluate_greeks(*this, option, context, greeks, settings,
+                                   [&](const auto& engine) -> Result<PricingResult> {
+                                       std::optional<PreparedCurve> prepared;
+                                       const auto price = [&](const PricingContext& shifted) {
+                                           return integrate_accumulator(option, shifted, engine.settings(), prepared);
+                                       };
+                                       const auto value = price(context);
+                                       if (!value) return std::unexpected(value.error());
+                                       return detail::complete_greeks(price, option, context, greeks, settings, *make_pricing_result(*value));
+                                   });
 }
 
 } // namespace kiyosi

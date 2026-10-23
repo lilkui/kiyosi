@@ -770,6 +770,78 @@ class AutocallableQuadratureTests(unittest.TestCase):
                             engine.price(product, context(90, valuation=END)), expected
                         )
 
+    def test_reused_spot_and_volatility_curves_match_scalar_prices(self):
+        engine = pricing.QuadratureAutocallableEngine(asset_step_count=128)
+        end = date(2025, 1, 20)
+        note = SnowballOption(
+            maturity_coupon_rate=0.06,
+            initial_spot=100,
+            knock_in_level=80,
+            upper_strike=100,
+            lower_strike=60,
+            knock_in_observation_mode="every_trading_day",
+            barrier_state="none",
+            effective_date=START,
+            expiry_date=end,
+            observations=autocallable_observations(
+                [date(2025, 1, 8), end], [110, 105], knock_out_coupon_rates=[0.08, 0.08]
+            ),
+        )
+        spot, h = 100.25, 0.25
+        volatilities = (0.25, 0.3)
+
+        def values(vol):
+            return [
+                engine.price(
+                    note,
+                    context(spot + offset * h, vol, -0.02, date(2025, 1, 4)),
+                )
+                for offset in (0, 1, -1, 2, -2)
+            ]
+
+        expected = []
+        for volatility in volatilities:
+            v = (volatility + 0.002) - volatility
+            center, up, down, up2, down2 = values(volatility)
+            high, high_up, high_down, _, _ = values(volatility + v)
+            low, low_up, low_down, _, _ = values(volatility - v)
+            expected.append(
+                (
+                    center,
+                    {
+                        "delta": (up - down) / (2 * h),
+                        "gamma": (up - 2 * center + down) / h**2,
+                        "speed": (up2 - 2 * up + 2 * down - down2) / (2 * h**3),
+                        "vanna": (high_up - high_down - low_up + low_down)
+                        / (400 * h * v),
+                        "zomma": (
+                            (high_up - 2 * high + high_down)
+                            - (low_up - 2 * low + low_down)
+                        )
+                        / (200 * h**2 * v),
+                    },
+                )
+            )
+
+        def evaluate(volatility):
+            return engine.price_with_greeks(
+                note,
+                context(spot, volatility, -0.02, date(2025, 1, 4)),
+                ["delta", "gamma", "speed", "vanna", "zomma"],
+                spot_shift=h,
+                volatility_shift=0.002,
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(evaluate, volatilities))
+        for result, (center, greeks) in zip(results, expected, strict=True):
+            self.assertEqual(result.price, center)
+            for greek, reference in greeks.items():
+                with self.subTest(greek=greek):
+                    self.assertAlmostEqual(
+                        getattr(result, greek), reference, delta=1e-12
+                    )
+
     def test_shared_engine_concurrent_requests_match_independent_formula(self):
         engine = pricing.QuadratureAutocallableEngine()
         note = binary()

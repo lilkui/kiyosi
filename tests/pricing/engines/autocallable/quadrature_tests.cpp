@@ -16,6 +16,7 @@
 
 #include "pricing/detail/autocallable_pricer.hpp"
 #include "support/common.hpp"
+#include "support/numerical.hpp"
 
 namespace {
 using namespace kiyosi;
@@ -451,5 +452,39 @@ TEST_CASE("Quadrature shared engine calls retain independent request state", "[a
         });
     for (std::size_t i = 0; i < prices.size(); ++i)
         CHECK(prices[i].get() == Catch::Approx(binary_reference(90.0 + 10.0 * static_cast<double>(i), 0.3, 0.04, 1.0)).margin(1e-10));
+}
+
+TEST_CASE("Autocallable quadrature reused curves match independent repricing", "[autocallable-quadrature][quadrature-reuse]")
+{
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 20);
+    const auto engine = make_quadrature_autocallable_engine({128, 8.0}).value();
+    const NumericalShiftSettings shifts{.spot_shift = 0.25, .volatility_shift = 0.002, .rate_shift = 0.001};
+    for (const auto history : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in}) {
+        const auto note = make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = history, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 1, 8), 110.0, 0.08}, {end, 105.0, 0.08}}}).value();
+        for (const auto valuation : {day(2025, 1, 4), day(2025, 1, 8)}) {
+            for (const double spot : {79.9, 80.0, 100.0, 100.25, 109.9}) {
+                CAPTURE(history, valuation.time_since_epoch().count(), spot);
+                const auto context = make_pricing_context(*make_bsm_parameters(-0.02, 0.01, 0.3), spot,
+                                                          valuation, all_days_calendar())
+                                         .value();
+                const auto expected = test::price_differences(engine, note, context, shifts);
+                const auto actual = engine.price_with_greeks(note, context, true, shifts);
+                REQUIRE(expected);
+                REQUIRE(actual);
+                CHECK(actual->price() == expected->price());
+                CHECK(actual->values_view() == expected->values_view());
+            }
+        }
+    }
+    const auto note = make_binary_snowball_option({.maturity_coupon_rate = 0.06, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 1, 8), 110.0, 0.08}, {end, 105.0, 0.08}}}).value();
+    const auto context = make_pricing_context(*make_bsm_parameters(-0.02, 0.01, 0.3), 100.0,
+                                              day(2025, 1, 4), all_days_calendar())
+                             .value();
+    const auto expected = test::price_differences(engine, note, context, shifts);
+    const auto actual = engine.price_with_greeks(note, context, true, shifts);
+    REQUIRE(expected);
+    REQUIRE(actual);
+    CHECK(actual->price() == expected->price());
+    CHECK(actual->values_view() == expected->values_view());
 }
 } // namespace

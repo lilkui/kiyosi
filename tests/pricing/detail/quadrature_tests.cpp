@@ -8,6 +8,9 @@
 #include <numbers>
 #include <vector>
 
+#include <oneapi/tbb/task_arena.h>
+#include <oneapi/tbb/task_group.h>
+
 #include "pricing/detail/quadrature.hpp"
 
 namespace {
@@ -153,4 +156,42 @@ TEST_CASE("Quadrature integration preserves log-discount recovery and zero-recov
     }
     if (discount == -740.0 && std::abs(coefficient) == 1e300) CHECK(std::abs(values[0]) > 1e-23);
     if (discount == 0.0 && coefficient == 1e19) CHECK(values[2] > 0.0);
+}
+
+TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 128, std::array{-0.123, 0.456}).value();
+    std::vector<double> samples;
+    samples.reserve(nodes.size());
+    for (const auto node : nodes)
+        samples.push_back(100.0 * std::expm1(node));
+    const auto curve = interpolate(nodes, samples, -123.0, 456.0);
+    Transition reference;
+    std::vector<double> expected(nodes.size());
+    oneapi::tbb::task_arena serial{1};
+    serial.execute([&] {
+        reference = transition_weights(nodes, 0.0001, 0.02);
+        integrate_curves(curve, reference, -0.001, expected);
+    });
+    Transition actual;
+    std::vector<double> values(nodes.size(), std::numeric_limits<double>::quiet_NaN());
+    oneapi::tbb::task_arena parallel{4};
+    parallel.execute([&] {
+        oneapi::tbb::task_group_context outer{oneapi::tbb::task_group_context::isolated};
+        oneapi::tbb::task_group group{outer};
+        group.run([&] {
+            outer.cancel_group_execution();
+            actual = transition_weights(nodes, 0.0001, 0.02);
+            integrate_curves(curve, actual, -0.001, values);
+        });
+        group.wait();
+    });
+    REQUIRE(actual.weights.size() == reference.weights.size());
+    CHECK(actual.tails == reference.tails);
+    for (std::size_t index = 0; index < actual.weights.size(); ++index) {
+        CHECK(actual.weights[index].mass == reference.weights[index].mass);
+        CHECK(actual.weights[index].log_mass == reference.weights[index].log_mass);
+        CHECK(actual.weights[index].conditional == reference.weights[index].conditional);
+    }
+    CHECK(values == expected);
 }
