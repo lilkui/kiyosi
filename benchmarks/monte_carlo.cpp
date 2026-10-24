@@ -341,7 +341,7 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
     for (const auto type : {OptionType::put, OptionType::call})
-        for (const int paths : {128, 250'000, 1'000'000})
+        for (const int paths : {128, 512, 1024, 4096, 250'000, 1'000'000})
             for (const int threads : {1, 2, 4, 12, 0})
                 register_monte_carlo(
                     std::format("american_lsm/{}/{}/threads:{}", type == OptionType::put ? "put" : "call", paths, threads),

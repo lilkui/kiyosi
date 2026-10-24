@@ -345,7 +345,9 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         const int count = static_cast<int>(path_count);
-        const auto initialized = detail::monte_carlo_blocks(count, settings.thread_count,
+        // Small exercise sweeps cost less than repeatedly scheduling their blocks.
+        const int exercise_threads = count <= 1024 ? 1 : settings.thread_count;
+        const auto initialized = detail::monte_carlo_blocks(count, exercise_threads,
                                                             [&](int, int begin, int end) -> Result<void> {
                                                                 for (int path = begin; path < end; ++path)
                                                                     cash_flows[path] = payoff(option.option_type(),
@@ -355,7 +357,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         if (!initialized) return std::unexpected(initialized.error());
         std::vector<detail::QuadraticRegressionMatrix> matrices(detail::monte_carlo_block_count(count));
         for (int step = settings.step_count - 2; step >= 1; --step) {
-            const auto accumulated = detail::monte_carlo_blocks(count, settings.thread_count,
+            const auto accumulated = detail::monte_carlo_blocks(count, exercise_threads,
                                                                 [&](int block, int begin, int end) -> Result<void> {
                                                                     detail::QuadraticRegressionMatrix matrix{};
                                                                     for (int path = begin; path < end; ++path)
@@ -393,7 +395,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
             matrix[2][1] = matrix[1][2];
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
-            const auto exercised = detail::monte_carlo_blocks(count, settings.thread_count,
+            const auto exercised = detail::monte_carlo_blocks(count, exercise_threads,
                                                               [&](int, int begin, int end) -> Result<void> {
                                                                   for (int path = begin; path < end; ++path) {
                                                                       const double spot = paths[static_cast<std::size_t>(step) * path_count + path];
@@ -410,7 +412,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
             if (!exercised) return std::unexpected(exercised.error());
         }
         std::vector<detail::MonteCarloMean> block_payoffs(matrices.size());
-        const auto reduced = detail::monte_carlo_blocks(count, settings.thread_count,
+        const auto reduced = detail::monte_carlo_blocks(count, exercise_threads,
                                                         [&](int block, int begin, int end) -> Result<void> {
                                                             detail::MonteCarloMean partial{};
                                                             for (int path = begin; path < end; ++path)
