@@ -178,9 +178,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
                 rate_inputs[i] = std::move(*prepared);
                 views[count + i] = {rate_inputs[i].step_count, rate_inputs[i].terminal_discount};
             }
-            const auto values = cpu_path_means<outputs>(settings, [&](auto& generator) {
-                return path_payoffs(program, views, initial, generator);
-            });
+            const auto values = cpu_path_means<outputs>(settings, [&](auto& generator) { return path_payoffs(program, views, initial, generator); }, inputs->step_count.size());
             if (!values) return std::unexpected(values.error());
             prices = *values;
         } else if (settings.backend == MonteCarloBackend::cuda) {
@@ -193,9 +191,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
             return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
         } else {
-            const auto values = cpu_path_means<count>(settings, [&](auto& generator) {
-                return path_payoffs(program, *inputs, initial, generator);
-            });
+            const auto values = cpu_path_means<count>(settings, [&](auto& generator) { return path_payoffs(program, *inputs, initial, generator); }, inputs->step_count.size());
             if (!values) return std::unexpected(values.error());
             prices = *values;
         }
@@ -274,9 +270,7 @@ Result<double> price_autocallable(
 #endif
     }
 
-    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) {
-        return path_payoffs(program, *inputs, std::array{PathState{context.spot_price(), initial.path, {}}}, generator);
-    });
+    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) { return path_payoffs(program, *inputs, std::array{PathState{context.spot_price(), initial.path, {}}}, generator); }, inputs->step_count.size());
     if (!prices) return std::unexpected(prices.error());
     return checked_price((*prices)[0]);
 }
@@ -367,10 +361,8 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
         return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
     }
-    const auto values = cpu_path_means<2>(settings, [&](auto& generator) {
-        return coupon_path_payoffs(context.spot_price(), program, *inputs, initial.path,
-                                   generator, alternate_program, alternate_initial.path);
-    });
+    const auto values = cpu_path_means<2>(settings, [&](auto& generator) { return coupon_path_payoffs(context.spot_price(), program, *inputs, initial.path,
+                                                                                                      generator, alternate_program, alternate_initial.path); }, inputs->step_count.size());
     if (!values) return std::unexpected(values.error());
     std::array<double, 2> prices{};
     for (std::size_t i = 0; i < prices.size(); ++i) {

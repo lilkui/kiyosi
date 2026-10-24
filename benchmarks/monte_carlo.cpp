@@ -379,6 +379,24 @@ void kiyosi::benchmark_support::register_analytics_cases()
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
+    const Date start{std::chrono::year{2025} / 1 / 1};
+    for (const int days : {1, 12}) {
+        const auto expiry = start + std::chrono::days{days};
+        const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                                   start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+        const auto accumulator = *make_accumulator({100.0, 110.0, 1.0, 2.0, 0.0, start, expiry});
+        const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = expiry, .observations = {{expiry, 110.0, 0.08}}});
+        for (const int paths : {256, 257, 512, 1024, 2000})
+            for (const int threads : {1, 0, 2}) {
+                const auto suffix = std::format("/{}/days:{}/threads:{}", paths, days, threads);
+                register_price(("structured_short/accumulator" + suffix).c_str(), accumulator,
+                               *make_monte_carlo_accumulator_engine({paths, 42, MonteCarloBackend::cpu, threads}), context)
+                    ->UseRealTime();
+                register_price(("structured_short/binary_snowball" + suffix).c_str(), note,
+                               *make_monte_carlo_autocallable_engine({paths, 42, MonteCarloBackend::cpu, threads}), context)
+                    ->UseRealTime();
+            }
+    }
     for (const int threads : {1, 0}) {
         const auto [option, context] = american_monte_carlo_scenario();
         const auto engine = make_monte_carlo_vanilla_engine({100'000, 50, 42, MonteCarloBackend::cpu, threads}).value();

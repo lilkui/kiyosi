@@ -107,12 +107,17 @@ Result<PricingResult> complete_monte_carlo_greeks(
 }
 
 template <std::size_t count, typename PathPayoffs>
-Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs)
+Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs,
+                                                 std::size_t step_count = 1)
 {
     const auto seed = settings.seed ? *settings.seed : std::random_device{}();
     std::vector<std::array<MonteCarloMean, count>> partials(
         static_cast<std::size_t>(monte_carlo_block_count(settings.path_count)));
-    const auto simulated = monte_carlo_blocks(settings.path_count, settings.thread_count,
+    // Short paths cannot amortize automatic scheduling; retain the fixed random blocks.
+    const int threads = settings.thread_count == 0 && step_count <= 1024 / static_cast<std::size_t>(settings.path_count)
+                            ? 1
+                            : settings.thread_count;
+    const auto simulated = monte_carlo_blocks(settings.path_count, threads,
                                               [&](int block, int begin, int end) -> Result<void> {
                                                   auto& means = partials[static_cast<std::size_t>(block)];
                                                   for (int path = begin; path < end; ++path) {
@@ -155,6 +160,7 @@ Result<std::array<double, 3>> cpu_rate_prices(
 {
     std::array<Inputs, 3> inputs{};
     std::array<State, 3> initial{};
+    std::size_t step_count = 1;
     initial[0].payoff = base_price;
     for (std::size_t i = base_price ? 1 : 0; i < initial.size(); ++i) {
         const double rate = context.model_parameters().risk_free_rate() + std::array{0.0, h, -h}[i];
@@ -163,13 +169,15 @@ Result<std::array<double, 3>> cpu_rate_prices(
         auto prepared = prepare(*shifted);
         if (!prepared) return std::unexpected(prepared.error());
         inputs[i] = std::move(prepared->first);
+        if constexpr (requires { inputs[i].step_count; })
+            step_count = std::max(step_count, inputs[i].step_count.size());
+        else if constexpr (requires { inputs[i].size(); })
+            step_count = std::max(step_count, inputs[i].size());
         initial[i] = std::move(prepared->second);
     }
     std::array<double, 3> prices{};
     if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
-        const auto values = cpu_path_means<3>(settings, [&](auto& generator) {
-            return path_payoffs(inputs, initial, generator);
-        });
+        const auto values = cpu_path_means<3>(settings, [&](auto& generator) { return path_payoffs(inputs, initial, generator); }, step_count);
         if (!values) return std::unexpected(values.error());
         prices = *values;
     }

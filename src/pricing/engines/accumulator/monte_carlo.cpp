@@ -114,9 +114,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
                 rate_steps[i] = std::move(*prepared);
                 sequences[count + i] = rate_steps[i];
             }
-            const auto values = cpu_path_means<outputs>(settings, [&](auto& generator) {
-                return path_payoffs(option, sequences, initial, generator);
-            });
+            const auto values = cpu_path_means<outputs>(settings, [&](auto& generator) { return path_payoffs(option, sequences, initial, generator); }, steps->size());
             if (!values) return std::unexpected(values.error());
             prices = *values;
         } else if (settings.backend == MonteCarloBackend::cuda) {
@@ -129,9 +127,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
             return std::unexpected(Error{ErrorCategory::backend_unavailable, "CUDA support is not enabled in this build"});
 #endif
         } else {
-            const auto values = cpu_path_means<count>(settings, [&](auto& generator) {
-                return path_payoffs(option, *steps, initial, generator);
-            });
+            const auto values = cpu_path_means<count>(settings, [&](auto& generator) { return path_payoffs(option, *steps, initial, generator); }, steps->size());
             if (!values) return std::unexpected(values.error());
             prices = *values;
         }
@@ -183,9 +179,7 @@ Result<double> price_accumulator(
                                      "CUDA support is not enabled in this build"});
 #endif
     }
-    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) {
-        return path_payoffs(option, *steps, std::array{PathState{context.spot_price(), initial.quantity, {}}}, generator);
-    });
+    const auto prices = cpu_path_means<1>(settings, [&](auto& generator) { return path_payoffs(option, *steps, std::array{PathState{context.spot_price(), initial.quantity, {}}}, generator); }, steps->size());
     if (!prices) return std::unexpected(prices.error());
     return checked_price((*prices)[0]);
 }
