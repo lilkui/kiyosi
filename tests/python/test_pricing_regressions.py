@@ -31,6 +31,58 @@ from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_european_binomial_expectations_match_full_rollback(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        for steps in (1, 2, 17, 128, 1000, 1024):
+            rates = (-6.4, 6.4) if steps == 1024 else (-0.2, 0.04, 0.2)
+            for rate in rates:
+                up = math.exp(0.2 / math.sqrt(steps))
+                down = 1 / up
+                probability = math.expm1(
+                    rate / steps + 0.2 / math.sqrt(steps)
+                ) / math.expm1(0.4 / math.sqrt(steps))
+                discount = math.exp(-rate / steps)
+                for direction, sign in (("call", 1), ("put", -1)):
+                    with self.subTest(steps=steps, rate=rate, direction=direction):
+                        values = []
+                        spot = 100 * down**steps
+                        for _ in range(steps + 1):
+                            values.append(max(sign * (spot - 100), 0))
+                            spot *= up * up
+                        for level in range(steps, 0, -1):
+                            values = [
+                                discount
+                                * (
+                                    probability * values[i + 1]
+                                    + (1 - probability) * values[i]
+                                )
+                                for i in range(level)
+                            ]
+                        option = EuropeanOption(
+                            option_type=direction,
+                            strike=100,
+                            effective_date=start,
+                            expiry_date=end,
+                        )
+                        context = PricingContext(
+                            model_parameters=BlackScholesMertonParameters(
+                                risk_free_rate=rate, dividend_yield=0, volatility=0.2
+                            ),
+                            spot_price=100,
+                            valuation_time=start,
+                        )
+                        engine = pricing.CoxRossRubinsteinVanillaEngine(steps)
+                        price = engine.price(option, context)
+                        self.assertAlmostEqual(
+                            price, values[0], delta=max(1e-10, abs(values[0]) * 1e-11)
+                        )
+                        self.assertEqual(
+                            engine.price_with_greeks(
+                                option, context, ["delta", "gamma"]
+                            ).price,
+                            price,
+                        )
+
     def test_vanilla_small_volatility_tail_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         # Independent 100-digit Black-Scholes evaluations of the exact float inputs.

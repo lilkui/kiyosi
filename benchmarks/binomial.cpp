@@ -12,7 +12,7 @@ void register_binomial_cases()
     const Date start{std::chrono::year{2025} / 1 / 1};
     const Date expiry{std::chrono::year{2026} / 1 / 1};
     const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 100.0, start).value();
-    for (const int steps : {128, 256, 1000, 4096}) {
+    for (const int steps : {128, 256, 512, 1000, 4096}) {
         const auto engine = make_cox_ross_rubinstein_vanilla_engine({steps}).value();
         const auto add = [&](const char* exercise, const auto& option) {
             const std::string prefix = std::string{"binomial/"} + exercise + "/" + std::to_string(steps);

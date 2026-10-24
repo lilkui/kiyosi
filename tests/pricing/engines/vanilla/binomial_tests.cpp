@@ -8,11 +8,78 @@
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
+#include "pricing/detail/binomial.hpp"
 
 namespace {
 
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
+
+TEST_CASE("European binomial expectations match full rollback", "[binomial-expectation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    for (const int steps : {1, 2, 3, 17, 128, 512, 1000, 1024})
+        for (const double rate : {-0.2, 0.04, 0.2})
+            for (const auto type : {OptionType::call, OptionType::put}) {
+                CAPTURE(steps, rate, type);
+                const double up = std::exp(0.2 / std::sqrt(steps));
+                const double down = 1.0 / up;
+                const double probability = std::expm1(rate / steps + 0.2 / std::sqrt(steps)) / std::expm1(0.4 / std::sqrt(steps));
+                const double discount = std::exp(-rate / steps);
+                const double sign = type == OptionType::call ? 1.0 : -1.0;
+                std::vector<double> values(static_cast<std::size_t>(steps) + 1);
+                double spot = 100.0 * std::pow(down, steps);
+                for (auto& value : values) {
+                    value = std::max(sign * (spot - 100.0), 0.0);
+                    spot *= up * up;
+                }
+                std::array<double, 3> second{};
+                std::array<double, 2> first{};
+                for (int level = steps; level > 0; --level) {
+                    if (level == 2) second = {values[0], values[1], values[2]};
+                    if (level == 1) first = {values[0], values[1]};
+                    REQUIRE(detail::binomial_rollback<false>(std::span{values}.first(level + 1), discount, probability, 0.0, 0.0, 0.0, 0.0));
+                }
+                const auto option = make_european_option(type, 100.0, start, end).value();
+                const auto context = make_pricing_context(make_bsm_parameters(rate, 0.0, 0.2).value(), 100.0, start).value();
+                const auto engine = make_cox_ross_rubinstein_vanilla_engine({steps}).value();
+                const auto price = engine.price(option, context);
+                REQUIRE(price);
+                CHECK_THAT(*price, Catch::Matchers::WithinAbs(values[0], 1e-10));
+                const auto greeks = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+                REQUIRE(greeks);
+                CHECK(greeks->price() == *price);
+                CHECK_THAT(greek_value(*greeks, Greek::delta), Catch::Matchers::WithinAbs((first[1] - first[0]) / (100.0 * (up - down)), 1e-10));
+                if (steps >= 2) {
+                    const double gamma = ((second[2] - second[1]) / (100.0 * (up * up - 1.0)) - (second[1] - second[0]) / (100.0 * (1.0 - down * down))) / (50.0 * (up * up - down * down));
+                    CHECK_THAT(greek_value(*greeks, Greek::gamma), Catch::Matchers::WithinAbs(gamma, 1e-10));
+                }
+            }
+}
+
+TEST_CASE("European binomial expectations retain deterministic endpoints and overflow errors", "[binomial-expectation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto engine = make_cox_ross_rubinstein_vanilla_engine({1024}).value();
+    for (const double rate : {-6.4, 6.4}) {
+        const auto context = make_pricing_context(make_bsm_parameters(rate, 0.0, 0.2).value(), 100.0, start).value();
+        for (const auto type : {OptionType::call, OptionType::put}) {
+            const auto option = make_european_option(type, 100.0, start, end).value();
+            const double sign = type == OptionType::call ? 1.0 : -1.0;
+            const double terminal = 100.0 * std::exp(rate);
+            const double expected = std::max(sign * (terminal - 100.0), 0.0) * std::exp(-rate);
+            const auto actual = engine.price(option, context);
+            REQUIRE(actual);
+            CHECK_THAT(*actual, Catch::Matchers::WithinAbs(expected, std::max(1e-10, expected * 1e-11)));
+        }
+    }
+    const auto context = make_pricing_context(make_bsm_parameters(-1000.0, -1000.0, 0.2).value(), 100.0, start).value();
+    const auto price = engine.price(make_european_option(OptionType::put, 100.0, start, end).value(), context);
+    REQUIRE_FALSE(price);
+    CHECK(price.error().category == ErrorCategory::invalid_result);
+}
 
 TEST_CASE("Binomial immediate exercise returns payoff Greeks", "[binomial-exercise-greeks]")
 {

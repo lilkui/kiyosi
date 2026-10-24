@@ -11,11 +11,46 @@
 
 #include "../../detail/math.hpp"
 #include "../../detail/binomial.hpp"
+#include "../monte_carlo_mean.hpp"
 
 namespace kiyosi {
 using namespace detail;
 
 namespace {
+
+std::array<double, 3> european_level(std::span<const double> terminal, double probability,
+                                     double discount, int level)
+{
+    const int steps = static_cast<int>(terminal.size()) - 1 - level;
+    const double log_discount = steps == 0 ? 0.0 : steps * std::log(discount);
+    std::array<double, 3> result{};
+    if (steps == 0 || probability == 0.0 || probability == 1.0) {
+        const auto first = probability == 1.0 ? static_cast<std::size_t>(steps) : 0;
+        for (int node = 0; node <= level; ++node)
+            result[node] = scaled_exponential(terminal[first + node], log_discount);
+        return result;
+    }
+    const int mode = std::min(steps, static_cast<int>((steps + 1.0) * probability));
+    const double log_odds = std::log(probability) - std::log1p(-probability);
+    std::vector<double> log_weights(static_cast<std::size_t>(steps) + 1);
+    // Relative weights start at the mode; neither endpoint probability needs to be representable.
+    for (int node = mode; node > 0; --node)
+        log_weights[node - 1] = log_weights[node] + std::log(static_cast<double>(node) / (steps - node + 1)) - log_odds;
+    for (int node = mode; node < steps; ++node)
+        log_weights[node + 1] = log_weights[node] + std::log(static_cast<double>(steps - node) / (node + 1)) + log_odds;
+    MonteCarloMean normalization{};
+    std::array<MonteCarloMean, 3> sums{};
+    for (int index = 0; index <= steps; ++index) {
+        normalization.add(std::exp(log_weights[index]));
+        for (int node = 0; node <= level; ++node)
+            sums[node].add(scaled_exponential(terminal[index + node], log_weights[index]));
+    }
+    const double total = std::ldexp(normalization.sum, normalization.exponent);
+    for (int node = 0; node <= level; ++node)
+        result[node] = scaled_exponential(std::ldexp(sums[node].sum / total, sums[node].exponent), log_discount);
+    return result;
+}
+
 template <typename Option>
 Result<PricingResult> price_binomial(
     const Option& option, const PricingContext& context, BinomialSettings settings, GreeksRequest requested_output)
@@ -66,30 +101,45 @@ Result<PricingResult> price_binomial(
 
     std::array<double, 3> level_two{};
     std::array<double, 2> level_one{};
-    if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
-    if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
-    node_spot = spot * std::pow(down, settings.step_count - 1);
-    for (int level = settings.step_count - 1; level >= 0; --level) {
-        if (level < settings.step_count - 1) node_spot *= up;
-        if constexpr (american) {
-            if (level == 0) {
-                const double continuation = discount * (probability * values[1] + (1.0 - probability) * values[0]);
-                const double exercise = sign * (spot - strike);
-                if (exercise > 0.0 && exercise > continuation)
-                    return make_pricing_result(exercise,
-                                               {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{sign} : std::nullopt},
-                                                {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+    // Keep rollback's intermediate-overflow rejection when the terminal bound is not representable.
+    const bool direct = !american && settings.step_count >= 512 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
+    if (direct) {
+        const double value = european_level(values, probability, discount, 0)[0];
+        if (requested_output.has(Greek::gamma) && settings.step_count >= 2) {
+            level_two = european_level(values, probability, discount, 2);
+            level_one = {discount * (probability * level_two[1] + (1.0 - probability) * level_two[0]),
+                         discount * (probability * level_two[2] + (1.0 - probability) * level_two[1])};
+        } else if (requested_output.has(Greek::delta)) {
+            const auto first = european_level(values, probability, discount, 1);
+            level_one = {first[0], first[1]};
+        }
+        values[0] = value;
+    } else {
+        if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
+        if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
+        node_spot = spot * std::pow(down, settings.step_count - 1);
+        for (int level = settings.step_count - 1; level >= 0; --level) {
+            if (level < settings.step_count - 1) node_spot *= up;
+            if constexpr (american) {
+                if (level == 0) {
+                    const double continuation = discount * (probability * values[1] + (1.0 - probability) * values[0]);
+                    const double exercise = sign * (spot - strike);
+                    if (exercise > 0.0 && exercise > continuation)
+                        return make_pricing_result(exercise,
+                                                   {{Greek::delta, requested_output.has(Greek::delta) ? std::optional{sign} : std::nullopt},
+                                                    {Greek::gamma, requested_output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+                }
             }
-        }
-        if (!binomial_rollback<american>(std::span{values}.first(static_cast<std::size_t>(level) + 2), discount, probability,
-                                         node_spot, up_squared, strike, sign)) {
-            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                         "binomial pricing produced a non-finite result"});
-        }
-        if (requested_output.has(Greek::gamma) && level == 2) {
-            level_two = {values[0], values[1], values[2]};
-        } else if (requested_output.has(Greek::delta) && level == 1) {
-            level_one = {values[0], values[1]};
+            if (!binomial_rollback<american>(std::span{values}.first(static_cast<std::size_t>(level) + 2), discount, probability,
+                                             node_spot, up_squared, strike, sign)) {
+                return std::unexpected(Error{ErrorCategory::invalid_result,
+                                             "binomial pricing produced a non-finite result"});
+            }
+            if (requested_output.has(Greek::gamma) && level == 2) {
+                level_two = {values[0], values[1], values[2]};
+            } else if (requested_output.has(Greek::delta) && level == 1) {
+                level_one = {values[0], values[1]};
+            }
         }
     }
 
