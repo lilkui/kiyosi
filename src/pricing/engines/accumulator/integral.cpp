@@ -59,7 +59,7 @@ struct PreparedCurve {
     }
 };
 
-std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vector<double>& nodes,
+std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vector<double>& assets, double log_lower,
                                        std::span<const Curve> continuation, double remaining_time,
                                        std::size_t remaining_observations, double rate, double dividend)
 {
@@ -72,14 +72,14 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
                                 accumulator_purchase_quantity(0.0, strike, option.daily_quantity(), option.acceleration_factor());
     std::array<Layer, 2> result;
     for (std::size_t layer = 0; layer < continuation.size(); ++layer) {
-        result[layer].continuation.cells.reserve(nodes.size() - 1);
+        result[layer].continuation.cells.reserve(assets.size());
         const double quantity = layer == 0 ? 1.0 : low_quantity;
         result[layer].continuation.low = quantity * low_cash;
-        result[layer].exact.push_back({-infinity, nodes.front(), 0.0, quantity * low_asset});
+        result[layer].exact.push_back({-infinity, log_lower, 0.0, quantity * low_asset});
     }
     result[0].exact.push_back({knock_out, infinity, -strike, 1.0});
-    for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell) {
-        const double asset = strike * std::exp(std::midpoint(nodes[cell], nodes[cell + 1]));
+    for (std::size_t cell = 0; cell < assets.size(); ++cell) {
+        const double asset = assets[cell];
         Polynomial slope{}, intercept{};
         if (!accumulator_knocked_out(asset, option.knock_out_level())) {
             slope = continuation[0].cells[cell];
@@ -144,6 +144,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     auto grid = integration_nodes(lower, upper, settings.asset_step_count, std::array{0.0, knock_out});
     if (!grid) return std::unexpected(grid.error());
     auto nodes = std::move(*grid);
+    const auto assets = cell_assets(nodes, strike);
 
     std::map<double, Transition> transitions;
     std::array<Curve, 2> continuation;
@@ -151,7 +152,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     for (std::size_t event = dates.size(); event-- > 0;) {
         const bool final = event + 1 == dates.size();
         if (!final)
-            layers = apply_observation(option, nodes, std::span{continuation}.first(layer_count),
+            layers = apply_observation(option, assets, nodes.front(), std::span{continuation}.first(layer_count),
                                        actual_365_fixed_year_fraction(dates[event], option.expiry_date()), dates.size() - event, rate, dividend);
         const double time = event == 0 ? actual_365_fixed_year_fraction(context.valuation_time(), dates[event])
                                        : actual_365_fixed_year_fraction(dates[event - 1], dates[event]);

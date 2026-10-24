@@ -57,6 +57,7 @@ struct PreparedCurve {
 // Coupon trials keep the market, event levels and integration domain fixed.
 struct CouponWorkspace {
     std::vector<double> nodes;
+    std::vector<double> assets;
     std::map<double, Transition> transitions;
 };
 
@@ -77,14 +78,14 @@ std::array<double, 2> event_limits(const AutocallableProgram& program, const Aut
 }
 
 Curve apply_event(const AutocallableProgram& program, const AutocallableEvent& event,
-                  const std::vector<double>& nodes, double anchor, const Curve& alive, const Curve& knocked_in,
+                  const std::vector<double>& assets, const Curve& alive, const Curve& knocked_in,
                   bool transition)
 {
     const auto limits = event_limits(program, event, alive);
     Curve result{{}, transition && program_knocked_in(program, 0.0, false, false) ? event_limits(program, event, knocked_in)[0] : limits[0], limits[1]};
     result.cells.reserve(alive.cells.size());
     for (std::size_t i = 0; i < alive.cells.size(); ++i) {
-        const double asset = anchor * std::exp(std::midpoint(nodes[i], nodes[i + 1]));
+        const double asset = assets[i];
         if (event.active && program_knocked_out(event, asset)) {
             result.cells.push_back({program.principal_ratio + program_observation_coupon(event, asset), 0.0, 0.0, 0.0});
         } else {
@@ -193,6 +194,7 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
         if (!grid) return std::unexpected(grid.error());
         storage.nodes = std::move(*grid);
+        storage.assets = cell_assets(storage.nodes, anchor);
     }
     auto& nodes = storage.nodes;
     auto& transitions = storage.transitions;
@@ -202,8 +204,8 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         const auto& event = events[event_index];
         const bool final = event_index + 1 == events.size();
         if (!final) {
-            Curve next_alive = apply_event(program, event.terms, nodes, anchor, alive, knocked_in, layers);
-            if (layers) knocked_in = apply_event(program, event.terms, nodes, anchor, knocked_in, knocked_in, false);
+            Curve next_alive = apply_event(program, event.terms, storage.assets, alive, knocked_in, layers);
+            if (layers) knocked_in = apply_event(program, event.terms, storage.assets, knocked_in, knocked_in, false);
             alive = std::move(next_alive);
         }
         const double time = event_index == 0 ? event.time : actual_365_fixed_year_fraction(events[event_index - 1].date, event.date);

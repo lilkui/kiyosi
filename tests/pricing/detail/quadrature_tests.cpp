@@ -54,6 +54,19 @@ TEST_CASE("Quadrature grid preserves exact breaks and removes duplicate nodes", 
     CHECK(*nodes == std::vector<double>{-1.0, -0.5, 0.0, 0.25, 0.5, 1.0});
 }
 
+TEST_CASE("Quadrature cell assets follow geometric midpoints on irregular grids", "[quadrature-kernel]")
+{
+    const double log_two = std::numbers::ln2;
+    const std::vector<double> nodes{-2.0 * log_two, -log_two, log_two, 3.0 * log_two};
+    for (const double anchor : {100.0, 1e300}) {
+        const auto assets = cell_assets(nodes, anchor);
+        REQUIRE(assets.size() == 3);
+        CHECK_THAT(assets[0], Catch::Matchers::WithinRel(anchor / std::sqrt(8.0), 1e-14));
+        CHECK(assets[1] == anchor);
+        CHECK_THAT(assets[2], Catch::Matchers::WithinRel(4.0 * anchor, 1e-14));
+    }
+}
+
 TEST_CASE("Quadrature terminal integration preserves asset-only and empty pieces", "[quadrature-kernel]")
 {
     const double deviation = 0.2;

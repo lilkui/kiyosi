@@ -57,6 +57,15 @@ inline Result<std::vector<double>> integration_nodes(double lower, double upper,
     return nodes;
 }
 
+// Asset prices at the geometric center of each cell in a validated log grid.
+inline std::vector<double> cell_assets(const std::vector<double>& nodes, double anchor)
+{
+    std::vector<double> assets(nodes.size() - 1);
+    for (std::size_t cell = 0; cell < assets.size(); ++cell)
+        assets[cell] = anchor * std::exp(std::midpoint(nodes[cell], nodes[cell + 1]));
+    return assets;
+}
+
 inline double log_interval_mass(double lower, double upper)
 {
     if (lower >= upper) return -infinity;
