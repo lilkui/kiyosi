@@ -200,35 +200,59 @@ inline Curve interpolate(const std::vector<double>& nodes, const std::vector<dou
 }
 
 struct Transition {
+    struct Row {
+        std::size_t first{};
+        std::size_t offset{};
+        std::size_t count{};
+        friend bool operator==(const Row&, const Row&) = default;
+    };
     std::vector<IntervalMoments> weights;
     std::vector<std::array<double, 2>> tails;
+    std::vector<Row> rows;
 };
 
 inline Transition transition_weights(const std::vector<double>& nodes, double drift, double deviation)
 {
     Transition transition;
     const std::size_t cells = nodes.size() - 1;
-    transition.weights.resize(nodes.size() * cells);
+    transition.rows.reserve(nodes.size());
+    std::size_t total = 0;
+    for (const double node : nodes) {
+        const double mean = node + drift;
+        // Beyond 56 standard deviations, the entire Gaussian tail is below the existing -1500 cutoff.
+        const double radius = 56.0 * deviation;
+        const auto lower = std::ranges::upper_bound(nodes, mean - radius) - nodes.begin();
+        const auto upper = std::ranges::lower_bound(nodes, mean + radius) - nodes.begin();
+        const auto first = std::min(cells, static_cast<std::size_t>(lower == 0 ? 0 : lower - 1));
+        const auto last = std::min(cells, static_cast<std::size_t>(upper));
+        const auto count = last - first;
+        transition.rows.push_back({first, total, count});
+        total += count;
+    }
+    transition.weights.resize(total);
     transition.tails.resize(nodes.size());
     for_each_target(nodes.size(), [&](std::size_t target) {
         const double mean = nodes[target] + drift;
         transition.tails[target] = {log_normal_cdf((nodes.front() - mean) / deviation),
                                     log_normal_cdf((mean - nodes.back()) / deviation)};
-        for (std::size_t cell = 0; cell < cells; ++cell)
-            transition.weights[target * cells + cell] = cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
+        const auto row = transition.rows[target];
+        for (std::size_t index = 0; index < row.count; ++index) {
+            const auto cell = row.first + index;
+            transition.weights[row.offset + index] = cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
+        }
     });
     return transition;
 }
 
 inline double integrate_curve(const Curve& curve, std::span<const IntervalMoments> weights,
-                              const std::array<double, 2>& tails, double log_discount)
+                              const std::array<double, 2>& tails, double log_discount, std::size_t first_cell = 0)
 {
     Sum sum;
     sum.add(scaled_exponential(curve.low, tails[0] + log_discount));
     sum.add(scaled_exponential(curve.high, tails[1] + log_discount));
     const double discount = std::exp(log_discount);
-    for (std::size_t cell = 0; cell < curve.cells.size(); ++cell)
-        sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[cell]) * discount : scaled_exponential(weights[cell].integrate(curve.cells[cell]), log_discount));
+    for (std::size_t cell = 0; cell < weights.size(); ++cell)
+        sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[first_cell + cell]) * discount : scaled_exponential(weights[cell].integrate(curve.cells[first_cell + cell]), log_discount));
     return sum.total();
 }
 
@@ -236,8 +260,9 @@ inline void integrate_curves(const Curve& curve, const Transition& transition, d
                              std::span<double> values)
 {
     for_each_target(values.size(), [&](std::size_t target) {
-        values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(target * curve.cells.size(), curve.cells.size()),
-                                         transition.tails[target], log_discount);
+        const auto row = transition.rows[target];
+        values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(row.offset, row.count),
+                                         transition.tails[target], log_discount, row.first);
     });
 }
 
@@ -246,9 +271,10 @@ inline void integrate_curve_pair(const Curve& first, const Curve& second, const 
                                  double log_discount, std::span<double> first_values, std::span<double> second_values)
 {
     for_each_target(first_values.size(), [&](std::size_t target) {
-        const auto weights = std::span{transition.weights}.subspan(target * first.cells.size(), first.cells.size());
-        first_values[target] = integrate_curve(first, weights, transition.tails[target], log_discount);
-        second_values[target] = integrate_curve(second, weights, transition.tails[target], log_discount);
+        const auto row = transition.rows[target];
+        const auto weights = std::span{transition.weights}.subspan(row.offset, row.count);
+        first_values[target] = integrate_curve(first, weights, transition.tails[target], log_discount, row.first);
+        second_values[target] = integrate_curve(second, weights, transition.tails[target], log_discount, row.first);
     });
 }
 

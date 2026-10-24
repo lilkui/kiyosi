@@ -17,6 +17,15 @@ namespace {
 using kiyosi::detail::scaled_exponential;
 using namespace kiyosi::detail::quadrature;
 
+Transition dense_transition(std::vector<IntervalMoments> weights, std::size_t cells)
+{
+    const auto targets = weights.size() / cells;
+    Transition result{std::move(weights), std::vector<std::array<double, 2>>(targets, {-infinity, -infinity}), {}};
+    for (std::size_t target = 0; target < targets; ++target)
+        result.rows.push_back({0, target * cells, cells});
+    return result;
+}
+
 double reference_integral(const Curve& curve, const std::vector<IntervalMoments>& weights,
                           const std::array<double, 2>& tails, double log_discount)
 {
@@ -83,17 +92,23 @@ TEST_CASE("Quadrature transitions preserve moments and tails across grid sizes",
     }
     const auto curve = interpolate(nodes, samples, -123.0, 456.0);
     const auto transition = transition_weights(nodes, 0.0001, deviation);
-    REQUIRE(transition.weights.size() == nodes.size() * curve.cells.size());
+    REQUIRE(transition.rows.size() == nodes.size());
+    CHECK(transition.weights.size() <= nodes.size() * curve.cells.size());
     std::vector<double> actual(nodes.size());
     integrate_curves(curve, transition, -0.001, actual);
     for (std::size_t target = 0; target < nodes.size(); ++target) {
         std::vector<IntervalMoments> reference;
         for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell) {
             reference.push_back(cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + 0.0001, deviation));
-            const auto& actual_moments = transition.weights[target * curve.cells.size() + cell];
-            CHECK(actual_moments.mass == reference.back().mass);
-            CHECK(actual_moments.log_mass == reference.back().log_mass);
-            CHECK(actual_moments.conditional == reference.back().conditional);
+            const auto row = transition.rows[target];
+            if (cell >= row.first && cell < row.first + row.count) {
+                const auto& actual_moments = transition.weights[row.offset + cell - row.first];
+                CHECK(actual_moments.mass == reference.back().mass);
+                CHECK(actual_moments.log_mass == reference.back().log_mass);
+                CHECK(actual_moments.conditional == reference.back().conditional);
+            } else {
+                CHECK(reference.back().log_mass < -1500.0);
+            }
         }
         const double mean = nodes[target] + 0.0001;
         const std::array tails{log_normal_cdf((nodes.front() - mean) / deviation), log_normal_cdf((mean - nodes.back()) / deviation)};
@@ -127,10 +142,28 @@ TEST_CASE("Quadrature paired curves exactly match independent integration", "[qu
     }
 }
 
+TEST_CASE("Quadrature compact rows preserve irregular-grid tails and tiny recoverable masses", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 512, std::array{-0.913, 0.017, 0.321}).value();
+    const double deviation = 0.2 / std::sqrt(365.0);
+    const double drift = GENERATE(-3.0, 0.0001, 3.0);
+    const auto transition = transition_weights(nodes, drift, deviation);
+    CHECK(transition.weights.size() < nodes.size() * (nodes.size() - 1) * 0.6);
+    const Curve curve{std::vector<Polynomial>(nodes.size() - 1, {1e300, -1e299, 1e298, -1e297}), -1e299, 1e299};
+    std::vector<double> actual(nodes.size());
+    integrate_curves(curve, transition, -740.0, actual);
+    for (std::size_t target = 0; target < nodes.size(); ++target) {
+        std::vector<IntervalMoments> dense;
+        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+            dense.push_back(cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + drift, deviation));
+        CHECK(actual[target] == reference_integral(curve, dense, transition.tails[target], -740.0));
+    }
+}
+
 TEST_CASE("Quadrature integration retains compensated cancellation in independent targets", "[quadrature-kernel]")
 {
     const Curve curve{{Polynomial{1e16, 0.0, 0.0, 0.0}, Polynomial{1.0, 0.0, 0.0, 0.0}, Polynomial{-1e16, 0.0, 0.0, 0.0}}, 0.0, 0.0};
-    Transition transition{std::vector<IntervalMoments>(7 * curve.cells.size()), std::vector<std::array<double, 2>>(7, {-infinity, -infinity})};
+    auto transition = dense_transition(std::vector<IntervalMoments>(7 * curve.cells.size()), curve.cells.size());
     for (std::size_t target = 0; target < transition.tails.size(); ++target)
         for (std::size_t cell = 0; cell < curve.cells.size(); ++cell) {
             const double mass = 0.5 * static_cast<double>(target + 1);
@@ -150,7 +183,7 @@ TEST_CASE("Quadrature integration recovers subnormal masses and isolates discard
         IntervalMoments{0.5, std::log(0.5), {}}, IntervalMoments{subnormal, std::log(subnormal), {}},
         IntervalMoments{0.0, -900.0, {}}, IntervalMoments{0.0, -1600.0, {std::numeric_limits<double>::quiet_NaN(), 0.0, 0.0}},
         IntervalMoments{0.0, -800.0, {}}, IntervalMoments{0.0, -1500.0, {}}, IntervalMoments{0.0, -infinity, {}}};
-    Transition transition{{weights.begin(), weights.end()}, std::vector<std::array<double, 2>>(weights.size(), {-infinity, -infinity})};
+    const auto transition = dense_transition({weights.begin(), weights.end()}, 1);
     std::array<double, weights.size()> values{};
     integrate_curves(curve, transition, 0.0, values);
     for (std::size_t target = 0; target < weights.size(); ++target) {
@@ -171,7 +204,7 @@ TEST_CASE("Quadrature integration preserves log-discount recovery and zero-recov
     const Curve curve{{Polynomial{coefficient, 0.0, 0.0, 0.0}}, 0.0, 0.0};
     const std::array weights{IntervalMoments{1.0, 0.0, {}}, IntervalMoments{0.0, -801.0, {}},
                              IntervalMoments{0.0, -760.0, {}}, IntervalMoments{0.0, -799.0, {}}, IntervalMoments{0.0, -900.0, {}}};
-    Transition transition{{weights.begin(), weights.end()}, std::vector<std::array<double, 2>>(weights.size(), {-infinity, -infinity})};
+    const auto transition = dense_transition({weights.begin(), weights.end()}, 1);
     std::array<double, weights.size()> values{};
     integrate_curves(curve, transition, discount, values);
     for (std::size_t target = 0; target < weights.size(); ++target) {
@@ -216,6 +249,7 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
     });
     REQUIRE(actual.weights.size() == reference.weights.size());
     CHECK(actual.tails == reference.tails);
+    CHECK(actual.rows == reference.rows);
     for (std::size_t index = 0; index < actual.weights.size(); ++index) {
         CHECK(actual.weights[index].mass == reference.weights[index].mass);
         CHECK(actual.weights[index].log_mass == reference.weights[index].log_mass);

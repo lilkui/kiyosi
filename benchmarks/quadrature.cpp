@@ -27,6 +27,7 @@ void register_quadrature_cases()
         benchmark::RegisterBenchmark(prefix + "/weights", [nodes, deviation](benchmark::State& state) {
             for (auto _ : state) {
                 auto transition = transition_weights(nodes, 0.0, deviation);
+                state.counters["weight_bytes"] = static_cast<double>(transition.weights.size() * sizeof(IntervalMoments));
                 benchmark::DoNotOptimize(transition);
             }
         })->UseRealTime();
