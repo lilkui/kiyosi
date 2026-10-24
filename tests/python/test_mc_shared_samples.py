@@ -137,7 +137,23 @@ class SharedSampleTests(unittest.TestCase):
                 if engine_type is pricing.MonteCarloVanillaEngine
                 else {}
             )
-            for paths in (256, 257, 513, 1024, 1025, 3072, 3073, 4096, 4097):
+            for paths in (
+                256,
+                257,
+                511,
+                512,
+                513,
+                767,
+                768,
+                769,
+                1024,
+                1025,
+                2000,
+                3072,
+                3073,
+                4096,
+                4097,
+            ):
                 serial = engine_type(
                     path_count=paths, seed=42, thread_count=1, **settings
                 )

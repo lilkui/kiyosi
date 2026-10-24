@@ -134,9 +134,11 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
     const auto seed = settings.seed ? *settings.seed : std::random_device{}();
     std::vector<std::array<MonteCarloMean, count>> partials(
         static_cast<std::size_t>(monte_carlo_block_count(settings.path_count)));
-    // Short paths cannot amortize automatic scheduling; retain the fixed random blocks.
-    const int threads = settings.thread_count == 0 && step_count <= 1024 / static_cast<std::size_t>(settings.path_count)
-                            ? 1
+    // Amortize each worker over a full random block and enough path steps.
+    const auto paths_per_thread = std::max<std::size_t>(monte_carlo_block_size, 512 / std::max(step_count, std::size_t{1}));
+    const int threads = settings.thread_count == 0
+                            ? std::clamp(settings.path_count / static_cast<int>(paths_per_thread), 1,
+                                         oneapi::tbb::this_task_arena::max_concurrency())
                             : settings.thread_count;
     const auto simulated = monte_carlo_blocks(settings.path_count, threads,
                                               [&](int block, int begin, int end) -> Result<void> {
