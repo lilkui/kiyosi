@@ -6,6 +6,7 @@
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "pricing/detail/finite_difference_domain.hpp"
@@ -14,6 +15,7 @@
 namespace {
 
 using kiyosi::test::day;
+using kiyosi::test::greek_value;
 
 TEST_CASE("Vanilla finite-difference speed reuses fixed-grid gamma with custom shifts", "[fd-performance]")
 {
@@ -222,6 +224,33 @@ TEST_CASE("Finite-difference American engines track analytic and binomial prices
     REQUIRE(tree_put.has_value());
     CHECK_THAT(*finite_put,
                WithinAbs(*tree_put, 0.1));
+}
+
+TEST_CASE("American finite-difference calls retain early-exercise boundaries", "[fd-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto american = *make_american_option(OptionType::call, 100.0, start, end);
+    const auto european = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto engine = *make_finite_difference_vanilla_engine({400, 800});
+    for (const auto [rate, dividend] : {std::pair{0.0, 0.0}, {0.05, 0.0}, {0.05, -0.02}, {-0.05, 0.0}, {0.05, 0.08}})
+        for (const double spot : {100.0, 200.0}) {
+            CAPTURE(rate, dividend, spot);
+            const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), spot, start);
+            const auto actual = engine.price_with_greeks(american, context, {Greek::delta, Greek::gamma});
+            const auto expected = AnalyticVanillaEngine{}.price_with_greeks(european, context, {Greek::delta, Greek::gamma});
+            REQUIRE(actual);
+            REQUIRE(expected);
+            CHECK(actual->price() == *engine.price(american, context));
+            CHECK(actual->price() >= std::max(spot - 100.0, 0.0));
+            if (rate >= 0.0 && dividend <= 0.0) {
+                CHECK_THAT(actual->price(), Catch::Matchers::WithinAbs(expected->price(), 0.02));
+                CHECK_THAT(greek_value(*actual, Greek::delta), Catch::Matchers::WithinAbs(greek_value(*expected, Greek::delta), 0.002));
+                CHECK_THAT(greek_value(*actual, Greek::gamma), Catch::Matchers::WithinAbs(greek_value(*expected, Greek::gamma), 0.001));
+            } else if (spot == 200.0) {
+                CHECK(actual->price() > expected->price() + 1.0);
+            }
+        }
 }
 
 TEST_CASE("Finite-difference boundaries preserve long-expiry volatility tails")

@@ -158,6 +158,53 @@ class PricingRegressionTests(unittest.TestCase):
                                 price,
                             )
 
+    def test_american_fd_calls_retain_early_exercise_boundaries(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        american, european = AmericanOption(**terms), EuropeanOption(**terms)
+        engine = pricing.FiniteDifferenceVanillaEngine(
+            asset_step_count=400, time_step_count=800
+        )
+        for rate, dividend in (
+            (0, 0),
+            (0.05, 0),
+            (0.05, -0.02),
+            (-0.05, 0),
+            (0.05, 0.08),
+        ):
+            for spot in (100, 200):
+                with self.subTest(rate=rate, dividend=dividend, spot=spot):
+                    context = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                        ),
+                        spot_price=spot,
+                        valuation_time=start,
+                    )
+                    actual = engine.price_with_greeks(
+                        american, context, ["delta", "gamma"]
+                    )
+                    expected = pricing.AnalyticVanillaEngine().price_with_greeks(
+                        european, context, ["delta", "gamma"]
+                    )
+                    self.assertEqual(actual.price, engine.price(american, context))
+                    self.assertGreaterEqual(actual.price, max(spot - 100, 0))
+                    if rate >= 0 and dividend <= 0:
+                        self.assertAlmostEqual(actual.price, expected.price, delta=0.02)
+                        self.assertAlmostEqual(
+                            actual.delta, expected.delta, delta=0.002
+                        )
+                        self.assertAlmostEqual(
+                            actual.gamma, expected.gamma, delta=0.001
+                        )
+                    elif spot == 200:
+                        self.assertGreater(actual.price, expected.price + 1)
+
     def test_binomial_expectations_recover_underflowed_tail_weights(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         steps, spot = 2048, 1e280

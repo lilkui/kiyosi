@@ -67,12 +67,13 @@ Result<PricingResult> price_finite_difference(
     std::vector<double> old(space->size());
     for (std::size_t index = 0; index < old.size(); ++index)
         old[index] = intrinsic(space->asset_at(index));
-    const auto exercise = american ? old : std::vector<double>{};
+    const bool can_exercise = american && (option.option_type() != OptionType::call || dividend > 0.0 || rate < 0.0);
+    const auto exercise = can_exercise ? old : std::vector<double>{};
 
     const auto marched = march_backward<true>(
         grid, parameters, old, boundary,
         [&](std::vector<double>& layer, double, double) {
-            if (!american) return;
+            if (!can_exercise) return;
             for (int index = 1; index < asset_step_count; ++index)
                 layer[static_cast<std::size_t>(index)] =
                     std::max(layer[static_cast<std::size_t>(index)], exercise[static_cast<std::size_t>(index)]);

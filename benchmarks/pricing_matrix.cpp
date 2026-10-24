@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cstdio>
 #include <exception>
+#include <format>
 #include <string>
 #include <vector>
 
@@ -81,6 +82,11 @@ void register_matrix()
     register_kiyosi("american/bjerksund_stensland", american, BjerksundStenslandVanillaEngine{}, context);
     register_kiyosi("american/crr", american, make_cox_ross_rubinstein_vanilla_engine({128}).value(), context);
     register_kiyosi("american/fd", american, make_finite_difference_vanilla_engine({80, 80}).value(), context);
+    const auto american_call = *make_american_option(OptionType::call, 100.0, start, expiry);
+    const auto no_dividend = *make_pricing_context(*make_bsm_parameters(0.04, 0.0, 0.2), 100.0, start);
+    for (const int steps : {200, 1000})
+        register_kiyosi(std::format("american_call_no_dividend/fd_{}", steps).c_str(), american_call,
+                        *make_finite_difference_vanilla_engine({steps, steps}), no_dividend, false);
     register_kiyosi("american/mc", american, make_monte_carlo_vanilla_engine({5'000, 20, 42}).value(), context);
     register_kiyosi("cash_digital/analytic", cash_digital, AnalyticDigitalEngine{}, context);
     register_kiyosi("cash_digital/fd", cash_digital, make_finite_difference_digital_engine({80, 80}).value(), context);
