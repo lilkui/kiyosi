@@ -313,6 +313,8 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const double quadrature_quote = quadrature.price(snowball, context).value();
     register_calculation("analytics/kiyosi/snowball/quadrature/implied_volatility", [=, snowball = snowball] { return implied_volatility(quadrature, snowball, context, quadrature_quote, {.lower_bound = 0.1, .upper_bound = 0.4}); }, "volatility");
     register_calculation("analytics/kiyosi/snowball/quadrature/implied_coupon", [=, snowball = snowball] { return implied_coupon(quadrature, snowball, context, quadrature_quote, CouponQuoteConvention::shift_maturity_coupon); }, "coupon");
+    register_calculation("analytics/kiyosi/snowball/quadrature/implied_coupon/independent_trials", [=, snowball = snowball] { return detail::solve_implied_coupon(quadrature, snowball, context, quadrature_quote, ImpliedCouponSettings{},
+                                                                                                                                                                  [](const auto& note, double coupon) { return detail::replace_coupon(note, coupon, CouponQuoteConvention::shift_maturity_coupon); }); }, "coupon");
     register_price("analytics/kiyosi/snowball/fd/expiry_only/fine_time_grid/price", expiry_note, make_finite_difference_autocallable_engine({200, 1000}).value(), base_context);
     const auto fixed_note = *make_snowball_option(
         {.maturity_coupon_rate = 0.0, .initial_spot = 100.0, .knock_in_level = 75.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = european.effective_date(), .expiry_date = european.expiry_date(), .observations = {{european.expiry_date(), 110.0, 0.0}}});

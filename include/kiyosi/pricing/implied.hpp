@@ -25,6 +25,7 @@ class FiniteDifferenceAutocallableEngine;
 class MonteCarloAccumulatorEngine;
 class MonteCarloAutocallableEngine;
 class MonteCarloVanillaEngine;
+class QuadratureAutocallableEngine;
 
 namespace detail {
 
@@ -391,6 +392,19 @@ template <AutocallableProduct Note>
 
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
     const FiniteDifferenceAutocallableEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings = {});
+
+/// Reuse the grid and transition weights within one solve; requests share no storage.
+template <AutocallableProduct Note>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
+    const QuadratureAutocallableEngine& engine, const Note& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings = {})
+    requires requires(const Note& value, double coupon) {
+        detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
+    };
+
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_coupon(
+    const QuadratureAutocallableEngine& engine, const PhoenixOption& option, const PricingContext& context,
     double observed_price, ImpliedCouponSettings settings = {});
 
 } // namespace kiyosi

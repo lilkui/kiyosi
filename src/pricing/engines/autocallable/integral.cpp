@@ -1,4 +1,5 @@
 #include <kiyosi/pricing/engines/autocallable/integral.hpp>
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <array>
@@ -51,6 +52,12 @@ struct PreparedCurve {
                                 log_normal_cdf((current + drift - nodes.back()) / deviation)},
                                discount);
     }
+};
+
+// Coupon trials keep the market, event levels and integration domain fixed.
+struct CouponWorkspace {
+    std::vector<double> nodes;
+    std::map<double, Transition> transitions;
 };
 
 double event_coupon(const AutocallableProgram& program, const AutocallableEvent& event, double asset)
@@ -124,7 +131,8 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
 
 template <AutocallableProduct Note>
 Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
-                                      const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared)
+                                      const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared,
+                                      CouponWorkspace* workspace = nullptr)
 {
     AutocallableContract<Note> contract{note, context.calendar()};
     const auto valid = contract.validate(context);
@@ -179,10 +187,15 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double lower = std::min(0.0, breaks.empty() ? 0.0 : breaks.front()) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max(0.0, breaks.empty() ? 0.0 : breaks.back()) + std::max(0.0, drift_rate * horizon) + extent;
-    auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
-    if (!grid) return std::unexpected(grid.error());
-    auto nodes = std::move(*grid);
-    std::map<double, Transition> transitions;
+    CouponWorkspace local;
+    auto& storage = workspace ? *workspace : local;
+    if (storage.nodes.empty()) {
+        auto grid = integration_nodes(lower, upper, settings.asset_step_count, breaks);
+        if (!grid) return std::unexpected(grid.error());
+        storage.nodes = std::move(*grid);
+    }
+    auto& nodes = storage.nodes;
+    auto& transitions = storage.transitions;
     Curve alive, knocked_in;
     std::vector<double> values(nodes.size()), values_in(layers ? nodes.size() : 0);
     for (std::size_t event_index = events.size(); event_index-- > 0;) {
@@ -200,7 +213,7 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         if (event_index == 0) {
-            prepared = PreparedCurve{scenario, std::move(nodes), std::move(alive), anchor, drift, deviation, discount};
+            prepared = PreparedCurve{scenario, workspace ? nodes : std::move(nodes), std::move(alive), anchor, drift, deviation, discount};
             return checked_price(initial.path.coupons + prepared->evaluate(context.spot_price()));
         }
         const Transition* transition = nullptr;
@@ -230,7 +243,52 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
     }
     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature has no future event"});
 }
+
+template <typename Note, typename ReplaceCoupon>
+Result<double> solve_coupon(
+    const QuadratureAutocallableEngine& engine, const Note& note, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
+{
+    CouponWorkspace workspace;
+    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
+                                        [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+                                            std::optional<PreparedCurve> prepared;
+                                            return integrate_autocallable(instrument, market, scalar.settings(), prepared, &workspace);
+                                        });
+}
 } // namespace
+
+template <AutocallableProduct Note>
+Result<double> implied_coupon(
+    const QuadratureAutocallableEngine& engine, const Note& option, const PricingContext& context,
+    double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
+    requires requires(const Note& value, double coupon) {
+        detail::replace_coupon(value, coupon, CouponQuoteConvention::preserve_maturity_coupon);
+    }
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [convention](const auto& instrument, double coupon) {
+        return detail::replace_coupon(instrument, coupon, convention);
+    });
+}
+
+Result<double> implied_coupon(
+    const QuadratureAutocallableEngine& engine, const PhoenixOption& option, const PricingContext& context,
+    double observed_price, ImpliedCouponSettings settings)
+{
+    return solve_coupon(engine, option, context, observed_price, settings, [](const auto& instrument, double coupon) {
+        return detail::replace_coupon(instrument, coupon);
+    });
+}
+
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const QuadratureAutocallableEngine&, const SnowballOption&, const PricingContext&, double,
+    CouponQuoteConvention, ImpliedCouponSettings);
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const QuadratureAutocallableEngine&, const BinarySnowballOption&, const PricingContext&, double,
+    CouponQuoteConvention, ImpliedCouponSettings);
+template KIYOSI_EXPORT Result<double> implied_coupon(
+    const QuadratureAutocallableEngine&, const TernarySnowballOption&, const PricingContext&, double,
+    CouponQuoteConvention, ImpliedCouponSettings);
 
 template <AutocallableProduct Note>
 Result<double> QuadratureAutocallableEngine::price(const Note& note, const PricingContext& context) const

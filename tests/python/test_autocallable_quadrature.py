@@ -695,6 +695,72 @@ class AutocallableQuadratureTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.UNBRACKETED_COUPON
         )
 
+    def test_coupon_workspace_recovers_four_products_with_changing_knock_in_exposure(
+        self,
+    ):
+        start, end = date(2025, 1, 1), date(2025, 4, 1)
+        dates = [date(2025, 2, 1), date(2025, 3, 1), end]
+        common = {"effective_date": start, "expiry_date": end}
+        coupons = {
+            "maturity_coupon_rate": 0.08,
+            "observations": autocallable_observations(
+                dates, [110, 108, 105], knock_out_coupon_rates=[0.08] * 3
+            ),
+        }
+        notes = (
+            SnowballOption(
+                **common,
+                **coupons,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=100,
+                knock_in_observation_mode="every_trading_day",
+            ),
+            BinarySnowballOption(**common, **coupons),
+            TernarySnowballOption(
+                **common,
+                **coupons,
+                minimum_coupon_rate=0,
+                knock_in_level=80,
+                knock_in_observation_mode="every_trading_day",
+            ),
+            PhoenixOption(
+                **common,
+                coupon_rate=0.08,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=60,
+                observations=autocallable_observations(
+                    dates, [110, 108, 105], coupon_barrier_levels=[95] * 3
+                ),
+                knock_in_observation_mode="every_trading_day",
+            ),
+        )
+        engine = pricing.QuadratureAutocallableEngine(asset_step_count=64)
+        market = context(volatility=0.2, rate=0.03)
+        for note in notes:
+            quote = engine.price(note, market)
+            for convention in ("preserve_maturity_coupon", "shift_maturity_coupon"):
+                kwargs = (
+                    {}
+                    if isinstance(note, PhoenixOption)
+                    else {"quote_convention": convention}
+                )
+                with self.subTest(product=type(note).__name__, convention=convention):
+                    solved = pricing.implied_coupon(
+                        engine,
+                        note,
+                        market,
+                        quote,
+                        lower_bound=0,
+                        upper_bound=0.2,
+                        price_tolerance=1e-10,
+                        **kwargs,
+                    )
+                    self.assertAlmostEqual(solved, 0.08, delta=1e-8)
+
     def test_current_knock_out_and_historical_knock_in(self):
         engine = pricing.QuadratureAutocallableEngine()
         middle = date(2025, 7, 1)

@@ -438,6 +438,41 @@ TEST_CASE("Quadrature implied volatility and coupon recover quotes and reject im
     CHECK(invalid.error().category == ErrorCategory::invalid_parameter);
 }
 
+TEST_CASE("Quadrature coupon workspaces match independent trials across changing knock-in exposure", "[autocallable-quadrature]")
+{
+    const auto start = day(2025, 1, 1), end = day(2025, 4, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.01, 0.2), 100.0, start, all_days_calendar());
+    const auto engine = make_quadrature_autocallable_engine({64, 8.0}).value();
+    const ImpliedCouponSettings settings{.lower_bound = 0.0, .upper_bound = 0.2, .price_tolerance = 1e-10};
+    const std::vector<AutocallableObservation> observations{{day(2025, 2, 1), 110.0, 0.08}, {day(2025, 3, 1), 108.0, 0.08}, {end, 105.0, 0.08}};
+    const auto check = [&](const auto& note) {
+        const auto quote = engine.price(note, context);
+        REQUIRE(quote);
+        for (const auto convention : {CouponQuoteConvention::preserve_maturity_coupon, CouponQuoteConvention::shift_maturity_coupon}) {
+            const auto replace = [convention](const auto& instrument, double coupon) {
+                if constexpr (requires { detail::replace_coupon(instrument, coupon, convention); })
+                    return detail::replace_coupon(instrument, coupon, convention);
+                else return detail::replace_coupon(instrument, coupon);
+            };
+            const auto independent = detail::solve_implied_coupon(engine, note, context, *quote, settings, replace);
+            const auto cached = [&] {
+                if constexpr (requires { implied_coupon(engine, note, context, *quote, convention, settings); })
+                    return implied_coupon(engine, note, context, *quote, convention, settings);
+                else return implied_coupon(engine, note, context, *quote, settings);
+            }();
+            if (!independent) INFO(independent.error().message);
+            REQUIRE(independent);
+            REQUIRE(cached);
+            CHECK(*cached == *independent);
+            CHECK(*cached == Catch::Approx(0.08).margin(1e-8));
+        }
+    };
+    check(*make_snowball_option({.maturity_coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 100.0, .effective_date = start, .expiry_date = end, .observations = observations}));
+    check(*make_binary_snowball_option({.maturity_coupon_rate = 0.08, .effective_date = start, .expiry_date = end, .observations = observations}));
+    check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.08, .minimum_coupon_rate = 0.0, .knock_in_level = 80.0, .effective_date = start, .expiry_date = end, .observations = observations}));
+    check(*make_phoenix_option({.coupon_rate = 0.08, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 2, 1), 110.0, 0.0, 95.0}, {day(2025, 3, 1), 108.0, 0.0, 95.0}, {end, 105.0, 0.0, 95.0}}}));
+}
+
 TEST_CASE("Quadrature shared engine calls retain independent request state", "[autocallable-quadrature]")
 {
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
