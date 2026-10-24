@@ -886,7 +886,8 @@ TEST_CASE("American Monte Carlo shared samples retain scalar Greek stencils", "[
                                     REQUIRE(expected);
                                     for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma},
                                                                         GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna, Greek::zomma},
-                                                                        GreeksRequest{Greek::vega}, GreeksRequest{Greek::rho}, GreeksRequest{Greek::vega, Greek::rho}}) {
+                                                                        GreeksRequest{Greek::vega}, GreeksRequest{Greek::rho}, GreeksRequest{Greek::vega, Greek::rho},
+                                                                        GreeksRequest{Greek::delta, Greek::vega, Greek::rho}}) {
                                         const auto actual = engine.price_with_greeks(option, context, request, shifts);
                                         REQUIRE(actual);
                                         CHECK(actual->price() == expected->price());

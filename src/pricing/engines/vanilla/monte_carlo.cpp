@@ -519,7 +519,7 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanO
             (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && stencils.speed_available) ||
              (stencils.volatility_available && (greeks.has(Greek::vanna) || greeks.has(Greek::zomma))) ||
              greeks.has(Greek::charm) || greeks.has(Greek::color));
-        const bool cache_normals = seeded.settings().backend == MonteCarloBackend::cpu && !cache_growth &&
+        const bool cache_normals = seeded.settings().backend == MonteCarloBackend::cpu &&
             ((stencils.volatility_available && greeks.has(Greek::vega)) ||
              (stencils.rate_available && greeks.has(Greek::rho)));
         const AmericanMonteCarloPricer prices{seeded.settings(), cache_growth, cache_normals};
