@@ -48,13 +48,16 @@ TEST_CASE("European binomial expectations match full rollback", "[binomial-expec
                 const auto price = engine.price(option, context);
                 REQUIRE(price);
                 CHECK_THAT(*price, Catch::Matchers::WithinAbs(values[0], 1e-10));
-                const auto greeks = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
-                REQUIRE(greeks);
-                CHECK(greeks->price() == *price);
-                CHECK_THAT(greek_value(*greeks, Greek::delta), Catch::Matchers::WithinAbs((first[1] - first[0]) / (100.0 * (up - down)), 1e-10));
-                if (steps >= 2) {
-                    const double gamma = ((second[2] - second[1]) / (100.0 * (up * up - 1.0)) - (second[1] - second[0]) / (100.0 * (1.0 - down * down))) / (50.0 * (up * up - down * down));
-                    CHECK_THAT(greek_value(*greeks, Greek::gamma), Catch::Matchers::WithinAbs(gamma, 1e-10));
+                for (const auto request : {GreeksRequest{Greek::delta}, GreeksRequest{Greek::gamma}, GreeksRequest{Greek::delta, Greek::gamma}}) {
+                    const auto greeks = engine.price_with_greeks(option, context, request);
+                    REQUIRE(greeks);
+                    CHECK(greeks->price() == *price);
+                    if (request.has(Greek::delta))
+                        CHECK_THAT(greek_value(*greeks, Greek::delta), Catch::Matchers::WithinAbs((first[1] - first[0]) / (100.0 * (up - down)), 1e-10));
+                    if (request.has(Greek::gamma) && steps >= 2) {
+                        const double gamma = ((second[2] - second[1]) / (100.0 * (up * up - 1.0)) - (second[1] - second[0]) / (100.0 * (1.0 - down * down))) / (50.0 * (up * up - down * down));
+                        CHECK_THAT(greek_value(*greeks, Greek::gamma), Catch::Matchers::WithinAbs(gamma, 1e-10));
+                    }
                 }
             }
 }

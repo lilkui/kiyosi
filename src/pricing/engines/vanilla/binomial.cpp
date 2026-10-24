@@ -18,16 +18,22 @@ using namespace detail;
 
 namespace {
 
-std::array<double, 3> european_level(std::span<const double> terminal, double probability,
-                                     double discount, int level)
+struct EuropeanLevels {
+    double price{};
+    std::array<double, 3> nodes{};
+};
+
+EuropeanLevels european_levels(std::span<const double> terminal, double probability,
+                               double discount, int level)
 {
-    const int steps = static_cast<int>(terminal.size()) - 1 - level;
-    const double log_discount = steps == 0 ? 0.0 : steps * std::log(discount);
-    std::array<double, 3> result{};
-    if (steps == 0 || probability == 0.0 || probability == 1.0) {
-        const auto first = probability == 1.0 ? static_cast<std::size_t>(steps) : 0;
+    const int steps = static_cast<int>(terminal.size()) - 1;
+    const double log_discount = std::log(discount);
+    EuropeanLevels result;
+    if (probability == 0.0 || probability == 1.0) {
+        result.price = scaled_exponential(terminal[probability == 1.0 ? steps : 0], steps * log_discount);
+        const auto first = probability == 1.0 ? static_cast<std::size_t>(steps - level) : 0;
         for (int node = 0; node <= level; ++node)
-            result[node] = scaled_exponential(terminal[first + node], log_discount);
+            result.nodes[node] = scaled_exponential(terminal[first + node], (steps - level) * log_discount);
         return result;
     }
     const int mode = std::min(steps, static_cast<int>((steps + 1.0) * probability));
@@ -39,18 +45,34 @@ std::array<double, 3> european_level(std::span<const double> terminal, double pr
     for (int node = mode; node < steps; ++node)
         log_weights[node + 1] = log_weights[node] + std::log(static_cast<double>(steps - node) / (node + 1)) + log_odds;
     MonteCarloMean normalization{};
+    MonteCarloMean price{};
     std::array<MonteCarloMean, 3> sums{};
     for (int index = 0; index <= steps; ++index) {
         const double weight = std::exp(log_weights[index]);
         normalization.add(weight);
         // Validated payoffs are finite; weights at most one cannot overflow their products.
         const bool direct_weight = std::isnormal(weight) && weight <= 1.0;
+        price.add(direct_weight ? terminal[index] * weight : scaled_exponential(terminal[index], log_weights[index]));
+        if (level == 0) continue;
+        const bool from_lower = probability <= 0.5;
+        const int first = from_lower ? index : index - level;
+        if (first < 0 || first > steps - level) continue;
+        // Remove one or two Bernoulli trials; scaling by 2^-level keeps relative weights <= 1.
+        double ratio = 1.0;
+        for (int removed = 0; removed < level; ++removed)
+            ratio *= (static_cast<double>(from_lower ? steps - index - removed : index - removed) / (steps - removed)) *
+                     (0.5 / (from_lower ? 1.0 - probability : probability));
+        const double level_weight = weight * ratio;
+        const bool direct_level_weight = std::isnormal(level_weight);
         for (int node = 0; node <= level; ++node)
-            sums[node].add(direct_weight ? terminal[index + node] * weight : scaled_exponential(terminal[index + node], log_weights[index]));
+            sums[node].add(direct_level_weight ? terminal[first + node] * level_weight
+                                               : scaled_exponential(terminal[first + node], log_weights[index] + std::log(ratio)));
     }
     const double total = std::ldexp(normalization.sum, normalization.exponent);
-    for (int node = 0; node <= level; ++node)
-        result[node] = scaled_exponential(std::ldexp(sums[node].sum / total, sums[node].exponent), log_discount);
+    result.price = scaled_exponential(std::ldexp(price.sum / total, price.exponent), steps * log_discount);
+    if (level != 0)
+        for (int node = 0; node <= level; ++node)
+            result.nodes[node] = scaled_exponential(std::ldexp(sums[node].sum / total, sums[node].exponent + level), (steps - level) * log_discount);
     return result;
 }
 
@@ -108,17 +130,18 @@ Result<PricingResult> price_binomial(
     // Keep rollback's intermediate-overflow rejection when the terminal bound is not representable.
     const bool direct = no_early_exercise && settings.step_count >= 512 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
     if (direct) {
-        const double value = european_level(values, probability, discount, 0)[0];
+        const int requested_level = requested_output.has(Greek::gamma) ? 2 : requested_output.has(Greek::delta) ? 1
+                                                                                                                : 0;
+        const auto levels = european_levels(values, probability, discount, requested_level);
         if (requested_output.has(Greek::gamma) && settings.step_count >= 2) {
-            level_two = european_level(values, probability, discount, 2);
+            level_two = levels.nodes;
             level_one = {discount * (probability * level_two[1] + (1.0 - probability) * level_two[0]),
                          discount * (probability * level_two[2] + (1.0 - probability) * level_two[1])};
         } else if (requested_output.has(Greek::delta)) {
-            const auto first = european_level(values, probability, discount, 1);
-            level_one = {first[0], first[1]};
+            level_one = {levels.nodes[0], levels.nodes[1]};
         }
         // Roundoff must not put an American call below immediate exercise.
-        values[0] = std::max(value, american ? spot - strike : 0.0);
+        values[0] = std::max(levels.price, american ? spot - strike : 0.0);
     } else {
         if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
         if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};

@@ -76,12 +76,13 @@ class PricingRegressionTests(unittest.TestCase):
                         self.assertAlmostEqual(
                             price, values[0], delta=max(1e-10, abs(values[0]) * 1e-11)
                         )
-                        self.assertEqual(
-                            engine.price_with_greeks(
-                                option, context, ["delta", "gamma"]
-                            ).price,
-                            price,
-                        )
+                        for request in (["delta"], ["gamma"], ["delta", "gamma"]):
+                            self.assertEqual(
+                                engine.price_with_greeks(
+                                    option, context, request
+                                ).price,
+                                price,
+                            )
 
     def test_binomial_expectations_recover_underflowed_tail_weights(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
