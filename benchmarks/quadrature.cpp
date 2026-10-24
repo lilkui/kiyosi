@@ -63,6 +63,12 @@ void register_quadrature_cases()
 
     const Date start{std::chrono::year{2025} / 1 / 1};
     const Date expiry{std::chrono::year{2025} / 4 / 1};
+    for (const bool inactive : {false, true}) {
+        const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 90.0, start_of_day(start) + std::chrono::hours{12}, all_days_calendar()).value();
+        const auto option = make_accumulator({100.0, inactive ? 95.0 : 110.0, inactive ? 1.0 : 0.0, inactive ? 0.0 : 2.0, 3.0, start, expiry}).value();
+        const std::string name = std::string{"quadrature/accumulator/"} + (inactive ? "inactive_accrual" : "fixed_quantity");
+        register_price((name + "/price").c_str(), option, QuadratureAccumulatorEngine{}, context)->UseRealTime();
+    }
     for (const auto barrier_state : {AutocallableBarrierState::none, AutocallableBarrierState::knocked_in}) {
         const auto valuation = barrier_state == AutocallableBarrierState::none ? start : start + std::chrono::days{2};
         const auto context = make_pricing_context(make_bsm_parameters(0.03, 0.01, 0.2).value(), 100.0, valuation, all_days_calendar()).value();

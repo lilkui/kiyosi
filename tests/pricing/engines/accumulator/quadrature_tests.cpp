@@ -301,6 +301,31 @@ TEST_CASE("Accumulator quadrature preserves quantity affinity exact limits and s
     CHECK(*engine.price(contract(end), context) == *async.get());
 }
 
+TEST_CASE("Accumulator quadrature without future purchases preserves fixed holdings", "[accumulator-quadrature][quadrature-fixed-holdings]")
+{
+    const auto end = day(2025, 2, 3);
+    const auto context = market(90.0, start_of_day(day(2025, 1, 1)) + std::chrono::hours{12});
+    const QuadratureAccumulatorEngine engine;
+    const auto reference = make_finite_difference_accumulator_engine({1600, 1200}).value();
+    for (const bool inactive : {false, true}) {
+        const auto option = contract(end, inactive ? 95.0 : 110.0, inactive ? 0.0 : 2.0, inactive ? 1.0 : 0.0, 3.0);
+        const auto price = engine.price(option, context);
+        const auto expected = reference.price(option, context);
+        REQUIRE(price);
+        REQUIRE(expected);
+        CHECK(*price == Catch::Approx(*expected).margin(5e-4));
+        CHECK(*engine.price(option.replace(6.0).value(), context) == Catch::Approx(2.0 * *price).margin(1e-11));
+        const auto result = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma}, {.spot_shift = 0.01});
+        REQUIRE(result);
+        const auto high = engine.price(option, context.replace({.spot_price = 90.01}).value());
+        const auto low = engine.price(option, context.replace({.spot_price = 89.99}).value());
+        REQUIRE(high);
+        REQUIRE(low);
+        CHECK(*result->require(Greek::delta) == Catch::Approx((*high - *low) / 0.02).margin(1e-9));
+        CHECK(*result->require(Greek::gamma) == Catch::Approx(((*high - *price) - (*price - *low)) / 0.01 / 0.01).margin(1e-9));
+    }
+}
+
 TEST_CASE("Accumulator quadrature Greek availability follows shared observation rules", "[accumulator-quadrature]")
 {
     const auto option = contract(day(2025, 2, 3));

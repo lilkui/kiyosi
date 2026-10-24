@@ -93,6 +93,41 @@ def exposure(option, context):
 
 
 class AccumulatorQuadratureTests(unittest.TestCase):
+    def test_fixed_holdings_without_future_purchases(self):
+        context = market(spot=90)
+        engine = pricing.QuadratureAccumulatorEngine()
+        reference = pricing.FiniteDifferenceAccumulatorEngine(
+            asset_step_count=1600, time_step_count=1200
+        )
+        for inactive in (False, True):
+            option = contract(
+                knock_out=95 if inactive else 110,
+                acceleration=0 if inactive else 2,
+                daily=1 if inactive else 0,
+                quantity=3,
+            )
+            with self.subTest(inactive=inactive):
+                price = engine.price(option, context)
+                self.assertAlmostEqual(
+                    price, reference.price(option, context), delta=5e-4
+                )
+                self.assertAlmostEqual(
+                    engine.price(option.replace(accumulated_quantity=6), context),
+                    2 * price,
+                    delta=1e-11,
+                )
+                result = engine.price_with_greeks(
+                    option, context, ["delta", "gamma"], spot_shift=0.01
+                )
+                high = engine.price(option, context.replace(spot_price=90.01))
+                low = engine.price(option, context.replace(spot_price=89.99))
+                self.assertAlmostEqual(result.delta, (high - low) / 0.02, delta=1e-9)
+                self.assertAlmostEqual(
+                    result.gamma,
+                    ((high - price) - (price - low)) / 0.01 / 0.01,
+                    delta=1e-9,
+                )
+
     def test_configuration_protocols_and_ownership(self):
         engine = pricing.QuadratureAccumulatorEngine()
         self.assertEqual(engine.asset_step_count, 512)
