@@ -150,6 +150,36 @@ TEST_CASE("Quadrature transitions preserve moments and tails across grid sizes",
     }
 }
 
+TEST_CASE("Quadrature reused moments preserve exact relative cell geometry", "[quadrature-kernel]")
+{
+    for (const double origin : {-1.0, 1024.3})
+        for (const double drift : {0.0, 0.0001, -3.0, 3.0, -8.0, 8.0})
+            for (const bool irregular : {false, true}) {
+                auto nodes = integration_nodes(origin, origin + 2.0, 64, {}).value();
+                if (irregular) {
+                    nodes[31] = std::nextafter(nodes[31], nodes[32]);
+                    nodes.insert(nodes.begin() + 12, std::midpoint(nodes[11], nodes[12]));
+                }
+                const auto transition = transition_weights(nodes, drift, 0.02);
+                if (std::abs(drift) == 8.0) CHECK(transition.weights.empty());
+                for (std::size_t target = 0; target < nodes.size(); ++target) {
+                    const double mean = nodes[target] + drift;
+                    const std::array tails{kiyosi::detail::log_normal_cdf((nodes.front() - mean) / 0.02),
+                                           kiyosi::detail::log_normal_cdf((mean - nodes.back()) / 0.02)};
+                    CHECK(transition.tails[target] == tails);
+                    const auto row = transition.rows[target];
+                    for (std::size_t index = 0; index < row.count; ++index) {
+                        const auto cell = row.first + index;
+                        const auto expected = cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + drift, 0.02);
+                        const auto& actual = transition.weights[row.offset + index];
+                        CHECK(actual.mass == expected.mass);
+                        CHECK(actual.log_mass == expected.log_mass);
+                        CHECK(actual.conditional == expected.conditional);
+                    }
+                }
+            }
+}
+
 TEST_CASE("Quadrature paired curves exactly match independent integration", "[quadrature-kernel]")
 {
     const auto nodes = integration_nodes(-1.0, 1.0, GENERATE(17, 128, 513), std::array{-0.123, 0.456}).value();

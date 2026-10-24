@@ -226,8 +226,9 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
     const std::size_t cells = nodes.size() - 1;
     transition.rows.reserve(nodes.size());
     std::size_t total = 0;
-    for (const double node : nodes) {
-        const double mean = node + drift;
+    std::size_t first_offset = 2 * cells, last_offset = 0;
+    for (std::size_t target = 0; target < nodes.size(); ++target) {
+        const double mean = nodes[target] + drift;
         // Beyond 56 standard deviations, the entire Gaussian tail is below the existing -1500 cutoff.
         const double radius = 56.0 * deviation;
         const auto lower = std::ranges::upper_bound(nodes, mean - radius) - nodes.begin();
@@ -237,7 +238,28 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
         const auto count = last - first;
         transition.rows.push_back({first, total, count});
         total += count;
+        if (count != 0) {
+            first_offset = std::min(first_offset, cells + first - target);
+            last_offset = std::max(last_offset, cells + last - target);
+        }
     }
+    const auto geometry = [&](std::size_t cell, double mean) {
+        return std::array{nodes[cell + 1] - nodes[cell], std::midpoint(nodes[cell], nodes[cell + 1]) - mean,
+                          nodes[cell] - mean, nodes[cell + 1] - mean};
+    };
+    struct CachedMoments {
+        std::array<double, 4> geometry{};
+        IntervalMoments moments;
+    };
+    // Reuse only exactly translated cells, including the midpoint's floating-point rounding.
+    std::vector<CachedMoments> stencil(last_offset > first_offset ? last_offset - first_offset : 0);
+    for_each_target(stencil.size(), [&](std::size_t index) {
+        const auto offset = first_offset + index;
+        const auto cell = offset >= cells ? offset - cells : 0;
+        const auto target = offset < cells ? cells - offset : 0;
+        const double mean = nodes[target] + drift;
+        stencil[index] = {geometry(cell, mean), cell_moments(nodes[cell], nodes[cell + 1], mean, deviation)};
+    });
     transition.weights.resize(total);
     transition.tails.resize(nodes.size());
     for_each_target(nodes.size(), [&](std::size_t target) {
@@ -247,7 +269,10 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
         const auto row = transition.rows[target];
         for (std::size_t index = 0; index < row.count; ++index) {
             const auto cell = row.first + index;
-            transition.weights[row.offset + index] = cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
+            const auto& cached = stencil[cells + cell - target - first_offset];
+            transition.weights[row.offset + index] = geometry(cell, mean) == cached.geometry
+                                                         ? cached.moments
+                                                         : cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
         }
     });
     return transition;
