@@ -123,6 +123,7 @@ void kiyosi::benchmark_support::register_analytics_cases()
     const auto snowball_monte_carlo = make_monte_carlo_autocallable_engine({20'000, 42}).value();
     register_price("analytics/kiyosi/snowball/mc/price", snowball, snowball_monte_carlo, context)->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_rho", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::rho}); }, "price")->UseRealTime();
     register_calculation("analytics/kiyosi/snowball/mc/delta_gamma_unavailable_speed", [=, snowball = snowball] { return snowball_monte_carlo.price_with_greeks(snowball, context, {Greek::delta, Greek::gamma, Greek::speed}, {.spot_shift = 60.0}); }, "price")->UseRealTime();
     const FiniteDifferenceAccumulatorEngine accumulator_engine{};
     const auto accumulator_monte_carlo = make_monte_carlo_accumulator_engine({20'000, 42}).value();

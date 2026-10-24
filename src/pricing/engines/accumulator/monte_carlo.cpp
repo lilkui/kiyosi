@@ -74,17 +74,20 @@ Result<void> validate_pricing(const Accumulator& option, const PricingContext& c
     return validate_trading_expiry(context.calendar(), option.expiry_date());
 }
 
-template <std::size_t count>
-Result<std::array<double, count>> price_spot_bumps(
+template <std::size_t count, bool rates = false>
+Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
     const Accumulator& option, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
-    double h, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
+    double h, [[maybe_unused]] CudaWorkspace* workspace = nullptr, double rate_shift = 0.0)
 {
     constexpr auto offsets = SpotStencil<count>::offsets;
-    std::array<PathState, count> initial{};
-    for (std::size_t i = 0; i < count; ++i) {
-        const double spot = context.spot_price() + offsets[i] * h;
+    constexpr auto outputs = count + (rates ? 2 : 0);
+    std::array<PathState, outputs> initial{};
+    for (std::size_t i = 0; i < outputs; ++i) {
+        const double spot = context.spot_price() + (i < count ? offsets[i] * h : 0.0);
+        const double rate = context.model_parameters().risk_free_rate() + (i < count ? 0.0 : i == count ? rate_shift
+                                                                                                        : -rate_shift);
         const auto shifted = shifted_context(context, spot, context.model_parameters().volatility(),
-                                             context.model_parameters().risk_free_rate(), context.valuation_time());
+                                             rate, context.valuation_time());
         if (!shifted) return std::unexpected(shifted.error());
         const auto state = accumulator_initial_state(option, *shifted);
         if (state.settlement) {
@@ -93,11 +96,30 @@ Result<std::array<double, count>> price_spot_bumps(
         }
         initial[i] = {spot, state.quantity, {}, state.settlement};
     }
-    std::array<double, count> prices{};
+    std::array<double, outputs> prices{};
     if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
         const auto steps = prepare_simulation(option, context);
         if (!steps) return std::unexpected(steps.error());
-        if (settings.backend == MonteCarloBackend::cuda) {
+        if constexpr (rates) {
+            std::array<std::vector<SimulationStep>, 2> rate_steps;
+            std::array<std::span<const SimulationStep>, outputs> sequences{};
+            std::fill_n(sequences.begin(), count, std::span<const SimulationStep>{*steps});
+            for (std::size_t i = 0; i < rate_steps.size(); ++i) {
+                if (initial[count + i].payoff) continue;
+                const auto shifted = shifted_context(context, context.spot_price(), context.model_parameters().volatility(),
+                                                     context.model_parameters().risk_free_rate() + (i == 0 ? rate_shift : -rate_shift), context.valuation_time());
+                if (!shifted) return std::unexpected(shifted.error());
+                auto prepared = prepare_simulation(option, *shifted);
+                if (!prepared) return std::unexpected(prepared.error());
+                rate_steps[i] = std::move(*prepared);
+                sequences[count + i] = rate_steps[i];
+            }
+            const auto values = cpu_path_means<outputs>(settings, [&](auto& generator) {
+                return path_payoffs(option, sequences, initial, generator);
+            });
+            if (!values) return std::unexpected(values.error());
+            prices = *values;
+        } else if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
             const auto values = cuda_active_prices<CudaAccumulatorRequest>(initial, [&](const auto& state) { return CudaAccumulatorRequest{settings.path_count, *settings.seed, state.spot,
                                                                                                                                            option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity}; }, [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
@@ -205,7 +227,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
             const auto price = [&](const PricingContext& shifted) {
                 return price_accumulator(option, shifted, seeded.settings(), workspace);
             };
-            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted); }, [&]<std::size_t count>(const PricingContext& shifted, double shift) { return price_spot_bumps<count>(option, shifted, seeded.settings(), shift, workspace); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
+            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted); }, [&]<std::size_t count, bool rates = false>(const PricingContext& shifted, double shift, double rate_shift = 0.0) { return price_spot_bumps<count, rates>(option, shifted, seeded.settings(), shift, workspace, rate_shift); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
         });
 }
 

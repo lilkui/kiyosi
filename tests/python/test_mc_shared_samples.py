@@ -1002,7 +1002,11 @@ class SharedSampleTests(unittest.TestCase):
                 )
                 for rate in (0.04 + h, 0.04 - h)
             ]
-            for names in (["rho"], ["delta", "gamma", "rho"]):
+            for names in (
+                ["rho"],
+                ["delta", "gamma", "rho"],
+                ["delta", "gamma", "speed", "rho"],
+            ):
                 with self.subTest(engine=type(engine).__name__, greeks=names):
                     actual = engine.price_with_greeks(
                         option, context, names, rate_shift=0.25

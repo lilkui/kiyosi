@@ -52,12 +52,21 @@ Result<PricingResult> complete_monte_carlo_greeks(
     std::optional<std::array<double, 3>> rate_prices;
     const bool batch_rates = backend == MonteCarloBackend::cpu && greeks.has(Greek::rho) &&
                              stencils.rate_available && !greeks_unavailable(option, context);
+    const auto spot_result = [&]<std::size_t count>() -> Result<PricingResult> {
+        if (!batch_rates) return spot_bump_result(spot_prices.template operator()<count>(context, h), greeks, h);
+        const auto values = spot_prices.template operator()<count, true>(context, h, rate_shift);
+        if (!values) return std::unexpected(values.error());
+        rate_prices = std::array{(*values)[0], (*values)[count], (*values)[count + 1]};
+        std::array<double, count> spots{};
+        std::copy_n(values->begin(), count, spots.begin());
+        return spot_bump_result(Result<std::array<double, count>>{spots}, greeks, h);
+    };
     auto native = [&]() -> Result<PricingResult> {
         if ((greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && stencils.speed_available)) &&
             stencils.spot_available && !greeks_unavailable(option, context)) {
             if (greeks.has(Greek::speed) && stencils.speed_available)
-                return spot_bump_result(spot_prices.template operator()<5>(context, h), greeks, h);
-            return spot_bump_result(spot_prices.template operator()<3>(context, h), greeks, h);
+                return spot_result.template operator()<5>();
+            return spot_result.template operator()<3>();
         }
         if (batch_rates) {
             const auto values = price_rates(rate_shift, std::nullopt);
@@ -187,13 +196,11 @@ __forceinline
     for (const auto& common_step : common) {
         const double draw = normal(generator);
         const double shared_growth = [&] {
-            if constexpr (shared_steps) {
-                const auto& simulation = [&]() -> const auto& {
-                    if constexpr (requires { common_step.simulation; }) return common_step.simulation;
-                    else return common_step;
-                }();
-                return std::exp(simulation.drift + simulation.diffusion * draw);
-            } else return 0.0;
+            const auto& simulation = [&]() -> const auto& {
+                if constexpr (requires { common_step.simulation; }) return common_step.simulation;
+                else return common_step;
+            }();
+            return std::exp(simulation.drift + simulation.diffusion * draw);
         }();
         for (std::size_t i = 0; i < count; ++i) {
             auto& state = states[i];
@@ -209,7 +216,7 @@ __forceinline
                     if constexpr (requires { step.simulation; }) return step.simulation;
                     else return step;
                 }();
-                state.spot *= std::exp(simulation.drift + simulation.diffusion * draw);
+                state.spot *= steps[i].data() == common.data() ? shared_growth : std::exp(simulation.drift + simulation.diffusion * draw);
             }
             if (!std::isfinite(state.spot) || state.spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,

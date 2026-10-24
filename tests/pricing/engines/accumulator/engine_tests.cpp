@@ -32,13 +32,48 @@ TEST_CASE("Shared Monte Carlo Greeks propagate invalid batched sensitivities", "
     const auto result = detail::complete_monte_carlo_greeks(
         [&](const PricingContext& shifted) { return AnalyticVanillaEngine{}.price(option, shifted); }, option, context, {Greek::rho}, {}, MonteCarloBackend::cpu,
         [](const PricingContext&) -> Result<void> { return {}; },
-        []<std::size_t count>(const PricingContext&, double) -> Result<std::array<double, count>> { return std::array<double, count>{}; },
+        []<std::size_t count, bool rates = false>(const PricingContext&, double, double = 0.0) -> Result<std::array<double, count + (rates ? 2 : 0)>> { return std::array<double, count + (rates ? 2 : 0)>{}; },
         [](double, std::optional<double>) -> Result<std::array<double, 3>> {
             const double large = std::numeric_limits<double>::max();
             return std::array{1.0, large, -large};
         });
     REQUIRE_FALSE(result);
     CHECK(result.error().category == ErrorCategory::invalid_result);
+}
+
+TEST_CASE("Shared Monte Carlo Greeks evaluate spot and rate scenarios in one batch", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 100.0, start).value();
+    const auto option = make_european_option(OptionType::call, 100.0, start, end).value();
+    int batches = 0;
+    const auto result = detail::complete_monte_carlo_greeks(
+        [](const PricingContext&) -> Result<double> { return std::unexpected(Error{ErrorCategory::invalid_result, "unexpected scalar evaluation"}); },
+        option, context, {Greek::delta, Greek::gamma, Greek::rho}, {.spot_shift = 1.0, .rate_shift = 0.01}, MonteCarloBackend::cpu,
+        [](const PricingContext&) -> Result<void> { return {}; },
+        [&]<std::size_t count, bool rates = false>(const PricingContext&, double, double = 0.0) -> Result<std::array<double, count + (rates ? 2 : 0)>> {
+            ++batches;
+            CHECK(rates);
+            std::array<double, count + (rates ? 2 : 0)> prices{};
+            if constexpr (count >= 3) {
+                prices[0] = 2.0;
+                prices[1] = 5.0;
+                prices[2] = 1.0;
+            }
+            if constexpr (rates) {
+                prices[count] = 4.0;
+                prices[count + 1] = 2.0;
+            }
+            return prices;
+        },
+        [](double, std::optional<double>) -> Result<std::array<double, 3>> { return std::unexpected(Error{ErrorCategory::invalid_result, "unexpected rate evaluation"}); });
+    REQUIRE(result);
+    CHECK(batches == 1);
+    CHECK(result->price() == 2.0);
+    CHECK(*result->require(Greek::delta) == 2.0);
+    CHECK(*result->require(Greek::gamma) == 2.0);
+    CHECK(*result->require(Greek::rho) == Catch::Approx(1.0).margin(1e-12));
 }
 
 TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-carlo-performance]")
