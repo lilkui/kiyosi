@@ -388,7 +388,7 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
                 return shared ? engine.price_with_greeks(option, context, request)
                               : detail::price_with_greeks(engine, option, context, request, NumericalShiftSettings{}); }, "price")->UseRealTime();
     }
-    for (const int paths : {512, 1024, 2048, 2049, 4096})
+    for (const int paths : {512, 1024, 2048, 2049, 2560, 3072, 3073, 3584, 4096})
         for (const int threads : {1, 0, 2})
             register_monte_carlo(
                 std::format("european_terminal/{}/threads:{}", paths, threads),
