@@ -58,6 +58,7 @@ struct PreparedCurve {
 struct CouponWorkspace {
     std::vector<double> nodes;
     std::vector<double> assets;
+    CubicInterpolation interpolation;
     std::map<double, Transition> transitions;
 };
 
@@ -77,25 +78,24 @@ std::array<double, 2> event_limits(const AutocallableProgram& program, const Aut
     return {limit(0.0, curve.low), limit(infinity, curve.high)};
 }
 
-Curve apply_event(const AutocallableProgram& program, const AutocallableEvent& event,
-                  const std::vector<double>& assets, const Curve& alive, const Curve& knocked_in,
-                  bool transition)
+void apply_event(const AutocallableProgram& program, const AutocallableEvent& event,
+                 const std::vector<double>& assets, Curve& alive, const Curve& knocked_in,
+                 bool transition)
 {
     const auto limits = event_limits(program, event, alive);
-    Curve result{{}, transition && program_knocked_in(program, 0.0, false, false) ? event_limits(program, event, knocked_in)[0] : limits[0], limits[1]};
-    result.cells.reserve(alive.cells.size());
+    alive.low = transition && program_knocked_in(program, 0.0, false, false) ? event_limits(program, event, knocked_in)[0] : limits[0];
+    alive.high = limits[1];
     for (std::size_t i = 0; i < alive.cells.size(); ++i) {
         const double asset = assets[i];
+        auto& polynomial = alive.cells[i];
         if (event.active && program_knocked_out(event, asset)) {
-            result.cells.push_back({program.principal_ratio + program_observation_coupon(event, asset), 0.0, 0.0, 0.0});
+            polynomial = {program.principal_ratio + program_observation_coupon(event, asset), 0.0, 0.0, 0.0};
         } else {
             const bool crossed = transition && program_knocked_in(program, asset, false, false);
-            auto polynomial = crossed ? knocked_in.cells[i] : alive.cells[i];
+            if (crossed) polynomial = knocked_in.cells[i];
             polynomial[0] += event_coupon(program, event, asset);
-            result.cells.push_back(polynomial);
         }
     }
-    return result;
 }
 
 std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, const AutocallableEvent& event,
@@ -198,6 +198,7 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         if (!grid) return std::unexpected(grid.error());
         storage.nodes = std::move(*grid);
         storage.assets = cell_assets(storage.nodes, anchor);
+        storage.interpolation = CubicInterpolation{storage.nodes};
     }
     auto& nodes = storage.nodes;
     auto& transitions = storage.transitions;
@@ -207,9 +208,8 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         const auto& event = events[event_index];
         const bool final = event_index + 1 == events.size();
         if (!final) {
-            Curve next_alive = apply_event(program, event.terms, storage.assets, alive, knocked_in, layers);
-            if (layers) knocked_in = apply_event(program, event.terms, storage.assets, knocked_in, knocked_in, false);
-            alive = std::move(next_alive);
+            apply_event(program, event.terms, storage.assets, alive, knocked_in, layers);
+            if (layers) apply_event(program, event.terms, storage.assets, knocked_in, knocked_in, false);
         }
         const double time = event_index == 0 ? event.time : actual_365_fixed_year_fraction(events[event_index - 1].date, event.date);
         const double drift = drift_rate * time;
@@ -239,11 +239,11 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         }
         const double low = final ? terminal.front().cash : alive.low;
         const double high = final ? terminal.back().cash : alive.high;
-        alive = interpolate(nodes, values, scaled_exponential(low, discount), scaled_exponential(high, discount));
+        storage.interpolation.interpolate(values, scaled_exponential(low, discount), scaled_exponential(high, discount), alive);
         if (layers) {
             const double low_in = final ? terminal_in.front().cash : knocked_in.low;
             const double high_in = final ? terminal_in.back().cash : knocked_in.high;
-            knocked_in = interpolate(nodes, values_in, scaled_exponential(low_in, discount), scaled_exponential(high_in, discount));
+            storage.interpolation.interpolate(values_in, scaled_exponential(low_in, discount), scaled_exponential(high_in, discount), knocked_in);
         }
     }
     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature has no future event"});

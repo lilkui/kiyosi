@@ -178,33 +178,69 @@ struct Curve {
     double high{};
 };
 
+// Prepared from a validated grid with at least four nodes; value arrays must match that grid.
+class CubicInterpolation {
+    struct Cell {
+        std::size_t first{};
+        std::array<double, 4> coordinates{};
+        std::array<double, 6> divisors{};
+    };
+
+public:
+    CubicInterpolation() = default;
+
+    explicit CubicInterpolation(std::span<const double> nodes)
+        : cells_(nodes.size() - 1)
+    {
+        for (std::size_t cell = 0; cell < cells_.size(); ++cell) {
+            auto& stencil = cells_[cell];
+            stencil.first = std::min(cell == 0 ? 0 : cell - 1, nodes.size() - 4);
+            const double width = nodes[cell + 1] - nodes[cell];
+            for (std::size_t k = 0; k < 4; ++k)
+                stencil.coordinates[k] = (nodes[stencil.first + k] - nodes[cell]) / width;
+            std::size_t index = 0;
+            for (std::size_t order = 1; order < 4; ++order)
+                for (std::size_t k = 4; k-- > order;)
+                    stencil.divisors[index++] = stencil.coordinates[k] - stencil.coordinates[k - order];
+        }
+    }
+
+    // Reuses the output allocation; keeps the original divided-difference arithmetic and order.
+    void interpolate(std::span<const double> values, double low, double high, Curve& curve) const
+    {
+        curve.low = low;
+        curve.high = high;
+        curve.cells.resize(cells_.size());
+        for (std::size_t cell = 0; cell < cells_.size(); ++cell) {
+            const auto& stencil = cells_[cell];
+            std::array<double, 4> differences{};
+            std::ranges::copy(values.subspan(stencil.first, 4), differences.begin());
+            std::size_t index = 0;
+            for (std::size_t order = 1; order < 4; ++order)
+                for (std::size_t k = 4; k-- > order;)
+                    differences[k] = (differences[k] - differences[k - 1]) / stencil.divisors[index++];
+            Polynomial polynomial{differences[3], 0.0, 0.0, 0.0};
+            for (std::size_t k = 3; k-- > 0;) {
+                Polynomial next{};
+                for (std::size_t power = 0; power < 4; ++power) {
+                    next[power] -= stencil.coordinates[k] * polynomial[power];
+                    if (power != 0) next[power] += polynomial[power - 1];
+                }
+                next[0] += differences[k];
+                polynomial = next;
+            }
+            curve.cells[cell] = polynomial;
+        }
+    }
+
+private:
+    std::vector<Cell> cells_;
+};
+
 inline Curve interpolate(const std::vector<double>& nodes, const std::vector<double>& values, double low, double high)
 {
-    Curve curve{{}, low, high};
-    curve.cells.reserve(nodes.size() - 1);
-    for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell) {
-        const std::size_t first = std::min(cell == 0 ? 0 : cell - 1, nodes.size() - 4);
-        const double width = nodes[cell + 1] - nodes[cell];
-        std::array<double, 4> coordinates{}, differences{};
-        for (std::size_t k = 0; k < 4; ++k) {
-            coordinates[k] = (nodes[first + k] - nodes[cell]) / width;
-            differences[k] = values[first + k];
-        }
-        for (std::size_t order = 1; order < 4; ++order)
-            for (std::size_t k = 4; k-- > order;)
-                differences[k] = (differences[k] - differences[k - 1]) / (coordinates[k] - coordinates[k - order]);
-        Polynomial polynomial{differences[3], 0.0, 0.0, 0.0};
-        for (std::size_t k = 3; k-- > 0;) {
-            Polynomial next{};
-            for (std::size_t power = 0; power < 4; ++power) {
-                next[power] -= coordinates[k] * polynomial[power];
-                if (power != 0) next[power] += polynomial[power - 1];
-            }
-            next[0] += differences[k];
-            polynomial = next;
-        }
-        curve.cells.push_back(polynomial);
-    }
+    Curve curve;
+    CubicInterpolation{nodes}.interpolate(values, low, high, curve);
     return curve;
 }
 

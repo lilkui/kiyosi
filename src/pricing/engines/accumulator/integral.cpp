@@ -59,9 +59,10 @@ struct PreparedCurve {
     }
 };
 
-std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vector<double>& assets, double log_lower,
-                                       std::span<const Curve> continuation, double remaining_time,
-                                       std::size_t remaining_observations, double rate, double dividend)
+void apply_observation(const Accumulator& option, const std::vector<double>& assets, double log_lower,
+                       std::span<const Curve> continuation, double remaining_time,
+                       std::size_t remaining_observations, double rate, double dividend,
+                       std::array<Layer, 2>& result)
 {
     const double strike = option.strike();
     const double knock_out = log_price_ratio(option.knock_out_level(), strike);
@@ -70,11 +71,12 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
     // The low-price limit keeps the stock term as well as the cash from all remaining purchases.
     const double low_quantity = static_cast<double>(remaining_observations) *
                                 accumulator_purchase_quantity(0.0, strike, option.daily_quantity(), option.acceleration_factor());
-    std::array<Layer, 2> result;
     for (std::size_t layer = 0; layer < continuation.size(); ++layer) {
-        result[layer].continuation.cells.reserve(assets.size());
+        result[layer].continuation.cells.resize(assets.size());
         const double quantity = layer == 0 ? 1.0 : low_quantity;
         result[layer].continuation.low = quantity * low_cash;
+        result[layer].continuation.high = 0.0;
+        result[layer].exact.clear();
         result[layer].exact.push_back({-infinity, log_lower, 0.0, quantity * low_asset});
     }
     result[0].exact.push_back({knock_out, infinity, -strike, 1.0});
@@ -90,10 +92,9 @@ std::array<Layer, 2> apply_observation(const Accumulator& option, const std::vec
                     intercept[power] += purchase * slope[power];
             }
         }
-        result[0].continuation.cells.push_back(slope);
-        if (continuation.size() == 2) result[1].continuation.cells.push_back(intercept);
+        result[0].continuation.cells[cell] = slope;
+        if (continuation.size() == 2) result[1].continuation.cells[cell] = intercept;
     }
-    return result;
 }
 
 Result<double> integrate_accumulator(const Accumulator& option, const PricingContext& context,
@@ -145,6 +146,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     if (!grid) return std::unexpected(grid.error());
     auto nodes = std::move(*grid);
     const auto assets = cell_assets(nodes, strike);
+    const CubicInterpolation interpolation{nodes};
 
     std::map<double, Transition> transitions;
     std::array<Curve, 2> continuation;
@@ -152,8 +154,8 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
     for (std::size_t event = dates.size(); event-- > 0;) {
         const bool final = event + 1 == dates.size();
         if (!final)
-            layers = apply_observation(option, assets, nodes.front(), std::span{continuation}.first(layer_count),
-                                       actual_365_fixed_year_fraction(dates[event], option.expiry_date()), dates.size() - event, rate, dividend);
+            apply_observation(option, assets, nodes.front(), std::span{continuation}.first(layer_count),
+                              actual_365_fixed_year_fraction(dates[event], option.expiry_date()), dates.size() - event, rate, dividend, layers);
         const double time = event == 0 ? actual_365_fixed_year_fraction(context.valuation_time(), dates[event])
                                        : actual_365_fixed_year_fraction(dates[event - 1], dates[event]);
         const double drift = drift_rate * time;
@@ -185,7 +187,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
             if (!std::ranges::all_of(values[layer], [](double value) { return std::isfinite(value); }))
                 return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
         for (std::size_t layer = 0; layer < layer_count; ++layer)
-            continuation[layer] = interpolate(nodes, values[layer], 0.0, 0.0);
+            interpolation.interpolate(values[layer], 0.0, 0.0, continuation[layer]);
     }
     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature has no future observation"});
 }

@@ -99,6 +99,35 @@ TEST_CASE("Quadrature grid rejects unrepresentable domains and collapsed nodes",
     }
 }
 
+TEST_CASE("Prepared quadrature interpolation reproduces cubics and reuses curve storage", "[quadrature-kernel]")
+{
+    const std::vector<double> nodes{-1.0, -0.75, 0.0, 0.5, 2.0};
+    const CubicInterpolation interpolation{nodes};
+    Curve curve;
+    for (const double scale : {1.0, -2.0, 0.0}) {
+        std::vector<double> values;
+        values.reserve(nodes.size());
+        for (const double node : nodes)
+            values.push_back(scale * (node * node * node - 2.0 * node + 1.0));
+        interpolation.interpolate(values, scale - 3.0, scale + 4.0, curve);
+        REQUIRE(curve.cells.size() == nodes.size() - 1);
+        CHECK(curve.low == scale - 3.0);
+        CHECK(curve.high == scale + 4.0);
+        for (std::size_t cell = 0; cell < curve.cells.size(); ++cell)
+            for (const double weight : {0.0, 0.25, 0.75, 1.0}) {
+                const double point = std::lerp(nodes[cell], nodes[cell + 1], weight);
+                const auto& polynomial = curve.cells[cell];
+                const double actual = polynomial[0] + weight * (polynomial[1] + weight * (polynomial[2] + weight * polynomial[3]));
+                CHECK_THAT(actual, Catch::Matchers::WithinAbs(scale * (point * point * point - 2.0 * point + 1.0), 1e-13));
+            }
+        const auto* storage = curve.cells.data();
+        interpolation.interpolate(values, 1.0, 2.0, curve);
+        CHECK(curve.cells.data() == storage);
+        CHECK(curve.low == 1.0);
+        CHECK(curve.high == 2.0);
+    }
+}
+
 TEST_CASE("Quadrature broad-cell moments match symmetric Gaussian identities", "[quadrature-kernel]")
 {
     const double mass = std::erf(1.0 / std::numbers::sqrt2);

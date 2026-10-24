@@ -25,6 +25,16 @@ void register_quadrature_cases()
         }
         const double deviation = 0.2 / std::sqrt(365.0);
         const std::string prefix = "quadrature/kernel/" + std::to_string(steps);
+        for (const bool prepared : {false, true})
+            benchmark::RegisterBenchmark(prefix + (prepared ? "/interpolate_prepared" : "/interpolate_one_shot"), [nodes, values, prepared](benchmark::State& state) {
+                const CubicInterpolation interpolation{nodes};
+                Curve curve;
+                for (auto _ : state) {
+                    if (prepared) interpolation.interpolate(values, 0.0, 0.0, curve);
+                    else curve = interpolate(nodes, values, 0.0, 0.0);
+                    benchmark::DoNotOptimize(curve);
+                }
+            })->UseRealTime();
         benchmark::RegisterBenchmark(prefix + "/terminal_zero_cash", [nodes, deviation](benchmark::State& state) {
             const std::vector<TerminalPiece> pieces{{-infinity, nodes.front(), 0.0, 1.0}, {0.1, infinity, -100.0, 1.0}};
             for (auto _ : state)
