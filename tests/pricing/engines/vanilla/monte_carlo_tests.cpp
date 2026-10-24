@@ -688,7 +688,7 @@ TEST_CASE("American implied volatility retains scalar trials and request isolati
 #endif
         for (const auto type : {OptionType::call, OptionType::put}) {
             const auto option = *make_american_option(type, 100.0, start, end);
-            for (const int paths : {127, 128, 1001}) {
+            for (const int paths : {127, 128, 513, 1001}) {
                 const auto engine = make_monte_carlo_vanilla_engine({paths, 7, 42, backend}).value();
                 const double quote = *engine.price(option, context);
                 for (const double observed : {quote, -1.0})

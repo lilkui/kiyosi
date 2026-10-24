@@ -36,9 +36,12 @@ struct SimulationParameters {
 
 struct AmericanMonteCarloSamples {
     bool cache_growth;
+    bool cache_normals{};
     std::vector<double> paths{};
     std::vector<double> cash_flows{};
     std::vector<std::array<double, 2>> growth{};
+    std::vector<double> normal_draws{};
+    int normal_step_count{};
     double drift = std::numeric_limits<double>::quiet_NaN();
     double diffusion = std::numeric_limits<double>::quiet_NaN();
     int step_count{};
@@ -71,11 +74,16 @@ Result<void> simulate_paths(
     const int path_count = settings.path_count % 2 == 0 ? settings.path_count : settings.path_count + 1;
     const auto seed = settings.seed ? *settings.seed : std::random_device{}();
     const int half_count = path_count / 2;
-    const bool reuse = samples && samples->drift == parameters.drift &&
+    const bool reuse = samples && samples->cache_growth && samples->drift == parameters.drift &&
                        samples->diffusion == parameters.diffusion && samples->step_count == settings.step_count;
-    if (samples && !reuse) {
+    if (samples && samples->cache_growth && !reuse) {
         samples->step_count = 0;
         samples->growth.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
+    }
+    const bool reuse_normals = samples && samples->cache_normals && samples->normal_step_count == settings.step_count;
+    if (samples && samples->cache_normals && !reuse_normals) {
+        samples->normal_step_count = 0;
+        samples->normal_draws.resize(static_cast<std::size_t>(half_count) * (settings.step_count - 1));
     }
     const auto simulated = detail::monte_carlo_blocks(half_count, settings.thread_count,
                                                       [&](int block, int begin, int end) -> Result<void> {
@@ -88,10 +96,11 @@ Result<void> simulate_paths(
                                                                   const auto index = static_cast<std::size_t>(path) * (settings.step_count - 1) + step - 1;
                                                                   const auto growth = [&] {
                                                                       if (reuse) return samples->growth[index];
-                                                                      const double normal_draw = normal(generator);
+                                                                      const double normal_draw = reuse_normals ? samples->normal_draws[index] : normal(generator);
+                                                                      if (samples && samples->cache_normals && !reuse_normals) samples->normal_draws[index] = normal_draw;
                                                                       const std::array factors{std::exp(parameters.drift + parameters.diffusion * normal_draw),
                                                                                                std::exp(parameters.drift - parameters.diffusion * normal_draw)};
-                                                                      if (samples) samples->growth[index] = factors;
+                                                                      if (samples && samples->cache_growth) samples->growth[index] = factors;
                                                                       return factors;
                                                                   }();
                                                                   positive_spot *= growth[0];
@@ -110,6 +119,7 @@ Result<void> simulate_paths(
         samples->drift = parameters.drift;
         samples->diffusion = parameters.diffusion;
         samples->step_count = settings.step_count;
+        if (samples->cache_normals) samples->normal_step_count = settings.step_count;
     }
     return {};
 }
@@ -310,7 +320,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         context.model_parameters().risk_free_rate() >= 0.0) {
         const auto european = *make_european_option(
             option.option_type(), option.strike(), option.effective_date(), option.expiry_date());
-        const auto value = price_european(european, context, settings, [&](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe, samples && samples->cache_growth ? samples : nullptr); }, workspace);
+        const auto value = price_european(european, context, settings, [&](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe, samples); }, workspace);
         if (!value) return std::unexpected(value.error());
         return std::max(*value, payoff(option.option_type(), context.spot_price(), option.strike()));
     }
@@ -341,7 +351,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         paths.resize(path_count * step_count);
         const auto simulated = simulate_paths(*parameters, settings, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
             paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
-            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot; }, samples && samples->cache_growth ? samples : nullptr);
+            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot; }, samples);
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         const int count = static_cast<int>(path_count);
@@ -437,8 +447,8 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
 
 class AmericanMonteCarloPricer {
 public:
-    explicit AmericanMonteCarloPricer(MonteCarloSettings settings, bool cache_growth = false)
-        : settings_(settings), samples_{.cache_growth = cache_growth} {}
+    explicit AmericanMonteCarloPricer(MonteCarloSettings settings, bool cache_growth = false, bool cache_normals = false)
+        : settings_(settings), samples_{.cache_growth = cache_growth, .cache_normals = cache_normals} {}
 
     Result<double> price(const AmericanOption& option, const PricingContext& context, bool terminal_only = true) const
     {
@@ -467,7 +477,7 @@ Result<double> implied_volatility<MonteCarloVanillaEngine, AmericanOption>(
     std::optional<AmericanMonteCarloPricer> prices;
     return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
                                             [&](const auto& seeded, const auto& instrument, const auto& shifted) {
-                                                if (!prices) prices.emplace(seeded.settings());
+                                                if (!prices) prices.emplace(seeded.settings(), false, true);
                                                 return prices->price(instrument, shifted);
                                             });
 }

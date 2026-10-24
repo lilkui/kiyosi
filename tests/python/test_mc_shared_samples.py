@@ -633,7 +633,7 @@ class SharedSampleTests(unittest.TestCase):
                     effective_date=start,
                     expiry_date=end,
                 )
-                for paths in (1000, 1001):
+                for paths in (513, 1000, 1001):
                     with self.subTest(
                         backend=backend, direction=direction, paths=paths
                     ):
