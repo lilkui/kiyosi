@@ -4,7 +4,7 @@
 
 - Before domain exploration, read the [domain guide](docs/agents/domain.md).
 - Before issue/PR operations, read [issue tracker](docs/agents/issue-tracker.md); for triage, also read [triage labels](docs/agents/triage-labels.md).
-- On Windows, activate the Visual Studio Developer environment before invoking MSVC or CMake.
+- On Windows, activate the Visual Studio Developer environment before invoking the C++ toolchain or CMake.
 - Format all modified C++ files with clang-format and Python files with Ruff; resolve all lint findings from clang-tidy for those C++ files and Ruff for those Python files.
 - Use Conventional Commits.
 - Alpha: no backward-compatibility commitments; refactor for clarity.
