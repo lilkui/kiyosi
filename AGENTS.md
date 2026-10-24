@@ -44,3 +44,9 @@ Pricing accuracy comes first. Optimize valid-input hot paths using established i
 - Types: `PascalCase`.
 - Namespaces, functions, variables, constants and enum values: `snake_case`; private non-static data members: `snake_case_`.
 - Macros: `KIYOSI_UPPER_SNAKE_CASE`.
+
+## Documentation
+
+- Code documentation must strictly use affirmative statements to articulate each object's definition (what it is), core responsibilities (what it does), and architectural rationale (why it exists).
+- Strictly prohibit any negative, comparative, or exclusionary phrasing (e.g., "it is not...", "rather than...", "does not mean...").
+- Documentation updated alongside code changes must directly describe the final, valid state. Do not document the change process, historical diffs, or descriptions of what was modified.
