@@ -72,6 +72,16 @@ void register_matrix()
                                                      start_of_day(dense_expiry) - std::chrono::hours{12}, all_days_calendar());
     const auto dense_engine = make_finite_difference_autocallable_engine({80, 1}).value();
     const double dense_quote = *dense_engine.price(dense_note, dense_context);
+    const auto dense_binary = *make_binary_snowball_option({.maturity_coupon_rate = 0.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = dense_expiry, .observations = *make_autocallable_observations(dense_dates, std::vector<double>(dense_dates.size(), 110.0), std::vector<double>(dense_dates.size(), 0.08))});
+    const auto binary_context = *dense_context.replace({.spot_price = 110.25});
+    const auto quadrature = *make_quadrature_autocallable_engine({128, 8.0});
+    const double binary_quote = *quadrature.price(dense_binary, binary_context);
+    for (const bool independent : {false, true})
+        kiyosi::benchmark_support::register_calculation(independent ? "binary_snowball/quadrature/implied_volatility/scheduled_dense/independent_trials" : "binary_snowball/quadrature/implied_volatility/scheduled_dense", [=, dense_binary = dense_binary] {
+            const ImpliedVolatilitySettings bounds{.lower_bound = 0.1, .upper_bound = 0.3};
+            return independent ? detail::solve_implied_volatility(quadrature, dense_binary, binary_context, binary_quote, bounds,
+                                                                  [](const auto& engine, const auto& note, const auto& market) { return engine.price(note, market); })
+                               : implied_volatility(quadrature, dense_binary, binary_context, binary_quote, bounds); }, "volatility")->UseRealTime();
     kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense", [=, dense_note = dense_note] { return implied_volatility(dense_engine, dense_note, dense_context, dense_quote); }, "volatility");
     kiyosi::benchmark_support::register_calculation("snowball/fd/implied_volatility/scheduled_dense/independent_trials", [=, dense_note = dense_note] { return detail::solve_implied_volatility(dense_engine, dense_note, dense_context, dense_quote, {},
                                                                                                                                                                                                 [](const auto& engine, const auto& note, const auto& market) { return engine.price(note, market); }); }, "volatility");

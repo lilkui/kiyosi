@@ -673,6 +673,38 @@ class AutocallableQuadratureTests(unittest.TestCase):
             error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE
         )
 
+    def test_volatility_recovery_with_dense_elapsed_observations(self):
+        dates = [START + timedelta(days=i) for i in range(1, 366)]
+        market = context(110.25, valuation=datetime(2025, 12, 31, 12, tzinfo=UTC))
+        engine = pricing.QuadratureAutocallableEngine(asset_step_count=16)
+        notes = [
+            BinarySnowballOption(
+                maturity_coupon_rate=0,
+                barrier_state="none",
+                effective_date=START,
+                expiry_date=END,
+                observations=autocallable_observations(
+                    schedule,
+                    [110] * len(schedule),
+                    knock_out_coupon_rates=[0.08] * len(schedule),
+                ),
+            )
+            for schedule in ([END], dates)
+        ]
+        quote = engine.price(notes[0], market)
+        for note in notes:
+            self.assertEqual(engine.price(note, market), quote)
+            solved = pricing.implied_volatility(
+                engine,
+                note,
+                market,
+                quote,
+                lower_bound=0.1,
+                upper_bound=0.5,
+                price_tolerance=1e-11,
+            )
+            self.assertAlmostEqual(solved, 0.3, delta=1e-7)
+
     def test_volatility_and_coupon_recovery_and_impossible_target(self):
         engine = pricing.QuadratureAutocallableEngine()
         market = context(spot=103)

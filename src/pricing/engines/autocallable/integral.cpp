@@ -265,6 +265,19 @@ Result<double> solve_coupon(
 } // namespace
 
 template <AutocallableProduct Note>
+Result<double> implied_volatility(
+    const QuadratureAutocallableEngine& engine, const Note& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    AutocallableContract<Note> contract{option, context.calendar()};
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+                                            [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+                                                std::optional<PreparedCurve> prepared;
+                                                return integrate_autocallable(instrument, market, scalar.settings(), prepared, contract);
+                                            });
+}
+
+template <AutocallableProduct Note>
 Result<double> implied_coupon(
     const QuadratureAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, CouponQuoteConvention convention, ImpliedCouponSettings settings)
@@ -285,6 +298,15 @@ Result<double> implied_coupon(
         return detail::replace_coupon(instrument, coupon);
     });
 }
+
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const QuadratureAutocallableEngine&, const PhoenixOption&, const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const QuadratureAutocallableEngine&, const SnowballOption&, const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const QuadratureAutocallableEngine&, const BinarySnowballOption&, const PricingContext&, double, ImpliedVolatilitySettings);
+template KIYOSI_EXPORT Result<double> implied_volatility(
+    const QuadratureAutocallableEngine&, const TernarySnowballOption&, const PricingContext&, double, ImpliedVolatilitySettings);
 
 template KIYOSI_EXPORT Result<double> implied_coupon(
     const QuadratureAutocallableEngine&, const SnowballOption&, const PricingContext&, double,

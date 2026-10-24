@@ -236,6 +236,12 @@ template <>
     const MonteCarloAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings);
 
+/// Quadrature autocallables validate immutable contracts and calendars once per solve.
+template <AutocallableProduct Note>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
+    const QuadratureAutocallableEngine& engine, const Note& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings = {});
+
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
 template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
