@@ -44,9 +44,6 @@ private:
         return make_finite_difference_accumulator_engine(settings);
     }
 
-    [[nodiscard]] Result<PricingResult> price_native(
-        const Accumulator& option, const PricingContext& context, GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift) const;
-
     FiniteDifferenceSettings settings_;
 };
 

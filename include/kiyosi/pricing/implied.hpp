@@ -21,6 +21,7 @@ namespace kiyosi {
 class AnalyticBarrierEngine;
 class AnalyticBinaryBarrierEngine;
 class CoxRossRubinsteinVanillaEngine;
+class FiniteDifferenceAccumulatorEngine;
 class FiniteDifferenceAutocallableEngine;
 class MonteCarloAccumulatorEngine;
 class MonteCarloAutocallableEngine;
@@ -229,6 +230,12 @@ template <AutocallableProduct Note>
 [[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility(
     const FiniteDifferenceAutocallableEngine& engine, const Note& option, const PricingContext& context,
     double observed_price, ImpliedVolatilitySettings settings = {});
+
+/// Reuses grids and buffers within one solve without sharing storage between requests.
+template <>
+[[nodiscard]] KIYOSI_EXPORT Result<double> implied_volatility<FiniteDifferenceAccumulatorEngine, Accumulator>(
+    const FiniteDifferenceAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings);
 
 /// Reuses CUDA buffers within one solve without sharing storage between requests.
 template <>

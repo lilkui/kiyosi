@@ -6,6 +6,36 @@ from test_accumulator_quadrature import contract, exposure, market, terminal_ref
 
 
 class AccumulatorFiniteDifferenceAccuracyTests(unittest.TestCase):
+    def test_market_greeks_and_implied_volatility_preserve_independent_results(self):
+        option = contract(date(2025, 4, 1))
+        context = market(100.25, datetime(2025, 1, 4, 12, tzinfo=UTC))
+        engine = pricing.FiniteDifferenceAccumulatorEngine(
+            asset_step_count=80, time_step_count=80
+        )
+        joint = engine.price_with_greeks(option, context, all_greeks=True)
+        self.assertIsNotNone(joint.theta)
+        for greek in (
+            "delta",
+            "gamma",
+            "speed",
+            "vega",
+            "vanna",
+            "zomma",
+            "rho",
+            "theta",
+            "charm",
+            "color",
+        ):
+            with self.subTest(greek=greek):
+                single = engine.price_with_greeks(option, context, greek)
+                self.assertEqual(single.price, joint.price)
+                self.assertEqual(getattr(single, greek), getattr(joint, greek))
+        quote = engine.price(option, context)
+        recovered = pricing.implied_volatility(
+            engine, option, context, quote, lower_bound=0.15, upper_bound=0.25
+        )
+        self.assertAlmostEqual(recovered, 0.2, delta=1e-6)
+
     def test_terminal_averaging_converges_against_analytic_prices_and_greeks(self):
         context = market(100.25, datetime(2025, 1, 3, 12, tzinfo=UTC))
         for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):

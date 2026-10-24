@@ -1,6 +1,7 @@
 #include <kiyosi/pricing/engines/accumulator/finite_difference.hpp>
 
 #include "../../detail/numerical_greeks.hpp"
+#include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
 #include <array>
@@ -19,8 +20,21 @@
 namespace kiyosi {
 using namespace detail;
 
-Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
-    const Accumulator& option, const PricingContext& context, GreeksRequest output, double spot_shift) const
+namespace {
+struct AccumulatorFiniteDifferenceWorkspace {
+    double spot{};
+    std::optional<SpatialGrid> space;
+    std::optional<Timestamp> valuation;
+    FiniteDifferenceTimeGrid grid;
+    std::vector<double> trading_times;
+    std::optional<LinearBoundaryStepper> stepper;
+    std::vector<double> slope, intercept, next_slope, next_intercept;
+};
+
+Result<PricingResult> price_accumulator(
+    const Accumulator& option, const PricingContext& context, const FiniteDifferenceSettings& settings,
+    AccumulatorFiniteDifferenceWorkspace& workspace, GreeksRequest output,
+    double spot_shift = NumericalShiftSettings{}.spot_shift)
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
     if (!valid) return std::unexpected(valid.error());
@@ -32,28 +46,45 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
 
     const double spot = context.spot_price();
 
-    const double relevant = highest_finite_difference_level(option, context);
-    const auto space = make_spatial_grid(settings_, default_finite_difference_upper_boundary(option, context), {relevant});
-    if (!space) return std::unexpected(space.error());
+    // Contract, calendar and settings are fixed for this request; spot and time may be bumped.
+    auto& space = workspace.space;
+    if (!space || workspace.spot != spot) {
+        const double relevant = highest_finite_difference_level(option, context);
+        auto prepared = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {relevant});
+        if (!prepared) return std::unexpected(prepared.error());
+        space = std::move(*prepared);
+        workspace.spot = spot;
+        workspace.stepper.reset();
+    }
 
-    const auto future_trading_dates =
-        trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
-    std::vector<double> trading_times;
-    trading_times.reserve(future_trading_dates.size());
-    for (const Date value : future_trading_dates)
-        trading_times.push_back(actual_365_fixed_year_fraction(context.valuation_time(), value));
+    auto& trading_times = workspace.trading_times;
+    auto& grid = workspace.grid;
+    if (workspace.valuation != context.valuation_time()) {
+        const auto future_trading_dates = trading_dates(context.calendar(), context.valuation_time(), option.expiry_date());
+        trading_times.clear();
+        trading_times.reserve(future_trading_dates.size());
+        for (const Date value : future_trading_dates)
+            trading_times.push_back(actual_365_fixed_year_fraction(context.valuation_time(), value));
+        grid = make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), settings.time_step_count, future_trading_dates);
+        workspace.valuation = context.valuation_time();
+    }
 
     const double rate = context.model_parameters().risk_free_rate();
     const double dividend = context.model_parameters().dividend_yield();
     const double sigma = context.model_parameters().volatility();
-    const auto grid = make_finite_difference_time_grid(
-        context.valuation_time(), option.expiry_date(), settings_.time_step_count, future_trading_dates);
-    if (auto stable = check_explicit_stability(settings_.scheme, grid, sigma, rate, dividend, settings_.asset_step_count);
+    if (auto stable = check_explicit_stability(settings.scheme, grid, sigma, rate, dividend, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
 
     const std::size_t size = space->size();
-    std::vector<double> slope(size), intercept(size), next_slope(size), next_intercept(size);
+    auto& slope = workspace.slope;
+    auto& intercept = workspace.intercept;
+    auto& next_slope = workspace.next_slope;
+    auto& next_intercept = workspace.next_intercept;
+    slope.resize(size);
+    intercept.resize(size);
+    next_slope.resize(size);
+    next_intercept.resize(size);
     const bool has_future_purchases = accumulator_accrues(option);
     std::vector<double> breaks{option.strike(), option.knock_out_level()};
     std::ranges::sort(breaks);
@@ -72,9 +103,10 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
         intercept[index] = projected[1];
     }
 
-    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings_.scheme)};
-    LinearBoundaryStepper stepper(
-        size, space->upper, space->spacing, parameters);
+    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings.scheme)};
+    if (!workspace.stepper)
+        workspace.stepper.emplace(size, space->upper, space->spacing, parameters);
+    auto& stepper = *workspace.stepper;
     RannacherDamping damping{2};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const auto substeps = damping.next(parameters.theta);
@@ -127,19 +159,34 @@ Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_native(
     const double value = price_at(spot);
     return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return space->delta(slope, shifted_spot) * initial.quantity + space->delta(intercept, shifted_spot); }, [&](double shifted_spot) { return space->gamma(slope, shifted_spot) * initial.quantity + space->gamma(intercept, shifted_spot); });
 }
+} // namespace
+
+template <>
+Result<double> implied_volatility<FiniteDifferenceAccumulatorEngine, Accumulator>(
+    const FiniteDifferenceAccumulatorEngine& engine, const Accumulator& option, const PricingContext& context,
+    double observed_price, ImpliedVolatilitySettings settings)
+{
+    AccumulatorFiniteDifferenceWorkspace workspace;
+    return detail::solve_implied_volatility(engine, option, context, observed_price, settings,
+                                            [&](const auto& scalar, const auto& instrument, const auto& market) {
+                                                return detail::price_value(price_accumulator(instrument, market, scalar.settings(), workspace, GreeksRequest{}));
+                                            });
+}
 
 Result<double> FiniteDifferenceAccumulatorEngine::price(
     const Accumulator& option, const PricingContext& context) const
 {
-    return detail::price_value(price_native(option, context, GreeksRequest{}));
+    AccumulatorFiniteDifferenceWorkspace workspace;
+    return detail::price_value(price_accumulator(option, context, settings_, workspace, GreeksRequest{}));
 }
 
 Result<PricingResult> FiniteDifferenceAccumulatorEngine::price_with_greeks(const Accumulator& option, const PricingContext& context,
                                                                            GreeksRequest greeks, NumericalShiftSettings settings) const
 {
+    AccumulatorFiniteDifferenceWorkspace workspace;
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
-                                         return engine.price_native(option, shifted, request, settings.spot_shift);
+                                         return price_accumulator(option, shifted, engine.settings(), workspace, request, settings.spot_shift);
                                      });
 }
 

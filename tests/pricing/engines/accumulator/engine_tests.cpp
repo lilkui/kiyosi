@@ -367,6 +367,69 @@ TEST_CASE("Accumulator finite-difference spot Greeks reuse one solve", "[fd-perf
     CHECK_FALSE(result->has(Greek::vega));
 }
 
+TEST_CASE("Accumulator finite-difference market Greeks reuse the calendar grid", "[fd-accumulator-workspace]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 4, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries, base = weekdays_calendar()](Date date) { ++*queries; return base.is_trading_day(date); }, 252);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(day(2025, 1, 4)) + std::chrono::hours{12}, calendar);
+    const auto option = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
+    const auto engine = make_finite_difference_accumulator_engine({80, 80}).value();
+    const GreeksRequest request{Greek::vega, Greek::rho};
+    const auto independent = detail::price_with_greeks(engine, option, context, request, NumericalShiftSettings{});
+    REQUIRE(independent);
+    const int independent_queries = queries->exchange(0);
+    const auto shared = engine.price_with_greeks(option, context, request);
+    REQUIRE(shared);
+    CHECK(shared->price() == independent->price());
+    CHECK(shared->values_view() == independent->values_view());
+    CHECK(queries->exchange(0) < independent_queries / 3);
+
+    const auto joint = engine.price_with_greeks(option, context, true);
+    REQUIRE(joint);
+    REQUIRE(joint->has(Greek::theta));
+    for (std::size_t index = 0; index < greek_count; ++index) {
+        const auto single = engine.price_with_greeks(option, context, {static_cast<Greek>(index)});
+        REQUIRE(single);
+        CHECK(single->price() == joint->price());
+        CHECK(single->values_view()[index] == joint->values_view()[index]);
+    }
+    auto pending = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+    const auto concurrent = engine.price_with_greeks(option, context, true);
+    const auto background = pending.get();
+    REQUIRE(concurrent);
+    REQUIRE(background);
+    CHECK(concurrent->values_view() == joint->values_view());
+    CHECK(background->values_view() == joint->values_view());
+}
+
+TEST_CASE("Accumulator finite-difference implied volatility reuses isolated trial grids", "[fd-accumulator-workspace]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 4, 1);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date) { ++*queries; return true; }, 365);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, calendar);
+    const auto option = *make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end});
+    const auto engine = make_finite_difference_accumulator_engine({80, 80}).value();
+    const auto quote = engine.price(option, context);
+    REQUIRE(quote);
+    queries->store(0);
+    const ImpliedVolatilitySettings bounds{.lower_bound = 0.15, .upper_bound = 0.25};
+    const auto independent = detail::solve_implied_volatility(engine, option, context, *quote, bounds,
+                                                              [](const auto& scalar, const auto& instrument, const auto& market) { return scalar.price(instrument, market); });
+    REQUIRE(independent);
+    const int independent_queries = queries->exchange(0);
+    const auto shared = implied_volatility(engine, option, context, *quote, bounds);
+    REQUIRE(shared);
+    CHECK(*shared == *independent);
+    CHECK(*shared == Catch::Approx(0.2).margin(1e-6));
+    CHECK(queries->load() < independent_queries / 2);
+}
+
 TEST_CASE("Accumulator fixed-quantity finite differences preserve accrual linearity", "[fd-performance]")
 {
     using namespace kiyosi;

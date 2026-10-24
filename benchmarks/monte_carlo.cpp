@@ -296,6 +296,16 @@ void kiyosi::benchmark_support::register_analytics_cases()
         }
     }
     register_price("analytics/kiyosi/accumulator/fd/price", accumulator, accumulator_engine, context);
+    register_calculation("analytics/kiyosi/accumulator/fd/vega_rho", [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::vega, Greek::rho}); }, "price")->UseRealTime();
+    register_calculation("analytics/kiyosi/accumulator/fd/vega_rho/independent_stencils", [=] { return detail::price_with_greeks(accumulator_engine, accumulator, context, {Greek::vega, Greek::rho}, NumericalShiftSettings{}); }, "price")->UseRealTime();
+    const auto accumulator_fd_quote = accumulator_engine.price(accumulator, context);
+    for (const bool independent : {false, true})
+        register_calculation(independent ? "analytics/kiyosi/accumulator/fd/implied_volatility/independent_trials" : "analytics/kiyosi/accumulator/fd/implied_volatility", [=, accumulator_fd_quote = accumulator_fd_quote]() -> Result<double> {
+            if (!accumulator_fd_quote) return std::unexpected(accumulator_fd_quote.error());
+            const ImpliedVolatilitySettings bounds{.lower_bound = 0.15, .upper_bound = 0.25};
+            return independent ? detail::solve_implied_volatility(accumulator_engine, accumulator, context, *accumulator_fd_quote, bounds,
+                                                                  [](const auto& engine, const auto& instrument, const auto& market) { return engine.price(instrument, market); })
+                               : implied_volatility(accumulator_engine, accumulator, context, *accumulator_fd_quote, bounds); }, "volatility")->UseRealTime();
     const Date leap_start{std::chrono::year{2024} / 1 / 1}, leap_end{std::chrono::year{2025} / 1 / 1};
     const auto leap_accumulator = *make_accumulator(
         {.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = leap_start, .expiry_date = leap_end});
