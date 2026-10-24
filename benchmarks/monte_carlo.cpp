@@ -1,4 +1,5 @@
 #include <chrono>
+#include <array>
 #include <format>
 #include <initializer_list>
 #include <string>
@@ -8,6 +9,7 @@
 #include <benchmark/benchmark.h>
 #include <kiyosi/kiyosi.hpp>
 #include "pricing/detail/numerical_greeks.hpp"
+#include "pricing/detail/fd_grid.hpp"
 
 #include "pricing.hpp"
 
@@ -99,6 +101,22 @@ void register_monte_carlo(const std::string& name, const auto& scenario, auto en
 void kiyosi::benchmark_support::register_analytics_cases()
 {
     using namespace kiyosi;
+    for (const bool together : {false, true})
+        benchmark::RegisterBenchmark(together ? "analytics/kiyosi/fd/nonuniform/sample" : "analytics/kiyosi/fd/nonuniform/separate_samples", [together](benchmark::State& state) {
+            detail::SpatialGrid grid{800.5, 1.0, 800};
+            grid.nodes.resize(grid.size());
+            for (std::size_t index = 0; index < grid.nodes.size(); ++index)
+                grid.nodes[index] = static_cast<double>(index);
+            grid.nodes.back() = grid.upper;
+            std::vector<double> values(grid.size(), 1.0), curvature;
+            values.front() = 0.0;
+            benchmark::DoNotOptimize(grid.sample(values, 1.5, curvature));
+            for (auto _ : state) {
+                auto sample = together ? grid.sample(values, 1.5, curvature)
+                                       : std::array{grid.interpolate(values, 1.5, curvature), grid.delta(values, 1.5, curvature), grid.gamma(values, 1.5, curvature)};
+                benchmark::DoNotOptimize(sample);
+            }
+        })->UseRealTime();
     const auto [european, base_context] = monte_carlo_scenario();
     for (const int count : {0, 1000, 10'000}) {
         std::vector<Date> closed;

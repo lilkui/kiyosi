@@ -4,6 +4,7 @@
 #include <kiyosi/pricing/implied.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <optional>
 #include <utility>
@@ -212,8 +213,21 @@ Result<PricingResult> rollback_autocallable(
 
     auto& curvature = workspace.curvature;
     curvature.clear();
-    const double value = initial.path.coupons + space.interpolate(alive, spot, curvature);
-    return finite_difference_result(value, spot, space.upper, output, spot_shift, [&](double shifted_spot) { return checked_price(initial.path.coupons + space.interpolate(alive, shifted_spot, curvature)); }, [&](double shifted_spot) { return space.delta(alive, shifted_spot, curvature); }, [&](double shifted_spot) { return space.gamma(alive, shifted_spot, curvature); });
+    const bool nonuniform = !space.nodes.empty();
+    // Greek extraction visits only the center and one spot bump in each direction.
+    std::array<std::optional<std::array<double, 3>>, 3> samples{};
+    const auto sample_at = [&](double shifted_spot) {
+        const std::size_t index = shifted_spot == spot ? 0 : shifted_spot > spot ? 1
+                                                                                 : 2;
+        auto& sample = samples[index];
+        if (!sample) sample = space.sample(alive, shifted_spot, curvature);
+        return *sample;
+    };
+    const auto price_at = [&](double shifted_spot) {
+        return initial.path.coupons + (nonuniform ? sample_at(shifted_spot)[0] : space.interpolate(alive, shifted_spot, curvature));
+    };
+    const double value = price_at(spot);
+    return finite_difference_result(value, spot, space.upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[1] : space.delta(alive, shifted_spot, curvature); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[2] : space.gamma(alive, shifted_spot, curvature); });
 }
 
 template <AutocallableProduct Note>

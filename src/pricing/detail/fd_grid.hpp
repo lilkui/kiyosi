@@ -296,7 +296,7 @@ struct SpatialGrid {
         return nodes.empty() ? gamma(values, spot) : sample(values, spot, curvature)[2];
     }
 
-private:
+    /// Samples price, delta and gamma together on a nonuniform grid, reusing unchanged curvature.
     [[nodiscard]] std::array<double, 3> sample(std::span<const double> values, double spot,
                                                std::vector<double>& curvature) const
     {
@@ -353,6 +353,7 @@ private:
                 std::lerp(curvature[index], curvature[index + 1], weight)};
     }
 
+private:
     [[nodiscard]] double coordinate_delta(std::span<const double> values, double spot) const
     {
         return blend(spot, [&](std::size_t index) {

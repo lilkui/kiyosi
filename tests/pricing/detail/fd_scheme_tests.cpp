@@ -295,6 +295,10 @@ TEST_CASE("Nonuniform finite-difference splines retain physical derivatives and 
         const double expected = 4.0 / 3.0 + 2.0 * t + t * t - 0.5 * t * t * t;
         const double delta = 2.0 + 2.0 * t - 1.5 * t * t;
         const double gamma = 2.0 - 3.0 * t;
+        const auto sample = grid.sample(values, spot, curvature);
+        CHECK_THAT(sample[0], Catch::Matchers::WithinAbs(expected, 1e-14));
+        CHECK_THAT(sample[1], Catch::Matchers::WithinAbs(delta, 1e-14));
+        CHECK_THAT(sample[2], Catch::Matchers::WithinAbs(gamma, 1e-14));
         CHECK_THAT(grid.interpolate(values, spot, curvature), Catch::Matchers::WithinAbs(expected, 1e-14));
         CHECK_THAT(grid.delta(values, spot, curvature), Catch::Matchers::WithinAbs(delta, 1e-14));
         CHECK_THAT(grid.gamma(values, spot, curvature), Catch::Matchers::WithinAbs(gamma, 1e-14));
@@ -322,6 +326,10 @@ TEST_CASE("Nonuniform splines preserve smooth global extrema", "[autocallable-ac
         for (const double t : {0.1, 0.5, 0.9}) {
             CAPTURE(sign, t);
             const double spot = 1.0 + t;
+            const auto sample = grid.sample(values, spot, curvature);
+            CHECK_THAT(sample[0], Catch::Matchers::WithinAbs(sign * (0.75 + t - t * t), 1e-14));
+            CHECK_THAT(sample[1], Catch::Matchers::WithinAbs(sign * (1.0 - 2.0 * t), 1e-14));
+            CHECK_THAT(sample[2], Catch::Matchers::WithinAbs(-2.0 * sign, 1e-14));
             CHECK_THAT(grid.interpolate(values, spot, curvature), Catch::Matchers::WithinAbs(sign * (0.75 + t - t * t), 1e-14));
             CHECK_THAT(grid.delta(values, spot, curvature), Catch::Matchers::WithinAbs(sign * (1.0 - 2.0 * t), 1e-14));
             CHECK_THAT(grid.gamma(values, spot, curvature), Catch::Matchers::WithinAbs(-2.0 * sign, 1e-14));
@@ -344,6 +352,7 @@ TEST_CASE("Nonuniform spline overshoot is bounded with consistent Greeks", "[aut
         std::vector<double> curvature;
         for (const double spot : {1.25, 1.5, 1.75}) {
             CAPTURE(sign, spot);
+            CHECK(grid.sample(values, spot, curvature) == std::array{1.0, 0.0, 0.0});
             CHECK(grid.interpolate(values, spot, curvature) == 1.0);
             CHECK(grid.delta(values, spot, curvature) == 0.0);
             CHECK(grid.gamma(values, spot, curvature) == 0.0);
