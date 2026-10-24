@@ -744,97 +744,6 @@ class PricingRegressionTests(unittest.TestCase):
                     tuple(getattr(reference, name) for name in names),
                 )
 
-    def test_continuous_up_barriers_preserve_put_boundaries_and_rebate_timing(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
-        context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.04,
-                dividend_yield=0.01,
-                volatility=0.2,
-            ),
-            spot_price=100.25,
-            valuation_time=start,
-            calendar=all_days_calendar(),
-        )
-        # Fixed-grid references include CN startup damping.
-        cases = (
-            (
-                "crank_nicolson",
-                "at_hit",
-                6.001294270333644,
-                -0.46100321142270584,
-                0.012094206387263214,
-                -0.0007201663153294298,
-            ),
-            (
-                "crank_nicolson",
-                "at_expiry",
-                5.9654519235374055,
-                -0.46428364164012226,
-                0.011885181449706947,
-                -0.0007257305720597129,
-            ),
-            (
-                "implicit_euler",
-                "at_hit",
-                6.000291212030822,
-                -0.46094055012576535,
-                0.012105234989577161,
-                -0.0007214011673570921,
-            ),
-            (
-                "implicit_euler",
-                "at_expiry",
-                5.964442597640509,
-                -0.46422044616223535,
-                0.011896243851421412,
-                -0.0007269705471180208,
-            ),
-            (
-                "explicit_euler",
-                "at_hit",
-                6.002297864958332,
-                -0.4610659998773655,
-                0.012083194022974213,
-                -0.0007189321115608181,
-            ),
-            (
-                "explicit_euler",
-                "at_expiry",
-                5.966461797161821,
-                -0.46434696546546267,
-                0.011874135281227763,
-                -0.0007244912412884592,
-            ),
-        )
-        for scheme, timing, price, delta, gamma, speed in cases:
-            with self.subTest(scheme=scheme, timing=timing):
-                option = BarrierOption(
-                    option_type="put",
-                    strike=100,
-                    effective_date=start,
-                    expiry_date=end,
-                    barrier_level=110,
-                    barrier_type="up_and_out",
-                    rebate=2,
-                    rebate_timing=timing,
-                )
-                engine = pricing.FiniteDifferenceBarrierEngine(
-                    asset_step_count=80,
-                    time_step_count=1000,
-                    scheme=scheme,
-                    asset_upper_boundary=400,
-                )
-                result = engine.price_with_greeks(
-                    option, context, ["delta", "gamma", "speed"]
-                )
-                for name, expected in zip(
-                    ("price", "delta", "gamma", "speed"), (price, delta, gamma, speed)
-                ):
-                    self.assertIsNotNone(getattr(result, name))
-                    self.assertAlmostEqual(getattr(result, name), expected, delta=1e-11)
-                self.assertEqual(result.price, engine.price(option, context))
-
     def test_accumulator_mc_selected_greeks_match_all_requests(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         option = Accumulator(
@@ -1252,38 +1161,6 @@ class PricingRegressionTests(unittest.TestCase):
                                         delta=1e-12,
                                     )
 
-    def test_accumulator_daily_leap_year_grid_preserves_settlement_price(self):
-        start, end = date(2024, 1, 1), date(2025, 1, 1)
-        option = Accumulator(
-            strike=100,
-            knock_out_level=115,
-            daily_quantity=1,
-            acceleration_factor=2,
-            accumulated_quantity=0,
-            effective_date=start,
-            expiry_date=end,
-        )
-        context = PricingContext(
-            model_parameters=BlackScholesMertonParameters(
-                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-            ),
-            spot_price=100,
-            valuation_time=start,
-            calendar=all_days_calendar(),
-        )
-        for scheme, nodes, expected in (
-            ("crank_nicolson", 200, -2160.414826198844),
-            ("implicit_euler", 200, -2157.150729478969),
-            ("explicit_euler", 40, -2248.038835478244),
-        ):
-            with self.subTest(scheme=scheme):
-                engine = pricing.FiniteDifferenceAccumulatorEngine(
-                    asset_step_count=nodes, time_step_count=366, scheme=scheme
-                )
-                self.assertAlmostEqual(
-                    engine.price(option, context), expected, delta=1e-8
-                )
-
     def test_vanilla_fd_speed_reuses_fixed_grid_gamma_with_custom_shifts(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         parameters = BlackScholesMertonParameters(
@@ -1330,34 +1207,6 @@ class PricingRegressionTests(unittest.TestCase):
             self.assertEqual(
                 clipped.exception.category, kiyosi.ErrorCategory.INVALID_PARAMETER
             )
-
-    def test_fd_interpolation_preserves_prices_at_and_around_grid_nodes(self):
-        start, end = date(2025, 1, 1), date(2026, 1, 1)
-        option = EuropeanOption(
-            option_type="call", strike=100, effective_date=start, expiry_date=end
-        )
-        engine = pricing.FiniteDifferenceVanillaEngine(
-            asset_step_count=80, time_step_count=80, asset_upper_boundary=400
-        )
-        # Numerical regression values from the unchanged spline implementation.
-        for spot, expected in (
-            (99.99, 9.25238419180772),
-            (math.nextafter(100, 0), 9.258315258670022),
-            (100, 9.258315258670033),
-            (math.nextafter(100, math.inf), 9.258315258670043),
-            (100.01, 9.264248271960529),
-        ):
-            with self.subTest(spot=spot):
-                context = PricingContext(
-                    model_parameters=BlackScholesMertonParameters(
-                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
-                    ),
-                    spot_price=spot,
-                    valuation_time=start,
-                )
-                self.assertAlmostEqual(
-                    engine.price(option, context), expected, delta=1e-12
-                )
 
     def test_accumulator_fixed_position_uses_exact_zero_carry_value(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)

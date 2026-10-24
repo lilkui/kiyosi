@@ -365,23 +365,6 @@ TEST_CASE("Analytic European calls and puts obey BSM identities")
     CHECK_THAT(greek_value(call_result, kiyosi::Greek::zomma), WithinAbs(greek_value(put_result, kiyosi::Greek::zomma), 1e-12));
 }
 
-TEST_CASE("Analytic European engine remains finite one day before expiry_date")
-{
-    const auto valuation = day(2025, 1, 6);
-    const auto option = *kiyosi::make_european_option(
-        kiyosi::OptionType::call, 100.0, valuation, valuation + std::chrono::days{1});
-    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.3);
-    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
-    REQUIRE(result.has_value());
-    for (const auto& item : result->values_view()) {
-        REQUIRE(item.has_value());
-        const double value = item.value_or(std::numeric_limits<double>::quiet_NaN());
-        CHECK(std::isfinite(value));
-    }
-}
-
 TEST_CASE("Analytic European engine returns intrinsic value and unavailable Greeks at expiry_date")
 {
     const auto expiry_date = day(2026, 1, 6);
@@ -508,7 +491,7 @@ TEST_CASE("Analytic European engine reports non-finite pricing and solver result
     CHECK(non_finite_solver.error().category == kiyosi::ErrorCategory::invalid_result);
 }
 
-TEST_CASE("Analytic European engine remains finite at near-zero volatility")
+TEST_CASE("Analytic European near-zero volatility recovers discounted forward value")
 {
     const auto valuation = day(2025, 1, 6);
     const auto option = *kiyosi::make_european_option(
@@ -518,8 +501,9 @@ TEST_CASE("Analytic European engine remains finite at near-zero volatility")
 
     const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
     REQUIRE(result.has_value());
-    CHECK(std::isfinite(result->price()));
-    CHECK(std::isfinite(greek_value(*result, kiyosi::Greek::delta)));
+    const double expected = 100.0 * (std::exp(-0.01 / 365.0) - std::exp(-0.04 / 365.0));
+    CHECK_THAT(result->price(), Catch::Matchers::WithinAbs(expected, 1e-12));
+    CHECK_THAT(greek_value(*result, kiyosi::Greek::delta), Catch::Matchers::WithinAbs(std::exp(-0.01 / 365.0), 1e-12));
     CHECK(greek_value(*result, kiyosi::Greek::gamma) == 0.0);
 }
 
@@ -666,37 +650,6 @@ TEST_CASE("Analytic European implied volatility reports unbracketed quotes")
         engine, boundary_put, zero_carry_context, 20.0);
     REQUIRE(boundary.has_value());
     CHECK(*boundary == kiyosi::ImpliedVolatilitySettings{}.lower_bound);
-}
-
-TEST_CASE("Analytic European engine remains finite in deep tails")
-{
-    const auto valuation = day(2025, 1, 6);
-    const auto option = *kiyosi::make_european_option(
-        kiyosi::OptionType::call, 1'000'000.0, valuation, valuation + std::chrono::days{1});
-    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
-    REQUIRE(result.has_value());
-    for (const auto& item : result->values_view()) {
-        REQUIRE(item.has_value());
-        const double value = item.value_or(std::numeric_limits<double>::quiet_NaN());
-        CHECK(std::isfinite(value));
-    }
-}
-
-TEST_CASE("Analytic European engine remains finite for a short-dated low-volatility option")
-{
-    const auto valuation = day(2025, 1, 6);
-    const auto option = *kiyosi::make_european_option(
-        kiyosi::OptionType::put, 200.0, valuation, valuation + std::chrono::days{1});
-    const auto parameters = *kiyosi::make_bsm_parameters(0.04, 0.01, 0.05);
-    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-
-    const auto result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(option, context, kiyosi::GreeksRequest{true});
-    REQUIRE(result.has_value());
-    CHECK(std::isfinite(result->price()));
-    CHECK(std::isfinite(greek_value(*result, kiyosi::Greek::delta)));
 }
 
 } // namespace

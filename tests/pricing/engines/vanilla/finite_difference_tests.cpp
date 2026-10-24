@@ -379,7 +379,7 @@ TEST_CASE("Finite-difference engines validate shared settings without grid caps"
     check(make_finite_difference_autocallable_engine);
 }
 
-TEST_CASE("Finite-difference prices exceed former grid caps")
+TEST_CASE("Finite-difference prices support large grids")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);

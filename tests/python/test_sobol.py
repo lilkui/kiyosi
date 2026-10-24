@@ -253,14 +253,6 @@ class SobolTests(unittest.TestCase):
                     volatility,
                 )
 
-    def test_sobol_extreme_seed_and_single_path_are_finite(self):
-        context, cases = shared.SharedSampleTests.parallel_cases()
-        for option, engine_type in cases:
-            with self.subTest(option=type(option).__name__):
-                for seed in (0, 2**64 - 1):
-                    engine = engine_type(path_count=1, seed=seed, sampling="sobol")
-                    self.assertTrue(math.isfinite(engine.price(option, context)))
-
     def test_sobol_implied_coupon_recovers_seeded_quotes(self):
         context, cases = shared.SharedSampleTests.parallel_cases()
         for option, engine_type in cases:

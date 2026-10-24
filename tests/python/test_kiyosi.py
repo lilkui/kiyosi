@@ -10,7 +10,6 @@ from datetime import UTC, date, datetime, timedelta, timezone
 from fractions import Fraction
 from pathlib import Path
 from typing import get_args
-from unittest.mock import patch
 
 import kiyosi
 
@@ -641,7 +640,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.assertIsNotNone(narrow.gamma)
                 self.assertIsNotNone(narrow.speed)
 
-    def test_domain_exception_survives_removed_exports(self):
+    def test_domain_error_type_outlives_module_attributes(self):
         result = subprocess.run(
             [
                 sys.executable,
@@ -2381,7 +2380,6 @@ class KiyosiPythonTests(unittest.TestCase):
     def test_string_choice_boundary_and_literal_aliases(self):
         self.assertEqual(get_args(kiyosi.Greek)[:2], ("delta", "gamma"))
         self.assertNotIn("price", get_args(kiyosi.Greek))
-        self.assertFalse(hasattr(kiyosi, "RiskMeasure"))
         self.assertEqual(get_args(pricing.MonteCarloBackend), ("cpu", "cuda"))
         self.assertEqual(
             get_args(market.BusinessDayConvention), ("following", "preceding")
@@ -2459,22 +2457,6 @@ class KiyosiPythonTests(unittest.TestCase):
                 pricing.FiniteDifferenceVanillaEngine(scheme=scheme).scheme, scheme
             )
 
-    def test_explicit_pricing_result_surface(self):
-        for module in (kiyosi, pricing, kiyosi._native):
-            self.assertFalse(hasattr(module, "calculate_numerical_greeks"))
-        self.assertNotIn("calculate_numerical_greeks", pricing.__all__)
-        self.assertFalse(hasattr(kiyosi, "price"))
-        self.assertFalse(hasattr(pricing, "price"))
-        self.assertFalse(hasattr(kiyosi, "GreeksLevel"))
-        self.assertFalse(hasattr(pricing, "GreeksLevel"))
-        result = AnalyticVanillaEngine().price_with_greeks(
-            self.option, self.context, all_greeks=True
-        )
-        self.assertIs(type(result.price), float)
-        self.assertEqual(result.require("delta"), result.delta)
-        with self.assertRaises(ValueError):
-            result.require("price")
-
     def test_selected_greeks_preserve_native_values_and_scalar_price(self):
         engine = AnalyticVanillaEngine()
         context = PricingContext(
@@ -2487,10 +2469,14 @@ class KiyosiPythonTests(unittest.TestCase):
         full = engine.price_with_greeks(self.option, context, all_greeks=True)
         numerical = price_differences(engine, self.option, context)
         self.assertIs(type(value), float)
+        self.assertIs(type(basic.price), float)
         self.assertEqual(basic.price, value)
         self.assertEqual(full.price, value)
         self.assertEqual(basic.delta, full.delta)
         self.assertEqual(basic.gamma, full.gamma)
+        self.assertEqual(basic.require("delta"), basic.delta)
+        with self.assertRaises(ValueError):
+            basic.require("price")
         selected = engine.price_with_greeks(self.option, context, "vega")
         self.assertEqual(selected.price, value)
         self.assertEqual(selected.vega, full.vega)
@@ -2597,12 +2583,7 @@ class KiyosiPythonTests(unittest.TestCase):
                     with self.assertRaises(error_type) as caught:
                         engine.price_with_greeks(self.option, self.context, values)
                     self.assertEqual(values.iter_calls, 1)
-                    if phase == "initialization" and error_type is TypeError:
-                        self.assertEqual(
-                            str(caught.exception),
-                            "greeks must be a Greek name or an iterable of Greek names",
-                        )
-                    else:
+                    if phase != "initialization" or error_type is not TypeError:
                         self.assertIs(caught.exception, failure)
 
     def test_joint_pricing_requires_explicit_greeks_and_valid_shift_settings(self):
@@ -2820,7 +2801,6 @@ class KiyosiPythonTests(unittest.TestCase):
         observed_price = engine.price(target_standard, self.context)
         with self.assertRaises(TypeError):
             implied_coupon(engine, standard, self.context, observed_price)
-        self.assertFalse(hasattr(standard, "with_quoted_coupon_rate"))
 
         cases = (
             (standard, target_standard, linked),
@@ -2986,43 +2966,12 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertGreater(
             engine.price(BinarySnowballOption(**terms, barrier_state="none"), later), 0
         )
-        self.assertFalse(hasattr(missing, "initial_spot"))
-        self.assertFalse(hasattr(missing, "upper_strike"))
-        self.assertFalse(hasattr(missing, "lower_strike"))
 
-    def test_public_api_has_targeted_docstrings(self):
-        self.assertFalse(hasattr(market, "sse_calendar_data_first_year"))
-        self.assertFalse(hasattr(market, "sse_calendar_data_last_year"))
-        self.assertFalse(hasattr(market, "sse_calendar_data_version"))
+    def test_sse_calendar_uses_weekdays_outside_its_data_range(self):
+        value = date(2100, 2, 8)
         self.assertEqual(
-            market.sse_calendar().is_trading_day(date(2100, 2, 8)),
-            market.weekdays_calendar().is_trading_day(date(2100, 2, 8)),
+            market.sse_calendar().is_trading_day(value), value.weekday() < 5
         )
-        self.assertIn("validated", BlackScholesMertonParameters.__doc__.lower())
-        self.assertIn("weekdays", market.weekdays_calendar.__doc__.lower())
-        self.assertIn(
-            "reversed", market.TradingCalendar.trading_days_between.__doc__.lower()
-        )
-        self.assertIn("price", AnalyticVanillaEngine.price.__doc__.lower())
-        self.assertIn(
-            "all_greeks: bool = False", AnalyticVanillaEngine.price_with_greeks.__doc__
-        )
-        self.assertIn("greek", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("percentage point", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("calendar day", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn("never a zero sentinel", kiyosi.PricingResult.__doc__.lower())
-        self.assertIn(
-            "absolute", AnalyticVanillaEngine.price_with_greeks.__doc__.lower()
-        )
-        self.assertIn(
-            "boundary", AnalyticVanillaEngine.price_with_greeks.__doc__.lower()
-        )
-        self.assertIn("solve", implied_volatility.__doc__.lower())
-        self.assertIn("solve", implied_coupon.__doc__.lower())
-        self.assertIn("start is excluded", fixed_interval_schedule.__doc__.lower())
-        self.assertIn("duplicate", fixed_interval_schedule.__doc__.lower())
-        self.assertIn("not guaranteed", monthly_schedule.__doc__.lower())
-        self.assertIn("clamped", monthly_schedule.__doc__.lower())
 
     def test_schedule_builders_expose_bounded_following_behavior(self):
         self.assertEqual(
@@ -3065,7 +3014,6 @@ class KiyosiPythonTests(unittest.TestCase):
         )
 
     def test_weekdays_calendar_is_the_explicit_default(self):
-        self.assertFalse(hasattr(market, "exchange_calendar"))
         calendar = market.weekdays_calendar()
         self.assertEqual(calendar.trading_days_per_year, 252)
         self.assertFalse(calendar.is_trading_day(date(2025, 1, 4)))
@@ -3174,41 +3122,35 @@ class KiyosiPythonTests(unittest.TestCase):
                 "strike",
                 0.0,
                 kiyosi.ErrorCategory.INVALID_STRIKE,
-                "strike must be finite and positive",
             ),
             (
                 "knock_out_level",
                 0.0,
                 kiyosi.ErrorCategory.INVALID_PARAMETER,
-                "knock-out level must be finite and positive",
             ),
             (
                 "daily_quantity",
                 -1.0,
                 kiyosi.ErrorCategory.INVALID_PARAMETER,
-                "daily quantity must be finite and non-negative",
             ),
             (
                 "acceleration_factor",
                 -1.0,
                 kiyosi.ErrorCategory.INVALID_PARAMETER,
-                "acceleration factor must be finite and non-negative",
             ),
             (
                 "accumulated_quantity",
                 -1.0,
                 kiyosi.ErrorCategory.INVALID_PARAMETER,
-                "accumulated quantity must be finite and non-negative",
             ),
         )
-        for field, value, category, message in cases:
+        for field, value, category in cases:
             with (
                 self.subTest(field=field),
                 self.assertRaises(kiyosi.KiyosiError) as error,
             ):
                 Accumulator(**{**terms, field: value})
             self.assertEqual(error.exception.category, category)
-            self.assertEqual(str(error.exception), message)
 
         with self.assertRaises(kiyosi.KiyosiError) as error:
             Accumulator(
@@ -3220,9 +3162,6 @@ class KiyosiPythonTests(unittest.TestCase):
             )
         self.assertEqual(
             error.exception.category, kiyosi.ErrorCategory.INVALID_TIME_RANGE
-        )
-        self.assertEqual(
-            str(error.exception), "expiry date must not precede the effective date"
         )
 
     def test_contract_date_errors_have_shared_categories(self):
@@ -3454,22 +3393,6 @@ class KiyosiPythonTests(unittest.TestCase):
                         self.assertAlmostEqual(
                             engine.price(option, context), 1.08, delta=1e-6
                         )
-
-    def test_builtin_numeric_conversions_avoid_numbers_imports(self):
-        with patch("builtins.__import__", wraps=__import__) as imports:
-            parameters = BlackScholesMertonParameters(
-                risk_free_rate=0, dividend_yield=0.02, volatility=0.2
-            )
-            engine = pricing.MonteCarloVanillaEngine(
-                path_count=32, step_count=2, seed=2**64 - 1
-            )
-        self.assertEqual(parameters.risk_free_rate, 0)
-        self.assertEqual(parameters.dividend_yield, 0.02)
-        self.assertEqual(parameters.volatility, 0.2)
-        self.assertEqual(engine.path_count, 32)
-        self.assertEqual(engine.step_count, 2)
-        self.assertEqual(engine.seed, 2**64 - 1)
-        self.assertNotIn("numbers", [call.args[0] for call in imports.call_args_list])
 
     def test_real_numeric_conversions_preserve_protocols(self):
         class FloatSubclass(float):
@@ -3812,25 +3735,17 @@ class KiyosiPythonTests(unittest.TestCase):
             "effective_date": date(2025, 1, 1),
             "expiry_date": dates[-1],
         }
-        with patch("builtins.__import__", wraps=__import__) as imported:
-            note = BinarySnowballOption(
-                observations=autocallable_observations(
-                    iter(dates),
-                    [110] * len(dates),
-                    knock_out_coupon_rates=[0.08] * len(dates),
-                ),
-                **terms,
-            )
-        self.assertLessEqual(
-            sum(call.args[0] == "datetime" for call in imported.call_args_list), 3
+        note = BinarySnowballOption(
+            observations=autocallable_observations(
+                iter(dates),
+                [110] * len(dates),
+                knock_out_coupon_rates=[0.08] * len(dates),
+            ),
+            **terms,
         )
         expected = [date(2025, 1, 1) + timedelta(days=i) for i in range(1, 253)]
-        with patch("builtins.__import__", wraps=__import__) as imported:
-            actual = note.observation_dates
+        actual = note.observation_dates
         self.assertEqual(actual, expected)
-        self.assertLessEqual(
-            sum(call.args[0] == "datetime" for call in imported.call_args_list), 1
-        )
         self.assertTrue(all(type(value) is date for value in note.observation_dates))
         for invalid in (datetime(2025, 1, 3, tzinfo=UTC), "2025-01-03", None):
             with self.subTest(invalid=invalid), self.assertRaises(TypeError):
@@ -4229,8 +4144,6 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(barrier.rebate_timing, "at_expiry")
         self.assertEqual(barrier.observation_mode, "continuous")
         self.assertIn("observation_dates=[]", repr(barrier))
-        self.assertFalse(hasattr(barrier, "rebate_payment"))
-        self.assertFalse(hasattr(barrier, "observation"))
         self.assertEqual(
             len(
                 fixed_interval_schedule(
@@ -4337,7 +4250,7 @@ class KiyosiPythonTests(unittest.TestCase):
                     ):
                         engine_type(**{name: value})
 
-    def test_finite_difference_prices_exceed_former_grid_caps(self):
+    def test_finite_difference_prices_support_large_grids(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         option = EuropeanOption(
             option_type="call", strike=100, effective_date=start, expiry_date=end

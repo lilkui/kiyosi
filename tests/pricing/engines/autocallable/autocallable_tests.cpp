@@ -960,7 +960,6 @@ TEST_CASE("Autocallable engines validate observation dates against each market c
             } else {
                 REQUIRE_FALSE(result);
                 CHECK(result.error().category == kiyosi::ErrorCategory::invalid_date);
-                CHECK(result.error().message == "observation Date is not a trading day");
             }
         }
     }

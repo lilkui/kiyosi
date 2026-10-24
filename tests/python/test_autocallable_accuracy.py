@@ -22,14 +22,6 @@ from kiyosi.market import (
 
 
 class AutocallableAccuracyTests(unittest.TestCase):
-    def test_default_grids_preserve_core_settings(self):
-        defaults = pricing.FiniteDifferenceAutocallableEngine()
-        self.assertEqual(
-            (defaults.asset_step_count, defaults.time_step_count), (800, 2000)
-        )
-        self.assertEqual(defaults.scheme, "crank_nicolson")
-        self.assertIsNone(defaults.asset_upper_boundary)
-
     def test_nearby_barriers_preserve_prices_and_greeks(self):
         start, middle, end = date(2025, 1, 1), date(2025, 7, 1), date(2026, 1, 1)
         context = PricingContext(

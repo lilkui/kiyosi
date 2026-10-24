@@ -236,10 +236,16 @@ class SharedSampleTests(unittest.TestCase):
         ):
             self.assertEqual(engine_type().thread_count, 0)
             self.assertEqual(engine_type(thread_count=4).thread_count, 4)
-            for threads in (True, False, 1.0, 1.5, 2**63):
+            for threads, error_type in (
+                (True, TypeError),
+                (False, TypeError),
+                (1.0, TypeError),
+                (1.5, TypeError),
+                (2**63, OverflowError),
+            ):
                 with (
                     self.subTest(engine=engine_type.__name__, threads=threads),
-                    self.assertRaises((TypeError, OverflowError)),
+                    self.assertRaises(error_type),
                 ):
                     engine_type(thread_count=threads)
 

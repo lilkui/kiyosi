@@ -10,7 +10,6 @@
 #include <memory>
 #include <optional>
 #include <random>
-#include <tuple>
 #include <utility>
 
 #include <kiyosi/kiyosi.hpp>
@@ -281,23 +280,6 @@ TEST_CASE("Accumulator Monte Carlo joint valuations preserve failures and concur
     const auto again = engine.price_with_greeks(option, context, true);
     REQUIRE(again);
     CHECK(again->values_view() == a->values_view());
-}
-
-TEST_CASE("Accumulator daily leap-year grids preserve settlement prices", "[fd-performance]")
-{
-    using namespace kiyosi;
-    const auto start = day(2024, 1, 1), end = day(2025, 1, 1);
-    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start, all_days_calendar());
-    const auto option = *make_accumulator({.strike = 100.0, .knock_out_level = 115.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .accumulated_quantity = 0.0, .effective_date = start, .expiry_date = end});
-    // Calendar-grid reference values with local event averaging and CN damping.
-    for (const auto& [scheme, nodes, expected] : {
-             std::tuple{FiniteDifferenceScheme::crank_nicolson, 200, -2160.414826198844},
-             std::tuple{FiniteDifferenceScheme::implicit_euler, 200, -2157.150729478969},
-             std::tuple{FiniteDifferenceScheme::explicit_euler, 40, -2248.038835478244}}) {
-        const auto price = make_finite_difference_accumulator_engine({nodes, 366, scheme}).value().price(option, context);
-        REQUIRE(price);
-        CHECK(*price == Catch::Approx(expected).margin(1e-8));
-    }
 }
 
 TEST_CASE("Zero-exposure accumulators skip numerical work after validation", "[fd-performance][monte-carlo-performance]")

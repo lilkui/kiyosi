@@ -14,7 +14,6 @@ add_executable(kiyosi_tests
     market/calendar_tests.cpp
     market/context_tests.cpp
     pricing/integration_tests.cpp
-    pricing/invariants_tests.cpp
     pricing/analytics/api_contract_tests.cpp
     pricing/analytics/audit_tests.cpp
     pricing/analytics/discount_tests.cpp

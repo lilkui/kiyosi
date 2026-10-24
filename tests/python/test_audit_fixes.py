@@ -2,7 +2,6 @@ import math
 import os
 import unittest
 from datetime import date
-from unittest.mock import patch
 
 import kiyosi
 from kiyosi import pricing
@@ -32,24 +31,20 @@ from kiyosi.market import (
 
 
 class AuditFixTests(unittest.TestCase):
-    def test_schedule_iteration_is_lazy_and_retains_its_owner(self):
+    def test_schedule_iterators_are_independent_and_retain_their_owner(self):
         schedule = fixed_interval_schedule(
             start=date(2025, 1, 1),
             end=date(2025, 1, 5),
             interval_days=1,
             calendar=all_days_calendar(),
         )
-        expected = schedule.dates
-        with patch("builtins.__import__", wraps=__import__) as converted:
-            iterator = iter(schedule)
-            independent = iter(schedule)
-            self.assertIs(iter(iterator), iterator)
-            self.assertEqual(converted.call_count, 0)
-            self.assertEqual(next(iterator), expected[0])
-            self.assertEqual(converted.call_count, 1)
-            self.assertEqual(next(iterator), expected[1])
-            self.assertEqual(next(independent), expected[0])
-            self.assertEqual(converted.call_count, 3)
+        expected = [date(2025, 1, day) for day in range(2, 6)]
+        iterator = iter(schedule)
+        independent = iter(schedule)
+        self.assertIs(iter(iterator), iterator)
+        self.assertEqual(next(iterator), expected[0])
+        self.assertEqual(next(iterator), expected[1])
+        self.assertEqual(next(independent), expected[0])
         del schedule
         self.assertEqual(list(iterator), expected[2:])
         self.assertEqual(list(independent), expected[1:])

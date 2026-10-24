@@ -40,7 +40,7 @@ TEST_CASE("European option factories reject invalid terms")
             kiyosi::ErrorCategory::invalid_strike);
     const auto negative_strike = kiyosi::make_european_option(kiyosi::OptionType::call, -1.0, effective_date, expiry_date);
     REQUIRE_FALSE(negative_strike.has_value());
-    REQUIRE(negative_strike.error().message.contains("strike"));
+    REQUIRE(negative_strike.error().category == kiyosi::ErrorCategory::invalid_strike);
     REQUIRE_FALSE(kiyosi::make_european_option(kiyosi::OptionType::call,
                                                std::numeric_limits<double>::infinity(), effective_date, expiry_date)
                       .has_value());
@@ -83,28 +83,6 @@ TEST_CASE("Contract factories distinguish invalid dates from reversed lives")
     REQUIRE_FALSE(reversed_schedule.has_value());
     CHECK(reversed_schedule.error().category ==
           kiyosi::ErrorCategory::invalid_time_range);
-}
-
-TEST_CASE("Exercise style and engine Greeks are explicit")
-{
-    const auto valuation = day(2025, 1, 1);
-    const auto expiry_date = valuation + std::chrono::days{365};
-    const auto parameters = *kiyosi::make_bsm_parameters(0.05, 0.02, 0.2);
-    const auto context = *kiyosi::make_pricing_context(parameters, 100.0, valuation);
-    const auto european = *kiyosi::make_european_option(
-        kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto american = *kiyosi::make_american_option(
-        kiyosi::OptionType::call, 100.0, valuation, expiry_date);
-    const auto european_result = kiyosi::AnalyticVanillaEngine{}.price_with_greeks(european, context, kiyosi::GreeksRequest{true});
-    REQUIRE(european_result.has_value());
-    CHECK(std::isfinite(european_result->price()));
-    CHECK(european_result->has(kiyosi::Greek::vega));
-
-    const auto american_result = kiyosi::CoxRossRubinsteinVanillaEngine{}.price_with_greeks(american, context, kiyosi::GreeksRequest{kiyosi::Greek::delta, kiyosi::Greek::gamma});
-    REQUIRE(american_result.has_value());
-    CHECK(std::isfinite(american_result->price()));
-    CHECK(american_result->has(kiyosi::Greek::gamma));
-    CHECK_FALSE(american_result->has(kiyosi::Greek::vega));
 }
 
 } // namespace
