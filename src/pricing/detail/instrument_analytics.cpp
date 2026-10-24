@@ -77,11 +77,10 @@ Result<bool> time_stencil_available(const Option& option, const PricingContext&,
 {
     const auto& terms = option.barrier_terms();
     if (!terms.was_touched_before(before) || !terms.was_touched_before(after)) return false;
-    return terms.is_continuous() || terms.touch_state() == BarrierTouchState::touched ||
-           std::none_of(terms.observation_dates().begin(), terms.observation_dates().end(), [&](Date date) {
-               const Timestamp event = start_of_day(date);
-               return before <= event && event <= after;
-           });
+    if (terms.is_continuous() || terms.touch_state() == BarrierTouchState::touched) return true;
+    const auto& dates = terms.observation_dates();
+    const auto found = std::ranges::lower_bound(dates, before);
+    return found == dates.end() || *found > after;
 }
 
 template <BarrierProduct Option>
@@ -138,7 +137,9 @@ Result<bool> time_stencil_available(const Note& option, const PricingContext& co
         if (!shifted) return std::unexpected(shifted.error());
         available = validate_autocallable_history(option, *shifted).has_value();
     } else {
-        available = std::ranges::none_of(option.observations_view(), crosses_event, &AutocallableObservation::date);
+        const auto observations = option.observations_view();
+        const auto found = std::ranges::lower_bound(observations, before, {}, &AutocallableObservation::date);
+        available = found == observations.end() || found->date > after;
     }
     if constexpr (!std::same_as<Note, BinarySnowballOption>) {
         const bool daily_events = option.knock_in_observation_mode() == KnockInObservationMode::every_trading_day &&

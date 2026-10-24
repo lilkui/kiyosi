@@ -31,6 +31,80 @@ from price_differences import price_differences
 
 
 class PricingRegressionTests(unittest.TestCase):
+    def test_scheduled_time_greeks_preserve_inclusive_observation_endpoints(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        event = datetime(2025, 7, 1, tzinfo=UTC)
+        dates = [date(2025, 1, 2), event.date(), date(2025, 12, 31)]
+        barrier = BarrierOption(
+            option_type="call",
+            strike=100,
+            effective_date=start,
+            expiry_date=end,
+            barrier_level=120,
+            barrier_type="up_and_out",
+            observation_mode="scheduled",
+            observation_dates=dates,
+            touch_state="untouched",
+        )
+        note = BinarySnowballOption(
+            maturity_coupon_rate=0.05,
+            effective_date=start,
+            expiry_date=end,
+            barrier_state="none",
+            observations=autocallable_observations(
+                dates, [110] * 3, knock_out_coupon_rates=[0.08] * 3
+            ),
+        )
+        cases = (
+            (
+                barrier,
+                pricing.FiniteDifferenceBarrierEngine(
+                    asset_step_count=80, time_step_count=40
+                ),
+            ),
+            (note, pricing.QuadratureAutocallableEngine(asset_step_count=16)),
+        )
+        for option, engine in cases:
+            for days, microseconds, available in (
+                (-2, 0, True),
+                (-1, -1, True),
+                (-1, 0, False),
+                (0, 0, False),
+                (1, 0, False),
+                (1, 1, True),
+            ):
+                valuation = event + timedelta(days=days, microseconds=microseconds)
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+                    ),
+                    spot_price=100,
+                    valuation_time=valuation,
+                    calendar=all_days_calendar(),
+                )
+                with self.subTest(
+                    option=type(option), days=days, microseconds=microseconds
+                ):
+                    result = engine.price_with_greeks(option, context, ["theta"])
+                    if available:
+                        expected = (
+                            engine.price(
+                                option,
+                                context.replace(
+                                    valuation_time=valuation + timedelta(days=1)
+                                ),
+                            )
+                            - engine.price(
+                                option,
+                                context.replace(
+                                    valuation_time=valuation - timedelta(days=1)
+                                ),
+                            )
+                        ) / 2
+                        self.assertAlmostEqual(result.theta, expected, delta=1e-10)
+                    else:
+                        self.assertIsNone(result.theta)
+
     def test_european_binomial_expectations_match_full_rollback(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         for steps in (1, 2, 17, 128, 1000, 1024):

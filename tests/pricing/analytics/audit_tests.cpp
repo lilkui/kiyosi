@@ -14,6 +14,32 @@ using namespace kiyosi;
 using kiyosi::test::day;
 using kiyosi::test::greek_value;
 
+TEST_CASE("Scheduled time stencils preserve inclusive observation endpoints", "[time-stencil-search]")
+{
+    const auto start = day(2025, 1, 1), expiry = day(2026, 1, 1);
+    const auto event = start_of_day(day(2025, 7, 1));
+    const std::vector<Date> dates{day(2025, 1, 2), day(2025, 7, 1), day(2025, 12, 31)};
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, event, all_days_calendar());
+    const auto barrier = *make_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .barrier_level = 120.0, .barrier_type = BarrierType::up_and_out, .observation_mode = ObservationMode::scheduled, .observation_dates = dates, .touch_state = BarrierTouchState::untouched});
+    const auto note = *make_binary_snowball_option({.maturity_coupon_rate = 0.05, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = expiry, .observations = *make_autocallable_observations(dates, std::vector<double>(dates.size(), 110.0), std::vector<double>(dates.size(), 0.08))});
+    const auto check = [&](const auto& option) {
+        for (const auto offsets : {std::array{-2, -1}, std::array{-1, 0}, std::array{0, 0}, std::array{0, 1}, std::array{1, 2}}) {
+            const auto result = detail::time_stencil_available(option, context,
+                                                               event + std::chrono::microseconds{offsets[0]}, event + std::chrono::microseconds{offsets[1]});
+            REQUIRE(result);
+            CHECK(*result == (offsets[1] < 0 || offsets[0] > 0));
+        }
+        const auto before_first = detail::time_stencil_available(option, context, start_of_day(start), start_of_day(start) + std::chrono::hours{1});
+        REQUIRE(before_first);
+        CHECK(*before_first);
+        const auto after_last = detail::time_stencil_available(option, context, start_of_day(dates.back()) + std::chrono::microseconds{1}, start_of_day(expiry));
+        REQUIRE(after_last);
+        CHECK(*after_last);
+    };
+    check(barrier);
+    check(note);
+}
+
 TEST_CASE("Analytic digital speed retains accuracy at large price scales", "[audit-fixes][digital-speed]")
 {
     const auto start = day(2025, 1, 1);
