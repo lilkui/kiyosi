@@ -3,7 +3,9 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <limits>
+#include <map>
 #include <numeric>
 #include <span>
 #include <utility>
@@ -258,6 +260,12 @@ struct Transition {
     std::vector<std::array<double, 2>> tails;
     std::vector<Row> rows;
     std::size_t active_cell_count{};
+    std::vector<std::uint32_t> indices{};
+
+    const IntervalMoments& moment(const Row& row, std::size_t cell) const
+    {
+        return weights[indices.empty() ? row.offset + cell : indices[row.offset + cell]];
+    }
 };
 
 inline std::pair<std::size_t, std::size_t> active_cells(std::span<const double> nodes, double mean, double deviation)
@@ -307,8 +315,7 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
         const double mean = nodes[target] + drift;
         stencil[index] = {geometry(cell, mean), cell_moments(nodes[cell], nodes[cell + 1], mean, deviation)};
     });
-    constexpr auto uncached = std::numeric_limits<std::size_t>::max();
-    std::vector<std::size_t> exception_offsets(nodes.size() + 1);
+    std::vector<unsigned char> exceptions(nodes.size());
     transition.tails.resize(nodes.size());
     for_each_target(nodes.size(), [&](std::size_t target) {
         const double mean = nodes[target] + drift;
@@ -323,49 +330,92 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
         for (std::size_t index = 0; index < row.count; ++index) {
             const auto cell = row.first + index;
             if (geometry(cell, mean) != stencil[row.offset + index].geometry) {
-                row.offset = uncached;
-                exception_offsets[target] = row.count;
+                exceptions[target] = 1;
                 break;
             }
         }
     });
-    const auto stencil_size = std::accumulate(exception_offsets.begin(), exception_offsets.end(), stencil.size()) <= total ? stencil.size() : 0;
-    // Keep dense rows when retaining the shared stencil would increase storage.
-    if (stencil_size == 0)
-        for (std::size_t target = 0; target < nodes.size(); ++target) {
-            auto& row = transition.rows[target];
-            if (row.count != 0) row.offset = uncached;
-            exception_offsets[target] = row.count;
+    if (std::ranges::none_of(exceptions, [](auto value) { return value != 0; })) {
+        transition.weights.reserve(stencil.size());
+        for (const auto& cached : stencil)
+            transition.weights.push_back(cached.moments);
+        return transition;
+    }
+
+    if (total > std::numeric_limits<std::uint32_t>::max()) {
+        transition.weights.resize(total);
+        std::size_t offset = 0;
+        for (auto& row : transition.rows) {
+            row.offset = offset;
+            offset += row.count;
         }
-    std::exclusive_scan(exception_offsets.begin(), exception_offsets.end(), exception_offsets.begin(), stencil_size);
-    transition.weights.resize(exception_offsets.back());
-    for (std::size_t index = 0; index < stencil_size; ++index)
-        transition.weights[index] = stencil[index].moments;
+        for_each_target(nodes.size(), [&](std::size_t target) {
+            const auto& row = transition.rows[target];
+            for (std::size_t index = 0; index < row.count; ++index) {
+                const auto cell = row.first + index;
+                transition.weights[row.offset + index] = cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + drift, deviation);
+            }
+        });
+        return transition;
+    }
+
+    // Rounding creates several exact geometries per diagonal; share each variant, not entire rows.
+    transition.indices.resize(total);
+    std::size_t row_offset = 0;
+    for (auto& row : transition.rows) {
+        row.offset = row_offset;
+        row_offset += row.count;
+    }
+    std::vector<std::vector<IntervalMoments>> variants(stencil.size());
+    for_each_target(stencil.size(), [&](std::size_t index) {
+        std::map<std::array<double, 4>, std::size_t> geometries;
+        auto& moments = variants[index];
+        const auto offset = first_offset + index;
+        const auto begin = offset < cells ? cells - offset : 0;
+        const auto end = std::min(nodes.size(), 2 * cells - offset);
+        for (std::size_t target = begin; target < end; ++target) {
+            const auto cell = offset + target - cells;
+            const auto& row = transition.rows[target];
+            if (cell < row.first || cell - row.first >= row.count) continue;
+            const double mean = nodes[target] + drift;
+            const auto shape = geometry(cell, mean);
+            const auto [found, inserted] = geometries.try_emplace(shape, moments.size());
+            if (inserted)
+                moments.push_back(shape == stencil[index].geometry ? stencil[index].moments
+                                                                   : cell_moments(nodes[cell], nodes[cell + 1], mean, deviation));
+            transition.indices[row.offset + cell - row.first] = static_cast<std::uint32_t>(found->second);
+        }
+    });
+    std::vector<std::size_t> offsets(variants.size() + 1);
+    for (std::size_t index = 0; index < variants.size(); ++index)
+        offsets[index + 1] = offsets[index] + variants[index].size();
+    transition.weights.resize(offsets.back());
+    for_each_target(variants.size(), [&](std::size_t index) {
+        std::ranges::copy(variants[index], std::span{transition.weights}.subspan(offsets[index]).begin());
+    });
     for_each_target(nodes.size(), [&](std::size_t target) {
-        auto& row = transition.rows[target];
-        if (row.offset != uncached) return;
-        row.offset = exception_offsets[target];
-        const double mean = nodes[target] + drift;
-        for (std::size_t index = 0; index < row.count; ++index) {
-            const auto cell = row.first + index;
-            const auto& cached = stencil[cells + cell - target - first_offset];
-            transition.weights[row.offset + index] = geometry(cell, mean) == cached.geometry
-                                                         ? cached.moments
-                                                         : cell_moments(nodes[cell], nodes[cell + 1], mean, deviation);
-        }
+        const auto& row = transition.rows[target];
+        for (std::size_t index = 0; index < row.count; ++index)
+            transition.indices[row.offset + index] += static_cast<std::uint32_t>(offsets[cells + row.first + index - target - first_offset]);
     });
     return transition;
 }
 
+template <bool indexed = false>
 inline double integrate_curve(const Curve& curve, std::span<const IntervalMoments> weights,
-                              const std::array<double, 2>& tails, double log_discount, std::size_t first_cell = 0)
+                              const std::array<double, 2>& tails, double log_discount, std::size_t first_cell = 0,
+                              std::span<const std::uint32_t> indices = {})
 {
     Sum sum;
     sum.add(scaled_exponential(curve.low, tails[0] + log_discount));
     sum.add(scaled_exponential(curve.high, tails[1] + log_discount));
     const double discount = std::exp(log_discount);
-    for (std::size_t cell = 0; cell < weights.size(); ++cell)
-        sum.add(std::isnormal(discount) ? weights[cell].integrate(curve.cells[first_cell + cell]) * discount : scaled_exponential(weights[cell].integrate(curve.cells[first_cell + cell]), log_discount));
+    const auto count = indexed ? indices.size() : weights.size();
+    for (std::size_t cell = 0; cell < count; ++cell) {
+        const auto& weight = weights[indexed ? indices[cell] : cell];
+        const double value = weight.integrate(curve.cells[first_cell + cell]);
+        sum.add(std::isnormal(discount) ? value * discount : scaled_exponential(value, log_discount));
+    }
     return sum.total();
 }
 
@@ -375,33 +425,47 @@ inline void integrate_curves(const Curve& curve, const Transition& transition, d
     // Include tail work so large sparse grids still amortize scheduling.
     for_each_target(values.size(), [&](std::size_t target) {
         const auto row = transition.rows[target];
-        values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(row.offset, row.count),
-                                         transition.tails[target], log_discount, row.first); }, transition.active_cell_count + 4 * values.size());
+        if (row.count == 0 || transition.indices.empty())
+            values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(transition.indices.empty() ? row.offset : 0, row.count),
+                                             transition.tails[target], log_discount, row.first);
+        else
+            values[target] = integrate_curve<true>(curve, transition.weights, transition.tails[target], log_discount, row.first,
+                                             std::span{transition.indices}.subspan(row.offset, row.count)); }, transition.active_cell_count + 4 * values.size());
 }
 
 // Both layers share each loaded weight while retaining their independent summation order.
-inline void integrate_curve_pair(const Curve& first, const Curve& second, const Transition& transition,
-                                 double log_discount, std::span<double> first_values, std::span<double> second_values)
+template <bool indexed>
+inline void integrate_curve_pair_rows(const Curve& first, const Curve& second, const Transition& transition,
+                                      double log_discount, std::span<double> first_values, std::span<double> second_values)
 {
     const double discount = std::exp(log_discount);
     const bool direct_discount = std::isnormal(discount);
     for_each_target(first_values.size(), [&](std::size_t target) {
         const auto row = transition.rows[target];
-        const auto weights = std::span{transition.weights}.subspan(row.offset, row.count);
         const auto tails = transition.tails[target];
         Sum first_sum, second_sum;
         first_sum.add(scaled_exponential(first.low, tails[0] + log_discount));
         first_sum.add(scaled_exponential(first.high, tails[1] + log_discount));
         second_sum.add(scaled_exponential(second.low, tails[0] + log_discount));
         second_sum.add(scaled_exponential(second.high, tails[1] + log_discount));
-        for (std::size_t cell = 0; cell < weights.size(); ++cell) {
-            const double first_value = weights[cell].integrate(first.cells[row.first + cell]);
-            const double second_value = weights[cell].integrate(second.cells[row.first + cell]);
+        for (std::size_t cell = 0; cell < row.count; ++cell) {
+            const auto& weight = transition.weights[indexed ? transition.indices[row.offset + cell] : row.offset + cell];
+            const double first_value = weight.integrate(first.cells[row.first + cell]);
+            const double second_value = weight.integrate(second.cells[row.first + cell]);
             first_sum.add(direct_discount ? first_value * discount : scaled_exponential(first_value, log_discount));
             second_sum.add(direct_discount ? second_value * discount : scaled_exponential(second_value, log_discount));
         }
         first_values[target] = first_sum.total();
         second_values[target] = second_sum.total(); }, 2 * transition.active_cell_count + 8 * first_values.size());
+}
+
+inline void integrate_curve_pair(const Curve& first, const Curve& second, const Transition& transition,
+                                 double log_discount, std::span<double> first_values, std::span<double> second_values)
+{
+    if (transition.indices.empty())
+        integrate_curve_pair_rows<false>(first, second, transition, log_discount, first_values, second_values);
+    else
+        integrate_curve_pair_rows<true>(first, second, transition, log_discount, first_values, second_values);
 }
 
 // The terminal function is affine in S on each exact contractual interval.

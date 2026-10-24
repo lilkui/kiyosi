@@ -47,6 +47,7 @@ void register_quadrature_cases()
             for (auto _ : state) {
                 auto transition = transition_weights(nodes, 0.0, deviation);
                 state.counters["weight_bytes"] = static_cast<double>(transition.weights.size() * sizeof(IntervalMoments));
+                state.counters["index_bytes"] = static_cast<double>(transition.indices.size() * sizeof(std::uint32_t));
                 benchmark::DoNotOptimize(transition);
             }
         })->UseRealTime();
@@ -132,7 +133,7 @@ void register_quadrature_cases()
         const auto valuation = barrier_state == AutocallableBarrierState::none ? start : start + std::chrono::days{2};
         const auto context = make_pricing_context(make_bsm_parameters(0.03, 0.01, 0.2).value(), 100.0, valuation, all_days_calendar()).value();
         const auto note = make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::every_trading_day, .barrier_state = barrier_state, .effective_date = start, .expiry_date = expiry, .observations = {{Date{std::chrono::year{2025} / 2 / 1}, 110.0, 0.08}, {Date{std::chrono::year{2025} / 3 / 1}, 108.0, 0.08}, {expiry, 105.0, 0.08}}}).value();
-        for (const int steps : {17, 512, 1024}) {
+        for (const int steps : {17, 512, 513, 1024}) {
             const auto engine = make_quadrature_autocallable_engine({steps, 8.0}).value();
             const std::string prefix = std::string{"quadrature/snowball/"} + (barrier_state == AutocallableBarrierState::none ? "none/" : "knocked_in/") + std::to_string(steps);
             register_price((prefix + "/price").c_str(), note, engine, context)->UseRealTime();

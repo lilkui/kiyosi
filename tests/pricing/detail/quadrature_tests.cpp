@@ -164,7 +164,7 @@ TEST_CASE("Quadrature transitions preserve moments and tails across grid sizes",
             reference.push_back(cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + 0.0001, deviation));
             const auto row = transition.rows[target];
             if (cell >= row.first && cell < row.first + row.count) {
-                const auto& actual_moments = transition.weights[row.offset + cell - row.first];
+                const auto& actual_moments = transition.moment(row, cell - row.first);
                 CHECK(actual_moments.mass == reference.back().mass);
                 CHECK(actual_moments.log_mass == reference.back().log_mass);
                 CHECK(actual_moments.conditional == reference.back().conditional);
@@ -201,7 +201,7 @@ TEST_CASE("Quadrature reused moments preserve exact relative cell geometry", "[q
                     for (std::size_t index = 0; index < row.count; ++index) {
                         const auto cell = row.first + index;
                         const auto expected = cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + drift, 0.02);
-                        const auto& actual = transition.weights[row.offset + index];
+                        const auto& actual = transition.moment(row, index);
                         CHECK(actual.mass == expected.mass);
                         CHECK(actual.log_mass == expected.log_mass);
                         CHECK(actual.conditional == expected.conditional);
@@ -278,6 +278,28 @@ TEST_CASE("Quadrature translated cells share weight storage without changing int
         for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
             dense.push_back(cell_moments(nodes[cell], nodes[cell + 1], nodes[target], deviation));
         CHECK(actual[target] == reference_integral(curve, dense, transition.tails[target], -740.0));
+    }
+}
+
+TEST_CASE("Quadrature rounding variants share exact moments without dense weight storage", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 513, {}).value();
+    const double deviation = 0.2 / std::sqrt(365.0);
+    const double drift = GENERATE(0.0, 0.0001);
+    const auto transition = transition_weights(nodes, drift, deviation);
+    REQUIRE_FALSE(transition.indices.empty());
+    const auto bytes = transition.weights.size() * sizeof(IntervalMoments) + transition.indices.size() * sizeof(std::uint32_t);
+    CHECK(bytes < transition.active_cell_count * sizeof(IntervalMoments) / 3);
+    for (std::size_t target = 0; target < nodes.size(); ++target) {
+        const auto& row = transition.rows[target];
+        for (std::size_t index = 0; index < row.count; ++index) {
+            const auto cell = row.first + index;
+            const auto expected = cell_moments(nodes[cell], nodes[cell + 1], nodes[target] + drift, deviation);
+            const auto& actual = transition.moment(row, index);
+            CHECK(actual.mass == expected.mass);
+            CHECK(actual.log_mass == expected.log_mass);
+            CHECK(actual.conditional == expected.conditional);
+        }
     }
 }
 
