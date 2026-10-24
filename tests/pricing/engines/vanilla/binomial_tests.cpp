@@ -5,6 +5,7 @@
 #include <limits>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
@@ -79,6 +80,38 @@ TEST_CASE("European binomial expectations retain deterministic endpoints and ove
     const auto price = engine.price(make_european_option(OptionType::put, 100.0, start, end).value(), context);
     REQUIRE_FALSE(price);
     CHECK(price.error().category == ErrorCategory::invalid_result);
+}
+
+TEST_CASE("American binomial calls preserve European values only without early exercise", "[binomial-expectation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto american = *make_american_option(OptionType::call, 100.0, start, end);
+    const auto european = *make_european_option(OptionType::call, 100.0, start, end);
+    for (const auto [rate, dividend] : {std::pair{0.0, 0.0}, {0.04, 0.0}, {0.04, -0.01}, {-0.04, 0.0}, {0.04, 0.08}})
+        for (const double spot : {100.0, 200.0})
+            for (const int steps : {511, 512, 1024}) {
+                CAPTURE(rate, dividend, spot, steps);
+                const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), spot, start);
+                const auto engine = *make_cox_ross_rubinstein_vanilla_engine({steps});
+                const auto actual = engine.price_with_greeks(american, context, {Greek::delta, Greek::gamma});
+                const auto expected = engine.price_with_greeks(european, context, {Greek::delta, Greek::gamma});
+                const auto price = engine.price(american, context);
+                REQUIRE(actual);
+                REQUIRE(expected);
+                REQUIRE(price);
+                CHECK(actual->price() == *price);
+                CHECK(*price >= std::max(spot - 100.0, 0.0));
+                if (rate >= 0.0 && dividend <= 0.0) {
+                    CHECK_THAT(*price, Catch::Matchers::WithinAbs(expected->price(), 1e-10));
+                    for (const auto greek : {Greek::delta, Greek::gamma})
+                        CHECK_THAT(greek_value(*actual, greek), Catch::Matchers::WithinAbs(greek_value(*expected, greek), 1e-10));
+                } else if (spot == 200.0) {
+                    CHECK(*price > expected->price() + 1.0);
+                    CHECK(greek_value(*actual, Greek::delta) == 1.0);
+                    CHECK(greek_value(*actual, Greek::gamma) == 0.0);
+                }
+            }
 }
 
 TEST_CASE("Binomial immediate exercise returns payoff Greeks", "[binomial-exercise-greeks]")

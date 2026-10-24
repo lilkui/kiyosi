@@ -83,6 +83,58 @@ class PricingRegressionTests(unittest.TestCase):
                             price,
                         )
 
+    def test_american_binomial_calls_preserve_early_exercise_boundaries(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        terms = {
+            "option_type": "call",
+            "strike": 100,
+            "effective_date": start,
+            "expiry_date": end,
+        }
+        american, european = AmericanOption(**terms), EuropeanOption(**terms)
+        for rate, dividend in (
+            (0, 0),
+            (0.04, 0),
+            (0.04, -0.01),
+            (-0.04, 0),
+            (0.04, 0.08),
+        ):
+            for spot in (100, 200):
+                context = PricingContext(
+                    model_parameters=BlackScholesMertonParameters(
+                        risk_free_rate=rate, dividend_yield=dividend, volatility=0.2
+                    ),
+                    spot_price=spot,
+                    valuation_time=start,
+                )
+                for steps in (511, 512, 1024):
+                    with self.subTest(
+                        rate=rate, dividend=dividend, spot=spot, steps=steps
+                    ):
+                        engine = pricing.CoxRossRubinsteinVanillaEngine(steps)
+                        actual = engine.price_with_greeks(
+                            american, context, ["delta", "gamma"]
+                        )
+                        expected = engine.price_with_greeks(
+                            european, context, ["delta", "gamma"]
+                        )
+                        self.assertEqual(actual.price, engine.price(american, context))
+                        self.assertGreaterEqual(actual.price, max(spot - 100, 0))
+                        if rate >= 0 and dividend <= 0:
+                            self.assertAlmostEqual(
+                                actual.price, expected.price, delta=1e-10
+                            )
+                            self.assertAlmostEqual(
+                                actual.delta, expected.delta, delta=1e-10
+                            )
+                            self.assertAlmostEqual(
+                                actual.gamma, expected.gamma, delta=1e-10
+                            )
+                        elif spot == 200:
+                            self.assertGreater(actual.price, expected.price + 1)
+                            self.assertEqual(actual.delta, 1)
+                            self.assertEqual(actual.gamma, 0)
+
     def test_vanilla_small_volatility_tail_prices(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         # Independent 100-digit Black-Scholes evaluations of the exact float inputs.

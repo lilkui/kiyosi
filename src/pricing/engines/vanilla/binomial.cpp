@@ -101,8 +101,9 @@ Result<PricingResult> price_binomial(
 
     std::array<double, 3> level_two{};
     std::array<double, 2> level_one{};
+    const bool no_early_exercise = !american || (option.option_type() == OptionType::call && dividend <= 0.0 && rate >= 0.0);
     // Keep rollback's intermediate-overflow rejection when the terminal bound is not representable.
-    const bool direct = !american && settings.step_count >= 512 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
+    const bool direct = no_early_exercise && settings.step_count >= 512 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
     if (direct) {
         const double value = european_level(values, probability, discount, 0)[0];
         if (requested_output.has(Greek::gamma) && settings.step_count >= 2) {
@@ -113,7 +114,8 @@ Result<PricingResult> price_binomial(
             const auto first = european_level(values, probability, discount, 1);
             level_one = {first[0], first[1]};
         }
-        values[0] = value;
+        // Roundoff must not put an American call below immediate exercise.
+        values[0] = std::max(value, american ? spot - strike : 0.0);
     } else {
         if (requested_output.has(Greek::delta) && settings.step_count == 1) level_one = {values[0], values[1]};
         if (requested_output.has(Greek::gamma) && settings.step_count == 2) level_two = {values[0], values[1], values[2]};
