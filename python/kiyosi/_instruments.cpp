@@ -427,6 +427,38 @@ Returned schedules are owning copies; the option supports concurrent reads.)doc"
     bind_common_option_properties(double_barrier, "DoubleBarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "lower_barrier", "upper_barrier", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
+    auto double_touch = nb::class_<DoubleTouchOption>(module, "DoubleTouchOption", R"doc(Immutable fixed-cash double one-touch or double no-touch.
+
+Create with cash_double_touch or cash_double_no_touch. Reaching either inclusive
+boundary counts as a touch; touching both is not required. Both boundaries share
+one strictly positive finite payout and monitoring schedule. Scheduled observations
+occur at 00:00 UTC and may end before expiry. touch_state is history strictly before
+valuation; None means unknown and is rejected once past observations were possible.
+One-touch settles at expiry by default, or at the first hit; past at-hit payments
+are already paid and have zero remaining value. No-touch pays only at expiry.
+Schedules returned by properties are owning copies. Concurrent reads/replace calls
+are safe without assignment. Representation errors raise TypeError/OverflowError;
+domain rejections raise KiyosiError with a stable category.)doc")
+                            .def_prop_ro("effective_date", [](const DoubleTouchOption& value) { return python_date(value.effective_date()); })
+                            .def_prop_ro("expiry_date", [](const DoubleTouchOption& value) { return python_date(value.expiry_date()); })
+                            .def_prop_ro("lower_barrier", &DoubleTouchOption::lower_barrier)
+                            .def_prop_ro("upper_barrier", &DoubleTouchOption::upper_barrier)
+                            .def_prop_ro("payout", &DoubleTouchOption::payout)
+                            .def_prop_ro("is_one_touch", &DoubleTouchOption::is_one_touch)
+                            .def_prop_ro("settlement_timing", &DoubleTouchOption::settlement_timing)
+                            .def_prop_ro("observation_mode", &DoubleTouchOption::observation_mode)
+                            .def_prop_ro("touch_state", &DoubleTouchOption::touch_state)
+                            .def_prop_ro("observation_dates", [](const DoubleTouchOption& value) { return python_dates(value.observation_dates()); });
+    bind_touch_replace(double_touch);
+    bind_value_equality(double_touch);
+    bind_repr(double_touch, "DoubleTouchOption", {"effective_date", "expiry_date", "lower_barrier", "upper_barrier", "payout", "is_one_touch", "settlement_timing", "observation_mode", "observation_dates", "touch_state"});
+    module.def("cash_double_touch", [](PythonDate effective_date, PythonDate expiry_date, PythonReal lower, PythonReal upper, PythonReal payout, PythonChoice<SettlementTiming> timing, PythonChoice<ObservationMode> mode, PythonDateSequence dates, std::optional<PythonChoice<BarrierTouchState>> history) { return unwrap(make_cash_double_touch(calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                                                                                                     real_number(lower, "lower_barrier"), real_number(upper, "upper_barrier"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                                                                                                                     timing, mode, date_sequence(dates, "observation_dates"), history)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "lower_barrier"_a, "upper_barrier"_a, "payout"_a, "settlement_timing"_a = default_one_touch_settlement_timing, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, "Create a DoubleTouchOption paying fixed cash on the first touch of either boundary. Requires finite 0 < lower_barrier < upper_barrier and payout > 0. Settlement is 'at_expiry' (default) or 'at_hit'; monitoring is 'continuous' (default) or 'scheduled'. Scheduled dates are at 00:00 UTC and may end early; touch_state is strictly prior history ('untouched', 'touched', or None for unknown). See DoubleTouchOption for ownership, errors and historical payment semantics.");
+    module.def("cash_double_no_touch", [](PythonDate effective_date, PythonDate expiry_date, PythonReal lower, PythonReal upper, PythonReal payout, PythonChoice<ObservationMode> mode, PythonDateSequence dates, std::optional<PythonChoice<BarrierTouchState>> history) { return unwrap(make_cash_double_no_touch(calendar_date(effective_date, "effective_date"), calendar_date(expiry_date, "expiry_date"),
+                                                                                                                                                                                                                                                                                                                    real_number(lower, "lower_barrier"), real_number(upper, "upper_barrier"), real_number(payout, "payout"),
+                                                                                                                                                                                                                                                                                                                    mode, date_sequence(dates, "observation_dates"), history)); }, nb::kw_only(), "effective_date"_a, "expiry_date"_a, "lower_barrier"_a, "upper_barrier"_a, "payout"_a, "observation_mode"_a = default_touch_observation_mode, "observation_dates"_a = nb::make_tuple(), "touch_state"_a = std::nullopt, "Create a DoubleTouchOption paying fixed cash at expiry if neither boundary was touched during monitoring. Requires finite 0 < lower_barrier < upper_barrier and payout > 0. Monitoring is 'continuous' (default) or 'scheduled'; scheduled dates are at 00:00 UTC and may end before expiry. touch_state is strictly prior history ('untouched', 'touched', or None for unknown). See DoubleTouchOption for ownership and errors.");
+
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
                               module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
 

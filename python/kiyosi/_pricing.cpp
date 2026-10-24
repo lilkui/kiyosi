@@ -719,6 +719,10 @@ Settings are validated at construction.)doc")
     auto finite_double_barrier = bind_finite_difference_engine<FiniteDifferenceDoubleBarrierEngine>(
         module, "FiniteDifferenceDoubleBarrierEngine", &make_finite_difference_double_barrier_engine);
     bind_engine_price<FiniteDifferenceDoubleBarrierEngine, DoubleBarrierOption>(module, finite_double_barrier);
+    auto finite_double_touch = bind_finite_difference_engine<FiniteDifferenceDoubleTouchEngine>(
+        module, "FiniteDifferenceDoubleTouchEngine", &make_finite_difference_double_touch_engine);
+    bind_engine_price<FiniteDifferenceDoubleTouchEngine, DoubleTouchOption>(module, finite_double_touch);
+
     auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
         module, "AnalyticBinaryBarrierEngine");
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(module, analytic_binary);

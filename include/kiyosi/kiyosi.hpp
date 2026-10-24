@@ -23,6 +23,7 @@
 #include <kiyosi/instruments/barrier/binary.hpp>
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/instruments/barrier/double.hpp>
+#include <kiyosi/instruments/barrier/double_touch.hpp>
 #include <kiyosi/instruments/barrier/terms.hpp>
 #include <kiyosi/instruments/digital.hpp>
 #include <kiyosi/instruments/exercise.hpp>
@@ -53,6 +54,7 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
 #include <kiyosi/pricing/engines/barrier/double_finite_difference.hpp>
 #include <kiyosi/pricing/engines/binary_barrier/analytic.hpp>
+#include <kiyosi/pricing/engines/binary_barrier/double_finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/analytic.hpp>
 #include <kiyosi/pricing/engines/digital/finite_difference.hpp>
 #include <kiyosi/pricing/engines/digital/integral.hpp>

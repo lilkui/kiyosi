@@ -25,6 +25,12 @@ struct DoubleBarrierOptionTerms {
 };
 
 class DoubleBarrierOption;
+class DoubleBarrierTerms;
+namespace detail {
+[[nodiscard]] Result<DoubleBarrierTerms> make_double_barrier_terms(
+    double, double, DoubleBarrierType, ObservationMode, std::vector<Date>, Date, Date,
+    std::optional<BarrierTouchState>);
+}
 /// Validates all terms before constructing an owning option.
 [[nodiscard]] Result<DoubleBarrierOption> make_double_barrier_option(DoubleBarrierOptionTerms);
 
@@ -55,7 +61,9 @@ private:
     // Copy the allocating member before committing dependent terms.
     BarrierTerms lower_;
     double upper_;
-    friend Result<DoubleBarrierOption> make_double_barrier_option(DoubleBarrierOptionTerms);
+    friend Result<DoubleBarrierTerms> detail::make_double_barrier_terms(
+        double, double, DoubleBarrierType, ObservationMode, std::vector<Date>, Date, Date,
+        std::optional<BarrierTouchState>);
 };
 
 /// European call or put activated/terminated by the first touch of either boundary.
@@ -102,23 +110,33 @@ private:
     friend Result<DoubleBarrierOption> make_double_barrier_option(DoubleBarrierOptionTerms);
 };
 
+[[nodiscard]] inline Result<DoubleBarrierTerms> detail::make_double_barrier_terms(
+    double lower_barrier, double upper_barrier, DoubleBarrierType barrier_type,
+    ObservationMode observation_mode, std::vector<Date> observation_dates, Date effective_date,
+    Date expiry_date, std::optional<BarrierTouchState> touch_state)
+{
+    if (!std::isfinite(upper_barrier) || !std::isfinite(lower_barrier) ||
+        lower_barrier <= 0.0 || upper_barrier <= lower_barrier)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter, "double barriers require finite 0 < lower < upper"});
+    if (barrier_type != DoubleBarrierType::knock_in && barrier_type != DoubleBarrierType::knock_out)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid double barrier type"});
+    auto lower = make_barrier_terms(lower_barrier,
+                                    barrier_type == DoubleBarrierType::knock_in ? BarrierType::down_and_in : BarrierType::down_and_out,
+                                    observation_mode, std::move(observation_dates), effective_date, expiry_date, touch_state);
+    if (!lower) return std::unexpected(lower.error());
+    return DoubleBarrierTerms{std::move(*lower), upper_barrier};
+}
+
 [[nodiscard]] inline Result<DoubleBarrierOption> make_double_barrier_option(DoubleBarrierOptionTerms terms)
 {
-    if (!std::isfinite(terms.upper_barrier) || !std::isfinite(terms.lower_barrier) ||
-        terms.lower_barrier <= 0.0 || terms.upper_barrier <= terms.lower_barrier)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter, "double barriers require finite 0 < lower < upper"});
-    if (terms.barrier_type != DoubleBarrierType::knock_in && terms.barrier_type != DoubleBarrierType::knock_out)
-        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid double barrier type"});
-    // Reuse single-barrier validation for payoff, schedule, history, and rebate rules.
-    auto lower = detail::make_barrier_terms(terms.lower_barrier,
-                                            terms.barrier_type == DoubleBarrierType::knock_in ? BarrierType::down_and_in : BarrierType::down_and_out,
-                                            terms.observation_mode, std::move(terms.observation_dates),
-                                            terms.effective_date, terms.expiry_date, terms.touch_state);
-    if (!lower) return std::unexpected(lower.error());
+    auto barrier = detail::make_double_barrier_terms(terms.lower_barrier, terms.upper_barrier, terms.barrier_type,
+                                                     terms.observation_mode, std::move(terms.observation_dates),
+                                                     terms.effective_date, terms.expiry_date, terms.touch_state);
+    if (!barrier) return std::unexpected(barrier.error());
     const auto payoff = detail::validate_barrier_payoff(terms.option_type, terms.strike, terms.rebate, terms.rebate_timing,
-                                                        lower->is_knock_in());
+                                                        barrier->is_knock_in());
     if (!payoff) return std::unexpected(payoff.error());
-    return DoubleBarrierOption{DoubleBarrierTerms{std::move(*lower), terms.upper_barrier},
+    return DoubleBarrierOption{std::move(*barrier),
                                terms.option_type, terms.strike, terms.rebate, terms.rebate_timing};
 }
 

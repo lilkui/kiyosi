@@ -112,6 +112,13 @@ void register_matrix()
     register_kiyosi("double_barrier/scheduled/fd", scheduled_double, FiniteDifferenceDoubleBarrierEngine{}, context, false);
     kiyosi::benchmark_support::register_calculation("double_barrier/fd/greeks", [double_barrier = double_barrier, context] { return FiniteDifferenceDoubleBarrierEngine{}.price_with_greeks(double_barrier, context,
                                                                                                                                                                                             {Greek::delta, Greek::gamma, Greek::vega, Greek::rho}); }, "price")->UseRealTime();
+    const auto double_touch = *make_cash_double_touch(start, expiry, 80.0, 120.0, 1.0);
+    register_kiyosi("double_touch/fd", double_touch, FiniteDifferenceDoubleTouchEngine{}, context, false);
+    register_kiyosi("double_touch/at_hit/fd", *make_cash_double_touch(start, expiry, 80.0, 120.0, 1.0, SettlementTiming::at_hit), FiniteDifferenceDoubleTouchEngine{}, context, false);
+    register_kiyosi("double_no_touch/fd", *make_cash_double_no_touch(start, expiry, 80.0, 120.0, 1.0), FiniteDifferenceDoubleTouchEngine{}, context, false);
+    register_kiyosi("double_touch/scheduled/fd", *make_cash_double_touch(start, expiry, 80.0, 120.0, 1.0, SettlementTiming::at_expiry, ObservationMode::scheduled, {expiry}), FiniteDifferenceDoubleTouchEngine{}, context, false);
+    kiyosi::benchmark_support::register_calculation("double_touch/fd/greeks", [double_touch = double_touch, context] { return FiniteDifferenceDoubleTouchEngine{}.price_with_greeks(double_touch, context,
+                                                                                                                                                                                    {Greek::delta, Greek::gamma, Greek::vega, Greek::rho}); }, "price")->UseRealTime();
     register_kiyosi("cash_binary_barrier/analytic", cash_binary, AnalyticBinaryBarrierEngine{}, context);
     register_kiyosi("asset_binary_barrier/analytic", asset_binary, AnalyticBinaryBarrierEngine{}, context);
     register_kiyosi("cash_touch/analytic", cash_touch, AnalyticBinaryBarrierEngine{}, context);

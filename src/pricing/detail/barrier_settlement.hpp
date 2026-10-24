@@ -5,6 +5,7 @@
 
 #include <kiyosi/instruments/barrier/option.hpp>
 #include <kiyosi/instruments/barrier/double.hpp>
+#include <kiyosi/instruments/barrier/double_touch.hpp>
 
 #include "black_scholes.hpp"
 
@@ -25,6 +26,19 @@ inline bool terminal_payoff_requires_barrier_touch(const DoubleBarrierTerms& ter
 }
 
 // Callers validate instrument life and scheduled observation dates before resolving history.
+inline std::optional<Result<double>> resolved_barrier_price(
+    const DoubleTouchOption& option, const PricingContext& context)
+{
+    const auto state = barrier_monitoring_state(option.barrier_terms(), context.valuation_time(), context.spot_price());
+    if (!state) return std::unexpected(state.error());
+    if (!state->touched && !state->finished) return std::nullopt;
+    if (state->touched != option.is_one_touch()) return 0.0;
+    if (option.settlement_timing() == SettlementTiming::at_hit)
+        return state->touched_before ? 0.0 : option.payout();
+    const double time = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
+    return checked_price(scaled_exponential(option.payout(), -context.model_parameters().risk_free_rate() * time));
+}
+
 template <typename Option>
 inline std::optional<Result<double>> resolved_barrier_price(
     const Option& option, const PricingContext& context)

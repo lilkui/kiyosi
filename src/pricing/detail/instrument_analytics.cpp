@@ -63,7 +63,7 @@ bool at_spot_discontinuity(const Option& option, const PricingContext& context, 
     const double spot = context.spot_price();
     const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
     const bool crosses_barrier = [&] {
-        if constexpr (std::same_as<Option, DoubleBarrierOption>)
+        if constexpr (std::same_as<Option, DoubleBarrierOption> || std::same_as<Option, DoubleTouchOption>)
             return crosses(option.lower_barrier()) || crosses(option.upper_barrier());
         else return crosses(option.barrier_level());
     }();
@@ -95,7 +95,7 @@ bool volatility_affects_price(const Option& option, const PricingContext& contex
     const auto& terms = option.barrier_terms();
     // Pricing has already validated history before checking volatility exposure.
     const auto state = *barrier_monitoring_state(terms, context.valuation_time(), context.spot_price());
-    if constexpr (std::same_as<Option, TouchOption>) {
+    if constexpr (std::same_as<Option, TouchOption> || std::same_as<Option, DoubleTouchOption>) {
         return !state.touched && !state.finished;
     } else {
         if ((state.touched && !terms.is_knock_in()) || (!state.touched && state.finished && terms.is_knock_in())) return false;
@@ -217,6 +217,10 @@ template KIYOSI_EXPORT bool at_spot_discontinuity(const TouchOption&, const Pric
 template KIYOSI_EXPORT bool all_greeks_unavailable(const TouchOption&, const PricingContext&);
 template KIYOSI_EXPORT Result<bool> time_stencil_available(const TouchOption&, const PricingContext&, Timestamp, Timestamp);
 template KIYOSI_EXPORT bool volatility_affects_price(const TouchOption&, const PricingContext&);
+template KIYOSI_EXPORT bool at_spot_discontinuity(const DoubleTouchOption&, const PricingContext&, double);
+template KIYOSI_EXPORT bool all_greeks_unavailable(const DoubleTouchOption&, const PricingContext&);
+template KIYOSI_EXPORT Result<bool> time_stencil_available(const DoubleTouchOption&, const PricingContext&, Timestamp, Timestamp);
+template KIYOSI_EXPORT bool volatility_affects_price(const DoubleTouchOption&, const PricingContext&);
 template KIYOSI_EXPORT bool at_spot_discontinuity(const PhoenixOption&, const PricingContext&, double);
 template KIYOSI_EXPORT Result<bool> time_stencil_available(const PhoenixOption&, const PricingContext&, Timestamp, Timestamp);
 template KIYOSI_EXPORT bool volatility_affects_price(const PhoenixOption&, const PricingContext&);
