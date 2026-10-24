@@ -132,9 +132,9 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
 template <AutocallableProduct Note>
 Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
                                       const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared,
+                                      AutocallableContract<Note>& contract,
                                       CouponWorkspace* workspace = nullptr)
 {
-    AutocallableContract<Note> contract{note, context.calendar()};
     const auto valid = contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
     const auto program = autocallable_program(note);
@@ -253,7 +253,8 @@ Result<double> solve_coupon(
     return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
                                         [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
                                             std::optional<PreparedCurve> prepared;
-                                            return integrate_autocallable(instrument, market, scalar.settings(), prepared, &workspace);
+                                            AutocallableContract<Note> contract{instrument, market.calendar()};
+                                            return integrate_autocallable(instrument, market, scalar.settings(), prepared, contract, &workspace);
                                         });
 }
 } // namespace
@@ -294,7 +295,8 @@ template <AutocallableProduct Note>
 Result<double> QuadratureAutocallableEngine::price(const Note& note, const PricingContext& context) const
 {
     std::optional<PreparedCurve> prepared;
-    return integrate_autocallable(note, context, settings_, prepared);
+    AutocallableContract<Note> contract{note, context.calendar()};
+    return integrate_autocallable(note, context, settings_, prepared, contract);
 }
 
 template <AutocallableProduct Note>
@@ -304,8 +306,9 @@ Result<PricingResult> QuadratureAutocallableEngine::price_with_greeks(const Note
     return detail::evaluate_greeks(*this, note, context, greeks, settings,
                                    [&](const auto& engine) -> Result<PricingResult> {
                                        std::optional<PreparedCurve> prepared;
+                                       AutocallableContract<Note> contract{note, context.calendar()};
                                        const auto price = [&](const PricingContext& shifted) {
-                                           return integrate_autocallable(note, shifted, engine.settings(), prepared);
+                                           return integrate_autocallable(note, shifted, engine.settings(), prepared, contract);
                                        };
                                        const auto value = price(context);
                                        if (!value) return std::unexpected(value.error());

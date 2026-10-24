@@ -508,6 +508,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 pricing.FiniteDifferenceAutocallableEngine(
                     asset_step_count=80, time_step_count=1
                 ),
+                pricing.QuadratureAutocallableEngine(asset_step_count=16),
             )
             for engine in engines:
                 with self.subTest(engine=type(engine).__name__):

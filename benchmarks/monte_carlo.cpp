@@ -185,6 +185,9 @@ void kiyosi::benchmark_support::register_analytics_cases()
     register_calculation("analytics/kiyosi/snowball/mc/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_monte_carlo.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
     register_price("analytics/kiyosi/snowball/fd/scheduled_dense/price", dense_snowball, dense_finite_difference, dense_context);
     register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/vega_rho", [=, dense_snowball = dense_snowball] { return dense_finite_difference.price_with_greeks(dense_snowball, dense_context, {Greek::vega, Greek::rho}); }, "price");
+    const auto dense_quadrature = make_quadrature_autocallable_engine({16, 8.0}).value();
+    register_price("analytics/kiyosi/snowball/quadrature/scheduled_dense/price", dense_snowball, dense_quadrature, dense_context)->UseRealTime();
+    register_calculation("analytics/kiyosi/snowball/quadrature/scheduled_dense/delta_gamma", [=, dense_snowball = dense_snowball] { return dense_quadrature.price_with_greeks(dense_snowball, dense_context, {Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
     const auto dense_coupon_quote = dense_finite_difference.price(dense_snowball, dense_context);
     register_calculation("analytics/kiyosi/snowball/fd/scheduled_dense/implied_coupon", [=, dense_snowball = dense_snowball, dense_coupon_quote = dense_coupon_quote]() -> Result<double> {
                              if (!dense_coupon_quote) return std::unexpected(dense_coupon_quote.error());

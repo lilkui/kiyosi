@@ -2,6 +2,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <future>
@@ -487,6 +488,42 @@ TEST_CASE("Quadrature shared engine calls retain independent request state", "[a
         });
     for (std::size_t i = 0; i < prices.size(); ++i)
         CHECK(prices[i].get() == Catch::Approx(binary_reference(90.0 + 10.0 * static_cast<double>(i), 0.3, 0.04, 1.0)).margin(1e-10));
+}
+
+TEST_CASE("Autocallable quadrature requests validate immutable schedules once", "[autocallable-quadrature][quadrature-contract-reuse]")
+{
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    std::vector<AutocallableObservation> observations;
+    for (auto date = start + std::chrono::days{1}; date <= end; date += std::chrono::days{1})
+        observations.push_back({date, 110.0, 0.08});
+    const auto note = make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = observations}).value();
+    std::atomic<int> queries{};
+    std::atomic<bool> allowed{true};
+    const auto calendar = make_trading_calendar([&](Date date) {
+                              if (date != observations.front().date) return true;
+                              ++queries;
+                              return allowed.load();
+                          },
+                                                365)
+                              .value();
+    const auto context = make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.3), 100.25, start_of_day(end) - std::chrono::hours{12}, calendar).value();
+    const auto engine = make_quadrature_autocallable_engine({16, 8.0}).value();
+    const auto expected = test::price_differences(engine, note, context);
+    REQUIRE(expected);
+    queries = 0;
+    const auto actual = engine.price_with_greeks(note, context, true);
+    REQUIRE(actual);
+    CHECK(actual->price() == expected->price());
+    CHECK(actual->values_view() == expected->values_view());
+    CHECK(queries == 1);
+    allowed = false;
+    const auto rejected = engine.price_with_greeks(note, context, true);
+    REQUIRE_FALSE(rejected);
+    CHECK(rejected.error().category == ErrorCategory::invalid_date);
+    allowed = true;
+    queries = 0;
+    REQUIRE(engine.price_with_greeks(note, context, true));
+    CHECK(queries == 1);
 }
 
 TEST_CASE("Autocallable quadrature reused curves match independent repricing", "[autocallable-quadrature][quadrature-reuse]")
