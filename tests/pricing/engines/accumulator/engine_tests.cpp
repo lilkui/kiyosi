@@ -76,6 +76,61 @@ TEST_CASE("Shared Monte Carlo Greeks evaluate spot and rate scenarios in one bat
     CHECK(*result->require(Greek::rho) == Catch::Approx(1.0).margin(1e-12));
 }
 
+TEST_CASE("Shared Monte Carlo Greeks batch both volatility stencils", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    for (const auto request : {GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma}, GreeksRequest{Greek::vega, Greek::vanna}, GreeksRequest{Greek::vega, Greek::vanna, Greek::zomma}}) {
+        int batches = 0;
+        const auto result = detail::complete_monte_carlo_greeks(
+            [](const PricingContext&) -> Result<double> { return 2000.0; }, option, context, request,
+            {.spot_shift = 1.0, .volatility_shift = 0.01}, MonteCarloBackend::cpu,
+            [](const PricingContext&) -> Result<void> { return {}; },
+            []<std::size_t count, bool rates = false>(const PricingContext&, double, double = 0.0) -> Result<std::array<double, count + (rates ? 2 : 0)>> {
+                return std::unexpected(Error{ErrorCategory::invalid_result, "unexpected spot batch"});
+            },
+            [](double, std::optional<double>) -> Result<std::array<double, 3>> { return std::unexpected(Error{ErrorCategory::invalid_result, "unexpected rate batch"}); },
+            [&]<std::size_t count>(double h, double v) -> Result<std::array<double, 2 * count>> {
+                ++batches;
+                CHECK(count == (request.has(Greek::vega) || request.has(Greek::zomma) ? 3 : 2));
+                std::array<double, 2 * count> prices{};
+                for (std::size_t market = 0; market < 2; ++market)
+                    for (std::size_t index = 0; index < count; ++index) {
+                        const double spot = 100.0 + detail::SpotStencil<count>::offsets[index] * h;
+                        prices[market * count + index] = spot * spot * (0.2 + (market == 0 ? v : -v));
+                    }
+                return prices;
+            });
+        REQUIRE(result);
+        CHECK(batches == 1);
+        CHECK(result->price() == 2000.0);
+        if (request.has(Greek::vega)) CHECK(*result->require(Greek::vega) == Catch::Approx(100.0).margin(1e-10));
+        if (request.has(Greek::vanna)) CHECK(*result->require(Greek::vanna) == Catch::Approx(2.0).margin(1e-10));
+        if (request.has(Greek::zomma)) CHECK(*result->require(Greek::zomma) == Catch::Approx(0.02).margin(1e-10));
+    }
+}
+
+TEST_CASE("Shared Monte Carlo Greeks propagate failed volatility batches", "[monte-carlo-performance]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.0, start);
+    const auto option = *make_european_option(OptionType::call, 100.0, start, end);
+    const auto result = detail::complete_monte_carlo_greeks(
+        [](const PricingContext&) -> Result<double> { return 1.0; }, option, context, {Greek::vanna}, {}, MonteCarloBackend::cpu,
+        [](const PricingContext&) -> Result<void> { return {}; },
+        []<std::size_t count, bool rates = false>(const PricingContext&, double, double = 0.0) -> Result<std::array<double, count + (rates ? 2 : 0)>> { return std::array<double, count + (rates ? 2 : 0)>{}; },
+        [](double, std::optional<double>) -> Result<std::array<double, 3>> { return std::array<double, 3>{}; },
+        []<std::size_t count>(double, double) -> Result<std::array<double, 2 * count>> {
+            return std::unexpected(Error{ErrorCategory::invalid_result, "volatility path failed"});
+        });
+    REQUIRE_FALSE(result);
+    CHECK(result.error().category == ErrorCategory::invalid_result);
+    CHECK(result.error().message == "volatility path failed");
+}
+
 TEST_CASE("Numerical accumulator Greeks reuse joint spot simulations", "[monte-carlo-performance]")
 {
     using namespace kiyosi;

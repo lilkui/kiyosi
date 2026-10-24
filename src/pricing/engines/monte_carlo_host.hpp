@@ -38,11 +38,12 @@ Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& 
                                 {Greek::speed, speed}});
 }
 
-template <typename Price, typename Option, typename Validate, typename SpotPrices, typename RatePrices>
+template <typename Price, typename Option, typename Validate, typename SpotPrices, typename RatePrices, typename VolatilityPrices = std::nullptr_t>
 Result<PricingResult> complete_monte_carlo_greeks(
     const Price& scalar, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings, MonteCarloBackend backend,
-    const Validate& validate, const SpotPrices& spot_prices, const RatePrices& price_rates)
+    const Validate& validate, const SpotPrices& spot_prices, const RatePrices& price_rates,
+    const VolatilityPrices& volatility_prices = nullptr)
 {
     const auto valid = validate(context);
     if (!valid) return std::unexpected(valid.error());
@@ -103,6 +104,26 @@ Result<PricingResult> complete_monte_carlo_greeks(
         if (!values) return std::unexpected(values.error());
         return NumericalSpotPrices{std::nullopt, (*values)[SpotStencil<2>::up], (*values)[SpotStencil<2>::down]};
     };
+    if constexpr (requires { volatility_prices.template operator()<3>(h, stencils.volatility_shift); }) {
+        if (backend == MonteCarloBackend::cpu) {
+            const auto volatility_batch = [&](double shift, bool center) -> Result<std::array<NumericalSpotPrices, 2>> {
+                const auto evaluate = [&]<std::size_t count>() -> Result<std::array<NumericalSpotPrices, 2>> {
+                    const auto values = volatility_prices.template operator()<count>(shift, stencils.volatility_shift);
+                    if (!values) return std::unexpected(values.error());
+                    std::array<NumericalSpotPrices, 2> result{};
+                    for (std::size_t index = 0; index < result.size(); ++index) {
+                        const auto offset = index * count;
+                        if constexpr (count == 3) result[index].center = (*values)[offset + SpotStencil<count>::center];
+                        result[index].up = (*values)[offset + SpotStencil<count>::up];
+                        result[index].down = (*values)[offset + SpotStencil<count>::down];
+                    }
+                    return result;
+                };
+                return center ? evaluate.template operator()<3>() : evaluate.template operator()<2>();
+            };
+            return complete_greeks(scalar, option, context, greeks, settings, *native, nullptr, sample, volatility_batch);
+        }
+    }
     return complete_greeks(scalar, option, context, greeks, settings, *native, nullptr, sample);
 }
 
@@ -203,13 +224,14 @@ __forceinline
     std::size_t index = 0;
     for (const auto& common_step : common) {
         const double draw = normal(generator);
-        const double shared_growth = [&] {
+        double growth = [&] { // NOLINT(misc-const-correctness): updated when scenario step arrays differ.
             const auto& simulation = [&]() -> const auto& {
                 if constexpr (requires { common_step.simulation; }) return common_step.simulation;
                 else return common_step;
             }();
             return std::exp(simulation.drift + simulation.diffusion * draw);
         }();
+        const auto* previous_steps = common.data();
         for (std::size_t i = 0; i < count; ++i) {
             auto& state = states[i];
             if constexpr (count > 1)
@@ -218,14 +240,17 @@ __forceinline
                 if constexpr (shared_steps) return common_step;
                 else return steps[i][index];
             }();
-            if constexpr (shared_steps) state.spot *= shared_growth;
-            else {
+            if constexpr (!shared_steps) {
                 const auto& simulation = [&]() -> const auto& {
                     if constexpr (requires { step.simulation; }) return step.simulation;
                     else return step;
                 }();
-                state.spot *= steps[i].data() == common.data() ? shared_growth : std::exp(simulation.drift + simulation.diffusion * draw);
+                if (steps[i].data() != previous_steps) {
+                    growth = std::exp(simulation.drift + simulation.diffusion * draw);
+                    previous_steps = steps[i].data();
+                }
             }
+            state.spot *= growth;
             if (!std::isfinite(state.spot) || state.spot <= 0.0)
                 return std::unexpected(Error{ErrorCategory::invalid_result,
                                              "Monte Carlo simulation produced an invalid asset price"});

@@ -179,11 +179,12 @@ Result<MixedGreekSamples> sample_mixed_greeks(
 
 // Enforces boundary availability, then fills only missing requested measures.
 // Away from unavailable boundaries, a supplied native value is never overwritten.
-template <typename Price, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr)>
+template <typename Price, typename Option, typename Native = decltype(nullptr), typename SpotBatch = decltype(nullptr), typename VolatilityBatch = decltype(nullptr)>
 Result<PricingResult> complete_greeks(
     const Price& price, const Option& option, const PricingContext& context,
     GreeksRequest greeks, NumericalShiftSettings settings, const PricingResult& native,
-    const Native& evaluate_native = nullptr, const SpotBatch& evaluate_spot_batch = nullptr)
+    const Native& evaluate_native = nullptr, const SpotBatch& evaluate_spot_batch = nullptr,
+    const VolatilityBatch& evaluate_volatility_batch = nullptr)
 {
     const double spot = context.spot_price();
     const double volatility = context.model_parameters().volatility();
@@ -292,16 +293,25 @@ Result<PricingResult> complete_greeks(
         const bool scalar_mixed = spot_stencil_available && ((need(Greek::vanna) && !native_vanna) || (need(Greek::zomma) && !native_zomma));
         const bool need_volatility_prices = need(Greek::vega) || need(Greek::zomma);
         const std::array shifted_volatilities{volatility_high, volatility_low};
-        const auto sampled = sample_mixed_greeks(
-            {native_volatilities ? native_volatilities->data() : nullptr, native_volatilities ? &(*native_volatilities)[1] : nullptr},
-            scalar_mixed, need_volatility_prices, *p0,
-            [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
-                const double shifted_volatility = shifted_volatilities[index];
-                const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
-                if (!shifted) return std::unexpected(shifted.error());
-                return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center);
-            },
-            [&](std::size_t index) { return detail::shifted_value(price, context, spot, shifted_volatilities[index], rate, valuation_time); });
+        const auto sampled = [&]() -> Result<MixedGreekSamples> {
+            if constexpr (requires { evaluate_volatility_batch(h, need_volatility_prices); }) {
+                if (scalar_mixed) {
+                    const auto spots = evaluate_volatility_batch(h, need_volatility_prices);
+                    if (!spots) return std::unexpected(spots.error());
+                    return MixedGreekSamples{{(*spots)[0].center.value_or(*p0), (*spots)[1].center.value_or(*p0)}, *spots};
+                }
+            }
+            return sample_mixed_greeks(
+                {native_volatilities ? native_volatilities->data() : nullptr, native_volatilities ? &(*native_volatilities)[1] : nullptr},
+                scalar_mixed, need_volatility_prices, *p0,
+                [&](std::size_t index, bool center) -> Result<NumericalSpotPrices> {
+                    const double shifted_volatility = shifted_volatilities[index];
+                    const auto shifted = shifted_context(context, spot, shifted_volatility, rate, valuation_time);
+                    if (!shifted) return std::unexpected(shifted.error());
+                    return sample_spot_prices(price, evaluate_spot_batch, *shifted, h, center);
+                },
+                [&](std::size_t index) { return detail::shifted_value(price, context, spot, shifted_volatilities[index], rate, valuation_time); });
+        }();
         if (!sampled) return std::unexpected(sampled.error());
         const auto [v_up, v_down] = sampled->prices;
         if (need(Greek::vega)) vega = (v_up - v_down) / (2.0 * vol_scale);

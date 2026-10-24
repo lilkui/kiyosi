@@ -221,6 +221,51 @@ Result<std::array<double, 3>> price_rate_bumps(
             return std::pair{std::move(inputs), PathState{shifted.spot_price(), state.path, fixed}}; }, [&](const auto& inputs, const auto& initial, auto& generator) { return path_payoffs(program, inputs, initial, generator); });
 }
 
+template <std::size_t count, AutocallableProduct Note>
+Result<std::array<double, 2 * count>> price_volatility_bumps(
+    const Note& note, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    double spot_shift, double volatility_shift, AutocallableContract<Note>& contract)
+{
+    const auto program = autocallable_program(note);
+    const auto base = autocallable_initial_state(note, context, program);
+    std::array<SimulationInputs, 2> inputs;
+    std::array<SimulationView, 2 * count> views{};
+    std::array<PathState, 2 * count> initial{};
+    for (std::size_t market = 0; market < inputs.size(); ++market) {
+        const double volatility = context.model_parameters().volatility() + (market == 0 ? volatility_shift : -volatility_shift);
+        const auto shifted = shifted_context(context, context.spot_price(), volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+        if (!shifted) return std::unexpected(shifted.error());
+        const auto valid = contract.validate(*shifted);
+        if (!valid) return std::unexpected(valid.error());
+        for (std::size_t index = 0; index < count; ++index) {
+            const double spot = context.spot_price() + SpotStencil<count>::offsets[index] * spot_shift;
+            const auto bumped = shifted_context(*shifted, spot, volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+            if (!bumped) return std::unexpected(bumped.error());
+            const auto state = autocallable_initial_state(note, *bumped, program);
+            const auto fixed = state.settlement ? state.settlement : autocallable_fixed_value(note, *bumped, program, state);
+            if (fixed) {
+                const auto value = checked_price(*fixed);
+                if (!value) return std::unexpected(value.error());
+            }
+            initial[market * count + index] = {spot, state.path, fixed};
+        }
+        if (std::ranges::any_of(std::span{initial}.subspan(market * count, count), [](const auto& state) { return !state.payoff; })) {
+            auto prepared = prepare_simulation(note, *shifted, base.next_observation,
+                                               program_knock_in_affects_payoff(program) && program.daily_knock_in && !base.path.knocked_in);
+            if (!prepared) return std::unexpected(prepared.error());
+            inputs[market] = std::move(*prepared);
+            std::fill_n(views.begin() + market * count, count, SimulationView{inputs[market].step_count, inputs[market].terminal_discount});
+        }
+    }
+    std::array<double, 2 * count> prices{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        const auto values = cpu_path_means<2 * count>(settings, [&](auto& generator) { return path_payoffs(program, views, initial, generator); }, std::max(inputs[0].step_count.size(), inputs[1].step_count.size()));
+        if (!values) return std::unexpected(values.error());
+        prices = *values;
+    }
+    return checked_path_prices(initial, prices);
+}
+
 template <AutocallableProduct Note>
 struct AutocallableMonteCarloRequest {
     AutocallableContract<Note> contract;
@@ -384,7 +429,7 @@ Result<PricingResult> MonteCarloAutocallableEngine::price_with_greeks(const Note
             const auto prices = [&](const PricingContext& shifted) {
                 return price_autocallable(shifted, seeded.settings(), request);
             };
-            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return request.contract.validate(shifted); }, [&]<std::size_t count, bool rates = false>(const PricingContext& shifted, double shift, double rate_shift = 0.0) { return price_spot_bumps<count, rates>(option, shifted, seeded.settings(), shift, request.workspace(), rate_shift); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
+            return complete_monte_carlo_greeks(prices, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return request.contract.validate(shifted); }, [&]<std::size_t count, bool rates = false>(const PricingContext& shifted, double shift, double rate_shift = 0.0) { return price_spot_bumps<count, rates>(option, shifted, seeded.settings(), shift, request.workspace(), rate_shift); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); }, [&]<std::size_t count>(double shift, double volatility_shift) { return price_volatility_bumps<count>(option, context, seeded.settings(), shift, volatility_shift, request.contract); });
         });
 }
 

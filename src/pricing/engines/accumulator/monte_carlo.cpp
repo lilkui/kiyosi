@@ -153,6 +153,47 @@ Result<std::array<double, 3>> price_rate_bumps(
             return std::pair{std::move(steps), PathState{shifted.spot_price(), state.quantity, {}, state.settlement}}; }, [&](const auto& steps, const auto& initial, auto& generator) { return path_payoffs(option, steps, initial, generator); });
 }
 
+template <std::size_t count>
+Result<std::array<double, 2 * count>> price_volatility_bumps(
+    const Accumulator& option, const PricingContext& context, const TradingDayMonteCarloSettings& settings,
+    double spot_shift, double volatility_shift)
+{
+    std::array<std::vector<SimulationStep>, 2> steps;
+    std::array<std::span<const SimulationStep>, 2 * count> sequences{};
+    std::array<PathState, 2 * count> initial{};
+    for (std::size_t market = 0; market < steps.size(); ++market) {
+        const double volatility = context.model_parameters().volatility() + (market == 0 ? volatility_shift : -volatility_shift);
+        const auto shifted = shifted_context(context, context.spot_price(), volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+        if (!shifted) return std::unexpected(shifted.error());
+        const auto valid = validate_pricing(option, *shifted);
+        if (!valid) return std::unexpected(valid.error());
+        for (std::size_t index = 0; index < count; ++index) {
+            const double spot = context.spot_price() + SpotStencil<count>::offsets[index] * spot_shift;
+            const auto bumped = shifted_context(*shifted, spot, volatility, context.model_parameters().risk_free_rate(), context.valuation_time());
+            if (!bumped) return std::unexpected(bumped.error());
+            const auto state = accumulator_initial_state(option, *bumped);
+            if (state.settlement) {
+                const auto value = checked_price(*state.settlement);
+                if (!value) return std::unexpected(value.error());
+            }
+            initial[market * count + index] = {spot, state.quantity, {}, state.settlement};
+        }
+        if (std::ranges::any_of(std::span{initial}.subspan(market * count, count), [](const auto& state) { return !state.payoff; })) {
+            auto prepared = prepare_simulation(option, *shifted);
+            if (!prepared) return std::unexpected(prepared.error());
+            steps[market] = std::move(*prepared);
+            std::fill_n(sequences.begin() + market * count, count, std::span<const SimulationStep>{steps[market]});
+        }
+    }
+    std::array<double, 2 * count> prices{};
+    if (std::ranges::any_of(initial, [](const auto& state) { return !state.payoff; })) {
+        const auto values = cpu_path_means<2 * count>(settings, [&](auto& generator) { return path_payoffs(option, sequences, initial, generator); }, std::max(steps[0].size(), steps[1].size()));
+        if (!values) return std::unexpected(values.error());
+        prices = *values;
+    }
+    return checked_path_prices(initial, prices);
+}
+
 Result<double> price_accumulator(
     const Accumulator& option, const PricingContext& context,
     const TradingDayMonteCarloSettings& settings, [[maybe_unused]] CudaWorkspace* workspace = nullptr)
@@ -221,7 +262,7 @@ Result<PricingResult> MonteCarloAccumulatorEngine::price_with_greeks(const Accum
             const auto price = [&](const PricingContext& shifted) {
                 return price_accumulator(option, shifted, seeded.settings(), workspace);
             };
-            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted); }, [&]<std::size_t count, bool rates = false>(const PricingContext& shifted, double shift, double rate_shift = 0.0) { return price_spot_bumps<count, rates>(option, shifted, seeded.settings(), shift, workspace, rate_shift); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); });
+            return complete_monte_carlo_greeks(price, option, context, greeks, settings, seeded.settings().backend, [&](const PricingContext& shifted) { return validate_pricing(option, shifted); }, [&]<std::size_t count, bool rates = false>(const PricingContext& shifted, double shift, double rate_shift = 0.0) { return price_spot_bumps<count, rates>(option, shifted, seeded.settings(), shift, workspace, rate_shift); }, [&](double shift, std::optional<double> base_price) { return price_rate_bumps(option, context, seeded.settings(), shift, base_price); }, [&]<std::size_t count>(double shift, double volatility_shift) { return price_volatility_bumps<count>(option, context, seeded.settings(), shift, volatility_shift); });
         });
 }
 

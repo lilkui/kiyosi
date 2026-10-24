@@ -325,6 +325,61 @@ class SharedSampleTests(unittest.TestCase):
                         if "color" in names:
                             self.assertEqual(actual.color, color)
 
+    def test_volatility_batches_match_seeded_scalar_stencils(self):
+        context, cases = self.parallel_cases()
+        shifts = {"spot_shift": 0.2, "volatility_shift": 0.01}
+        h = (context.spot_price + shifts["spot_shift"]) - context.spot_price
+        sigma = context.model_parameters.volatility
+        v = (sigma + shifts["volatility_shift"]) - sigma
+        for option, engine_type in cases[:5]:
+            for seed in (42, 2**64 - 1):
+                engine = engine_type(path_count=31, seed=seed)
+                samples = []
+                for volatility in (sigma + v, sigma - v):
+                    parameters = context.model_parameters.replace(volatility=volatility)
+                    samples.append(
+                        [
+                            engine.price(
+                                option,
+                                context.replace(
+                                    model_parameters=parameters,
+                                    spot_price=context.spot_price + offset,
+                                ),
+                            )
+                            for offset in (0, h, -h)
+                        ]
+                    )
+                high, low = samples
+                expected = {
+                    "vega": (high[0] - low[0]) / (200 * v),
+                    "vanna": ((high[1] - high[2]) - (low[1] - low[2]))
+                    / h
+                    / (100 * v)
+                    / 4,
+                    "zomma": (
+                        ((high[1] - high[0]) - (high[0] - high[2])) / h / h
+                        - ((low[1] - low[0]) - (low[0] - low[2])) / h / h
+                    )
+                    / (200 * v),
+                }
+                for request in (
+                    ("vanna",),
+                    ("zomma",),
+                    ("vega", "vanna"),
+                    ("vega", "vanna", "zomma"),
+                ):
+                    with self.subTest(
+                        option=type(option).__name__, seed=seed, request=request
+                    ):
+                        actual = engine.price_with_greeks(
+                            option, context, request, **shifts
+                        )
+                        self.assertEqual(actual.price, engine.price(option, context))
+                        for name in request:
+                            self.assertEqual(getattr(actual, name), expected[name])
+                        for name in expected.keys() - set(request):
+                            self.assertIsNone(getattr(actual, name))
+
     def test_accumulator_rate_greeks_equal_independent_seeded_prices(self):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
         for fixed in (False, True):
