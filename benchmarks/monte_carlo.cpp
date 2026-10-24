@@ -392,6 +392,13 @@ void kiyosi::benchmark_support::register_analytics_cases()
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
+    for (const int paths : {4096, 250'000})
+        for (const int threads : {1, 0}) {
+            const auto [option, context] = monte_carlo_scenario();
+            const auto engine = *make_monte_carlo_vanilla_engine({paths, 50, 42, MonteCarloBackend::cpu, threads});
+            for (const bool all : {false, true})
+                register_calculation(std::format("european_samples/{}/threads:{}/{}", paths, threads, all ? "all" : "delta_gamma").c_str(), [=] { return engine.price_with_greeks(option, context, all ? GreeksRequest{true} : GreeksRequest{Greek::delta, Greek::gamma}); }, "price")->UseRealTime();
+        }
     const Date start{std::chrono::year{2025} / 1 / 1};
     for (const int days : {1, 12}) {
         const auto expiry = start + std::chrono::days{days};

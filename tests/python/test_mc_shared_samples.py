@@ -877,6 +877,56 @@ class SharedSampleTests(unittest.TestCase):
             expected,
         )
 
+    def test_european_spot_batches_retain_selected_scalar_stencils(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        spot, shift = 100.25, 0.125
+        parameters = BlackScholesMertonParameters(
+            risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+        )
+        contexts = [
+            PricingContext(
+                model_parameters=parameters,
+                spot_price=spot + offset * shift,
+                valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            )
+            for offset in (0, 1, -1, 2, -2)
+        ]
+        for direction in ("call", "put"):
+            option = EuropeanOption(
+                option_type=direction, strike=100, effective_date=start, expiry_date=end
+            )
+            for paths in (1, 513, 4097):
+                for threads in (1, 0, 4):
+                    with self.subTest(
+                        direction=direction, paths=paths, threads=threads
+                    ):
+                        engine = pricing.MonteCarloVanillaEngine(
+                            path_count=paths, seed=42, thread_count=threads
+                        )
+                        center, up, down, up2, down2 = (
+                            engine.price(option, context) for context in contexts
+                        )
+                        expected = (
+                            (up - down) / (2 * shift),
+                            ((up - center) - (center - down)) / shift / shift,
+                            ((up2 - up) - (up - down) + (down - down2))
+                            / shift
+                            / shift
+                            / (2 * shift),
+                        )
+                        for request in (("delta", "gamma"), ("speed",)):
+                            actual = engine.price_with_greeks(
+                                option, contexts[0], request, spot_shift=shift
+                            )
+                            self.assertEqual(actual.price, center)
+                            for name, value in zip(
+                                ("delta", "gamma", "speed"), expected, strict=True
+                            ):
+                                self.assertEqual(
+                                    getattr(actual, name),
+                                    value if name in request else None,
+                                )
+
     def test_selected_greeks_match_all_requests(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         names = GREEKS

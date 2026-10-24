@@ -20,9 +20,7 @@
 #include "../monte_carlo_mean.hpp"
 #include "../monte_carlo_cuda.hpp"
 
-#if KIYOSI_HAS_CUDA
 #include "../monte_carlo_host.hpp"
-#endif
 
 namespace kiyosi {
 namespace {
@@ -173,6 +171,18 @@ Result<double> cuda_american_cash_flow_mean(const AmericanOption& option,
 }
 #endif
 
+Result<double> discounted_european_mean(double mean, double rate, double time)
+{
+    const double discount = std::exp(-rate * time);
+    // Combine scales when the discount alone loses precision or leaves the finite range.
+    const double value = mean == 0.0               ? 0.0
+                         : std::isnormal(discount) ? mean * discount
+                                                   : std::exp(std::log(mean) - rate * time);
+    if (!std::isfinite(value))
+        return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
+    return value;
+}
+
 template <typename Simulate>
 Result<double> price_european(const EuropeanOption& option, const PricingContext& context,
                               MonteCarloSettings settings, const Simulate& simulate,
@@ -213,66 +223,118 @@ Result<double> price_european(const EuropeanOption& option, const PricingContext
             payoffs.merge(partial);
         mean = payoffs.value();
     }
-    const double discount = std::exp(-parameters->rate * *time);
-    // Combine scales when the discount alone loses precision or leaves the finite range.
-    const double value = mean == 0.0               ? 0.0
-                         : std::isnormal(discount) ? mean * discount
-                                                   : std::exp(std::log(mean) - parameters->rate * *time);
-    if (!std::isfinite(value))
-        return std::unexpected(Error{ErrorCategory::invalid_result, "Monte Carlo pricing produced a non-finite result"});
-    return value;
+    return discounted_european_mean(mean, parameters->rate, *time);
 }
 
-// Each request owns its samples; consecutive spot bumps reuse exact terminal growth factors.
+// Each request owns its samples; spot batches share exact terminal growth factors.
 class EuropeanMonteCarloSamples {
 public:
-    explicit EuropeanMonteCarloSamples(MonteCarloSettings settings) : settings_(settings) {}
+    explicit EuropeanMonteCarloSamples(MonteCarloSettings settings, bool cache_samples = true)
+        : settings_(settings), cache_samples_(cache_samples) {}
 
     Result<double> price(const EuropeanOption& option, const PricingContext& context) const
     {
-        detail::CudaWorkspace* workspace = nullptr;
+        if (settings_.backend == MonteCarloBackend::cuda) {
+            detail::CudaWorkspace* workspace = nullptr;
 #if KIYOSI_HAS_CUDA
-        workspace = &workspace_;
+            workspace = &workspace_;
 #endif
-        return price_european(option, context, settings_, [&](auto parameters, auto simulation, const auto& observe) {
-            const int half_count = (simulation.path_count + 1) / 2;
-            const bool generate = normal_draws_.empty();
-            if (generate) {
-                normal_draws_.resize(static_cast<std::size_t>(half_count));
-                growth_.resize(normal_draws_.size());
-            }
-            const bool update = drift_ != parameters.drift || diffusion_ != parameters.diffusion;
-            const auto result = detail::monte_carlo_blocks(half_count, simulation.thread_count,
-                [&](int block, int begin, int end) -> Result<void> {
-                    detail::Pcg32 generator{*simulation.seed, static_cast<std::uint64_t>(block)};
-                    std::normal_distribution<double> normal;
-                    for (int path = begin; path < end; ++path) {
-                        const auto index = static_cast<std::size_t>(path);
-                        if (generate) normal_draws_[index] = normal(generator);
-                        if (update)
-                            growth_[index] = {std::exp(parameters.drift + parameters.diffusion * normal_draws_[index]),
-                                              std::exp(parameters.drift - parameters.diffusion * normal_draws_[index])};
-                        const double positive = parameters.spot * growth_[index][0];
-                        const double negative = parameters.spot * growth_[index][1];
-                        if (!std::isfinite(positive) || positive <= 0.0 || !std::isfinite(negative) || negative <= 0.0)
-                            return std::unexpected(Error{ErrorCategory::invalid_result,
-                                                         "Monte Carlo simulation produced a non-finite path"});
-                        observe(path, path + half_count, 1, positive, negative);
-                    }
-                    return {};
-                });
-            if (!result) {
-                normal_draws_.clear();
-                drift_ = std::numeric_limits<double>::quiet_NaN();
-                return result;
-            }
-            drift_ = parameters.drift;
-            diffusion_ = parameters.diffusion;
-            return Result<void>{}; }, workspace);
+            return price_european(option, context, settings_, [](auto parameters, auto simulation, const auto& observe) { return simulate_paths(parameters, simulation, observe); }, workspace);
+        }
+        const auto values = prices(option, context, std::array{context.spot_price()});
+        if (!values) return std::unexpected(values.error());
+        return (*values)[0];
+    }
+
+    template <std::size_t count>
+    Result<std::array<double, count>> spot_prices(const EuropeanOption& option, const PricingContext& context, double h) const
+    {
+        std::array<double, count> spots{};
+        for (std::size_t i = 0; i < count; ++i) {
+            spots[i] = context.spot_price() + detail::SpotStencil<count>::offsets[i] * h;
+            const auto shifted = detail::shifted_context(context, spots[i], context.model_parameters().volatility(),
+                                                         context.model_parameters().risk_free_rate(), context.valuation_time());
+            if (!shifted) return std::unexpected(shifted.error());
+        }
+        return prices(option, context, spots);
     }
 
 private:
+    template <std::size_t count>
+    Result<std::array<double, count>> prices(const EuropeanOption& option, const PricingContext& context,
+                                             const std::array<double, count>& spots) const
+    {
+        const auto time = detail::time_to_expiry(context.valuation_time(), option.effective_date(), option.expiry_date());
+        if (!time) return std::unexpected(time.error());
+        std::array<double, count> values{};
+        if (*time == 0.0) {
+            for (std::size_t i = 0; i < count; ++i) {
+                const auto value = detail::checked_price(payoff(option.option_type(), spots[i], option.strike()));
+                if (!value) return std::unexpected(value.error());
+                values[i] = *value;
+            }
+            return values;
+        }
+        auto simulation = settings_;
+        simulation.step_count = 2;
+        if (simulation.thread_count == 0 && simulation.path_count <= 3072) simulation.thread_count = 1;
+        const auto parameters = simulation_parameters(context, *time, simulation);
+        if (!parameters) return std::unexpected(parameters.error());
+        const int half_count = (simulation.path_count + 1) / 2;
+        std::vector<std::array<detail::MonteCarloMean, count>> partials(
+            static_cast<std::size_t>(detail::monte_carlo_block_count(half_count)));
+        const bool generate = normal_draws_.empty();
+        if (generate && cache_samples_) {
+            normal_draws_.resize(static_cast<std::size_t>(half_count));
+            growth_.resize(normal_draws_.size());
+        }
+        const bool update = generate || drift_ != parameters->drift || diffusion_ != parameters->diffusion;
+        const auto result = detail::monte_carlo_blocks(half_count, simulation.thread_count,
+                                                       [&](int block, int begin, int end) -> Result<void> {
+                                                           detail::Pcg32 generator{*simulation.seed, static_cast<std::uint64_t>(block)};
+                                                           std::normal_distribution<double> normal;
+                                                           for (int path = begin; path < end; ++path) {
+                                                               const auto index = static_cast<std::size_t>(path);
+                                                               const double draw = generate ? normal(generator) : normal_draws_[index];
+                                                               if (generate && cache_samples_) normal_draws_[index] = draw;
+                                                               const auto growth = update ? std::array{std::exp(parameters->drift + parameters->diffusion * draw),
+                                                                                                       std::exp(parameters->drift - parameters->diffusion * draw)}
+                                                                                          : growth_[index];
+                                                               if (update && cache_samples_) growth_[index] = growth;
+                                                               for (std::size_t i = 0; i < count; ++i) {
+                                                                   const double positive = spots[i] * growth[0];
+                                                                   const double negative = spots[i] * growth[1];
+                                                                   if (!std::isfinite(positive) || positive <= 0.0 || !std::isfinite(negative) || negative <= 0.0)
+                                                                       return std::unexpected(Error{ErrorCategory::invalid_result,
+                                                                                                    "Monte Carlo simulation produced a non-finite path"});
+                                                                   auto& partial = partials[static_cast<std::size_t>(block)][i];
+                                                                   partial.add(payoff(option.option_type(), positive, option.strike()));
+                                                                   partial.add(payoff(option.option_type(), negative, option.strike()));
+                                                               }
+                                                           }
+                                                           return {};
+                                                       });
+        if (!result) {
+            normal_draws_.clear();
+            drift_ = std::numeric_limits<double>::quiet_NaN();
+            return std::unexpected(result.error());
+        }
+        drift_ = parameters->drift;
+        diffusion_ = parameters->diffusion;
+        std::array<detail::MonteCarloMean, count> means{};
+        for (const auto& partial : partials)
+            for (std::size_t i = 0; i < count; ++i)
+                means[i].merge(partial[i]);
+        for (std::size_t i = 0; i < count; ++i) {
+            const auto value = discounted_european_mean(means[i].value(), parameters->rate, *time);
+            if (!value) return std::unexpected(value.error());
+            values[i] = *value;
+        }
+        return values;
+    }
+
     MonteCarloSettings settings_;
+    bool cache_samples_;
     mutable std::vector<double> normal_draws_;
     mutable std::vector<std::array<double, 2>> growth_;
     mutable double drift_ = std::numeric_limits<double>::quiet_NaN();
@@ -504,10 +566,39 @@ Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const EuropeanO
         // Stream a single price without sample storage; shared completion still decides availability.
         if (!cache_samples)
             return detail::price_with_greeks(seeded, option, context, greeks, settings);
-        const EuropeanMonteCarloSamples samples{seeded.settings()};
-        const auto value = samples.price(option, context);
-        if (!value) return std::unexpected(value.error());
-        return detail::complete_greeks([&](const PricingContext& shifted) { return samples.price(option, shifted); }, option, context, greeks, settings, *make_pricing_result(*value)); });
+        const bool reuse_samples = greeks.has(Greek::theta) || greeks.has(Greek::charm) || greeks.has(Greek::color) ||
+                                   greeks.has(Greek::vega) || greeks.has(Greek::vanna) || greeks.has(Greek::zomma) || greeks.has(Greek::rho);
+        const EuropeanMonteCarloSamples samples{seeded.settings(), reuse_samples};
+        const auto price = [&](const PricingContext& shifted) { return samples.price(option, shifted); };
+        const auto native = [&]() -> Result<PricingResult> {
+            if (seeded.settings().backend == MonteCarloBackend::cpu && stencils.spot_available &&
+                !detail::greeks_unavailable(option, context) &&
+                (greeks.has(Greek::delta) || greeks.has(Greek::gamma) || (greeks.has(Greek::speed) && stencils.speed_available))) {
+                if (greeks.has(Greek::speed) && stencils.speed_available)
+                    return detail::spot_bump_result(samples.spot_prices<5>(option, context, stencils.spot_shift), greeks, stencils.spot_shift);
+                return detail::spot_bump_result(samples.spot_prices<3>(option, context, stencils.spot_shift), greeks, stencils.spot_shift);
+            }
+            const auto value = price(context);
+            if (!value) return std::unexpected(value.error());
+            return make_pricing_result(*value);
+        }();
+        if (!native) return std::unexpected(native.error());
+        if (seeded.settings().backend == MonteCarloBackend::cpu) {
+            const auto spot_batch = [&](const PricingContext& shifted, double h, bool center) -> Result<detail::NumericalSpotPrices> {
+                const auto sample = [&]<std::size_t count>() -> Result<detail::NumericalSpotPrices> {
+                    const auto values = samples.spot_prices<count>(option, shifted, h);
+                    if (!values) return std::unexpected(values.error());
+                    const std::optional<double> middle = [&]() -> std::optional<double> {
+                        if constexpr (count == 3) return (*values)[detail::SpotStencil<count>::center];
+                        else return std::nullopt;
+                    }();
+                    return detail::NumericalSpotPrices{middle, (*values)[detail::SpotStencil<count>::up], (*values)[detail::SpotStencil<count>::down]};
+                };
+                return center ? sample.template operator()<3>() : sample.template operator()<2>();
+            };
+            return detail::complete_greeks(price, option, context, greeks, settings, *native, nullptr, spot_batch);
+        }
+        return detail::complete_greeks(price, option, context, greeks, settings, *native); });
 }
 
 Result<PricingResult> MonteCarloVanillaEngine::price_with_greeks(const AmericanOption& option, const PricingContext& context,

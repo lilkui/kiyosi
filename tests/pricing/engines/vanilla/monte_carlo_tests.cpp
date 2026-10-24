@@ -775,6 +775,33 @@ TEST_CASE("European Monte Carlo shared samples retain scalar Greek stencils", "[
     }
 }
 
+TEST_CASE("European Monte Carlo spot batches retain selected scalar stencils", "[mc-shared-samples][mc-spot-batch]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12});
+    for (const auto type : {OptionType::call, OptionType::put}) {
+        const auto option = *make_european_option(type, 100.0, start, end);
+        for (const int paths : {1, 513, 4097})
+            for (const int threads : {1, 0, 4}) {
+                const auto engine = *make_monte_carlo_vanilla_engine({paths, 50, 42, MonteCarloBackend::cpu, threads});
+                for (const auto request : {GreeksRequest{Greek::delta, Greek::gamma}, GreeksRequest{Greek::speed},
+                                           GreeksRequest{Greek::vanna}, GreeksRequest{Greek::zomma},
+                                           GreeksRequest{Greek::delta, Greek::gamma, Greek::rho}}) {
+                    CAPTURE(type, paths, threads);
+                    const NumericalShiftSettings shifts{0.125, 0.02, 0.005, 2};
+                    const auto expected = detail::price_with_greeks(engine, option, context, request, shifts);
+                    const auto actual = engine.price_with_greeks(option, context, request, shifts);
+                    REQUIRE(expected);
+                    REQUIRE(actual);
+                    CHECK(actual->price() == expected->price());
+                    CHECK(actual->values_view() == expected->values_view());
+                }
+            }
+    }
+}
+
 TEST_CASE("European Monte Carlo shared samples preserve failures and concurrent calls", "[mc-shared-samples]")
 {
     using namespace kiyosi;
