@@ -11,6 +11,9 @@
 #include <numbers>
 #include <numeric>
 
+#include <oneapi/tbb/task_arena.h>
+#include <oneapi/tbb/task_group.h>
+
 #include <kiyosi/kiyosi.hpp>
 
 #include "support/common.hpp"
@@ -299,6 +302,39 @@ TEST_CASE("Accumulator quadrature preserves quantity affinity exact limits and s
     CHECK(*engine.price(contract(end), market(120, context.valuation_time(), 1e-8, 0, 0)) == Catch::Approx(60.0).margin(1e-9));
     auto async = std::async(std::launch::async, [&] { return engine.price(contract(end), context); });
     CHECK(*engine.price(contract(end), context) == *async.get());
+}
+
+TEST_CASE("Accumulator quadrature cashflows preserve serial results under outer cancellation", "[accumulator-quadrature][quadrature-parallel-cashflows]")
+{
+    const auto engine = make_quadrature_accumulator_engine({128, 8.0}).value();
+    oneapi::tbb::task_arena serial{1}, parallel{4};
+    for (const double daily : {0.0, 1.0})
+        for (const double rate : {0.04, -10000.0}) {
+            CAPTURE(daily, rate);
+            const auto option = contract(day(2025, 2, 3), 110.0, 2.0, daily);
+            const auto context = market(90.0, start_of_day(day(2025, 1, 1)) + std::chrono::hours{12}, 0.2, rate);
+            const auto expected = serial.execute([&] { return engine.price(option, context); });
+            Result<double> actual = std::unexpected(Error{ErrorCategory::invalid_parameter, "pricing task did not execute"});
+            parallel.execute([&] {
+                oneapi::tbb::task_group_context outer{oneapi::tbb::task_group_context::isolated};
+                oneapi::tbb::task_group group{outer};
+                group.run([&] {
+                    outer.cancel_group_execution();
+                    actual = engine.price(option, context);
+                });
+                group.wait();
+            });
+            if (rate == 0.04) {
+                REQUIRE(expected);
+                REQUIRE(actual);
+                CHECK(*actual == *expected);
+            } else {
+                REQUIRE_FALSE(expected);
+                REQUIRE_FALSE(actual);
+                CHECK(expected.error().category == ErrorCategory::invalid_result);
+                CHECK(actual.error().category == ErrorCategory::invalid_result);
+            }
+        }
 }
 
 TEST_CASE("Accumulator quadrature without future purchases preserves fixed holdings", "[accumulator-quadrature][quadrature-fixed-holdings]")

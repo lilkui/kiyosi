@@ -172,16 +172,17 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
             if (layer_count == 2) integrate_curve_pair(layers[0].continuation, layers[1].continuation, *transition, discount, values[0], values[1]);
             else integrate_curves(layers[0].continuation, *transition, discount, values[0]);
         }
-        for (std::size_t target = 0; target < nodes.size(); ++target) {
+        for_each_target(nodes.size(), [&](std::size_t target) {
             for (std::size_t layer = 0; layer < layer_count; ++layer) {
                 Sum sum;
                 sum.add(integrate_terminal(layers[layer].exact, nodes[target], strike, drift, deviation, discount));
                 if (!final) sum.add(values[layer][target]);
                 values[layer][target] = sum.total();
-                if (!std::isfinite(values[layer][target]))
-                    return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
             }
-        }
+        });
+        for (std::size_t layer = 0; layer < layer_count; ++layer)
+            if (!std::ranges::all_of(values[layer], [](double value) { return std::isfinite(value); }))
+                return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
         for (std::size_t layer = 0; layer < layer_count; ++layer)
             continuation[layer] = interpolate(nodes, values[layer], 0.0, 0.0);
     }
