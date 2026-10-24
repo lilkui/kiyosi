@@ -716,6 +716,9 @@ Settings are validated at construction.)doc")
     auto finite_barrier = bind_finite_difference_engine<FiniteDifferenceBarrierEngine>(
         module, "FiniteDifferenceBarrierEngine", &make_finite_difference_barrier_engine);
     bind_engine_price<FiniteDifferenceBarrierEngine, BarrierOption>(module, finite_barrier);
+    auto finite_double_barrier = bind_finite_difference_engine<FiniteDifferenceDoubleBarrierEngine>(
+        module, "FiniteDifferenceDoubleBarrierEngine", &make_finite_difference_double_barrier_engine);
+    bind_engine_price<FiniteDifferenceDoubleBarrierEngine, DoubleBarrierOption>(module, finite_double_barrier);
     auto analytic_binary = bind_stateless_engine<AnalyticBinaryBarrierEngine>(
         module, "AnalyticBinaryBarrierEngine");
     bind_engine_price<AnalyticBinaryBarrierEngine, BinaryBarrierOption>(module, analytic_binary);

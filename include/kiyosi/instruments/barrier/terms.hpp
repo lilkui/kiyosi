@@ -213,8 +213,9 @@ struct BarrierMonitoringState {
 };
 
 // Callers validate valuation life and calendar compatibility before resolving monitoring.
+template <typename Terms>
 [[nodiscard]] inline Result<BarrierMonitoringState> barrier_monitoring_state(
-    const BarrierTerms& terms, Timestamp valuation_time, double spot)
+    const Terms& terms, Timestamp valuation_time, double spot)
 {
     const auto prior_touch = terms.was_touched_before(valuation_time);
     if (!prior_touch) return std::unexpected(prior_touch.error());

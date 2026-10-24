@@ -14,6 +14,8 @@ from ._native import (
     BinaryBarrierOption,
     BinarySnowballOption,
     CashOrNothingOption,
+    DoubleBarrierOption,
+    DoubleBarrierType,
     EuropeanOption,
     GeometricAveragePriceOption,
     KnockInObservationMode,

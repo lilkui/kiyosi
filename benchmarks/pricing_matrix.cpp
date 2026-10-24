@@ -106,6 +106,12 @@ void register_matrix()
     register_kiyosi("asset_digital/quadrature", asset_digital, QuadratureDigitalEngine{}, context);
     register_kiyosi("barrier/analytic", barrier, AnalyticBarrierEngine{}, context);
     register_kiyosi("barrier/fd", barrier, make_finite_difference_barrier_engine({80, 80}).value(), context);
+    const auto double_barrier = *make_double_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .lower_barrier = 80.0, .upper_barrier = 120.0, .barrier_type = DoubleBarrierType::knock_out});
+    register_kiyosi("double_barrier/fd", double_barrier, FiniteDifferenceDoubleBarrierEngine{}, context, false);
+    const auto scheduled_double = *make_double_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = expiry, .lower_barrier = 80.0, .upper_barrier = 120.0, .barrier_type = DoubleBarrierType::knock_out, .observation_mode = ObservationMode::scheduled, .observation_dates = {expiry}});
+    register_kiyosi("double_barrier/scheduled/fd", scheduled_double, FiniteDifferenceDoubleBarrierEngine{}, context, false);
+    kiyosi::benchmark_support::register_calculation("double_barrier/fd/greeks", [double_barrier = double_barrier, context] { return FiniteDifferenceDoubleBarrierEngine{}.price_with_greeks(double_barrier, context,
+                                                                                                                                                                                            {Greek::delta, Greek::gamma, Greek::vega, Greek::rho}); }, "price")->UseRealTime();
     register_kiyosi("cash_binary_barrier/analytic", cash_binary, AnalyticBinaryBarrierEngine{}, context);
     register_kiyosi("asset_binary_barrier/analytic", asset_binary, AnalyticBinaryBarrierEngine{}, context);
     register_kiyosi("cash_touch/analytic", cash_touch, AnalyticBinaryBarrierEngine{}, context);

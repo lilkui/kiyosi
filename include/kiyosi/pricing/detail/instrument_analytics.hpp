@@ -14,6 +14,7 @@ namespace kiyosi {
 class PricingContext;
 class Accumulator;
 class BarrierOption;
+class DoubleBarrierOption;
 class BinaryBarrierOption;
 class TouchOption;
 class CoxRossRubinsteinVanillaEngine;
@@ -33,7 +34,7 @@ Result<std::array<double, 2>> coupon_endpoint_prices(
     const MonteCarloAutocallableEngine&, const Note&, const Note&, const PricingContext&);
 
 template <typename Option>
-concept BarrierProduct = std::same_as<Option, BarrierOption> ||
+concept BarrierProduct = std::same_as<Option, BarrierOption> || std::same_as<Option, DoubleBarrierOption> ||
                          std::same_as<Option, BinaryBarrierOption> || std::same_as<Option, TouchOption>;
 
 [[nodiscard]] KIYOSI_EXPORT bool at_spot_discontinuity(const Accumulator&, const PricingContext&, double radius = 0.0);

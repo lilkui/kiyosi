@@ -8,6 +8,7 @@ add_executable(kiyosi_tests
     instruments/vanilla_tests.cpp
     instruments/barrier/binary_tests.cpp
     instruments/barrier/option_tests.cpp
+    instruments/barrier/double_tests.cpp
     instruments/barrier/terms_tests.cpp
     instruments/autocallable/snowball_tests.cpp
     market/calendar_tests.cpp
@@ -29,6 +30,7 @@ add_executable(kiyosi_tests
     pricing/engines/asian/analytic_tests.cpp
     pricing/engines/barrier/analytic_tests.cpp
     pricing/engines/barrier/finite_difference_tests.cpp
+    pricing/engines/barrier/double_tests.cpp
     pricing/engines/barrier/accuracy_tests.cpp
     pricing/engines/binary_barrier/analytic_tests.cpp
     pricing/engines/digital/settlement_tests.cpp

@@ -378,6 +378,55 @@ KiyosiError
     bind_common_option_properties(barrier, "BarrierOption",
                                   {"option_type", "strike", "effective_date", "expiry_date", "barrier_level", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
 
+    auto double_barrier = nb::class_<DoubleBarrierOption>(
+                              module, "DoubleBarrierOption",
+                              "Immutable European double-barrier option with inclusive fixed boundaries.")
+                              .def(nb::new_([](PythonChoice<OptionType> type, PythonReal strike, PythonDate effective_date,
+                                               PythonDate expiry_date, PythonReal lower, PythonReal upper,
+                                               PythonChoice<DoubleBarrierType> barrier_type, PythonReal rebate,
+                                               PythonChoice<RebateTiming> rebate_timing,
+                                               PythonChoice<ObservationMode> observation_mode, PythonDateSequence observation_dates,
+                                               std::optional<PythonChoice<BarrierTouchState>> touch_state) {
+                                       return unwrap(make_double_barrier_option({type, real_number(strike, "strike"),
+                                                                                 calendar_date(effective_date, "effective_date"),
+                                                                                 calendar_date(expiry_date, "expiry_date"),
+                                                                                 real_number(lower, "lower_barrier"), real_number(upper, "upper_barrier"),
+                                                                                 barrier_type, real_number(rebate, "rebate"), rebate_timing, observation_mode,
+                                                                                 date_sequence(observation_dates, "observation_dates"), touch_state}));
+                                   }),
+                                   nb::kw_only(), "option_type"_a, "strike"_a, "effective_date"_a, "expiry_date"_a,
+                                   "lower_barrier"_a, "upper_barrier"_a, "barrier_type"_a,
+                                   "rebate"_a = DoubleBarrierOptionTerms{}.rebate,
+                                   "rebate_timing"_a = DoubleBarrierOptionTerms{}.rebate_timing,
+                                   "observation_mode"_a = DoubleBarrierOptionTerms{}.observation_mode,
+                                   "observation_dates"_a = nb::make_tuple(), "touch_state"_a = DoubleBarrierOptionTerms{}.touch_state,
+                                   R"doc(Create a European call/put with fixed 0 < lower_barrier < upper_barrier.
+
+barrier_type is 'knock_in' or 'knock_out'; reaching either bound triggers the same
+event, including equality. The positive strike may lie outside the two bounds.
+Both boundaries share observation_mode ('continuous' or 'scheduled'). Scheduled
+dates are observed only at 00:00 UTC and may finish before expiry; continuous
+monitoring requires no dates. touch_state ('untouched', 'touched', or None) is the
+history strictly before valuation, required once prior observations were possible.
+
+The shared non-negative rebate defaults to zero. Knock-out rebates pay 'at_hit'
+or 'at_expiry' (default); a knock-in rebate pays at expiry only if never activated.
+Past at-hit rebates are already paid. Dates, schedules, defaults and validation
+come from the C++ core. Representation/signature errors raise TypeError or
+OverflowError; domain rejections raise KiyosiError with a stable category.
+Returned schedules are owning copies; the option supports concurrent reads.)doc")
+                              .def_prop_ro("lower_barrier", &DoubleBarrierOption::lower_barrier)
+                              .def_prop_ro("upper_barrier", &DoubleBarrierOption::upper_barrier)
+                              .def_prop_ro("barrier_type", &DoubleBarrierOption::barrier_type)
+                              .def_prop_ro("rebate", &DoubleBarrierOption::rebate)
+                              .def_prop_ro("rebate_timing", &DoubleBarrierOption::rebate_timing)
+                              .def_prop_ro("observation_mode", &DoubleBarrierOption::observation_mode)
+                              .def_prop_ro("touch_state", &DoubleBarrierOption::touch_state)
+                              .def_prop_ro("observation_dates", [](const DoubleBarrierOption& value) { return python_dates(value.observation_dates()); });
+    bind_touch_replace(double_barrier);
+    bind_common_option_properties(double_barrier, "DoubleBarrierOption",
+                                  {"option_type", "strike", "effective_date", "expiry_date", "lower_barrier", "upper_barrier", "barrier_type", "rebate", "rebate_timing", "observation_mode", "observation_dates", "touch_state"});
+
     auto binary_barrier = nb::class_<BinaryBarrierOption>(
                               module, "BinaryBarrierOption", R"doc(Immutable validated strike-based binary barrier option.
 

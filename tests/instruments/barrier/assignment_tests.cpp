@@ -66,7 +66,11 @@ try {
     const bool option_ok = check_assignment("BarrierOption", original, replacement);
     const bool binary_ok = check_assignment("BinaryBarrierOption", binary, binary_replacement);
     const bool touch_ok = check_assignment("TouchOption", touch, touch_replacement);
-    return terms_ok && option_ok && binary_ok && touch_ok ? 0 : 1;
+    const auto double_original = *make_double_barrier_option({.option_type = OptionType::call, .strike = 100.0, .effective_date = start, .expiry_date = end, .lower_barrier = 80.0, .upper_barrier = 120.0, .barrier_type = DoubleBarrierType::knock_in});
+    const auto double_replacement = *make_double_barrier_option({.option_type = OptionType::put, .strike = 110.0, .effective_date = start + std::chrono::days{1}, .expiry_date = end, .lower_barrier = 90.0, .upper_barrier = 130.0, .barrier_type = DoubleBarrierType::knock_out, .rebate = 5.0, .rebate_timing = RebateTiming::at_hit, .observation_mode = ObservationMode::scheduled, .observation_dates = {end}, .touch_state = BarrierTouchState::untouched});
+    const bool double_terms_ok = check_assignment("DoubleBarrierTerms", double_original.barrier_terms(), double_replacement.barrier_terms());
+    const bool double_option_ok = check_assignment("DoubleBarrierOption", double_original, double_replacement);
+    return terms_ok && option_ok && binary_ok && touch_ok && double_terms_ok && double_option_ok ? 0 : 1;
 } catch (const std::exception& error) {
     std::fputs(error.what(), stderr);
     std::fputs("\n", stderr);

@@ -4,6 +4,7 @@
 #include <optional>
 
 #include <kiyosi/instruments/barrier/option.hpp>
+#include <kiyosi/instruments/barrier/double.hpp>
 
 #include "black_scholes.hpp"
 
@@ -17,9 +18,16 @@ inline bool terminal_payoff_requires_barrier_touch(const BarrierTerms& terms, Op
                                              : type == OptionType::put && strike <= terms.barrier_level());
 }
 
+inline bool terminal_payoff_requires_barrier_touch(const DoubleBarrierTerms& terms, OptionType type, double strike)
+{
+    const bool monitors_expiry = terms.is_continuous() || terms.observation_dates().back() == terms.expiry_date();
+    return monitors_expiry && (type == OptionType::call ? strike >= terms.upper_barrier() : strike <= terms.lower_barrier());
+}
+
 // Callers validate instrument life and scheduled observation dates before resolving history.
+template <typename Option>
 inline std::optional<Result<double>> resolved_barrier_price(
-    const BarrierOption& option, const PricingContext& context)
+    const Option& option, const PricingContext& context)
 {
     const auto& terms = option.barrier_terms();
     const auto state = barrier_monitoring_state(terms, context.valuation_time(), context.spot_price());

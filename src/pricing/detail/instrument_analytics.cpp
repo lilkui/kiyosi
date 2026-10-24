@@ -61,9 +61,15 @@ template <BarrierProduct Option>
 bool at_spot_discontinuity(const Option& option, const PricingContext& context, double radius)
 {
     const double spot = context.spot_price();
+    const auto crosses = [&](double level) { return spot - radius <= level && level <= spot + radius; };
+    const bool crosses_barrier = [&] {
+        if constexpr (std::same_as<Option, DoubleBarrierOption>)
+            return crosses(option.lower_barrier()) || crosses(option.upper_barrier());
+        else return crosses(option.barrier_level());
+    }();
     return option.barrier_terms().touch_state() != BarrierTouchState::touched &&
            option.barrier_terms().is_monitored_at(context.valuation_time()) &&
-           spot - radius <= option.barrier_level() && option.barrier_level() <= spot + radius;
+           crosses_barrier;
 }
 
 template <BarrierProduct Option>
@@ -94,7 +100,7 @@ bool volatility_affects_price(const Option& option, const PricingContext& contex
     } else {
         if ((state.touched && !terms.is_knock_in()) || (!state.touched && state.finished && terms.is_knock_in())) return false;
         const bool payoff_excluded = !terms.is_knock_in() && terminal_payoff_requires_barrier_touch(terms, option.option_type(), option.strike());
-        if constexpr (std::same_as<Option, BarrierOption>) return !payoff_excluded || option.rebate() != 0.0;
+        if constexpr (std::same_as<Option, BarrierOption> || std::same_as<Option, DoubleBarrierOption>) return !payoff_excluded || option.rebate() != 0.0;
         else return !payoff_excluded;
     }
 }
@@ -196,6 +202,10 @@ Result<PhoenixOption> replace_coupon(const PhoenixOption& option, double coupon)
 }
 
 template KIYOSI_EXPORT bool at_spot_discontinuity(const BarrierOption&, const PricingContext&, double);
+template KIYOSI_EXPORT bool at_spot_discontinuity(const DoubleBarrierOption&, const PricingContext&, double);
+template KIYOSI_EXPORT bool all_greeks_unavailable(const DoubleBarrierOption&, const PricingContext&);
+template KIYOSI_EXPORT Result<bool> time_stencil_available(const DoubleBarrierOption&, const PricingContext&, Timestamp, Timestamp);
+template KIYOSI_EXPORT bool volatility_affects_price(const DoubleBarrierOption&, const PricingContext&);
 template KIYOSI_EXPORT bool all_greeks_unavailable(const BarrierOption&, const PricingContext&);
 template KIYOSI_EXPORT Result<bool> time_stencil_available(const BarrierOption&, const PricingContext&, Timestamp, Timestamp);
 template KIYOSI_EXPORT bool volatility_affects_price(const BarrierOption&, const PricingContext&);

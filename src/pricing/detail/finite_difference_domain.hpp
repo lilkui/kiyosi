@@ -21,6 +21,7 @@ double highest_finite_difference_level(const Option& option)
         for (const auto& observation : option.observations_view())
             relevant = std::max({relevant, observation.knock_out_level, observation.coupon_barrier_level});
     if constexpr (requires { option.knock_in_level(); }) relevant = std::max(relevant, option.knock_in_level());
+    if constexpr (requires { option.upper_barrier(); }) relevant = std::max(relevant, option.upper_barrier());
     return relevant;
 }
 

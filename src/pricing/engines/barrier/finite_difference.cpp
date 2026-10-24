@@ -1,4 +1,5 @@
 #include <kiyosi/pricing/engines/barrier/finite_difference.hpp>
+#include <kiyosi/pricing/engines/barrier/double_finite_difference.hpp>
 
 #include "../../detail/numerical_greeks.hpp"
 
@@ -17,22 +18,44 @@ namespace kiyosi {
 using namespace detail;
 namespace {
 // Valuation time and observation dates have been validated by price.
-template <bool scheduled>
-Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingContext& context,
+template <bool scheduled, typename Option>
+Result<PricingResult> barrier_fd(const Option& option, const PricingContext& context,
                                  FiniteDifferenceSettings settings, GreeksRequest output, double spot_shift)
 {
+    constexpr bool double_barrier = std::same_as<Option, DoubleBarrierOption>;
     const double time_to_expiry = actual_365_fixed_year_fraction(context.valuation_time(), option.expiry_date());
     const double spot = context.spot_price(), strike = option.strike();
     const bool knock_in = option.barrier_terms().is_knock_in();
     if (time_to_expiry == 0.0) return make_pricing_result(knock_in ? option.rebate() : std::max((option.option_type() == OptionType::call ? spot - strike : strike - spot), 0.0));
     const double rate = context.model_parameters().risk_free_rate(), dividend = context.model_parameters().dividend_yield(), volatility = context.model_parameters().volatility();
-    const double barrier = option.barrier_level();
-    const auto space = make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike, barrier});
+    const auto levels = [&] {
+        if constexpr (double_barrier) return std::array{option.lower_barrier(), option.upper_barrier()};
+        else return std::array{option.barrier_level()};
+    }();
+    auto space = [&] {
+        if constexpr (double_barrier)
+            return make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike, levels[0], levels[1]});
+        else return make_spatial_grid(settings, default_finite_difference_upper_boundary(option, context), {spot, strike, levels[0]});
+    }();
     if (!space) return std::unexpected(space.error());
+    if constexpr (double_barrier && !scheduled) {
+        // Fit both absorbing boundaries rather than rounding away a narrow live interval.
+        space->upper = levels[1];
+        space->nodes.reserve(space->size());
+        for (std::size_t index = 0; index < space->size(); ++index) {
+            const double asset = std::lerp(levels[0], levels[1], static_cast<double>(index) / settings.asset_step_count);
+            if (!space->nodes.empty() && asset <= space->nodes.back())
+                return std::unexpected(Error{ErrorCategory::invalid_parameter, "double-barrier grid nodes are not representably distinct"});
+            space->nodes.push_back(asset);
+        }
+    }
     const double upper = space->upper, spacing = space->spacing;
     const int time_step_count = settings.time_step_count;
     const double theta = scheme_theta(settings.scheme);
-    const bool upper_barrier = option.barrier_terms().is_up();
+    const bool upper_barrier = [&] {
+        if constexpr (double_barrier) return false;
+        else return option.barrier_terms().is_up();
+    }();
     std::vector<double> observation_times;
     std::vector<Date> observation_dates;
     if (scheduled) {
@@ -47,18 +70,19 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     const auto grid = !scheduled
                           ? make_finite_difference_time_grid(time_to_expiry, time_step_count)
                           : make_finite_difference_time_grid(context.valuation_time(), option.expiry_date(), time_step_count, std::move(observation_dates));
-    if (auto stable = check_explicit_stability(settings.scheme, grid, volatility, rate, dividend, settings.asset_step_count);
+    const DiffusionParameters parameters{rate, dividend, volatility, theta, 0.0, space->nodes.empty() ? nullptr : &*space};
+    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, settings.asset_step_count);
         !stable)
         return std::unexpected(stable.error());
     const int asset_step_count = [&] {
-        if (scheduled || knock_in || !upper_barrier) return settings.asset_step_count;
-        auto first_fixed = static_cast<int>(std::clamp(std::ceil(barrier / spacing), 3.0, static_cast<double>(settings.asset_step_count)));
-        if (first_fixed < settings.asset_step_count && spacing * first_fixed < barrier) ++first_fixed;
+        if (scheduled || double_barrier || knock_in || !upper_barrier) return settings.asset_step_count;
+        auto first_fixed = static_cast<int>(std::clamp(std::ceil(levels[0] / spacing), 3.0, static_cast<double>(settings.asset_step_count)));
+        if (first_fixed < settings.asset_step_count && spacing * first_fixed < levels[0]) ++first_fixed;
         return first_fixed;
     }();
     auto active = [&](double time) { return !scheduled || std::ranges::binary_search(observation_times, time); };
     auto payoff = [&](double asset) { return std::max((option.option_type() == OptionType::call ? asset - strike : strike - asset), 0.0); };
-    auto knocked = [&](double asset) { return upper_barrier ? asset >= barrier : asset <= barrier; };
+    auto knocked = [&](double asset) { return option.barrier_terms().is_breached_by(asset); };
     double cached_rebate_tau = -1.0;
     double cached_rebate = 0.0;
     const auto rebate_value = [&](double tau) {
@@ -70,11 +94,17 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     };
     std::vector<double> old(static_cast<std::size_t>(asset_step_count) + 1);
     for (std::size_t index = 0; index < old.size(); ++index)
-        old[index] = payoff(spacing * static_cast<double>(index));
+        old[index] = payoff(space->asset_at(index));
     const auto vanilla_boundary = [&](double tau) {
         const double sign = option.option_type() == OptionType::call ? 1.0 : -1.0;
         const auto probabilities = black_scholes_probabilities(sign, upper, strike, rate, dividend, volatility, tau);
-        return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
+        const double lower_value = [&] {
+            if constexpr (double_barrier && !scheduled) {
+                const auto lower_probabilities = black_scholes_probabilities(sign, levels[0], strike, rate, dividend, volatility, tau);
+                return black_scholes_values(sign, levels[0], strike, -dividend * tau, -rate * tau, lower_probabilities).price;
+            } else return option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0;
+        }();
+        return Boundaries{lower_value,
                           black_scholes_values(sign, upper, strike, -dividend * tau,
                                                -rate * tau, probabilities)
                               .price};
@@ -83,33 +113,46 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (knock_in) {
         // Keep the vanilla reference on its original schedule when barrier events restart damping.
         vanilla = old;
-        const auto marched = march_backward<true>(grid, DiffusionParameters{rate, dividend, volatility, theta}, vanilla, vanilla_boundary);
+        const auto marched = march_backward<true>(grid, parameters, vanilla, vanilla_boundary);
         if (!marched) return std::unexpected(marched.error());
     }
-    const std::array event_breaks{barrier};
-    const std::array terminal_breaks{std::min(strike, barrier), std::max(strike, barrier)};
+    const auto event_breaks = levels;
+    std::array<double, levels.size() + 1> terminal_breaks{};
+    std::ranges::copy(levels, terminal_breaks.begin());
+    terminal_breaks.back() = strike;
+    std::ranges::sort(terminal_breaks);
     const auto observe = [&](double tau, bool terminal) {
-        const std::size_t cut = space->nearest_node(barrier);
+        std::array<std::size_t, levels.size()> cuts{};
+        std::array<double, levels.size()> projected{};
         const double rebate = rebate_value(tau);
-        const double projected = terminal
-                                     ? project_finite_difference_event<1>(*space, terminal_breaks, cut, [&](double asset) {
-                                           return std::array{knocked(asset) ? rebate : payoff(asset)};
-                                       })[0]
-                                     : old[cut] + project_finite_difference_event<1>(*space, event_breaks, cut, [&](double asset) {
-                                           return std::array{knocked(asset) ? rebate - space->linear_interpolate(old, asset) : 0.0};
-                                       })[0];
+        for (std::size_t index = 0; index < levels.size(); ++index) {
+            const std::size_t cut = space->nearest_node(levels[index]);
+            cuts[index] = cut;
+            // Project the full double-barrier event to preserve nonnegative continuation at every grid placement.
+            projected[index] = terminal || double_barrier
+                                   ? project_finite_difference_event<1>(*space, terminal_breaks, cut, [&](double asset) {
+                                         return std::array{knocked(asset) ? rebate : (terminal ? payoff(asset) : space->linear_interpolate(old, asset))};
+                                     })[0]
+                                   : old[cut] + project_finite_difference_event<1>(*space, event_breaks, cut, [&](double asset) {
+                                         return std::array{knocked(asset) ? rebate - space->linear_interpolate(old, asset) : 0.0};
+                                     })[0];
+        }
         for (std::size_t index = 0; index < old.size(); ++index)
             if (knocked(space->asset_at(index))) old[index] = rebate;
-        // Average only the event change, using continuation before the in-place overwrite.
-        old[cut] = projected;
+        for (std::size_t index = 0; index < cuts.size(); ++index)
+            old[cuts[index]] = projected[index];
     };
     if (active(time_to_expiry)) {
         if (scheduled) observe(0.0, true);
         else
             for (std::size_t index = 0; index < old.size(); ++index)
-                if (knocked(spacing * static_cast<double>(index))) old[index] = option.rebate();
+                if (knocked(space->asset_at(index))) old[index] = option.rebate();
     }
     const auto boundary = [&](double time, double tau) {
+        if constexpr (double_barrier && !scheduled) {
+            const double rebate = rebate_value(tau);
+            return Boundaries{rebate, rebate};
+        }
         if (!scheduled && upper_barrier)
             return Boundaries{option.option_type() == OptionType::put ? scaled_exponential(strike, -rate * tau) : 0.0,
                               rebate_value(tau)};
@@ -120,19 +163,18 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             const double rebate = scheduled && option.rebate_timing() == RebateTiming::at_hit
                                       ? scaled_exponential(option.rebate(), -rate * (*observation - time))
                                       : rebate_value(tau);
-            if (knocked(0.0)) edges.lower = rebate;
+            if (knocked(space->asset_at(0))) edges.lower = rebate;
             if (knocked(upper)) edges.upper = rebate;
         }
         return edges;
     };
     const auto constraint = [&](int index, double tau) -> std::optional<double> {
-        if (!scheduled && knocked(spacing * index))
+        if (!scheduled && knocked(space->asset_at(static_cast<std::size_t>(index))))
             return rebate_value(tau);
         return std::nullopt;
     };
     std::vector<double> next(old.size());
     FiniteDifferenceStep stepper(old.size());
-    const DiffusionParameters parameters{rate, dividend, volatility, theta};
     RannacherDamping damping{2};
     for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
         const auto substeps = damping.next(theta);
@@ -144,7 +186,7 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
             const double time = grid.times[step] + offset;
             const double tau = time_to_expiry - grid.times[step] - offset;
             const Boundaries edges = boundary(time, tau);
-            const bool advanced = scheduled
+            const bool advanced = scheduled || double_barrier
                                       ? stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper)
                                       : stepper.advance(old, next, dt, step_parameters, edges.lower, edges.upper,
                                                         [&](int index) { return constraint(index, tau); });
@@ -167,10 +209,11 @@ Result<PricingResult> barrier_fd(const BarrierOption& option, const PricingConte
     if (old.size() < space->size()) old.resize(space->size(), rebate_value(time_to_expiry));
     std::vector<double> curvature;
     const double value = space->interpolate(old, spot, curvature);
-    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot); });
+    return finite_difference_result(value, spot, space->upper, output, spot_shift, [&](double shifted_spot) { return checked_price(space->interpolate(old, shifted_spot, curvature)); }, [&](double shifted_spot) { return space->delta(old, shifted_spot, curvature); }, [&](double shifted_spot) { return space->gamma(old, shifted_spot, curvature); });
 }
+template <typename Option>
 Result<PricingResult> price_barrier(
-    const BarrierOption& option, const PricingContext& context, FiniteDifferenceSettings settings,
+    const Option& option, const PricingContext& context, FiniteDifferenceSettings settings,
     bool& schedule_validated, GreeksRequest output, double spot_shift = NumericalShiftSettings{}.spot_shift)
 {
     auto valid = validate_valuation_within_instrument_life(context.valuation_time(), option.effective_date(), option.expiry_date());
@@ -198,6 +241,22 @@ Result<double> FiniteDifferenceBarrierEngine::price(const BarrierOption& option,
 }
 Result<PricingResult> FiniteDifferenceBarrierEngine::price_with_greeks(const BarrierOption& option, const PricingContext& context,
                                                                        GreeksRequest greeks, NumericalShiftSettings settings) const
+{
+    bool schedule_validated = false;
+    return detail::price_with_greeks(*this, option, context, greeks, settings,
+                                     [&](const auto& engine, const PricingContext& shifted, GreeksRequest request) {
+                                         return price_barrier(option, shifted, engine.settings(), schedule_validated, request, settings.spot_shift);
+                                     });
+}
+
+Result<double> FiniteDifferenceDoubleBarrierEngine::price(const DoubleBarrierOption& option, const PricingContext& context) const
+{
+    bool schedule_validated = false;
+    return detail::price_value(price_barrier(option, context, settings_, schedule_validated, GreeksRequest{}));
+}
+
+Result<PricingResult> FiniteDifferenceDoubleBarrierEngine::price_with_greeks(const DoubleBarrierOption& option, const PricingContext& context,
+                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     bool schedule_validated = false;
     return detail::price_with_greeks(*this, option, context, greeks, settings,

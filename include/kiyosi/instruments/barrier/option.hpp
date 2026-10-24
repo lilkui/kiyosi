@@ -100,22 +100,33 @@ private:
     friend Result<BarrierOption> make_barrier_option(BarrierOptionTerms);
 };
 
+namespace detail {
+[[nodiscard]] inline Result<void> validate_barrier_payoff(OptionType type, double strike, double rebate,
+                                                          RebateTiming timing, bool knock_in)
+{
+    const auto direction_and_strike = validate_option_direction_and_strike(type, strike);
+    if (!direction_and_strike) return std::unexpected(direction_and_strike.error());
+    if (!std::isfinite(rebate) || rebate < 0.0)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "barrier terms must be finite and non-negative"});
+    if (timing != RebateTiming::at_hit && timing != RebateTiming::at_expiry)
+        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid rebate timing"});
+    if (knock_in && timing == RebateTiming::at_hit)
+        return std::unexpected(Error{ErrorCategory::invalid_option,
+                                     "at-hit rebates are invalid for knock-in barriers"});
+    return {};
+}
+} // namespace detail
+
 [[nodiscard]] inline Result<BarrierOption> make_barrier_option(BarrierOptionTerms terms)
 {
     auto barrier_terms = detail::make_barrier_terms(terms.barrier_level, terms.barrier_type, terms.observation_mode,
                                                     std::move(terms.observation_dates), terms.effective_date, terms.expiry_date,
                                                     terms.touch_state);
     if (!barrier_terms) return std::unexpected(barrier_terms.error());
-    const auto direction_and_strike = detail::validate_option_direction_and_strike(terms.option_type, terms.strike);
-    if (!direction_and_strike) return std::unexpected(direction_and_strike.error());
-    if (!std::isfinite(terms.rebate) || terms.rebate < 0.0)
-        return std::unexpected(Error{ErrorCategory::invalid_parameter,
-                                     "barrier terms must be finite and non-negative"});
-    if (terms.rebate_timing != RebateTiming::at_hit && terms.rebate_timing != RebateTiming::at_expiry)
-        return std::unexpected(Error{ErrorCategory::invalid_option, "invalid rebate timing"});
-    if (barrier_terms->is_knock_in() && terms.rebate_timing == RebateTiming::at_hit)
-        return std::unexpected(Error{ErrorCategory::invalid_option,
-                                     "at-hit rebates are invalid for knock-in barriers"});
+    const auto payoff = detail::validate_barrier_payoff(terms.option_type, terms.strike, terms.rebate, terms.rebate_timing,
+                                                        barrier_terms->is_knock_in());
+    if (!payoff) return std::unexpected(payoff.error());
     return BarrierOption{terms.option_type, terms.strike, terms.rebate, terms.rebate_timing, std::move(*barrier_terms)};
 }
 

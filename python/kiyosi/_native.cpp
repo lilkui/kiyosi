@@ -40,6 +40,7 @@ raise :class:`KiyosiError` with a stable :attr:`KiyosiError.category`.)doc";
 
     bind_choice<OptionType>(module, "OptionType");
     bind_choice<BarrierType>(module, "BarrierType");
+    bind_choice<DoubleBarrierType>(module, "DoubleBarrierType");
     bind_choice<ObservationMode>(module, "ObservationMode");
     bind_choice<BarrierTouchState>(module, "BarrierTouchState");
     bind_choice<RebateTiming>(module, "RebateTiming");

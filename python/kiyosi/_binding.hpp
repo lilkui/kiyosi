@@ -53,6 +53,12 @@ struct EnumNames<BarrierType> {
 };
 
 template <>
+struct EnumNames<DoubleBarrierType> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, DoubleBarrierType>>(
+        {{"knock_in", DoubleBarrierType::knock_in}, {"knock_out", DoubleBarrierType::knock_out}});
+};
+
+template <>
 struct EnumNames<ObservationMode> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, ObservationMode>>(
         {{"continuous", ObservationMode::continuous}, {"scheduled", ObservationMode::scheduled}});
