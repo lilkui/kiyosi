@@ -1,6 +1,7 @@
 #include <chrono>
 #include <cmath>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <benchmark/benchmark.h>
@@ -71,6 +72,15 @@ void register_quadrature_cases()
 
     const Date start{std::chrono::year{2025} / 1 / 1};
     const Date expiry{std::chrono::year{2025} / 4 / 1};
+    {
+        const Date dense_expiry = start + std::chrono::days{252};
+        std::vector<AutocallableObservation> observations;
+        for (int index = 1; index <= 252; ++index)
+            observations.push_back({start + std::chrono::days{index}, 125.0 - 15.0 * index / 252.0, 0.08});
+        const auto note = make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = dense_expiry, .observations = std::move(observations)}).value();
+        const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 100.0, start, all_days_calendar()).value();
+        register_price("quadrature/snowball/step_down_dense/price", note, make_quadrature_autocallable_engine({128, 8.0}).value(), context)->UseRealTime();
+    }
     for (const bool inactive : {false, true}) {
         const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 90.0, start_of_day(start) + std::chrono::hours{12}, all_days_calendar()).value();
         const auto option = make_accumulator({100.0, inactive ? 95.0 : 110.0, inactive ? 1.0 : 0.0, inactive ? 0.0 : 2.0, 3.0, start, expiry}).value();

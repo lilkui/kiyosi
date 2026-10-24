@@ -187,6 +187,50 @@ class AutocallableQuadratureTests(unittest.TestCase):
                 )
                 self.assertAlmostEqual(actual, expected, delta=1e-9)
 
+    def test_dense_terminal_pieces_preserve_deterministic_payoff_regions(self):
+        start = date(2025, 1, 1)
+        dates = [start + timedelta(days=index) for index in range(1, 33)]
+        levels = [125 - 15 * index / 32 for index in range(1, 33)]
+        engine = pricing.QuadratureAutocallableEngine(asset_step_count=128)
+        for principal in (0.5, 1.0):
+            note = SnowballOption(
+                maturity_coupon_rate=0.06,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=60,
+                knock_in_observation_mode="at_expiry",
+                barrier_state="none",
+                principal_ratio=principal,
+                effective_date=start,
+                expiry_date=dates[-1],
+                observations=autocallable_observations(
+                    dates,
+                    levels,
+                    knock_out_coupon_rates=[
+                        0.08 * 365 / index for index in range(1, 33)
+                    ],
+                ),
+            )
+            for spot in (50, 70, 90, 120, 140):
+                with self.subTest(principal=principal, spot=spot):
+                    market = PricingContext(
+                        model_parameters=BlackScholesMertonParameters(
+                            risk_free_rate=0, dividend_yield=0, volatility=1e-8
+                        ),
+                        spot_price=spot,
+                        valuation_time=start,
+                        calendar=all_days_calendar(),
+                    )
+                    expected = principal + 0.06 * 32 / 365
+                    if spot <= 80:
+                        expected = principal + (max(spot, 60) - 100) / 100
+                    if spot >= 110:
+                        expected = principal + 0.08
+                    self.assertAlmostEqual(
+                        engine.price(note, market), expected, delta=1e-8
+                    )
+
     def test_core_defaults_and_representation_validation(self):
         engine = pricing.QuadratureAutocallableEngine()
         self.assertEqual(engine.asset_step_count, 512)

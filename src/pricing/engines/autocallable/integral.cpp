@@ -125,7 +125,10 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
             }
             cash += event_coupon(program, event, asset);
         }
-        pieces.push_back({edges[i], edges[i + 1], cash, weight});
+        if (!pieces.empty() && pieces.back().cash == cash && pieces.back().asset == weight)
+            pieces.back().upper = edges[i + 1];
+        else
+            pieces.push_back({edges[i], edges[i + 1], cash, weight});
     }
     return pieces;
 }

@@ -129,6 +129,29 @@ TEST_CASE("Quadrature discounts each signed Phoenix coupon at its own event", "[
     }
 }
 
+TEST_CASE("Quadrature dense terminal pieces preserve deterministic payoff regions", "[autocallable-quadrature][quadrature-terminal-pieces]")
+{
+    const auto start = day(2025, 1, 1), end = start + std::chrono::days{32};
+    std::vector<AutocallableObservation> observations;
+    // Equal knock-out payments isolate payoff regions from event-date interpolation.
+    for (int index = 1; index <= 32; ++index)
+        observations.push_back({start + std::chrono::days{index}, 125.0 - 15.0 * index / 32.0, 0.08 * 365.0 / index});
+    const auto engine = make_quadrature_autocallable_engine({128, 8.0}).value();
+    for (const double principal : {0.5, 1.0}) {
+        const auto note = make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = KnockInObservationMode::at_expiry, .barrier_state = AutocallableBarrierState::none, .principal_ratio = principal, .effective_date = start, .expiry_date = end, .observations = observations}).value();
+        for (const double spot : {50.0, 70.0, 90.0, 120.0, 140.0}) {
+            CAPTURE(principal, spot);
+            const auto context = make_pricing_context(*make_bsm_parameters(0.0, 0.0, 1e-8), spot, start, all_days_calendar()).value();
+            double expected = principal + 0.06 * 32.0 / 365.0;
+            if (spot <= 80.0) expected = principal + (std::clamp(spot, 60.0, 100.0) - 100.0) / 100.0;
+            if (spot >= 110.0) expected = principal + 0.08;
+            const auto actual = engine.price(note, context);
+            REQUIRE(actual);
+            CHECK(*actual == Catch::Approx(expected).margin(1e-8));
+        }
+    }
+}
+
 TEST_CASE("Quadrature settings have core defaults and reject invalid budgets", "[autocallable-quadrature]")
 {
     const auto defaults = QuadratureAutocallableEngine{}.settings();
