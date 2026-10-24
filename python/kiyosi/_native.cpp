@@ -50,6 +50,7 @@ raise :class:`KiyosiError` with a stable :attr:`KiyosiError.category`.)doc";
     bind_choice<AutocallableBarrierState>(module, "AutocallableBarrierState");
     bind_choice<FiniteDifferenceScheme>(module, "FiniteDifferenceScheme");
     bind_choice<MonteCarloBackend>(module, "MonteCarloBackend");
+    bind_choice<MonteCarloSampling>(module, "MonteCarloSampling");
     bind_choice<CouponQuoteConvention>(module, "CouponQuoteConvention");
     bind_choice<BusinessDayConvention>(module, "BusinessDayConvention");
     bind_choice<Greek>(module, "Greek");

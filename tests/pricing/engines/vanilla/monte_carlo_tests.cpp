@@ -306,8 +306,8 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         double squares = 0.0, products = 0.0;
         const auto first = kiyosi::detail::cpu_path_means<1>({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<std::array<double, 1>> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
-            const double value = normal(generator);
-            const double next = normal(generator);
+            const double value = kiyosi::detail::draw_monte_carlo_normal(generator, normal);
+            const double next = kiyosi::detail::draw_monte_carlo_normal(generator, normal);
             prefixes.push_back(value);
             squares += value * value;
             products += value * next;
@@ -320,7 +320,7 @@ TEST_CASE("Trading-day path streams preserve normal moments and independent pref
         std::size_t path = 0;
         const auto shortened = kiyosi::detail::cpu_path_means<1>({count, seed, kiyosi::MonteCarloBackend::cpu, 1}, [&](auto& generator) -> kiyosi::Result<std::array<double, 1>> {
             std::normal_distribution<double> normal; // NOLINT(misc-const-correctness): sampling mutates the distribution cache.
-            const double value = normal(generator);
+            const double value = kiyosi::detail::draw_monte_carlo_normal(generator, normal);
             REQUIRE(value == prefixes[path++]);
             return std::array{value};
         });
@@ -334,13 +334,16 @@ TEST_CASE("CPU path batches preserve scalar streams and propagate payoff failure
     using namespace kiyosi;
     const TradingDayMonteCarloSettings settings{16, 42, MonteCarloBackend::cpu, 1};
     const auto scalar = detail::cpu_path_means<1>(settings, [](auto& generator) -> Result<std::array<double, 1>> {
-        return std::array{static_cast<double>(generator())};
+        if constexpr (requires { generator(); }) return std::array{static_cast<double>(generator())};
+        else return std::array{generator.uniform()};
     });
     const auto batch = detail::cpu_path_means<2>(settings, [](auto& generator) -> Result<std::array<double, 2>> {
-        const auto first = generator();
-        for (std::uint32_t draw = 0; draw < first % 7; ++draw)
-            static_cast<void>(generator());
-        return std::array{static_cast<double>(first), 10.0};
+        if constexpr (requires { generator(); }) {
+            const auto first = generator();
+            for (std::uint32_t draw = 0; draw < first % 7; ++draw)
+                static_cast<void>(generator());
+            return std::array{static_cast<double>(first), 10.0};
+        } else return std::array{generator.uniform(), 10.0};
     });
     REQUIRE(scalar);
     REQUIRE(batch);

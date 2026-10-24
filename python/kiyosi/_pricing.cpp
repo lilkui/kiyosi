@@ -309,17 +309,19 @@ nb::class_<Engine> bind_trading_day_monte_carlo_engine(nb::module_& module, cons
 
 Configuration is validated at construction. Contract, market, and backend availability
 are checked when pricing.
-Accumulator and autocallable engines accept 1..10,000,000 paths.)doc"};
+Accumulator and autocallable engines accept 1..10,000,000 paths.
+Sobol sampling requires a power-of-two path count and the CPU backend.)doc"};
     binding
-        .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
+        .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling) {
                  return unwrap(factory(TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
-                     backend, integer(thread_count, "thread_count")}));
+                     backend, integer(thread_count, "thread_count"), sampling}));
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
              "seed"_a.none() = TradingDayMonteCarloSettings{}.seed,
              "backend"_a = TradingDayMonteCarloSettings{}.backend,
              "thread_count"_a = TradingDayMonteCarloSettings{}.thread_count,
+             "sampling"_a = TradingDayMonteCarloSettings{}.sampling,
              R"doc(Create an engine with validated Monte Carlo settings.
 
 Settings are validated at construction.
@@ -330,12 +332,17 @@ path_count : int, optional
     Number of simulated paths. Uses the core default when omitted.
 seed : int or None, optional
     Non-negative random seed. Uses the core default when omitted.
-    CPU paths have separate random streams; early knock-out does not shift later paths' draws.
+    Early knock-out does not shift later paths' samples.
 backend : {'cpu', 'cuda'}, optional
     CPU or CUDA execution backend.
 thread_count : int, optional
     Per-call CPU concurrency cap: 0 automatic, 1 serial. CUDA requires 0.
     Seeded CPU results are identical across thread counts in the same build.
+sampling : {'pseudo_random', 'sobol'}, optional
+    Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
+    shifted point per path, with chronological normal increments and up to 21,201
+    dimensions. Set a power-of-two path_count explicitly; the default path count
+    remains unchanged. Sobol supports only the CPU backend.
 
 Raises
 ------
@@ -344,13 +351,15 @@ TypeError
 OverflowError
     If an integer is outside its C++ representation range.
 KiyosiError
-    INVALID_PARAMETER if the core rejects the configuration.)doc")
+    INVALID_PARAMETER if the core rejects the configuration.
+    UNSUPPORTED_OPERATION for Sobol with CUDA.)doc")
         .def_prop_ro("path_count", [](const Engine& engine) { return engine.settings().path_count; }, "Number of simulated paths.")
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
         .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
-        .def_prop_ro("thread_count", [](const Engine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.");
+        .def_prop_ro("thread_count", [](const Engine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.")
+        .def_prop_ro("sampling", [](const Engine& engine) { return engine.settings().sampling; }, "Pseudorandom or scrambled Sobol sampling.");
     bind_repr(binding, name,
-              {"path_count", "seed", "backend", "thread_count"});
+              {"path_count", "seed", "backend", "thread_count", "sampling"});
     return binding;
 }
 
@@ -648,16 +657,17 @@ American calls with nonpositive dividends and nonnegative rates use that distrib
 with an immediate-exercise lower bound. Rate stencils crossing zero retain exercise-grid
 simulations on both sides.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count) {
+                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling) {
                                             return unwrap(make_monte_carlo_vanilla_engine(MonteCarloSettings{
                                                 integer(path_count, "path_count"), integer(step_count, "step_count"),
-                                                optional_seed(seed), backend, integer(thread_count, "thread_count")}));
+                                                optional_seed(seed), backend, integer(thread_count, "thread_count"), sampling}));
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
                                         "seed"_a.none() = MonteCarloSettings{}.seed,
                                         "backend"_a = MonteCarloSettings{}.backend,
                                         "thread_count"_a = MonteCarloSettings{}.thread_count,
+                                        "sampling"_a = MonteCarloSettings{}.sampling,
                                         R"doc(Create an engine with validated Monte Carlo settings.
 
 Parameters
@@ -674,6 +684,11 @@ backend : {'cpu', 'cuda'}, optional
 thread_count : int, optional
     Per-call CPU concurrency cap: 0 automatic, 1 serial. CUDA requires 0.
     Seeded CPU results are identical across thread counts in the same build.
+sampling : {'pseudo_random', 'sobol'}, optional
+    Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
+    shifted point per path without antithetic pairing, with chronological normal
+    increments and up to 21,201 dimensions. Set a power-of-two path_count
+    explicitly; the default path count remains unchanged. Sobol supports only CPU.
 
 Raises
 ------
@@ -683,6 +698,7 @@ OverflowError
     If an integer is outside its C++ representation range.
 KiyosiError
     INVALID_PARAMETER if the core rejects the configuration.
+    UNSUPPORTED_OPERATION for Sobol with CUDA.
 
 Notes
 -----
@@ -691,9 +707,10 @@ Settings are validated at construction.)doc")
                                    .def_prop_ro("step_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().step_count; }, "American time grid points; validated but unused for European pricing.")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
                                    .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
-                                   .def_prop_ro("thread_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.");
+                                   .def_prop_ro("thread_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.")
+                                   .def_prop_ro("sampling", [](const MonteCarloVanillaEngine& engine) { return engine.settings().sampling; }, "Pseudorandom or scrambled Sobol sampling.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
-              {"path_count", "step_count", "seed", "backend", "thread_count"});
+              {"path_count", "step_count", "seed", "backend", "thread_count", "sampling"});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(module, monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(module, monte_carlo_vanilla);
 

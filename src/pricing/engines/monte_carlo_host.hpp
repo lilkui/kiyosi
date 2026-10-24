@@ -18,11 +18,22 @@
 #include "monte_carlo_cuda.hpp"
 #include "monte_carlo_mean.hpp"
 #include "monte_carlo_random.hpp"
+#include "monte_carlo_sobol.hpp"
 #include "monte_carlo_simulation.hpp"
 #include "monte_carlo_stencil.hpp"
 
 // C++23 host adapters stay separate from the C++20 CUDA translation unit.
 namespace kiyosi::detail {
+
+inline double draw_monte_carlo_normal(Pcg32& generator, std::normal_distribution<double>& normal)
+{
+    return normal(generator);
+}
+
+inline double draw_monte_carlo_normal(SobolCursor& generator, std::normal_distribution<double>&)
+{
+    return generator.normal();
+}
 
 template <std::size_t count>
 Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
@@ -131,7 +142,12 @@ template <std::size_t count, typename PathPayoffs>
 Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSettings& settings, PathPayoffs path_payoffs,
                                                  std::size_t step_count = 1)
 {
+    const auto valid = validate_monte_carlo_dimension(settings.sampling, step_count);
+    if (!valid) return std::unexpected(valid.error());
     const auto seed = settings.seed ? *settings.seed : std::random_device{}();
+    std::optional<SobolSequence> sobol;
+    if (settings.sampling == MonteCarloSampling::sobol)
+        sobol.emplace(std::max(step_count, std::size_t{1}), seed);
     std::vector<std::array<MonteCarloMean, count>> partials(
         static_cast<std::size_t>(monte_carlo_block_count(settings.path_count)));
     // Amortize each worker over a full random block and enough path steps.
@@ -143,14 +159,27 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
     const auto simulated = monte_carlo_blocks(settings.path_count, threads,
                                               [&](int block, int begin, int end) -> Result<void> {
                                                   auto& means = partials[static_cast<std::size_t>(block)];
-                                                  for (int path = begin; path < end; ++path) {
-                                                      // Early termination must not change the random draws of later paths.
-                                                      Pcg32 path_generator{seed, static_cast<std::uint64_t>(path)};
-                                                      const auto payoffs = path_payoffs(path_generator);
+                                                  const auto accumulate = [&](auto& generator) -> Result<void> {
+                                                      const auto payoffs = path_payoffs(generator);
                                                       if (!payoffs) return std::unexpected(payoffs.error());
                                                       for (std::size_t i = 0; i < count; ++i)
                                                           means[i].add((*payoffs)[i]);
-                                                  }
+                                                      return {};
+                                                  };
+                                                  if (sobol) {
+                                                      SobolCursor generator{*sobol, static_cast<std::uint64_t>(begin)};
+                                                      for (int path = begin; path < end; ++path) {
+                                                          const auto value = accumulate(generator);
+                                                          if (!value) return value;
+                                                          generator.next_path();
+                                                      }
+                                                  } else
+                                                      for (int path = begin; path < end; ++path) {
+                                                          // Early termination must not change the random draws of later paths.
+                                                          Pcg32 generator{seed, static_cast<std::uint64_t>(path)};
+                                                          const auto value = accumulate(generator);
+                                                          if (!value) return value;
+                                                      }
                                                   return {};
                                               });
     if (!simulated) return std::unexpected(simulated.error());
@@ -209,14 +238,14 @@ Result<std::array<double, 3>> cpu_rate_prices(
 
 // One draw advances every active state; scalar calls enter active, batched states may already be settled.
 // Keep product observation inlined in the time-step loop.
-template <bool shared_steps, typename Steps, typename State, std::size_t count, typename Observe>
+template <bool shared_steps, typename Steps, typename State, std::size_t count, typename Generator, typename Observe>
 #if defined(_MSC_VER) && !defined(__clang__)
 __forceinline
 #else
 [[gnu::always_inline]] inline
 #endif
     Result<void> simulate_path_batch(const Steps& steps, std::array<State, count>& states,
-                                     Pcg32& generator, const Observe& observe)
+                                     Generator& generator, const Observe& observe)
 {
     const auto& common = [&]() -> const auto& {
         if constexpr (shared_steps) return steps;
@@ -225,7 +254,7 @@ __forceinline
     std::normal_distribution<double> normal;
     std::size_t index = 0;
     for (const auto& common_step : common) {
-        const double draw = normal(generator);
+        const double draw = draw_monte_carlo_normal(generator, normal);
         double growth = [&] { // NOLINT(misc-const-correctness): updated when scenario step arrays differ.
             const auto& simulation = [&]() -> const auto& {
                 if constexpr (requires { common_step.simulation; }) return common_step.simulation;

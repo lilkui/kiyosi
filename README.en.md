@@ -67,4 +67,4 @@ print(f"Price: {price:.6f}")  # 8.827321
 
 ## License
 
-Licensed under the [MIT License](LICENSE.txt).
+Licensed under the [MIT License](LICENSE.txt). See [third-party notices](THIRD_PARTY_NOTICES.txt) for third-party copyrights and license terms.

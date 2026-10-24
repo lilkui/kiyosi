@@ -116,6 +116,12 @@ struct EnumNames<MonteCarloBackend> {
 };
 
 template <>
+struct EnumNames<MonteCarloSampling> {
+    static constexpr auto values = std::to_array<std::pair<std::string_view, MonteCarloSampling>>(
+        {{"pseudo_random", MonteCarloSampling::pseudo_random}, {"sobol", MonteCarloSampling::sobol}});
+};
+
+template <>
 struct EnumNames<CouponQuoteConvention> {
     static constexpr auto values = std::to_array<std::pair<std::string_view, CouponQuoteConvention>>(
         {{"shift_maturity_coupon", CouponQuoteConvention::shift_maturity_coupon},

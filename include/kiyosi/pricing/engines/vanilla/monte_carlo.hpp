@@ -38,7 +38,8 @@ public:
     /// CPU European requests with feasible stencils reuse per-call samples, with storage linear in path count.
     /// Requests without feasible stencils stream the scalar price without retaining samples.
     /// CPU and CUDA American requests reuse a path buffer; spot stencils also cache growth factors,
-    /// adding about 8 bytes per rounded-even path per time interval. All storage is request-local.
+    /// adding about 8 bytes per path per time interval (pseudorandom counts round up to even).
+    /// All storage is request-local.
     [[nodiscard]] Result<PricingResult> price_with_greeks(const EuropeanOption& option, const PricingContext& context,
                                                           GreeksRequest greeks, NumericalShiftSettings settings = {}) const;
     [[nodiscard]] Result<PricingResult> price_with_greeks(const AmericanOption& option, const PricingContext& context,
@@ -75,7 +76,7 @@ private:
 };
 
 /// Creates an engine after validating its configuration.
-/// @return The engine, or an `invalid_parameter` error.
+/// @return The engine, an `invalid_parameter` error, or `unsupported_operation` for CUDA with Sobol.
 [[nodiscard]] inline Result<MonteCarloVanillaEngine> make_monte_carlo_vanilla_engine(MonteCarloSettings settings)
 {
     const auto valid = detail::validate_monte_carlo_settings(settings);

@@ -146,6 +146,7 @@ target_sources(kiyosi
         src/pricing/engines/autocallable/finite_difference.cpp
         src/pricing/engines/autocallable/integral.cpp
         src/pricing/engines/autocallable/monte_carlo.cpp
+        src/pricing/engines/monte_carlo_sobol.cpp
         src/pricing/engines/vanilla/analytic.cpp
         src/pricing/engines/vanilla/binomial.cpp
         src/pricing/engines/vanilla/bjerksund_stensland.cpp
@@ -409,7 +410,7 @@ if(KIYOSI_INSTALL)
         FILE_SET HEADERS DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT Development
         FILE_SET generated_headers DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}" COMPONENT Development
     )
-    install(FILES LICENSE.txt
+    install(FILES LICENSE.txt THIRD_PARTY_NOTICES.txt
         DESTINATION "${CMAKE_INSTALL_DATADIR}/licenses/kiyosi"
         COMPONENT Runtime
     )

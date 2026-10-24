@@ -34,6 +34,8 @@ regex = "project\\(kiyosi VERSION (?P<value>[0-9.]+)"
 [tool.scikit-build]
 minimum-version = "build-system.requires"
 wheel.packages = ["python/kiyosi"]
+wheel.license-files = ["LICENSE.txt", "THIRD_PARTY_NOTICES.txt"]
+sdist.include = ["LICENSE.txt", "THIRD_PARTY_NOTICES.txt"]
 sdist.exclude = ["wheelhouse"]
 cmake.args = [
     "-DKIYOSI_BUILD_PYTHON=ON",
@@ -53,7 +55,7 @@ build = "cp3{11,12,13,14,15}-*"
 skip = "*-musllinux_*"
 archs = ["auto64"]
 environment = { CMAKE_ARGS = "-DKIYOSI_ENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=75-real;80-real;86-real;89-real;90-real;100-real;120-real;120-virtual" }
-test-sources = ["tests", "tools/generate_sse_calendar.py", "benchmarks/python_threads.py"]
+test-sources = ["tests", "tools/generate_sse_calendar.py", "benchmarks/python_threads.py", "benchmarks/sobol.py"]
 test-extras = ["test"]
 test-command = [
     'python -m unittest discover -s tests/python -p "test_*.py"',

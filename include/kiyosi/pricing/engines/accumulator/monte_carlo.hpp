@@ -47,7 +47,7 @@ private:
 };
 
 /// Creates an engine after validating its configuration.
-/// @return The engine, or an `invalid_parameter` error.
+/// @return The engine, an `invalid_parameter` error, or `unsupported_operation` for CUDA with Sobol.
 [[nodiscard]] inline Result<MonteCarloAccumulatorEngine> make_monte_carlo_accumulator_engine(TradingDayMonteCarloSettings settings)
 {
     const auto valid = detail::validate_monte_carlo_settings(settings);

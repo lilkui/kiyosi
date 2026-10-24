@@ -1,6 +1,8 @@
 #pragma once
 
+#include <bit>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <random>
@@ -19,6 +21,12 @@ enum class MonteCarloBackend : unsigned char {
     cuda, ///< CUDA implementation, when built and available.
 };
 
+/// Sampling rules, independent of the execution backend.
+enum class MonteCarloSampling : unsigned char {
+    pseudo_random, ///< Existing pseudorandom streams and vanilla antithetic pairing.
+    sobol,         ///< Seeded LMS-scrambled Sobol with a digital shift; CPU only.
+};
+
 /// CPU calls own their parallel work and complete synchronously. Concurrent calls on distinct
 /// engines or const calls on a shared engine are safe without concurrent mutation. Thread caps
 /// apply per call, not process-wide. Fixed seeds reproduce results across thread counts within
@@ -28,24 +36,32 @@ enum class MonteCarloBackend : unsigned char {
 /// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
 /// European pricing samples the exact terminal distribution without intermediate steps.
+/// Sobol uses one point per path, chronological inverse-normal increments and one seeded
+/// scramble per call. It preserves the same concurrency contract; it does not report a
+/// standard error or confidence interval. Selecting Sobol requires an explicit power-of-two
+/// path count because the pseudorandom defaults are unchanged. CPU and CUDA streams differ.
 struct MonteCarloSettings {
-    int path_count = 100'000;                           ///< Number of simulated paths; 1..10,000,000.
-    int step_count = 50;                                ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
-    std::optional<std::uint64_t> seed{};                ///< Deterministic seed, or system entropy when absent.
-    MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
-    int thread_count = 0;                               ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
+    int path_count = 100'000;                                        ///< Number of simulated paths; 1..10,000,000.
+    int step_count = 50;                                             ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
+    std::optional<std::uint64_t> seed{};                             ///< Deterministic seed, or system entropy when absent.
+    MonteCarloBackend backend = MonteCarloBackend::cpu;              ///< Execution backend.
+    int thread_count = 0;                                            ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
+    MonteCarloSampling sampling = MonteCarloSampling::pseudo_random; ///< Sobol requires a power-of-two path count; one point per path.
 };
 
 /// Accumulator and autocallable products step the trading calendar directly, so no step
 /// count is needed; settings are validated when creating an engine. These engines accept
 /// 1..10,000,000 paths.
-/// CPU paths use separate PCG32 streams, so early knock-out cannot shift later paths' draws.
+/// Pseudorandom CPU paths use separate PCG32 streams; Sobol uses globally indexed points,
+/// so early knock-out cannot shift later paths' draws. Sobol permits at most 21,201 increments;
+/// a longer active simulation grid returns invalid_parameter when pricing, before sampling.
 /// Seeded prices are reproducible within a library version, standard-library implementation and backend.
 struct TradingDayMonteCarloSettings {
-    int path_count = 20'000;                            ///< Number of simulated paths; 1..10,000,000.
-    std::optional<std::uint64_t> seed = 1;              ///< Deterministic seed, or system entropy when absent.
-    MonteCarloBackend backend = MonteCarloBackend::cpu; ///< Execution backend.
-    int thread_count = 0;                               ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
+    int path_count = 20'000;                                         ///< Number of simulated paths; 1..10,000,000.
+    std::optional<std::uint64_t> seed = 1;                           ///< Deterministic seed, or system entropy when absent.
+    MonteCarloBackend backend = MonteCarloBackend::cpu;              ///< Execution backend.
+    int thread_count = 0;                                            ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
+    MonteCarloSampling sampling = MonteCarloSampling::pseudo_random; ///< Sobol requires a power-of-two path count; chronological increments, up to 21,201 dates.
 };
 
 namespace detail {
@@ -72,6 +88,15 @@ auto with_monte_carlo_seed(const Engine& engine, const Evaluate& evaluate)
 
 inline constexpr int maximum_monte_carlo_path_count = 10'000'000;
 inline constexpr int maximum_vanilla_monte_carlo_step_count = 10'000;
+inline constexpr std::size_t maximum_sobol_dimension = 21'201;
+
+inline Result<void> validate_monte_carlo_dimension(MonteCarloSampling sampling, std::size_t dimension)
+{
+    if (sampling == MonteCarloSampling::sobol && dimension > maximum_sobol_dimension)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "Sobol simulation dimension exceeds 21,201"});
+    return {};
+}
 
 /// Validates path count, uniform step count when present, backend, and thread count in that order.
 template <typename Settings>
@@ -95,6 +120,17 @@ template <typename Settings>
         (settings.backend == MonteCarloBackend::cuda && settings.thread_count != 0))
         return std::unexpected(Error{ErrorCategory::invalid_parameter,
                                      "Monte Carlo thread count is invalid for the backend"});
+    if (settings.sampling != MonteCarloSampling::pseudo_random && settings.sampling != MonteCarloSampling::sobol)
+        return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                     "Monte Carlo sampling is invalid"});
+    if (settings.sampling == MonteCarloSampling::sobol) {
+        if (!std::has_single_bit(static_cast<unsigned int>(settings.path_count)))
+            return std::unexpected(Error{ErrorCategory::invalid_parameter,
+                                         "Sobol path count must be a power of two"});
+        if (settings.backend != MonteCarloBackend::cpu)
+            return std::unexpected(Error{ErrorCategory::unsupported_operation,
+                                         "Sobol sampling is supported only on the CPU"});
+    }
     return {};
 }
 } // namespace detail

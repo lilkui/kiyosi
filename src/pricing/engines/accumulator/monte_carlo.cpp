@@ -46,10 +46,10 @@ struct PathState {
     std::optional<double> payoff{};
 };
 
-template <std::size_t count, typename Steps>
+template <std::size_t count, typename Steps, typename Generator>
 Result<std::array<double, count>> path_payoffs(
     const Accumulator& option, const Steps& steps,
-    std::array<PathState, count> states, Pcg32& generator)
+    std::array<PathState, count> states, Generator& generator)
 {
     constexpr bool shared_steps = std::same_as<Steps, std::vector<SimulationStep>>;
     const auto simulated = simulate_path_batch<shared_steps>(steps, states, generator,

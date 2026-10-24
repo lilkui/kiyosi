@@ -66,17 +66,18 @@ Result<SimulationInputs> prepare_simulation(
     return SimulationInputs{std::move(steps), {std::exp(exponent), exponent}};
 }
 
+template <typename Generator>
 Result<std::array<double, 2>> coupon_path_payoffs(
     double initial_spot, const AutocallableProgram& program,
     const SimulationInputs& inputs, AutocallablePathState state,
-    Pcg32& generator, const AutocallableProgram& alternate_program,
+    Generator& generator, const AutocallableProgram& alternate_program,
     AutocallablePathState alternate_state)
 {
     double value = initial_spot;
     std::normal_distribution<double> normal;
     for (const auto& step : inputs.step_count) {
         value *= std::exp(step.simulation.drift +
-                          step.simulation.diffusion * normal(generator));
+                          step.simulation.diffusion * draw_monte_carlo_normal(generator, normal));
         if (!std::isfinite(value) || value <= 0.0)
             return std::unexpected(Error{ErrorCategory::invalid_result,
                                          "Monte Carlo simulation produced an invalid asset price"});
@@ -98,10 +99,10 @@ struct PathState {
     std::optional<double> payoff;
 };
 
-template <std::size_t count, typename Inputs>
+template <std::size_t count, typename Inputs, typename Generator>
 Result<std::array<double, count>> path_payoffs(
     const AutocallableProgram& program, const Inputs& inputs,
-    const std::array<PathState, count>& initial_states, Pcg32& generator)
+    const std::array<PathState, count>& initial_states, Generator& generator)
 {
     auto states = initial_states;
     constexpr bool shared_inputs = std::same_as<Inputs, SimulationInputs>;

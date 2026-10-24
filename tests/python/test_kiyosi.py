@@ -2432,6 +2432,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 pricing.FiniteDifferenceVanillaEngine.__init__,
             ),
             (pricing, "MonteCarloBackend", pricing.MonteCarloVanillaEngine.__init__),
+            (pricing, "MonteCarloSampling", pricing.MonteCarloVanillaEngine.__init__),
             (pricing, "CouponQuoteConvention", pricing.implied_coupon),
         ):
             with self.subTest(alias=name):
@@ -3544,7 +3545,7 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(
             repr(cuda),
             "MonteCarloVanillaEngine(path_count=100000, step_count=50, "
-            "seed=None, backend='cuda', thread_count=0)",
+            "seed=None, backend='cuda', thread_count=0, sampling='pseudo_random')",
         )
         self.assertNotEqual(
             kiyosi.ErrorCategory.BACKEND_UNAVAILABLE,
@@ -3571,7 +3572,8 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.assertEqual(cuda.backend, "cuda")
                 self.assertEqual(
                     repr(cuda),
-                    f"{engine_type.__name__}(path_count=20000, seed=1, backend='cuda', thread_count=0)",
+                    f"{engine_type.__name__}(path_count=20000, seed=1, backend='cuda', "
+                    "thread_count=0, sampling='pseudo_random')",
                 )
                 with self.assertRaises(TypeError):
                     engine_type(backend=True)

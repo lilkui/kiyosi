@@ -6,7 +6,7 @@
 
 namespace kiyosi::detail {
 
-// PCG-XSH-RR, derived from pcg-cpp (https://www.pcg-random.org); MIT notice in LICENSE.txt.
+// PCG-XSH-RR, derived from pcg-cpp (https://www.pcg-random.org); MIT notice in THIRD_PARTY_NOTICES.txt.
 class Pcg32 {
 public:
     using result_type = std::uint32_t; // NOLINT(readability-identifier-naming): required by the standard random engine interface.
