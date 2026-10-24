@@ -22,6 +22,51 @@ from kiyosi.market import (
 
 
 class AutocallableRegressionTests(unittest.TestCase):
+    def test_finite_difference_greek_workspaces_preserve_independent_prices(self):
+        from price_differences import price_differences
+
+        start, end = date(2025, 1, 1), date(2025, 1, 13)
+        engine = pricing.FiniteDifferenceAutocallableEngine(
+            asset_step_count=80, time_step_count=80, asset_upper_boundary=400
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=-0.02, dividend_yield=0.01, volatility=0.3
+            ),
+            spot_price=100.25,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
+            calendar=all_days_calendar(),
+        )
+        shifts = {"spot_shift": 0.25, "volatility_shift": 0.002, "rate_shift": 0.001}
+        for mode in ("every_trading_day", "at_expiry"):
+            note = SnowballOption(
+                maturity_coupon_rate=0.06,
+                initial_spot=100,
+                knock_in_level=80,
+                upper_strike=100,
+                lower_strike=60,
+                knock_in_observation_mode=mode,
+                barrier_state="none",
+                effective_date=start,
+                expiry_date=end,
+                observations=autocallable_observations(
+                    [date(2025, 1, 3), end],
+                    [110, 105],
+                    knock_out_coupon_rates=[0.08, 0.08],
+                ),
+            )
+            expected = price_differences(
+                engine, note, context, ["vega", "rho"], **shifts
+            )
+            actual = engine.price_with_greeks(note, context, all_greeks=True, **shifts)
+            self.assertEqual(actual.price, expected.price)
+            self.assertEqual(actual.vega, expected.vega)
+            self.assertEqual(actual.rho, expected.rho)
+            for greek in ("speed", "vanna", "zomma", "charm", "color"):
+                with self.subTest(mode=mode, greek=greek):
+                    single = engine.price_with_greeks(note, context, greek, **shifts)
+                    self.assertEqual(getattr(single, greek), getattr(actual, greek))
+
     def test_automatic_domains_converge_to_volatile_terminal_portfolios(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(

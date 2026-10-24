@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <kiyosi/market/schedule.hpp>
@@ -31,7 +32,7 @@ struct ObservationEvent {
     AutocallableEvent event{};
 };
 
-// Reuse only across coupon or volatility changes; all other inputs must stay fixed.
+// Reuse across coupon or market changes at fixed spot, valuation time and settings.
 struct AutocallableFiniteDifferenceWorkspace {
     double contract_level{};
     std::optional<SpatialGrid> space;
@@ -375,10 +376,14 @@ Result<PricingResult> FiniteDifferenceAutocallableEngine::price_with_greeks(cons
                                                                             GreeksRequest greeks, NumericalShiftSettings settings) const
 {
     AutocallableFiniteDifferenceRequest<Note> request{{option, context.calendar()}, {}};
+    auto scenario = std::pair{context.valuation_time(), context.spot_price()};
     return detail::price_with_greeks(*this, option, context, greeks, settings,
                                      [&](const auto& engine, const PricingContext& shifted, GreeksRequest requested_output) {
-                                         // Greek shifts may change time or rates; only contract validation survives.
-                                         request.workspace = {};
+                                         const auto next_scenario = std::pair{shifted.valuation_time(), shifted.spot_price()};
+                                         if (scenario != next_scenario) {
+                                             request.workspace = {};
+                                             scenario = next_scenario;
+                                         }
                                          return price_autocallable(option, shifted, engine.settings(), request, requested_output, settings.spot_shift);
                                      });
 }

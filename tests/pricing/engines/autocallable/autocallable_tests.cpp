@@ -715,6 +715,46 @@ TEST_CASE("Autocallable finite-difference spot Greeks reuse one solve", "[fd-per
     CHECK_FALSE(result->has(Greek::vega));
 }
 
+TEST_CASE("Autocallable finite-difference market Greeks reuse grids and invalidate shifted scenarios", "[fd-performance][fd-greek-workspace]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const auto queries = std::make_shared<std::atomic<int>>(0);
+    const auto calendar = *make_trading_calendar([queries](Date date) {
+        if (date == day(2025, 1, 2)) ++*queries;
+        return true;
+    },
+                                                 365);
+    const auto engine = make_finite_difference_autocallable_engine({80, 80, FiniteDifferenceScheme::crank_nicolson, 400.0}).value();
+    const NumericalShiftSettings shifts{.spot_shift = 0.25, .volatility_shift = 0.002, .rate_shift = 0.001};
+    for (const auto mode : {KnockInObservationMode::every_trading_day, KnockInObservationMode::at_expiry}) {
+        const auto note = make_snowball_option({.maturity_coupon_rate = 0.06, .initial_spot = 100.0, .knock_in_level = 80.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 1, 3), 110.0, 0.08}, {end, 105.0, 0.08}}}).value();
+        const auto context = make_pricing_context(*make_bsm_parameters(-0.02, 0.01, 0.3), 100.25, start_of_day(start) + std::chrono::hours{12}, calendar).value();
+        const auto expected = detail::price_with_greeks(engine, note, context, true, shifts,
+                                                        [&](const auto& scalar, const PricingContext& shifted, GreeksRequest) {
+                                                            return scalar.price_with_greeks(note, shifted, {Greek::delta, Greek::gamma, Greek::speed}, shifts);
+                                                        });
+        REQUIRE(expected);
+        const auto actual = engine.price_with_greeks(note, context, true, shifts);
+        REQUIRE(actual);
+        CHECK(actual->price() == expected->price());
+        CHECK(actual->values_view() == expected->values_view());
+        queries->store(0);
+        const auto market = engine.price_with_greeks(note, context, {Greek::vega, Greek::rho}, shifts);
+        REQUIRE(market);
+        CHECK(queries->load() == (mode == KnockInObservationMode::every_trading_day ? 1 : 0));
+        CHECK(test::greek_value(*market, Greek::vega) == test::greek_value(*expected, Greek::vega));
+        CHECK(test::greek_value(*market, Greek::rho) == test::greek_value(*expected, Greek::rho));
+        auto task = std::async(std::launch::async, [&] { return engine.price_with_greeks(note, context, true, shifts); });
+        const auto concurrent = engine.price_with_greeks(note, context, true, shifts);
+        const auto first = task.get();
+        REQUIRE(first);
+        REQUIRE(concurrent);
+        CHECK(first->values_view() == actual->values_view());
+        CHECK(concurrent->values_view() == actual->values_view());
+    }
+}
+
 TEST_CASE("Knocked-in autocallables simulate only remaining observation dates", "[monte-carlo-performance]")
 {
     using namespace kiyosi;
