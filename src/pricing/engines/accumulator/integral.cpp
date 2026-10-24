@@ -25,11 +25,11 @@ struct Layer {
     std::vector<TerminalPiece> exact;
 
     double integrate(double log_spot, double strike, double drift, double deviation, double discount,
-                     std::span<const IntervalMoments> weights, const std::array<double, 2>& tails) const
+                     std::span<const IntervalMoments> weights, const std::array<double, 2>& tails, std::size_t first_cell = 0) const
     {
         Sum sum;
         sum.add(integrate_terminal(exact, log_spot, strike, drift, deviation, discount));
-        if (!continuation.cells.empty()) sum.add(integrate_curve(continuation, weights, tails, discount));
+        if (!continuation.cells.empty()) sum.add(integrate_curve(continuation, weights, tails, discount, first_cell));
         return sum.total();
     }
 };
@@ -48,14 +48,15 @@ struct PreparedCurve {
     double evaluate(double spot, double quantity) const
     {
         const double current = log_price_ratio(spot, strike);
+        const auto [first, last] = active_cells(nodes, current + drift, deviation);
         std::vector<IntervalMoments> weights;
-        weights.reserve(nodes.size() - 1);
-        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+        weights.reserve(last - first);
+        for (std::size_t cell = first; cell < last; ++cell)
             weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
         const std::array tails{log_normal_cdf((nodes.front() - current - drift) / deviation),
                                log_normal_cdf((current + drift - nodes.back()) / deviation)};
-        return quantity * layers[0].integrate(current, strike, drift, deviation, discount, weights, tails) +
-               layers[1].integrate(current, strike, drift, deviation, discount, weights, tails);
+        return quantity * layers[0].integrate(current, strike, drift, deviation, discount, weights, tails, first) +
+               layers[1].integrate(current, strike, drift, deviation, discount, weights, tails, first);
     }
 };
 

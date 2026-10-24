@@ -422,7 +422,7 @@ class AccumulatorQuadratureTests(unittest.TestCase):
         option = contract(date(2025, 1, 20))
         spot, h = 100.25, 0.25
         volatilities = (0.25, 0.3)
-        valuation = datetime(2025, 1, 4, 12, tzinfo=UTC)
+        valuation = datetime(2025, 1, 6, tzinfo=UTC) - timedelta(seconds=1)
 
         def values(vol):
             return [

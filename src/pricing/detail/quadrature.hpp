@@ -6,6 +6,7 @@
 #include <limits>
 #include <numeric>
 #include <span>
+#include <utility>
 #include <vector>
 
 #include <oneapi/tbb/blocked_range.h>
@@ -256,6 +257,17 @@ struct Transition {
     std::vector<Row> rows;
 };
 
+inline std::pair<std::size_t, std::size_t> active_cells(std::span<const double> nodes, double mean, double deviation)
+{
+    const std::size_t cells = nodes.size() - 1;
+    // Beyond 56 standard deviations, the entire Gaussian tail is below the existing -1500 cutoff.
+    const double radius = 56.0 * deviation;
+    const auto lower = std::ranges::upper_bound(nodes, mean - radius) - nodes.begin();
+    const auto upper = std::ranges::lower_bound(nodes, mean + radius) - nodes.begin();
+    return {std::min(cells, static_cast<std::size_t>(lower == 0 ? 0 : lower - 1)),
+            std::min(cells, static_cast<std::size_t>(upper))};
+}
+
 inline Transition transition_weights(const std::vector<double>& nodes, double drift, double deviation)
 {
     Transition transition;
@@ -265,12 +277,7 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
     std::size_t first_offset = 2 * cells, last_offset = 0;
     for (std::size_t target = 0; target < nodes.size(); ++target) {
         const double mean = nodes[target] + drift;
-        // Beyond 56 standard deviations, the entire Gaussian tail is below the existing -1500 cutoff.
-        const double radius = 56.0 * deviation;
-        const auto lower = std::ranges::upper_bound(nodes, mean - radius) - nodes.begin();
-        const auto upper = std::ranges::lower_bound(nodes, mean + radius) - nodes.begin();
-        const auto first = std::min(cells, static_cast<std::size_t>(lower == 0 ? 0 : lower - 1));
-        const auto last = std::min(cells, static_cast<std::size_t>(upper));
+        const auto [first, last] = active_cells(nodes, mean, deviation);
         const auto count = last - first;
         transition.rows.push_back({first, total, count});
         total += count;

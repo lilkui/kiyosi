@@ -251,6 +251,33 @@ TEST_CASE("Quadrature compact rows preserve irregular-grid tails and tiny recove
     }
 }
 
+TEST_CASE("Quadrature off-grid spot windows exactly preserve full-grid integration", "[quadrature-kernel][quadrature-spot-window]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 512, std::array{-0.913, 0.017, 0.321}).value();
+    const double mean = GENERATE(-3.0, -0.91, 0.0171, 0.32, 3.0);
+    const double deviation = GENERATE(1e-6, 0.01, 0.2);
+    const auto [first, last] = active_cells(nodes, mean, deviation);
+    REQUIRE(first <= last);
+    REQUIRE(last < nodes.size());
+    if (deviation == 1e-6) CHECK(last - first <= 3);
+    std::vector<IntervalMoments> dense;
+    for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell) {
+        dense.push_back(cell_moments(nodes[cell], nodes[cell + 1], mean, deviation));
+        if (cell < first || cell >= last) CHECK(dense.back().log_mass < -1500.0);
+    }
+    const auto weights = std::span{dense}.subspan(first, last - first);
+    const std::array tails{kiyosi::detail::log_normal_cdf((nodes.front() - mean) / deviation),
+                           kiyosi::detail::log_normal_cdf((mean - nodes.back()) / deviation)};
+    for (const auto [scale, discount] : {std::pair{1.0, 0.0}, {1e300, -740.0}, {1e-300, 710.0}}) {
+        Curve curve{std::vector<Polynomial>(nodes.size() - 1), -scale, scale};
+        for (std::size_t cell = 0; cell < curve.cells.size(); ++cell)
+            curve.cells[cell] = {scale * (1.0 + static_cast<double>(cell) / static_cast<double>(curve.cells.size())), -0.1 * scale, 0.01 * scale, -0.001 * scale};
+        const double expected = reference_integral(curve, dense, tails, discount);
+        REQUIRE(std::isfinite(expected));
+        CHECK(integrate_curve(curve, weights, tails, discount, first) == expected);
+    }
+}
+
 TEST_CASE("Quadrature integration retains compensated cancellation in independent targets", "[quadrature-kernel]")
 {
     const Curve curve{{Polynomial{1e16, 0.0, 0.0, 0.0}, Polynomial{1.0, 0.0, 0.0, 0.0}, Polynomial{-1e16, 0.0, 0.0, 0.0}}, 0.0, 0.0};

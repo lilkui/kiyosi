@@ -451,6 +451,7 @@ TEST_CASE("Accumulator quadrature reused curves match independent repricing", "[
     const auto engine = make_quadrature_accumulator_engine({128, 8.0}).value();
     const NumericalShiftSettings shifts{.spot_shift = 0.25, .volatility_shift = 0.002, .rate_shift = 0.001};
     for (const auto valuation : {start_of_day(day(2025, 1, 4)) + std::chrono::hours{12},
+                                 start_of_day(day(2025, 1, 6)) - std::chrono::seconds{1},
                                  start_of_day(day(2025, 1, 6))}) {
         for (const double spot : {90.0, 100.0, 100.25, 109.9, 110.0}) {
             CAPTURE(valuation.time_since_epoch().count(), spot);

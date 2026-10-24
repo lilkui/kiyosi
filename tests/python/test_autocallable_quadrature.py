@@ -931,12 +931,13 @@ class AutocallableQuadratureTests(unittest.TestCase):
         )
         spot, h = 100.25, 0.25
         volatilities = (0.25, 0.3)
+        valuation = datetime(2025, 1, 8, tzinfo=UTC) - timedelta(seconds=1)
 
         def values(vol):
             return [
                 engine.price(
                     note,
-                    context(spot + offset * h, vol, -0.02, date(2025, 1, 4)),
+                    context(spot + offset * h, vol, -0.02, valuation),
                 )
                 for offset in (0, 1, -1, 2, -2)
             ]
@@ -968,7 +969,7 @@ class AutocallableQuadratureTests(unittest.TestCase):
         def evaluate(volatility):
             return engine.price_with_greeks(
                 note,
-                context(spot, volatility, -0.02, date(2025, 1, 4)),
+                context(spot, volatility, -0.02, valuation),
                 ["delta", "gamma", "speed", "vanna", "zomma"],
                 spot_shift=h,
                 volatility_shift=0.002,

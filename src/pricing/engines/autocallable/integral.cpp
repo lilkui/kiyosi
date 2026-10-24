@@ -43,14 +43,15 @@ struct PreparedCurve {
     double evaluate(double spot) const
     {
         const double current = log_price_ratio(spot, anchor);
+        const auto [first, last] = active_cells(nodes, current + drift, deviation);
         std::vector<IntervalMoments> weights;
-        weights.reserve(nodes.size() - 1);
-        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+        weights.reserve(last - first);
+        for (std::size_t cell = first; cell < last; ++cell)
             weights.push_back(cell_moments(nodes[cell], nodes[cell + 1], current + drift, deviation));
         return integrate_curve(continuation, weights,
                                {log_normal_cdf((nodes.front() - current - drift) / deviation),
                                 log_normal_cdf((current + drift - nodes.back()) / deviation)},
-                               discount);
+                               discount, first);
     }
 };
 

@@ -83,6 +83,21 @@ void register_quadrature_cases()
     const Date start{std::chrono::year{2025} / 1 / 1};
     const Date expiry{std::chrono::year{2025} / 4 / 1};
     {
+        const Date next = start + std::chrono::days{1}, end = next + std::chrono::days{1};
+        const auto context = make_pricing_context(make_bsm_parameters(0.04, 0.01, 0.2).value(), 100.25,
+                                                  start_of_day(next) - std::chrono::seconds{1}, all_days_calendar())
+                                 .value();
+        const auto note = make_binary_snowball_option({.maturity_coupon_rate = 0.06, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{next, 110.0, 0.08}, {end, 105.0, 0.08}}}).value();
+        const auto accumulator = make_accumulator({100.0, 110.0, 1.0, 2.0, 3.0, start, end}).value();
+        for (const int steps : {512, 1024}) {
+            const auto snowball_engine = make_quadrature_autocallable_engine({steps, 8.0}).value();
+            const auto accumulator_engine = make_quadrature_accumulator_engine({steps, 8.0}).value();
+            const std::string prefix = "quadrature/one_second_first_step/" + std::to_string(steps);
+            register_calculation((prefix + "/binary_snowball/delta_gamma_speed").c_str(), [=, note = note] { return snowball_engine.price_with_greeks(note, context, {Greek::delta, Greek::gamma, Greek::speed}); }, "price")->UseRealTime();
+            register_calculation((prefix + "/accumulator/delta_gamma_speed").c_str(), [=] { return accumulator_engine.price_with_greeks(accumulator, context, {Greek::delta, Greek::gamma, Greek::speed}); }, "price")->UseRealTime();
+        }
+    }
+    {
         const Date dense_expiry = start + std::chrono::days{252};
         std::vector<AutocallableObservation> observations;
         for (int index = 1; index <= 252; ++index)
