@@ -225,13 +225,14 @@ def build_scenarios():
     return scenarios
 
 
-def measure(scenario, sampling, paths, threads, reference):
+def measure(scenario, sampling, paths, threads, reference, antithetic=False):
     def price(seed):
         engine = scenario["engine"](
             path_count=paths,
             seed=seed,
             thread_count=threads,
             sampling=sampling,
+            antithetic=antithetic,
             **scenario["settings"],
         )
         return engine.price(scenario["option"], scenario["context"])
@@ -248,12 +249,13 @@ def measure(scenario, sampling, paths, threads, reference):
         first_prices = prices
     return {
         "sampling": sampling,
+        "antithetic": antithetic,
         "path_count": paths,
         **summarize(first_prices, reference, durations),
     }
 
 
-def run(paths, threads):
+def run(paths, threads, antithetic=False):
     import kiyosi
 
     results = {}
@@ -266,7 +268,7 @@ def run(paths, threads):
         spread = max(reference_prices) - min(reference_prices)
         reference_valid = spread <= scenario["target"] / 10
         rows = [
-            measure(scenario, sampling, count, threads, reference)
+            measure(scenario, sampling, count, threads, reference, antithetic)
             for count in paths
             for sampling in ("pseudo_random", "sobol")
         ]
@@ -290,6 +292,7 @@ def run(paths, threads):
         "seeds": SEEDS,
         "path_counts": paths,
         "thread_count": threads,
+        "antithetic": antithetic,
         "timing_repetitions": 3,
         "timing_scope": "engine construction and complete synchronous Python price call",
         "scenarios": results,
@@ -303,6 +306,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--paths", nargs="+", type=int, default=[4096, 32768])
     parser.add_argument("--threads", type=int, default=1)
+    parser.add_argument("--antithetic", action="store_true")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     if args.threads < 0:
@@ -311,7 +315,7 @@ def main():
         count <= 0 or count > 10_000_000 or count & (count - 1) for count in args.paths
     ):
         parser.error("--paths must contain powers of two in 1..10,000,000")
-    result = run(sorted(set(args.paths)), args.threads)
+    result = run(sorted(set(args.paths)), args.threads, args.antithetic)
     serialized = json.dumps(result, indent=2, allow_nan=False)
     if args.output:
         args.output.write_text(serialized + "\n", encoding="utf-8")

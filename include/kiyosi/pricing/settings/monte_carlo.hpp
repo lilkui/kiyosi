@@ -23,7 +23,7 @@ enum class MonteCarloBackend : unsigned char {
 
 /// Sampling rules, independent of the execution backend.
 enum class MonteCarloSampling : unsigned char {
-    pseudo_random, ///< Existing pseudorandom streams and vanilla antithetic pairing.
+    pseudo_random, ///< Pseudorandom streams, independent of antithetic pairing.
     sobol,         ///< Seeded LMS-scrambled Sobol with a digital shift; CPU only.
 };
 
@@ -36,17 +36,18 @@ enum class MonteCarloSampling : unsigned char {
 /// draws from the system entropy source. Vanilla engines accept 1..10,000,000 paths and
 /// 2..10,000 steps; American pricing before expiry requires at least 3 steps.
 /// European pricing samples the exact terminal distribution without intermediate steps.
-/// Sobol uses one point per path, chronological inverse-normal increments and one seeded
+/// Sobol uses chronological inverse-normal increments and one seeded
 /// scramble per call. It preserves the same concurrency contract; it does not report a
 /// standard error or confidence interval. Selecting Sobol requires an explicit power-of-two
 /// path count because the pseudorandom defaults are unchanged. CPU and CUDA streams differ.
 struct MonteCarloSettings {
-    int path_count = 100'000;                                        ///< Number of simulated paths; 1..10,000,000.
+    int path_count = 100'000;                                        ///< Exact number of simulated paths; 1..10,000,000.
     int step_count = 50;                                             ///< American grid points; 2..10,000 (American: >= 3); validated but unused for European pricing.
     std::optional<std::uint64_t> seed{};                             ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu;              ///< Execution backend.
     int thread_count = 0;                                            ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
-    MonteCarloSampling sampling = MonteCarloSampling::pseudo_random; ///< Sobol requires a power-of-two path count; one point per path.
+    MonteCarloSampling sampling = MonteCarloSampling::pseudo_random; ///< Sobol requires a power-of-two path count; one point per base path.
+    bool antithetic = false;                                         ///< Pair Z and -Z increments; path_count remains exact, with one unpaired path if odd. Sobol uses ceil(path_count/2) points when enabled.
 };
 
 /// Accumulator and autocallable products step the trading calendar directly, so no step
@@ -57,11 +58,12 @@ struct MonteCarloSettings {
 /// a longer active simulation grid returns invalid_parameter when pricing, before sampling.
 /// Seeded prices are reproducible within a library version, standard-library implementation and backend.
 struct TradingDayMonteCarloSettings {
-    int path_count = 20'000;                                         ///< Number of simulated paths; 1..10,000,000.
+    int path_count = 20'000;                                         ///< Exact number of simulated paths; 1..10,000,000.
     std::optional<std::uint64_t> seed = 1;                           ///< Deterministic seed, or system entropy when absent.
     MonteCarloBackend backend = MonteCarloBackend::cpu;              ///< Execution backend.
     int thread_count = 0;                                            ///< CPU concurrency cap: 0 automatic, 1 serial; CUDA requires 0.
     MonteCarloSampling sampling = MonteCarloSampling::pseudo_random; ///< Sobol requires a power-of-two path count; chronological increments, up to 21,201 dates.
+    bool antithetic = false;                                         ///< Pair Z and -Z increments; path_count remains exact, with one unpaired path if odd. Sobol uses ceil(path_count/2) points when enabled.
 };
 
 namespace detail {

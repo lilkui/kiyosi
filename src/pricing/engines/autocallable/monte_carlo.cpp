@@ -184,8 +184,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
             prices = *values;
         } else if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
-            const auto values = cuda_active_prices<CudaAutocallableRequest>(initial, [&](const auto& state) { return CudaAutocallableRequest{settings.path_count, *settings.seed, state.spot,
-                                                                                                                                             inputs->terminal_discount, program, state.path}; }, [&](auto requests) { return cuda_autocallable_spot_prices(requests, inputs->step_count, workspace); });
+            const auto values = cuda_active_prices<CudaAutocallableRequest>(initial, [&](const auto& state) { return CudaAutocallableRequest{settings.path_count, *settings.seed, state.spot, inputs->terminal_discount, program, state.path, {}, {}, settings.antithetic}; }, [&](auto requests) { return cuda_autocallable_spot_prices(requests, inputs->step_count, workspace); });
             if (!values) return std::unexpected(values.error());
             prices = *values;
 #else
@@ -305,8 +304,7 @@ Result<double> price_autocallable(
     if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
         const auto mean = cuda_mean(cuda_autocallable_price(
-            {settings.path_count, settings.seed ? *settings.seed : random_seed(),
-             context.spot_price(), inputs->terminal_discount, program, initial.path},
+            {settings.path_count, settings.seed ? *settings.seed : random_seed(), context.spot_price(), inputs->terminal_discount, program, initial.path, {}, {}, settings.antithetic},
             inputs->step_count, request.workspace()));
         if (!mean) return std::unexpected(mean.error());
         return checked_price(*mean);
@@ -398,7 +396,7 @@ Result<std::array<double, 2>> detail::monte_carlo_coupon_prices(
 #if KIYOSI_HAS_CUDA
         const auto result = cuda_autocallable_coupon_prices(
             {settings.path_count, settings.seed ? *settings.seed : random_seed(), context.spot_price(),
-             inputs->terminal_discount, program, initial.path, alternate_program, alternate_initial.path},
+             inputs->terminal_discount, program, initial.path, alternate_program, alternate_initial.path, settings.antithetic},
             inputs->step_count);
         const auto first = cuda_mean(result);
         if (!first) return std::unexpected(first.error());

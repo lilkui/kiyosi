@@ -1,5 +1,6 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 #include <array>
@@ -23,26 +24,26 @@ namespace {
 using namespace kiyosi;
 using kiyosi::test::day;
 
-MonteCarloSettings vanilla_settings(int paths = 1024, int threads = 1)
+MonteCarloSettings vanilla_settings(int paths = 1024, int threads = 1, bool antithetic = false)
 {
-    return {paths, 7, 42, MonteCarloBackend::cpu, threads, MonteCarloSampling::sobol};
+    return {paths, 7, 42, MonteCarloBackend::cpu, threads, MonteCarloSampling::sobol, antithetic};
 }
 
-TradingDayMonteCarloSettings trading_settings(int paths = 1024, int threads = 1)
+TradingDayMonteCarloSettings trading_settings(int paths = 1024, int threads = 1, bool antithetic = false)
 {
-    return {paths, 42, MonteCarloBackend::cpu, threads, MonteCarloSampling::sobol};
+    return {paths, 42, MonteCarloBackend::cpu, threads, MonteCarloSampling::sobol, antithetic};
 }
 
 template <typename Check>
-void for_each_sobol_product(const Check& check, int paths = 1024, int threads = 1)
+void for_each_sobol_product(const Check& check, int paths = 1024, int threads = 1, bool antithetic = false)
 {
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
-    const auto vanilla = make_monte_carlo_vanilla_engine(vanilla_settings(paths, threads)).value();
+    const auto vanilla = make_monte_carlo_vanilla_engine(vanilla_settings(paths, threads, antithetic)).value();
     check(vanilla, *make_european_option(OptionType::call, 100.0, start, end));
     check(vanilla, *make_american_option(OptionType::put, 100.0, start, end));
-    check(make_monte_carlo_accumulator_engine(trading_settings(paths, threads)).value(),
+    check(make_monte_carlo_accumulator_engine(trading_settings(paths, threads, antithetic)).value(),
           *make_accumulator({.strike = 100.0, .knock_out_level = 101.0, .daily_quantity = 1.0, .acceleration_factor = 2.0, .effective_date = start, .expiry_date = end}));
-    const auto autocallable = make_monte_carlo_autocallable_engine(trading_settings(paths, threads)).value();
+    const auto autocallable = make_monte_carlo_autocallable_engine(trading_settings(paths, threads, antithetic)).value();
     const std::vector<AutocallableObservation> observations{
         {day(2025, 1, 3), 101.0, 0.08}, {day(2025, 1, 8), 100.0, 0.08}, {end, 99.0, 0.08}};
     check(autocallable, *make_binary_snowball_option({.maturity_coupon_rate = 0.06,
@@ -134,6 +135,7 @@ TEST_CASE("Sobol CUDA combinations fail during engine creation with a core unsup
 
 TEST_CASE("Sobol prices and Greeks reproduce exactly across CPU thread counts and concurrent calls", "[sobol][mc-parallel]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(day(2025, 1, 1)) + std::chrono::hours{12}, all_days_calendar());
     for_each_sobol_product([&](const auto& serial, const auto& option) {
@@ -159,11 +161,13 @@ TEST_CASE("Sobol prices and Greeks reproduce exactly across CPU thread counts an
         CHECK(background->price() == expected->price());
         CHECK(foreground->values_view() == expected->values_view());
         CHECK(background->values_view() == expected->values_view());
-    });
+    },
+                           1024, 1, antithetic);
 }
 
 TEST_CASE("Sobol joint Greeks retain the scalar common-sample stencils for every product", "[sobol][mc-shared-samples]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(day(2025, 1, 1)) + std::chrono::hours{12}, all_days_calendar());
     const NumericalShiftSettings shifts{.spot_shift = 1.0, .volatility_shift = 0.01, .rate_shift = 0.001};
@@ -184,11 +188,13 @@ TEST_CASE("Sobol joint Greeks retain the scalar common-sample stencils for every
                 if (expected) CHECK(*actual == Catch::Approx(*expected).margin(1e-10));
             }
         }
-    });
+    },
+                           1024, 1, antithetic);
 }
 
 TEST_CASE("Sobol implied volatility and coupon requests reuse their seeded estimator", "[sobol][mc-shared-samples]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
@@ -203,15 +209,22 @@ TEST_CASE("Sobol implied volatility and coupon requests reuse their seeded estim
         const auto shifted = *make_pricing_context(
             *make_bsm_parameters(context.model_parameters().risk_free_rate(), context.model_parameters().dividend_yield(), *recovered),
             context.spot_price(), context.valuation_time(), context.calendar());
+        CAPTURE(antithetic, *recovered, typeid(option).name());
         const auto repriced = engine.price(option, shifted);
         REQUIRE(repriced);
-        CHECK_THAT(*repriced, Catch::Matchers::WithinAbs(*price, 1e-8));
+        const auto scalar_recovered = detail::solve_implied_volatility(engine, option, context, *price, solve,
+                                                                       [](const auto& seeded, const auto& instrument, const auto& shifted_context) { return seeded.price(instrument, shifted_context); });
+        REQUIRE(scalar_recovered);
+        CHECK(*recovered == *scalar_recovered);
+        // Paired barrier samples can stop on interval tolerance at a discrete payoff jump.
+        CHECK_THAT(*repriced, Catch::Matchers::WithinAbs(*price, antithetic ? 1e-6 : 1e-8));
         const auto repeated = implied_volatility(engine, option, context, *price, solve);
         REQUIRE(repeated);
         CHECK(*repeated == *recovered);
-    });
+    },
+                           1024, 1, antithetic);
     const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 1, 7), 101.0, 0.073}, {end, 101.0, 0.073}}});
-    const auto engine = make_monte_carlo_autocallable_engine(trading_settings()).value();
+    const auto engine = make_monte_carlo_autocallable_engine(trading_settings(1024, 1, antithetic)).value();
     const auto price = engine.price(snowball, context);
     REQUIRE(price);
     const auto coupon = implied_coupon(engine, snowball, context, *price,
@@ -223,9 +236,10 @@ TEST_CASE("Sobol implied volatility and coupon requests reuse their seeded estim
 
 TEST_CASE("Sobol European prices and Greeks agree with analytical references", "[sobol][pricing-accuracy]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    const auto engine = make_monte_carlo_vanilla_engine(vanilla_settings(65'536)).value();
+    const auto engine = make_monte_carlo_vanilla_engine(vanilla_settings(65'536, 1, antithetic)).value();
     // Tolerances include finite-difference bump bias and finite-sample error in each Greek's units.
     constexpr std::array tolerances{
         std::pair{Greek::delta, 2e-4}, std::pair{Greek::gamma, 1e-5},
@@ -271,9 +285,10 @@ TEST_CASE("One Sobol point prices exactly one European path without antithetic p
 
 TEST_CASE("Sobol American prices agree with independently refined finite differences", "[sobol][pricing-accuracy]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.0, start);
-    auto settings = vanilla_settings(32'768);
+    auto settings = vanilla_settings(32'768, 1, antithetic);
     settings.step_count = 50;
     const auto engine = make_monte_carlo_vanilla_engine(settings).value();
     for (const auto type : {OptionType::call, OptionType::put}) {
@@ -288,6 +303,7 @@ TEST_CASE("Sobol American prices agree with independently refined finite differe
 
 TEST_CASE("Sobol path-dependent prices agree with independent quadrature", "[sobol][pricing-accuracy]")
 {
+    const bool antithetic = GENERATE(false, true);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(day(2025, 1, 1)) + std::chrono::hours{12}, all_days_calendar());
     for_each_sobol_product([&](const auto& engine, const auto& option) {
@@ -305,7 +321,7 @@ TEST_CASE("Sobol path-dependent prices agree with independent quadrature", "[sob
             CHECK_THAT(*actual, Catch::Matchers::WithinAbs(*reference, 0.002));
         }
     },
-                           32'768);
+                           32'768, 1, antithetic);
 }
 
 TEST_CASE("Sobol changes randomization with the seed and retains unseeded request settings", "[sobol][mc-shared-samples]")

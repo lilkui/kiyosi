@@ -463,6 +463,20 @@ void kiyosi::benchmark_support::register_monte_carlo_cases()
                                MonteCarloBackend::cuda
 #endif
          }) {
+        for (const auto sampling : {MonteCarloSampling::pseudo_random, MonteCarloSampling::sobol}) {
+            if (backend == MonteCarloBackend::cuda && sampling == MonteCarloSampling::sobol) continue;
+            for (const bool antithetic : {false, true}) {
+                const auto mode = std::format("antithetic/{}/{}/{}/", backend == MonteCarloBackend::cpu ? "cpu" : "cuda", sampling == MonteCarloSampling::sobol ? "sobol" : "pseudo_random", antithetic ? "on" : "off");
+                const auto vanilla = make_monte_carlo_vanilla_engine({32'768, 50, 42, backend, 0, sampling, antithetic}).value();
+                const TradingDayMonteCarloSettings trading{32'768, 42, backend, 0, sampling, antithetic};
+                register_monte_carlo(mode + "european", monte_carlo_scenario(), vanilla);
+                register_monte_carlo(mode + "american", american_monte_carlo_scenario(), vanilla);
+                register_monte_carlo(mode + "accumulator", accumulator_scenario(), make_monte_carlo_accumulator_engine(trading).value());
+                const auto notes = make_monte_carlo_autocallable_engine(trading).value();
+                register_monte_carlo(mode + "phoenix", phoenix_scenario(), notes);
+                register_monte_carlo(mode + "snowball", snowball_scenario(), notes);
+            }
+        }
         const std::string suffix = backend == MonteCarloBackend::cpu ? "_cpu" : "_cuda";
         const auto vanilla = make_monte_carlo_vanilla_engine({1'000'000, 50, 42, backend}).value();
         register_monte_carlo("bm_monte_carlo_european" + suffix, monte_carlo_scenario(), vanilla);

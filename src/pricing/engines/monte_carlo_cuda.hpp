@@ -26,6 +26,7 @@ struct CudaEuropeanRequest {
     double drift{};
     double diffusion{};
     int payoff_sign{};
+    bool antithetic{};
 };
 
 struct CudaAmericanRequest {
@@ -38,6 +39,7 @@ struct CudaAmericanRequest {
     double diffusion{};
     double discount{};
     int payoff_sign{};
+    bool antithetic{};
 };
 
 struct CudaAccumulatorRequest {
@@ -49,6 +51,7 @@ struct CudaAccumulatorRequest {
     double daily_quantity{};
     double acceleration{};
     double initial_quantity{};
+    bool antithetic{};
 };
 
 struct CudaAutocallableRequest {
@@ -60,6 +63,7 @@ struct CudaAutocallableRequest {
     AutocallablePathState initial_state{};
     AutocallableProgram alternate_program{};
     AutocallablePathState alternate_initial_state{};
+    bool antithetic{};
 };
 
 struct CudaPricingResult {

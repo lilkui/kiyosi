@@ -35,6 +35,17 @@ inline double draw_monte_carlo_normal(SobolCursor& generator, std::normal_distri
     return generator.normal();
 }
 
+template <typename Generator>
+struct AntitheticGenerator {
+    Generator* generator{};
+};
+
+template <typename Generator>
+double draw_monte_carlo_normal(AntitheticGenerator<Generator>& generator, std::normal_distribution<double>& normal)
+{
+    return -draw_monte_carlo_normal(*generator.generator, normal);
+}
+
 template <std::size_t count>
 Result<PricingResult> spot_bump_result(const Result<std::array<double, count>>& prices, GreeksRequest greeks, double h)
 {
@@ -148,15 +159,16 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
     std::optional<SobolSequence> sobol;
     if (settings.sampling == MonteCarloSampling::sobol)
         sobol.emplace(std::max(step_count, std::size_t{1}), seed);
+    const int sample_count = settings.antithetic ? (settings.path_count + 1) / 2 : settings.path_count;
     std::vector<std::array<MonteCarloMean, count>> partials(
-        static_cast<std::size_t>(monte_carlo_block_count(settings.path_count)));
+        static_cast<std::size_t>(monte_carlo_block_count(sample_count)));
     // Amortize each worker over a full random block and enough path steps.
     const auto paths_per_thread = std::max<std::size_t>(monte_carlo_block_size, 512 / std::max(step_count, std::size_t{1}));
     const int threads = settings.thread_count == 0
-                            ? std::clamp(settings.path_count / static_cast<int>(paths_per_thread), 1,
+                            ? std::clamp(sample_count / static_cast<int>(paths_per_thread), 1,
                                          oneapi::tbb::this_task_arena::max_concurrency())
                             : settings.thread_count;
-    const auto simulated = monte_carlo_blocks(settings.path_count, threads,
+    const auto simulated = monte_carlo_blocks(sample_count, threads,
                                               [&](int block, int begin, int end) -> Result<void> {
                                                   auto& means = partials[static_cast<std::size_t>(block)];
                                                   const auto accumulate = [&](auto& generator) -> Result<void> {
@@ -168,17 +180,31 @@ Result<std::array<double, count>> cpu_path_means(const TradingDayMonteCarloSetti
                                                   };
                                                   if (sobol) {
                                                       SobolCursor generator{*sobol, static_cast<std::uint64_t>(begin)};
+                                                      std::optional<SobolCursor> companion;
+                                                      if (settings.antithetic) companion.emplace(*sobol, static_cast<std::uint64_t>(begin));
                                                       for (int path = begin; path < end; ++path) {
                                                           const auto value = accumulate(generator);
                                                           if (!value) return value;
+                                                          if (settings.antithetic && path < settings.path_count / 2) {
+                                                              AntitheticGenerator opposite{&*companion};
+                                                              const auto paired = accumulate(opposite);
+                                                              if (!paired) return paired;
+                                                          }
                                                           generator.next_path();
+                                                          if (companion) companion->next_path();
                                                       }
                                                   } else
                                                       for (int path = begin; path < end; ++path) {
                                                           // Early termination must not change the random draws of later paths.
                                                           Pcg32 generator{seed, static_cast<std::uint64_t>(path)};
+                                                          auto companion = generator;
                                                           const auto value = accumulate(generator);
                                                           if (!value) return value;
+                                                          if (settings.antithetic && path < settings.path_count / 2) {
+                                                              AntitheticGenerator opposite{&companion};
+                                                              const auto paired = accumulate(opposite);
+                                                              if (!paired) return paired;
+                                                          }
                                                       }
                                                   return {};
                                               });

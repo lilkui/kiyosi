@@ -120,7 +120,7 @@ Result<std::array<double, count + (rates ? 2 : 0)>> price_spot_bumps(
         } else if (settings.backend == MonteCarloBackend::cuda) {
 #if KIYOSI_HAS_CUDA
             const auto values = cuda_active_prices<CudaAccumulatorRequest>(initial, [&](const auto& state) { return CudaAccumulatorRequest{settings.path_count, *settings.seed, state.spot,
-                                                                                                                                           option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity}; }, [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
+                                                                                                                                           option.strike(), option.knock_out_level(), option.daily_quantity(), option.acceleration_factor(), state.quantity, settings.antithetic}; }, [&](auto requests) { return cuda_accumulator_spot_prices(requests, *steps, workspace); });
             if (!values) return std::unexpected(values.error());
             prices = *values;
 #else
@@ -211,7 +211,7 @@ Result<double> price_accumulator(
         const auto mean = cuda_mean(detail::cuda_accumulator_price(
             {settings.path_count, settings.seed ? *settings.seed : random_seed(),
              context.spot_price(), option.strike(), option.knock_out_level(),
-             option.daily_quantity(), option.acceleration_factor(), initial.quantity},
+             option.daily_quantity(), option.acceleration_factor(), initial.quantity, settings.antithetic},
             *steps, workspace));
         if (!mean) return std::unexpected(mean.error());
         return checked_price(*mean);

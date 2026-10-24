@@ -312,16 +312,17 @@ are checked when pricing.
 Accumulator and autocallable engines accept 1..10,000,000 paths.
 Sobol sampling requires a power-of-two path count and the CPU backend.)doc"};
     binding
-        .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling) {
+        .def(nb::new_([factory](PythonInteger path_count, PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
                  return unwrap(factory(TradingDayMonteCarloSettings{
                      integer(path_count, "path_count"), optional_seed(seed),
-                     backend, integer(thread_count, "thread_count"), sampling}));
+                     backend, integer(thread_count, "thread_count"), sampling, antithetic}));
              }),
              nb::kw_only(), "path_count"_a = TradingDayMonteCarloSettings{}.path_count,
              "seed"_a.none() = TradingDayMonteCarloSettings{}.seed,
              "backend"_a = TradingDayMonteCarloSettings{}.backend,
              "thread_count"_a = TradingDayMonteCarloSettings{}.thread_count,
              "sampling"_a = TradingDayMonteCarloSettings{}.sampling,
+             "antithetic"_a.noconvert() = TradingDayMonteCarloSettings{}.antithetic,
              R"doc(Create an engine with validated Monte Carlo settings.
 
 Settings are validated at construction.
@@ -340,9 +341,14 @@ thread_count : int, optional
     Seeded CPU results are identical across thread counts in the same build.
 sampling : {'pseudo_random', 'sobol'}, optional
     Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
-    shifted point per path, with chronological normal increments and up to 21,201
+    shifted point per base path, with chronological normal increments and up to 21,201
     dimensions. Set a power-of-two path_count explicitly; the default path count
     remains unchanged. Sobol supports only the CPU backend.
+
+antithetic : bool, optional
+    Pair normal increments Z and -Z; defaults to False. path_count is the exact
+    total: an odd count leaves one path unpaired. Sobol uses half as many points
+    when enabled, except path_count=1 uses one unpaired point.
 
 Raises
 ------
@@ -357,9 +363,10 @@ KiyosiError
         .def_prop_ro("seed", [](const Engine& engine) { return engine.settings().seed; }, "Non-negative random seed.")
         .def_prop_ro("backend", [](const Engine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
         .def_prop_ro("thread_count", [](const Engine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.")
+        .def_prop_ro("antithetic", [](const Engine& engine) { return engine.settings().antithetic; }, "Whether to use antithetic variates.")
         .def_prop_ro("sampling", [](const Engine& engine) { return engine.settings().sampling; }, "Pseudorandom or scrambled Sobol sampling.");
     bind_repr(binding, name,
-              {"path_count", "seed", "backend", "thread_count", "sampling"});
+              {"path_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
     return binding;
 }
 
@@ -657,10 +664,10 @@ American calls with nonpositive dividends and nonnegative rates use that distrib
 with an immediate-exercise lower bound. Rate stencils crossing zero retain exercise-grid
 simulations on both sides.)doc")
                                    .def(nb::new_([](PythonInteger path_count, PythonInteger step_count,
-                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling) {
+                                                    PythonInteger seed, PythonChoice<MonteCarloBackend> backend, PythonInteger thread_count, PythonChoice<MonteCarloSampling> sampling, bool antithetic) {
                                             return unwrap(make_monte_carlo_vanilla_engine(MonteCarloSettings{
                                                 integer(path_count, "path_count"), integer(step_count, "step_count"),
-                                                optional_seed(seed), backend, integer(thread_count, "thread_count"), sampling}));
+                                                optional_seed(seed), backend, integer(thread_count, "thread_count"), sampling, antithetic}));
                                         }),
                                         nb::kw_only(), "path_count"_a = MonteCarloSettings{}.path_count,
                                         "step_count"_a = MonteCarloSettings{}.step_count,
@@ -668,6 +675,7 @@ simulations on both sides.)doc")
                                         "backend"_a = MonteCarloSettings{}.backend,
                                         "thread_count"_a = MonteCarloSettings{}.thread_count,
                                         "sampling"_a = MonteCarloSettings{}.sampling,
+                                        "antithetic"_a.noconvert() = MonteCarloSettings{}.antithetic,
                                         R"doc(Create an engine with validated Monte Carlo settings.
 
 Parameters
@@ -686,9 +694,14 @@ thread_count : int, optional
     Seeded CPU results are identical across thread counts in the same build.
 sampling : {'pseudo_random', 'sobol'}, optional
     Sampling method. Sobol uses one seed-reproducible LMS-scrambled and digitally
-    shifted point per path without antithetic pairing, with chronological normal
+    shifted point per base path, with chronological normal
     increments and up to 21,201 dimensions. Set a power-of-two path_count
     explicitly; the default path count remains unchanged. Sobol supports only CPU.
+
+antithetic : bool, optional
+    Pair normal increments Z and -Z; defaults to False. path_count is the exact
+    total: an odd count leaves one path unpaired. Sobol uses half as many points
+    when enabled, except path_count=1 uses one unpaired point.
 
 Raises
 ------
@@ -708,9 +721,10 @@ Settings are validated at construction.)doc")
                                    .def_prop_ro("seed", [](const MonteCarloVanillaEngine& engine) { return engine.settings().seed; }, "Optional non-negative random seed.")
                                    .def_prop_ro("backend", [](const MonteCarloVanillaEngine& engine) { return engine.settings().backend; }, "CPU or CUDA execution backend.")
                                    .def_prop_ro("thread_count", [](const MonteCarloVanillaEngine& engine) { return engine.settings().thread_count; }, "Per-call CPU concurrency cap; 0 automatic, 1 serial.")
+                                   .def_prop_ro("antithetic", [](const MonteCarloVanillaEngine& engine) { return engine.settings().antithetic; }, "Whether to use antithetic variates.")
                                    .def_prop_ro("sampling", [](const MonteCarloVanillaEngine& engine) { return engine.settings().sampling; }, "Pseudorandom or scrambled Sobol sampling.");
     bind_repr(monte_carlo_vanilla, "MonteCarloVanillaEngine",
-              {"path_count", "step_count", "seed", "backend", "thread_count", "sampling"});
+              {"path_count", "step_count", "seed", "backend", "thread_count", "sampling", "antithetic"});
     bind_engine_price<MonteCarloVanillaEngine, EuropeanOption>(module, monte_carlo_vanilla);
     bind_engine_price<MonteCarloVanillaEngine, AmericanOption>(module, monte_carlo_vanilla);
 

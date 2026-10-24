@@ -209,7 +209,9 @@ class KiyosiPythonTests(unittest.TestCase):
                         for actual, expected in zip(prices(scale), base):
                             self.assertAlmostEqual(actual, expected, delta=1e-9)
 
-    def test_american_monte_carlo_preserves_paired_paths_across_time_grids(self):
+    def test_american_monte_carlo_preserves_exact_odd_path_counts_across_time_grids(
+        self,
+    ):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         context = PricingContext(
             model_parameters=BlackScholesMertonParameters(
@@ -226,12 +228,16 @@ class KiyosiPythonTests(unittest.TestCase):
                 for paths in (1, 3, 19999):
                     with self.subTest(direction=direction, steps=steps, paths=paths):
                         odd = pricing.MonteCarloVanillaEngine(
-                            path_count=paths, step_count=steps, seed=42
+                            path_count=paths, step_count=steps, seed=42, antithetic=True
                         ).price(option, context)
                         even = pricing.MonteCarloVanillaEngine(
-                            path_count=paths + 1, step_count=steps, seed=42
+                            path_count=paths + 1,
+                            step_count=steps,
+                            seed=42,
+                            antithetic=True,
                         ).price(option, context)
-                        self.assertEqual(odd, even)
+                        if paths == 19999:
+                            self.assertNotEqual(odd, even)
 
     def test_american_monte_carlo_prices_are_currency_scale_invariant(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
@@ -2039,14 +2045,14 @@ class KiyosiPythonTests(unittest.TestCase):
                 expiry_date=date(2026, 1, 1),
             )
             baseline = pricing.MonteCarloVanillaEngine(
-                path_count=20000, step_count=2, seed=42
+                path_count=19999, step_count=2, seed=42
             ).price(option, self.context)
             self.assertAlmostEqual(
                 baseline, AnalyticVanillaEngine().price(option, self.context), delta=0.5
             )
             self.assertNotEqual(
                 pricing.MonteCarloVanillaEngine(
-                    path_count=20000, step_count=2, seed=43
+                    path_count=19999, step_count=2, seed=43
                 ).price(option, self.context),
                 baseline,
             )
@@ -3545,7 +3551,7 @@ class KiyosiPythonTests(unittest.TestCase):
         self.assertEqual(
             repr(cuda),
             "MonteCarloVanillaEngine(path_count=100000, step_count=50, "
-            "seed=None, backend='cuda', thread_count=0, sampling='pseudo_random')",
+            "seed=None, backend='cuda', thread_count=0, sampling='pseudo_random', antithetic=False)",
         )
         self.assertNotEqual(
             kiyosi.ErrorCategory.BACKEND_UNAVAILABLE,
@@ -3573,7 +3579,7 @@ class KiyosiPythonTests(unittest.TestCase):
                 self.assertEqual(
                     repr(cuda),
                     f"{engine_type.__name__}(path_count=20000, seed=1, backend='cuda', "
-                    "thread_count=0, sampling='pseudo_random')",
+                    "thread_count=0, sampling='pseudo_random', antithetic=False)",
                 )
                 with self.assertRaises(TypeError):
                     engine_type(backend=True)

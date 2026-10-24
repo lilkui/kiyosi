@@ -1760,7 +1760,7 @@ class PricingRegressionTests(unittest.TestCase):
                     valuation_time=start,
                 )
                 expected = pricing.MonteCarloVanillaEngine(
-                    path_count=20000, step_count=2, seed=42
+                    path_count=19999, step_count=2, seed=42
                 ).price(european, context)
                 for steps in (3, 50, 10000):
                     with self.subTest(rate=rate, dividend=dividend, steps=steps):

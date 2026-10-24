@@ -46,6 +46,7 @@ add_executable(kiyosi_tests
     pricing/engines/vanilla/finite_difference_tests.cpp
     pricing/engines/vanilla/monte_carlo_tests.cpp
     pricing/engines/sobol_tests.cpp
+    pricing/engines/antithetic_tests.cpp
     pricing/engines/sobol_sequence_tests.cpp
 )
 set_target_properties(kiyosi_tests PROPERTIES CXX_EXTENSIONS OFF CXX_SCAN_FOR_MODULES OFF)

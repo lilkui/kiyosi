@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
+#include <cmath>
 #include <future>
 #include <limits>
 #include <memory>
@@ -31,6 +32,51 @@ __global__ void solve_regression(const double* input, double* output)
         output[index] = coefficients[index];
 }
 } // namespace
+
+TEST_CASE("CUDA antithetic products use exact counts and opposite increments", "[cuda][antithetic]")
+{
+    using namespace kiyosi::detail;
+    const auto check = [](const auto& price) {
+        const auto first = price(1, false);
+        const auto two = price(2, false);
+        REQUIRE(first.status == CudaPricingStatus::success);
+        REQUIRE(two.status == CudaPricingStatus::success);
+        const double positive = first.payoff_mean;
+        const double next = 2.0 * two.payoff_mean - positive;
+        const double negative = 10'000.0 * std::exp(0.02) / positive;
+        const double next_negative = 10'000.0 * std::exp(0.02) / next;
+        const std::array expected{positive, (positive + negative) / 2.0,
+                                  (positive + negative + next) / 3.0,
+                                  (positive + negative + next + next_negative) / 4.0};
+        for (int paths = 1; paths <= 4; ++paths) {
+            const auto actual = price(paths, true);
+            REQUIRE(actual.status == CudaPricingStatus::success);
+            CHECK(actual.payoff_mean == Catch::Approx(expected[paths - 1]).margin(1e-10));
+        }
+    };
+    check([](int paths, bool antithetic) {
+        return cuda_european_price({paths, 42, 100.0, 0.0, 0.01, 0.2, 1, antithetic});
+    });
+    check([](int paths, bool antithetic) {
+        // Isolate path generation from exercise regression.
+        return cuda_american_price({paths, 2, 42, 100.0, 0.0, 0.01, 0.2, 1.0, 1, antithetic});
+    });
+    const std::array<SimulationStep, 1> steps{{{0.01, 0.2, 1.0}}};
+    check([&](int paths, bool antithetic) {
+        return cuda_accumulator_price({paths, 42, 100.0, 0.0, 1000.0, 0.0, 0.0, 1.0, antithetic}, steps);
+    });
+    AutocallableProgram program{};
+    program.principal_ratio = 10'000.0;
+    program.initial_spot = 1.0;
+    program.upper_strike = 10'000.0;
+    program.knock_in_level = 10'000.0;
+    program.has_knock_in = true;
+    program.terminal_kind = AutocallableTerminalKind::downside_if_knocked_in;
+    const std::array<AutocallableStep, 1> note_steps{{{steps[0], {}}}};
+    check([&](int paths, bool antithetic) {
+        return cuda_autocallable_price({paths, 42, 100.0, {1.0}, program, {}, {}, {}, antithetic}, note_steps);
+    });
+}
 
 TEST_CASE("CUDA pricing completes independently of unrelated streams", "[cuda][monte-carlo-performance]")
 {
@@ -95,24 +141,25 @@ TEST_CASE("CUDA workspaces preserve sample changes and recover from invalid path
 {
     using namespace kiyosi::detail;
     CudaWorkspace workspace;
-    for (const int count : {2, 256, 258, 65'538, 100'002, 256, 2})
+    for (const int count : {1, 2, 3, 257, 65'538, 100'002, 256, 2})
         for (const auto seed : {std::uint64_t{42}, std::numeric_limits<std::uint64_t>::max()})
-            for (const double diffusion : {0.2, 0.3}) {
-                CudaEuropeanRequest request{count, seed, 100.25, 100.0, 0.01, diffusion, 1};
-                const auto expected = cuda_european_price(request);
-                REQUIRE(expected.status == CudaPricingStatus::success);
-                for (int repetition = 0; repetition < 2; ++repetition) {
-                    const auto actual = cuda_european_price(request, &workspace);
-                    REQUIRE(actual.status == CudaPricingStatus::success);
-                    CHECK(actual.payoff_mean == expected.payoff_mean);
+            for (const bool antithetic : {false, true, false})
+                for (const double diffusion : {0.2, 0.3}) {
+                    CudaEuropeanRequest request{count, seed, 100.25, 100.0, 0.01, diffusion, 1, antithetic};
+                    const auto expected = cuda_european_price(request);
+                    REQUIRE(expected.status == CudaPricingStatus::success);
+                    for (int repetition = 0; repetition < 2; ++repetition) {
+                        const auto actual = cuda_european_price(request, &workspace);
+                        REQUIRE(actual.status == CudaPricingStatus::success);
+                        CHECK(actual.payoff_mean == expected.payoff_mean);
+                    }
+                    request.drift = 1000.0;
+                    CHECK(cuda_european_price(request, &workspace).status == CudaPricingStatus::invalid_result);
+                    request.drift = 0.01;
+                    const auto recovered = cuda_european_price(request, &workspace);
+                    REQUIRE(recovered.status == CudaPricingStatus::success);
+                    CHECK(recovered.payoff_mean == expected.payoff_mean);
                 }
-                request.drift = 1000.0;
-                CHECK(cuda_european_price(request, &workspace).status == CudaPricingStatus::invalid_result);
-                request.drift = 0.01;
-                const auto recovered = cuda_european_price(request, &workspace);
-                REQUIRE(recovered.status == CudaPricingStatus::success);
-                CHECK(recovered.payoff_mean == expected.payoff_mean);
-            }
 }
 
 TEST_CASE("CUDA American growth caches preserve scalar prices and recover from failures", "[cuda][cuda-workspace]")
@@ -120,15 +167,18 @@ TEST_CASE("CUDA American growth caches preserve scalar prices and recover from f
     using namespace kiyosi::detail;
     CudaWorkspace workspace;
     const auto check = [&](CudaAmericanRequest request) {
-        const auto expected = cuda_american_price(request);
-        REQUIRE(expected.status == CudaPricingStatus::success);
-        for (int repetition = 0; repetition < 2; ++repetition) {
-            const auto actual = cuda_american_price(request, &workspace, true);
-            REQUIRE(actual.status == CudaPricingStatus::success);
-            CHECK(actual.payoff_mean == expected.payoff_mean);
+        for (const bool antithetic : {false, true, false}) {
+            request.antithetic = antithetic;
+            const auto expected = cuda_american_price(request);
+            REQUIRE(expected.status == CudaPricingStatus::success);
+            for (int repetition = 0; repetition < 2; ++repetition) {
+                const auto actual = cuda_american_price(request, &workspace, true);
+                REQUIRE(actual.status == CudaPricingStatus::success);
+                CHECK(actual.payoff_mean == expected.payoff_mean);
+            }
         }
     };
-    for (const int count : {2, 510, 512, 514, 65'538, 512, 2}) {
+    for (const int count : {1, 2, 3, 511, 512, 513, 65'538, 512, 2}) {
         CudaAmericanRequest request{count, 3, 42, 100.25, 100.0, 0.01, 0.2, 0.99, -1};
         for (const int steps : {3, 7, 3}) {
             request.step_count = steps;

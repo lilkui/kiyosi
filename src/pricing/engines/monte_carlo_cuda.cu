@@ -154,72 +154,74 @@ __device__ double payoff(int sign, double spot, double strike)
     return fmax(static_cast<double>(sign) * (spot - strike), 0.0);
 }
 
-__global__ void generate_european_normals(std::uint64_t seed, int pair_count, double* normals)
+__global__ void generate_european_normals(std::uint64_t seed, int sample_count, double* normals)
 {
-    const int pair = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (pair >= pair_count) return;
+    const int sample = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (sample >= sample_count) return;
 
     curandStatePhilox4_32_10_t generator;
-    curand_init(seed, static_cast<unsigned long long>(pair), 0, &generator);
-    normals[pair] = curand_normal_double(&generator);
+    curand_init(seed, static_cast<unsigned long long>(sample), 0, &generator);
+    normals[sample] = curand_normal_double(&generator);
 }
 
-__global__ void simulate_payoff_pairs(CudaEuropeanRequest request, int pair_count,
-                                      const double* normals, double2* growth, bool rebuild,
-                                      double* payoffs, int* invalid)
+__global__ void simulate_european_samples(CudaEuropeanRequest request, int sample_count,
+                                          const double* normals, double2* growth, bool rebuild,
+                                          double* payoffs, int* invalid)
 {
-    const int pair = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (pair >= pair_count) return;
+    const int sample = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (sample >= sample_count) return;
+    const bool paired = request.antithetic && sample < request.path_count / 2;
     double2 factors;
     if (!normals || rebuild) {
         double normal = 0.0;
-        if (normals) normal = normals[pair];
+        if (normals) normal = normals[sample];
         else {
             curandStatePhilox4_32_10_t generator;
-            curand_init(request.seed, static_cast<unsigned long long>(pair), 0, &generator);
+            curand_init(request.seed, static_cast<unsigned long long>(sample), 0, &generator);
             normal = curand_normal_double(&generator);
         }
         factors = {exp(request.drift + request.diffusion * normal),
-                   exp(request.drift - request.diffusion * normal)};
-        if (growth) growth[pair] = factors;
+                   paired ? exp(request.drift - request.diffusion * normal) : 1.0};
+        if (growth) growth[sample] = factors;
     } else {
-        factors = growth[pair];
+        factors = growth[sample];
     }
     const double positive_spot = request.spot * factors.x;
     const double negative_spot = request.spot * factors.y;
     if (!isfinite(positive_spot) || positive_spot <= 0.0 ||
         !isfinite(negative_spot) || negative_spot <= 0.0) {
         atomicExch(invalid, 1);
-        payoffs[pair] = 0.0;
-        payoffs[pair + pair_count] = 0.0;
+        payoffs[sample] = 0.0;
+        if (paired) payoffs[sample + sample_count] = 0.0;
         return;
     }
-    payoffs[pair] = payoff(request.payoff_sign, positive_spot, request.strike);
-    payoffs[pair + pair_count] = payoff(request.payoff_sign, negative_spot, request.strike);
+    payoffs[sample] = payoff(request.payoff_sign, positive_spot, request.strike);
+    if (paired) payoffs[sample + sample_count] = payoff(request.payoff_sign, negative_spot, request.strike);
 }
 
-__global__ void simulate_american_pairs(CudaAmericanRequest request, int pair_count,
-                                        double* paths, int* invalid, double2* growth, bool reuse)
+__global__ void simulate_american_samples(CudaAmericanRequest request, int sample_count,
+                                          double* paths, int* invalid, double2* growth, bool reuse)
 {
-    const int pair = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
-    if (pair >= pair_count) return;
+    const int sample = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
+    if (sample >= sample_count) return;
 
-    const int negative_path = pair + pair_count;
+    const bool paired = request.antithetic && sample < request.path_count / 2;
+    const int negative_path = sample + sample_count;
     curandStatePhilox4_32_10_t generator;
-    if (!reuse) curand_init(request.seed, static_cast<unsigned long long>(pair), 0, &generator);
+    if (!reuse) curand_init(request.seed, static_cast<unsigned long long>(sample), 0, &generator);
     double positive_spot = request.spot;
     double negative_spot = request.spot;
-    paths[pair] = positive_spot;
-    paths[negative_path] = negative_spot;
+    paths[sample] = positive_spot;
+    if (paired) paths[negative_path] = negative_spot;
     for (int step = 1; step < request.step_count; ++step) {
-        const auto growth_offset = static_cast<std::size_t>(step - 1) * pair_count + pair;
+        const auto growth_offset = static_cast<std::size_t>(step - 1) * sample_count + sample;
         double2 factors;
         if (reuse) {
             factors = growth[growth_offset];
         } else {
             const double normal = curand_normal_double(&generator);
             factors = {exp(request.drift + request.diffusion * normal),
-                       exp(request.drift - request.diffusion * normal)};
+                       paired ? exp(request.drift - request.diffusion * normal) : 1.0};
             if (growth) growth[growth_offset] = factors;
         }
         positive_spot *= factors.x;
@@ -230,8 +232,8 @@ __global__ void simulate_american_pairs(CudaAmericanRequest request, int pair_co
             return;
         }
         const auto offset = static_cast<std::size_t>(step) * request.path_count;
-        paths[offset + pair] = positive_spot;
-        paths[offset + negative_path] = negative_spot;
+        paths[offset + sample] = positive_spot;
+        if (paired) paths[offset + negative_path] = negative_spot;
     }
 }
 
@@ -339,6 +341,21 @@ __global__ void apply_exercise(CudaAmericanRequest request, int step,
         cash_flows[path] = intrinsic;
 }
 
+template <typename Request>
+__device__ void initialize_path_generator(const Request& request, int path, curandStatePhilox4_32_10_t& generator)
+{
+    const int sample_count = (request.path_count + 1) / 2;
+    const int sample = request.antithetic && path >= sample_count ? path - sample_count : path;
+    curand_init(request.seed, static_cast<unsigned long long>(sample), 0, &generator);
+}
+
+template <typename Request>
+__device__ double draw_path_normal(const Request& request, int path, curandStatePhilox4_32_10_t& generator)
+{
+    const double draw = curand_normal_double(&generator);
+    return request.antithetic && path >= (request.path_count + 1) / 2 ? -draw : draw;
+}
+
 template <bool paired>
 __global__ void simulate_autocallable_paths(
     CudaAutocallableRequest request, const AutocallableStep* steps, std::size_t step_count,
@@ -348,7 +365,7 @@ __global__ void simulate_autocallable_paths(
     if (path >= request.path_count) return;
 
     curandStatePhilox4_32_10_t generator;
-    curand_init(request.seed, static_cast<unsigned long long>(path), 0, &generator);
+    initialize_path_generator(request, path, generator);
     double spot = request.spot;
     auto state = request.initial_state;
     auto alternate_state = request.alternate_initial_state;
@@ -358,7 +375,7 @@ __global__ void simulate_autocallable_paths(
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
         spot *= exp(step.simulation.drift +
-                    step.simulation.diffusion * curand_normal_double(&generator));
+                    step.simulation.diffusion * draw_path_normal(request, path, generator));
         if (!isfinite(spot) || spot <= 0.0) {
             atomicExch(invalid, 1);
             payoffs[path] = 0.0;
@@ -409,7 +426,7 @@ __global__ void simulate_accumulator_spot_paths(
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (path >= requests.values[0].path_count) return;
     curandStatePhilox4_32_10_t generator;
-    curand_init(requests.values[0].seed, static_cast<unsigned long long>(path), 0, &generator);
+    initialize_path_generator(requests.values[0], path, generator);
     constexpr int capacity = single ? 1 : 5;
     const int count = single ? 1 : requests.count;
     double spots[capacity], quantities[capacity]; // NOLINT(modernize-avoid-c-arrays)
@@ -422,7 +439,7 @@ __global__ void simulate_accumulator_spot_paths(
     MonteCarloDiscount discount;
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
-        const double growth = exp(step.drift + step.diffusion * curand_normal_double(&generator));
+        const double growth = exp(step.drift + step.diffusion * draw_path_normal(requests.values[0], path, generator));
         discount = step.discount;
         for (int bump = 0; bump < count; ++bump) {
             if (done[bump]) continue;
@@ -453,7 +470,7 @@ __global__ void simulate_autocallable_spot_paths(
     const int path = static_cast<int>(blockIdx.x * blockDim.x + threadIdx.x);
     if (path >= requests.values[0].path_count) return;
     curandStatePhilox4_32_10_t generator;
-    curand_init(requests.values[0].seed, static_cast<unsigned long long>(path), 0, &generator);
+    initialize_path_generator(requests.values[0], path, generator);
     double spots[5];                 // NOLINT(modernize-avoid-c-arrays)
     AutocallablePathState states[5]; // NOLINT(modernize-avoid-c-arrays)
     bool done[5]{};                  // NOLINT(modernize-avoid-c-arrays)
@@ -464,7 +481,7 @@ __global__ void simulate_autocallable_spot_paths(
     }
     for (std::size_t index = 0; index < step_count; ++index) {
         const auto step = steps[index];
-        const double growth = exp(step.simulation.drift + step.simulation.diffusion * curand_normal_double(&generator));
+        const double growth = exp(step.simulation.drift + step.simulation.diffusion * draw_path_normal(requests.values[0], path, generator));
         for (int bump = 0; bump < requests.count; ++bump) {
             if (done[bump]) continue;
             const auto& program = requests.values[bump].program;
@@ -567,7 +584,8 @@ struct CudaWorkspace::Impl {
     DeviceMemory steps, paths, cash_flows, invalid, partials, summary, normals, growth;
     CudaAmericanRequest american_samples{};
     std::array<PathOutputs, 5> outputs;
-    int pair_count{};
+    int path_count{};
+    bool antithetic{};
     std::uint64_t seed{};
     double drift = std::numeric_limits<double>::quiet_NaN();
     double diffusion = std::numeric_limits<double>::quiet_NaN();
@@ -670,40 +688,42 @@ CudaPricingResult cuda_european_price(CudaEuropeanRequest request, CudaWorkspace
     const auto stream = storage.owned_stream.get();
     const RequestCompletion completion{stream};
 
-    const int pair_count = request.path_count / 2;
-    const bool new_samples = storage.pair_count != pair_count || storage.seed != request.seed;
-    if (new_samples) storage.pair_count = 0;
+    const int sample_count = request.antithetic ? (request.path_count + 1) / 2 : request.path_count;
+    const bool new_samples = storage.path_count != request.path_count || storage.seed != request.seed ||
+                             storage.antithetic != request.antithetic;
+    if (new_samples) storage.path_count = 0;
     auto& outputs = storage.outputs[0];
     auto allocation = allocate_path_outputs(request.path_count, outputs, stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     if (workspace) {
-        allocation = allocate(storage.normals, static_cast<std::size_t>(pair_count) * sizeof(double), stream);
+        allocation = allocate(storage.normals, static_cast<std::size_t>(sample_count) * sizeof(double), stream);
         if (allocation.status != CudaPricingStatus::success) return allocation;
-        allocation = allocate(storage.growth, static_cast<std::size_t>(pair_count) * sizeof(double2), stream);
+        allocation = allocate(storage.growth, static_cast<std::size_t>(sample_count) * sizeof(double2), stream);
         if (allocation.status != CudaPricingStatus::success) return allocation;
     }
 
-    const int block_count = (pair_count + threads_per_block - 1) / threads_per_block;
+    const int block_count = (sample_count + threads_per_block - 1) / threads_per_block;
     if (workspace && new_samples) {
-        generate_european_normals<<<block_count, threads_per_block, 0, stream>>>(request.seed, pair_count, static_cast<double*>(storage.normals.get()));
+        generate_european_normals<<<block_count, threads_per_block, 0, stream>>>(request.seed, sample_count, static_cast<double*>(storage.normals.get()));
         const auto status = cudaGetLastError();
         if (status != cudaSuccess) return error_result(status);
     }
     const bool rebuild = new_samples || storage.drift != request.drift || storage.diffusion != request.diffusion;
-    if (rebuild) storage.pair_count = 0;
-    simulate_payoff_pairs<<<block_count, threads_per_block, 0, stream>>>(
-        request, pair_count, static_cast<const double*>(storage.normals.get()), static_cast<double2*>(storage.growth.get()), rebuild,
+    if (rebuild) storage.path_count = 0;
+    simulate_european_samples<<<block_count, threads_per_block, 0, stream>>>(
+        request, sample_count, static_cast<const double*>(storage.normals.get()), static_cast<double2*>(storage.growth.get()), rebuild,
         outputs.payoffs, &outputs.result->invalid);
     const cudaError_t status = cudaGetLastError();
     if (status != cudaSuccess) return error_result(status);
     const auto result = finish_path_simulation(outputs, request.path_count, stream);
     if (result.status == CudaPricingStatus::success) {
-        storage.pair_count = pair_count;
         storage.seed = request.seed;
+        storage.path_count = request.path_count;
+        storage.antithetic = request.antithetic;
         storage.drift = request.drift;
         storage.diffusion = request.diffusion;
     } else {
-        storage.pair_count = 0;
+        storage.path_count = 0;
     }
     return result;
 }
@@ -720,11 +740,12 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     const auto& samples = storage.american_samples;
     const bool reuse = cache_growth && samples.path_count == request.path_count &&
                        samples.step_count == request.step_count && samples.seed == request.seed &&
+                       samples.antithetic == request.antithetic &&
                        samples.drift == request.drift && samples.diffusion == request.diffusion;
     storage.american_samples.path_count = 0;
-    const int pair_count = request.path_count / 2;
-    const int pair_block_count =
-        (pair_count + threads_per_block - 1) / threads_per_block;
+    const int sample_count = request.antithetic ? (request.path_count + 1) / 2 : request.path_count;
+    const int sample_block_count =
+        (sample_count + threads_per_block - 1) / threads_per_block;
     const int path_block_count =
         (request.path_count + threads_per_block - 1) / threads_per_block;
     auto& paths = storage.paths;
@@ -732,8 +753,9 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
     auto& invalid = storage.invalid;
     auto& partials = storage.partials;
     auto& summary = storage.summary;
-    const auto path_bytes = static_cast<std::size_t>(request.path_count) * request.step_count * sizeof(double);
-    const auto growth_bytes = cache_growth ? static_cast<std::size_t>(pair_count) * (request.step_count - 1) * sizeof(double2) : 0;
+    // Keep the cached double2 tail aligned even for an odd number of path values.
+    const auto path_bytes = (static_cast<std::size_t>(request.path_count) * request.step_count + 1) / 2 * sizeof(double2);
+    const auto growth_bytes = cache_growth ? static_cast<std::size_t>(sample_count) * (request.step_count - 1) * sizeof(double2) : 0;
     auto allocation = allocate(paths, path_bytes + growth_bytes, stream);
     if (allocation.status != CudaPricingStatus::success) return allocation;
     allocation = allocate(
@@ -749,8 +771,8 @@ CudaPricingResult cuda_american_price(CudaAmericanRequest request, CudaWorkspace
 
     cudaError_t status = cudaMemsetAsync(invalid.get(), 0, sizeof(int), stream);
     if (status != cudaSuccess) return error_result(status);
-    simulate_american_pairs<<<pair_block_count, threads_per_block, 0, stream>>>(
-        request, pair_count, static_cast<double*>(paths.get()),
+    simulate_american_samples<<<sample_block_count, threads_per_block, 0, stream>>>(
+        request, sample_count, static_cast<double*>(paths.get()),
         static_cast<int*>(invalid.get()),
         cache_growth ? reinterpret_cast<double2*>(static_cast<char*>(paths.get()) + path_bytes) : nullptr, reuse); // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast): the aligned tail stores cached growth pairs.
     status = cudaGetLastError();

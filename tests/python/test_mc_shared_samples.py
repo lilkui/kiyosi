@@ -709,7 +709,11 @@ class SharedSampleTests(unittest.TestCase):
                         backend=backend, direction=direction, paths=paths
                     ):
                         engine = pricing.MonteCarloVanillaEngine(
-                            path_count=paths, step_count=7, seed=42, backend=backend
+                            path_count=paths,
+                            step_count=7,
+                            seed=42,
+                            backend=backend,
+                            antithetic=True,
                         )
                         quote = engine.price(option, context)
                         expected = pricing.implied_volatility(

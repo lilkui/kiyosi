@@ -32,12 +32,15 @@ try {
     const auto parallel = make_monte_carlo_vanilla_engine({4097, 50, 42, MonteCarloBackend::cpu, 4}).value().price(*option, *context);
     if (!serial || !parallel) return 1;
     if (std::bit_cast<std::uint64_t>(*serial) != std::bit_cast<std::uint64_t>(*parallel) || *serial <= 0.0) return 1;
-    auto sobol = MonteCarloSettings{4096, 50, 42, MonteCarloBackend::cpu, 1, MonteCarloSampling::sobol};
-    const auto sobol_serial = make_monte_carlo_vanilla_engine(sobol).value().price(*option, *context);
-    sobol.thread_count = 4;
-    const auto sobol_parallel = make_monte_carlo_vanilla_engine(sobol).value().price(*option, *context);
-    if (!sobol_serial || !sobol_parallel || std::abs(*sobol_serial - *analytic) > 0.02) return 1;
-    return std::bit_cast<std::uint64_t>(*sobol_serial) == std::bit_cast<std::uint64_t>(*sobol_parallel) ? 0 : 1;
+    for (const bool antithetic : {false, true}) {
+        auto sobol = MonteCarloSettings{4096, 50, 42, MonteCarloBackend::cpu, 1, MonteCarloSampling::sobol, antithetic};
+        const auto sobol_serial = make_monte_carlo_vanilla_engine(sobol).value().price(*option, *context);
+        sobol.thread_count = 4;
+        const auto sobol_parallel = make_monte_carlo_vanilla_engine(sobol).value().price(*option, *context);
+        if (!sobol_serial || !sobol_parallel || std::abs(*sobol_serial - *analytic) > 0.02) return 1;
+        if (std::bit_cast<std::uint64_t>(*sobol_serial) != std::bit_cast<std::uint64_t>(*sobol_parallel)) return 1;
+    }
+    return 0;
 } catch (const std::exception&) {
     return 1;
 }
