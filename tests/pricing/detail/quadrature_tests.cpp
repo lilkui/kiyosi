@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include <numbers>
+#include <utility>
 #include <vector>
 
 #include <oneapi/tbb/task_arena.h>
@@ -51,6 +52,24 @@ TEST_CASE("Quadrature grid preserves exact breaks and removes duplicate nodes", 
     const auto nodes = integration_nodes(-1.0, 1.0, 4, std::array{0.25, -0.5, 0.25});
     REQUIRE(nodes);
     CHECK(*nodes == std::vector<double>{-1.0, -0.5, 0.0, 0.25, 0.5, 1.0});
+}
+
+TEST_CASE("Quadrature terminal integration preserves asset-only and empty pieces", "[quadrature-kernel]")
+{
+    const double deviation = 0.2;
+    const double drift = 0.01;
+    const double boundary = 0.1;
+    const double asset_probability = 0.5 * std::erfc(-(boundary - drift - deviation * deviation) / (deviation * std::numbers::sqrt2));
+    for (const auto [discount, asset] : {std::pair{-0.03, 2.0}, {-800.0, 1e300}, {710.0, 1e-300}}) {
+        CAPTURE(discount, asset);
+        const double actual = integrate_terminal({{-infinity, boundary, 0.0, asset}, {boundary, infinity, 0.0, 0.0}}, 0.0, 100.0, drift, deviation, discount);
+        const double expected = std::exp(std::log(asset) + std::log(100.0) + drift + 0.5 * deviation * deviation + discount + std::log(asset_probability));
+        CHECK_THAT(actual, Catch::Matchers::WithinRel(expected, 1e-12));
+        CHECK(integrate_terminal({{-infinity, infinity, 0.0, 0.0}}, 0.0, 100.0, drift, deviation, discount) == 0.0);
+    }
+    const double cash_probability = 0.5 * std::erfc(-(boundary - drift) / (deviation * std::numbers::sqrt2));
+    CHECK_THAT(integrate_terminal({{-infinity, boundary, 2.0, 0.0}}, 0.0, 100.0, drift, deviation, -0.03),
+               Catch::Matchers::WithinRel(2.0 * std::exp(-0.03) * cash_probability, 1e-12));
 }
 
 TEST_CASE("Quadrature grid rejects unrepresentable domains and collapsed nodes", "[quadrature-kernel]")

@@ -24,6 +24,14 @@ void register_quadrature_cases()
         }
         const double deviation = 0.2 / std::sqrt(365.0);
         const std::string prefix = "quadrature/kernel/" + std::to_string(steps);
+        benchmark::RegisterBenchmark(prefix + "/terminal_zero_cash", [nodes, deviation](benchmark::State& state) {
+            const std::vector<TerminalPiece> pieces{{-infinity, nodes.front(), 0.0, 1.0}, {0.1, infinity, -100.0, 1.0}};
+            for (auto _ : state)
+                for (const auto node : nodes) {
+                    auto value = integrate_terminal(pieces, node, 100.0, 0.0001, deviation, -0.03 / 365.0);
+                    benchmark::DoNotOptimize(value);
+                }
+        })->UseRealTime();
         benchmark::RegisterBenchmark(prefix + "/weights", [nodes, deviation](benchmark::State& state) {
             for (auto _ : state) {
                 auto transition = transition_weights(nodes, 0.0, deviation);

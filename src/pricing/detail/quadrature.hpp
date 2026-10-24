@@ -294,7 +294,8 @@ inline double integrate_terminal(const std::vector<TerminalPiece>& pieces, doubl
     for (const auto& piece : pieces) {
         const double lower = (piece.lower - mean) / deviation;
         const double upper = (piece.upper - mean) / deviation;
-        sum.add(scaled_exponential(piece.cash, log_discount + log_interval_mass(lower, upper)));
+        if (piece.cash != 0.0)
+            sum.add(scaled_exponential(piece.cash, log_discount + log_interval_mass(lower, upper)));
         if (piece.asset != 0.0)
             sum.add(scaled_exponential(piece.asset, std::log(anchor) + mean + 0.5 * deviation * deviation +
                                                         log_discount + log_interval_mass(lower - deviation, upper - deviation)));
