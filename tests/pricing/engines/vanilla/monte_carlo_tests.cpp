@@ -1,4 +1,5 @@
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <array>
 #include <bit>
@@ -843,7 +844,7 @@ TEST_CASE("American Monte Carlo unavailable stencils retain scalar prices", "[mc
     }
 }
 
-TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[mc-american-samples]")
+TEST_CASE("American Monte Carlo shared samples retain scalar Greek stencils", "[mc-american-samples]")
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
@@ -862,7 +863,8 @@ TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[
                                     const auto expected = detail::price_with_greeks(engine, option, context, true, shifts);
                                     REQUIRE(expected);
                                     for (const GreeksRequest request : {GreeksRequest{true}, GreeksRequest{Greek::delta, Greek::gamma},
-                                                                        GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna, Greek::zomma}}) {
+                                                                        GreeksRequest{Greek::speed}, GreeksRequest{Greek::vanna, Greek::zomma},
+                                                                        GreeksRequest{Greek::vega}, GreeksRequest{Greek::rho}, GreeksRequest{Greek::vega, Greek::rho}}) {
                                         const auto actual = engine.price_with_greeks(option, context, request, shifts);
                                         REQUIRE(actual);
                                         CHECK(actual->price() == expected->price());
@@ -872,9 +874,10 @@ TEST_CASE("American Monte Carlo shared growth retains scalar Greek stencils", "[
                         }
 }
 
-TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent calls", "[mc-american-samples]")
+TEST_CASE("American Monte Carlo shared samples preserve failures and concurrent calls", "[mc-american-samples]")
 {
     using namespace kiyosi;
+    const auto request = GENERATE(GreeksRequest{true}, (GreeksRequest{Greek::vega, Greek::rho}));
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
     const auto option = *make_american_option(OptionType::put, 100.0, start, end);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, 0.2), 100.25, start);
@@ -882,17 +885,17 @@ TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent 
     for (const auto [volatility, rate_shift] : {std::pair{1000.0, 0.01}, std::pair{0.2, 1000.0}}) {
         const auto invalid = *make_pricing_context(*make_bsm_parameters(0.05, 0.02, volatility), 100.25, start);
         const NumericalShiftSettings shifts{.rate_shift = rate_shift};
-        const auto expected = detail::price_with_greeks(engine, option, invalid, true, shifts);
-        const auto actual = engine.price_with_greeks(option, invalid, true, shifts);
+        const auto expected = detail::price_with_greeks(engine, option, invalid, request, shifts);
+        const auto actual = engine.price_with_greeks(option, invalid, request, shifts);
         REQUIRE_FALSE(expected);
         REQUIRE_FALSE(actual);
         CHECK(actual.error().category == expected.error().category);
     }
-    const auto expected = engine.price_with_greeks(option, context, true);
+    const auto expected = engine.price_with_greeks(option, context, request);
     REQUIRE(expected);
     std::array<std::future<Result<PricingResult>>, 2> concurrent;
     for (auto& task : concurrent)
-        task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, true); });
+        task = std::async(std::launch::async, [&] { return engine.price_with_greeks(option, context, request); });
     for (auto& task : concurrent) {
         const auto actual = task.get();
         REQUIRE(actual);
@@ -900,7 +903,7 @@ TEST_CASE("American Monte Carlo shared growth preserves failures and concurrent 
         CHECK(actual->values_view() == expected->values_view());
     }
     const auto unseeded = make_monte_carlo_vanilla_engine({127, 7}).value();
-    const auto random = unseeded.price_with_greeks(option, context, true);
+    const auto random = unseeded.price_with_greeks(option, context, request);
     REQUIRE(random);
     CHECK(random->all_finite());
     CHECK_FALSE(unseeded.settings().seed);

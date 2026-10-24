@@ -379,6 +379,15 @@ void kiyosi::benchmark_support::register_analytics_cases()
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
+    for (const int threads : {1, 0}) {
+        const auto [option, context] = american_monte_carlo_scenario();
+        const auto engine = make_monte_carlo_vanilla_engine({100'000, 50, 42, MonteCarloBackend::cpu, threads}).value();
+        for (const bool shared : {false, true})
+            register_calculation(std::format("american_samples/100000/threads:{}/{}", threads, shared ? "shared" : "scalar").c_str(), [=] {
+                const GreeksRequest request{Greek::vega, Greek::rho};
+                return shared ? engine.price_with_greeks(option, context, request)
+                              : detail::price_with_greeks(engine, option, context, request, NumericalShiftSettings{}); }, "price")->UseRealTime();
+    }
     for (const int paths : {512, 1024, 2048, 2049, 4096})
         for (const int threads : {1, 0, 2})
             register_monte_carlo(

@@ -987,7 +987,7 @@ class SharedSampleTests(unittest.TestCase):
                 valuation_time=valuation,
                 calendar=calendar,
             )
-            h = (0.04 + 0.25) - 0.04
+            rate_shift = (0.04 + 0.25) - 0.04
             rate_prices = [
                 engine.price(
                     option,
@@ -1000,7 +1000,7 @@ class SharedSampleTests(unittest.TestCase):
                         calendar=calendar,
                     ),
                 )
-                for rate in (0.04 + h, 0.04 - h)
+                for rate in (0.04 + rate_shift, 0.04 - rate_shift)
             ]
             for names in (
                 ["rho"],
@@ -1013,7 +1013,8 @@ class SharedSampleTests(unittest.TestCase):
                     )
                     self.assertEqual(actual.price, engine.price(option, context))
                     self.assertEqual(
-                        actual.rho, (rate_prices[0] - rate_prices[1]) / (200 * h)
+                        actual.rho,
+                        (rate_prices[0] - rate_prices[1]) / (200 * rate_shift),
                     )
             with self.subTest(engine=type(engine).__name__, unavailable="speed"):
                 context = PricingContext(
@@ -1086,6 +1087,21 @@ class SharedSampleTests(unittest.TestCase):
                             ]
                         )
                     (center_hi, up_hi, down_hi), (center_lo, up_lo, down_lo) = stencils
+                    selected = engine.price_with_greeks(
+                        option,
+                        contexts[1],
+                        ["vega", "rho"],
+                        volatility_shift=0.01,
+                        rate_shift=0.25,
+                    )
+                    self.assertEqual(selected.price, middle)
+                    self.assertEqual(
+                        selected.vega, (center_hi - center_lo) / (200 * vol_shift)
+                    )
+                    self.assertEqual(
+                        selected.rho,
+                        (rate_prices[0] - rate_prices[1]) / (200 * rate_shift),
+                    )
                     vanna = (
                         ((up_hi - down_hi) - (up_lo - down_lo))
                         / h
