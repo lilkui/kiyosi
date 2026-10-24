@@ -12,11 +12,33 @@
 #include <type_traits>
 #include <tuple>
 #include <vector>
+#include <oneapi/tbb/task_arena.h>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
 #include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 #include "pricing/engines/monte_carlo_mean.hpp"
+
+TEST_CASE("Automatic Monte Carlo arenas are bounded by available blocks", "[mc-block-scheduling]")
+{
+    using namespace kiyosi;
+    oneapi::tbb::task_arena outer{4};
+    for (const int threads : {0, 4}) {
+        std::array<int, 2> workers{};
+        std::array<std::array<int, 2>, 2> ranges{};
+        const auto result = outer.execute([&] {
+            return detail::monte_carlo_blocks(512, threads, [&](int block, int begin, int end) -> Result<void> {
+                workers[block] = oneapi::tbb::this_task_arena::max_concurrency();
+                ranges[block] = {begin, end};
+                return {};
+            });
+        });
+        REQUIRE(result);
+        const int expected = threads == 0 ? 2 : threads;
+        CHECK((workers == std::array{expected, expected}));
+        CHECK((ranges == std::array{std::array{0, 256}, std::array{256, 512}}));
+    }
+}
 
 TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel]")
 {

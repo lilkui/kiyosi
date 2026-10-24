@@ -23,6 +23,8 @@ template <typename Evaluate>
 Result<void> monte_carlo_blocks(int count, int thread_count, const Evaluate& evaluate)
 {
     const int blocks = monte_carlo_block_count(count);
+    if (thread_count == 0)
+        thread_count = std::min(blocks, oneapi::tbb::this_task_arena::max_concurrency());
     if (thread_count == 1 || blocks == 1) {
         for (int block = 0; block < blocks; ++block) {
             const auto result = evaluate(block, block * monte_carlo_block_size,
@@ -32,7 +34,7 @@ Result<void> monte_carlo_blocks(int count, int thread_count, const Evaluate& eva
         return {};
     }
     std::vector<std::optional<Error>> errors(static_cast<std::size_t>(blocks));
-    oneapi::tbb::task_arena arena{thread_count == 0 ? oneapi::tbb::task_arena::automatic : thread_count};
+    oneapi::tbb::task_arena arena{thread_count};
     arena.execute([&] {
         // An embedding application's cancellation must not silently omit pricing work.
         oneapi::tbb::task_group_context context{oneapi::tbb::task_group_context::isolated};
