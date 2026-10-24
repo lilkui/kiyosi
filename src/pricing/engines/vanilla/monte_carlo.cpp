@@ -423,41 +423,42 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         // Each worker needs enough paths to amortize scheduling at every exercise date.
         const int exercise_threads = count <= 1024 ? 1 : settings.thread_count == 0 ? std::min(oneapi::tbb::this_task_arena::max_concurrency(), count / 1024)
                                                                                     : settings.thread_count;
-        const auto initialized = detail::monte_carlo_blocks(count, exercise_threads,
-                                                            [&](int, int begin, int end) -> Result<void> {
-                                                                for (int path = begin; path < end; ++path)
-                                                                    cash_flows[path] = payoff(option.option_type(),
-                                                                                              paths[(step_count - 2) * path_count + path], option.strike());
-                                                                return {};
-                                                            });
+        detail::MonteCarloBlocks exercise_blocks{count, exercise_threads};
+        const auto initialized = exercise_blocks.run(
+            [&](int, int begin, int end) -> Result<void> {
+                for (int path = begin; path < end; ++path)
+                    cash_flows[path] = payoff(option.option_type(),
+                                              paths[(step_count - 2) * path_count + path], option.strike());
+                return {};
+            });
         if (!initialized) return std::unexpected(initialized.error());
         std::vector<detail::QuadraticRegressionMatrix> matrices(detail::monte_carlo_block_count(count));
         for (int step = settings.step_count - 2; step >= 1; --step) {
-            const auto accumulated = detail::monte_carlo_blocks(count, exercise_threads,
-                                                                [&](int block, int begin, int end) -> Result<void> {
-                                                                    detail::QuadraticRegressionMatrix matrix{};
-                                                                    for (int path = begin; path < end; ++path)
-                                                                        cash_flows[path] *= discount;
-                                                                    for (int path = begin; path < end; ++path) {
-                                                                        const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
-                                                                        if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
-                                                                            const double scaled = spot / option.strike();
-                                                                            const double square = scaled * scaled;
-                                                                            const double target = cash_flows[path] / option.strike();
-                                                                            matrix[0][0] += 1.0;
-                                                                            matrix[0][1] += scaled;
-                                                                            matrix[0][2] += square;
-                                                                            matrix[1][1] += square;
-                                                                            matrix[1][2] += scaled * square;
-                                                                            matrix[2][2] += square * square;
-                                                                            matrix[0][3] += target;
-                                                                            matrix[1][3] += scaled * target;
-                                                                            matrix[2][3] += square * target;
-                                                                        }
-                                                                    }
-                                                                    matrices[block] = matrix;
-                                                                    return {};
-                                                                });
+            const auto accumulated = exercise_blocks.run(
+                [&](int block, int begin, int end) -> Result<void> {
+                    detail::QuadraticRegressionMatrix matrix{};
+                    for (int path = begin; path < end; ++path)
+                        cash_flows[path] *= discount;
+                    for (int path = begin; path < end; ++path) {
+                        const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
+                        if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
+                            const double scaled = spot / option.strike();
+                            const double square = scaled * scaled;
+                            const double target = cash_flows[path] / option.strike();
+                            matrix[0][0] += 1.0;
+                            matrix[0][1] += scaled;
+                            matrix[0][2] += square;
+                            matrix[1][1] += square;
+                            matrix[1][2] += scaled * square;
+                            matrix[2][2] += square * square;
+                            matrix[0][3] += target;
+                            matrix[1][3] += scaled * target;
+                            matrix[2][3] += square * target;
+                        }
+                    }
+                    matrices[block] = matrix;
+                    return {};
+                });
             if (!accumulated) return std::unexpected(accumulated.error());
             // Fixed block order makes regression independent of worker scheduling.
             detail::QuadraticRegressionMatrix matrix{};
@@ -471,31 +472,31 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
             matrix[2][1] = matrix[1][2];
             std::array<double, 3> coefficients{};
             if (!detail::solve_quadratic(matrix, coefficients)) continue;
-            const auto exercised = detail::monte_carlo_blocks(count, exercise_threads,
-                                                              [&](int, int begin, int end) -> Result<void> {
-                                                                  for (int path = begin; path < end; ++path) {
-                                                                      const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
-                                                                      const double intrinsic = payoff(option.option_type(), spot, option.strike());
-                                                                      if (intrinsic <= 0.0) continue;
-                                                                      const double scaled = spot / option.strike();
-                                                                      const double continuation =
-                                                                          coefficients[0] + scaled * (coefficients[1] + scaled * coefficients[2]);
-                                                                      if (std::isfinite(continuation) && intrinsic / option.strike() > continuation)
-                                                                          cash_flows[path] = intrinsic;
-                                                                  }
-                                                                  return {};
-                                                              });
+            const auto exercised = exercise_blocks.run(
+                [&](int, int begin, int end) -> Result<void> {
+                    for (int path = begin; path < end; ++path) {
+                        const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
+                        const double intrinsic = payoff(option.option_type(), spot, option.strike());
+                        if (intrinsic <= 0.0) continue;
+                        const double scaled = spot / option.strike();
+                        const double continuation =
+                            coefficients[0] + scaled * (coefficients[1] + scaled * coefficients[2]);
+                        if (std::isfinite(continuation) && intrinsic / option.strike() > continuation)
+                            cash_flows[path] = intrinsic;
+                    }
+                    return {};
+                });
             if (!exercised) return std::unexpected(exercised.error());
         }
         std::vector<detail::MonteCarloMean> block_payoffs(matrices.size());
-        const auto reduced = detail::monte_carlo_blocks(count, exercise_threads,
-                                                        [&](int block, int begin, int end) -> Result<void> {
-                                                            detail::MonteCarloMean partial{};
-                                                            for (int path = begin; path < end; ++path)
-                                                                partial.add(cash_flows[path]);
-                                                            block_payoffs[block] = partial;
-                                                            return {};
-                                                        });
+        const auto reduced = exercise_blocks.run(
+            [&](int block, int begin, int end) -> Result<void> {
+                detail::MonteCarloMean partial{};
+                for (int path = begin; path < end; ++path)
+                    partial.add(cash_flows[path]);
+                block_payoffs[block] = partial;
+                return {};
+            });
         if (!reduced) return std::unexpected(reduced.error());
         detail::MonteCarloMean payoffs{};
         for (const auto& partial : block_payoffs)

@@ -10,6 +10,7 @@
 #include <kiyosi/kiyosi.hpp>
 #include "pricing/detail/numerical_greeks.hpp"
 #include "pricing/detail/fd_grid.hpp"
+#include "pricing/engines/monte_carlo_parallel.hpp"
 
 #include "pricing.hpp"
 
@@ -391,6 +392,22 @@ void kiyosi::benchmark_support::register_analytics_cases()
 
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
+    for (const bool reuse : {false, true})
+        benchmark::RegisterBenchmark(reuse ? "american_lsm/scheduling/reused" : "american_lsm/scheduling/one_shot", [reuse](benchmark::State& state) {
+            detail::MonteCarloBlocks blocks{4096, 4};
+            std::array<int, 16> partials{};
+            const auto evaluate = [&](int block, int begin, int end) -> Result<void> {
+                partials[block] = end - begin;
+                return {};
+            };
+            for (auto _ : state) {
+                for (int pass = 0; pass < 96; ++pass) {
+                    auto result = reuse ? blocks.run(evaluate) : detail::monte_carlo_blocks(4096, 4, evaluate);
+                    benchmark::DoNotOptimize(result);
+                }
+                benchmark::DoNotOptimize(partials);
+            }
+        })->UseRealTime();
     using namespace kiyosi;
     for (const int paths : {4096, 250'000})
         for (const int threads : {1, 0}) {

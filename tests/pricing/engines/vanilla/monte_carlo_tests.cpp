@@ -8,16 +8,55 @@
 #include <future>
 #include <limits>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <tuple>
 #include <vector>
 #include <oneapi/tbb/task_arena.h>
+#include <oneapi/tbb/task_group.h>
 #include <kiyosi/kiyosi.hpp>
 #include "support/common.hpp"
 #include "support/numerical.hpp"
 #include "pricing/engines/monte_carlo_host.hpp"
 #include "pricing/engines/monte_carlo_mean.hpp"
+
+TEST_CASE("Reused Monte Carlo blocks clear errors and survive exceptions and outer cancellation", "[mc-block-scheduling]")
+{
+    using namespace kiyosi;
+    const int threads = GENERATE(1, 4);
+    detail::MonteCarloBlocks blocks{769, threads};
+    std::array<std::array<int, 2>, 4> ranges{};
+    const auto success = [&](int block, int begin, int end) -> Result<void> {
+        ranges[block] = {begin, end};
+        return {};
+    };
+    const auto failed = blocks.run([](int block, int, int) -> Result<void> {
+        if (block >= 1)
+            return std::unexpected(Error{block == 1 ? ErrorCategory::invalid_result : ErrorCategory::backend_failure, "block failure"});
+        return {};
+    });
+    REQUIRE_FALSE(failed);
+    CHECK(failed.error().category == ErrorCategory::invalid_result);
+    REQUIRE(blocks.run(success));
+    CHECK((ranges == std::array{std::array{0, 256}, std::array{256, 512}, std::array{512, 768}, std::array{768, 769}}));
+    const auto throw_from_worker = [&] {
+        const auto result = blocks.run([](int, int, int) -> Result<void> { throw std::runtime_error{"worker failure"}; });
+        CHECK(result);
+    };
+    CHECK_THROWS_AS(throw_from_worker(), std::runtime_error);
+    ranges = {};
+    Result<void> recovered;
+    oneapi::tbb::task_group_context outer{oneapi::tbb::task_group_context::isolated};
+    oneapi::tbb::task_group group{outer};
+    group.run([&] {
+        outer.cancel_group_execution();
+        recovered = blocks.run(success);
+    });
+    group.wait();
+    REQUIRE(recovered);
+    CHECK((ranges == std::array{std::array{0, 256}, std::array{256, 512}, std::array{512, 768}, std::array{768, 769}}));
+}
 
 TEST_CASE("Automatic Monte Carlo arenas are bounded by available blocks", "[mc-block-scheduling]")
 {
