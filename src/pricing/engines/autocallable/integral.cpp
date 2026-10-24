@@ -221,8 +221,8 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
             auto found = transitions.find(time);
             if (found == transitions.end()) found = transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
             transition = &found->second;
-            integrate_curves(alive, *transition, discount, values);
-            if (layers) integrate_curves(knocked_in, *transition, discount, values_in);
+            if (layers) integrate_curve_pair(alive, knocked_in, *transition, discount, values, values_in);
+            else integrate_curves(alive, *transition, discount, values);
         }
         for (std::size_t target = 0; target < nodes.size(); ++target) {
             if (final) {

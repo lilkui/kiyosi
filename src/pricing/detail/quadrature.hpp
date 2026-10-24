@@ -241,6 +241,17 @@ inline void integrate_curves(const Curve& curve, const Transition& transition, d
     });
 }
 
+// Both layers use the same grid; keep each weight row hot for the second integral.
+inline void integrate_curve_pair(const Curve& first, const Curve& second, const Transition& transition,
+                                 double log_discount, std::span<double> first_values, std::span<double> second_values)
+{
+    for_each_target(first_values.size(), [&](std::size_t target) {
+        const auto weights = std::span{transition.weights}.subspan(target * first.cells.size(), first.cells.size());
+        first_values[target] = integrate_curve(first, weights, transition.tails[target], log_discount);
+        second_values[target] = integrate_curve(second, weights, transition.tails[target], log_discount);
+    });
+}
+
 // The terminal function is affine in S on each exact contractual interval.
 struct TerminalPiece {
     double lower;

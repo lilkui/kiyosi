@@ -164,8 +164,7 @@ Result<double> integrate_accumulator(const Accumulator& option, const PricingCon
             auto found = transitions.find(time);
             if (found == transitions.end()) found = transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
             transition = &found->second;
-            for (std::size_t layer = 0; layer < layers.size(); ++layer)
-                integrate_curves(layers[layer].continuation, *transition, discount, values[layer]);
+            integrate_curve_pair(layers[0].continuation, layers[1].continuation, *transition, discount, values[0], values[1]);
         }
         for (std::size_t target = 0; target < nodes.size(); ++target) {
             for (std::size_t layer = 0; layer < layers.size(); ++layer) {

@@ -103,6 +103,30 @@ TEST_CASE("Quadrature transitions preserve moments and tails across grid sizes",
     }
 }
 
+TEST_CASE("Quadrature paired curves exactly match independent integration", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, GENERATE(17, 128, 513), std::array{-0.123, 0.456}).value();
+    std::vector<double> first_samples, second_samples;
+    first_samples.reserve(nodes.size());
+    second_samples.reserve(nodes.size());
+    for (const auto node : nodes) {
+        first_samples.push_back(100.0 * std::expm1(node));
+        second_samples.push_back(-50.0 * std::exp(node));
+    }
+    const auto first = interpolate(nodes, first_samples, -123.0, 456.0);
+    const auto second = interpolate(nodes, second_samples, 789.0, -321.0);
+    const auto transition = transition_weights(nodes, 0.0001, 0.02);
+    for (const double discount : {-750.0, -0.001, 700.0}) {
+        std::vector<double> expected_first(nodes.size()), expected_second(nodes.size());
+        integrate_curves(first, transition, discount, expected_first);
+        integrate_curves(second, transition, discount, expected_second);
+        std::vector<double> actual_first(nodes.size()), actual_second(nodes.size());
+        integrate_curve_pair(first, second, transition, discount, actual_first, actual_second);
+        CHECK(actual_first == expected_first);
+        CHECK(actual_second == expected_second);
+    }
+}
+
 TEST_CASE("Quadrature integration retains compensated cancellation in independent targets", "[quadrature-kernel]")
 {
     const Curve curve{{Polynomial{1e16, 0.0, 0.0, 0.0}, Polynomial{1.0, 0.0, 0.0, 0.0}, Polynomial{-1e16, 0.0, 0.0, 0.0}}, 0.0, 0.0};
@@ -166,15 +190,19 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
     for (const auto node : nodes)
         samples.push_back(100.0 * std::expm1(node));
     const auto curve = interpolate(nodes, samples, -123.0, 456.0);
+    const auto other = interpolate(nodes, samples, 789.0, -321.0);
     Transition reference;
     std::vector<double> expected(nodes.size());
+    std::vector<double> expected_other(nodes.size());
     oneapi::tbb::task_arena serial{1};
     serial.execute([&] {
         reference = transition_weights(nodes, 0.0001, 0.02);
         integrate_curves(curve, reference, -0.001, expected);
+        integrate_curves(other, reference, -0.001, expected_other);
     });
     Transition actual;
     std::vector<double> values(nodes.size(), std::numeric_limits<double>::quiet_NaN());
+    std::vector<double> other_values(nodes.size(), std::numeric_limits<double>::quiet_NaN());
     oneapi::tbb::task_arena parallel{4};
     parallel.execute([&] {
         oneapi::tbb::task_group_context outer{oneapi::tbb::task_group_context::isolated};
@@ -182,7 +210,7 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
         group.run([&] {
             outer.cancel_group_execution();
             actual = transition_weights(nodes, 0.0001, 0.02);
-            integrate_curves(curve, actual, -0.001, values);
+            integrate_curve_pair(curve, other, actual, -0.001, values, other_values);
         });
         group.wait();
     });
@@ -194,4 +222,5 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
         CHECK(actual.weights[index].conditional == reference.weights[index].conditional);
     }
     CHECK(values == expected);
+    CHECK(other_values == expected_other);
 }
