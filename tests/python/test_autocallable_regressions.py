@@ -295,7 +295,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                             recovered = list(pool.map(solve, quotes))
                         self.assertEqual(recovered, expected)
 
-    def test_finite_difference_coupon_requests_preserve_layer_changes_and_isolation(
+    def test_coupon_endpoint_batches_preserve_layer_changes_and_isolation(
         self,
     ):
         start, end = date(2025, 1, 1), date(2025, 1, 13)
@@ -365,13 +365,26 @@ class AutocallableRegressionTests(unittest.TestCase):
             )
             for kind, terms, engine_type in cases:
                 note = kind(**common, **terms)
-                for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
-                    engine = engine_type(
-                        asset_step_count=16,
-                        time_step_count=8,
-                        scheme=scheme,
-                        asset_upper_boundary=400,
+                engines = [
+                    (
+                        engine_type(
+                            asset_step_count=16,
+                            time_step_count=8,
+                            scheme=scheme,
+                            asset_upper_boundary=400,
+                        ),
+                        scheme,
                     )
+                    for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson")
+                ]
+                engines.extend(
+                    (
+                        pricing.QuadratureAutocallableEngine(asset_step_count=steps),
+                        f"quadrature_{steps}",
+                    )
+                    for steps in (17, 128)
+                )
+                for engine, scheme in engines:
                     quote = engine.price(note, context)
                     conventions = (
                         ({},)

@@ -434,38 +434,51 @@ inline void integrate_curves(const Curve& curve, const Transition& transition, d
 }
 
 // Both layers share each loaded weight while retaining their independent summation order.
-template <bool indexed>
-inline void integrate_curve_pair_rows(const Curve& first, const Curve& second, const Transition& transition,
-                                      double log_discount, std::span<double> first_values, std::span<double> second_values)
+template <bool indexed, std::size_t count>
+inline void integrate_curve_batch_rows(const std::array<const Curve*, count>& curves, const Transition& transition,
+                                       double log_discount, const std::array<std::span<double>, count>& values)
 {
+    static_assert(count % 2 == 0);
     const double discount = std::exp(log_discount);
     const bool direct_discount = std::isnormal(discount);
-    for_each_target(first_values.size(), [&](std::size_t target) {
+    for_each_target(values.front().size(), [&](std::size_t target) {
         const auto row = transition.rows[target];
         const auto tails = transition.tails[target];
-        Sum first_sum, second_sum;
-        first_sum.add(scaled_exponential(first.low, tails[0] + log_discount));
-        first_sum.add(scaled_exponential(first.high, tails[1] + log_discount));
-        second_sum.add(scaled_exponential(second.low, tails[0] + log_discount));
-        second_sum.add(scaled_exponential(second.high, tails[1] + log_discount));
-        for (std::size_t cell = 0; cell < row.count; ++cell) {
-            const auto& weight = transition.weights[indexed ? transition.indices[row.offset + cell] : row.offset + cell];
-            const double first_value = weight.integrate(first.cells[row.first + cell]);
-            const double second_value = weight.integrate(second.cells[row.first + cell]);
-            first_sum.add(direct_discount ? first_value * discount : scaled_exponential(first_value, log_discount));
-            second_sum.add(direct_discount ? second_value * discount : scaled_exponential(second_value, log_discount));
-        }
-        first_values[target] = first_sum.total();
-        second_values[target] = second_sum.total(); }, 2 * transition.active_cell_count + 8 * first_values.size());
+        // Keep only two compensated sums live to avoid spilling four-layer batches.
+        for (std::size_t pair = 0; pair < count; pair += 2) {
+            const auto& first = *curves[pair];
+            const auto& second = *curves[pair + 1];
+            Sum first_sum, second_sum;
+            first_sum.add(scaled_exponential(first.low, tails[0] + log_discount));
+            first_sum.add(scaled_exponential(first.high, tails[1] + log_discount));
+            second_sum.add(scaled_exponential(second.low, tails[0] + log_discount));
+            second_sum.add(scaled_exponential(second.high, tails[1] + log_discount));
+            for (std::size_t cell = 0; cell < row.count; ++cell) {
+                const auto& weight = transition.weights[indexed ? transition.indices[row.offset + cell] : row.offset + cell];
+                const double first_value = weight.integrate(first.cells[row.first + cell]);
+                const double second_value = weight.integrate(second.cells[row.first + cell]);
+                first_sum.add(direct_discount ? first_value * discount : scaled_exponential(first_value, log_discount));
+                second_sum.add(direct_discount ? second_value * discount : scaled_exponential(second_value, log_discount));
+            }
+            values[pair][target] = first_sum.total();
+            values[pair + 1][target] = second_sum.total();
+        } }, count * (transition.active_cell_count + 4 * values.front().size()));
+}
+
+template <std::size_t count>
+inline void integrate_curve_batch(const std::array<const Curve*, count>& curves, const Transition& transition,
+                                  double log_discount, const std::array<std::span<double>, count>& values)
+{
+    if (transition.indices.empty())
+        integrate_curve_batch_rows<false>(curves, transition, log_discount, values);
+    else
+        integrate_curve_batch_rows<true>(curves, transition, log_discount, values);
 }
 
 inline void integrate_curve_pair(const Curve& first, const Curve& second, const Transition& transition,
                                  double log_discount, std::span<double> first_values, std::span<double> second_values)
 {
-    if (transition.indices.empty())
-        integrate_curve_pair_rows<false>(first, second, transition, log_discount, first_values, second_values);
-    else
-        integrate_curve_pair_rows<true>(first, second, transition, log_discount, first_values, second_values);
+    integrate_curve_batch(std::array{&first, &second}, transition, log_discount, std::array{first_values, second_values});
 }
 
 // The terminal function is affine in S on each exact contractual interval.

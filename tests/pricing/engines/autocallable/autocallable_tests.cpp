@@ -27,6 +27,48 @@ namespace {
 
 using kiyosi::test::day;
 
+TEST_CASE("Batched deterministic coupon endpoints preserve scalar solves and layer changes", "[coupon-batch]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2025, 1, 13);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.25,
+                                               start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
+    const auto mode = GENERATE(KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day);
+    const auto convention = GENERATE(CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon);
+    const double lower_strike = GENERATE(60.0, 100.0);
+    const std::vector<AutocallableObservation> observations{{day(2025, 1, 7), 110.0, 0.073}, {end, 110.0, 0.083}};
+    const auto snowball = *make_snowball_option({.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = lower_strike, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = observations});
+    const auto ternary = *make_ternary_snowball_option({.maturity_coupon_rate = 0.073, .minimum_coupon_rate = 0.0, .knock_in_level = 99.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = observations});
+    const auto binary = *make_binary_snowball_option({.maturity_coupon_rate = 0.073, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = observations});
+    const auto phoenix = *make_phoenix_option({.coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = lower_strike, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{day(2025, 1, 7), 110.0, 0.0, 90.0}, {end, 110.0, 0.0, 90.0}}});
+    const auto check = [&](const auto& engine, const auto& note) {
+        const ImpliedCouponSettings settings{.lower_bound = 0.0, .upper_bound = 0.2, .price_tolerance = 1e-13, .parameter_tolerance = 1e-12};
+        const auto quote = engine.price(note, context);
+        REQUIRE(quote);
+        const auto replace = [&](const auto& instrument, double coupon) {
+            if constexpr (std::same_as<std::decay_t<decltype(note)>, PhoenixOption>) return detail::replace_coupon(instrument, coupon);
+            else return detail::replace_coupon(instrument, coupon, convention);
+        };
+        const auto expected = detail::solve_implied_coupon(engine, note, context, *quote, settings, replace);
+        const auto actual = [&] {
+            if constexpr (std::same_as<std::decay_t<decltype(note)>, PhoenixOption>) return implied_coupon(engine, note, context, *quote, settings);
+            else return implied_coupon(engine, note, context, *quote, convention, settings);
+        }();
+        REQUIRE(expected);
+        REQUIRE(actual);
+        CHECK(*actual == Catch::Approx(*expected).margin(1e-10));
+        CHECK(*actual == Catch::Approx(0.073).margin(1e-9));
+    };
+    const auto check_engine = [&](const auto& engine) {
+        check(engine, snowball);
+        check(engine, ternary);
+        check(engine, binary);
+        check(engine, phoenix);
+    };
+    check_engine(*make_finite_difference_autocallable_engine({16, 8, GENERATE(FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson), 400.0}));
+    check_engine(*make_quadrature_autocallable_engine({17, 8.0}));
+}
+
 TEST_CASE("Autocallable automatic domains converge to volatile terminal portfolios", "[autocallable-domain]")
 {
     using namespace kiyosi;

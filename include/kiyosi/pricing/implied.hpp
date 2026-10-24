@@ -257,10 +257,11 @@ template <AutocallableProduct Note>
 
 namespace detail {
 
-template <typename Engine, typename Option, typename ReplaceCoupon, typename Price>
+template <typename Engine, typename Option, typename ReplaceCoupon, typename Price, typename EndpointPrices = std::nullptr_t>
 [[nodiscard]] Result<double> solve_implied_coupon(
     const Engine& engine, const Option& option, const PricingContext& context, double observed_price,
-    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon, const Price& price)
+    ImpliedCouponSettings settings, const ReplaceCoupon& replace_coupon, const Price& price,
+    const EndpointPrices& endpoints = nullptr)
 {
     if (!std::isfinite(observed_price) || !std::isfinite(settings.lower_bound) ||
         !std::isfinite(settings.upper_bound) ||
@@ -286,12 +287,15 @@ template <typename Engine, typename Option, typename ReplaceCoupon, typename Pri
         const double lo = settings.lower_bound;
         const double hi = settings.upper_bound;
         const auto endpoint_prices = [&]() -> Result<std::array<double, 2>> {
-            if constexpr (requires { coupon_endpoint_prices(seeded, option, option, context); }) {
+            if constexpr (!std::same_as<EndpointPrices, std::nullptr_t> || requires { coupon_endpoint_prices(seeded, option, option, context); }) {
                 const auto lower = replace_coupon(option, lo);
                 if (!lower) return std::unexpected(lower.error());
                 const auto upper = replace_coupon(option, hi);
                 if (!upper) return std::unexpected(upper.error());
-                return coupon_endpoint_prices(seeded, *lower, *upper, context);
+                if constexpr (!std::same_as<EndpointPrices, std::nullptr_t>)
+                    return endpoints(seeded, *lower, *upper, context);
+                else
+                    return coupon_endpoint_prices(seeded, *lower, *upper, context);
             } else {
                 const auto lower = price_at_coupon(lo);
                 if (!lower) return std::unexpected(lower.error());

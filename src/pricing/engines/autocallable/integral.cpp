@@ -9,6 +9,7 @@
 #include <numeric>
 #include <optional>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include <kiyosi/pricing/detail/autocallable_traits.hpp>
@@ -134,61 +135,104 @@ std::vector<TerminalPiece> terminal_pieces(const AutocallableProgram& program, c
     return pieces;
 }
 
-template <AutocallableProduct Note>
-Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
-                                      const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared,
-                                      AutocallableContract<Note>& contract,
-                                      CouponWorkspace* workspace = nullptr)
-{
-    const auto valid = contract.validate(context);
-    if (!valid) return std::unexpected(valid.error());
-    const auto program = autocallable_program(note);
-    const auto initial = autocallable_initial_state(note, context, program);
-    if (initial.settlement) return checked_price(*initial.settlement);
-    if (const auto fixed = autocallable_fixed_value(note, context, program, initial)) return checked_price(*fixed);
-    const Scenario scenario{context.valuation_time(), context.model_parameters(), initial.path.knocked_in, initial.next_observation};
-    // The request fixes the contract and calendar; only these scenario fields change the future curve.
-    if (prepared && prepared->scenario == scenario)
-        return checked_price(initial.path.coupons + prepared->evaluate(context.spot_price()));
-    const bool layers = program.daily_knock_in && !initial.path.knocked_in && program_knock_in_affects_payoff(program);
-    const auto dates = autocallable_event_dates(note, context, initial.next_observation, layers);
-    const auto observations = note.observations_view();
+struct IntegrationState {
+    AutocallableProgram program{};
+    AutocallableInitialState initial{};
+    std::optional<double> settled;
+    bool layers{};
     std::vector<Event> events;
-    std::size_t observation = initial.next_observation;
-    for (const auto date : dates) {
-        AutocallableEvent event{};
-        if (observation < observations.size() && observations[observation].date == date)
-            event = autocallable_event(note, observation++);
-        events.push_back({date, actual_365_fixed_year_fraction(context.valuation_time(), date), event});
+    std::vector<TerminalPiece> terminal, terminal_in;
+    Curve alive, knocked_in;
+    std::vector<double> values, values_in;
+};
+
+template <AutocallableProduct Note, std::size_t count>
+Result<std::array<double, count>> integrate_autocallables(
+    const std::array<const Note*, count>& notes, const PricingContext& context,
+    const QuadratureSettings& settings, const std::array<std::optional<PreparedCurve>*, count>& prepared,
+    const std::array<AutocallableContract<Note>*, count>& contracts, CouponWorkspace* workspace)
+{
+    std::array<IntegrationState, count> states;
+    for (std::size_t index = 0; index < count; ++index) {
+        const auto valid = contracts[index]->validate(context);
+        if (!valid) return std::unexpected(valid.error());
+        auto& state = states[index];
+        state.program = autocallable_program(*notes[index]);
+        state.initial = autocallable_initial_state(*notes[index], context, state.program);
+        const Scenario scenario{context.valuation_time(), context.model_parameters(), state.initial.path.knocked_in, state.initial.next_observation};
+        state.settled = state.initial.settlement;
+        if (!state.settled) state.settled = autocallable_fixed_value(*notes[index], context, state.program, state.initial);
+        if (!state.settled && *prepared[index] && (*prepared[index])->scenario == scenario)
+            state.settled = state.initial.path.coupons + (*prepared[index])->evaluate(context.spot_price());
+        state.layers = state.program.daily_knock_in && !state.initial.path.knocked_in && program_knock_in_affects_payoff(state.program);
     }
-    const double anchor = program.initial_spot > 0.0 ? program.initial_spot : observations.empty() ? 1.0
-                                                                                                   : observations.front().knock_out_level;
+    std::array<double, count> prices{};
+    // Coupon endpoints can have different fixed cashflows or daily knock-in grids.
+    if (std::ranges::any_of(states, [](const auto& state) { return state.settled.has_value(); }) ||
+        std::ranges::any_of(states, [&](const auto& state) { return state.layers != states.front().layers; })) {
+        for (std::size_t index = 0; index < count; ++index) {
+            const auto value = [&]() -> Result<double> {
+                if (states[index].settled) return checked_price(*states[index].settled);
+                const auto single = integrate_autocallables(std::array{notes[index]}, context, settings,
+                                                            std::array{prepared[index]}, std::array{contracts[index]}, workspace);
+                if (!single) return std::unexpected(single.error());
+                return (*single)[0];
+            }();
+            if (!value) return std::unexpected(value.error());
+            prices[index] = *value;
+        }
+        return prices;
+    }
+    const bool layers = states.front().layers;
+    const auto& first = states.front();
+    const auto dates = autocallable_event_dates(*notes.front(), context, first.initial.next_observation, layers);
+    for (std::size_t index = 0; index < count; ++index) {
+        auto& state = states[index];
+        const auto observations = notes[index]->observations_view();
+        std::size_t observation = state.initial.next_observation;
+        for (const auto date : dates) {
+            AutocallableEvent event{};
+            if (observation < observations.size() && observations[observation].date == date)
+                event = autocallable_event(*notes[index], observation++);
+            state.events.push_back({date, actual_365_fixed_year_fraction(context.valuation_time(), date), event});
+        }
+    }
+    const auto observations = notes.front()->observations_view();
+    const double anchor = first.program.initial_spot > 0.0 ? first.program.initial_spot : observations.empty() ? 1.0
+                                                                                                               : observations.front().knock_out_level;
     const double rate = context.model_parameters().risk_free_rate();
     const double sigma = context.model_parameters().volatility();
     const double drift_rate = rate - context.model_parameters().dividend_yield() - 0.5 * sigma * sigma;
     std::vector<double> breaks;
     const auto add = [&](double level) { if (level > 0.0) breaks.push_back(log_price_ratio(level, anchor)); };
-    if (program.has_knock_in) add(program.knock_in_level);
-    if (program.terminal_kind == AutocallableTerminalKind::downside_if_knocked_in) {
-        add(program.lower_strike);
-        add(program.upper_strike);
+    if (first.program.has_knock_in) add(first.program.knock_in_level);
+    if (first.program.terminal_kind == AutocallableTerminalKind::downside_if_knocked_in) {
+        add(first.program.lower_strike);
+        add(first.program.upper_strike);
     }
-    for (const auto& event : events)
+    for (const auto& event : first.events)
         if (event.terms.active) {
             add(event.terms.knock_out_level);
             if (event.terms.conditional_coupon) add(event.terms.coupon_barrier);
         }
     std::ranges::sort(breaks);
     breaks.erase(std::ranges::unique(breaks).begin(), breaks.end());
-    const auto terminal = terminal_pieces(program, events.back().terms, breaks, anchor, initial.path.knocked_in);
-    const auto terminal_in = layers ? terminal_pieces(program, events.back().terms, breaks, anchor, true) : std::vector<TerminalPiece>{};
-    const double current = log_price_ratio(context.spot_price(), anchor);
-    if (events.size() == 1) {
-        const double time = events.front().time;
-        return checked_price(initial.path.coupons + integrate_terminal(terminal, current, anchor, drift_rate * time,
-                                                                       sigma * std::sqrt(time), -rate * time));
+    for (auto& state : states) {
+        state.terminal = terminal_pieces(state.program, state.events.back().terms, breaks, anchor, state.initial.path.knocked_in);
+        if (layers) state.terminal_in = terminal_pieces(state.program, state.events.back().terms, breaks, anchor, true);
     }
-    const double horizon = events.back().time;
+    const double current = log_price_ratio(context.spot_price(), anchor);
+    if (first.events.size() == 1) {
+        const double time = first.events.front().time;
+        for (std::size_t index = 0; index < count; ++index) {
+            const auto& state = states[index];
+            const auto value = checked_price(state.initial.path.coupons + integrate_terminal(state.terminal, current, anchor, drift_rate * time, sigma * std::sqrt(time), -rate * time));
+            if (!value) return std::unexpected(value.error());
+            prices[index] = *value;
+        }
+        return prices;
+    }
+    const double horizon = first.events.back().time;
     const double extent = settings.integration_standard_deviations * sigma * std::sqrt(horizon);
     const double lower = std::min(0.0, breaks.empty() ? 0.0 : breaks.front()) + std::min(0.0, drift_rate * horizon) - extent;
     const double upper = std::max(0.0, breaks.empty() ? 0.0 : breaks.back()) + std::max(0.0, drift_rate * horizon) + extent;
@@ -202,52 +246,88 @@ Result<double> integrate_autocallable(const Note& note, const PricingContext& co
         storage.interpolation = CubicInterpolation{storage.nodes};
     }
     auto& nodes = storage.nodes;
-    auto& transitions = storage.transitions;
-    Curve alive, knocked_in;
-    std::vector<double> values(nodes.size()), values_in(layers ? nodes.size() : 0);
-    for (std::size_t event_index = events.size(); event_index-- > 0;) {
-        const auto& event = events[event_index];
-        const bool final = event_index + 1 == events.size();
-        if (!final) {
-            apply_event(program, event.terms, storage.assets, alive, knocked_in, layers);
-            if (layers) apply_event(program, event.terms, storage.assets, knocked_in, knocked_in, false);
-        }
-        const double time = event_index == 0 ? event.time : actual_365_fixed_year_fraction(events[event_index - 1].date, event.date);
+    for (auto& state : states) {
+        state.values.resize(nodes.size());
+        if (layers) state.values_in.resize(nodes.size());
+    }
+    for (std::size_t event_index = first.events.size(); event_index-- > 0;) {
+        const auto& event = first.events[event_index];
+        const bool final = event_index + 1 == first.events.size();
+        if (!final)
+            for (auto& state : states) {
+                apply_event(state.program, state.events[event_index].terms, storage.assets, state.alive, state.knocked_in, layers);
+                if (layers) apply_event(state.program, state.events[event_index].terms, storage.assets, state.knocked_in, state.knocked_in, false);
+            }
+        const double time = event_index == 0 ? event.time : actual_365_fixed_year_fraction(first.events[event_index - 1].date, event.date);
         const double drift = drift_rate * time;
         const double deviation = sigma * std::sqrt(time);
         const double discount = -rate * time;
         if (!(deviation > 0.0) || !std::isfinite(deviation) || !std::isfinite(drift))
             return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature transition is not representable"});
         if (event_index == 0) {
-            prepared = PreparedCurve{scenario, workspace ? nodes : std::move(nodes), std::move(alive), anchor, drift, deviation, discount};
-            return checked_price(initial.path.coupons + prepared->evaluate(context.spot_price()));
-        }
-        const Transition* transition = nullptr;
-        if (!final) {
-            auto found = transitions.find(time);
-            if (found == transitions.end()) found = transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
-            transition = &found->second;
-            if (layers) integrate_curve_pair(alive, knocked_in, *transition, discount, values, values_in);
-            else integrate_curves(alive, *transition, discount, values);
-        }
-        for (std::size_t target = 0; target < nodes.size(); ++target) {
-            if (final) {
-                values[target] = integrate_terminal(terminal, nodes[target], anchor, drift, deviation, discount);
-                if (layers) values_in[target] = integrate_terminal(terminal_in, nodes[target], anchor, drift, deviation, discount);
+            for (std::size_t index = 0; index < count; ++index) {
+                auto& state = states[index];
+                auto grid = count == 1 && !workspace ? std::exchange(nodes, {}) : nodes;
+                const Scenario scenario{context.valuation_time(), context.model_parameters(), state.initial.path.knocked_in, state.initial.next_observation};
+                *prepared[index] = PreparedCurve{scenario, std::move(grid), std::move(state.alive), anchor, drift, deviation, discount};
+                const auto value = checked_price(state.initial.path.coupons + (*prepared[index])->evaluate(context.spot_price()));
+                if (!value) return std::unexpected(value.error());
+                prices[index] = *value;
             }
-            if (!std::isfinite(values[target]) || (layers && !std::isfinite(values_in[target])))
-                return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
+            return prices;
         }
-        const double low = final ? terminal.front().cash : alive.low;
-        const double high = final ? terminal.back().cash : alive.high;
-        storage.interpolation.interpolate(values, scaled_exponential(low, discount), scaled_exponential(high, discount), alive);
-        if (layers) {
-            const double low_in = final ? terminal_in.front().cash : knocked_in.low;
-            const double high_in = final ? terminal_in.back().cash : knocked_in.high;
-            storage.interpolation.interpolate(values_in, scaled_exponential(low_in, discount), scaled_exponential(high_in, discount), knocked_in);
+        if (!final) {
+            auto found = storage.transitions.find(time);
+            if (found == storage.transitions.end()) found = storage.transitions.emplace(time, transition_weights(nodes, drift, deviation)).first;
+            const auto integrate = [&]<bool layered>() {
+                constexpr auto curve_count = count * (layered ? 2 : 1);
+                std::array<const Curve*, curve_count> curves{};
+                std::array<std::span<double>, curve_count> values{};
+                for (std::size_t index = 0; index < count; ++index) {
+                    const auto offset = index * (layered ? 2 : 1);
+                    curves[offset] = &states[index].alive;
+                    values[offset] = states[index].values;
+                    if constexpr (layered) {
+                        curves[offset + 1] = &states[index].knocked_in;
+                        values[offset + 1] = states[index].values_in;
+                    }
+                }
+                if constexpr (curve_count == 1) integrate_curves(*curves[0], found->second, discount, values[0]);
+                else integrate_curve_batch(curves, found->second, discount, values);
+            };
+            if (layers) integrate.template operator()<true>();
+            else integrate.template operator()<false>();
+        }
+        for (auto& state : states) {
+            for (std::size_t target = 0; target < nodes.size(); ++target) {
+                if (final) {
+                    state.values[target] = integrate_terminal(state.terminal, nodes[target], anchor, drift, deviation, discount);
+                    if (layers) state.values_in[target] = integrate_terminal(state.terminal_in, nodes[target], anchor, drift, deviation, discount);
+                }
+                if (!std::isfinite(state.values[target]) || (layers && !std::isfinite(state.values_in[target])))
+                    return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature continuation is non-finite"});
+            }
+            const double low = final ? state.terminal.front().cash : state.alive.low;
+            const double high = final ? state.terminal.back().cash : state.alive.high;
+            storage.interpolation.interpolate(state.values, scaled_exponential(low, discount), scaled_exponential(high, discount), state.alive);
+            if (layers) {
+                const double low_in = final ? state.terminal_in.front().cash : state.knocked_in.low;
+                const double high_in = final ? state.terminal_in.back().cash : state.knocked_in.high;
+                storage.interpolation.interpolate(state.values_in, scaled_exponential(low_in, discount), scaled_exponential(high_in, discount), state.knocked_in);
+            }
         }
     }
     return std::unexpected(Error{ErrorCategory::invalid_result, "quadrature has no future event"});
+}
+
+template <AutocallableProduct Note>
+Result<double> integrate_autocallable(const Note& note, const PricingContext& context,
+                                      const QuadratureSettings& settings, std::optional<PreparedCurve>& prepared,
+                                      AutocallableContract<Note>& contract, CouponWorkspace* workspace = nullptr)
+{
+    const auto prices = integrate_autocallables(std::array{&note}, context, settings, std::array{&prepared}, std::array{&contract}, workspace);
+    if (!prices) return std::unexpected(prices.error());
+    return (*prices)[0];
 }
 
 template <typename Note, typename ReplaceCoupon>
@@ -256,12 +336,14 @@ Result<double> solve_coupon(
     double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
 {
     CouponWorkspace workspace;
-    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
-                                        [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
+    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace, [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
                                             std::optional<PreparedCurve> prepared;
                                             AutocallableContract<Note> contract{instrument, market.calendar()};
-                                            return integrate_autocallable(instrument, market, scalar.settings(), prepared, contract, &workspace);
-                                        });
+                                            return integrate_autocallable(instrument, market, scalar.settings(), prepared, contract, &workspace); }, [&](const auto& scalar, const Note& lower, const Note& upper, const PricingContext& market) {
+                                            AutocallableContract<Note> lower_contract{lower, market.calendar()}, upper_contract{upper, market.calendar()};
+                                            std::optional<PreparedCurve> lower_prepared, upper_prepared;
+                                            return integrate_autocallables(std::array{&lower, &upper}, market, scalar.settings(),
+                                                                          std::array{&lower_prepared, &upper_prepared}, std::array{&lower_contract, &upper_contract}, &workspace); });
 }
 } // namespace
 

@@ -90,7 +90,7 @@ class FiniteDifferenceStep {
         std::span<const double> old;
         std::span<double> next;
         std::span<double> rhs;
-        Boundaries boundaries;
+        Boundaries boundaries{};
     };
 
     struct Factorization {
@@ -129,11 +129,24 @@ public:
         const DiffusionParameters& parameters,
         Boundaries first_boundaries, Boundaries second_boundaries)
     {
-        paired_rhs_.resize(rhs_.size());
-        return advance_layers(
-            std::array{Layer{first_old, first_next, rhs_, first_boundaries},
-                       Layer{second_old, second_next, paired_rhs_, second_boundaries}},
-            dt, parameters, nullptr);
+        return advance_many(std::array{std::span<const double>{first_old}, std::span<const double>{second_old}},
+                            std::array{std::span<double>{first_next}, std::span<double>{second_next}}, dt, parameters,
+                            std::array{first_boundaries, second_boundaries});
+    }
+
+    template <std::size_t count>
+    bool advance_many(const std::array<std::span<const double>, count>& old,
+                      const std::array<std::span<double>, count>& next, double dt,
+                      const DiffusionParameters& parameters, const std::array<Boundaries, count>& boundaries)
+    {
+        if (additional_rhs_.size() < count - 1) additional_rhs_.resize(count - 1);
+        std::array<Layer, count> layers{};
+        layers[0] = {old[0], next[0], rhs_, boundaries[0]};
+        for (std::size_t index = 1; index < count; ++index) {
+            additional_rhs_[index - 1].resize(rhs_.size());
+            layers[index] = {old[index], next[index], additional_rhs_[index - 1], boundaries[index]};
+        }
+        return advance_layers(layers, dt, parameters, nullptr);
     }
 
 private:
@@ -268,7 +281,7 @@ private:
     }
 
     std::vector<double> rhs_;
-    std::vector<double> paired_rhs_;
+    std::vector<std::vector<double>> additional_rhs_;
     std::array<Factorization, 3> factors_;
     std::size_t active_{};
     std::optional<DiffusionParameters> cached_parameters_;
@@ -300,8 +313,18 @@ public:
             boundary_values(first_old, dt), boundary_values(second_old, dt));
     }
 
+    template <std::size_t count>
+    bool advance_many(const std::array<std::span<const double>, count>& old,
+                      const std::array<std::span<double>, count>& next, double dt)
+    {
+        std::array<Boundaries, count> boundaries{};
+        for (std::size_t index = 0; index < count; ++index)
+            boundaries[index] = boundary_values(old[index], dt);
+        return step_.advance_many(old, next, dt, parameters_, boundaries);
+    }
+
 private:
-    Boundaries boundary_values(const std::vector<double>& old, double dt) const
+    Boundaries boundary_values(std::span<const double> old, double dt) const
     {
         const double slope = (old.back() - old[old.size() - 2]) / spacing_;
         const double intercept = old.back() - slope * upper_;

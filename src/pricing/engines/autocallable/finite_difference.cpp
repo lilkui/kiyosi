@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -54,120 +55,63 @@ struct AutocallableFiniteDifferenceRequest {
     AutocallableFiniteDifferenceWorkspace workspace;
 };
 
-Result<PricingResult> rollback_autocallable(
-    const AutocallableProgram& program, const AutocallableInitialState& initial,
-    const PricingContext& context, const FiniteDifferenceSettings& settings,
-    GreeksRequest output, double spot_shift, AutocallableFiniteDifferenceWorkspace& workspace)
-{
-    const double spot = context.spot_price();
-    const auto& space = *workspace.space; // NOLINT(bugprone-unchecked-optional-access): price_autocallable initializes this request-owned grid.
-    const auto& grid = workspace.grid;
-    const auto& observation_events = workspace.observation_events;
-    const auto& trading_times = workspace.trading_times;
-    const double time_to_expiry = grid.times.back();
-    const bool monitors_daily = program.daily_knock_in;
-    const bool needs_knock_in_layer = monitors_daily && !initial.path.knocked_in &&
-                                      program_knock_in_affects_payoff(program);
-    const double rate = context.model_parameters().risk_free_rate();
-    const double dividend = context.model_parameters().dividend_yield();
-    const double sigma = context.model_parameters().volatility();
-    const DiffusionParameters parameters{rate, dividend, sigma, scheme_theta(settings.scheme), space.sinh_scale == 0.0 ? 0.0 : space.spacing, space.nodes.empty() ? nullptr : &space};
-    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, space.asset_step_count);
-        !stable)
-        return std::unexpected(stable.error());
+class AutocallableRollback {
+public:
+    AutocallableRollback(AutocallableProgram program, AutocallableInitialState initial,
+                         const PricingContext& context, AutocallableFiniteDifferenceWorkspace& workspace)
+        : program_(program), initial_(initial), context_(context), workspace_(workspace) { breaks_.reserve(5); }
 
-    const auto event_at = [&](double time) {
-        const auto found = std::ranges::lower_bound(observation_events, time, {}, &ObservationEvent::time);
-        return found == observation_events.end() || found->time != time
-                   ? AutocallableEvent{}
-                   : found->event;
-    };
-
-    const std::size_t size = space.size();
-    const auto& assets = workspace.assets;
-    auto& alive = workspace.alive;
-    auto& next_alive = workspace.next_alive;
-    auto& knocked_in = workspace.knocked_in;
-    auto& next_knocked_in = workspace.next_knocked_in;
-    alive.resize(size);
-    next_alive.resize(size);
-    if (needs_knock_in_layer) {
-        knocked_in.resize(size);
-        next_knocked_in.resize(size);
-    }
-    std::vector<double> breaks;
-    breaks.reserve(5);
-    const auto breaks_at = [&](const AutocallableEvent& event, bool daily, bool terminal) -> const std::vector<double>& {
-        breaks.clear();
-        const auto add = [&](double value) {
-            if (value > 0.0 && value < space.upper) breaks.push_back(space.coordinate_of(value));
-        };
-        if (program.has_knock_in && (terminal || (daily && needs_knock_in_layer))) add(program.knock_in_level);
-        if (event.active) {
-            add(event.knock_out_level);
-            if (event.conditional_coupon && event.coupon != 0.0) add(event.coupon_barrier);
-        }
-        if (terminal && program.terminal_kind == AutocallableTerminalKind::downside_if_knocked_in) {
-            add(program.lower_strike);
-            add(program.upper_strike);
-        }
-        std::ranges::sort(breaks);
-        breaks.erase(std::ranges::unique(breaks).begin(), breaks.end());
-        return breaks;
-    };
-    const auto event_value = [&](const AutocallableEvent& event, bool daily, bool terminal,
-                                 double asset, double continuation, double continuation_in) {
-        if (event.active && program_knocked_out(event, asset)) {
-            const double payment = program.principal_ratio + program_observation_coupon(event, asset);
-            return std::array{payment, payment};
-        }
-        const double coupon = event.active && program.carries_observation_coupon
-                                  ? program_observation_coupon(event, asset)
-                                  : 0.0;
-        if (terminal) {
-            const bool ki = program_knocked_in(program, asset, initial.path.knocked_in, true);
-            return std::array{program_terminal_settlement(program, asset, ki) + coupon,
-                              program_terminal_settlement(program, asset, true) + coupon};
-        }
-        const bool transitioned = needs_knock_in_layer && daily &&
-                                  program_knocked_in(program, asset, false, false);
-        return std::array{(transitioned ? continuation_in : continuation) + coupon,
-                          continuation_in + coupon};
-    };
-    const auto expiry_event = event_at(time_to_expiry);
-    const auto& terminal_breaks = breaks_at(expiry_event, true, true);
-    for (std::size_t index = 0; index < size; ++index) {
-        const auto projected = project_finite_difference_event<2>(space, terminal_breaks, index, [&](double coordinate) {
-            return event_value(expiry_event, true, true, space.asset_of_coordinate(coordinate), 0.0, 0.0);
-        });
-        alive[index] = projected[0];
-        if (needs_knock_in_layer) knocked_in[index] = projected[1];
+    AutocallableFiniteDifferenceWorkspace& workspace() const { return workspace_.get(); }
+    bool layered() const
+    {
+        return program_.daily_knock_in && !initial_.path.knocked_in && program_knock_in_affects_payoff(program_);
     }
 
-    if (!workspace.stepper)
-        workspace.stepper.emplace(size, space.upper, assets.back() - assets[size - 2], parameters);
-    auto& stepper = *workspace.stepper;
-    RannacherDamping damping{2};
-    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
-        const double dt = grid.time_steps[step];
-        const auto substeps = damping.next(parameters.theta);
-        auto step_parameters = parameters;
-        step_parameters.theta = substeps.theta;
-        stepper.set_parameters(step_parameters);
-        for (int substep = 0; substep < substeps.count; ++substep) {
-            const double width = dt / substeps.count;
-            const bool advanced = needs_knock_in_layer
-                                      ? stepper.advance_pair(knocked_in, next_knocked_in, alive, next_alive, width)
-                                      : stepper.advance(alive, next_alive, width);
-            if (!advanced)
-                return std::unexpected(Error{ErrorCategory::invalid_result,
-                                             "finite-difference system is numerically unstable"});
-            alive.swap(next_alive);
-            if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
+    void initialize()
+    {
+        auto& workspace = workspace_.get();
+        const auto& space = *workspace.space;
+        const auto size = space.size();
+        auto& alive = workspace.alive;
+        auto& next_alive = workspace.next_alive;
+        auto& knocked_in = workspace.knocked_in;
+        auto& next_knocked_in = workspace.next_knocked_in;
+        const bool needs_knock_in_layer = layered();
+        const double time_to_expiry = workspace.grid.times.back();
+        alive.resize(size);
+        next_alive.resize(size);
+        if (needs_knock_in_layer) {
+            knocked_in.resize(size);
+            next_knocked_in.resize(size);
         }
-        const auto event = event_at(grid.times[step]);
+        const auto expiry_event = event_at(time_to_expiry);
+        const auto& terminal_breaks = breaks_at(expiry_event, true, true);
+        for (std::size_t index = 0; index < size; ++index) {
+            const auto projected = project_finite_difference_event<2>(space, terminal_breaks, index, [&](double coordinate) {
+                return event_value(expiry_event, true, true, space.asset_of_coordinate(coordinate), 0.0, 0.0);
+            });
+            alive[index] = projected[0];
+            if (needs_knock_in_layer) knocked_in[index] = projected[1];
+        }
+    }
+
+    bool apply_event(double time)
+    {
+        const auto& program = program_;
+        const bool monitors_daily = program.daily_knock_in;
+        const auto& trading_times = workspace_.get().trading_times;
+        auto& workspace = workspace_.get();
+        const auto& space = *workspace.space;
+        const auto size = space.size();
+        const auto& assets = workspace.assets;
+        auto& alive = workspace.alive;
+        auto& next_alive = workspace.next_alive;
+        auto& knocked_in = workspace.knocked_in;
+        auto& next_knocked_in = workspace.next_knocked_in;
+        const bool needs_knock_in_layer = layered();
+        const auto event = event_at(time);
         const bool daily = monitors_daily &&
-                           std::ranges::binary_search(trading_times, grid.times[step]);
+                           std::ranges::binary_search(trading_times, time);
         if (event.active || (needs_knock_in_layer && daily)) {
             const auto& event_breaks = breaks_at(event, daily, false);
             const auto project_at = [&](std::size_t index) {
@@ -188,8 +132,7 @@ Result<PricingResult> rollback_autocallable(
                 });
                 std::copy_n(knocked_in.begin(), end - assets.begin(), alive.begin());
                 alive[index] = projected;
-                damping.restart();
-                continue;
+                return true;
             }
             for (std::size_t index = 0; index < size; ++index) {
                 const auto value = event_value(event, daily, false, assets[index], alive[index], needs_knock_in_layer ? knocked_in[index] : 0.0);
@@ -207,33 +150,188 @@ Result<PricingResult> rollback_autocallable(
             }
             alive.swap(next_alive);
             if (needs_knock_in_layer) knocked_in.swap(next_knocked_in);
-            damping.restart();
+            return true;
         }
+        return false;
     }
 
-    auto& curvature = workspace.curvature;
-    curvature.clear();
-    const bool nonuniform = !space.nodes.empty();
-    // Greek extraction visits only the center and one spot bump in each direction.
-    std::array<std::optional<std::array<double, 3>>, 3> samples{};
-    const auto sample_at = [&](double shifted_spot) {
-        const std::size_t index = shifted_spot == spot ? 0 : shifted_spot > spot ? 1
-                                                                                 : 2;
-        auto& sample = samples[index];
-        if (!sample) sample = space.sample(alive, shifted_spot, curvature);
-        return *sample;
-    };
-    const auto price_at = [&](double shifted_spot) {
-        return initial.path.coupons + (nonuniform ? sample_at(shifted_spot)[0] : space.interpolate(alive, shifted_spot, curvature));
-    };
-    const double value = price_at(spot);
-    return finite_difference_result(value, spot, space.upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[1] : space.delta(alive, shifted_spot, curvature); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[2] : space.gamma(alive, shifted_spot, curvature); });
+    Result<PricingResult> result(GreeksRequest output, double spot_shift) const
+    {
+        auto& workspace = workspace_.get();
+        const auto& space = *workspace.space;
+        auto& alive = workspace.alive;
+        const auto& initial = initial_;
+        const double spot = context_.get().spot_price();
+        auto& curvature = workspace.curvature;
+        curvature.clear();
+        const bool nonuniform = !space.nodes.empty();
+        // Greek extraction visits only the center and one spot bump in each direction.
+        std::array<std::optional<std::array<double, 3>>, 3> samples{};
+        const auto sample_at = [&](double shifted_spot) {
+            const std::size_t index = shifted_spot == spot ? 0 : shifted_spot > spot ? 1
+                                                                                     : 2;
+            auto& sample = samples[index];
+            if (!sample) sample = space.sample(alive, shifted_spot, curvature);
+            return *sample;
+        };
+        const auto price_at = [&](double shifted_spot) {
+            return initial.path.coupons + (nonuniform ? sample_at(shifted_spot)[0] : space.interpolate(alive, shifted_spot, curvature));
+        };
+        const double value = price_at(spot);
+        return finite_difference_result(value, spot, space.upper, output, spot_shift, [&](double shifted_spot) { return checked_price(price_at(shifted_spot)); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[1] : space.delta(alive, shifted_spot, curvature); }, [&](double shifted_spot) { return nonuniform ? sample_at(shifted_spot)[2] : space.gamma(alive, shifted_spot, curvature); });
+    }
+
+private:
+    AutocallableEvent event_at(double time) const
+    {
+        const auto& observation_events = workspace_.get().observation_events;
+        const auto found = std::ranges::lower_bound(observation_events, time, {}, &ObservationEvent::time);
+        return found == observation_events.end() || found->time != time
+                   ? AutocallableEvent{}
+                   : found->event;
+    }
+
+    const std::vector<double>& breaks_at(const AutocallableEvent& event, bool daily, bool terminal)
+    {
+        const auto& program = program_;
+        const auto& space = *workspace_.get().space;
+        const bool needs_knock_in_layer = layered();
+        breaks_.clear();
+        const auto add = [&](double value) {
+            if (value > 0.0 && value < space.upper) breaks_.push_back(space.coordinate_of(value));
+        };
+        if (program.has_knock_in && (terminal || (daily && needs_knock_in_layer))) add(program.knock_in_level);
+        if (event.active) {
+            add(event.knock_out_level);
+            if (event.conditional_coupon && event.coupon != 0.0) add(event.coupon_barrier);
+        }
+        if (terminal && program.terminal_kind == AutocallableTerminalKind::downside_if_knocked_in) {
+            add(program.lower_strike);
+            add(program.upper_strike);
+        }
+        std::ranges::sort(breaks_);
+        breaks_.erase(std::ranges::unique(breaks_).begin(), breaks_.end());
+        return breaks_;
+    }
+
+    std::array<double, 2> event_value(const AutocallableEvent& event, bool daily, bool terminal,
+                                      double asset, double continuation, double continuation_in) const
+    {
+        const auto& program = program_;
+        const auto& initial = initial_;
+        const bool needs_knock_in_layer = layered();
+        if (event.active && program_knocked_out(event, asset)) {
+            const double payment = program.principal_ratio + program_observation_coupon(event, asset);
+            return std::array{payment, payment};
+        }
+        const double coupon = event.active && program.carries_observation_coupon
+                                  ? program_observation_coupon(event, asset)
+                                  : 0.0;
+        if (terminal) {
+            const bool ki = program_knocked_in(program, asset, initial.path.knocked_in, true);
+            return std::array{program_terminal_settlement(program, asset, ki) + coupon,
+                              program_terminal_settlement(program, asset, true) + coupon};
+        }
+        const bool transitioned = needs_knock_in_layer && daily &&
+                                  program_knocked_in(program, asset, false, false);
+        return std::array{(transitioned ? continuation_in : continuation) + coupon,
+                          continuation_in + coupon};
+    }
+
+    AutocallableProgram program_;
+    AutocallableInitialState initial_;
+    std::reference_wrapper<const PricingContext> context_;
+    std::reference_wrapper<AutocallableFiniteDifferenceWorkspace> workspace_;
+    std::vector<double> breaks_;
+};
+
+template <std::size_t count>
+Result<std::array<PricingResult, count>> rollback_autocallables(
+    std::array<AutocallableRollback, count>& states, const PricingContext& context,
+    const FiniteDifferenceSettings& settings, GreeksRequest output, double spot_shift)
+{
+    auto& workspace = states.front().workspace();
+    const auto& space = *workspace.space;
+    const auto& assets = workspace.assets;
+    const auto& grid = workspace.grid;
+    const DiffusionParameters parameters{context.model_parameters().risk_free_rate(), context.model_parameters().dividend_yield(),
+                                         context.model_parameters().volatility(), scheme_theta(settings.scheme),
+                                         space.sinh_scale == 0.0 ? 0.0 : space.spacing, space.nodes.empty() ? nullptr : &space};
+    if (auto stable = check_explicit_stability(settings.scheme, grid, parameters, space.asset_step_count); !stable)
+        return std::unexpected(stable.error());
+    for (auto& state : states)
+        state.initialize();
+    if (!workspace.stepper)
+        workspace.stepper.emplace(space.size(), space.upper, assets.back() - assets[assets.size() - 2], parameters);
+    auto& stepper = *workspace.stepper;
+    RannacherDamping damping{2};
+    for (std::size_t step = grid.time_steps.size(); step-- > 0;) {
+        const auto substeps = damping.next(parameters.theta);
+        auto step_parameters = parameters;
+        step_parameters.theta = substeps.theta;
+        stepper.set_parameters(step_parameters);
+        for (int substep = 0; substep < substeps.count; ++substep) {
+            const auto advance = [&]<bool layered>() {
+                constexpr auto layers = count * (layered ? 2 : 1);
+                std::array<std::span<const double>, layers> old;
+                std::array<std::span<double>, layers> next;
+                for (std::size_t index = 0; index < count; ++index) {
+                    auto& values = states[index].workspace();
+                    const auto offset = index * (layered ? 2 : 1);
+                    if constexpr (layered) {
+                        old[offset] = values.knocked_in;
+                        next[offset] = values.next_knocked_in;
+                    }
+                    old[offset + (layered ? 1 : 0)] = values.alive;
+                    next[offset + (layered ? 1 : 0)] = values.next_alive;
+                }
+                return stepper.advance_many(old, next, grid.time_steps[step] / substeps.count);
+            };
+            const bool advanced = states.front().layered() ? advance.template operator()<true>() : advance.template operator()<false>();
+            if (!advanced)
+                return std::unexpected(Error{ErrorCategory::invalid_result, "finite-difference system is numerically unstable"});
+            for (auto& state : states) {
+                auto& values = state.workspace();
+                values.alive.swap(values.next_alive);
+                if (state.layered()) values.knocked_in.swap(values.next_knocked_in);
+            }
+        }
+        bool applied = false;
+        for (auto& state : states)
+            applied = state.apply_event(grid.times[step]) || applied;
+        if (applied) damping.restart();
+    }
+    const auto results = [&]<std::size_t... index>(std::index_sequence<index...>) {
+        return std::array{states[index].result(output, spot_shift)...};
+    }(std::make_index_sequence<count>{});
+    for (const auto& result : results)
+        if (!result) return std::unexpected(result.error());
+    return [&]<std::size_t... index>(std::index_sequence<index...>) {
+        return std::array{*results[index]...};
+    }(std::make_index_sequence<count>{});
 }
 
+Result<PricingResult> rollback_autocallable(
+    const AutocallableProgram& program, const AutocallableInitialState& initial,
+    const PricingContext& context, const FiniteDifferenceSettings& settings,
+    GreeksRequest output, double spot_shift, AutocallableFiniteDifferenceWorkspace& workspace)
+{
+    std::array states{AutocallableRollback{program, initial, context, workspace}};
+    const auto result = rollback_autocallables(states, context, settings, output, spot_shift);
+    if (!result) return std::unexpected(result.error());
+    return (*result)[0];
+}
+
+struct PreparedAutocallable {
+    AutocallableProgram program;
+    AutocallableInitialState initial;
+    std::optional<PricingResult> settled;
+};
+
 template <AutocallableProduct Note>
-Result<PricingResult> price_autocallable(
+Result<PreparedAutocallable> prepare_autocallable(
     const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
-    AutocallableFiniteDifferenceRequest<Note>& request, GreeksRequest output, double spot_shift)
+    AutocallableFiniteDifferenceRequest<Note>& request, GreeksRequest output)
 {
     const auto valid = request.contract.validate(context);
     if (!valid) return std::unexpected(valid.error());
@@ -242,11 +340,15 @@ Result<PricingResult> price_autocallable(
     const auto program = autocallable_program(note);
     const auto initial = autocallable_initial_state(note, context, program);
 
-    if (initial.settlement) return make_pricing_result(*initial.settlement);
-    if (const auto fixed = autocallable_fixed_value(note, context, program, initial))
-        return make_pricing_result(*fixed,
-                                   {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
-                                    {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+    const auto fixed = initial.settlement ? std::optional<double>{} : autocallable_fixed_value(note, context, program, initial);
+    if (initial.settlement || fixed) {
+        const auto value = initial.settlement ? make_pricing_result(*initial.settlement)
+                                              : make_pricing_result(*fixed,
+                                                                    {{Greek::delta, output.has(Greek::delta) ? std::optional{0.0} : std::nullopt},
+                                                                     {Greek::gamma, output.has(Greek::gamma) ? std::optional{0.0} : std::nullopt}});
+        if (!value) return std::unexpected(value.error());
+        return PreparedAutocallable{program, initial, *value};
+    }
 
     const Timestamp valuation = context.valuation_time();
 
@@ -328,7 +430,54 @@ Result<PricingResult> price_autocallable(
         workspace.requested_upper = upper;
         workspace.concentration_scale = scale;
     }
-    return rollback_autocallable(program, initial, context, settings, output, spot_shift, workspace);
+    return PreparedAutocallable{program, initial, std::nullopt};
+}
+
+template <AutocallableProduct Note>
+Result<PricingResult> price_autocallable(
+    const Note& note, const PricingContext& context, const FiniteDifferenceSettings& settings,
+    AutocallableFiniteDifferenceRequest<Note>& request, GreeksRequest output, double spot_shift)
+{
+    const auto prepared = prepare_autocallable(note, context, settings, request, output);
+    if (!prepared) return std::unexpected(prepared.error());
+    if (prepared->settled) return *prepared->settled;
+    return rollback_autocallable(prepared->program, prepared->initial, context, settings, output, spot_shift, request.workspace);
+}
+
+template <AutocallableProduct Note>
+Result<std::array<double, 2>> price_coupon_endpoints(
+    const Note& lower, const Note& upper, const PricingContext& context,
+    const FiniteDifferenceSettings& settings, AutocallableFiniteDifferenceRequest<Note>& request)
+{
+    AutocallableFiniteDifferenceRequest<Note> alternate{{upper, context.calendar()}, {}};
+    const auto first = prepare_autocallable(lower, context, settings, request, {});
+    if (!first) return std::unexpected(first.error());
+    const auto second = prepare_autocallable(upper, context, settings, alternate, {});
+    if (!second) return std::unexpected(second.error());
+    std::array states{AutocallableRollback{first->program, first->initial, context, request.workspace},
+                      AutocallableRollback{second->program, second->initial, context, alternate.workspace}};
+    const auto& main = request.workspace;
+    const auto& other = alternate.workspace;
+    const bool compatible = !first->settled && !second->settled && states[0].layered() == states[1].layered() && main.space && other.space &&
+                            main.space->upper == other.space->upper && main.space->spacing == other.space->spacing &&
+                            main.space->sinh_scale == other.space->sinh_scale && main.space->nodes == other.space->nodes &&
+                            main.grid.times == other.grid.times && main.grid.time_steps == other.grid.time_steps;
+    if (compatible) {
+        const auto results = rollback_autocallables(states, context, settings, {}, NumericalShiftSettings{}.spot_shift);
+        if (!results) return std::unexpected(results.error());
+        return std::array{(*results)[0].price(), (*results)[1].price()};
+    }
+    // A coupon can remove knock-in exposure and change the required grid or fixed settlement.
+    const auto value = [&](const PreparedAutocallable& prepared, auto& storage) -> Result<double> {
+        if (prepared.settled) return prepared.settled->price();
+        return price_value(rollback_autocallable(prepared.program, prepared.initial, context, settings, {},
+                                                 NumericalShiftSettings{}.spot_shift, storage.workspace));
+    };
+    const auto low = value(*first, request);
+    if (!low) return std::unexpected(low.error());
+    const auto high = value(*second, alternate);
+    if (!high) return std::unexpected(high.error());
+    return std::array{*low, *high};
 }
 
 template <typename Note, typename ReplaceCoupon>
@@ -337,12 +486,9 @@ Result<double> solve_coupon(
     double observed_price, ImpliedCouponSettings settings, const ReplaceCoupon& replace)
 {
     AutocallableFiniteDifferenceRequest<Note> request{{note, context.calendar()}, {}};
-    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace,
-                                        [&](const auto& scalar, const Note& instrument, const PricingContext& market) {
-                                            return detail::price_value(price_autocallable(
-                                                instrument, market, scalar.settings(), request, GreeksRequest{},
-                                                NumericalShiftSettings{}.spot_shift));
-                                        });
+    return detail::solve_implied_coupon(engine, note, context, observed_price, settings, replace, [&](const auto& scalar, const Note& instrument, const PricingContext& market) { return detail::price_value(price_autocallable(
+                                                                                                                                                                                      instrument, market, scalar.settings(), request, GreeksRequest{},
+                                                                                                                                                                                      NumericalShiftSettings{}.spot_shift)); }, [&](const auto& scalar, const Note& lower, const Note& upper, const PricingContext& market) { return price_coupon_endpoints(lower, upper, market, scalar.settings(), request); });
 }
 
 } // namespace
