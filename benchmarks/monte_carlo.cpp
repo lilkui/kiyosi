@@ -361,6 +361,12 @@ void kiyosi::benchmark_support::register_analytics_cases()
 void kiyosi::benchmark_support::register_monte_carlo_cases()
 {
     using namespace kiyosi;
+    for (const int paths : {512, 1024, 2048, 2049, 4096})
+        for (const int threads : {1, 0, 2})
+            register_monte_carlo(
+                std::format("european_terminal/{}/threads:{}", paths, threads),
+                monte_carlo_scenario(),
+                make_monte_carlo_vanilla_engine({paths, 50, 42, MonteCarloBackend::cpu, threads}).value());
     for (const auto type : {OptionType::put, OptionType::call})
         for (const int paths : {128, 512, 1024, 4096, 250'000, 1'000'000})
             for (const int threads : {1, 2, 4, 12, 0})

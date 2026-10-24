@@ -184,6 +184,9 @@ Result<double> price_european(const EuropeanOption& option, const PricingContext
         return detail::checked_price(payoff(option.option_type(), context.spot_price(), option.strike()));
     auto simulation = settings;
     simulation.step_count = 2;
+    // Scheduling two to four terminal-sampling blocks costs more than their simulation.
+    if (simulation.backend == MonteCarloBackend::cpu && simulation.thread_count == 0 && simulation.path_count <= 2048)
+        simulation.thread_count = 1;
     const auto parameters = simulation_parameters(context, *time, simulation);
     if (!parameters) return std::unexpected(parameters.error());
     double mean = 0.0;
