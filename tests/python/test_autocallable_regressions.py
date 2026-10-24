@@ -315,7 +315,7 @@ class AutocallableRegressionTests(unittest.TestCase):
                 risk_free_rate=0.03, dividend_yield=0, volatility=0.3
             ),
             spot_price=100.25,
-            valuation_time=start,
+            valuation_time=datetime(2025, 1, 1, 12, tzinfo=UTC),
             calendar=all_days_calendar(),
         )
         for mode in ("at_expiry", "every_trading_day"):
@@ -367,7 +367,10 @@ class AutocallableRegressionTests(unittest.TestCase):
                 note = kind(**common, **terms)
                 for scheme in ("explicit_euler", "implicit_euler", "crank_nicolson"):
                     engine = engine_type(
-                        asset_step_count=16, time_step_count=8, scheme=scheme
+                        asset_step_count=16,
+                        time_step_count=8,
+                        scheme=scheme,
+                        asset_upper_boundary=400,
                     )
                     quote = engine.price(note, context)
                     conventions = (

@@ -35,6 +35,8 @@ struct ObservationEvent {
 // Reuse across coupon or market changes at fixed spot, valuation time and settings.
 struct AutocallableFiniteDifferenceWorkspace {
     double contract_level{};
+    double requested_upper{};
+    double concentration_scale{};
     std::optional<SpatialGrid> space;
     std::optional<LinearBoundaryStepper> stepper;
     std::optional<bool> daily_grid;
@@ -278,12 +280,19 @@ Result<PricingResult> price_autocallable(
     for (auto& observation : workspace.observation_events)
         observation.event = autocallable_event(note, observation.index);
 
-    if (!workspace.space || !settings.asset_upper_boundary) {
-        if (workspace.contract_level == 0.0)
-            workspace.contract_level = highest_finite_difference_level(note);
-        const double relevant = std::max(context.spot_price(), workspace.contract_level);
-        const double upper = settings.asset_upper_boundary ? *settings.asset_upper_boundary
-                                                           : volatility_adjusted_upper_boundary(relevant, note.expiry_date(), context);
+    if (workspace.contract_level == 0.0)
+        workspace.contract_level = highest_finite_difference_level(note);
+    const double relevant = std::max(context.spot_price(), workspace.contract_level);
+    const double upper = settings.asset_upper_boundary ? *settings.asset_upper_boundary
+                                                       : volatility_adjusted_upper_boundary(relevant, note.expiry_date(), context);
+    double nearest = grid.times.back();
+    if (!observation_events.empty()) nearest = std::min(nearest, observation_events.front().time);
+    if (!trading_times.empty()) nearest = std::min(nearest, trading_times.front());
+    const double days = std::min(1.0, nearest * 365.0);
+    const double scale = settings.scheme == FiniteDifferenceScheme::explicit_euler ? 0.0
+                                                                                   : workspace.contract_level * std::max(0.001 * std::sqrt(days), 64.0 * std::numeric_limits<double>::epsilon());
+    // The request fixes spot, valuation and contract levels; only these geometry inputs can change.
+    if (!workspace.space || workspace.requested_upper != upper || workspace.concentration_scale != scale) {
         auto space = make_spatial_grid(settings, upper, {relevant}, upper > 4.0 * workspace.contract_level ? workspace.contract_level : 0.0);
         if (!space) return std::unexpected(space.error());
         if (settings.scheme != FiniteDifferenceScheme::explicit_euler) {
@@ -292,12 +301,7 @@ Result<PricingResult> price_autocallable(
                 levels.push_back(observation.event.knock_out_level);
                 if (observation.event.conditional_coupon) levels.push_back(observation.event.coupon_barrier);
             }
-            double nearest = grid.times.back();
-            if (!observation_events.empty()) nearest = std::min(nearest, observation_events.front().time);
-            if (!trading_times.empty()) nearest = std::min(nearest, trading_times.front());
-            const double days = std::min(1.0, nearest * 365.0);
             // Follow diffusion width near events without introducing nearly coincident nodes.
-            const double scale = workspace.contract_level * std::max(0.001 * std::sqrt(days), 64.0 * std::numeric_limits<double>::epsilon());
             *space = concentrate_spatial_grid(std::move(*space), std::move(levels), scale);
         }
         if (!workspace.space || workspace.space->upper != space->upper || workspace.space->sinh_scale != space->sinh_scale || workspace.space->nodes != space->nodes) {
@@ -307,6 +311,8 @@ Result<PricingResult> price_autocallable(
                 workspace.assets[index] = space->asset_at(index);
         }
         workspace.space = std::move(*space);
+        workspace.requested_upper = upper;
+        workspace.concentration_scale = scale;
     }
     return rollback_autocallable(program, initial, context, settings, output, spot_shift, workspace);
 }

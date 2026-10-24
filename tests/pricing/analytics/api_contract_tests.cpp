@@ -1337,66 +1337,67 @@ TEST_CASE("Finite difference coupon storage preserves independent prices and req
     const auto queries = std::make_shared<std::atomic<int>>(0);
     const auto allowed = std::make_shared<std::atomic<bool>>(true);
     const auto calendar = *make_trading_calendar([queries, allowed](Date) { ++*queries; return allowed->load(); }, 365);
-    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.25, start, calendar);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.03, 0.0, 0.3), 100.25, start_of_day(start) + std::chrono::hours{12}, calendar);
     // Weak coupon exposure needs a tighter price tolerance to recover the quoted parameter.
     const ImpliedCouponSettings bounds{.lower_bound = 0.0, .upper_bound = 0.2, .price_tolerance = 1e-14, .parameter_tolerance = 1e-12};
-    for (const auto mode : {KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day}) {
-        for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
-            const auto check = [&](const auto& note) {
-                using Note = std::decay_t<decltype(note)>;
-                const auto engine = make_finite_difference_autocallable_engine({16, 8, scheme}).value();
-                const auto quote = engine.price(note, context);
-                REQUIRE(quote);
-                for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
-                    if constexpr (std::same_as<Note, PhoenixOption>)
-                        if (convention == CouponQuoteConvention::preserve_maturity_coupon) continue;
-                    CAPTURE(mode, scheme, convention);
-                    const auto replace = [&](const Note& value, double coupon) {
-                        if constexpr (std::same_as<Note, PhoenixOption>) return detail::replace_coupon(value, coupon);
-                        else return detail::replace_coupon(value, coupon, convention);
-                    };
-                    const auto solve = [&](double observed_price) {
-                        if constexpr (std::same_as<Note, PhoenixOption>) return implied_coupon(engine, note, context, observed_price, bounds);
-                        else return implied_coupon(engine, note, context, observed_price, convention, bounds);
-                    };
-                    *queries = 0;
-                    const auto independent = detail::solve_implied_coupon(engine, note, context, *quote, bounds, replace);
-                    REQUIRE(independent);
-                    const int independent_queries = queries->exchange(0);
-                    const auto solved = solve(*quote);
-                    REQUIRE(solved);
-                    CHECK(*solved == *independent);
-                    CHECK(*solved == Catch::Approx(0.073).epsilon(0.0).margin(1e-9));
-                    CHECK(*queries < independent_queries);
-                    const auto repriced = engine.price(*replace(note, *solved), context);
-                    REQUIRE(repriced);
-                    CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(bounds.price_tolerance));
-                    const auto alternate_quote = engine.price(*replace(note, 0.12), context);
-                    REQUIRE(alternate_quote);
-                    auto task = std::async(std::launch::async, [&] { return solve(*alternate_quote); });
-                    const auto concurrent = solve(*quote);
-                    const auto first = task.get();
-                    REQUIRE(first);
-                    REQUIRE(concurrent);
-                    CHECK(*first == Catch::Approx(0.12).epsilon(0.0).margin(1e-9));
-                    CHECK(*concurrent == *solved);
-                    *allowed = false;
-                    const auto rejected = solve(*quote);
-                    REQUIRE_FALSE(rejected);
-                    CHECK(rejected.error().category == ErrorCategory::invalid_date);
-                    *allowed = true;
-                    const auto recovered = solve(*quote);
-                    REQUIRE(recovered);
-                    CHECK(*recovered == *solved);
-                }
-            };
-            check(*make_phoenix_option({.coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.0, 90.0}, {end, 110.0, 0.0, 90.0}}}));
-            // Zero maturity coupon removes the daily knock-in layer at the lower bound.
-            check(*make_snowball_option({.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 100.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
-            check(*make_binary_snowball_option({.maturity_coupon_rate = 0.073, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
-            check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.073, .minimum_coupon_rate = 0.0, .knock_in_level = 99.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
+    for (const auto boundary : {std::optional<double>{}, std::optional{400.0}})
+        for (const auto mode : {KnockInObservationMode::at_expiry, KnockInObservationMode::every_trading_day}) {
+            for (const auto scheme : {FiniteDifferenceScheme::explicit_euler, FiniteDifferenceScheme::implicit_euler, FiniteDifferenceScheme::crank_nicolson}) {
+                const auto check = [&](const auto& note) {
+                    using Note = std::decay_t<decltype(note)>;
+                    const auto engine = make_finite_difference_autocallable_engine({16, 8, scheme, boundary}).value();
+                    const auto quote = engine.price(note, context);
+                    REQUIRE(quote);
+                    for (const auto convention : {CouponQuoteConvention::shift_maturity_coupon, CouponQuoteConvention::preserve_maturity_coupon}) {
+                        if constexpr (std::same_as<Note, PhoenixOption>)
+                            if (convention == CouponQuoteConvention::preserve_maturity_coupon) continue;
+                        CAPTURE(mode, scheme, convention);
+                        const auto replace = [&](const Note& value, double coupon) {
+                            if constexpr (std::same_as<Note, PhoenixOption>) return detail::replace_coupon(value, coupon);
+                            else return detail::replace_coupon(value, coupon, convention);
+                        };
+                        const auto solve = [&](double observed_price) {
+                            if constexpr (std::same_as<Note, PhoenixOption>) return implied_coupon(engine, note, context, observed_price, bounds);
+                            else return implied_coupon(engine, note, context, observed_price, convention, bounds);
+                        };
+                        *queries = 0;
+                        const auto independent = detail::solve_implied_coupon(engine, note, context, *quote, bounds, replace);
+                        REQUIRE(independent);
+                        const int independent_queries = queries->exchange(0);
+                        const auto solved = solve(*quote);
+                        REQUIRE(solved);
+                        CHECK(*solved == *independent);
+                        CHECK(*solved == Catch::Approx(0.073).epsilon(0.0).margin(1e-9));
+                        CHECK(*queries < independent_queries);
+                        const auto repriced = engine.price(*replace(note, *solved), context);
+                        REQUIRE(repriced);
+                        CHECK(*repriced == Catch::Approx(*quote).epsilon(0.0).margin(bounds.price_tolerance));
+                        const auto alternate_quote = engine.price(*replace(note, 0.12), context);
+                        REQUIRE(alternate_quote);
+                        auto task = std::async(std::launch::async, [&] { return solve(*alternate_quote); });
+                        const auto concurrent = solve(*quote);
+                        const auto first = task.get();
+                        REQUIRE(first);
+                        REQUIRE(concurrent);
+                        CHECK(*first == Catch::Approx(0.12).epsilon(0.0).margin(1e-9));
+                        CHECK(*concurrent == *solved);
+                        *allowed = false;
+                        const auto rejected = solve(*quote);
+                        REQUIRE_FALSE(rejected);
+                        CHECK(rejected.error().category == ErrorCategory::invalid_date);
+                        *allowed = true;
+                        const auto recovered = solve(*quote);
+                        REQUIRE(recovered);
+                        CHECK(*recovered == *solved);
+                    }
+                };
+                check(*make_phoenix_option({.coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 60.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.0, 90.0}, {end, 110.0, 0.0, 90.0}}}));
+                // Zero maturity coupon removes the daily knock-in layer at the lower bound.
+                check(*make_snowball_option({.maturity_coupon_rate = 0.073, .initial_spot = 100.0, .knock_in_level = 99.0, .upper_strike = 100.0, .lower_strike = 100.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
+                check(*make_binary_snowball_option({.maturity_coupon_rate = 0.073, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
+                check(*make_ternary_snowball_option({.maturity_coupon_rate = 0.073, .minimum_coupon_rate = 0.0, .knock_in_level = 99.0, .knock_in_observation_mode = mode, .barrier_state = AutocallableBarrierState::none, .effective_date = start, .expiry_date = end, .observations = {{fixing, 110.0, 0.073}, {end, 110.0, 0.083}}}));
+            }
         }
-    }
 }
 
 TEST_CASE("Finite difference implied coupons reprice accurately after one iteration", "[pricing-api][audit-fixes]")
