@@ -162,8 +162,8 @@ TEST_CASE("Quadrature paired curves exactly match independent integration", "[qu
     }
     const auto first = interpolate(nodes, first_samples, -123.0, 456.0);
     const auto second = interpolate(nodes, second_samples, 789.0, -321.0);
-    const auto transition = transition_weights(nodes, 0.0001, 0.02);
-    for (const double discount : {-750.0, -0.001, 700.0}) {
+    const auto transition = transition_weights(nodes, GENERATE(-3.0, 0.0001, 3.0), 0.02);
+    for (const double discount : {-1500.0, -750.0, -0.001, 700.0}) {
         std::vector<double> expected_first(nodes.size()), expected_second(nodes.size());
         integrate_curves(first, transition, discount, expected_first);
         integrate_curves(second, transition, discount, expected_second);
@@ -205,6 +205,14 @@ TEST_CASE("Quadrature integration retains compensated cancellation in independen
     integrate_curves(curve, transition, 0.0, values);
     for (std::size_t target = 0; target < values.size(); ++target)
         CHECK(values[target] == 0.5 * static_cast<double>(target + 1));
+    auto second = curve;
+    second.cells[1][0] = 3.0;
+    std::array<double, 7> second_values{};
+    integrate_curve_pair(curve, second, transition, 0.0, values, second_values);
+    for (std::size_t target = 0; target < values.size(); ++target) {
+        CHECK(values[target] == 0.5 * static_cast<double>(target + 1));
+        CHECK(second_values[target] == 1.5 * static_cast<double>(target + 1));
+    }
 }
 
 TEST_CASE("Quadrature integration recovers subnormal masses and isolates discarded targets", "[quadrature-kernel]")

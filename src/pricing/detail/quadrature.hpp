@@ -275,15 +275,29 @@ inline void integrate_curves(const Curve& curve, const Transition& transition, d
     });
 }
 
-// Both layers use the same grid; keep each weight row hot for the second integral.
+// Both layers share each loaded weight while retaining their independent summation order.
 inline void integrate_curve_pair(const Curve& first, const Curve& second, const Transition& transition,
                                  double log_discount, std::span<double> first_values, std::span<double> second_values)
 {
+    const double discount = std::exp(log_discount);
+    const bool direct_discount = std::isnormal(discount);
     for_each_target(first_values.size(), [&](std::size_t target) {
         const auto row = transition.rows[target];
         const auto weights = std::span{transition.weights}.subspan(row.offset, row.count);
-        first_values[target] = integrate_curve(first, weights, transition.tails[target], log_discount, row.first);
-        second_values[target] = integrate_curve(second, weights, transition.tails[target], log_discount, row.first);
+        const auto tails = transition.tails[target];
+        Sum first_sum, second_sum;
+        first_sum.add(scaled_exponential(first.low, tails[0] + log_discount));
+        first_sum.add(scaled_exponential(first.high, tails[1] + log_discount));
+        second_sum.add(scaled_exponential(second.low, tails[0] + log_discount));
+        second_sum.add(scaled_exponential(second.high, tails[1] + log_discount));
+        for (std::size_t cell = 0; cell < weights.size(); ++cell) {
+            const double first_value = weights[cell].integrate(first.cells[row.first + cell]);
+            const double second_value = weights[cell].integrate(second.cells[row.first + cell]);
+            first_sum.add(direct_discount ? first_value * discount : scaled_exponential(first_value, log_discount));
+            second_sum.add(direct_discount ? second_value * discount : scaled_exponential(second_value, log_discount));
+        }
+        first_values[target] = first_sum.total();
+        second_values[target] = second_sum.total();
     });
 }
 
