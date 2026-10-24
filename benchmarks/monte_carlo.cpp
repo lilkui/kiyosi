@@ -100,6 +100,19 @@ void kiyosi::benchmark_support::register_analytics_cases()
 {
     using namespace kiyosi;
     const auto [european, base_context] = monte_carlo_scenario();
+    for (const int count : {0, 1000, 10'000}) {
+        std::vector<Date> closed;
+        closed.reserve(static_cast<std::size_t>(count));
+        for (int index = 0; index < count; ++index)
+            closed.push_back(european.effective_date() + std::chrono::days{index + 500});
+        const auto calendar = make_custom_calendar(weekdays_calendar(), std::move(closed)).value();
+        const auto market = make_pricing_context(base_context.model_parameters(), 100.0, base_context.valuation_time(), calendar).value();
+        register_calculation(std::format("analytics/kiyosi/context/custom_calendar/{}/shift", count).c_str(), [market]() -> Result<double> {
+            auto shifted = detail::shifted_context(market, 101.0, market.model_parameters().volatility(), market.model_parameters().risk_free_rate(), market.valuation_time());
+            if (!shifted) return std::unexpected(shifted.error());
+            benchmark::DoNotOptimize(*shifted);
+            return shifted->spot_price(); }, "spot")->UseRealTime();
+    }
     register_calculation("analytics/kiyosi/european/analytic/delta", [=] { return AnalyticVanillaEngine{}.price_with_greeks(european, base_context, {Greek::delta}); }, "price");
     register_calculation("analytics/kiyosi/european/analytic/rho", [=] { return AnalyticVanillaEngine{}.price_with_greeks(european, base_context, {Greek::rho}); }, "price");
     const auto context = *make_pricing_context(

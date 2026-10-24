@@ -49,6 +49,22 @@ TEST_CASE("Custom calendars own overrides and preserve unmodified dates", "[cust
     CHECK(empty->is_trading_day(day(2026, 10, 1)) == kiyosi::sse_calendar().is_trading_day(day(2026, 10, 1)));
 }
 
+TEST_CASE("Shifted contexts retain custom calendar overrides after their original owners", "[custom_calendar]")
+{
+    const auto calendar = [] {
+        const auto original = kiyosi::make_custom_calendar(kiyosi::weekdays_calendar(), {day(2026, 10, 1)}, {day(2026, 10, 10)}).value();
+        const auto context = kiyosi::make_pricing_context(*kiyosi::make_bsm_parameters(0.03, 0.01, 0.2), 100.0, day(2026, 9, 30), original).value();
+        const auto shifted = context.replace({.spot_price = 101.0});
+        REQUIRE(shifted);
+        return shifted->calendar();
+    }();
+    CHECK_FALSE(calendar.is_trading_day(day(2026, 10, 1)));
+    CHECK(calendar.is_trading_day(day(2026, 10, 10)));
+    CHECK(calendar.is_trading_day(day(2026, 10, 9)));
+    CHECK_FALSE(calendar.is_trading_day(day(2026, 10, 11)));
+    CHECK(calendar.trading_days_per_year() == 252);
+}
+
 TEST_CASE("Custom calendars reject conflicts unsupported dates and invalid bases", "[custom_calendar]")
 {
     const auto base = kiyosi::weekdays_calendar();

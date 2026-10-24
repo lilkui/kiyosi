@@ -5,6 +5,7 @@
 
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -136,6 +137,7 @@ private:
 /// unsupported dates return `invalid_date`. The optional positive annualization basis defaults
 /// to the base's basis; overrides never recalculate it. A nonpositive basis returns `invalid_calendar`.
 /// Inputs are copied or moved into the result; later changes to input containers have no effect.
+/// Calendar copies share immutable override dates and retain owning lifetimes.
 /// Concurrent reads follow the base calendar's thread-safety contract.
 [[nodiscard]] inline Result<TradingCalendar> make_custom_calendar(
     TradingCalendar base, std::vector<Date> closed_dates = {}, std::vector<Date> open_dates = {},
@@ -152,10 +154,14 @@ private:
         if (std::ranges::binary_search(open_dates, date))
             return std::unexpected(Error{ErrorCategory::invalid_calendar, "calendar override date is both open and closed"});
     const int basis = trading_days_per_year.value_or(base.trading_days_per_year());
+    struct Overrides {
+        std::vector<Date> closed;
+        std::vector<Date> open;
+    };
     return make_trading_calendar(
-        [base = std::move(base), closed_dates = std::move(closed_dates), open_dates = std::move(open_dates)](Date date) {
-            if (std::ranges::binary_search(closed_dates, date)) return false;
-            if (std::ranges::binary_search(open_dates, date)) return true;
+        [base = std::move(base), overrides = std::make_shared<const Overrides>(std::move(closed_dates), std::move(open_dates))](Date date) {
+            if (std::ranges::binary_search(overrides->closed, date)) return false;
+            if (std::ranges::binary_search(overrides->open, date)) return true;
             return base.is_trading_day(date);
         },
         basis);
