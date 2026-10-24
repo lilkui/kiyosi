@@ -346,15 +346,15 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
     } else {
         const auto path_count = static_cast<std::size_t>(settings.path_count) + settings.path_count % 2;
         const auto step_count = static_cast<std::size_t>(settings.step_count);
-        // Regression visits every path at one time, so keep each time slice contiguous.
+        // Only future time slices are stored, contiguously for exercise regression.
         std::vector<double> owned_paths;
         std::vector<double> owned_cash_flows;
         auto& paths = samples ? samples->paths : owned_paths;
         auto& cash_flows = samples ? samples->cash_flows : owned_cash_flows;
-        paths.resize(path_count * step_count);
+        paths.resize(path_count * (step_count - 1));
         const auto simulated = simulate_paths(*parameters, settings, [&](int positive, int negative, int step, double positive_spot, double negative_spot) {
-            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
-            paths[static_cast<std::size_t>(step) * path_count + static_cast<std::size_t>(negative)] = negative_spot; }, samples);
+            paths[static_cast<std::size_t>(step - 1) * path_count + static_cast<std::size_t>(positive)] = positive_spot;
+            paths[static_cast<std::size_t>(step - 1) * path_count + static_cast<std::size_t>(negative)] = negative_spot; }, samples);
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         const int count = static_cast<int>(path_count);
@@ -365,7 +365,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
                                                             [&](int, int begin, int end) -> Result<void> {
                                                                 for (int path = begin; path < end; ++path)
                                                                     cash_flows[path] = payoff(option.option_type(),
-                                                                                              paths[(step_count - 1) * path_count + path], option.strike());
+                                                                                              paths[(step_count - 2) * path_count + path], option.strike());
                                                                 return {};
                                                             });
         if (!initialized) return std::unexpected(initialized.error());
@@ -377,7 +377,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
                                                                     for (int path = begin; path < end; ++path)
                                                                         cash_flows[path] *= discount;
                                                                     for (int path = begin; path < end; ++path) {
-                                                                        const double spot = paths[static_cast<std::size_t>(step) * path_count + path];
+                                                                        const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
                                                                         if (payoff(option.option_type(), spot, option.strike()) > 0.0) {
                                                                             const double scaled = spot / option.strike();
                                                                             const double square = scaled * scaled;
@@ -412,7 +412,7 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
             const auto exercised = detail::monte_carlo_blocks(count, exercise_threads,
                                                               [&](int, int begin, int end) -> Result<void> {
                                                                   for (int path = begin; path < end; ++path) {
-                                                                      const double spot = paths[static_cast<std::size_t>(step) * path_count + path];
+                                                                      const double spot = paths[static_cast<std::size_t>(step - 1) * path_count + path];
                                                                       const double intrinsic = payoff(option.option_type(), spot, option.strike());
                                                                       if (intrinsic <= 0.0) continue;
                                                                       const double scaled = spot / option.strike();
