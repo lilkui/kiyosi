@@ -107,7 +107,7 @@ class PricingRegressionTests(unittest.TestCase):
 
     def test_european_binomial_expectations_match_full_rollback(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
-        for steps in (1, 2, 17, 128, 1000, 1024):
+        for steps in (1, 2, 17, 128, 255, 256, 257, 512, 1000, 1024):
             rates = (-6.4, 6.4) if steps == 1024 else (-0.2, 0.04, 0.2)
             for rate in rates:
                 up = math.exp(0.2 / math.sqrt(steps))
@@ -219,7 +219,7 @@ class PricingRegressionTests(unittest.TestCase):
                     spot_price=spot,
                     valuation_time=start,
                 )
-                for steps in (511, 512, 1024):
+                for steps in (255, 256, 257, 511, 512, 1024):
                     with self.subTest(
                         rate=rate, dividend=dividend, spot=spot, steps=steps
                     ):

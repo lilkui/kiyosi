@@ -128,7 +128,7 @@ Result<PricingResult> price_binomial(
     std::array<double, 2> level_one{};
     const bool no_early_exercise = !american || (option.option_type() == OptionType::call && dividend <= 0.0 && rate >= 0.0);
     // Keep rollback's intermediate-overflow rejection when the terminal bound is not representable.
-    const bool direct = no_early_exercise && settings.step_count >= 512 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
+    const bool direct = no_early_exercise && settings.step_count >= 256 && std::isfinite(scaled_exponential(std::max(values.front(), values.back()), settings.step_count * std::log(discount)));
     if (direct) {
         const int requested_level = requested_output.has(Greek::gamma) ? 2 : requested_output.has(Greek::delta) ? 1
                                                                                                                 : 0;

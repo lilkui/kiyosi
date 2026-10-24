@@ -20,7 +20,7 @@ TEST_CASE("European binomial expectations match full rollback", "[binomial-expec
 {
     using namespace kiyosi;
     const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
-    for (const int steps : {1, 2, 3, 17, 128, 512, 1000, 1024})
+    for (const int steps : {1, 2, 3, 17, 127, 128, 129, 255, 256, 257, 512, 1000, 1024})
         for (const double rate : {-0.2, 0.04, 0.2})
             for (const auto type : {OptionType::call, OptionType::put}) {
                 CAPTURE(steps, rate, type);
@@ -124,7 +124,7 @@ TEST_CASE("American binomial calls preserve European values only without early e
     const auto european = *make_european_option(OptionType::call, 100.0, start, end);
     for (const auto [rate, dividend] : {std::pair{0.0, 0.0}, {0.04, 0.0}, {0.04, -0.01}, {-0.04, 0.0}, {0.04, 0.08}})
         for (const double spot : {100.0, 200.0})
-            for (const int steps : {511, 512, 1024}) {
+            for (const int steps : {255, 256, 257, 511, 512, 1024}) {
                 CAPTURE(rate, dividend, spot, steps);
                 const auto context = *make_pricing_context(*make_bsm_parameters(rate, dividend, 0.2), spot, start);
                 const auto engine = *make_cox_ross_rubinstein_vanilla_engine({steps});
