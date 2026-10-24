@@ -15,7 +15,7 @@ namespace kiyosi::benchmark_support {
 void register_quadrature_cases()
 {
     using namespace detail::quadrature;
-    for (const int steps : {17, 512, 513, 1024}) {
+    for (const int steps : {17, 128, 512, 513, 1024}) {
         std::vector<double> nodes;
         std::vector<double> values;
         for (int index = 0; index <= steps; ++index) {
@@ -59,6 +59,22 @@ void register_quadrature_cases()
                 benchmark::DoNotOptimize(integrated);
             }
         })->UseRealTime();
+        for (const bool paired : {false, true}) {
+            benchmark::RegisterBenchmark(prefix + (paired ? "/integrate_narrow_pair" : "/integrate_narrow"), [nodes, values, paired](benchmark::State& state) {
+                const auto transition = transition_weights(nodes, 0.0, 0.00001);
+                const auto first = interpolate(nodes, values, 0.0, 0.0);
+                auto second = first;
+                for (auto& cell : second.cells)
+                    cell[0] += 0.01;
+                std::vector<double> first_values(nodes.size()), second_values(nodes.size());
+                for (auto _ : state) {
+                    if (paired) integrate_curve_pair(first, second, transition, -0.03 / 365.0, first_values, second_values);
+                    else integrate_curves(first, transition, -0.03 / 365.0, first_values);
+                    benchmark::DoNotOptimize(first_values);
+                    benchmark::DoNotOptimize(second_values);
+                }
+            })->UseRealTime();
+        }
         for (const bool paired : {false, true}) {
             benchmark::RegisterBenchmark(prefix + (paired ? "/integrate_pair" : "/integrate_pair_independent"), [nodes, values, deviation, paired](benchmark::State& state) {
                 const auto transition = transition_weights(nodes, 0.0, deviation);

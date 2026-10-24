@@ -24,11 +24,13 @@ inline constexpr double underflow_mean_limit = 1e20;
 inline constexpr double underflow_log_mass = -800.0;
 
 template <typename Evaluate>
-void for_each_target(std::size_t count, const Evaluate& evaluate)
+void for_each_target(std::size_t count, const Evaluate& evaluate,
+                     std::size_t work = std::numeric_limits<std::size_t>::max())
 {
     constexpr std::size_t parallel_threshold = 128;
+    constexpr std::size_t minimum_parallel_work = 2048;
     constexpr std::size_t grain_size = 16;
-    if (count < parallel_threshold) {
+    if (count < parallel_threshold || work < minimum_parallel_work) {
         for (std::size_t target = 0; target < count; ++target)
             evaluate(target);
         return;
@@ -255,6 +257,7 @@ struct Transition {
     std::vector<IntervalMoments> weights;
     std::vector<std::array<double, 2>> tails;
     std::vector<Row> rows;
+    std::size_t active_cell_count{};
 };
 
 inline std::pair<std::size_t, std::size_t> active_cells(std::span<const double> nodes, double mean, double deviation)
@@ -286,6 +289,7 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
             last_offset = std::max(last_offset, cells + last - target);
         }
     }
+    transition.active_cell_count = total;
     const auto geometry = [&](std::size_t cell, double mean) {
         return std::array{nodes[cell + 1] - nodes[cell], std::midpoint(nodes[cell], nodes[cell + 1]) - mean,
                           nodes[cell] - mean, nodes[cell + 1] - mean};
@@ -368,11 +372,11 @@ inline double integrate_curve(const Curve& curve, std::span<const IntervalMoment
 inline void integrate_curves(const Curve& curve, const Transition& transition, double log_discount,
                              std::span<double> values)
 {
+    // Include tail work so large sparse grids still amortize scheduling.
     for_each_target(values.size(), [&](std::size_t target) {
         const auto row = transition.rows[target];
         values[target] = integrate_curve(curve, std::span{transition.weights}.subspan(row.offset, row.count),
-                                         transition.tails[target], log_discount, row.first);
-    });
+                                         transition.tails[target], log_discount, row.first); }, transition.active_cell_count + 4 * values.size());
 }
 
 // Both layers share each loaded weight while retaining their independent summation order.
@@ -397,8 +401,7 @@ inline void integrate_curve_pair(const Curve& first, const Curve& second, const 
             second_sum.add(direct_discount ? second_value * discount : scaled_exponential(second_value, log_discount));
         }
         first_values[target] = first_sum.total();
-        second_values[target] = second_sum.total();
-    });
+        second_values[target] = second_sum.total(); }, 2 * transition.active_cell_count + 8 * first_values.size());
 }
 
 // The terminal function is affine in S on each exact contractual interval.

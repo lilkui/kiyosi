@@ -24,6 +24,7 @@ Transition dense_transition(std::vector<IntervalMoments> weights, std::size_t ce
     Transition result{std::move(weights), std::vector<std::array<double, 2>>(targets, {-infinity, -infinity}), {}};
     for (std::size_t target = 0; target < targets; ++target)
         result.rows.push_back({0, target * cells, cells});
+    result.active_cell_count = result.weights.size();
     return result;
 }
 
@@ -221,7 +222,7 @@ TEST_CASE("Quadrature paired curves exactly match independent integration", "[qu
     }
     const auto first = interpolate(nodes, first_samples, -123.0, 456.0);
     const auto second = interpolate(nodes, second_samples, 789.0, -321.0);
-    const auto transition = transition_weights(nodes, GENERATE(-3.0, 0.0001, 3.0), 0.02);
+    const auto transition = transition_weights(nodes, GENERATE(-3.0, 0.0001, 3.0), GENERATE(0.00001, 0.02));
     for (const double discount : {-1500.0, -750.0, -0.001, 700.0}) {
         std::vector<double> expected_first(nodes.size()), expected_second(nodes.size());
         integrate_curves(first, transition, discount, expected_first);
@@ -231,6 +232,17 @@ TEST_CASE("Quadrature paired curves exactly match independent integration", "[qu
         CHECK(actual_first == expected_first);
         CHECK(actual_second == expected_second);
     }
+}
+
+TEST_CASE("Quadrature scheduling counts active cells before weight sharing", "[quadrature-kernel][quadrature-work]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 128, {}).value();
+    const auto narrow = transition_weights(nodes, 0.0, 0.00001);
+    CHECK(narrow.active_cell_count == 256);
+    CHECK(narrow.weights.size() < narrow.active_cell_count);
+    const auto empty = transition_weights(nodes, 3.0, 0.00001);
+    CHECK(empty.active_cell_count == 0);
+    CHECK(empty.weights.empty());
 }
 
 TEST_CASE("Quadrature compact rows preserve irregular-grid tails and tiny recoverable masses", "[quadrature-kernel]")
@@ -361,6 +373,7 @@ TEST_CASE("Quadrature integration preserves log-discount recovery and zero-recov
 
 TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", "[quadrature-kernel]")
 {
+    const double deviation = GENERATE(0.00001, 0.02);
     const auto nodes = integration_nodes(-1.0, 1.0, 128, std::array{-0.123, 0.456}).value();
     std::vector<double> samples;
     samples.reserve(nodes.size());
@@ -373,7 +386,7 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
     std::vector<double> expected_other(nodes.size());
     oneapi::tbb::task_arena serial{1};
     serial.execute([&] {
-        reference = transition_weights(nodes, 0.0001, 0.02);
+        reference = transition_weights(nodes, 0.0001, deviation);
         integrate_curves(curve, reference, -0.001, expected);
         integrate_curves(other, reference, -0.001, expected_other);
     });
@@ -386,7 +399,7 @@ TEST_CASE("Quadrature parallel rows preserve results under outer cancellation", 
         oneapi::tbb::task_group group{outer};
         group.run([&] {
             outer.cancel_group_execution();
-            actual = transition_weights(nodes, 0.0001, 0.02);
+            actual = transition_weights(nodes, 0.0001, deviation);
             integrate_curve_pair(curve, other, actual, -0.001, values, other_values);
         });
         group.wait();
