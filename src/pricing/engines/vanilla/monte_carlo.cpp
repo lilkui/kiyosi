@@ -345,8 +345,9 @@ Result<double> price_american(const AmericanOption& option, const PricingContext
         if (!simulated) return std::unexpected(simulated.error());
         cash_flows.resize(path_count);
         const int count = static_cast<int>(path_count);
-        // Small exercise sweeps cost less than repeatedly scheduling their blocks.
-        const int exercise_threads = count <= 1024 ? 1 : settings.thread_count;
+        // Each worker needs enough paths to amortize scheduling at every exercise date.
+        const int exercise_threads = count <= 1024 ? 1 : settings.thread_count == 0 ? std::min(oneapi::tbb::this_task_arena::max_concurrency(), count / 1024)
+                                                                                    : settings.thread_count;
         const auto initialized = detail::monte_carlo_blocks(count, exercise_threads,
                                                             [&](int, int begin, int end) -> Result<void> {
                                                                 for (int path = begin; path < end; ++path)

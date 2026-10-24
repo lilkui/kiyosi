@@ -23,7 +23,7 @@ TEST_CASE("CPU Monte Carlo results are invariant to thread count", "[mc-parallel
     const auto start = test::day(2025, 1, 1), end = test::day(2025, 1, 13);
     const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), 100.25,
                                                start_of_day(start) + std::chrono::hours{12}, all_days_calendar());
-    for (const int paths : {513, 1024, 1025}) {
+    for (const int paths : {513, 1024, 1025, 4096, 4097}) {
         for (const int threads : {0, 1, 2, 4}) {
             CAPTURE(paths, threads);
             const auto check = [&](const auto& engine, const auto& option) {
