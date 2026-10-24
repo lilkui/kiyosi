@@ -41,9 +41,12 @@ std::array<double, 3> european_level(std::span<const double> terminal, double pr
     MonteCarloMean normalization{};
     std::array<MonteCarloMean, 3> sums{};
     for (int index = 0; index <= steps; ++index) {
-        normalization.add(std::exp(log_weights[index]));
+        const double weight = std::exp(log_weights[index]);
+        normalization.add(weight);
+        // Validated payoffs are finite; weights at most one cannot overflow their products.
+        const bool direct_weight = std::isnormal(weight) && weight <= 1.0;
         for (int node = 0; node <= level; ++node)
-            sums[node].add(scaled_exponential(terminal[index + node], log_weights[index]));
+            sums[node].add(direct_weight ? terminal[index + node] * weight : scaled_exponential(terminal[index + node], log_weights[index]));
     }
     const double total = std::ldexp(normalization.sum, normalization.exponent);
     for (int node = 0; node <= level; ++node)

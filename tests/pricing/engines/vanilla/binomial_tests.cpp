@@ -82,6 +82,37 @@ TEST_CASE("European binomial expectations retain deterministic endpoints and ove
     CHECK(price.error().category == ErrorCategory::invalid_result);
 }
 
+TEST_CASE("European binomial expectations recover underflowed tail weights", "[binomial-expectation]")
+{
+    using namespace kiyosi;
+    const auto start = day(2025, 1, 1), end = day(2026, 1, 1);
+    const int steps = 2048;
+    const double spot = 1e280;
+    const double strike = spot * std::exp(8.0);
+    const double log_up = 0.2 / std::sqrt(steps);
+    const double up = std::exp(log_up), down = 1.0 / up;
+    const double probability = std::expm1(0.03 / steps + log_up) / std::expm1(2.0 * log_up);
+    const double discount = std::exp(-0.04 / steps);
+    std::vector<double> values(steps + 1);
+    double node_spot = spot * std::pow(down, steps);
+    for (auto& value : values) {
+        value = std::max(node_spot - strike, 0.0);
+        node_spot *= up * up;
+    }
+    for (int level = steps; level > 0; --level)
+        REQUIRE(detail::binomial_rollback<false>(std::span{values}.first(level + 1), discount, probability, 0.0, 0.0, 0.0, 0.0));
+    REQUIRE(values[0] > 0.0);
+    const auto option = *make_european_option(OptionType::call, strike, start, end);
+    const auto context = *make_pricing_context(*make_bsm_parameters(0.04, 0.01, 0.2), spot, start);
+    const auto engine = *make_cox_ross_rubinstein_vanilla_engine({steps});
+    const auto actual = engine.price_with_greeks(option, context, {Greek::delta, Greek::gamma});
+    const auto price = engine.price(option, context);
+    REQUIRE(actual);
+    REQUIRE(price);
+    CHECK_THAT(*price, Catch::Matchers::WithinRel(values[0], 1e-9));
+    CHECK(actual->price() == *price);
+}
+
 TEST_CASE("American binomial calls preserve European values only without early exercise", "[binomial-expectation]")
 {
     using namespace kiyosi;

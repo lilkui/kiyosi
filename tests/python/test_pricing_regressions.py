@@ -83,6 +83,43 @@ class PricingRegressionTests(unittest.TestCase):
                             price,
                         )
 
+    def test_binomial_expectations_recover_underflowed_tail_weights(self):
+        start, end = date(2025, 1, 1), date(2026, 1, 1)
+        steps, spot = 2048, 1e280
+        strike = spot * math.exp(8)
+        log_up = 0.2 / math.sqrt(steps)
+        up = math.exp(log_up)
+        down = 1 / up
+        probability = math.expm1(0.03 / steps + log_up) / math.expm1(2 * log_up)
+        discount = math.exp(-0.04 / steps)
+        values = []
+        node_spot = spot * down**steps
+        for _ in range(steps + 1):
+            values.append(max(node_spot - strike, 0))
+            node_spot *= up * up
+        for level in range(steps, 0, -1):
+            values = [
+                discount * (probability * values[i + 1] + (1 - probability) * values[i])
+                for i in range(level)
+            ]
+        self.assertGreater(values[0], 0)
+        option = EuropeanOption(
+            option_type="call", strike=strike, effective_date=start, expiry_date=end
+        )
+        context = PricingContext(
+            model_parameters=BlackScholesMertonParameters(
+                risk_free_rate=0.04, dividend_yield=0.01, volatility=0.2
+            ),
+            spot_price=spot,
+            valuation_time=start,
+        )
+        engine = pricing.CoxRossRubinsteinVanillaEngine(steps)
+        price = engine.price(option, context)
+        self.assertAlmostEqual(price, values[0], delta=values[0] * 1e-9)
+        self.assertEqual(
+            engine.price_with_greeks(option, context, ["delta", "gamma"]).price, price
+        )
+
     def test_american_binomial_calls_preserve_early_exercise_boundaries(self):
         start, end = date(2025, 1, 1), date(2026, 1, 1)
         terms = {
