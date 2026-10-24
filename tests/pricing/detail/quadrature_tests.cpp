@@ -251,6 +251,24 @@ TEST_CASE("Quadrature compact rows preserve irregular-grid tails and tiny recove
     }
 }
 
+TEST_CASE("Quadrature translated cells share weight storage without changing integration", "[quadrature-kernel]")
+{
+    const auto nodes = integration_nodes(-1.0, 1.0, 512, {}).value();
+    const double deviation = 0.2 / std::sqrt(365.0);
+    const auto transition = transition_weights(nodes, 0.0, deviation);
+    REQUIRE(transition.weights.size() < 2 * nodes.size());
+    CHECK(transition.weights.size() * sizeof(IntervalMoments) < nodes.size() * (nodes.size() - 1) * sizeof(IntervalMoments) / 100);
+    const Curve curve{std::vector<Polynomial>(nodes.size() - 1, {1e300, -1e299, 1e298, -1e297}), -1e299, 1e299};
+    std::vector<double> actual(nodes.size());
+    integrate_curves(curve, transition, -740.0, actual);
+    for (const std::size_t target : {std::size_t{0}, nodes.size() / 2, nodes.size() - 1}) {
+        std::vector<IntervalMoments> dense;
+        for (std::size_t cell = 0; cell + 1 < nodes.size(); ++cell)
+            dense.push_back(cell_moments(nodes[cell], nodes[cell + 1], nodes[target], deviation));
+        CHECK(actual[target] == reference_integral(curve, dense, transition.tails[target], -740.0));
+    }
+}
+
 TEST_CASE("Quadrature off-grid spot windows exactly preserve full-grid integration", "[quadrature-kernel][quadrature-spot-window]")
 {
     const auto nodes = integration_nodes(-1.0, 1.0, 512, std::array{-0.913, 0.017, 0.321}).value();

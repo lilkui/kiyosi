@@ -303,13 +303,45 @@ inline Transition transition_weights(const std::vector<double>& nodes, double dr
         const double mean = nodes[target] + drift;
         stencil[index] = {geometry(cell, mean), cell_moments(nodes[cell], nodes[cell + 1], mean, deviation)};
     });
-    transition.weights.resize(total);
+    constexpr auto uncached = std::numeric_limits<std::size_t>::max();
+    std::vector<std::size_t> exception_offsets(nodes.size() + 1);
     transition.tails.resize(nodes.size());
     for_each_target(nodes.size(), [&](std::size_t target) {
         const double mean = nodes[target] + drift;
         transition.tails[target] = {log_normal_cdf((nodes.front() - mean) / deviation),
                                     log_normal_cdf((mean - nodes.back()) / deviation)};
-        const auto row = transition.rows[target];
+        auto& row = transition.rows[target];
+        if (row.count == 0) {
+            row.offset = 0;
+            return;
+        }
+        row.offset = cells + row.first - target - first_offset;
+        for (std::size_t index = 0; index < row.count; ++index) {
+            const auto cell = row.first + index;
+            if (geometry(cell, mean) != stencil[row.offset + index].geometry) {
+                row.offset = uncached;
+                exception_offsets[target] = row.count;
+                break;
+            }
+        }
+    });
+    const auto stencil_size = std::accumulate(exception_offsets.begin(), exception_offsets.end(), stencil.size()) <= total ? stencil.size() : 0;
+    // Keep dense rows when retaining the shared stencil would increase storage.
+    if (stencil_size == 0)
+        for (std::size_t target = 0; target < nodes.size(); ++target) {
+            auto& row = transition.rows[target];
+            if (row.count != 0) row.offset = uncached;
+            exception_offsets[target] = row.count;
+        }
+    std::exclusive_scan(exception_offsets.begin(), exception_offsets.end(), exception_offsets.begin(), stencil_size);
+    transition.weights.resize(exception_offsets.back());
+    for (std::size_t index = 0; index < stencil_size; ++index)
+        transition.weights[index] = stencil[index].moments;
+    for_each_target(nodes.size(), [&](std::size_t target) {
+        auto& row = transition.rows[target];
+        if (row.offset != uncached) return;
+        row.offset = exception_offsets[target];
+        const double mean = nodes[target] + drift;
         for (std::size_t index = 0; index < row.count; ++index) {
             const auto cell = row.first + index;
             const auto& cached = stencil[cells + cell - target - first_offset];
